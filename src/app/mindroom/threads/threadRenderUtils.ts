@@ -18,6 +18,13 @@ type ThreadOpenBottomPinOpts = {
   suppressOpenBottomPin?: boolean;
   threadId?: string;
   threadLatestOpenPending: boolean;
+  // Latched true once an open-at-latest began for this thread; survives
+  // the open chain completing. Hydration bands can land long after the
+  // chain (background prefetch/reconciler) — the pin must hold for them.
+  threadOpenedAtLatest: boolean;
+  // A real scroll gesture ends the pin permanently for this thread view:
+  // from then on the reader owns the position.
+  hasUserScrollIntent: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadEventCount: number;
 };
@@ -40,12 +47,14 @@ export const shouldPinThreadToBottomOnOpen = ({
   suppressOpenBottomPin,
   threadId,
   threadLatestOpenPending,
+  threadOpenedAtLatest,
+  hasUserScrollIntent,
   threadInitialRenderMode,
   threadEventCount,
 }: ThreadOpenBottomPinOpts): boolean =>
   !!threadId &&
   !suppressOpenBottomPin &&
-  threadLatestOpenPending &&
+  (threadLatestOpenPending || (threadOpenedAtLatest && !hasUserScrollIntent)) &&
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
 

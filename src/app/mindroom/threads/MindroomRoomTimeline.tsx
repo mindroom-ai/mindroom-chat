@@ -429,6 +429,14 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
+  // First real scroll gesture in this thread view; also ends the
+  // open-at-latest bottom pin (the reader owns the position from then on).
+  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
+  // Latched once an open-at-latest began for this thread: hydration bands
+  // land long after the open chain completes (background prefetch /
+  // reconciler), and the pin must hold for them until the first gesture.
+  const threadOpenedAtLatestRef = useRef(false);
+  if (threadLatestOpenPending) threadOpenedAtLatestRef.current = true;
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
@@ -1227,6 +1235,13 @@ export function RoomTimeline({
     if (px === 0 || !inner || !scrollElement) return;
     scrollCompensationPxRef.current = 0;
     inner.style.marginTop = '';
+    // The option must flip in the SAME synchronous block: tile positions
+    // are margin-independent, but the WINDOW computation is not — at
+    // prepend-fold scale (thousands of px) a one-render stale option
+    // renders a faraway range for a frame (photographed as a 140px
+    // anchor flash by the latency-ride e2e).
+    const virtualizer = roomTimelineVirtualizerRef.current;
+    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
     scrollElement.scrollTop += px;
   }, [getScrollElement]);
   const handleDroppedCorrection = useCallback(
@@ -2106,6 +2121,8 @@ export function RoomTimeline({
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
+    threadOpenedAtLatest: threadOpenedAtLatestRef.current,
+    threadUserScrolled,
     threadTimelineTick,
     timelineAtLiveEnd,
     unreadInfo,
@@ -3218,7 +3235,6 @@ export function RoomTimeline({
   const threadFirstRenderedIndex = threadId
     ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
     : undefined;
-  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
   // Bumped by a fresh gesture ONLY while a barren-attempt block is
   // armed (see below) — a renewed explicit user gesture is what
   // authorizes retrying after a no-progress attempt. Normal scrolling
@@ -3229,6 +3245,7 @@ export function RoomTimeline({
     // Reset ONLY on thread change (coderabbit on PR #74: resetting on
     // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
+    threadOpenedAtLatestRef.current = false;
     threadAutoPaginateLastFireRef.current = null;
   }, [threadId]);
   useEffect(() => {

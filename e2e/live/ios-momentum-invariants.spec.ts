@@ -552,6 +552,13 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         new Promise<void>((resolve) => {
           window.requestAnimationFrame(() => resolve());
         });
+      // Gesture fidelity (same pattern as the composer re-pin test): a
+      // real drag fires touch events, and the open-at-latest pin-hold
+      // deliberately keys on them — a device cannot scroll without a
+      // gesture, so a bare programmatic write must not model the user.
+      const touch = (type: string) =>
+        scroller.dispatchEvent(new TouchEvent(type, { bubbles: true }));
+      touch('touchstart');
       const before = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
       const scrollTopBefore = scroller.scrollTop;
       const scrollHeightBefore = scroller.scrollHeight;
@@ -580,6 +587,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         tiles: { i: string | null; h: number }[];
       }[] = [];
       for (let step = 0; step < 8; step += 1) {
+        touch('touchmove');
         scroller.scrollTop -= 80;
         // eslint-disable-next-line no-await-in-loop
         await raf();
@@ -591,6 +599,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
           tiles: readTiles(),
         });
       }
+      touch('touchend');
       return {
         distFromBottomBefore: before,
         scrollTopBefore,

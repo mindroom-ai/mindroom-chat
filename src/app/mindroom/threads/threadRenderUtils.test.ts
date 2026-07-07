@@ -410,6 +410,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'cached',
         threadEventCount: 3,
       })
@@ -421,6 +423,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'loading',
         threadEventCount: 3,
       })
@@ -432,6 +436,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: false,
+        threadOpenedAtLatest: false,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 3,
       })
@@ -440,8 +446,36 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 0,
+      })
+    ).toBe(false);
+  });
+
+  it('keeps the pin through post-chain hydration bands until the first gesture', () => {
+    // Device symptom (2026-07-06 trace round): open at the bottom, then
+    // history bands landing AFTER the open chain completed dragged the
+    // view to mid-thread. The latch holds the pin; a real gesture ends it.
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
+      })
+    ).toBe(true);
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: true,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
       })
     ).toBe(false);
   });
