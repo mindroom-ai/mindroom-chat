@@ -209,6 +209,113 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       expect(order).toEqual(['band0', 'band2', 'band4']);
     });
 
+    it('a deduped enqueue with a more urgent band raises the queued job (PR #84 review deferral)', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      const order: string[] = [];
+      let releaseBlocker!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        releaseBlocker = resolve;
+      });
+
+      // Occupy the single slot so the following enqueues stay QUEUED.
+      const blockerPromise = scheduler.enqueue({
+        roomId: '!blocker',
+        kind: 'gap-fill',
+        priority: 0,
+        execute: async () => {
+          await blocked;
+        },
+      });
+      await flushMicrotasks();
+
+      // Prewarm-shaped band-3 thread job, then unrelated band-2 work.
+      const prewarmPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 3,
+        execute: async () => {
+          order.push('thread-backfill');
+        },
+      });
+      scheduler.enqueue({
+        roomId: '!other',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: async () => {
+          order.push('band2');
+        },
+      });
+
+      // A user OPEN coalesces onto the queued prewarm job at band 0.
+      // The dedup must adopt the more urgent band — otherwise the
+      // open's paint waits behind every queued band-1/2 job.
+      const openPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: async () => {
+          order.push('should-not-run');
+        },
+      });
+      expect(openPromise).toBe(prewarmPromise);
+
+      releaseBlocker();
+      await blockerPromise;
+      for (let i = 0; i < 8; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      expect(order).toEqual(['thread-backfill', 'band2']);
+    });
+
+    // Self-review honesty note: this documents the PUBLIC contract —
+    // it held even before the explicit `!running.has(key)` guard,
+    // because drain() spread-copies the entry into `running` and
+    // pendingJobs() reports the copy. The guard in enqueue() makes the
+    // intent structural (no dead write on the byKey original); it is
+    // not independently observable through the public API, so this
+    // test cannot distinguish guard-present from guard-absent.
+    it('a deduped enqueue onto a RUNNING job leaves its reported priority untouched (public contract)', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      let releaseRunning!: () => void;
+      const runningGate = new Promise<void>((resolve) => {
+        releaseRunning = resolve;
+      });
+
+      const runningPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 3,
+        execute: async () => {
+          await runningGate;
+        },
+      });
+      await flushMicrotasks();
+
+      // Dedup onto the RUNNING entry — nothing to reorder; the
+      // reported priority must stay at the enqueue-time band.
+      const dedupedPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: async () => undefined,
+      });
+      expect(dedupedPromise).toBe(runningPromise);
+      const runningJob = scheduler
+        .pendingJobs()
+        .find((job) => job.kind === 'thread-backfill' && job.threadId === '$t');
+      expect(runningJob?.priority).toBe(3);
+
+      releaseRunning();
+      await runningPromise;
+    });
+
     it('breaks ties within a band by room.getLastActiveTimestamp desc', async () => {
       const mx = createMockClient();
       mx.__setRoomActivity('!old', 100);

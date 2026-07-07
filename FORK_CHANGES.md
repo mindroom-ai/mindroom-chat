@@ -2,6 +2,885 @@
 
 ## Runbook
 
+### Estimator calibration + ledger boundary guard (2026-07-07, round 11)
+
+The device-trace follow-ups from round 10, red-green:
+
+- BOUNDARY GUARD (`shouldSettleLedgerAtBoundary`, unit-pinned; wired as
+  a passive scroll listener): the ledger's exact-cancel contract holds
+  only inside the content region — accumulated debt is real empty space
+  at the container's edge. Approaching within two viewports of either
+  edge settles immediately (one momentum interruption at the extreme of
+  the loaded window instead of blank space). RED: adversarial ride on
+  the pre-calibration build measured 367px blank bands + a 4968px clamp
+  flash at the top (the device's 3.0s blank, reproduced); GREEN: same
+  ride to scrollTop 0 with 0 blanks / 0 jumps / one settle write. The
+  ledger-boundary e2e stays as the integration invariant.
+- CALIBRATION: estimator constants fit to measured virtualizer tile
+  heights (one-liner 30, folded long 80, extras+2 sections 596 — the
+  old constants were +50..72px per row on EVERY class, the -9356px
+  ledger debt in the device trace). base 58→10 (compact 34→6,
+  extrapolated), line 22→20, fold banner 28→10, wrap 40→48 chars now
+  counted PER PHYSICAL LINE (the old newlines-plus-global-length
+  formula double-counted every wrapped line). Bias preference
+  documented: slightly UNDER when in doubt (grow-debt degrades
+  gracefully at the bottom boundary; over-estimates pile blank space
+  at the top the reader scrolls into). Boundary ride's ledger:
+  4968 → 828 max on the same content class (6x).
+- Post-calibration, hand-crafted adversarial content (blank-line runs,
+  dot-lines) all priced CORRECTLY — Cinny renders plain-text newlines
+  literally — so the e2e fixture is the standard mixed generator and
+  the guard geometry is pinned by unit tests instead of a fixture arms
+  race.
+- Validation: battery 9/9 (all previous + ledger-boundary), FULL
+  vitest 345 files / 2720 tests, eslint 0 errors, typecheck, build.
+  Two RoomTimeline unit mocks gained addEventListener stubs (the
+  boundary guard attaches a scroll listener).
+
+### OFFSET LEDGER SHIPPED: red-green complete, 8/8 battery, deployed for device trace (2026-07-06, round 10 fix)
+
+The trace-diagnosed transform-compensation architecture is REPLACED by
+the offset ledger, red-green per the user's mandate. RED: the
+trace-shaped sustained ride (20s continuous, no settle windows)
+measured maxGap 367px + jumps 1986px against the transform build — the
+device signature on desktop at last. GREEN: 0 blanks / 0 jumps / one
+settle write at rest. Full battery 8/8; vitest 345 files / 2717.
+
+Engine (every step falsified or confirmed by instrumentation — write-
+probe stacks, per-frame ledger traces, tile photographs):
+- Ledger = real container marginTop + options.scrollMargin in lockstep
+  (contract-pinned against unmocked virtual-core). VirtualTile paints
+  content-relative (start + px ref) — start includes scrollMargin and
+  keeping it verbatim double-counted the ledger past overscan (the
+  returning blanks at ~2000px accumulation).
+- iOS corrections NEVER write scrollTop (always-drop): quiet applies
+  clamp at the top edge during virtual-core's internal bursts
+  (photographed scrollTo(-44)); per-call clamp prediction is impossible
+  (stale scrollOffset). Drops accumulate + force a commit via state
+  tick — react-virtual SKIPS rerenders when the range is unchanged,
+  which round 8's layout-effect premise missed (paired ±140 flashes).
+- Settle: ONE synchronous block (margin '' + setOptions scrollMargin 0
+  + scrollTop += px; commit-based settle measured 20x worse), armed
+  only at TRUE rest — waitForScrollQuiescence now supports
+  maxWaitMs: Infinity (MAX_SAFE_INTEGER overflowed setTimeout's int32
+  and fired the cap IMMEDIATELY: per-frame settle bursts; regression
+  unit test).
+- PREPEND COMMITS ARE PURE LEDGER ARITHMETIC: at render time the
+  inserted rows' height (exact: inserted keys are unmeasured, so
+  virtual-core prices them with the same estimator) folds into px; no
+  coarse/fine/retry writes remain on this path (they raced virtual-
+  core's own adjustments inside the commit). RoomTimeline unit test
+  updated to pin zero-write prepends.
+- OPEN-AT-LATEST PIN HOLDS THROUGH HYDRATION (the second device
+  symptom, reproduced then fixed): latch until the user's FIRST real
+  gesture (bands land long after the open chain under eager-cache);
+  each band arms the gesture-cancellable settle loop (tail rows
+  measure up from estimates). Hydration e2e asserts PERSISTENCE
+  (longest off-bottom window < 300ms; measured 32ms). Snap-back e2e
+  now drives with real touch events (gesture fidelity — a device
+  cannot scroll without one).
+- KNOWN REMAINING POLISH (documented budget exception in the latency
+  ride, <200px single event): prepend-seam grouping reflow — the old
+  first reply legitimately loses its day-divider/header when it gains
+  a predecessor (~140px, one frame, once per pagination) while
+  visible. Fix needs grouping-aware seam handling in the estimator/
+  fold. Dead code sweep also pending: the coarse/fine/retry prepend
+  machinery is now unreachable for ledger-folded prepends.
+- DEPLOYED to production for the device-trace acceptance session
+  (`?ridetrace=1`, before/after vs ~/ride-trace-1783377085460.json).
+- DEVICE TRACE VERDICT (ride-trace-1783391256452, same 700+-event
+  thread, 18.6s ride): jumps 11726→779 total, worst single 3646→474
+  (settle-flash class GONE), blanks 16 runs/12.1s → 1 real run of
+  3.0s. That run is fully diagnosed from the ledger field: the
+  estimator is systematically +50-72px per row class (folded long est
+  152 vs measured 80; short 80 vs 30 — same numbers in desktop
+  fixtures: calibration, not device quirks), so 130 fresh rows accrued
+  px=-9356 with no rest to settle in, and the user scrolled INTO the
+  margin dead zone that a positive ledger creates above the content.
+  Two bounded follow-ups queued: (1) calibrate the estimator constants
+  against measured tile heights; (2) boundary settle when the viewport
+  approaches the margin edge mid-ride (one momentum interruption at
+  the extreme top — where the loaded window hard-stopped anyway —
+  instead of blank space). Build stays deployed: strictly better than
+  both predecessors on the user's own trace.
+
+### DEVICE TRACE DIAGNOSIS: transform compensation is unsound on iOS; three blank/jump mechanisms identified (2026-07-06, round 10 conclusion)
+
+First on-device ride trace captured (`?ridetrace=1` recorder, iPhone
+iOS 18.7, real 732-event thread, 40s ride; trace file in
+`~/ride-trace-1783377085460.json`, not committed). It is dispositive:
+30% OF THE RIDE (12.1s of 40s) shows DOM-level full-region coverage
+holes (gap=393px = the entire sampled band, 16 runs, longest 2.97s) —
+NOT raster starvation; the desktop harness measured gap≤26 in the same
+scenario because all three mechanisms below are device-conditional.
+
+1. TRANSFORM DIVERGENCE (blanks while scrolling): the round-8
+   compensation transform accumulates to ±3000px between settles on
+   real content (profile: 0 → 485 → 1086 → −925 → 1837 → 2997 → …) —
+   real rows' estimate error is far larger than the synthetic
+   fixture's, and long continuous rides never hit the 150ms quiet
+   window. virtual-core computes the mounted window from scrollOffset
+   but tiles PAINT at +transform: at |px| beyond the overscan slack
+   (~1000px) the viewport shows unrendered layout space = blank. The
+   desktop ride never accumulated enough px to cross the slack.
+2. NON-ATOMIC SETTLE (the huge jumps): the settle's "same synchronous
+   block cancels exactly" assumption is FALSE on iOS mid-momentum:
+   frame 1777 shows the transform removal (3646→0) painting one frame
+   BEFORE the scrollTop compensation lands (42540→38903 the NEXT
+   frame) — a full-screen-height visible jump. iOS WebKit's compositor
+   owns the scroll position during momentum; the style write applies
+   immediately, the scroll write does not. Round 8's "tiny jumps" are
+   this same mechanism with smaller px; the 2.5s quiescence cap fires
+   settles mid-momentum on long rides.
+3. WINDOW-UPDATE LAG ON TELEPORTS (blank at the bottom): user's
+   jump-to-latest tap moved scrollTop 0 → 54391 (exact bottom) in one
+   frame; the viewport stayed FULLY blank for ~3s while the device
+   mounted the far-away rows (transform=0 — independent of mechanisms
+   1/2, and the same class as any big jump into unmounted territory).
+
+Consequences:
+- Production ROLLED BACK to 3964b870 again (the instrumented round-9
+  build was live only for the capture session). Round 8 carries
+  mechanisms 2 and 3 too — its reported "tiny jumps" are mechanism 2
+  small-px settles — just with less exposure than round 9's activated
+  prepends.
+- The drop-and-compensate-by-transform architecture (round 8) cannot
+  be patched into correctness: it requires an atomic
+  transform+scrollTop swap that iOS does not offer mid-momentum, and
+  it desynchronizes paint from the virtualizer's window math by
+  design. Replacement direction for the next session, in order of
+  promise: (a) make the pending compensation part of the WINDOW MATH
+  instead of paint (fold accumulated px into the virtualizer's
+  coordinate space — e.g. dynamic scrollMargin, which shifts range
+  computation and tile positions coherently without touching
+  scrollTop), settling the residual only at TRUE rest (touch-free
+  AND momentum-free, no 2.5s cap write mid-ride); (b) shrink the
+  per-row error the machinery must absorb (real-content estimate
+  calibration — the trace's 210 fold-verdict rows are where the error
+  lives); (c) mechanism 3 needs mount-ahead for teleports
+  (jump-to-latest pre-mounts the target window before the scroll
+  write, or an interim skeleton).
+- The ride-trace recorder stays: it produced in one capture what nine
+  desktop rounds could not. Next fixes should be validated by
+  BEFORE/AFTER device traces, not desktop e2e alone.
+
+### Device round 10: REGRESSION on device, rollback, environment-realism harness (2026-07-06)
+
+### Device round 10: REGRESSION on device, rollback, environment-realism harness (2026-07-06)
+
+Device report AFTER round 9 deployed: "many more blank screens when
+scrolling up, then messages appear and jump slightly" — worse than
+round 8. Also (pre-existing): opening a long thread mid-hydration lands
+at the bottom then drifts "somewhere to the middle". Production was
+ROLLED BACK to 3964b870 (round 8); the round-9 commits remain on the
+branch, undeployed, pending in-harness reproduction.
+
+- Hypothesis for the regression (UNVERIFIED — read on): the round-9
+  barren-cache-hit fix ACTIVATED real prepend commits on partial
+  windows, a path that never ran on the device before. On production
+  latency the user flicks continuously, so commits land via
+  `waitForScrollQuiescence`'s 2.5s force-commit cap MID-FLICK, and a
+  phone CPU takes multiple frames to mount the coarse-jump target
+  region.
+- Harness built to close the environment gap
+  (`e2e/helpers/rideRecorder.ts` + `e2e/live/thread-ride-under-latency.spec.ts`):
+  ONE shared per-frame recorder (coverage gap + anchor jump + app-write
+  log + scrollTop/threadCount trace, tile photographs) so every ride
+  asserts the FULL invariant set — the round-9 spec asserted jumps but
+  not coverage, exactly where the regression hid. Environment knobs:
+  /relations continuation latency injection and CDP CPU throttling
+  (`Emulation.setCPUThrottlingRate`). Two specs: (1) continuous
+  flicking through the 2.5s cap with 1.5s page latency + 4x CPU over a
+  partial window; (2) hydration-open pin integrity — no input, the view
+  must stay at the bottom while the drain grows content above (560
+  replies, 31→531 hydrated during sampling).
+- RESULT: both specs PASS against the round-9 HEAD build (maxGap 26px,
+  jumps 0/0; hydration maxDist 160px). The device regression is NOT
+  reproduced in desktop chromium with DOM-level sampling. Honest gap
+  analysis, in likely order of importance:
+  1. Driver writes scrollTop per rAF on the MAIN thread; real iOS
+     momentum is compositor-driven. iOS shows BLANK (unrastered) tiles
+     when raster lags momentum — pixels the DOM coverage sampler cannot
+     see (the DOM has the tiles; the glass does not). Next step: CDP
+     `Input.synthesizeScrollGesture` (compositor-thread fling in
+     chromium) + `Page.startScreencast` blank-band detection — assert
+     on PIXELS, not DOM rects.
+  2. No real touch state: `hasActiveTouches` never true in the driver,
+     so the correction hook's touch leg is unexercised.
+  3. Fixtures are synthetic text; real threads carry images/markdown
+     that re-measure after hydration, and are thousands of events deep
+     (multiple sequential 200-row prepends).
+  4. Final arbiter fallback if pixels-in-chromium still misses it:
+     Safari remote debugging against the user's actual device/thread,
+     or a recorded scroll trace from the device (the probe counters +
+     recorder are injectable there too).
+- Validation: typecheck ✅, eslint ✅ on the new files; both new specs
+  green 1× against the HEAD production build (baseline; they exist to
+  catch the class, and MUST be extended per gap list above before any
+  round-9 redeploy).
+- UPDATE (same day): gap items 1+2 CLOSED — `synthesizeFlickUp` (CDP
+  `Input.synthesizeScrollGesture`, touch source, fling enabled:
+  compositor-thread momentum dispatching REAL touch events, so the
+  window touch tracker and the hook's touch leg now exercise) +
+  `startScreencast`/`analyzeBlankBands` (pixel-level blank-band metric
+  over the timeline region, canvas-analyzed in-page, no Node image dep)
+  + `startRideSampling`/`stopRideSampling` (concurrent per-frame
+  sampler with a rect-vs-scrollTop consistency jump metric that needs
+  no driver knowledge). Third spec test: compositor flicks with mixed
+  sub-/super-quiescence pauses over a partial window, 1.5s page
+  latency, 4x CPU. RESULT: STILL PASSES against the round-9 build
+  (prepend committed mid-ride 101→131; blankFrames 0, maxBlankPct 3,
+  DOM jumps/gaps 0). The regression remains reproducible ONLY on the
+  physical device. Remaining levers, in order: capture a trace FROM
+  the phone (the recorder + probe counters are injectable behind a
+  debug flag; or Safari remote debugging), raster starvation beyond
+  what setCPUThrottlingRate reaches (it throttles the main thread, not
+  the raster threads), real-content fixtures (late-hydrating images /
+  markdown) and thousand-event depth.
+
+### Prepend commit lands in ONE paint; barren root-only cache-hit fixed (2026-07-06, device round 9)
+
+Report: momentum right, end position right, but short jumps "applied
+again in reverse" mid-ride. Handoff suspect confirmed test-first: the
+prepend-commit anchor restore two-step (coarse estimate-derived write,
+rect-based fine correction a frame later) — the momentum spec never saw
+it because its 80ms inter-flick pauses sit below the 150ms quiescence
+threshold, so the deferred commit never fired inside its measured
+stream.
+
+- New e2e (4th test in `ios-momentum-invariants.spec.ts`): a thread
+  that genuinely requires back-pagination (route aborts `/relations`
+  continuations — `from=` param — during open, leaving a 101-row window
+  with a live back token, the state a slow connection leaves any long
+  thread in), then flick + REALISTIC 500ms pauses with the per-frame
+  anchor sampler running through the pauses. Preconditions pin the
+  causal chain: partial window, `threadAutoPaginateBackFired`, thread
+  count growth inside the sampled stream. Budget: same maxJump<40 /
+  total<120 as the momentum ride. First run measured maxJump 648 — the
+  two-step, photographed (coarse `scrollTo` one paint before its fine
+  correction, tile layout identical, pure viewport displacement).
+- BUG 1 (found by the test's preconditions, real on devices): the
+  pagination attempts committed "cache-hits" forever without growing
+  anything. `loadThreadCachedPaginationSnapshot` judged hit/miss on the
+  root-AUGMENTED mapped list (`normalizeCachedThreadEvents` folds the
+  root into every page, and the storage loaders return `rootEvent` even
+  for empty pages) — a root-only page is an eternal barren cache-hit,
+  and the network leg (the only source of genuinely older events) never
+  runs: a partially-opened thread is permanently un-paginatable from
+  scroll. Fixed: status judged on the RAW older-reply page
+  (`cachedPage.events`). Unit test pins it. New exit-path probe
+  counters (`threadPaginateBack*` family, reconciler-counters lesson)
+  made this diagnosable in one run and stay in.
+- BUG 2 (the reverse-flash): the thread coarse restore write was wrong
+  by THREE terms, peeled off one measured residual at a time
+  (648 → 456 → 72 → 0):
+  1. It aligned the anchor row to the viewport TOP (`'start'`) instead
+     of its captured viewport offset (up to the anchor row's own height;
+     the room path already had this term).
+  2. It computed the target in item space while the compensation
+     transform was ACTIVE (visual space differs by the accumulated
+     `translateY`). Fixed by SETTLING the compensation synchronously in
+     the commit's layout effect before computing the target — settle is
+     invisible by construction, and this also resolves the previously
+     flagged settle-vs-commit quiescence race by construction (the armed
+     settle later finds zero pending px).
+  3. `getOffsetForIndex` is in virtual-container space, but the thread
+     scroller has a DYNAMIC block above the container (chip/padding —
+     the virtualizer is configured without `scrollMargin`); converted
+     with the container's live offset (a constant 72px in the fixture).
+  With all three terms the commit paints at the final position and the
+  rAF fine-correction chain degenerates to a ≤1px no-write verifier
+  (appWrites show settle + one exact `scrollTo` in the same tick, no
+  correction after).
+- Known separate surface (NOT this flow, seen while stabilizing the
+  driver): landing mid-row in never-measured territory (teleport /
+  jump-to-message class) lets a STRADDLING row correct its estimate on
+  first measurement, reflowing in place by design (~72px once). The
+  driver settles its teleport outside the sampled stream; the
+  jump-to-message geometry owns that if it ever surfaces on device.
+  The ROOM prepend path keeps its own coarse+fine two-step (crude flat
+  estimate, has the viewport-offset term, lacks the other two) — no
+  device report, needs its own spec before touching.
+- Validation: typecheck ✅, FULL vitest 343 files / 2705 tests ✅,
+  build ✅, eslint ✅ (0 errors); new e2e 6× consecutive PASS at
+  jump metrics 0/0 against the production build; full 4-test spec 4/4.
+
+### Transform compensation: estimate error invisible by construction (2026-07-06, device round 8)
+
+Report: still small jumps, now shifting UP (over-estimation: raw tool
+markup priced as text lines while the renderer compacts it). Mandate:
+iron out ALL known bugs — so stop tuning estimator constants per row
+type (a losing game on heterogeneous real data) and remove the
+mechanism that turns estimate error into visible motion.
+
+- Design: when the correction hook drops a fully-above scrollTop
+  correction mid-scroll (iOS momentum protection), the dropped delta is
+  now CANCELLED VISUALLY: a `translateY(-Σdelta)` on the inner virtual
+  container (composited, no layout, no scrollTop write). At scroll
+  quiescence (`waitForScrollQuiescence`) the accumulated compensation is
+  settled: transform removed and `scrollTop += Σdelta` in the same
+  synchronous block — the two cancel exactly, one invisible write at
+  rest. Estimate error can no longer shift content under the reader,
+  regardless of how wrong any estimate is.
+- Wiring: `buildMeasurementScrollCorrectionHook` gained
+  `onDroppedCorrection(deltaPx)` (fired only for fully-above drops;
+  straddling rows still reflow in place by design). Component keeps
+  `scrollCompensationPxRef` + `virtualInnerRef` (attached to both room
+  and thread inner containers) + a render-time reset on room/thread
+  switch. Known bound: a large SHRINK burst near the bottom edge can
+  still browser-clamp scrollTop before settle (transform does not change
+  layout); with content-aware estimates the residuals are far too small
+  for that, and the snap-back e2e's scrollTop-integrity assertion watches
+  it.
+- Contract test extended: dropped deltas reported for compensation match
+  the geometry (fully-above only — first 4 rows of the sequence straddle).
+- E2e budget TIGHTENED to maxJump<40 / total<120 (was 250/900): 5×
+  consecutive full-spec 3/3 PASS with jump metrics 0/0 in every run —
+  including the timing patterns that previously produced the 72–214px
+  residual class. That class is gone, not budgeted around.
+- Validation: typecheck ✅, threads suite 116 files / 1140 tests ✅,
+  build ✅, eslint ✅, e2e 5× 3/3 against the production build.
+
+### Ride-smoothness budget + always-expanded row estimates (2026-07-06, device round 7)
+
+Report: momentum fine, but scrolling up from the latest message still
+shows small jumps opposite to the scroll direction. Question asked and
+answered: WHY didn't the tests catch it?
+1. No per-frame visual-stability assertion existed — the momentum spec
+   checked writes/gaps/end-drift, never mid-stream anchor residuals.
+2. The fixture had no always-expanded rows (agent tool-trace/extras
+   messages), which never fold and were estimated at the fold cap
+   (~152px) — every one mounted ~hundreds of px small on real data.
+
+- Test upgrade: the momentum spec's driver now samples a viewport-centre
+  anchor every frame; with the driver moving scrollTop by exactly −90, a
+  persisting anchor must move by exactly +90 — any residual is content
+  shifting under the reader. Fixture now seeds extras messages
+  (`com.mindroom.message_extras` v2 sections) among shorts/longs. First
+  run measured maxJump 482 / total 2710 — the user's symptom, quantified.
+- Fix: `estimateThreadEventRowHeight` estimates always-expanded rows
+  (thread-summary / message-extras content) UNCAPPED: line-based body
+  (bounded at 48 lines, 4096-char scan) + a collapsed-accordion header
+  allowance per extras section. Typical runs now measure maxJump 0 /
+  total 0.
+- Budget pinned at maxJump<250 / total<900: fails on any return of the
+  repeated couple-line-jump class. KNOWN RESIDUAL: an intermittent
+  (~1-in-4 runs) small class of ~72px quanta — jumpEvents photographs
+  the tiles when it fires; captured instance showed two 80px rows
+  unmounting with no surviving-tile height change (grouping-variant
+  measurement at the open transient suspected). Next tightening target:
+  48/250.
+- Validation: typecheck ✅, threads suite 116 files / 1140 tests ✅
+  (2 new estimator tests), eslint ✅, full e2e spec 3× consecutive 3/3
+  PASS against the production build.
+
+### Snap-back ROOT FOUND AND FIXED: backfill events treated as live expand-once (2026-07-06)
+
+The remaining −688 shrinker is dead. Full e2e-driven chain (each probe
+round narrowing it): not adoption (probe=0), not scroll writes, not key
+churn (ids stable across the drop), not virtual-core RO mis-attribution
+(guard changed nothing) — the open-time TALL-TILE sampler caught it:
+~16 long rows rendering at ~768px (full height, uncapped) for a ~250ms
+window during thread open, then vanishing.
+
+- Mechanism: `useLiveEventArrive` fires for open-time BACKFILL too, and
+  the expand-once tracker (`liveExpandOnceIds`) added every collapsible
+  backfill event without the `timelineMeta.liveEvent` check that the
+  redaction branch right below it uses. The pre-pin transient (virtualizer
+  briefly renders from index 0 before the bottom pin) therefore mounted
+  old long rows with `collapseMode: 'initially-expanded'` → full height →
+  measured → the pin unmounted them with ~768 cached. Scrolling up later
+  remounted them collapsed (~80): −688 per row, dropped compensation
+  (live-scroll gate), browser clamps the reader to the bottom.
+- Fix: one line — expand-once tracking now requires
+  `timelineMeta.liveEvent`, restoring the tracker's actual intent
+  (messages that arrive while the user watches). 5/5 snap-back e2e runs
+  green against the production build, tall-tile sampler reports ZERO
+  oversized tiles.
+- Also fixed (device report, same family): long-text sidecar messages
+  auto-unfolded once their attachment hydrated —
+  `getCollapsibleMessageMode` returned 'always-expanded' for hydrated
+  long-text keys, fed by an automatic on-render hydration callback. The
+  whole pipeline is removed (mode branch, collapse-key helper, timeline
+  state/marker, `onLongTextHydratedMessageExtrasRendered` prop through
+  RenderMessageContent/renderMindroomMessageContent): long-text messages
+  now fold like every other long message ('default' +
+  force-overflow "Show more"), and their measurement keys stay stable
+  for life. Tests updated to pin the folded behavior.
+- Kept diagnostics: open-time tall-tile sampler + verdict probes +
+  per-step tile/key/count traces in the e2e (they found this bug; they
+  stay).
+- Validation: typecheck ✅, FULL vitest 343 files / 2701 tests ✅, build ✅,
+  eslint ✅; e2e ios-momentum-invariants FULL SPEC 4× consecutive 3/3
+  PASS against the production build.
+
+### Content-based per-row estimates replace the learned mean; shrinker hunt narrowed to key churn (2026-07-06)
+
+The e2e tile-level tracing identified the dominant snap-back shrinker:
+thread rows are bimodal (one-liners ~80px, fold-capped long messages
+~150px), so the learned-MEAN estimate was wrong by hundreds of px for
+every row, and each fresh mount corrected scrollHeight by that error
+mid-scroll (−64 quanta with the default estimate, −688 with a high
+adopted mean) until the browser clamped a scrolled-up reader to the
+bottom.
+
+- Fix: `estimateThreadEventRowHeight` in `threadRenderUtils.ts` —
+  deterministic per-row estimates from event content (line count with
+  wrap approximation; fold cap at CollapsibleMessage's 4.5em ≈ 3 lines;
+  edit/reaction relations ≈ 0 since they render no row). The ENTIRE
+  learned-mean machinery is deleted: stats ref, learned state + resets,
+  adoption callback + probe, and the `measureThreadTile` wrapper —
+  thread tiles now use `virtualizer.measureElement` directly, exactly
+  like the room timeline. Stateless: nothing to adopt, nothing to
+  teleport. (+6 estimator unit tests.)
+- New diagnostics kept: CollapsibleMessage verdict probes
+  (`collapsibleVerdict*`), `data-thread-count` on the thread container,
+  per-step tile/probe traces in the e2e.
+- E2e state: momentum invariants ✅ and composer re-pin ✅ now pass
+  consistently; the snap-back test still fails INTERMITTENTLY with a
+  precise fingerprint — two −688 drops where `threadEvents.length`
+  stays constant and NO mounted tile changes height, i.e. two unmounted
+  long rows lose their MEASURED size (~840, expanded) back to the
+  estimate (152). Measured sizes are keyed by `getItemKey` (event id),
+  so the remaining suspect is key/identity churn in the render list
+  orphaning `itemSizeCache` entries (event object swaps where the id —
+  or the dedupe pick — changes mid-scroll). Next: log per-index keys
+  across the shrink step, find the swap site, stabilize the identity.
+- Validation: typecheck ✅, build ✅, eslint ✅ (one pre-existing warning),
+  threads suite 116 files / 1138 tests ✅.
+
+### atBottom stale-state audit: live-bottom primitive; one shrinker still open (2026-07-06)
+
+Follow-through on the bandage audit ("fix it and keep the code clean"):
+the atBottom state's false-transition is debounced ~1s (read-receipt
+controller), so scroll-BEHAVIOR consumers reading it can act on a stale
+"pinned" for a second after the user leaves the bottom.
+
+- New primitive `isViewportAtBottomNow(slackPx?)` (single live viewport
+  reading over `isScrollNearBottom`). Consumers audited:
+  - learned-estimate adoption → live primitive, AND the
+    `threadLatestOpenPending` bypass removed entirely — the e2e caught the
+    teleport firing through that branch when a user takes over before the
+    open settles; during an undisturbed settle the view IS at the bottom,
+    so the live reading already admits adoption. `threadLatestOpenPendingRef`
+    became consumerless and was deleted. Adoption now counts a probe
+    (`threadRowSizeAdopted`) readable from e2e via
+    `__MINDROOM_CACHE_PROBE__.snapshot()`.
+  - editor-resize re-pin → live primitive with a growth-slack argument
+    (a composer growing by d moves the bottom away by d for a pinned
+    user; previousHeight tracked in the RO closure). The e2e's composer
+    test measured dist 0 (yank) before this fix when its up-phase
+    survived.
+  - `timelineReadReceiptController` (auto-mark-read on focus) and
+    `roomLiveRenderController` (re-render nudge) keep the debounced
+    state deliberately — debounce is correct for those semantics.
+- **Open bug, isolated but not yet fixed:** the snap-back class has a
+  second, timing-dependent shrinker. E2e evidence: repeatable
+  `scrollHeight` drops of exactly ~688px during scroll-up (one per
+  event, sometimes twice per run), with the adoption probe at 0 and no
+  app scroll writes — the browser clamp to the shrunken max produces
+  the snap. Not adoption, not scroll writes, not (per code reading)
+  the collapse first-mount (rows mount pre-collapsed by default).
+  Next: probe `applyOverflowVerdict` transitions and row identity
+  changes in the harness. Tests 2 and 3 of
+  `ios-momentum-invariants.spec.ts` are left RED as standing
+  reproducers (e2e/live is not CI-gated); test 1 (momentum invariants)
+  is green.
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅; e2e: test 1 ✅, tests 2/3 red-by-design against the open
+  shrinker.
+
+### Snap-back-to-bottom on scroll-up: adoption teleport, found+fixed via new e2e (2026-07-06, device round 5)
+
+Report: a thread opens correctly pinned to the bottom, but scrolling up a
+bit on iOS snaps the view back down.
+
+- New e2e (`e2e/live/ios-momentum-invariants.spec.ts`, iPhone-emulated
+  chromium against the dockerized e2e Tuwunel) REPRODUCED this on its
+  first run and produced the diagnosis: no one wrote scrollTop back down —
+  at one step `scrollHeight` collapsed 16048 → 15301 under a fixed
+  scrollTop, and the browser clamped the position to the new max, which IS
+  the bottom.
+- Root cause chain: `setAtBottom(false)` is debounced 1s (read-receipt
+  controller), so just after leaving the bottom the app still reads
+  atBottom=true; the learned-row-size ADOPTION (gated on `atBottomRef`
+  precisely because it shifts unmeasured offsets without compensation)
+  therefore fired mid-scroll-up, re-estimated the entire unmeasured region
+  smaller, and scrollHeight dropped below the user's position → clamp →
+  "snapped all the way down".
+- Fix: the adoption gate now takes a LIVE bottom reading from the scroll
+  element (`isScrollNearBottom`, 24px default) instead of the debounced
+  state. The open-time pending branch is unchanged.
+- The new spec (two tests) is the "do whatever u can to test this" layer:
+  1. momentum invariants under an upward multi-flick stream — zero
+     app-originated scroller writes, tile coverage of the viewport core
+     every frame (white-gap guard), visible-anchor stability across
+     quiescence (lurch guard); passes against the real rendered app;
+  2. the snap-back repro — leave the bottom by 640px, stream in new
+     replies, view must stay put; failed before the fix, passes after.
+  Run: `E2E_HOMESERVER=http://127.0.0.1:28008` + an account from
+  `scripts/ensure-e2e-account.sh`, then
+  `npx playwright test e2e/live/ios-momentum-invariants.spec.ts`
+  (docker e2e Tuwunel from `e2e/docker-compose.matrix.yaml`).
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅, both e2e tests ✅ (2 passed, 40s).
+
+### Straddling-row expand/fold must not scroll the view (2026-07-06, device round 4)
+
+Report: expanding a tool-call dropdown scrolls the view down; folding it
+scrolls back up. Should not scroll at all.
+
+- Cause: virtual-core's above-viewport test is `item.start < scrollOffset`,
+  which also matches rows STRADDLING the viewport top — precisely a tall
+  tool block whose expand control is on screen. Its resize then gets a
+  compensating scrollTop write of the full delta; on iOS the write lands
+  ~150 ms after the tap (inside virtual-core's post-touchend grace window
+  it is banked, then replayed by the grace timer), reading as the view
+  scrolling by itself.
+- Fix: our hook now classifies "needs compensation" as **fully above**
+  (`item.end <= scrollOffset`, using the pre-resize measurement). Visible
+  rows unfold/fold in place on every platform; fully-above resizes keep
+  the invisible anchoring. New contract test pins expand+fold of a
+  straddling row (no write, nothing banked); predicate tests renamed to
+  the fully-above semantics.
+- Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
+  1132 tests ✅.
+
+### iOS scroll contract tests — device-free coverage for the momentum bug class (2026-07-06)
+
+User mandate: stop using the iPhone as the test rig. The physics (momentum
+kill, lurch) only reproduces on a device, but its CAUSE is fully observable
+anywhere: every scroll write goes through `scrollToFn`. New
+`virtualizerIOSScrollContract.test.ts` pins the invariant against the REAL
+(unmocked, locally patched) virtual-core:
+
+- With the production hook (extracted as
+  `buildMeasurementScrollCorrectionHook` in `threadRenderUtils.ts` so tests
+  exercise the exact closure the component installs): an upward multi-flick
+  gesture through fresh territory issues ZERO scroll writes during the
+  stream, banks nothing, writes nothing at quiescence, and still applies
+  all measurements (total size reflects real heights — the white-gap
+  regression guard).
+- Detector test: the same gesture WITHOUT the hook reproduces the exact
+  device bug (2100 px banked, replayed as one write at quiescence) —
+  proving this harness catches the lurch class.
+- Quiet-state iOS anchoring and non-iOS mid-scroll anchoring keep working.
+
+What this can and cannot prove: any regression that would kill momentum or
+lurch (writes while live / banked replay) now fails CI; true scroll physics
+and visual feel still need a device, but only as a final confirmation, not
+as the discovery loop. Candidate next layers if wanted: Playwright WebKit
+with iPhone emulation against the local prod-data Tuwunel (renders real
+layout — would catch white gaps and anchor-restore misses), and a
+BrowserStack real-device run for actual momentum physics.
+
+Validation: typecheck ✅, eslint ✅, threads suite 116 files / 1130 tests ✅,
+build ✅.
+
+### Drop, don't replay: end-of-momentum lurch fix (2026-07-06, task #128 device round 3)
+
+Device report on the 3.14.5 build, clarified by the user: while scrolling
+up, content jumps a little OPPOSITE to the scroll direction (repeatedly),
+and when momentum finally ends the view lurches ~half a page to a page in
+the scroll direction.
+
+- Sign analysis (matches exactly): fresh above-viewport rows measure
+  BIGGER than their estimate → each relayout pushes the visible content
+  down (the small opposite-direction jumps). virtual-core defers the
+  compensating scrollTop writes on iOS, but repeated flicks keep its
+  flush guards blocked (touch down again within the grace window), so the
+  deferred deltas accumulate across the whole gesture sequence — and the
+  first real quiescence replays the entire sum as ONE write (the lurch).
+- Fix: assign the official instance hook
+  `shouldAdjustScrollPositionOnItemSizeChange` on the timeline
+  virtualizer (note: instance property, not a constructor option;
+  `getScrollOffset()` is compile-time private — use the public
+  `scrollOffset` field). Gate is the pure
+  `shouldApplyMeasurementScrollCorrection` in `threadRenderUtils.ts`
+  (+4 tests): on iOS WebKit while the scroll is live (public
+  `isScrolling` OR the window touch tracker), above-viewport corrections
+  return false — DROPPED, never banked, nothing to replay. When quiet,
+  and on non-iOS platforms, above-viewport corrections apply immediately
+  (pre-3.17 default behavior). `scrollQuiescence.ts` regains
+  `hasActiveWindowTouches` and gains `isIOSWebKitDevice()` (mirrors the
+  library's unexported detector).
+- What this does NOT fix: the small opposite-direction jumps during the
+  scroll are the estimate error itself (relayout, not writes). Next lever
+  if still bothersome: per-row estimates (folded-collapsible height,
+  persisted measured heights).
+- Validation: typecheck ✅, build ✅, eslint touched files ✅, threads
+  suite 115 files / 1126 tests ✅.
+
+### virtual-core 3.17.3 hardening: iOS state-leak patch + reconcile-loop bypasses (2026-07-05, post-upgrade)
+
+Two defects around the upgraded virtualizer, both found by the upgrade
+audit (and the first also flagged by greptile on PR #83):
+
+- **Upstream Bug A (patched locally):** virtual-core's `cleanup()` does not
+  reset `_iosDeferredAdjustment` / `_iosTouching` / `_iosJustTouchEnded`.
+  A scroll-element swap mid-touch or inside the 150 ms post-touchend grace
+  window strands the flags (the listener unsub clears the grace timer —
+  which held the only reset of the flag), silently deferring every
+  correction on the new element until the next touch cycle, then replaying
+  a stale delta. Fixed upstream in TanStack/virtual PR #1220 (with
+  regression tests); until that ships we carry the identical one-line
+  reset via **patch-package** (`patches/@tanstack+virtual-core+3.17.3.patch`,
+  new `postinstall` script). Drop the patch when bumping to a release
+  containing #1220.
+- **Upstream Bug B (worked around at call sites):** since virtual-core
+  3.17, every `scrollTo*` call arms a rAF reconcile loop (up to 5 s, ~1 px
+  convergence) that re-asserts its own target and there is NO cancel API.
+  Two fork paths pair a coarse virtualizer scroll with a follow-up
+  DOM-rect fine correction, which the loop reverts:
+  - room prepend-anchor restore (`scrollToOffset` + rAF `scrollBy`), and
+  - thread prepend coarse re-anchor (`scrollToIndex` + retrying restore).
+  Both now compute the coarse offset (`getOffsetForIndex` for the index
+  case) and write `scrollElement.scrollTo` directly — no scrollState, no
+  fight. The remaining `scrollToIndex` sites (scroll-to-bottom, focus
+  jump) are left on the virtualizer deliberately: there the reconcile
+  loop re-targets per frame as rows measure, which *improves* landing
+  accuracy and nothing follows it up with a manual write. Upstream ask
+  (issue to file): a `stopScroll()`/cancel API.
+- Tests: the two prepend-anchor tests updated to the direct-write
+  mechanism; shared virtualizer mock gained `getOffsetForIndex`.
+- Validation: typecheck ✅, build ✅, eslint touched files ✅, threads
+  suite 1122 ✅, `npx patch-package` applies cleanly ✅.
+
+### react-virtual 3.2.0 → 3.14.5: native iOS momentum protection replaces the fork's (2026-07-05, task #128 conclusion)
+
+While planning to move the interim `scrollToFn` suppression (entry below)
+onto the official `shouldAdjustScrollPositionOnItemSizeChange` hook, we
+discovered `@tanstack/virtual-core` ≥3.17 ships the whole mechanism
+natively — the same shape as the tuwunel edit-bundling story: fork built
+it, upstream already had it, adopt upstream.
+
+- What upstream does (virtual-core 3.17.3, `applyScrollAdjustment`):
+  on iOS WebKit (`isIOSWebKit()` — UA `iP(hone|od|ad)`, so every iOS
+  browser incl. Brave, plus iPadOS desktop mode), while a scroll/touch is
+  live (`isScrolling` via native `scrollend` or 150 ms debounce fallback,
+  plus its own scroll-element touch listeners and a 300 ms post-touchend
+  window), measurement-correction scrollTop writes are deferred into
+  `_iosDeferredAdjustment` and replayed once at quiescence. Rows still
+  measure immediately (ResizeObserver path measures during live scroll),
+  so the white-gap fix is untouched.
+- Fork changes: upgraded `@tanstack/react-virtual` to 3.14.5 and deleted
+  the entire interim layer — custom `scrollToFn`, the private-field
+  `scrollAdjustments` cast, `shouldSuppressMeasurementScrollAdjustment`
+  (+ tests), the scroll-activity listener, `threadUserScrolledRef`
+  mirror, render-time reset, and the `hasActiveWindowTouches` export
+  (again). Net: ZERO fork-side momentum-protection code.
+- Upgrade audit (subagent, against installed 3.17.3 source): the
+  learned-row-size mechanics still hold (inline `getItemKey` still forces
+  the full measurements rebuild that propagates new estimates; measured
+  sizes persist in `itemSizeCache`; the "do NOT memoize getItemKey"
+  warning stands — comment updated in place); non-smooth `scrollToOffset`
+  makes a single direct write (no reconcile loop), so the prepend-anchor
+  restore doesn't fight it; `measureElement(null)` now prunes
+  disconnected cache entries (callback refs benefit); no breaking option
+  changes for our usage. New `anchorTo: 'end'` option (native chat
+  bottom-anchoring) noted as a possible future simplification.
+- Upstream bug found during the audit, being sent as a TanStack/virtual
+  PR (tuwunel-#495/496/497-style): `cleanup()` does not reset
+  `_iosDeferredAdjustment` / `_iosTouching` / `_iosJustTouchEnded` /
+  the touch-end timer, so a scroll-element swap mid-deferral (e.g. a
+  thread switch during a flick) can replay a stale delta on the next
+  element's first flush.
+- Validation: typecheck ✅, build ✅, eslint on touched files ✅, FULL
+  vitest suite (342 files, 2685 tests) ✅ — the upgrade affects every
+  `useVirtualizer` view (members, lobby, notifications, …), hence the
+  full run. Device re-test on iOS required (momentum + white gaps +
+  stop-time behavior: upstream replays the deferred delta at quiescence
+  rather than dropping it, which may read differently from the interim
+  build).
+
+### Suppress measurement scrollTop corrections during live scroll (2026-07-05, task #128 follow-up)
+
+Device test of the immediate-measurement change (entry below) confirmed the
+predicted risk: iOS flick momentum dies again. Root mechanism, verified in
+`@tanstack/virtual-core` 3.2.0 source: measuring an above-viewport row makes
+`resizeItem` write `scrollTop` (via `scrollToFn`/`elementScroll`) to keep the
+viewport anchored over the estimate-vs-real height error, and iOS kills
+momentum on ANY programmatic scrollTop write.
+
+- Fix (the targeted one pre-planned in the entry below — NOT a reinstated
+  measurement deferral): a custom `scrollToFn` on the timeline virtualizer
+  that skips only the anchoring DOM write while the user's scroll is live.
+  Measurement always proceeds — heights and positions stay real, so the
+  white-gap/shrink fix below is preserved.
+- Mechanism/safety:
+  - Measurement corrections are the only `scrollToFn` calls with a numeric
+    `adjustments`; intentional scrolls (open-time pin/settle,
+    scroll-to-index, mount sync) pass `undefined` and are never suppressed.
+  - Skipping is self-healing: virtual-core's `observeElementOffset` re-syncs
+    `scrollOffset` from the element and zeroes `scrollAdjustments` on the
+    very next scroll event (continuous during momentum).
+  - Gate = `shouldSuppressMeasurementScrollAdjustment` in
+    `threadRenderUtils.ts` (same shape as the old defer gate, now gating a
+    one-line write instead of the measurement pipeline): thread only, after
+    a real user gesture, while touch is down or scroll events are within
+    `SCROLL_QUIESCENCE_IDLE_MS`. Restored the `hasActiveWindowTouches`
+    export, the scroll-activity listener, the `threadUserScrolledRef`
+    mirror, and a render-time thread-switch reset (the PR #76 coderabbit
+    race: first tiles of a new thread measure before `[threadId]` effects
+    run).
+- Accepted cost: mid-flick the content drifts by the per-row estimate error
+  instead of staying pixel-anchored (the learned row-size mean keeps this
+  small). At quiescence corrections land normally.
+- Validation: typecheck ✅, build ✅, eslint on touched files ✅,
+  `npx vitest run src/app/mindroom/threads` — 115 files, 1128 tests ✅
+  (6 new gate tests). Device re-test required: momentum must survive AND
+  white gaps must stay gone.
+- Next: if drift is visible on folded rows, layer better per-row estimates
+  (fixed folded-collapsible height / persisted per-event heights) on top.
+
+### Thread tiles measure immediately — PR #76 deferral removed (2026-07-05, task #128)
+
+Report (iOS, chat.mindroom.chat): scrolling **up** in a thread leaves large
+white/blank areas that only fill in when the scroll stops, and the rows that
+were visible mid-scroll shrink slightly at that moment. Worst on folded
+("Show more") collapsible messages.
+
+- Root cause: PR #76 deferred thread-row measurement to scroll quiescence.
+  react-virtual's contract is estimate → render → measure-on-mount → correct
+  the same frame; with the measurement queued, unmeasured/underestimated rows
+  sat at estimated offsets for the whole live scroll (white gaps) and the
+  stop-time flush applied all corrections at once (the visible shrink).
+  Collapsible messages are the worst case because their folded height exists
+  only after mount — under deferral the virtualizer never learned it until
+  the scroller went quiet. The classic room timeline measures immediately
+  and has none of these symptoms.
+- Fix: removed the deferral outright (no replacement layer — this was a
+  bandage over root causes that have since been fixed by #73/#75/#77).
+  Thread tiles now measure immediately, exactly like the room timeline:
+  `measureThreadTile` calls `roomTimelineVirtualizer.measureElement` directly
+  and keeps only the learned row-size stats feed. Deleted: the pending-measure
+  queue, flush timer + defer cap, render-time thread-switch reset,
+  `isThreadMeasureDeferred`, the scroll-activity listener and the
+  `threadUserScrolledRef` mirror (the `threadUserScrolled` **state** stays —
+  back-auto-pagination intent still needs it), `shouldDeferThreadTileMeasure`
+  in `threadRenderUtils.ts` (+ its tests), and the now-consumerless
+  `hasActiveWindowTouches` export in `scrollQuiescence.ts`.
+  `waitForScrollQuiescence` and the window touch tracker are untouched — the
+  PR #75 prepend-commit path (`threadPaginationCommandController.ts`) still
+  uses them.
+- Accepted risk (the reason #76 existed): measuring an above-viewport row
+  makes react-virtual write `scrollTop`, which iOS answers by killing flick
+  momentum. The premise of task #128 is that the aggravating roots (cache
+  churn #73, prepend-commit timing #75, collapse two-pass #77) are fixed and
+  the blanket defer is redundant. **Must be re-tested on a real iOS device**
+  after deploy: (a) white areas gone, (b) flick momentum still smooth. If
+  momentum regresses, the follow-up is a *targeted* fix (suppress only the
+  above-viewport scroll adjustment, or better per-row estimates) — not
+  reinstating the defer.
+- Validation: `npm run typecheck` ✅, `npm run build` ✅, eslint on touched
+  files ✅, `npx vitest run src/app/mindroom/threads` — 115 files,
+  1122 tests ✅. Independent review pass on the diff.
+- Next: deploy to chat.mindroom.chat and device-test on iOS (white areas +
+  momentum); then continue the #79/#94 bandage sweep.
+### iOS release prep with fastlane screenshot procedure (2026-07-05)
+
+- Status:
+  - Refreshed on `caveman/ios-release-fastlane-20260705` from current
+    `origin/dev` (`3c7047d3`). App Store Connect upload/review
+    submission is being handled as a follow-up release task, not by this
+    commit.
+  - PR review follow-up: media upload fallback now continues across Matrix
+    media endpoint parse/network failures, dummy-auth registration reuses the
+    parsed Matrix challenge from `matrixFetch`, and screenshot capture waits
+    for a render frame instead of a fixed delay.
+  - Screenshot content follow-up: thread summaries now use topic-specific
+    emoji instead of a repeated star, and the Bas Nijholt profile avatar is
+    downloaded from the public site asset at fixture seed time instead of being
+    version controlled in this repo.
+  - Latest PR review follow-up: PNG dimension reads now validate the full PNG
+    magic signature, fixture room aliases use the sanitized run id, IPv6
+    loopback matching treats brackets literally, and the markdown tokenizer
+    avoids conditional assignment.
+- Summary:
+  - Adds a repo-native App Store screenshot capture flow:
+    `npm run appstore:screenshots` starts the local Docker Matrix fixture,
+    provisions an isolated disposable account and room alias per run, seeds a
+    public-safe fake `Personal` workspace, starts a fresh Vite server, and
+    captures iPhone 6.9" plus iPad 13" PNGs into
+    `ios/App/fastlane/screenshots/en-US/`.
+  - Adds `npm run appstore:fixture` for setup-only local Matrix seeding. The
+    fake workspace uses Bas Nijholt as the user, downloads the public
+    `nijho.lt` avatar at seed time, fake MindRoom agent accounts with uploaded
+    avatars, markdown-formatted agent replies, scheduled-task/tool metadata,
+    topic-specific summary emoji, and varied thread depths (`9`, `27`, `34`,
+    `68`, `103`) so App Store screenshots read like a real personal-agent
+    workspace.
+  - Documents the Fastlane lanes and screenshot procedure. `upload_metadata`
+    and `upload_screenshots` remain metadata/screenshot-only `deliver` lanes;
+    `Deliverfile` keeps review submission and automatic release disabled;
+    `beta` remains the signed local TestFlight lane.
+- Decisions:
+  - Use Playwright for automated screenshots because the app is a Capacitor
+    webview and the repo already has Matrix fixture helpers. Fastlane
+    `snapshot` remains a future option once an Xcode UI-test target and shared
+    scheme exist.
+  - Existing/live account screenshot capture is intentionally unsupported.
+    Release assets must use the local isolated fixture so private rooms,
+    profiles, or account state cannot leak.
+  - Keep screenshot binaries gitignored; only scripts, tests, docs, and the
+    placeholder screenshot directory stay in source control.
+- Validation:
+  - Green post-rebase checks on the refreshed `3c7047d3` base:
+    `node --test scripts/appstore-fixture.test.mjs`,
+    `npm test -- src/app/mindroom/appstore/appStoreScreenshots.test.ts`,
+    script syntax checks, Prettier check on touched source/test scripts,
+    `npm run appstore:screenshots`, `npm run appstore:preflight`, Fastlane
+    lane parsing, `npm run typecheck`, `npm run lint` (existing 18 warnings,
+    0 errors), `npm run build`, and `npm test` (345 files, 2703 tests).
+  - Current screenshots regenerated into `ios/App/fastlane/screenshots/en-US/`
+    with the expected dimensions: iPhone 6.9" `1320x2868`; iPad 13"
+    `2064x2752`.
+  - PR review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
+    review files, and `npm run appstore:screenshots`.
+  - Latest review follow-up validation: `node --test
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/appstore-fixture.mjs`, `bash -n scripts/appstore-fixture-up.sh`,
+    Prettier check on touched review files, `npm run appstore:screenshots`,
+    `npm run appstore:preflight`, `npm run typecheck`, `npm run lint`
+    (existing 18 warnings, 0 errors), `npm run build`, `npm test`, and
+    `git diff --check`.
+
+### Eager-cache review deferrals — reply-count merge + scheduler priority adoption (2026-07-06)
+
+Follow-up to PR #84 (merged): the two deferred correctness findings from
+its independent review pass.
+
+- Finding #3 — `meta.expectedReplyCount` clobber: sweep chunks derive
+  the count from the live root's bundled `m.thread.count` (never
+  updated by the SDK as replies arrive; stale when restored from the
+  SDK store); the unconditional overwrite in `saveThreadEventsToCache`
+  let a stale-LOW value replace a fresher count and weaken the
+  reply-count completeness proof. New
+  `mergeThreadExpectedReplyCount` (cacheStoreNormalize.ts):
+  `snapshotComplete === true` writes that CARRY a count set it
+  absolutely (the full-drain proof is the only writer allowed to LOWER
+  — redactions legitimately shrink threads); a count-LESS complete
+  write (refreshLatestThreadSlice's persist shape) RETAINS the stored
+  value; all other writes merge monotonically (max). Red-first tests in
+  `cacheStoreReplyCountMerge.test.ts` incl. the count-less-complete
+  case (self-review fix — the first wording overclaimed "set
+  absolutely" for that production-reachable shape).
+- Finding #5 — scheduler dedup priority: priority was fixed at enqueue
+  time, so a priority-0 open coalescing onto a QUEUED band-3 prewarm
+  job inherited band 3 and its paint waited behind all queued band-1/2
+  work (exactly the cold-reload-then-click case). `QueueEntry` now
+  carries a mutable effective `priority`; the dedup branch adopts the
+  more urgent band for queued entries (running entries unaffected).
+  Red-first test in `backfillScheduler.test.ts`.
+- Finding #6 (mid-drain `snapshotComplete` true→false downgrade when a
+  reply lands during a proving fetch) evaluated and deliberately left
+  as-is: self-healing (the next open pays one drain and re-proves), and
+  any suppression would risk masking genuine incompleteness.
+- Validation: typecheck ✓, eslint (touched) ✓, engine+threads sweep 132
+  files / 1306 tests ✓.
+
 ### Thread-open backfill leg deleted — one drain channel (2026-07-06)
 
 Net-negative consolidation on top of PR #84. The OPEN path carried a

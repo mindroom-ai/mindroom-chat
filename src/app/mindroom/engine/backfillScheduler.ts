@@ -155,6 +155,14 @@ export const buildBackfillJobKey = (
 type QueueEntry<T = unknown> = {
   args: EnqueueJobArgs<T>;
   key: string;
+  /**
+   * Effective priority band. Initialized from `args.priority`, but a
+   * deduped enqueue with a MORE urgent band lowers it in place while
+   * the entry is still queued (PR #84 review deferral) — e.g. a user
+   * open (band 0) coalescing onto a queued prewarm job (band 3) must
+   * not wait behind band-1/2 work. Running entries are unaffected.
+   */
+  priority: BackfillJobPriority;
   controller: AbortController;
   resolve: (value: T) => void;
   reject: (reason: unknown) => void;
@@ -203,17 +211,17 @@ export const createBackfillScheduler = (
   const pickNextIndex = (): number => {
     if (queue.length === 0) return -1;
     let bestIndex = 0;
-    let bestPriority = queue[0].args.priority;
+    let bestPriority = queue[0].priority;
     let bestActivity = resolveRoomActivityTs(mx, queue[0].args.roomId);
     for (let i = 1; i < queue.length; i += 1) {
       const entry = queue[i];
-      if (entry.args.priority < bestPriority) {
+      if (entry.priority < bestPriority) {
         bestIndex = i;
-        bestPriority = entry.args.priority;
+        bestPriority = entry.priority;
         bestActivity = resolveRoomActivityTs(mx, entry.args.roomId);
         continue;
       }
-      if (entry.args.priority > bestPriority) continue;
+      if (entry.priority > bestPriority) continue;
       const activity = resolveRoomActivityTs(mx, entry.args.roomId);
       if (activity > bestActivity) {
         bestIndex = i;
@@ -291,6 +299,19 @@ export const createBackfillScheduler = (
     const existing = byKey.get(key);
     if (existing) {
       countCacheProbe('schedulerDeduped');
+      // PR #84 review deferral: adopt the more urgent band. Priority
+      // was fixed at enqueue time, so a priority-0 open coalescing
+      // onto a QUEUED band-3 prewarm job inherited band 3 and waited
+      // behind all queued band-1/2 work. Mutating the queued entry's
+      // effective priority is picked up by the next drain pass. The
+      // `!running.has(key)` guard makes "already-running entries are
+      // unaffected (nothing to reorder)" structural (PR #86 review):
+      // without it the invariant only held because `drain` spread-
+      // copies the entry into `running`, an implicit coupling that a
+      // future refactor could silently break.
+      if (args.priority < existing.priority && !running.has(key)) {
+        existing.priority = args.priority;
+      }
       return existing.promise as Promise<T>;
     }
 
@@ -304,6 +325,7 @@ export const createBackfillScheduler = (
     const entry: QueueEntry<T> = {
       args,
       key,
+      priority: args.priority,
       controller,
       resolve,
       reject,
@@ -380,7 +402,7 @@ export const createBackfillScheduler = (
       roomId: entry.args.roomId,
       threadId: entry.args.threadId,
       kind: entry.args.kind,
-      priority: entry.args.priority,
+      priority: entry.priority,
       key: entry.key,
       promise: entry.promise,
       signal: entry.controller.signal,

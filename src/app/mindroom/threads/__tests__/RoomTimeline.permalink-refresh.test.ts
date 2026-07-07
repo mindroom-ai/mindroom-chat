@@ -795,7 +795,11 @@ describe('RoomTimeline', () => {
 
     const createNodeMock = (element: { type: string }) => {
       if (element.type === scrollType) {
-        return { getBoundingClientRect: () => ({ bottom: 500 }) };
+        return {
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          getBoundingClientRect: () => ({ bottom: 500 }),
+        };
       }
       if (element.type === 'span') {
         return { getBoundingClientRect: () => ({ top: 400 }) };
