@@ -46,8 +46,8 @@ Periphery (5 minors, all fixed): F1 touch-counter wedge — a swallowed
 touchend left every Infinity settle wait pending for the session;
 visibilitychange/pagehide re-zero the tracker (unit-pinned). F2 stale
 room-prepend anchor cleared when a thread opens (latent under current
-parent keying). F3 trace exports de-identified (form factor + FNV-8
-hashes; format v2). F4 trace ring buffer (push+shift was O(n)/frame
+parent keying). F3 trace exports de-identified (form factor + FNV-1a
+32-bit short hashes; format v2). F4 trace ring buffer (push+shift was O(n)/frame
 once full — recorder-manufactured dt spikes). F5 settle-armed flag now
 cleared in each waiter's own resolution — settle-entry clearing let a
 boundary settle release it while a wait was still outstanding.
@@ -81,7 +81,26 @@ virtualizer ref (read at invocation), boundary guard on degenerate
 geometry, quiescence waiter cross-talk (per-call closures; only shared
 state is the touch counter → F1), patch cjs/esm divergence, barren
 cache-hit relation-only pages, begin/finish/recapture state-machine
-abuse, room-path capture leakage into thread captures.
+abuse, room-path capture leakage into thread captures. Declined from PR
+review (gemini): a `blur` reset for the touch tracker — blur fires with
+the page still VISIBLE (iPadOS multi-window focus changes) where a drag
+can be live, and resetting there would resolve a quiescence wait
+mid-drag; visibilitychange/pagehide are the page-invisible truth
+signals, and a same-view wedge self-heals at the next real touchstart
+(the handler rewrites the counter from event.touches).
+
+Next steps: (1) merge PR #89, republish `origin/dev` (NOT bare `dev` —
+host publish script resolves its stale local branch), then the single
+device acceptance trace via `?ridetrace=1`. (2) Deferred queue, one
+red-test-first session each: room-timeline (non-thread) ledger port;
+prepend-seam grouping reflow (latency-ride budget exception retained
+even though this round measured 0/0 — tighten to 40/120 when fixed);
+IDB measured-height persistence (virtual-core initialMeasurementsCache
++ width/font invalidation); fix `mindroom-publish-cinny` host script to
+prefer origin-qualified refs. (3) Accepted-unpinned: mutant #5 (alive
+guard) — test-renderer nulls refs on unmount, settle early-returns
+regardless; revisit only if the settle grows side effects beyond the
+scroll write.
 
 ### PR #88 adversarial review round: two majors fixed, fold pinned (2026-07-07)
 

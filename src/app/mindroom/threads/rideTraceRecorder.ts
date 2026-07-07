@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { getCacheProbeSnapshot } from './cacheProbe';
-import { hasActiveWindowTouches } from './scrollQuiescence';
+import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
 
 /**
  * On-device ride tracing (2026-07-06, device round 10). The desktop
@@ -73,9 +73,11 @@ const readTransformPx = (inner: HTMLElement | null): number => {
 const readFormFactor = (): string => {
   const ua = navigator.userAgent;
   if (/iPhone|iPod/.test(ua)) return 'ios';
-  if (/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
-    return 'ipados';
-  }
+  // isIOSWebKitDevice is the vetted family probe (covers iPad UAs and the
+  // iPadOS desktop-mode MacIntel masquerade without deprecated
+  // navigator.platform reads); iPhone/iPod are matched above, so a hit
+  // here is iPad-shaped.
+  if (isIOSWebKitDevice()) return 'ipados';
   if (/Android/.test(ua)) return 'android';
   return 'desktop';
 };
