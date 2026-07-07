@@ -16,29 +16,26 @@ the coarse-scrollTo + rAF rect-correction restore effect (the path that
 raced virtual-core's uncancellable reconcile loop), the DOM-scanning
 anchor capture, roomVirtualPrependAnchorRef, and the periphery-F2 clear
 that guarded it. One scroll-compensation architecture for both modes;
-room prepends perform ZERO scroll writes. Net −73 lines in the
+room prepends perform ZERO scroll writes. Net −47 lines in the
 component; the legacy anchored-scrollTo pin converted to the fold pin
 (-9600px margin at range change → one settle shift → scrollTo never
 called). Estimator block hoisted above the paginator (declaration order
 only).
 
-MEASURED-HEIGHT PERSISTENCE — landed with an honest red gate. Schema v4
-thread_heights store (layoutKey invalidation, 4000-entry cap, eviction
-integration), threadHeightsPersistence module (seed synthesis against
-the CURRENT list, trailing-debounce persister; 6 unit tests), parallel
-open-path load that lands before the virtualizer's seed window closes.
-THE TRACE-SHAPED ACCEPTANCE TEST IS RED ON PURPOSE: probes verify the
-plumbing end-to-end (saves 2, seedLoads 2, layout mismatches 0), yet
-seeded re-rides accrue MORE ledger than unseeded (4550 vs 650,
-deterministic). Seed CONSUMPTION is flag-gated off
-(localStorage mindroom.debug.seedHeights='1'; the e2e enables it — the
-red test IS the promotion gate); persisting stays on so real data
-accumulates. Prime suspect: CollapsibleMessage verdict timing makes row
-height TIME-DEPENDENT (rows mount uncollapsed above the viewport → the
-+delta ledgers; the collapse reflow lands in-viewport and never refunds
-it) — if confirmed, that is also the root cause behind per-class
-estimator calibration and most ledger accrual, i.e. the next deep
-simplification target.
+MEASURED-HEIGHT PERSISTENCE — PARKED on branch
+feat/thread-heights-persistence, deliberately NOT in this PR (owner
+review: no v4 schema migration for a feature that is gated off because
+it does not work yet). What the branch holds: schema v4 thread_heights
+store, threadHeightsPersistence module (6 unit tests), parallel
+open-path load, and the trace-shaped reopen acceptance test — which is
+RED and is the promotion gate: probes verify the plumbing end-to-end
+(saves 2, seedLoads 2, layout mismatches 0), yet seeded re-rides accrue
+MORE ledger than unseeded (4550 vs 650, deterministic). Prime suspect:
+CollapsibleMessage verdict timing makes row height TIME-DEPENDENT (rows
+mount uncollapsed above the viewport → the +delta ledgers; the collapse
+reflow lands in-viewport and never refunds it) — if confirmed, that is
+also the root cause behind per-class estimator calibration and most
+ledger accrual, i.e. the next deep simplification target.
 
 DEVICE ACCEPTANCE TRACE ride-trace-1783444824925 (post-PR-#89 deploy):
 blank bands GONE (only pre-paint open frames); zero mid-ride content
