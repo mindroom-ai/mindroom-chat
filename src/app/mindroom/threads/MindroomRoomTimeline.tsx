@@ -436,8 +436,20 @@ export function RoomTimeline({
   // Latched once an open-at-latest began for this thread: hydration bands
   // land long after the open chain completes (background prefetch /
   // reconciler), and the pin must hold for them until the first gesture.
+  // Render-time keying (greptile P1 on PR #83): the reset must happen in
+  // the SAME render that switches room/thread — a useEffect reset runs
+  // after the pin layout effect, letting one commit of the next thread
+  // see the previous thread's latch. On the switch render itself the
+  // stale threadLatestOpenPending (cleared only by the next open effect)
+  // must not re-latch, hence the else.
   const threadOpenedAtLatestRef = useRef(false);
-  if (threadLatestOpenPending) threadOpenedAtLatestRef.current = true;
+  const threadOpenLatchKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
+  if (threadOpenLatchKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
+    threadOpenLatchKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
+    threadOpenedAtLatestRef.current = false;
+  } else if (threadLatestOpenPending) {
+    threadOpenedAtLatestRef.current = true;
+  }
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
@@ -1219,6 +1231,11 @@ export function RoomTimeline({
   });
   const virtualInnerRef = useRef<HTMLDivElement | null>(null);
   const compensationSettleArmedRef = useRef(false);
+  // Bumped by the room/thread render-time reset: an armed quiescence wait
+  // from a previous view resolves early when its scroll element
+  // disconnects, and must not settle (or block re-arming for) the next
+  // view's ledger (greptile P1 on PR #83).
+  const ledgerGenerationRef = useRef(0);
   // The settle is ONE synchronous JS block: margin removal and the
   // cancelling scrollTop shift land in the same layout pass, so they are
   // atomic with respect to paints and rAF samplers (a React-commit-based
@@ -1303,9 +1320,13 @@ export function RoomTimeline({
         // No maxWait cap: a forced settle mid-momentum is a scrollTop
         // write mid-momentum (the trace's full-screen flash). The ledger
         // is coherent while unsettled, so only TRUE rest settles it.
+        const generation = ledgerGenerationRef.current;
         waitForScrollQuiescence(getScrollElement(), {
           maxWaitMs: Infinity,
-        }).then(settleScrollCompensation);
+        }).then(() => {
+          if (ledgerGenerationRef.current !== generation) return;
+          settleScrollCompensation();
+        });
       }
     },
     [getScrollElement, settleScrollCompensation]
@@ -1328,9 +1349,11 @@ export function RoomTimeline({
       ledgerSettleWantedRef.current = false;
       if (!compensationSettleArmedRef.current) {
         compensationSettleArmedRef.current = true;
-        waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(
-          settleScrollCompensation
-        );
+        const generation = ledgerGenerationRef.current;
+        waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
+          if (ledgerGenerationRef.current !== generation) return;
+          settleScrollCompensation();
+        });
       }
     }
   });
@@ -1354,6 +1377,8 @@ export function RoomTimeline({
   if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
     compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
     scrollCompensationPxRef.current = 0;
+    ledgerGenerationRef.current += 1;
+    compensationSettleArmedRef.current = false;
     if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
   }
   // Instance property, not an option (mirrors how virtual-core consults it:
@@ -3287,7 +3312,6 @@ export function RoomTimeline({
     // Reset ONLY on thread change (coderabbit on PR #74: resetting on
     // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
-    threadOpenedAtLatestRef.current = false;
     threadAutoPaginateLastFireRef.current = null;
   }, [threadId]);
   useEffect(() => {
