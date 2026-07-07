@@ -271,6 +271,44 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       expect(order).toEqual(['thread-backfill', 'band2']);
     });
 
+    it('a deduped enqueue onto a RUNNING job leaves its priority untouched', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      let releaseRunning!: () => void;
+      const runningGate = new Promise<void>((resolve) => {
+        releaseRunning = resolve;
+      });
+
+      const runningPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 3,
+        execute: async () => {
+          await runningGate;
+        },
+      });
+      await flushMicrotasks();
+
+      // Dedup onto the RUNNING entry — nothing to reorder; the
+      // reported priority must stay at the enqueue-time band.
+      const dedupedPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: async () => undefined,
+      });
+      expect(dedupedPromise).toBe(runningPromise);
+      const runningJob = scheduler
+        .pendingJobs()
+        .find((job) => job.kind === 'thread-backfill' && job.threadId === '$t');
+      expect(runningJob?.priority).toBe(3);
+
+      releaseRunning();
+      await runningPromise;
+    });
+
     it('breaks ties within a band by room.getLastActiveTimestamp desc', async () => {
       const mx = createMockClient();
       mx.__setRoomActivity('!old', 100);

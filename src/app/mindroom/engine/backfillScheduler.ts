@@ -303,9 +303,13 @@ export const createBackfillScheduler = (
       // was fixed at enqueue time, so a priority-0 open coalescing
       // onto a QUEUED band-3 prewarm job inherited band 3 and waited
       // behind all queued band-1/2 work. Mutating the queued entry's
-      // effective priority is picked up by the next drain pass;
-      // already-running entries are unaffected (nothing to reorder).
-      if (args.priority < existing.priority) {
+      // effective priority is picked up by the next drain pass. The
+      // `!running.has(key)` guard makes "already-running entries are
+      // unaffected (nothing to reorder)" structural (PR #86 review):
+      // without it the invariant only held because `drain` spread-
+      // copies the entry into `running`, an implicit coupling that a
+      // future refactor could silently break.
+      if (args.priority < existing.priority && !running.has(key)) {
         existing.priority = args.priority;
       }
       return existing.promise as Promise<T>;
