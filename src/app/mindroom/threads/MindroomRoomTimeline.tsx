@@ -1376,7 +1376,11 @@ export function RoomTimeline({
   // margin-independent (rel coordinates), so the one-render option lag
   // shifts nothing visually.
   const settleScrollCompensation = useCallback(() => {
-    compensationSettleArmedRef.current = false;
+    // The armed flag is NOT cleared here: it tracks the outstanding
+    // quiescence WAIT, not the settle. Clearing it at settle entry (e.g.
+    // from a boundary-guard settle) let a new drop arm a SECOND wait
+    // while the first was still pending (adversarial review 2026-07-07,
+    // periphery F5); each waiter clears the flag in its own resolution.
     const px = scrollCompensationPxRef.current;
     const inner = virtualInnerRef.current;
     const scrollElement = getScrollElement();
@@ -1454,6 +1458,7 @@ export function RoomTimeline({
         waitForScrollQuiescence(getScrollElement(), {
           maxWaitMs: Infinity,
         }).then(() => {
+          compensationSettleArmedRef.current = false;
           if (!alive() || ledgerGenerationRef.current !== generation) return;
           settleScrollCompensation();
         });
@@ -1482,6 +1487,7 @@ export function RoomTimeline({
         compensationSettleArmedRef.current = true;
         const generation = ledgerGenerationRef.current;
         waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
+          compensationSettleArmedRef.current = false;
           if (!alive() || ledgerGenerationRef.current !== generation) return;
           settleScrollCompensation();
         });
@@ -1515,8 +1521,17 @@ export function RoomTimeline({
     [handleDroppedCorrection]
   );
   useLayoutEffect(() => {
+    if (threadId) {
+      // A room-mode anchor captured just before a thread opened must not
+      // survive the thread session — today the component remounts on
+      // thread open/close (parent keying), but if that ever changes the
+      // stale rect would arm a scrollTo against a dead node on close
+      // (adversarial review 2026-07-07, periphery F2).
+      roomVirtualPrependAnchorRef.current = undefined;
+      return;
+    }
     const anchor = roomVirtualPrependAnchorRef.current;
-    if (!anchor || threadId) return;
+    if (!anchor) return;
 
     if (anchor.item < activeTimelineRange.start || anchor.item >= activeTimelineRange.end) {
       roomVirtualPrependAnchorRef.current = undefined;

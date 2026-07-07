@@ -66,12 +66,40 @@ const readTransformPx = (inner: HTMLElement | null): number => {
   return match ? Math.round(Number(match[1])) : 0;
 };
 
+// Traces get pasted into issue trackers and chat: identify the browser
+// only as a coarse form factor, and rooms/threads only as short one-way
+// hashes — correlatable across traces from the same room, but not
+// reversible to the room id (adversarial review 2026-07-07, periphery F3).
+const readFormFactor = (): string => {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPod/.test(ua)) return 'ios';
+  if (/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+    return 'ipados';
+  }
+  if (/Android/.test(ua)) return 'android';
+  return 'desktop';
+};
+
+// FNV-1a 32-bit, hex. Not cryptographic; short and stable is the point.
+const shortTraceHash = (value: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+};
+
 export const installRideTraceRecorder = (
   scroller: HTMLElement,
   getInner: () => HTMLElement | null,
   context: { roomId: string; threadId?: string }
 ): (() => void) => {
   const frames: RideTraceFrame[] = [];
+  // Ring write index: push+shift turns O(n) per frame once the buffer
+  // fills (~45s in), and the recorder must not manufacture the dt spikes
+  // it exists to attribute on low-end devices (periphery F4).
+  let frameWriteIndex = 0;
   let anchor: Element | null = null;
   let anchorTop = 0;
   let lastScrollTop = scroller.scrollTop;
@@ -134,7 +162,7 @@ export const installRideTraceRecorder = (
       anchor = pickAnchor();
       anchorTop = anchor?.getBoundingClientRect().top ?? 0;
     }
-    frames.push({
+    frames[frameWriteIndex % RIDE_TRACE_MAX_FRAMES] = {
       t: Math.round(t),
       dt: Math.round(t - lastT),
       st: Math.round(scrollTop),
@@ -144,25 +172,31 @@ export const installRideTraceRecorder = (
       tc: readThreadCount(),
       tr: readTransformPx(getInner()),
       touch: hasActiveWindowTouches() ? 1 : 0,
-    });
-    if (frames.length > RIDE_TRACE_MAX_FRAMES) frames.shift();
+    };
+    frameWriteIndex += 1;
     lastScrollTop = scrollTop;
     lastT = t;
     window.requestAnimationFrame(loop);
   };
   window.requestAnimationFrame(loop);
 
+  const orderedFrames = (): RideTraceFrame[] => {
+    if (frameWriteIndex <= RIDE_TRACE_MAX_FRAMES) return frames.slice(0, frameWriteIndex);
+    const splitAt = frameWriteIndex % RIDE_TRACE_MAX_FRAMES;
+    return [...frames.slice(splitAt), ...frames.slice(0, splitAt)];
+  };
+
   const buildExport = () =>
     JSON.stringify({
       kind: 'mindroom-ride-trace',
-      version: 1,
+      version: 2,
       capturedAt: new Date().toISOString(),
-      userAgent: navigator.userAgent,
+      formFactor: readFormFactor(),
       viewport: { w: window.innerWidth, h: window.innerHeight },
-      roomId: context.roomId,
-      threadId: context.threadId ?? null,
+      roomHash: shortTraceHash(context.roomId),
+      threadHash: context.threadId ? shortTraceHash(context.threadId) : null,
       probes: getCacheProbeSnapshot(),
-      frames,
+      frames: orderedFrames(),
     });
 
   const overlay = document.createElement('button');
