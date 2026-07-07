@@ -209,6 +209,68 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
       expect(order).toEqual(['band0', 'band2', 'band4']);
     });
 
+    it('a deduped enqueue with a more urgent band raises the queued job (PR #84 review deferral)', async () => {
+      const mx = createMockClient();
+      const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
+      const order: string[] = [];
+      let releaseBlocker!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        releaseBlocker = resolve;
+      });
+
+      // Occupy the single slot so the following enqueues stay QUEUED.
+      const blockerPromise = scheduler.enqueue({
+        roomId: '!blocker',
+        kind: 'gap-fill',
+        priority: 0,
+        execute: async () => {
+          await blocked;
+        },
+      });
+      await flushMicrotasks();
+
+      // Prewarm-shaped band-3 thread job, then unrelated band-2 work.
+      const prewarmPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 3,
+        execute: async () => {
+          order.push('thread-backfill');
+        },
+      });
+      scheduler.enqueue({
+        roomId: '!other',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: async () => {
+          order.push('band2');
+        },
+      });
+
+      // A user OPEN coalesces onto the queued prewarm job at band 0.
+      // The dedup must adopt the more urgent band — otherwise the
+      // open's paint waits behind every queued band-1/2 job.
+      const openPromise = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$t',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: async () => {
+          order.push('should-not-run');
+        },
+      });
+      expect(openPromise).toBe(prewarmPromise);
+
+      releaseBlocker();
+      await blockerPromise;
+      for (let i = 0; i < 8; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.resolve();
+      }
+      expect(order).toEqual(['thread-backfill', 'band2']);
+    });
+
     it('breaks ties within a band by room.getLastActiveTimestamp desc', async () => {
       const mx = createMockClient();
       mx.__setRoomActivity('!old', 100);

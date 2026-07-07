@@ -2,6 +2,36 @@
 
 ## Runbook
 
+### Eager-cache review deferrals — reply-count merge + scheduler priority adoption (2026-07-06)
+
+Follow-up to PR #84 (merged): the two deferred correctness findings from
+its independent review pass.
+
+- Finding #3 — `meta.expectedReplyCount` clobber: sweep chunks derive
+  the count from the live root's bundled `m.thread.count` (never
+  updated by the SDK as replies arrive; stale when restored from the
+  SDK store); the unconditional overwrite in `saveThreadEventsToCache`
+  let a stale-LOW value replace a fresher count and weaken the
+  reply-count completeness proof. New
+  `mergeThreadExpectedReplyCount` (cacheStoreNormalize.ts):
+  `snapshotComplete === true` writes SET absolutely (the full-drain
+  proof is the only writer allowed to LOWER — redactions legitimately
+  shrink threads); all other writes merge monotonically (max). Red-first
+  tests in `cacheStoreReplyCountMerge.test.ts`.
+- Finding #5 — scheduler dedup priority: priority was fixed at enqueue
+  time, so a priority-0 open coalescing onto a QUEUED band-3 prewarm
+  job inherited band 3 and its paint waited behind all queued band-1/2
+  work (exactly the cold-reload-then-click case). `QueueEntry` now
+  carries a mutable effective `priority`; the dedup branch adopts the
+  more urgent band for queued entries (running entries unaffected).
+  Red-first test in `backfillScheduler.test.ts`.
+- Finding #6 (mid-drain `snapshotComplete` true→false downgrade when a
+  reply lands during a proving fetch) evaluated and deliberately left
+  as-is: self-healing (the next open pays one drain and re-proves), and
+  any suppression would risk masking genuine incompleteness.
+- Validation: typecheck ✓, eslint (touched) ✓, engine+threads sweep 132
+  files / 1306 tests ✓.
+
 ### Eager thread cache — cold-start sweep teaches thread scopes (2026-07-06)
 
 Report: after clearing cache + reloading, Cinny visibly downloads lots of
