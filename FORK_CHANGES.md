@@ -53,6 +53,21 @@ probe stacks, per-frame ledger traces, tile photographs):
   machinery is now unreachable for ledger-folded prepends.
 - DEPLOYED to production for the device-trace acceptance session
   (`?ridetrace=1`, before/after vs ~/ride-trace-1783377085460.json).
+- DEVICE TRACE VERDICT (ride-trace-1783391256452, same 700+-event
+  thread, 18.6s ride): jumps 11726→779 total, worst single 3646→474
+  (settle-flash class GONE), blanks 16 runs/12.1s → 1 real run of
+  3.0s. That run is fully diagnosed from the ledger field: the
+  estimator is systematically +50-72px per row class (folded long est
+  152 vs measured 80; short 80 vs 30 — same numbers in desktop
+  fixtures: calibration, not device quirks), so 130 fresh rows accrued
+  px=-9356 with no rest to settle in, and the user scrolled INTO the
+  margin dead zone that a positive ledger creates above the content.
+  Two bounded follow-ups queued: (1) calibrate the estimator constants
+  against measured tile heights; (2) boundary settle when the viewport
+  approaches the margin edge mid-ride (one momentum interruption at
+  the extreme top — where the loaded window hard-stopped anyway —
+  instead of blank space). Build stays deployed: strictly better than
+  both predecessors on the user's own trace.
 
 ### DEVICE TRACE DIAGNOSIS: transform compensation is unsound on iOS; three blank/jump mechanisms identified (2026-07-06, round 10 conclusion)
 
