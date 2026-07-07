@@ -764,6 +764,286 @@ describe('RoomTimeline', () => {
       }
     });
 
+    it('prices interleaved prepends by the inserted keys, not the first-shift rows', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L1:
+      // `mergeThreadRenderEvents` sorts purely by ts, so an overlapping
+      // band (or a federated page with interior timestamps) can insert
+      // NEW events BETWEEN existing rows above the anchor. The fold's
+      // prefix assumption — sum estimate(1..shift) — then prices
+      // pre-existing rows instead of the inserted ones. This pin uses
+      // heterogeneous rows so the two sums differ: three folded-long
+      // rows (compact estimate 76) sit above a one-liner anchor, and
+      // the committed page interleaves two one-liner events (compact
+      // estimate 26) between them. Correct ΔH = 2 x 26 = 52; the
+      // prefix-shaped sum would fold 76 + 26 = 102.
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$interleave-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200); // 5 wrapped lines > fold cap 3
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      // Band events with interior timestamps: ts 150 and 250 land BETWEEN
+      // the existing long rows once the merge re-sorts by ts.
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      const interleavedThreadEvents = [...initialThreadEvents, ...bandEvents].sort(
+        (a, b) => a.getTs() - b.getTs()
+      );
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          // Quiescence-deferred commit window (150ms idle, real timers);
+          // the commit-time recapture reads the pre-prepend index map.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        await act(async () => {
+          setThreadEvents(interleavedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+
+        // Let the at-rest ledger settle convert the fold into its one
+        // scrollTop shift.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // ΔH must price the two INSERTED one-liners (2 x 26 = 52), not
+        // the first-two post-prepend rows (long 76 + one-liner 26 = 102).
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('re-anchors the fold on the nearest surviving baseline row when the anchor is redacted mid-flight', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L2:
+      // if the captured anchor event vanishes from the render list
+      // between capture and commit (redaction acknowledged, dedup
+      // collapse), the old fold silently skipped the whole compensation
+      // and the prepend landed as a visible jump. The key-diff fold must
+      // fall back to the nearest surviving baseline row: inserted rows
+      // above it stay compensated, while the anchor's own removal closes
+      // visibly in view (a redaction SHOULD look like the row vanishing).
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { getCacheProbeSnapshot } = await import('../cacheProbe');
+      const threadId = '$redacted-anchor-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200);
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      // The committed list interleaves the two one-liners AND drops the
+      // anchor itself.
+      const committedThreadEvents = [...initialThreadEvents, ...bandEvents]
+        .filter((event) => event.getId() !== '$anchor')
+        .sort((a, b) => a.getTs() - b.getTs());
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        const fallbacksBefore = getCacheProbeSnapshot().threadPrependFoldAnchorFallback;
+        await act(async () => {
+          setThreadEvents(committedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // The two interleaved one-liners above the surviving boundary
+        // ($long-3) still fold: 2 x 26 = 52. The redacted anchor's own
+        // height is deliberately NOT compensated.
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+        expect(getCacheProbeSnapshot().threadPrependFoldAnchorFallback).toBe(fallbacksBefore + 1);
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
     it('skips the coarse re-anchor scroll when the captured row stays mounted through the prepend', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$prepend-thread-root';
