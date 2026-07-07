@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### Estimator calibration + ledger boundary guard (2026-07-07, round 11)
+
+The device-trace follow-ups from round 10, red-green:
+
+- BOUNDARY GUARD (`shouldSettleLedgerAtBoundary`, unit-pinned; wired as
+  a passive scroll listener): the ledger's exact-cancel contract holds
+  only inside the content region — accumulated debt is real empty space
+  at the container's edge. Approaching within two viewports of either
+  edge settles immediately (one momentum interruption at the extreme of
+  the loaded window instead of blank space). RED: adversarial ride on
+  the pre-calibration build measured 367px blank bands + a 4968px clamp
+  flash at the top (the device's 3.0s blank, reproduced); GREEN: same
+  ride to scrollTop 0 with 0 blanks / 0 jumps / one settle write. The
+  ledger-boundary e2e stays as the integration invariant.
+- CALIBRATION: estimator constants fit to measured virtualizer tile
+  heights (one-liner 30, folded long 80, extras+2 sections 596 — the
+  old constants were +50..72px per row on EVERY class, the -9356px
+  ledger debt in the device trace). base 58→10 (compact 34→6,
+  extrapolated), line 22→20, fold banner 28→10, wrap 40→48 chars now
+  counted PER PHYSICAL LINE (the old newlines-plus-global-length
+  formula double-counted every wrapped line). Bias preference
+  documented: slightly UNDER when in doubt (grow-debt degrades
+  gracefully at the bottom boundary; over-estimates pile blank space
+  at the top the reader scrolls into). Boundary ride's ledger:
+  4968 → 828 max on the same content class (6x).
+- Post-calibration, hand-crafted adversarial content (blank-line runs,
+  dot-lines) all priced CORRECTLY — Cinny renders plain-text newlines
+  literally — so the e2e fixture is the standard mixed generator and
+  the guard geometry is pinned by unit tests instead of a fixture arms
+  race.
+- Validation: battery 9/9 (all previous + ledger-boundary), FULL
+  vitest 345 files / 2720 tests, eslint 0 errors, typecheck, build.
+  Two RoomTimeline unit mocks gained addEventListener stubs (the
+  boundary guard attaches a scroll listener).
+
 ### OFFSET LEDGER SHIPPED: red-green complete, 8/8 battery, deployed for device trace (2026-07-06, round 10 fix)
 
 The trace-diagnosed transform-compensation architecture is REPLACED by

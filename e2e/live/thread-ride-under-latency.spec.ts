@@ -387,6 +387,82 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(analysis.violations).toEqual([]);
   });
 
+  test('riding into the ledger margin never shows the debt: boundary settles first', async ({
+    page,
+  }, testInfo) => {
+    // Device trace ride-trace-1783391256452: 130 badly-estimated rows
+    // accrued px=-9356 during a continuous ride, and scrolling to the top
+    // of the loaded window entered the empty margin that debt creates -
+    // 3.0s of blank. RED-GREEN PROVENANCE: against the pre-calibration
+    // build this ride measured 367px blank bands and a 4968px clamp
+    // flash; the boundary guard turned it to 0/0. Post-calibration the
+    // estimator prices even hand-crafted adversarial content correctly
+    // (Cinny renders plain-text newlines literally), so the ledger stays
+    // small here by design — the guard's trigger geometry is pinned
+    // permanently by the shouldSettleLedgerAtBoundary unit tests, and
+    // this ride remains the integration invariant: ride to the very top
+    // of the loaded window, never see debt as blank space.
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `Ledger boundary ${Date.now()}`,
+    });
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'ledger boundary root',
+    });
+    await sendMixedThreadReplies(homeserver, session.accessToken, roomId, rootId, 150);
+
+    await installScrollWriteProbe(page);
+    await loginWithPassword(page, { homeserver, username, password });
+    await page.setViewportSize(iphone.viewport);
+    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
+    await page.waitForTimeout(3_000);
+    await throttleCpu(page, 4);
+
+    // Continuous ride to the very top of the window: pauses below the
+    // 150ms settle threshold so the debt cannot be repaid at rest - only
+    // the boundary guard can prevent the viewport from entering it.
+    const report = await runFlickRide(page, {
+      cycles: Array.from({ length: 40 }, () => ({ steps: 8, stepPx: 90, pauseMs: 80 })),
+      tailSampleMs: 2_000,
+    });
+
+    const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
+    const topReached = Math.min(...report.frames.map((frame) => frame.scrollTop));
+    const maxLedger = Math.max(0, ...report.frames.map((frame) => Math.abs(frame.ledgerPx ?? 0)));
+    // eslint-disable-next-line no-console
+    console.log(
+      `LEDGER-BOUNDARY ${JSON.stringify({
+        frames: report.frames.length,
+        topReached,
+        maxLedger,
+        maxGapPx: analysis.maxGapPx,
+        blankFramesOver200: report.frames.filter((frame) => frame.gapPx >= 200).length,
+        maxJumpPx: analysis.maxJumpPx,
+        totalJumpPx: analysis.totalJumpPx,
+        appWrites: report.appWrites.length,
+      })}`
+    );
+    await testInfo.attach('ledger-boundary.json', {
+      body: JSON.stringify({ report, analysis }, null, 2),
+      contentType: 'application/json',
+    });
+
+    expect(report.error).toBeUndefined();
+    expect(report.frames.length).toBeGreaterThan(300);
+    // The ride genuinely reached the top region of the loaded window.
+    expect(topReached).toBeLessThan(600);
+    // THE invariant: no blank debt zone, no content shifts - even at the
+    // boundary. (Boundary settles are allowed writes; they are visually
+    // exact pairs and the jump budget verifies that.)
+    expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
+    expect(analysis.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
+    expect(analysis.totalJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.totalJumpPx);
+  });
+
   test('hydrating a long thread keeps the view pinned to the bottom', async ({
     page,
   }, testInfo) => {

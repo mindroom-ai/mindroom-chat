@@ -13,6 +13,7 @@ import {
   shouldApplyMeasurementScrollCorrection,
   shouldAutoPaginateThreadBack,
   shouldPinThreadToBottomOnOpen,
+  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
 
 const makeMessageEvent = (eventId: string, ts = 1) =>
@@ -267,7 +268,7 @@ describe('estimateThreadEventRowHeight', () => {
   const modern = { compact: false };
 
   it('estimates a one-liner at base + one text line', () => {
-    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(80);
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(30);
   });
 
   it('adds a line per newline for short bodies', () => {
@@ -279,7 +280,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(124);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(70);
   });
 
   it('caps anything past the fold at the collapsed height (long body)', () => {
@@ -291,7 +292,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(152);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
   });
 
   it('caps short-but-many-lines bodies at the collapsed height too', () => {
@@ -303,7 +304,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(152);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
   });
 
   it('estimates edit/reaction relations near zero (they render no row)', () => {
@@ -324,7 +325,7 @@ describe('estimateThreadEventRowHeight', () => {
 
   it('uses the smaller compact base', () => {
     expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
-      56
+      26
     );
   });
 
@@ -348,11 +349,11 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    // 10 lines + wrap overflow (149 chars / 40) = 13 lines; base 58 +
-    // 13*22 + 2 section headers * 40. NOT the folded 152: these rows never
-    // fold, and estimating them small caused the per-frame jump budget the
-    // ride-smoothness e2e pins.
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(58 + 13 * 22 + 2 * 40);
+    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 +
+    // 10*20 + 2 section headers * 40 (calibrated constants). NOT the
+    // folded 80: these rows never fold, and estimating them small caused
+    // the per-frame jump budget the ride-smoothness e2e pins.
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20 + 2 * 40);
   });
 
   it('bounds pathological always-expanded bodies at the line cap', () => {
@@ -371,7 +372,61 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(58 + 48 * 22 + 40);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20 + 40);
+  });
+});
+
+describe('shouldSettleLedgerAtBoundary', () => {
+  // Viewport 600px tall at client top 0; guard band = 2 viewports.
+  const base = {
+    scrollTop: 0,
+    scrollBottom: 600,
+    clientHeight: 600,
+  };
+
+  it('ignores small debts (ordinary rests settle them invisibly)', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -40, innerTop: 100, innerBottom: 5000 })
+    ).toBe(false);
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: 40, innerTop: -5000, innerBottom: 500 })
+    ).toBe(false);
+  });
+
+  it('settles shrink-debt when the content start approaches the viewport (top dead zone)', () => {
+    // px<0: positive margin above the content. Content start 800px below
+    // the viewport top is inside the 1200px guard band.
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -5000, innerTop: 800, innerBottom: 60000 })
+    ).toBe(true);
+    // Far from the boundary: no settle, the ride keeps its momentum.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: -5000,
+        innerTop: -20000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+  });
+
+  it('settles grow-debt when the content end approaches the viewport (bottom dead zone)', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 1500,
+      })
+    ).toBe(true);
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 20000,
+      })
+    ).toBe(false);
   });
 });
 

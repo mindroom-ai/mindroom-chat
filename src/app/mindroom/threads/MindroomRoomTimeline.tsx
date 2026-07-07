@@ -140,6 +140,7 @@ import {
   estimateThreadEventRowHeight,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
+  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
@@ -1247,6 +1248,44 @@ export function RoomTimeline({
     const virtualizer = roomTimelineVirtualizerRef.current;
     virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
   }, [getScrollElement]);
+  // Ledger boundary guard: the ledger's exact-cancel contract holds only
+  // while the viewport stays inside the content region — accumulated debt
+  // is real empty space at the container's edge (the margin), and a long
+  // continuous ride can carry the reader into it before any rest repays
+  // it (device trace ride-trace-1783391256452: 3.0s blank at px=-9356;
+  // pinned by the ledger-boundary e2e). Approaching an edge settles
+  // immediately: one momentum interruption at the extreme of the loaded
+  // window — where scrolling hard-stopped anyway — instead of visible
+  // blank space. The settle pair is visually exact, so the only cost is
+  // momentum, and only at the boundary.
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    const onLedgerBoundaryScroll = () => {
+      const px = scrollCompensationPxRef.current;
+      // Cheap early exit on the hot path (the predicate re-checks, but
+      // without rect reads the common px=0 case costs nothing).
+      if (px > -48 && px < 48) return;
+      const inner = virtualInnerRef.current;
+      if (!inner) return;
+      const innerRect = inner.getBoundingClientRect();
+      const scrollRect = scrollEl.getBoundingClientRect();
+      if (
+        shouldSettleLedgerAtBoundary({
+          ledgerPx: px,
+          innerTop: innerRect.top,
+          innerBottom: innerRect.bottom,
+          scrollTop: scrollRect.top,
+          scrollBottom: scrollRect.bottom,
+          clientHeight: scrollEl.clientHeight,
+        })
+      ) {
+        settleScrollCompensation();
+      }
+    };
+    scrollEl.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
+    return () => scrollEl.removeEventListener('scroll', onLedgerBoundaryScroll);
+  }, [scrollRef, settleScrollCompensation, threadId, threadInitialRenderMode]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
       // Accumulate + FORCE a commit. The tiles are absolutely positioned,

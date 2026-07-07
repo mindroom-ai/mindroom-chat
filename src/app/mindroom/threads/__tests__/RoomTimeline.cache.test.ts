@@ -814,6 +814,8 @@ describe('RoomTimeline', () => {
         getBoundingClientRect: vi.fn(() => ({ top: 120, bottom: 180 })),
       };
       const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 700 })),
         querySelector: vi.fn(() => undefined),
         querySelectorAll: vi.fn(() => [visibleAnchor]),

@@ -172,6 +172,43 @@ export const buildMeasurementScrollCorrectionHook =
     return apply;
   };
 
+type LedgerBoundaryOpts = {
+  // Accumulated offset-ledger pixels (Σ dropped correction deltas;
+  // container marginTop is -px).
+  ledgerPx: number;
+  // Client-coordinate tops/bottoms of the inner virtual container and
+  // the scroll element.
+  innerTop: number;
+  innerBottom: number;
+  scrollTop: number;
+  scrollBottom: number;
+  clientHeight: number;
+};
+
+// Ledger boundary predicate: the ledger's exact-cancel contract holds
+// only while the viewport stays inside the content region — accumulated
+// debt is real empty space at the container's edge, and a continuous
+// ride can carry the reader into it before any rest repays it (device
+// trace ride-trace-1783391256452: 3.0s blank at px=-9356; e2e measured
+// 367px blank bands and a 4968px clamp flash without the guard, 0/0
+// with it). Within two viewports of the debt edge, settle immediately:
+// one momentum interruption at the extreme of the loaded window instead
+// of visible blank space. Small debts settle at ordinary rests and are
+// invisible even if reached.
+export const shouldSettleLedgerAtBoundary = ({
+  ledgerPx,
+  innerTop,
+  innerBottom,
+  scrollTop,
+  scrollBottom,
+  clientHeight,
+}: LedgerBoundaryOpts): boolean => {
+  if (ledgerPx > -48 && ledgerPx < 48) return false;
+  const guardPx = clientHeight * 2;
+  if (ledgerPx < 0) return innerTop > scrollTop - guardPx;
+  return innerBottom < scrollBottom + guardPx;
+};
+
 // Per-row virtualizer estimates from event CONTENT. Thread rows are
 // bimodal — one-liners (~80px) and fold-capped long messages (~150px,
 // CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
@@ -181,13 +218,24 @@ export const buildMeasurementScrollCorrectionHook =
 // shrink lets the browser clamp a scrolled-up reader back to the bottom).
 // A content heuristic is deterministic, stateless, and per-row-shaped:
 // the residual error drops to tens of px and needs no adoption machinery.
-const THREAD_ROW_BASE_PX = 58;
-const THREAD_ROW_BASE_COMPACT_PX = 34;
-const THREAD_ROW_LINE_PX = 22;
-const THREAD_ROW_FOLD_BANNER_PX = 28;
+// CALIBRATED against measured virtualizer tile heights (2026-07-07;
+// device trace ride-trace-1783391256452 measured the previous constants
+// at +50..72px PER ROW for every class — px=-9356 of ledger debt over
+// one ride): one-line row measures 30 (base 10 + line 20), folded long
+// measures 80 (base + 3 lines + banner 10), extras with 2 sections
+// measures 596 (base + 25 wrapped lines + 2 headers = 590). Tile rects
+// exclude inter-row margins, which is exactly what the virtualizer
+// caches. Bias preference: when in doubt, estimate slightly UNDER —
+// grow-debt (negative margin) sits at the bottom boundary where the
+// browser clamp and the boundary guard degrade gracefully, while
+// over-estimates pile blank space at the top the reader scrolls into.
+const THREAD_ROW_BASE_PX = 10;
+const THREAD_ROW_BASE_COMPACT_PX = 6;
+const THREAD_ROW_LINE_PX = 20;
+const THREAD_ROW_FOLD_BANNER_PX = 10;
 // CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
 const THREAD_ROW_FOLD_CONTENT_LINES = 3;
-const THREAD_ROW_WRAP_CHARS_PER_LINE = 40;
+const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
 // Always-expanded rows render their whole body; the estimate is line-based
 // and bounded (a pathological body should not produce a megapixel row).
 const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
@@ -198,11 +246,19 @@ const THREAD_ROW_SECTION_HEADER_PX = 40;
 const estimateBodyLines = (body: string): number => {
   const scanned =
     body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
-  let lines = 1;
-  for (let i = 0; i < scanned.length; i += 1) {
-    if (scanned.charCodeAt(i) === 10) lines += 1;
+  // Wrap is counted PER PHYSICAL LINE: the previous newlines-plus-
+  // global-length formula double-counted every wrapped line's newline
+  // (part of the systematic over-estimate the calibration removed).
+  let lines = 0;
+  let lineStart = 0;
+  for (let i = 0; i <= scanned.length; i += 1) {
+    if (i === scanned.length || scanned.charCodeAt(i) === 10) {
+      const lineLength = i - lineStart;
+      lines += Math.max(1, Math.ceil(lineLength / THREAD_ROW_WRAP_CHARS_PER_LINE));
+      lineStart = i + 1;
+      if (lines >= THREAD_ROW_MAX_ESTIMATED_LINES) return THREAD_ROW_MAX_ESTIMATED_LINES;
+    }
   }
-  lines += Math.floor(scanned.length / THREAD_ROW_WRAP_CHARS_PER_LINE);
   if (body.length > scanned.length) return THREAD_ROW_MAX_ESTIMATED_LINES;
   return Math.min(lines, THREAD_ROW_MAX_ESTIMATED_LINES);
 };
