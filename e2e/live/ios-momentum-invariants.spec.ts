@@ -1012,11 +1012,15 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     // Let the (deliberately truncated) open chain finish and the pin settle.
     await page.waitForTimeout(3_000);
-    // Back-pagination may fetch again from here on.
-    await page.unroute(relationsContinuation);
-    requestPhase = 'stream';
+    // Back-pagination may fetch again from the stream phase on — but the
+    // abort must outlive the rig install: under the one-drain-channel
+    // architecture (PR #87) continuations retry back-to-back the moment
+    // the abort lifts, and unrouting BEFORE the evaluate let the window
+    // fill to 361/361 before threadCountStart was read (battery run
+    // 2026-07-07). The evaluate reads its start count immediately; the
+    // unroute lands while the drive is arming.
 
-    const report = (await page.evaluate(async () => {
+    const reportPromise = page.evaluate(async () => {
       const w = window as Window & {
         __appScrollWrites?: { kind: string; value: number; t: number }[];
         __driverDepth?: number;
@@ -1178,7 +1182,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         jumpEvents,
         settledTop: scroller.scrollTop,
       };
-    })) as {
+    });
+    await page.waitForTimeout(1_000);
+    await page.unroute(relationsContinuation);
+    requestPhase = 'stream';
+    const report = (await reportPromise) as {
       error?: string;
       threadCountStart: number;
       threadCountEnd: number;

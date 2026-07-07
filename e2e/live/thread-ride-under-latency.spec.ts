@@ -127,14 +127,17 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
-    await unrouteAbort();
 
     // Production-shaped stream phase: pagination pages take 1.5s, the
-    // phone CPU is ~4x slower than this desktop.
-    await throttleRelationsContinuations(page, 1_500);
+    // phone CPU is ~4x slower than this desktop. The abort stays armed
+    // until the ride's rig has read threadCountStart and the teleport is
+    // settling: under the one-drain-channel architecture (PR #87)
+    // continuations retry back-to-back the moment the abort lifts, and
+    // the old pre-ride swap let the window fill to 361/361 before
+    // sampling started (battery run 2026-07-07) — the spec degenerated
+    // into a full-window ride and the precondition caught it.
     await throttleCpu(page, 4);
-
-    const report = await runFlickRide(page, {
+    const ridePromise = runFlickRide(page, {
       teleportTo: 1_800,
       teleportSettleMs: 800,
       // 90ms finger-back-down pauses: below the 150ms quiescence window,
@@ -145,6 +148,10 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       cycles: Array.from({ length: 10 }, () => ({ steps: 8, stepPx: 90, pauseMs: 90 })),
       tailSampleMs: 3_000,
     });
+    await page.waitForTimeout(1_200);
+    await unrouteAbort();
+    await throttleRelationsContinuations(page, 1_500);
+    const report = await ridePromise;
 
     const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
     // eslint-disable-next-line no-console
