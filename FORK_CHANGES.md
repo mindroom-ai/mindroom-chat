@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### PR #88 adversarial review round: two majors fixed, fold pinned (2026-07-07)
+
+Two independent adversarial agents (correctness lens + test-integrity
+lens) reviewed the PR before merge, per owner mandate. Confirmed and
+fixed:
+
+- STALE SCROLLMARGIN ON SWITCH (major): the ledger's render-time reset
+  ran AFTER the useVirtualizer call in source order; a ref-only reset
+  schedules no re-render, so a switched-to view kept a stale margin in
+  the virtualizer options indefinitely. Reset hoisted above the call.
+- FOLD VS MID-FLIGHT BANDS (major): a hydration band landing while a
+  pagination is in flight shifts the anchor; the fold priced it
+  correctly but CONSUMED the capture, leaving the actual pagination
+  commit uncompensated. The fold now rebases the capture while
+  threadPaginatingBackRef is true and consumes only at the real commit.
+- FOLD PINNED (test-integrity blocker): the previous ledger tests only
+  asserted the DELETED restore machinery's channels were silent — fold
+  deletion, ΔH off-by-one and unconsumed-anchor mutants all passed.
+  The RoomTimeline.cache test now pins the exact folded height through
+  the settle (scrollTop += 2600 for 100 compact one-liners, margin
+  back to zero) and anchor consumption (a begin()-less band prepend
+  adds nothing).
+- Also: O(1) index-map lookup in the fold; alive() guards on settle
+  waits + indent nit (greptile).
+- DEFERRED with agreement of both reviewers: unit coverage for the
+  settle generation guard and the render-time latch keying (tracked
+  here as follow-up tests).
+- Refuted by the reviewers (recorded for posterity): RO-guard removal
+  safety, latch-keying switch scenarios, generation-guard stuck-flag,
+  no-anchor network commits, double Load Older, budget drift.
+
 ### Follow-ups PR #88 (cont.): RO guard removed from the virtual-core patch; TanStack issue filed (2026-07-07)
 
 Upstream items closed (analysis by a parallel review agent, verified
