@@ -898,31 +898,6 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
-    const { restoreThreadPrependScrollAnchor } = await import(
-      '../timelineScrollUtils'
-    );
-
-    const anchor = {
-      getAttribute: vi.fn().mockReturnValue('$anchor'),
-      getBoundingClientRect: vi.fn().mockReturnValue({
-        top: 420,
-        bottom: 460,
-      }),
-    };
-    const scroll = {
-      querySelectorAll: vi.fn().mockReturnValue([anchor]),
-      scrollTop: 40,
-    } as unknown as HTMLElement;
-
-    expect(
-      restoreThreadPrependScrollAnchor(scroll, {
-        eventId: '$anchor',
-        top: 140,
-      })
-    ).toBe(true);
-    expect(scroll.scrollTop).toBe(320);
-  });
       });
     });
 });

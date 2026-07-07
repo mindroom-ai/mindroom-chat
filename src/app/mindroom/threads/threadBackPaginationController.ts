@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import {
   captureThreadPrependScrollAnchor,
-  restoreThreadPrependScrollAnchor,
   type ThreadPrependScrollAnchor,
 } from './timelineScrollUtils';
 
@@ -32,18 +31,6 @@ export type ThreadBackPaginationController = {
   ) => boolean;
   getPendingAnchorEventId: () => string | undefined;
   getPendingAnchorSeq: () => number | undefined;
-  // Captured viewport-coordinate top of the pending anchor row. The
-  // prepend coarse restore needs it to compute the anchor's target
-  // scrollTop EXACTLY (anchor start offset minus its captured viewport
-  // offset) — aligning the anchor to the viewport top instead paints one
-  // frame displaced by that offset, which the rect-based fine correction
-  // then visibly reverses (the reverse-flash device report).
-  getPendingAnchorClientTop: () => number | undefined;
-  restorePendingAnchor: (
-    scrollRoot: HTMLElement | null | undefined,
-    threadId: string | undefined,
-    eventCount?: number
-  ) => boolean;
 };
 
 export const useThreadBackPaginationController = (): ThreadBackPaginationController => {
@@ -140,41 +127,9 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
 
   const getPendingAnchorSeq = useCallback(() => pendingAnchorRef.current?.seq, []);
 
-  const getPendingAnchorClientTop = useCallback(() => pendingAnchorRef.current?.top, []);
-
   const clearPendingAnchor = useCallback(() => {
     pendingAnchorRef.current = undefined;
   }, []);
-
-  const restorePendingAnchor = useCallback(
-    (
-      scrollRoot: HTMLElement | null | undefined,
-      threadId: string | undefined,
-      eventCount = 0
-    ): boolean => {
-      if (!threadId) {
-        pendingAnchorRef.current = undefined;
-        return false;
-      }
-
-      const pendingAnchor = pendingAnchorRef.current;
-      if (!pendingAnchor || pendingAnchor.threadId !== threadId) return false;
-      if (
-        typeof eventCount === 'number' &&
-        typeof pendingAnchor.eventCount === 'number' &&
-        eventCount <= pendingAnchor.eventCount
-      ) {
-        return false;
-      }
-
-      const restored = restoreThreadPrependScrollAnchor(scrollRoot, pendingAnchor);
-      if (restored) {
-        pendingAnchorRef.current = undefined;
-      }
-      return restored;
-    },
-    []
-  );
 
   return {
     isPaginatingBack,
@@ -187,7 +142,5 @@ export const useThreadBackPaginationController = (): ThreadBackPaginationControl
     recaptureAnchor,
     getPendingAnchorEventId,
     getPendingAnchorSeq,
-    getPendingAnchorClientTop,
-    restorePendingAnchor,
   };
 };

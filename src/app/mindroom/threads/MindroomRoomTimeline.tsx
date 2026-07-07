@@ -462,8 +462,6 @@ export function RoomTimeline({
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
-    getPendingAnchorClientTop: getPendingThreadBackPaginationAnchorClientTop,
-    restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
     recaptureAnchor: recaptureThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
@@ -1191,6 +1189,16 @@ export function RoomTimeline({
     const prependCapture = threadVirtualPrependCaptureRef.current;
     if (
       prependCapture &&
+      (prependCapture.threadId !== (threadId ?? '') ||
+        getPendingThreadBackPaginationAnchorSeq() !== prependCapture.anchorSeq)
+    ) {
+      // Anchor cleared, restored or re-captured elsewhere (barren page,
+      // thread switch, rapid second Load Older): nothing left to fold for
+      // THIS pagination.
+      threadVirtualPrependCaptureRef.current = undefined;
+    }
+    if (
+      prependCapture &&
       threadId &&
       prependCapture.threadId === threadId &&
       getPendingThreadBackPaginationAnchorSeq() === prependCapture.anchorSeq
@@ -1660,176 +1668,6 @@ export function RoomTimeline({
       threadEventIndexMapRef,
     ]
   );
-  // The fine-correction retry chain lives in a ref so unrelated threadEvents
-  // updates (e.g. streaming edits) cannot cancel it or expire the anchor; it
-  // ends on restore success, anchor expiry, a newer prepend, or unmount.
-  const threadPrependRetryRef = useRef<{ rafId?: number }>({});
-  const cancelThreadPrependRetry = useCallback(() => {
-    if (threadPrependRetryRef.current.rafId !== undefined) {
-      cancelAnimationFrame(threadPrependRetryRef.current.rafId);
-      threadPrependRetryRef.current.rafId = undefined;
-    }
-  }, []);
-  useEffect(() => cancelThreadPrependRetry, [cancelThreadPrependRetry]);
-  useLayoutEffect(() => {
-    const capture = threadVirtualPrependCaptureRef.current;
-    if (!capture || !threadId || capture.threadId !== threadId) return;
-    const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-    if (
-      anchorEventId !== capture.anchorEventId ||
-      getPendingThreadBackPaginationAnchorSeq() !== capture.anchorSeq
-    ) {
-      // Anchor restored, cleared, or re-captured elsewhere; nothing left to
-      // compensate for THIS pagination.
-      threadVirtualPrependCaptureRef.current = undefined;
-      return;
-    }
-    const anchorIndex = threadEventIndexMapRef.current.get(anchorEventId);
-    if (typeof anchorIndex !== 'number' || anchorIndex <= capture.anchorIndex) return;
-    threadVirtualPrependCaptureRef.current = undefined;
-
-    // The coarse move exists only to mount an unmounted anchor row so the
-    // DOM-based restore has an element to align; when the row is already
-    // mounted, it would just add displacement for the restore to undo.
-    // Direct write, NOT scrollToIndex: since virtual-core 3.17 scrollToIndex
-    // arms a rAF reconcile loop that keeps re-asserting align-start for up
-    // to 5s, fighting the fine correction below (which aligns the anchor to
-    // its captured viewport offset, not to the top). getOffsetForIndex gives
-    // the coarse start offset without arming the loop.
-    //
-    // The target subtracts the anchor's CAPTURED viewport offset (its rect
-    // top relative to the scroller at capture time): the write must land
-    // the anchor where the reader had it, not at the viewport top. Without
-    // the term, this frame PAINTS displaced by that offset (up to the
-    // anchor row's own height — 648px on the tallest fixture rows) and the
-    // rect-based fine correction then moves the content back a frame later:
-    // the "short jumps applied again in reverse" device report, measured by
-    // the prepend one-paint e2e. With it, the paint is correct by
-    // construction and the fine pass degenerates to a ≤1px no-write check.
-    if (!getEventElementById(scrollRef.current, anchorEventId)) {
-      // No settle needed here (unlike the round-8 transform, which was
-      // invisible to rects): the ledger is a REAL margin, so the live
-      // container rect below and the live options.scrollMargin subtraction
-      // are both ledger-aware — the computation is coherent at any
-      // accumulated value.
-      const coarse = roomTimelineVirtualizer.getOffsetForIndex(anchorIndex, 'start');
-      const scrollElement = scrollRef.current;
-      // The anchor's captured client top cannot be missing here (the
-      // eventId/seq equality above proved the pending anchor exists) —
-      // but a coarse write WITHOUT the offset term would reintroduce the
-      // align-to-viewport-top flash, so bail rather than guess.
-      const anchorClientTop = getPendingThreadBackPaginationAnchorClientTop();
-      if (coarse && scrollElement && anchorClientTop !== undefined) {
-        const scrollElementRect = scrollElement.getBoundingClientRect();
-        const anchorViewportOffset = anchorClientTop - scrollElementRect.top;
-        // getOffsetForIndex is in virtual coordinates: content-relative
-        // plus options.scrollMargin (the ledger, whose OPTION lags the
-        // synchronous settle above by one render — subtract the live
-        // value). The chip/padding block above the container is DYNAMIC,
-        // so convert to scroller space with the container's live offset;
-        // without that term the write is short by exactly that block — a
-        // constant the e2e measured at 72px.
-        const innerElement = virtualInnerRef.current;
-        const containerOffsetTop = innerElement
-          ? innerElement.getBoundingClientRect().top -
-            scrollElementRect.top +
-            scrollElement.scrollTop
-          : 0;
-        scrollElement.scrollTo({
-          top: Math.max(
-            containerOffsetTop +
-              (coarse[0] - roomTimelineVirtualizer.options.scrollMargin) -
-              anchorViewportOffset,
-            0
-          ),
-          behavior: 'instant',
-        });
-      }
-    }
-
-    // The anchor row mounts on the virtualizer's next render, so the
-    // same-commit DOM restore in useRoomFocusScrollController can miss it.
-    // Retry the fine-correction over the next frames, then expire the anchor —
-    // a lingering anchor would fire a visible scroll jump on a later unrelated
-    // thread update.
-    cancelThreadPrependRetry();
-    const eventCountAtDetection = threadEvents.length;
-    const chainAnchorSeq = capture.anchorSeq;
-    let attempts = 0;
-    const retryRestore = () => {
-      threadPrependRetryRef.current.rafId = undefined;
-      // A rapid second Load Older replaces the pending anchor; this chain owns
-      // only the anchor it detected (by capture seq, since a re-capture can
-      // anchor the same event id) and must not restore or expire the newer
-      // one (its own compensation effect takes over).
-      if (getPendingThreadBackPaginationAnchorSeq() !== chainAnchorSeq) return;
-      const restored = restorePendingThreadBackPaginationAnchor(
-        scrollRef.current,
-        threadId,
-        eventCountAtDetection
-      );
-      attempts += 1;
-      if (restored) return;
-      if (attempts < 5) {
-        threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
-        return;
-      }
-      clearPendingThreadBackPaginationAnchor();
-    };
-    threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
-  }, [
-    cancelThreadPrependRetry,
-    clearPendingThreadBackPaginationAnchor,
-    getPendingThreadBackPaginationAnchorClientTop,
-    getPendingThreadBackPaginationAnchorEventId,
-    getPendingThreadBackPaginationAnchorSeq,
-    restorePendingThreadBackPaginationAnchor,
-    roomTimelineVirtualizer,
-    scrollRef,
-    threadEventIndexMapRef,
-    threadEvents,
-    threadId,
-  ]);
-  // Same-commit DOM restore gate: while this pagination's capture is still
-  // armed (no index shift detected), a threadEvents change is an append —
-  // restoring would teleport the viewport back to the click-time position.
-  // Mid-flight appends just skip the restore; once the pagination has
-  // finished without ever prepending (empty or fully-duplicate page), the
-  // armed anchor would otherwise fire that yank on the next append, so it is
-  // expired instead.
-  const restoreThreadPrependAnchorIfPrepended = useCallback(
-    (
-      scrollRoot: HTMLElement | null | undefined,
-      restoreThreadId: string | undefined,
-      eventCount?: number
-    ) => {
-      const capture = threadVirtualPrependCaptureRef.current;
-      if (
-        capture &&
-        restoreThreadId &&
-        capture.threadId === restoreThreadId &&
-        getPendingThreadBackPaginationAnchorSeq() === capture.anchorSeq
-      ) {
-        const anchorIndex = threadEventIndexMapRef.current.get(capture.anchorEventId);
-        const shifted = typeof anchorIndex === 'number' && anchorIndex > capture.anchorIndex;
-        if (!shifted) {
-          if (!threadPaginatingBackRef.current) {
-            threadVirtualPrependCaptureRef.current = undefined;
-            clearPendingThreadBackPaginationAnchor();
-          }
-          return false;
-        }
-      }
-      return restorePendingThreadBackPaginationAnchor(scrollRoot, restoreThreadId, eventCount);
-    },
-    [
-      clearPendingThreadBackPaginationAnchor,
-      getPendingThreadBackPaginationAnchorSeq,
-      restorePendingThreadBackPaginationAnchor,
-      threadEventIndexMapRef,
-      threadPaginatingBackRef,
-    ]
-  );
   const roomTimelineVirtualizerRef = useRef(roomTimelineVirtualizer);
   roomTimelineVirtualizerRef.current = roomTimelineVirtualizer;
   const scrollThreadEventIntoView = useCallback(
@@ -2168,7 +2006,6 @@ export function RoomTimeline({
     focusScrollResetToken: effectiveThreadFilterState,
     pendingThreadOpenRef,
     pendingThreadOpenTick,
-    restorePendingThreadBackPaginationAnchor: restoreThreadPrependAnchorIfPrepended,
     retryPagination,
     roomId: room.roomId,
     scrollRef,
