@@ -409,6 +409,117 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(analysis.violations).toEqual([]);
   });
 
+  test('reopening a ridden thread reprices it from persisted measurements: the ledger stays flat', async ({
+    page,
+  }, testInfo) => {
+    // Device acceptance trace ride-trace-1783444824925 (2026-07-07): on
+    // REAL agent-thread content (markdown/html renders much taller than
+    // the plain-text wrap model prices), the ledger accrued +6327px in
+    // one upward ride and the boundary guard interrupted momentum three
+    // times in 20s — the "scrolling sometimes stops" report. Persisted
+    // measured heights must make the SECOND ride through the same rows
+    // exact: reopen from IDB, re-ride the same region, ledger stays
+    // flat, zero settle interruptions. The fixture mirrors the device
+    // content class: html bodies whose rendered height dwarfs the
+    // plain-text estimate.
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `Reopen reprice ${Date.now()}`,
+    });
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'reopen reprice root',
+    });
+    for (let i = 1; i <= 220; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(homeserver, session.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: `reply ${i}`,
+        format: 'org.matrix.custom.html',
+        formatted_body: `<h3>Agent step ${i}</h3><pre><code>${Array.from(
+          { length: 8 },
+          (_v, line) => `tool output line ${line} of step ${i}`
+        ).join('\n')}</code></pre><p>done with step ${i}</p>`,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: rootId },
+        },
+      });
+    }
+
+    const rideOnce = async () => {
+      await page.goto(
+        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
+      );
+      await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
+      await page.waitForTimeout(2_500);
+      await throttleCpu(page, 4);
+      const report = await runFlickRide(page, {
+        cycles: Array.from({ length: 22 }, () => ({ steps: 8, stepPx: 90, pauseMs: 80 })),
+        tailSampleMs: 2_500,
+      });
+      const maxLedger = Math.max(0, ...report.frames.map((f) => Math.abs(f.ledgerPx ?? 0)));
+      const heightsProbes = await page.evaluate(() => {
+        const snap =
+          (
+            window as Window & {
+              __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> };
+            }
+          ).__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
+        return {
+          saves: snap.threadHeightsSaves,
+          seedLoads: snap.threadHeightsSeedLoads,
+          layoutMismatches: snap.threadHeightsLayoutMismatches,
+        };
+      });
+      return { report, maxLedger, heightsProbes };
+    };
+
+    await loginWithPassword(page, { homeserver, username, password });
+    // Phone-width viewport: real line wrap diverges further from the
+    // 48-char model, mirroring the device's estimate error.
+    await page.setViewportSize(iphone.viewport);
+    const ride1 = await rideOnce();
+    // Let the debounced heights persist flush before the reload tears
+    // the page down.
+    await page.waitForTimeout(2_500);
+    const ride2 = await rideOnce();
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `REOPEN-REPRICE ${JSON.stringify({
+        maxLedger1: ride1.maxLedger,
+        maxLedger2: ride2.maxLedger,
+        frames1: ride1.report.frames.length,
+        frames2: ride2.report.frames.length,
+        threadCount2: ride2.report.threadCountEnd,
+        heights1: ride1.heightsProbes,
+        heights2: ride2.heightsProbes,
+      })}`
+    );
+    await testInfo.attach('reopen-reprice.json', {
+      body: JSON.stringify({ ride1: ride1.report, ride2: ride2.report }, null, 2),
+      contentType: 'application/json',
+    });
+
+    expect(ride1.report.error).toBeUndefined();
+    expect(ride2.report.error).toBeUndefined();
+    // Fixture precondition: the content class genuinely defeats the
+    // estimator on the first pass (the device showed +6327px; anything
+    // comfortably past the boundary-guard arming floor proves it).
+    expect(ride1.maxLedger).toBeGreaterThan(300);
+    // THE invariant: the second ride through measured rows is priced
+    // from persistence — flat ledger, no boundary-settle momentum
+    // interruptions.
+    expect(ride2.maxLedger).toBeLessThan(100);
+    const analysis2 = analyzeRide(ride2.report, FULL_RIDE_BUDGETS);
+    expect(analysis2.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
+  });
+
   test('riding into the ledger margin never shows the debt: boundary settles first', async ({
     page,
   }, testInfo) => {

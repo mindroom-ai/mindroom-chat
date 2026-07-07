@@ -11,6 +11,8 @@ import {
   MAX_EVENT_TS,
   META_STORE,
   ROOM_LEDGER_STORE,
+  THREAD_HEIGHTS_BY_ROOM_INDEX,
+  THREAD_HEIGHTS_STORE,
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
   getCacheStoreByteBudget,
@@ -99,13 +101,14 @@ const readMetaLastOpenedByRoom = (
 const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
   new Promise((resolve, reject) => {
     const txn = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, THREAD_SUMMARIES_STORE],
+      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, THREAD_SUMMARIES_STORE, THREAD_HEIGHTS_STORE],
       'readwrite'
     );
     const eventsStore = txn.objectStore(EVENTS_STORE);
     const metaStore = txn.objectStore(META_STORE);
     const ledgerStore = txn.objectStore(ROOM_LEDGER_STORE);
     const summariesStore = txn.objectStore(THREAD_SUMMARIES_STORE);
+    const heightsStore = txn.objectStore(THREAD_HEIGHTS_STORE);
 
     let deletedCount = 0;
 
@@ -152,6 +155,17 @@ const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
       cursor.continue();
     };
     summariesCursor.onerror = () => reject(summariesCursor.error);
+
+    // Thread heights: has by_room index (schema v4).
+    const heightsIndex = heightsStore.index(THREAD_HEIGHTS_BY_ROOM_INDEX);
+    const heightsCursor = heightsIndex.openCursor(IDBKeyRange.only(roomId));
+    heightsCursor.onsuccess = () => {
+      const cursor = heightsCursor.result;
+      if (!cursor) return;
+      cursor.delete();
+      cursor.continue();
+    };
+    heightsCursor.onerror = () => reject(heightsCursor.error);
 
     // Ledger row: primary key.
     ledgerStore.delete(roomId);

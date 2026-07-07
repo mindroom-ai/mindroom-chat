@@ -10,12 +10,14 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 3;
+// v4 (2026-07-07): + thread_heights (persisted measured tile heights).
+export const CACHE_STORE_DB_VERSION = 4;
 
 export const EVENTS_STORE = 'events';
 export const META_STORE = 'meta';
 export const ROOM_LEDGER_STORE = 'room_ledger';
 export const THREAD_SUMMARIES_STORE = 'thread_summaries';
+export const THREAD_HEIGHTS_STORE = 'thread_heights';
 
 // Index over the events store: [roomId, scope, ts, eventId]. `scope` is
 // the empty string for room-timeline records and the thread id for thread
@@ -23,6 +25,7 @@ export const THREAD_SUMMARIES_STORE = 'thread_summaries';
 // indexes with a single shared shape so both cursors reuse the same core.
 export const EVENTS_BY_SCOPE_TS_INDEX = 'by_scope_ts';
 export const THREAD_SUMMARIES_BY_ROOM_INDEX = 'by_room';
+export const THREAD_HEIGHTS_BY_ROOM_INDEX = 'by_room';
 
 // Scope constant used by the room timeline (empty string sorts before any
 // thread id). Callers pass a threadId (which starts with `$` in Matrix
@@ -157,6 +160,30 @@ export type CachedThreadSummaryRecord = {
   updatedAt: number;
 };
 
+// Measured tile heights persisted per thread (schema v4). Seeded into the
+// virtualizer's initialMeasurementsCache on reopen so revisited rows are
+// priced exactly instead of estimated — device trace
+// ride-trace-1783444824925 measured +6327px of estimate error over one
+// ride through real agent-thread content, and every boundary settle that
+// repays such debt is a momentum interruption. Heights are only valid for
+// the layout they were measured under; `layoutKey` mismatches discard the
+// record wholesale (a stale height self-heals via remeasure + ledger, but
+// a whole-record layout change would seed thousands of wrong prices).
+export type CachedThreadHeightsRecord = {
+  cacheKey: string;
+  roomId: string;
+  threadId: string;
+  layoutKey: string;
+  heights: Record<string, number>;
+  updatedAt: number;
+};
+
+// Entry cap per thread-heights record: ~50 bytes/entry keeps the record
+// under ~200KB for pathological threads; oldest-measured entries are the
+// least likely to be revisited, but we have no per-entry timestamps —
+// the cap drops arbitrary surplus, which the estimator covers anyway.
+export const MAX_THREAD_HEIGHT_ENTRIES = 4_000;
+
 // --- Key builders ---
 
 export const buildEventCacheKey = (roomId: string, scope: string, eventId: string): string =>
@@ -166,6 +193,9 @@ export const buildMetaKey = (roomId: string, scope: string): string => `${roomId
 
 export const buildSummaryCacheKey = (roomId: string, threadRootId: string): string =>
   `${roomId}|${threadRootId}`;
+
+export const buildThreadHeightsCacheKey = (roomId: string, threadId: string): string =>
+  `${roomId}|${threadId}`;
 
 // Approximate size of an event's on-disk footprint. Uses JSON serialization
 // length as a fast, deterministic proxy; the ledger's job in P2.2 is

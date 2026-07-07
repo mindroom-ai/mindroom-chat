@@ -142,6 +142,12 @@ import {
   shouldAutoPaginateThreadBack,
   shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
+import {
+  buildThreadLayoutKey,
+  createThreadHeightsPersister,
+  synthesizeInitialMeasurements,
+  type ThreadHeightsPersister,
+} from './threadHeightsPersistence';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   isIOSWebKitDevice,
@@ -978,6 +984,24 @@ export function RoomTimeline({
     setTimeline((ct) => ({ ...ct }));
   }, []);
 
+  // Measured-heights persistence (schema v4): heights measured under one
+  // layout are wrong under another, so the record is keyed by the wrap
+  // width + density + zoom that produced it.
+  const [pageZoom] = useSetting(settingsAtom, 'pageZoom');
+  const seededThreadHeightsRef = useRef<
+    { threadId: string; heights: Record<string, number> } | undefined
+  >(undefined);
+  const threadHeightsPersisterRef = useRef<ThreadHeightsPersister | undefined>(undefined);
+  const getThreadLayoutKey = useCallback(
+    () =>
+      buildThreadLayoutKey({
+        containerWidth: scrollRef.current?.clientWidth ?? window.innerWidth,
+        messageLayout,
+        messageSpacing,
+        pageZoom,
+      }),
+    [messageLayout, messageSpacing, pageZoom, scrollRef]
+  );
   const {
     hydrateThreadFromCache,
     refreshLatestThreadSlice,
@@ -985,10 +1009,12 @@ export function RoomTimeline({
     alive,
     debugTraceId: threadDebugTraceId,
     forceTimelineUpdate,
+    getThreadLayoutKey,
     mx,
     persistThreadEventCache,
     room,
     roomIdRef,
+    seededThreadHeightsRef,
     sessionId,
     setSupplementalThreadEvents,
     setThreadHasMoreCachedBack,
@@ -1349,12 +1375,33 @@ export function RoomTimeline({
   // pair the NEW margin with THIS render's OLD tile tops for one paint
   // (full-surface adversarial review 2026-07-07, finding L3).
   const ledgerPxAtRender = scrollCompensationPxRef.current;
+  // Persisted measured heights (schema v4): the seed only takes effect on
+  // the first measurement pass that has rows, and the open-path join
+  // guarantees the ref is populated before that render. Synthesized
+  // against the CURRENT list because the persisted snapshot's indexes go
+  // stale the moment older pages prepend.
+  const threadSeededHeights =
+    threadId && seededThreadHeightsRef.current?.threadId === threadId
+      ? seededThreadHeightsRef.current.heights
+      : undefined;
+  const threadSeedMeasurements = useMemo(
+    () =>
+      threadSeededHeights
+        ? synthesizeInitialMeasurements(
+            threadEvents,
+            threadSeededHeights,
+            estimateRoomTimelineItemSize
+          )
+        : undefined,
+    [estimateRoomTimelineItemSize, threadEvents, threadSeededHeights]
+  );
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
     scrollMargin: -ledgerPxAtRender,
+    initialMeasurementsCache: threadSeedMeasurements,
     getItemKey: (index) => {
       if (threadId) {
         return threadEvents[index]?.getId() ?? index;
@@ -1479,6 +1526,10 @@ export function RoomTimeline({
     if (inner.style.marginTop !== marginTop) {
       inner.style.marginTop = marginTop;
     }
+    // Every commit re-arms the trailing heights persist: rows measure
+    // during commits, so the debounce fires ~1s after the timeline goes
+    // quiet with the freshest snapshot.
+    threadHeightsPersisterRef.current?.arm();
     // A render-time ledger fold (prepend commit) grows px outside the
     // dropped-correction path; arm its settle here, in the same commit.
     if (ledgerSettleWantedRef.current) {
@@ -1494,6 +1545,28 @@ export function RoomTimeline({
       }
     }
   });
+  // Measured-heights persister lifecycle: one per open thread; flushes on
+  // pagehide and on close/switch so the next open seeds from the freshest
+  // measurements.
+  useEffect(() => {
+    if (!threadId) return undefined;
+    const persister = createThreadHeightsPersister({
+      sessionId,
+      roomId: room.roomId,
+      threadId,
+      getLayoutKey: getThreadLayoutKey,
+      takeSnapshot: () => roomTimelineVirtualizerRef.current.takeSnapshot(),
+    });
+    threadHeightsPersisterRef.current = persister;
+    const flush = () => persister.flush();
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      persister.flush();
+      persister.dispose();
+      threadHeightsPersisterRef.current = undefined;
+    };
+  }, [getThreadLayoutKey, room.roomId, sessionId, threadId]);
   // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
   // with a one-tap export overlay — the phone captures the same trace the
   // e2e recorder samples, for the device-only symptom classes the desktop
