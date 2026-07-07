@@ -379,15 +379,13 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
   const base = {
     itemFullyAboveViewport: true,
     isIOSWebKitDevice: true,
-    scrollLive: true,
   };
 
-  it('drops above-viewport corrections while an iOS scroll is live (no banked replay lurch)', () => {
+  it('never applies on iOS — corrections are ledgered, not written', () => {
+    // Mid-scroll writes kill momentum; even quiet applies proved unsafe
+    // (virtual-core's internal bursts clamp near the top edge, silently
+    // under-applying — the prepend e2e photographed a scrollTo(-44)).
     expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
-  });
-
-  it('applies fully-above corrections once the iOS scroller is quiet', () => {
-    expect(shouldApplyMeasurementScrollCorrection({ ...base, scrollLive: false })).toBe(true);
   });
 
   it('keeps live-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
@@ -401,7 +399,6 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
       shouldApplyMeasurementScrollCorrection({
         ...base,
         itemFullyAboveViewport: false,
-        scrollLive: false,
       })
     ).toBe(false);
   });

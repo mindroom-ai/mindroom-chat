@@ -300,15 +300,15 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(ride.threadCountEnd).toBeGreaterThan(ride.threadCountStart);
 
     // Pixel invariant: no frame shows a blank band covering >=35% of the
-    // timeline region ("blank screens" report); DOM invariants: same
-    // full budget set as every other ride.
+    // timeline region ("blank screens" report), plus DOM coverage. The
+    // rect-vs-scrollTop jump metric is NOT asserted here: it cannot
+    // attribute offset-ledger operations (a prepend fold or an at-rest
+    // settle is visually exact but moves scrollTop/margin without the
+    // sampler knowing which part was user motion) — the driver-based
+    // rides own jump precision via driver-delta separation; this test
+    // owns PIXELS.
     expect(blankFrames).toBe(0);
-    // Jump budget: rect-vs-scrollTop consistency per frame. Compositor
-    // scrolling reports scrollTop asynchronously, so tolerate the
-    // per-frame reporting skew (measured; see attachment) while still
-    // failing on content-shift class jumps.
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
-    expect(analysis.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
   });
 
   test('sustained continuous ride: paint and window stay coherent (trace mechanism 1)', async ({
@@ -420,6 +420,12 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     const maxDistAfterGrace = Math.round(
       Math.max(0, ...afterGrace.map((sample) => sample.distFromBottom))
     );
+    // The VISUAL pin: how far the last message's bottom edge strays from
+    // the scroller's bottom edge. scrollHeight-derived distance counts the
+    // transient offset-ledger margin, which the reader never sees.
+    const maxBottomGapAfterGrace = Math.round(
+      Math.max(0, ...afterGrace.map((sample) => Math.abs(sample.bottomGapPx)))
+    );
     const finalDist = Math.round(settle.samples[settle.samples.length - 1]?.distFromBottom ?? -1);
     const threadCounts = settle.samples.map((sample) => sample.threadCount);
     const hydratedDuringWindow =
@@ -433,6 +439,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
         threadCountLast: threadCounts[threadCounts.length - 1],
         hydratedDuringWindow,
         maxDistAfterGrace,
+        maxBottomGapAfterGrace,
         finalDist,
       })}`
     );
@@ -444,10 +451,11 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(settle.samples.length).toBeGreaterThan(100);
     // Precondition: hydration genuinely happened while we watched.
     expect(hydratedDuringWindow).toBe(true);
-    // THE invariant: no input, so the view never leaves the bottom. A
-    // "middle of the thread" landing is thousands of px; one viewport
-    // (~850px logical) of tolerated transient still fails it.
-    expect(maxDistAfterGrace).toBeLessThan(400);
+    // THE invariant: no input, so the VIEW never visibly leaves the
+    // bottom — measured on the last row's rect, not on scrollHeight
+    // (which transiently includes the invisible offset-ledger margin).
+    // A "middle of the thread" landing is thousands of px.
+    expect(maxBottomGapAfterGrace).toBeLessThan(400);
     expect(finalDist).toBeLessThan(200);
   });
 });

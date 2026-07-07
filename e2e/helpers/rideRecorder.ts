@@ -696,7 +696,13 @@ export const recordOpenSettle = (
   durationMs: number
 ): Promise<{
   error?: string;
-  samples: { t: number; distFromBottom: number; threadCount: number; scrollHeight: number }[];
+  samples: {
+    t: number;
+    distFromBottom: number;
+    threadCount: number;
+    scrollHeight: number;
+    bottomGapPx: number;
+  }[];
 }> =>
   page.evaluate(async (duration) => {
     const row = document.querySelector('[data-message-item]');
@@ -722,17 +728,32 @@ export const recordOpenSettle = (
         (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
           .threadCount ?? -1
       );
-    const samples: { t: number; distFromBottom: number; threadCount: number; scrollHeight: number }[] =
-      [];
+    const samples: {
+      t: number;
+      distFromBottom: number;
+      threadCount: number;
+      scrollHeight: number;
+      bottomGapPx: number;
+    }[] = [];
     const until = performance.now() + duration;
     while (performance.now() < until) {
       // eslint-disable-next-line no-await-in-loop
       await raf();
+      // The VISUAL pin: the last message row's bottom edge against the
+      // scroller's bottom edge. scrollHeight-derived distance counts the
+      // transient offset-ledger margin (invisible to the reader) and
+      // false-positives during hydration.
+      const rows = scroller.querySelectorAll('[data-message-item]');
+      const lastRow = rows[rows.length - 1];
+      const bottomGapPx = lastRow
+        ? Math.round(scroller.getBoundingClientRect().bottom - lastRow.getBoundingClientRect().bottom)
+        : -9999;
       samples.push({
         t: performance.now(),
         distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
         threadCount: readThreadCount(),
         scrollHeight: scroller.scrollHeight,
+        bottomGapPx,
       });
     }
     return { samples };

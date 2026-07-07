@@ -124,7 +124,6 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
-          hasActiveTouches: () => false,
           onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
@@ -174,7 +173,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     });
   });
 
-  it('applies above-viewport corrections immediately once the iOS scroller is quiet', () => {
+  it('never writes on iOS even when quiet — the correction is ledgered instead', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
       const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
@@ -182,19 +181,18 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
-          hasActiveTouches: () => false,
           onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
 
       scroll(START_OFFSET, false);
       virtualizer.resizeItem(10, ROW_ACTUAL);
-      expect(scrollToFn).toHaveBeenCalledTimes(1);
-      const [, options] = scrollToFn.mock.calls[0] as [
-        number,
-        { adjustments?: number; behavior?: ScrollBehavior },
-      ];
-      expect(options.adjustments).toBe(ROW_ACTUAL - ROW_ESTIMATE);
+      // Quiet applies clamp near the top edge during virtual-core's
+      // internal bursts (scrollTo(-44) on the prepend one-paint e2e) —
+      // on iOS the ledger owns ALL fully-above corrections; scrollTop is
+      // written only by the at-rest settle.
+      expect(scrollToFn).not.toHaveBeenCalled();
+      expect(droppedDeltas).toEqual([ROW_ACTUAL - ROW_ESTIMATE]);
     });
   });
 
@@ -206,7 +204,6 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
-          hasActiveTouches: () => false,
           onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );
@@ -258,7 +255,6 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
       isIOSWebKitDevice: () => false,
-      hasActiveTouches: () => false,
       onDroppedCorrection: () => {},
     });
 
@@ -320,7 +316,6 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
           isIOSWebKitDevice: () => true,
-          hasActiveTouches: () => false,
           onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
         }
       );

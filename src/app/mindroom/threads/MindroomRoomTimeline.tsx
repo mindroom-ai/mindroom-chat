@@ -143,7 +143,6 @@ import {
 } from './threadRenderUtils';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
-  hasActiveWindowTouches,
   isIOSWebKitDevice,
   waitForScrollQuiescence,
 } from './scrollQuiescence';
@@ -1138,6 +1137,63 @@ export function RoomTimeline({
   // mid-momentum (the trace's full-screen settle flash): an unsettled
   // ledger is coherent, so it can wait indefinitely.
   const scrollCompensationPxRef = useRef(0);
+  const [, setLedgerCommitTick] = useState(0);
+  // Prepend detection state (declared here because the render-time fold
+  // below must run BEFORE the virtualizer reads scrollMargin). A prepend
+  // is detected by the pending anchor's index shifting upward versus its
+  // index captured at begin()/recapture time: the thread root permanently
+  // occupies index 0, so watching the first event id would never fire.
+  const threadVirtualPrependCaptureRef = useRef<
+    | {
+        threadId: string;
+        anchorEventId: string;
+        anchorIndex: number;
+        anchorSeq: number;
+      }
+    | undefined
+  >(undefined);
+  const ledgerSettleWantedRef = useRef(false);
+  // PREPEND COMMITS ARE PURE LEDGER ARITHMETIC — no scroll write at all.
+  // Folding the prepended block's height into the ledger AT RENDER TIME
+  // keeps every quantity in the same commit: options.scrollMargin (read
+  // below) drops by ΔH while every shifted row's start grows by ΔH, so
+  // the rendered window and painted positions are IDENTICAL to the
+  // pre-prepend frame by construction — the reader cannot see the commit,
+  // scrollTop is never touched (nothing for iOS momentum to lose), and
+  // concurrent measurement corrections stay independently ledgered. ΔH is
+  // exact, not approximate: the inserted keys have never been measured,
+  // so virtual-core prices them with the same estimator this sum uses.
+  // (Replaces the coarse-scrollTo + rect-based fine-correction restore,
+  // whose two writes the e2e photographed racing virtual-core's own
+  // quiet-state adjustments inside the commit.)
+  {
+    const prependCapture = threadVirtualPrependCaptureRef.current;
+    if (
+      prependCapture &&
+      threadId &&
+      prependCapture.threadId === threadId &&
+      getPendingThreadBackPaginationAnchorSeq() === prependCapture.anchorSeq
+    ) {
+      const anchorIndexNow = threadEvents.findIndex(
+        (mEvent) => mEvent.getId() === prependCapture.anchorEventId
+      );
+      const prependedCount = anchorIndexNow - prependCapture.anchorIndex;
+      if (anchorIndexNow >= 0 && prependedCount > 0) {
+        // Back-pagination inserts the older block contiguously after the
+        // root (index 0); the shifted-down rows all keep their measured
+        // sizes (keys are event ids), so the anchor's position moves by
+        // exactly the inserted rows' virtualizer sizes.
+        let prependedHeightPx = 0;
+        for (let index = 1; index <= prependedCount; index += 1) {
+          prependedHeightPx += estimateRoomTimelineItemSize(index);
+        }
+        scrollCompensationPxRef.current += prependedHeightPx;
+        threadVirtualPrependCaptureRef.current = undefined;
+        clearPendingThreadBackPaginationAnchor();
+        ledgerSettleWantedRef.current = true;
+      }
+    }
+  }
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
@@ -1175,21 +1231,16 @@ export function RoomTimeline({
   }, [getScrollElement]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
-      // The style write happens SYNCHRONOUSLY, in the same task as the
-      // layout shift it cancels: react-virtual repositions tiles via
-      // direct styles inside this very notify pass and SKIPS the React
-      // rerender when the visible range is unchanged — so a layout-effect
-      // write (round 8's design, premised on "a drop always rerenders")
-      // can land frames later, painting the shift uncompensated and then
-      // the compensation alone (the paired ±140px flashes the sustained-
-      // ride e2e isolated). The every-commit sync effect below remains as
-      // the reconciler for React-driven renders.
+      // Accumulate + FORCE a commit. The tiles are absolutely positioned,
+      // so the layout shift this delta cancels only materializes when a
+      // render repositions them — and react-virtual SKIPS its rerender
+      // when the visible range is unchanged, which round 8's "a drop
+      // always rerenders" premise missed (the paired ±140px flashes the
+      // sustained-ride e2e isolated). The tick guarantees the commit; the
+      // margin style (sync effect below), the scrollMargin option (read
+      // at render) and the repositioned tiles then land in ONE paint.
       scrollCompensationPxRef.current += deltaPx;
-      const inner = virtualInnerRef.current;
-      if (inner) {
-        const px = scrollCompensationPxRef.current;
-        inner.style.marginTop = px === 0 ? '' : `${-px}px`;
-      }
+      setLedgerCommitTick((tick) => tick + 1);
       if (!compensationSettleArmedRef.current) {
         compensationSettleArmedRef.current = true;
         // No maxWait cap: a forced settle mid-momentum is a scrollTop
@@ -1213,6 +1264,17 @@ export function RoomTimeline({
     const marginTop = px === 0 ? '' : `${-px}px`;
     if (inner.style.marginTop !== marginTop) {
       inner.style.marginTop = marginTop;
+    }
+    // A render-time ledger fold (prepend commit) grows px outside the
+    // dropped-correction path; arm its settle here, in the same commit.
+    if (ledgerSettleWantedRef.current) {
+      ledgerSettleWantedRef.current = false;
+      if (!compensationSettleArmedRef.current) {
+        compensationSettleArmedRef.current = true;
+        waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(
+          settleScrollCompensation
+        );
+      }
     }
   });
   // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
@@ -1243,7 +1305,6 @@ export function RoomTimeline({
     () =>
       buildMeasurementScrollCorrectionHook({
         isIOSWebKitDevice,
-        hasActiveTouches: hasActiveWindowTouches,
         onDroppedCorrection: handleDroppedCorrection,
       }),
     [handleDroppedCorrection]
@@ -1422,21 +1483,6 @@ export function RoomTimeline({
   // which can unmount the captured anchor row. Scroll the anchor's new index
   // into view first so the DOM-based restore (which runs after this effect, in
   // useRoomFocusScrollController) can fine-correct against a mounted element.
-  // A prepend is detected by the pending anchor's index shifting upward
-  // versus its index captured at begin() (click) time: the thread root
-  // permanently occupies index 0, so watching the first event id would never
-  // fire, and observing renders/effects for the pre-prepend state is unsafe —
-  // the begin() render does not change threadEvents, so a dep-gated effect
-  // first sees the anchor only in the prepend render itself.
-  const threadVirtualPrependCaptureRef = useRef<
-    | {
-        threadId: string;
-        anchorEventId: string;
-        anchorIndex: number;
-        anchorSeq: number;
-      }
-    | undefined
-  >(undefined);
   const beginThreadBackPaginationWithCapture = useCallback(
     (
       beginThreadId: string | undefined,

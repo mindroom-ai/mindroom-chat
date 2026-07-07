@@ -108,37 +108,32 @@ type MeasurementScrollCorrectionOpts = {
   // block's size delta (device report 2026-07-06).
   itemFullyAboveViewport: boolean;
   isIOSWebKitDevice: boolean;
-  // Live scroll or active touch. virtual-core's isScrolling (150 ms
-  // debounce) plus the window touch tracker.
-  scrollLive: boolean;
 };
 
 // Decides virtual-core's shouldAdjustScrollPositionOnItemSizeChange for the
-// timeline virtualizer. On iOS WebKit, while the scroll is live, corrections
-// are DROPPED (return false) rather than left to virtual-core's built-in
-// defer-and-replay: repeated flicks keep the flush blocked, so the replay
-// accumulates every estimate error of the gesture sequence and lands as one
-// half-page lurch when momentum finally dies. Dropping keeps the scroll
-// continuous; the cost is bounded content drift equal to the estimate error,
-// which the rider never perceives. Once quiet (and everywhere off iOS),
-// above-viewport corrections apply immediately, exactly like the pre-3.17
-// default.
+// timeline virtualizer. On iOS WebKit, above-viewport corrections NEVER
+// write scrollTop: they are dropped into the offset ledger (container
+// margin + scrollMargin in lockstep, paired with the tile reposition in
+// ONE commit), which cancels them without a write. Mid-scroll writes kill
+// momentum, and even quiet-state applies proved unsafe — virtual-core's
+// internal adjustment bursts can clamp at the top edge (a scrollTo(-44)
+// the prepend one-paint e2e photographed), under-applying silently, and
+// per-call clamp prediction is impossible from the hook (the instance's
+// scrollOffset is stale during a burst). The ledger settles in one
+// exactly-cancelling write at true rest. Off iOS, corrections apply
+// immediately, exactly like the pre-3.17 default.
 export const shouldApplyMeasurementScrollCorrection = ({
   itemFullyAboveViewport,
   isIOSWebKitDevice: isIOS,
-  scrollLive,
-}: MeasurementScrollCorrectionOpts): boolean =>
-  itemFullyAboveViewport && !(isIOS && scrollLive);
+}: MeasurementScrollCorrectionOpts): boolean => itemFullyAboveViewport && !isIOS;
 
 type MeasurementScrollCorrectionHookDeps = {
-  // Read lazily per correction: iOS detection is cached module state and
-  // touch state changes continuously.
+  // Read lazily per correction: iOS detection is cached module state.
   isIOSWebKitDevice: () => boolean;
-  hasActiveTouches: () => boolean;
-  // Fired for every fully-above correction that is DROPPED because the
-  // scroll is live. The delta is what virtual-core would have added to
-  // scrollTop; the caller compensates it visually (container transform)
-  // so estimate error never shifts content under the reader.
+  // Fired for every fully-above correction that is DROPPED. The delta is
+  // what virtual-core would have added to scrollTop; the caller folds it
+  // into the offset ledger so estimate error never shifts content under
+  // the reader.
   onDroppedCorrection: (deltaPx: number) => void;
 };
 
@@ -148,7 +143,7 @@ type MeasurementScrollCorrectionHookDeps = {
 // production closure against the real, unmocked virtual-core — not a
 // re-implementation that could drift.
 export const buildMeasurementScrollCorrectionHook =
-  ({ isIOSWebKitDevice, hasActiveTouches, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
+  ({ isIOSWebKitDevice, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number },
     delta: number,
@@ -158,11 +153,10 @@ export const buildMeasurementScrollCorrectionHook =
     const apply = shouldApplyMeasurementScrollCorrection({
       itemFullyAboveViewport,
       isIOSWebKitDevice: isIOSWebKitDevice(),
-      scrollLive: instance.isScrolling || hasActiveTouches(),
     });
-    // Only fully-above drops are compensated: a visible (straddling) row's
-    // resize is SUPPOSED to reflow in place, and non-iOS/quiet corrections
-    // are applied by virtual-core itself.
+    // Only fully-above drops are ledgered: a visible (straddling) row's
+    // resize is SUPPOSED to reflow in place, and non-iOS corrections are
+    // applied by virtual-core itself.
     if (!apply && itemFullyAboveViewport) {
       onDroppedCorrection(delta);
     }
