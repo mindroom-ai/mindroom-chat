@@ -1156,6 +1156,27 @@ export function RoomTimeline({
   // mid-momentum (the trace's full-screen settle flash): an unsettled
   // ledger is coherent, so it can wait indefinitely.
   const scrollCompensationPxRef = useRef(0);
+  const virtualInnerRef = useRef<HTMLDivElement | null>(null);
+  const compensationSettleArmedRef = useRef(false);
+  // Bumped by the room/thread render-time reset: an armed quiescence wait
+  // from a previous view resolves early when its scroll element
+  // disconnects, and must not settle (or block re-arming for) the next
+  // view's ledger (greptile P1 on PR #83).
+  const ledgerGenerationRef = useRef(0);
+  // Room/thread switch drops the ledger at RENDER time, and it MUST run
+  // before the useVirtualizer call below: the virtualizer reads
+  // options.scrollMargin from the ref in this very render, and a
+  // ref-only reset schedules no re-render — resetting after the call
+  // would hand the new view a stale (possibly thousands-of-px) margin
+  // for an unbounded number of frames (adversarial review on PR #88).
+  const compensationResetKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
+  if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
+    compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
+    scrollCompensationPxRef.current = 0;
+    ledgerGenerationRef.current += 1;
+    compensationSettleArmedRef.current = false;
+    if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
+  }
   const [, setLedgerCommitTick] = useState(0);
   // Prepend detection state (declared here because the render-time fold
   // below must run BEFORE the virtualizer reads scrollMargin). A prepend
@@ -1203,23 +1224,36 @@ export function RoomTimeline({
       prependCapture.threadId === threadId &&
       getPendingThreadBackPaginationAnchorSeq() === prependCapture.anchorSeq
     ) {
-      const anchorIndexNow = threadEvents.findIndex(
-        (mEvent) => mEvent.getId() === prependCapture.anchorEventId
-      );
+      const anchorIndexNow =
+        threadEventIndexMapRef.current.get(prependCapture.anchorEventId) ?? -1;
       const prependedCount = anchorIndexNow - prependCapture.anchorIndex;
       if (anchorIndexNow >= 0 && prependedCount > 0) {
-        // Back-pagination inserts the older block contiguously after the
-        // root (index 0); the shifted-down rows all keep their measured
-        // sizes (keys are event ids), so the anchor's position moves by
-        // exactly the inserted rows' virtualizer sizes.
+        // An older block inserts contiguously after the root (index 0) —
+        // true for the pagination commit AND for hydration/backfill bands
+        // that land mid-flight; the shifted-down rows all keep their
+        // measured sizes (keys are event ids), so the anchor's position
+        // moves by exactly the inserted rows' virtualizer sizes.
         let prependedHeightPx = 0;
         for (let index = 1; index <= prependedCount; index += 1) {
           prependedHeightPx += estimateRoomTimelineItemSize(index);
         }
         scrollCompensationPxRef.current += prependedHeightPx;
-        threadVirtualPrependCaptureRef.current = undefined;
-        clearPendingThreadBackPaginationAnchor();
         ledgerSettleWantedRef.current = true;
+        if (threadPaginatingBackRef.current) {
+          // The pagination is still in flight, so THIS shift is someone
+          // else's prepend (a hydration band landing mid-flight —
+          // adversarial review on PR #88). Fold it, but REBASE the
+          // capture instead of consuming it: the actual pagination
+          // commit renders after finish() and must still find its
+          // anchor, or its rows land uncompensated.
+          threadVirtualPrependCaptureRef.current = {
+            ...prependCapture,
+            anchorIndex: anchorIndexNow,
+          };
+        } else {
+          threadVirtualPrependCaptureRef.current = undefined;
+          clearPendingThreadBackPaginationAnchor();
+        }
       }
     }
   }
@@ -1237,13 +1271,8 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
-  const virtualInnerRef = useRef<HTMLDivElement | null>(null);
-  const compensationSettleArmedRef = useRef(false);
-  // Bumped by the room/thread render-time reset: an armed quiescence wait
-  // from a previous view resolves early when its scroll element
-  // disconnects, and must not settle (or block re-arming for) the next
-  // view's ledger (greptile P1 on PR #83).
-  const ledgerGenerationRef = useRef(0);
+
+
   // The settle is ONE synchronous JS block: margin removal and the
   // cancelling scrollTop shift land in the same layout pass, so they are
   // atomic with respect to paints and rAF samplers (a React-commit-based
@@ -1332,12 +1361,12 @@ export function RoomTimeline({
         waitForScrollQuiescence(getScrollElement(), {
           maxWaitMs: Infinity,
         }).then(() => {
-          if (ledgerGenerationRef.current !== generation) return;
+          if (!alive() || ledgerGenerationRef.current !== generation) return;
           settleScrollCompensation();
         });
       }
     },
-    [getScrollElement, settleScrollCompensation]
+    [alive, getScrollElement, settleScrollCompensation]
   );
   // Sync the ledger margin in the SAME paint as the committed layout
   // shift (runs on every commit; a string compare when idle). The
@@ -1359,7 +1388,7 @@ export function RoomTimeline({
         compensationSettleArmedRef.current = true;
         const generation = ledgerGenerationRef.current;
         waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
-          if (ledgerGenerationRef.current !== generation) return;
+          if (!alive() || ledgerGenerationRef.current !== generation) return;
           settleScrollCompensation();
         });
       }
@@ -1381,14 +1410,6 @@ export function RoomTimeline({
   // Thread/room switch drops the pending compensation at RENDER time: the
   // new view's first tiles measure during the commit, before any effect
   // could reset stale state (same pattern as the other render-time resets).
-  const compensationResetKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
-  if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
-    compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
-    scrollCompensationPxRef.current = 0;
-    ledgerGenerationRef.current += 1;
-    compensationSettleArmedRef.current = false;
-    if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
-  }
   // Instance property, not an option (mirrors how virtual-core consults it:
   // `this.shouldAdjust...`, set on the instance).
   roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = useMemo(

@@ -4,7 +4,7 @@ import {
   getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
-    shouldAutoScrollRoomOnLiveEvent,
+  shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 
