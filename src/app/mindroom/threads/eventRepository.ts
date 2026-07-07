@@ -382,7 +382,14 @@ export const loadThreadCachedPaginationSnapshot = async ({
     events,
     beforeToken: cachedPage.beforeToken,
     hasMoreCachedBack: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
-    status: events.length > 0 ? 'cache-hit' : 'cache-miss',
+    // Hit/miss is judged on the RAW older-reply page, not the mapped list:
+    // `normalizeCachedThreadEvents` folds the thread root into `events`,
+    // and the root is always already rendered at index 0. A root-only page
+    // would otherwise report an eternal barren "cache-hit" — committing
+    // nothing new on every gesture while the network leg (the only source
+    // of genuinely older events) never runs, leaving a partially-opened
+    // thread permanently un-paginatable.
+    status: cachedPage.events.length > 0 ? 'cache-hit' : 'cache-miss',
   };
 };
 
