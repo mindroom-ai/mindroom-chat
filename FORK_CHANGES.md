@@ -2,6 +2,47 @@
 
 ## Runbook
 
+### Follow-ups PR #88: greptile triage, dead-code sweep, scoping calls (2026-07-07)
+
+PR #83 squash-merged by the owner (greptile 4/5). Follow-ups continue
+on `fix/thread-scroll-followups` as one PR (#88).
+
+- GREPTILE TRIAGE: three findings legit and fixed — (1) patch-package
+  moved to dependencies (unconditional postinstall broke or silently
+  de-patched prod installs without dev deps); (2) ledger settle waits
+  carry a GENERATION — a wait armed in a previous room/thread resolves
+  early on element disconnect and must not settle (or block re-arming
+  for) the next view's ledger; (3) the open-at-latest latch resets with
+  RENDER-TIME keying (the useEffect reset ran after the pin layout
+  effect → one commit of the next thread saw the previous latch; the
+  stale threadLatestOpenPending on the switch render must not
+  re-latch). The remaining findings were mid-branch observations that
+  later rounds of #83 resolved (always-drop removed the write classes).
+- DEAD-CODE SWEEP (−433 lines): coarse-leg effect + rAF retry chain +
+  restoreThreadPrependAnchorIfPrepended + focus-controller restore
+  option/effect + controller restorePendingAnchor/
+  getPendingAnchorClientTop + timelineScrollUtils rect-restore — all
+  unreachable since the render-time ledger fold. The fold inherits the
+  seq-mismatch capture cleanup. Battery 9/9, vitest 346/2716.
+- DEFERRED WITH REASON (each needs its own red-test-first session; the
+  all-in-one-PR mandate stops making sense here):
+  1. ROOM-timeline ledger port: room ranges re-expand over PREVIOUSLY
+     MEASURED items (unlike threads, where prepended keys are always
+     unmeasured), so the fold's ΔH needs vc's itemSizeCache per key;
+     rooms have no device reports and no red-test rig yet. Design
+     sketched: fold at onRangeChange-start-decrease with
+     ΔH = Σ (itemSizeCache.get(key) ?? estimate); delete the room
+     coarse+fine effect.
+  2. PREPEND-SEAM grouping reflow (the documented <200px latency-test
+     exception): design direction — include the seam row's
+     (cachedMeasured − estimate) in the fold's ΔH and evict its cached
+     size so the regroup re-prices through the ledger; needs care with
+     the straddling-row in-place rule. Red test exists (tighten the
+     latency budget back to 40/120 when fixed).
+  3. IDB measured-height persistence (exact sizes for previously-seen
+     rows; vc supports initialMeasurementsCache): real feature — cache
+     schema + width/font invalidation.
+
 ### Estimator calibration + ledger boundary guard (2026-07-07, round 11)
 
 The device-trace follow-ups from round 10, red-green:
