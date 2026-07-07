@@ -1371,8 +1371,8 @@ describe('RoomTimeline', () => {
               createNodeMock: (element) =>
                 element.type === scrollType
                   ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-room-virtual-inner'] !==
-                    undefined
+                  : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                    'room-virtual-inner'
                   ? innerElement
                   : null,
             }
@@ -1381,6 +1381,16 @@ describe('RoomTimeline', () => {
         });
 
         expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+        // The ledger owns backward compensation, and the REAL paginator
+        // must be told so — its own restore scrollBy lands before the
+        // margin effect in the same commit and would compensate the
+        // prepend twice (CodeRabbit on PR #91). The harness mocks the
+        // hook, so the option contract is the unit-observable half; the
+        // hook-side skip is a one-line gate on this flag.
+        expect(
+          (virtualPaginatorState.lastOptions as { externalBackwardScrollRestore?: boolean })
+            ?.externalBackwardScrollRestore
+        ).toBe(true);
 
         await act(async () => {
           virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });

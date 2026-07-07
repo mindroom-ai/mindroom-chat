@@ -1123,6 +1123,13 @@ export function RoomTimeline({
     getItemElement: getTimelineItemElement,
     onEnd: handleRoomTimelinePagination,
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
+    // The ledger fold above owns backward-prepend compensation; without
+    // this the paginator's own restore scrollBy lands first in the same
+    // commit (hook order), reads the pre-margin layout, and the prepend
+    // compensates TWICE — a visible jump of exactly the folded height
+    // (CodeRabbit on PR #91; invisible to unit tests because the
+    // harness mocks this hook).
+    externalBackwardScrollRestore: true,
   });
   const timelineItems = getItems();
   // (Estimator comment block retained below its hoisted declaration —
@@ -3483,7 +3490,7 @@ export function RoomTimeline({
     return (
       <div
         ref={virtualInnerRef}
-        data-room-virtual-inner=""
+        data-testid="room-virtual-inner"
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
