@@ -163,11 +163,12 @@ const searchSingleCharacter = (
 
 export const filterInviteUserCandidates = (
   users: readonly ServerUserDirectoryUser[],
-  room: Pick<Room, 'getMember'>,
+  room: Pick<Room, 'getMember'> | undefined,
   selfUserId?: string
 ): ServerUserDirectoryUser[] =>
   users.filter((user) => {
     if (user.userId === selfUserId) return false;
+    if (!room) return true;
 
     const membership = room.getMember(user.userId)?.membership;
     return !membership || !blockedMemberships.has(membership);

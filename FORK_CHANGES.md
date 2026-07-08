@@ -2,6 +2,50 @@
 
 ## Runbook
 
+### Create-DM flow: reuse invite user autocomplete (2026-07-08)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - The "Create Chat" (new DM) form (`src/app/features/create-chat/CreateChat.tsx`)
+    previously used a plain `Input` with no suggestions. It now reuses
+    `InviteUserAutocomplete`, so the DM user-ID field gets the same
+    local-cache + server-directory suggestion menu as the invite flow.
+  - No code was duplicated; the invite components were generalized instead:
+    - `filterInviteUserCandidates` (`src/app/utils/userDirectorySearch.ts`) and
+      `useInviteUserSearch` (`src/app/hooks/useInviteUserSearch.ts`) accept
+      `room: Room | undefined`. Without a room, membership filtering is
+      skipped and only the current user is excluded from suggestions.
+    - `InviteUserAutocomplete` gained optional `room`, `autoFocus`, `variant`,
+      `radii`, and `menuLabel` props; defaults preserve the invite-prompt
+      behavior exactly (variant `Background`, label "Invite user
+      suggestions").
+    - `CreateChat` converted from an uncontrolled form read to controlled
+      input state (`defaultUserId` seeds the state; selection fills the input
+      and refocuses it, matching the invite prompt's UX).
+- Decisions:
+  - Generalized the existing component in place rather than extracting a
+    renamed shared `UserAutocomplete`, to avoid churn in tests/CSS while the
+    behavior is identical. The fixed listbox id stays safe because the invite
+    prompt (room-scoped dialog) and the direct-create page never mount
+    simultaneously.
+- Validation:
+  - `npm run typecheck`, `npm run build`, eslint on all changed files: clean.
+  - New unit test: `filterInviteUserCandidates` with `room === undefined`
+    excludes only self. Full invite-user-prompt suite (45 tests) passes; full
+    unit suite run pending in this session.
+- Review follow-ups (2026-07-08, PR #94):
+  - Gemini: guarded `handleSubmit` against re-entry while a creation is in
+    flight and added `.catch()` — `useAsync` rethrows after recording the
+    error state, so the bare `.then()` was an unhandled rejection on failure.
+  - Greptile: the listbox id is now per-instance
+    (`invite-autocomplete-listbox-${useId()}`) so two mounted autocompletes
+    (invite dialog over the direct-create page) can never produce duplicate
+    DOM ids; the CINNY-217 live spec matches on the id prefix.
+- Next steps:
+  - Optional: live visual pass on the direct-create page against the local
+    Tuwunel fixtures.
+
 ### Thread reply chips: suppress MSC3440 fallbacks, honest failure state (2026-07-07)
 
 - Status: complete, validated live.
