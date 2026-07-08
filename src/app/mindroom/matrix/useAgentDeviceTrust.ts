@@ -3,7 +3,7 @@ import { deviceSignedByOwner } from '../../utils/matrix-crypto';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
 import { useDeviceListChange } from '../../hooks/useDeviceList';
-import { isMindroomAgentUserId } from './agentIdentity';
+import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
  * Pure classifier: a MindRoom agent presents a trustworthy device identity when
@@ -16,12 +16,14 @@ export const anyDeviceSignedByOwner = (statuses: Array<boolean | null>): boolean
 /**
  * Whether a MindRoom agent presents a cross-signed device identity.
  *
- * Returns true only for agent users (per the platform username convention) that
- * have at least one device signed by the account's own self-signing key. This is
- * the signal that survives MSC4153 key-sharing: it does not require the local
- * user to have verified the agent (a deliberate non-goal), only that the agent
- * bootstrapped cross-signing (mindroom-nio D2). Non-agents, agents without
- * cross-signing, and clients without crypto all resolve to false.
+ * Returns true only for agent users on the viewer's own homeserver (per the
+ * platform username convention plus a same-server check) that have at least
+ * one device signed by the account's own self-signing key. This is the signal
+ * that survives MSC4153 key-sharing: it does not require the local user to
+ * have verified the agent (a deliberate non-goal), only that the agent
+ * bootstrapped cross-signing (mindroom-nio D2). Non-agents, cross-homeserver
+ * users, agents without cross-signing, and clients without crypto all resolve
+ * to false.
  */
 export const useAgentDeviceCrossSigned = (userId: string): boolean => {
   const mx = useMatrixClient();
@@ -40,7 +42,7 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
     };
 
     const crypto = mx.getCrypto();
-    if (!crypto || !isMindroomAgentUserId(userId)) {
+    if (!crypto || !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined)) {
       commit(false);
       return;
     }

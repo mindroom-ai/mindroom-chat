@@ -1,4 +1,4 @@
-import { getMxIdLocalPart } from '../../utils/matrix';
+import { getMxIdLocalPart, getMxIdServer } from '../../utils/matrix';
 import { AI_RUN_METADATA_KEY } from '../messages/aiRun';
 
 /**
@@ -19,6 +19,27 @@ export const isMindroomAgentUserId = (userId: string | undefined): boolean => {
   if (!userId) return false;
   const localpart = getMxIdLocalPart(userId) ?? userId;
   return localpart.toLowerCase().startsWith(AGENT_USERNAME_PREFIX);
+};
+
+/**
+ * Whether a user id is a MindRoom agent AND belongs to the same homeserver as
+ * the viewing user. The verified-agent affordance uses this to prevent
+ * trust-spoofing by anyone who registers a `mindroom_`-prefixed account on a
+ * foreign homeserver and bootstraps their own cross-signing: without a
+ * same-server check, that account would earn the green shield in shared rooms
+ * because `signedByOwner` is self-attestation. Residual risk: anyone who can
+ * register a `mindroom_`-prefixed localpart on the viewer's OWN homeserver
+ * still qualifies — operators must reserve the namespace (mindroom.chat does
+ * so via registration tokens).
+ */
+export const isMindroomAgentUserIdForViewer = (
+  userId: string | undefined,
+  viewerUserId: string | undefined
+): boolean => {
+  if (!isMindroomAgentUserId(userId) || !viewerUserId) return false;
+  const targetServer = getMxIdServer(userId as string);
+  const viewerServer = getMxIdServer(viewerUserId);
+  return !!targetServer && targetServer === viewerServer;
 };
 
 const hasAgentContentKey = (content: Record<string, unknown>): boolean =>
