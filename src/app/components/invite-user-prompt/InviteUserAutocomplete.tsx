@@ -6,6 +6,7 @@ import React, {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -37,8 +38,6 @@ type InviteUserAutocompleteProps = {
   radii?: ComponentProps<typeof Input>['radii'];
   menuLabel?: string;
 };
-
-const LISTBOX_ID = 'invite-autocomplete-listbox';
 
 const getOptionId = (userId: string): string =>
   `invite-autocomplete-option-${sanitizeInviteAutocompleteOptionId(userId)}`;
@@ -80,6 +79,10 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
   ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    // Per-instance listbox id: the invite dialog and the create-DM page can
+    // both be mounted, and duplicate ids would corrupt the ARIA graph. The
+    // stable prefix is what e2e specs match on.
+    const listboxId = `invite-autocomplete-listbox-${useId()}`;
     const disabledRef = useRef(Boolean(disabled));
     const [inputFocused, setInputFocused] = useState(false);
     const [closedForValue, setClosedForValue] = useState<string>();
@@ -201,12 +204,12 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               role="combobox"
               aria-autocomplete="list"
               aria-expanded={menuOpen}
-              aria-controls={LISTBOX_ID}
+              aria-controls={listboxId}
               aria-activedescendant={activeOptionId}
             />
           }
           headerContent={<Text size="L400">{resultCountLabel}</Text>}
-          menuId={LISTBOX_ID}
+          menuId={listboxId}
           menuLabel={menuLabel}
         >
           {menuOpen && (

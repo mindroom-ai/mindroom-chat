@@ -59,6 +59,7 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
+    if (disabled) return;
     setInvalidUserId(false);
 
     const userId = inputValue.trim();
@@ -69,12 +70,17 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
       return;
     }
 
-    create(userId, encryption).then((roomId) => {
-      if (alive()) {
-        setInputValue('');
-        navigate(getDirectRoomPath(roomId));
-      }
-    });
+    create(userId, encryption)
+      .then((roomId) => {
+        if (alive()) {
+          setInputValue('');
+          navigate(getDirectRoomPath(roomId));
+        }
+      })
+      .catch(() => {
+        // useAsyncCallback rethrows after recording the error; the error
+        // state is rendered below the form.
+      });
   };
 
   const handleSelect = (userId: string) => {

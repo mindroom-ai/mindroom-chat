@@ -34,6 +34,14 @@
   - New unit test: `filterInviteUserCandidates` with `room === undefined`
     excludes only self. Full invite-user-prompt suite (45 tests) passes; full
     unit suite run pending in this session.
+- Review follow-ups (2026-07-08, PR #94):
+  - Gemini: guarded `handleSubmit` against re-entry while a creation is in
+    flight and added `.catch()` — `useAsync` rethrows after recording the
+    error state, so the bare `.then()` was an unhandled rejection on failure.
+  - Greptile: the listbox id is now per-instance
+    (`invite-autocomplete-listbox-${useId()}`) so two mounted autocompletes
+    (invite dialog over the direct-create page) can never produce duplicate
+    DOM ids; the CINNY-217 live spec matches on the id prefix.
 - Next steps:
   - Optional: live visual pass on the direct-create page against the local
     Tuwunel fixtures.
