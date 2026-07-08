@@ -12,29 +12,34 @@ section D7. These are polish and safety rails on an already-quiet baseline
 per-message shields for other users' devices), not prerequisites.
 
 D7.2 VERIFIED-AGENT AFFORDANCE. A `mindroom_`-prefixed agent on the viewer's
-own homeserver whose device is cross-signed now shows a small success-colored
-shield next to its name in the members drawer and the user profile card. The
-signal is the SDK's `DeviceVerificationStatus.signedByOwner` (device signed by
-the account's own self-signing key), NOT `crossSigningVerified` — the latter
-requires the local user to have verified the agent, which is a deliberate
-non-goal (bots auto-accept, so per-user SAS adds ceremony without trust).
-`signedByOwner` is exactly what mindroom-nio D2 produces and what MSC4153 keys
-off. New: `deviceSignedByOwner` in `matrix-crypto.ts`, `useAgentDeviceCrossSigned`
-hook + `anyDeviceSignedByOwner` classifier, and the `AgentVerifiedBadge`
-component (renders null for non-agents, cross-homeserver users, un-cross-signed
-agents, or when crypto is absent, and fails safe to hidden on any crypto
-error). The whole-user check enumerates devices via
-`crypto.getUserDeviceInfo([userId])`.
+own homeserver whose devices are ALL cross-signed now shows a small
+success-colored shield next to its name in the members drawer and the user
+profile card. The signal is the SDK's `DeviceVerificationStatus.signedByOwner`
+(device signed by the account's own self-signing key), NOT
+`crossSigningVerified` — the latter requires the local user to have verified
+the agent, which is a deliberate non-goal (bots auto-accept, so per-user SAS
+adds ceremony without trust). `signedByOwner` is exactly what mindroom-nio D2
+produces and what MSC4153 keys off. New: `deviceSignedByOwner` in
+`matrix-crypto.ts`, `useAgentDeviceCrossSigned` hook +
+`allDevicesSignedByOwner` classifier over an extracted
+`collectAgentDeviceSignatures` per-device pipeline, and the
+`AgentVerifiedBadge` component (renders null for non-agents, cross-homeserver
+users, agents with any un-cross-signed device, or when crypto is absent, and
+fails safe to hidden on any crypto error). The whole-user check enumerates
+devices via `crypto.getUserDeviceInfo([userId])`.
 
 Threat model. `signedByOwner` is self-attestation, and
 `isMindroomAgentUserId` is a bare `localpart.startsWith('mindroom_')` — the
 combination alone would let anyone who registers `@mindroom_*:anyserver.org`
 and bootstraps their own cross-signing earn the shield in shared rooms.
 The badge therefore restricts to targets whose server-name matches the
-viewer's own (`isMindroomAgentUserIdForViewer`). Residual risk: anyone who
-can register a `mindroom_`-prefixed localpart on the viewer's OWN homeserver
-still qualifies — operators must reserve the namespace (mindroom.chat does
-so via registration tokens).
+viewer's own (`isMindroomAgentUserIdForViewer`). Requiring ALL devices to be
+cross-signed (not just one) closes the leaked-password/rogue-second-device
+gap while MSC4153 key-sharing exclusion is not yet active in this client
+(D7.5) — the rogue device would otherwise still receive room keys behind a
+green shield. Residual risk: anyone who can register a `mindroom_`-prefixed
+localpart on the viewer's OWN homeserver still qualifies — operators must
+reserve the namespace (mindroom.chat does so via registration tokens).
 
 D7.3 KEY-BACKUP ONBOARDING. A dismissible `KeyBackupNudge` on the WelcomePage
 first-run column steers users into secure server-side key backup so a new-device
