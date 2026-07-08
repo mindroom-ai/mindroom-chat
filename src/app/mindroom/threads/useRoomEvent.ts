@@ -98,6 +98,10 @@ export const useRoomEvent = (
     queryFn: fetchEvent,
     staleTime: Infinity,
     gcTime: 60 * 60 * 1000, // 1hour
+    // A permanently-missing event stays missing — retrying only prolongs the
+    // placeholder state before the failure surfaces.
+    retry: (failureCount, fetchError) =>
+      (fetchError as { errcode?: string })?.errcode !== 'M_NOT_FOUND' && failureCount < 3,
   });
 
   if (event) return event;
