@@ -1,5 +1,5 @@
-import { Box, Button, color, config, Icon, Icons, Input, Spinner, Switch, Text } from 'folds';
-import React, { FormEventHandler, useCallback, useState } from 'react';
+import { Box, Button, color, config, Icon, Icons, Spinner, Switch, Text } from 'folds';
+import React, { FormEventHandler, useCallback, useRef, useState } from 'react';
 import { ICreateRoomStateEvent, MatrixError, Preset, Visibility } from 'matrix-js-sdk';
 import { useNavigate } from 'react-router-dom';
 import { SettingTile } from '../../components/setting-tile';
@@ -13,6 +13,7 @@ import { createRoomEncryptionState } from '../../components/create-room';
 import { useAlive } from '../../hooks/useAlive';
 import { getDirectRoomPath } from '../../pages/pathUtils';
 import { useClientConfig } from '../../hooks/useClientConfig';
+import { InviteUserAutocomplete } from '../../components/invite-user-prompt';
 
 type CreateChatProps = {
   defaultUserId?: string;
@@ -27,6 +28,8 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
 
   const [encryption, setEncryption] = useState(defaultEncryption);
   const [invalidUserId, setInvalidUserId] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState(defaultUserId ?? '');
 
   const [createState, create] = useAsyncCallback<string, Error | MatrixError, [string, boolean]>(
     useCallback(
@@ -58,11 +61,9 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
     evt.preventDefault();
     setInvalidUserId(false);
 
-    const target = evt.target as HTMLFormElement | undefined;
-    const userIdInput = target?.userIdInput as HTMLInputElement | undefined;
-    const userId = userIdInput?.value.trim();
+    const userId = inputValue.trim();
 
-    if (!userIdInput || !userId) return;
+    if (!userId) return;
     if (!isUserId(userId)) {
       setInvalidUserId(true);
       return;
@@ -70,27 +71,32 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
 
     create(userId, encryption).then((roomId) => {
       if (alive()) {
-        userIdInput.value = '';
+        setInputValue('');
         navigate(getDirectRoomPath(roomId));
       }
     });
+  };
+
+  const handleSelect = (userId: string) => {
+    setInvalidUserId(false);
+    setInputValue(userId);
+    inputRef.current?.focus();
   };
 
   return (
     <Box as="form" onSubmit={handleSubmit} grow="Yes" direction="Column" gap="500">
       <Box direction="Column" gap="100">
         <Text size="L400">User ID</Text>
-        <Input
-          defaultValue={defaultUserId}
-          placeholder="@username:server"
-          name="userIdInput"
-          variant="SurfaceVariant"
-          size="500"
-          radii="400"
-          required
-          autoFocus
-          autoComplete="off"
+        <InviteUserAutocomplete
+          ref={inputRef}
+          inputValue={inputValue}
+          onInputChange={setInputValue}
+          onSelect={handleSelect}
           disabled={disabled}
+          autoFocus
+          variant="SurfaceVariant"
+          radii="400"
+          menuLabel="User suggestions"
         />
         {invalidUserId && (
           <Box style={{ color: color.Critical.Main }} alignItems="Center" gap="100">

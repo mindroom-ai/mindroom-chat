@@ -1,5 +1,6 @@
 import React, {
   ChangeEventHandler,
+  ComponentProps,
   ForwardedRef,
   KeyboardEvent as ReactKeyboardEvent,
   forwardRef,
@@ -25,11 +26,16 @@ import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
 import * as css from './InviteAutocompleteMenu.css';
 
 type InviteUserAutocompleteProps = {
-  room: Room;
+  // Without a room, member filtering is skipped (create-DM flow).
+  room?: Room;
   inputValue: string;
   onInputChange: (value: string) => void;
   onSelect: (userId: string) => void;
   disabled?: boolean;
+  autoFocus?: boolean;
+  variant?: ComponentProps<typeof Input>['variant'];
+  radii?: ComponentProps<typeof Input>['radii'];
+  menuLabel?: string;
 };
 
 const LISTBOX_ID = 'invite-autocomplete-listbox';
@@ -58,7 +64,20 @@ const setForwardedRef = (
 };
 
 export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAutocompleteProps>(
-  ({ room, inputValue, onInputChange, onSelect, disabled }, ref) => {
+  (
+    {
+      room,
+      inputValue,
+      onInputChange,
+      onSelect,
+      disabled,
+      autoFocus,
+      variant = 'Background',
+      radii,
+      menuLabel = 'Invite user suggestions',
+    },
+    ref
+  ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const disabledRef = useRef(Boolean(disabled));
@@ -173,8 +192,10 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               onBlur={() => setInputFocused(false)}
               placeholder="@username:server"
               name="userIdInput"
-              variant="Background"
+              variant={variant}
+              radii={radii}
               disabled={disabled}
+              autoFocus={autoFocus}
               autoComplete="off"
               required
               role="combobox"
@@ -186,7 +207,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
           }
           headerContent={<Text size="L400">{resultCountLabel}</Text>}
           menuId={LISTBOX_ID}
-          menuLabel="Invite user suggestions"
+          menuLabel={menuLabel}
         >
           {menuOpen && (
             <>
