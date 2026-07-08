@@ -7,6 +7,7 @@ import {
   dedupeThreadRenderEventEntries,
   estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
+  isThreadFallbackReply,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
@@ -1129,5 +1130,70 @@ describe('primeTimelineRenderContextBefore', () => {
       expect(primed?.isPrevRendered ?? false).toBe(foldedRendered);
       expect(primed?.pendingDayDivider ?? false).toBe(foldedDayDivider);
     }
+  });
+});
+
+describe('isThreadFallbackReply', () => {
+  const makeReplyEvent = (relatesTo?: Record<string, unknown>) =>
+    new MatrixEvent({
+      content: {
+        body: 'hello',
+        msgtype: 'm.text',
+        ...(relatesTo ? { 'm.relates_to': relatesTo } : {}),
+      },
+      event_id: '$reply:example.org',
+      origin_server_ts: 10,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+
+  it('is true for a thread reply whose in_reply_to is only a fallback', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: '$prev:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(true);
+  });
+
+  it('is false for an explicit reply inside a thread', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      is_falling_back: false,
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a thread reply without the fallback flag', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a plain rich reply outside threads', () => {
+    const event = makeReplyEvent({
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for non-thread relations even with the flag set', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.replace',
+      event_id: '$target:example.org',
+      is_falling_back: true,
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a message without relations', () => {
+    expect(isThreadFallbackReply(makeReplyEvent())).toBe(false);
   });
 });

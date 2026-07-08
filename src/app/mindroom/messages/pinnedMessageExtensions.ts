@@ -55,5 +55,9 @@ export const renderMindroomPinnedEncryptedMessageEvent = (
   });
 };
 
-export const useMindroomPinnedEvent = (room: Room, eventId: string): MatrixEvent | undefined =>
-  useRoomEvent(room, eventId) ?? undefined;
+/**
+ * `undefined` means still loading, `null` means the fetch failed — the pin
+ * menu renders its "Failed to load message!" branch for `null`.
+ */
+export const useMindroomPinnedEvent = (room: Room, eventId: string): MatrixEvent | null | undefined =>
+  useRoomEvent(room, eventId);

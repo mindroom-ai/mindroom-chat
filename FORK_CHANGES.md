@@ -73,6 +73,100 @@ message encryption policy config".
   - Regression: `npx vitest run src/app/pages/client/WelcomePage.test.ts src/app/features/room/MembersDrawer.test.ts` green after adding `getCrypto: () => undefined` to the WelcomePage mock client.
   - `npm run typecheck`, `npm run lint` (warning-only baseline), `npm test`, `npm run build`.
 
+### Create-DM flow: reuse invite user autocomplete (2026-07-08)
+
+- Status:
+  - Complete locally.
+- Summary:
+  - The "Create Chat" (new DM) form (`src/app/features/create-chat/CreateChat.tsx`)
+    previously used a plain `Input` with no suggestions. It now reuses
+    `InviteUserAutocomplete`, so the DM user-ID field gets the same
+    local-cache + server-directory suggestion menu as the invite flow.
+  - No code was duplicated; the invite components were generalized instead:
+    - `filterInviteUserCandidates` (`src/app/utils/userDirectorySearch.ts`) and
+      `useInviteUserSearch` (`src/app/hooks/useInviteUserSearch.ts`) accept
+      `room: Room | undefined`. Without a room, membership filtering is
+      skipped and only the current user is excluded from suggestions.
+    - `InviteUserAutocomplete` gained optional `room`, `autoFocus`, `variant`,
+      `radii`, and `menuLabel` props; defaults preserve the invite-prompt
+      behavior exactly (variant `Background`, label "Invite user
+      suggestions").
+    - `CreateChat` converted from an uncontrolled form read to controlled
+      input state (`defaultUserId` seeds the state; selection fills the input
+      and refocuses it, matching the invite prompt's UX).
+- Decisions:
+  - Generalized the existing component in place rather than extracting a
+    renamed shared `UserAutocomplete`, to avoid churn in tests/CSS while the
+    behavior is identical. The fixed listbox id stays safe because the invite
+    prompt (room-scoped dialog) and the direct-create page never mount
+    simultaneously.
+- Validation:
+  - `npm run typecheck`, `npm run build`, eslint on all changed files: clean.
+  - New unit test: `filterInviteUserCandidates` with `room === undefined`
+    excludes only self. Full invite-user-prompt suite (45 tests) passes; full
+    unit suite run pending in this session.
+- Review follow-ups (2026-07-08, PR #94):
+  - Gemini: guarded `handleSubmit` against re-entry while a creation is in
+    flight and added `.catch()` — `useAsync` rethrows after recording the
+    error state, so the bare `.then()` was an unhandled rejection on failure.
+  - Greptile: the listbox id is now per-instance
+    (`invite-autocomplete-listbox-${useId()}`) so two mounted autocompletes
+    (invite dialog over the direct-create page) can never produce duplicate
+    DOM ids; the CINNY-217 live spec matches on the id prefix.
+- Next steps:
+  - Optional: live visual pass on the direct-create page against the local
+    Tuwunel fixtures.
+
+### Thread reply chips: suppress MSC3440 fallbacks, honest failure state (2026-07-07)
+
+- Status: complete, validated live.
+- User report: in long threads (post-virtualizer), a reply chip appears above
+  many messages, often "just grey" with nothing to click.
+- Diagnosis (live repro on local Tuwunel, `e2e/live/thread-reply-chips.spec.ts`):
+  - Real clients/bots send thread replies with `is_falling_back: true` and
+    `m.in_reply_to` = the previous thread event. The thread view suppressed a
+    chip only when the target equaled the render-order `prevEvent` (or the
+    root), so the chip leaked whenever anything broke adjacency: `m.replace`
+    streaming edit events becoming `prevEvent` (every streamed MindRoom
+    answer), redacted targets ("This message has been deleted" chips), and
+    virtual-window boundary rows. This heuristic predates the virtualizer; the
+    virtualizer work (thread cache windows, edit backfill entries) made the
+    mismatches far more common.
+  - The permanently-grey form: `useMindroomReplyEvent` coerced `null` (fetch
+    failed, e.g. 404 on an unfetchable target) to `undefined` (loading), so
+    the chip rendered the `LinePlaceholder` forever instead of upstream's
+    explicit "Failed to load message" state.
+- Fix:
+  - `isThreadFallbackReply` (`threadRenderUtils.ts`): wire-content check for
+    `rel_type: m.thread` + `is_falling_back: true` — per MSC3440, thread-aware
+    rendering must ignore the fallback `m.in_reply_to`. Applied at the three
+    reply chip call sites in `MindroomRoomTimeline.tsx`, gated on thread view
+    (`threadId`); classic room view (where the fallback is the intended UX)
+    is unchanged, as are Notifications/pin-menu/composer-draft reply previews.
+    Explicit replies keep chips (existing prevEvent/root dedupe retained).
+  - `replyExtensions.tsx`: stop coercing `null` → `undefined`; Reply already
+    renders `null` as "Failed to load message".
+  - `useRoomEvent.ts`: don't retry `M_NOT_FOUND` fetches — a missing event
+    stays missing; retrying only prolonged the placeholder state (and re-ran
+    3x-retry bursts on every virtual remount).
+- Validation: `threadRenderUtils` vitest (74 pass, 6 new), typecheck, build,
+  lint (one pre-existing warning), and the live spec
+  `e2e/live/thread-reply-chips.spec.ts` (seeds fallback-to-previous replies,
+  streamed edits, a redacted target, unfetchable fallback+explicit targets;
+  asserts only explicit replies render chips and the unfetchable explicit
+  target settles on the failure state through scroll/remount cycles).
+- PR #93 review follow-up (2026-07-07): greptile flagged the untested
+  `M_NOT_FOUND` retry predicate — added two unit tests pinning it (single
+  fetch + settle-to-null for `M_NOT_FOUND`, 1+3 attempts for transient
+  errors; the per-query `retry` overrides the test QueryClient defaults, so
+  the predicate is what's exercised). Its summary also pointed at
+  `useMindroomPinnedEvent` — the `?? undefined` coercion there made the pin
+  menu's existing `pinnedEvent === null` "Failed to load message!" branch
+  unreachable; coercion removed, same loading/failure contract as Reply.
+- Next: none planned; if MindRoom bots are found to send fallback replies
+  without `is_falling_back`, the prevEvent heuristic still applies but the
+  bot should be fixed instead.
+
 ### Room-ledger port (DELETION) + measured-height persistence with a red promotion gate (2026-07-07, PR #90 branch)
 
 Owner mandate after the device acceptance trace: simplify, don't just
