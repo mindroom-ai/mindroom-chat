@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
-import { allDevicesSignedByOwner, collectAgentDeviceSignatures } from './useAgentDeviceTrust';
+import {
+  allDevicesSignedByOwner,
+  collectAgentDeviceSignatures,
+  getOrFetchAgentTrust,
+  invalidateAgentDeviceTrust,
+} from './useAgentDeviceTrust';
 
 const cryptoWithDevices = (
   userId: string,
@@ -97,5 +102,94 @@ describe('collectAgentDeviceSignatures', () => {
     await expect(
       collectAgentDeviceSignatures(crypto, '@mindroom_code:example.org')
     ).rejects.toThrow('crypto down');
+  });
+});
+
+describe('getOrFetchAgentTrust cache', () => {
+  const userId = '@mindroom_code:example.org';
+
+  afterEach(() => {
+    invalidateAgentDeviceTrust(userId);
+    invalidateAgentDeviceTrust('@mindroom_other:example.org');
+  });
+
+  it('runs the fetcher once for concurrent lookups of the same userId', async () => {
+    const fetcher = vi.fn(async () => true);
+
+    const [a, b] = await Promise.all([
+      getOrFetchAgentTrust(userId, fetcher),
+      getOrFetchAgentTrust(userId, fetcher),
+    ]);
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(a).toBe(true);
+    expect(b).toBe(true);
+  });
+
+  it('serves subsequent lookups from the resolved cache without re-fetching', async () => {
+    const fetcher = vi.fn(async () => true);
+
+    await getOrFetchAgentTrust(userId, fetcher);
+    await getOrFetchAgentTrust(userId, fetcher);
+    await getOrFetchAgentTrust(userId, fetcher);
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-fetches after invalidateAgentDeviceTrust drops the entry', async () => {
+    const first = vi.fn(async () => false);
+    const second = vi.fn(async () => true);
+
+    expect(await getOrFetchAgentTrust(userId, first)).toBe(false);
+    invalidateAgentDeviceTrust(userId);
+    expect(await getOrFetchAgentTrust(userId, second)).toBe(true);
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not commit a stale result when invalidation lands mid-flight', async () => {
+    // Simulate a slow first fetch that finishes AFTER an invalidation.
+    let resolveFirst: (value: boolean) => void = () => {};
+    const firstPromise = new Promise<boolean>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const first = vi.fn(() => firstPromise);
+    const second = vi.fn(async () => false);
+
+    const inFlight = getOrFetchAgentTrust(userId, first);
+    invalidateAgentDeviceTrust(userId);
+    // A fresh caller must NOT see the stale in-flight promise from the cache.
+    const freshValue = await getOrFetchAgentTrust(userId, second);
+    resolveFirst(true);
+    await inFlight;
+
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(freshValue).toBe(false);
+    // The cache should hold the fresh result, not the stale one.
+    const cached = await getOrFetchAgentTrust(userId, async () => true);
+    expect(cached).toBe(false);
+  });
+
+  it('drops the entry on fetch error so retries do not lock into a failure', async () => {
+    const failing = vi.fn(async () => {
+      throw new Error('crypto down');
+    });
+    await expect(getOrFetchAgentTrust(userId, failing)).rejects.toThrow('crypto down');
+
+    const retry = vi.fn(async () => true);
+    expect(await getOrFetchAgentTrust(userId, retry)).toBe(true);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('scopes the cache per userId', async () => {
+    const fetchAlice = vi.fn(async () => true);
+    const fetchBob = vi.fn(async () => false);
+
+    expect(await getOrFetchAgentTrust(userId, fetchAlice)).toBe(true);
+    expect(await getOrFetchAgentTrust('@mindroom_other:example.org', fetchBob)).toBe(false);
+
+    expect(fetchAlice).toHaveBeenCalledTimes(1);
+    expect(fetchBob).toHaveBeenCalledTimes(1);
   });
 });

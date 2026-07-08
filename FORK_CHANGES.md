@@ -41,6 +41,17 @@ green shield. Residual risk: anyone who can register a `mindroom_`-prefixed
 localpart on the viewer's OWN homeserver still qualifies — operators must
 reserve the namespace (mindroom.chat does so via registration tokens).
 
+Efficiency. A member drawer with many agents plus the profile card for
+the same user would previously enumerate devices, fetch per-device
+verification status, and register a client-level `DevicesUpdated`
+listener once per rendered instance; each scroll remount refetched.
+`useAgentDeviceCrossSigned` now shares a module-level trust cache keyed
+by userId (`getOrFetchAgentTrust`), so concurrent lookups coalesce onto
+one crypto pipeline and later mounts of the same userId reuse the
+resolved value. `DevicesUpdated` for a userId drops the cache entry
+before scheduling the re-fetch, so every mounted hook re-reads a single
+fresh result. Per-instance listeners are unchanged.
+
 D7.3 KEY-BACKUP ONBOARDING. A dismissible `KeyBackupNudge` on the WelcomePage
 first-run column steers users into secure server-side key backup so a new-device
 login can still read their encrypted agent history. The nudge fires only on a

@@ -34,6 +34,52 @@ export const collectAgentDeviceSignatures = async (
 };
 
 /**
+ * Module-level trust cache shared across every mounted
+ * `useAgentDeviceCrossSigned`. Each agent userId is looked up once (a member
+ * row and its profile card, or a drawer scroll re-mount, all reuse the same
+ * in-flight promise), and invalidation on `DevicesUpdated` still triggers a
+ * fresh fetch. Entries hold either the resolved boolean or the in-flight
+ * promise so concurrent callers coalesce; a resolved value only commits to
+ * the cache while the entry still points at the promise that produced it,
+ * so an invalidation racing a fetch does not leak stale data.
+ */
+type CacheEntry = { value: boolean } | Promise<boolean>;
+const agentTrustCache = new Map<string, CacheEntry>();
+
+const isPromise = (entry: CacheEntry): entry is Promise<boolean> => 'then' in entry;
+
+/**
+ * Drop the cached trust result for a userId so the next lookup re-fetches.
+ * Exported for tests; the hook itself invalidates from its `DevicesUpdated`
+ * listener before scheduling a re-fetch.
+ */
+export const invalidateAgentDeviceTrust = (userId: string): void => {
+  agentTrustCache.delete(userId);
+};
+
+export const getOrFetchAgentTrust = (
+  userId: string,
+  fetcher: () => Promise<boolean>
+): Promise<boolean> => {
+  const existing = agentTrustCache.get(userId);
+  if (existing) return isPromise(existing) ? existing : Promise.resolve(existing.value);
+
+  const promise = fetcher().then(
+    (value) => {
+      // Only commit if invalidation (or a newer fetch) has not raced past us.
+      if (agentTrustCache.get(userId) === promise) agentTrustCache.set(userId, { value });
+      return value;
+    },
+    (error) => {
+      if (agentTrustCache.get(userId) === promise) agentTrustCache.delete(userId);
+      throw error;
+    }
+  );
+  agentTrustCache.set(userId, promise);
+  return promise;
+};
+
+/**
  * Whether a MindRoom agent presents a cross-signed device identity.
  *
  * Returns true only for agent users on the viewer's own homeserver (per the
@@ -68,8 +114,10 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
     }
 
     try {
-      const statuses = await collectAgentDeviceSignatures(crypto, userId);
-      commit(allDevicesSignedByOwner(statuses));
+      const trusted = await getOrFetchAgentTrust(userId, async () =>
+        allDevicesSignedByOwner(await collectAgentDeviceSignatures(crypto, userId))
+      );
+      commit(trusted);
     } catch {
       // Fail safe: hide the affordance if crypto cannot report device trust.
       commit(false);
@@ -83,7 +131,12 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
   useDeviceListChange(
     useCallback(
       (userIds) => {
-        if (userIds.includes(userId)) update();
+        if (userIds.includes(userId)) {
+          // Drop the shared cache entry BEFORE scheduling the re-fetch so
+          // this and every sibling hook coalesce onto a single fresh lookup.
+          invalidateAgentDeviceTrust(userId);
+          update();
+        }
       },
       [userId, update]
     )
