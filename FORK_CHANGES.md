@@ -40,6 +40,14 @@
   streamed edits, a redacted target, unfetchable fallback+explicit targets;
   asserts only explicit replies render chips and the unfetchable explicit
   target settles on the failure state through scroll/remount cycles).
+- PR #93 review follow-up (2026-07-07): greptile flagged the untested
+  `M_NOT_FOUND` retry predicate — added two unit tests pinning it (single
+  fetch + settle-to-null for `M_NOT_FOUND`, 1+3 attempts for transient
+  errors; the per-query `retry` overrides the test QueryClient defaults, so
+  the predicate is what's exercised). Its summary also pointed at
+  `useMindroomPinnedEvent` — the `?? undefined` coercion there made the pin
+  menu's existing `pinnedEvent === null` "Failed to load message!" branch
+  unreachable; coercion removed, same loading/failure contract as Reply.
 - Next: none planned; if MindRoom bots are found to send fallback replies
   without `is_falling_back`, the prevEvent heuristic still applies but the
   bot should be fixed instead.

@@ -230,4 +230,78 @@ describe('useRoomEvent', () => {
       queryClient.clear();
     }
   });
+
+  // The retry behavior below is driven by the hook's own per-query `retry`
+  // predicate: these QueryClients deliberately do NOT set a default `retry`
+  // (per-query options take precedence over defaults anyway), only a zero
+  // retry delay, which the hook does not override.
+
+  it('does not retry M_NOT_FOUND fetches and settles to null', async () => {
+    const onEvent = vi.fn();
+    useActiveSessionMock.mockReturnValue(undefined);
+    fetchRoomEventMock.mockRejectedValue(
+      Object.assign(new Error('event not found'), { errcode: 'M_NOT_FOUND' })
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retryDelay: () => 0 } },
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            React.createElement(EventProbe, {
+              eventId: '$missing-forever',
+              onEvent,
+            })
+          )
+        );
+        await flushAsyncWork(20);
+      });
+
+      expect(onEvent).toHaveBeenLastCalledWith(null);
+      expect(fetchRoomEventMock).toHaveBeenCalledTimes(1);
+    } finally {
+      renderer?.unmount();
+      queryClient.clear();
+    }
+  });
+
+  it('retries transient fetch failures before settling to null', async () => {
+    const onEvent = vi.fn();
+    useActiveSessionMock.mockReturnValue(undefined);
+    fetchRoomEventMock.mockRejectedValue(new Error('gateway timeout'));
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retryDelay: () => 0 } },
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            React.createElement(EventProbe, {
+              eventId: '$flaky-fetch',
+              onEvent,
+            })
+          )
+        );
+        await flushAsyncWork(30);
+      });
+
+      expect(onEvent).toHaveBeenLastCalledWith(null);
+      // Initial attempt plus the predicate's failureCount < 3 retries.
+      expect(fetchRoomEventMock).toHaveBeenCalledTimes(4);
+    } finally {
+      renderer?.unmount();
+      queryClient.clear();
+    }
+  });
 });
