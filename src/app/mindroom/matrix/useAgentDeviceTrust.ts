@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { deviceSignedByOwner } from '../../utils/matrix-crypto';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useAlive } from '../../hooks/useAlive';
@@ -26,12 +26,22 @@ export const anyDeviceSignedByOwner = (statuses: Array<boolean | null>): boolean
 export const useAgentDeviceCrossSigned = (userId: string): boolean => {
   const mx = useMatrixClient();
   const alive = useAlive();
+  const generationRef = useRef(0);
   const [crossSigned, setCrossSigned] = useState(false);
 
   const update = useCallback(async () => {
+    // Bump a generation per invocation so that when several device-list events
+    // fire in quick succession, only the latest run's result is committed —
+    // an earlier run resolving late must not overwrite a newer one.
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    const commit = (value: boolean) => {
+      if (alive() && generation === generationRef.current) setCrossSigned(value);
+    };
+
     const crypto = mx.getCrypto();
     if (!crypto || !isMindroomAgentUserId(userId)) {
-      if (alive()) setCrossSigned(false);
+      commit(false);
       return;
     }
 
@@ -41,10 +51,10 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
       const statuses = await Promise.all(
         deviceIds.map((deviceId) => deviceSignedByOwner(crypto, userId, deviceId))
       );
-      if (alive()) setCrossSigned(anyDeviceSignedByOwner(statuses));
+      commit(anyDeviceSignedByOwner(statuses));
     } catch {
       // Fail safe: hide the affordance if crypto cannot report device trust.
-      if (alive()) setCrossSigned(false);
+      commit(false);
     }
   }, [mx, userId, alive]);
 

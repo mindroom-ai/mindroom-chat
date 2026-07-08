@@ -81,5 +81,7 @@ export function KeyBackupNudge() {
   const crypto = mx.getCrypto();
   if (!crypto) return null;
 
-  return <KeyBackupNudgeCard crypto={crypto} />;
+  // Key by user id so the per-account dismissal state (read once on mount) is
+  // re-evaluated if the active session changes without a full unmount.
+  return <KeyBackupNudgeCard key={mx.getSafeUserId()} crypto={crypto} />;
 }
