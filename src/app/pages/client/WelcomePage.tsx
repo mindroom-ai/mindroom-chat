@@ -16,6 +16,7 @@ import {
   shouldShowWelcomeSetupPrompt,
 } from '../../mindroom/local-mindroom/mindroom';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
+import { KeyBackupNudge } from '../../mindroom/onboarding/KeyBackupNudge';
 import { settingsModalAtom } from '../../state/settingsModal';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
@@ -240,6 +241,7 @@ export function WelcomePage() {
                     onOpenLocalMindroomSettings={openLocalMindroomSettings}
                   />
                 )}
+                <KeyBackupNudge />
                 {poweredBy.length > 0 && (
                   <Text size="T300" align="Center">
                     Powered by{' '}

@@ -119,6 +119,7 @@ const mockClient = () => {
     getAccessToken: () => 'matrix-token',
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:mindroom.chat',
+    getCrypto: () => undefined,
   } as ReturnType<typeof useMatrixClient>);
 };
 
