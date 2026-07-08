@@ -5,7 +5,8 @@ import {
   getSerializedRelationEvent,
   isSameSenderEditEvent,
 } from '../../utils/editEvent';
-import { getLatestEdit } from '../../utils/room';
+import { getLatestEdit, isEventOrderedAfter } from '../../utils/room';
+import { countCacheProbe } from './cacheProbe';
 
 export type RedactedRelationTarget = {
   eventId: string;
@@ -40,9 +41,7 @@ const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.get
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
     if (!latest) return mEvent;
-    if (mEvent.getTs() > latest.getTs()) return mEvent;
-    if (mEvent.getTs() === latest.getTs()) return mEvent;
-    return latest;
+    return isEventOrderedAfter(mEvent, latest) ? mEvent : latest;
   }, undefined);
 
 const getRedactedRelationTarget = (mEvent: MatrixEvent): RedactedRelationTarget | undefined => {
@@ -116,18 +115,25 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
     const targetEvent = eventById.get(targetEventId);
     if (!targetEvent) return;
 
+    // An already-redacted instance keeps its existing redaction. Redaction
+    // is idempotent — re-applying a different cached redaction would only
+    // churn `redacted_because` metadata away from whatever the live
+    // timeline attached (cached state never wins over the instance's
+    // current state, invariant I2). This also covers the reload case: a
+    // target persisted while redacted carries `unsigned.redacted_because`
+    // in its record, so hydration reconstructs it as redacted and returns
+    // here. The pick below therefore only runs when NO ground truth about
+    // the live-attached redaction exists (standalone redaction records
+    // whose target record predates the redaction). Live SDK semantics for
+    // duplicate redactions are last-arrival-wins and arrival order is not
+    // recoverable from cache, so the D12 ordering is a deterministic proxy
+    // for it; any tied redaction prunes the target identically — only the
+    // `redacted_because` metadata differs, and no choice available at
+    // hydration time can be more faithful.
+    if (targetEvent.isRedacted()) return;
+
     const latestRedaction = getLatestEvent(redactionEvents);
     if (!latestRedaction) return;
-
-    const currentRedactionEvent = targetEvent.getRedactionEvent();
-    const currentRedactionId =
-      currentRedactionEvent &&
-      typeof currentRedactionEvent === 'object' &&
-      'event_id' in currentRedactionEvent &&
-      typeof currentRedactionEvent.event_id === 'string'
-        ? currentRedactionEvent.event_id
-        : undefined;
-    if (targetEvent.isRedacted() && currentRedactionId === latestRedaction.getId()) return;
 
     const relationTarget = getRedactedRelationTarget(targetEvent);
     if (relationTarget) redactedRelationTargets.push(relationTarget);
@@ -165,8 +171,23 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
     const candidateEvents = replacingEvent ? [replacingEvent, ...editEvents] : editEvents;
     const latestEdit = getLatestEdit(targetEvent, candidateEvents);
 
-    if (!latestEdit || latestEdit === replacingEvent) return;
+    if (!latestEdit || latestEdit === replacingEvent) {
+      // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional
+      // noop-guard observability. See cacheProbe.ts for interpretation
+      // decisions (distinguishes X1 from X2/X3 in one docker cycle).
+      countCacheProbe('applierMakeReplacedNoOpGuardFired');
+      if (!latestEdit) {
+        countCacheProbe('applierMakeReplacedNoLatestEdit');
+      } else {
+        countCacheProbe('applierMakeReplacedLatestEqualsCurrent');
+      }
+      return;
+    }
     targetEvent.makeReplaced(latestEdit);
+    // CINNY-207 AC2 render-gap RG5b (2026-07-04): unconditional applier-
+    // fire observability. See cacheProbe.ts for the X1/X2/X3
+    // disambiguation matrix.
+    countCacheProbe('applierMakeReplacedFired');
   });
 };
 
@@ -301,6 +322,27 @@ export const hydrateCachedEvents = ({
   return redactedRelationTargets;
 };
 
+/**
+ * CINNY-207 P1.4 (finding F5, decision D5): standalone same-sender `m.replace`
+ * events are excluded from the serialized output. Their content is bundled
+ * into the target record via `setSerializedReplacement` below, so persisting
+ * them as their own cache records would just duplicate storage (a message
+ * streamed with N edits used to leave ~N+1 records). Cross-sender replaces
+ * are still emitted so hydration can decide what to do with them.
+ */
+const isStandaloneSameSenderReplace = (
+  mEvent: MatrixEvent,
+  eventsById: Map<string, MatrixEvent>
+): boolean => {
+  const relation = mEvent.getRelation();
+  if (relation?.rel_type !== RelationType.Replace) return false;
+  const targetEventId = relation.event_id;
+  if (!targetEventId) return false;
+  const targetEvent = eventsById.get(targetEventId);
+  if (!targetEvent) return false;
+  return targetEvent.getSender() === mEvent.getSender();
+};
+
 export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {
   hydrateCachedEvents({ room, events });
 
@@ -309,11 +351,19 @@ export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Part
 
   events.forEach((mEvent) => {
     const eventId = mEvent.getId();
+    if (eventId) {
+      eventById.set(eventId, mEvent);
+    }
+  });
+
+  events.forEach((mEvent) => {
+    const eventId = mEvent.getId();
     const rawEvent = mEvent.event as Partial<IEvent> | undefined;
     if (!eventId || !rawEvent) return;
 
+    if (isStandaloneSameSenderReplace(mEvent, eventById)) return;
+
     serializedEvents.set(eventId, cloneRawEvent(rawEvent));
-    eventById.set(eventId, mEvent);
   });
 
   eventById.forEach((mEvent, eventId) => {

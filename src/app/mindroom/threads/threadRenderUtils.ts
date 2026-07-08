@@ -1,7 +1,13 @@
-import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import {
+  hasMindroomMessageExtras,
+  parseMindroomMessageExtras,
+} from '../messages/messageExtrasData';
+import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 import { inSameDay } from '../../utils/time';
+import { countCacheProbe } from './cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
 export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
@@ -12,6 +18,13 @@ type ThreadOpenBottomPinOpts = {
   suppressOpenBottomPin?: boolean;
   threadId?: string;
   threadLatestOpenPending: boolean;
+  // Latched true once an open-at-latest began for this thread; survives
+  // the open chain completing. Hydration bands can land long after the
+  // chain (background prefetch/reconciler) — the pin must hold for them.
+  threadOpenedAtLatest: boolean;
+  // A real scroll gesture ends the pin permanently for this thread view:
+  // from then on the reader owns the position.
+  hasUserScrollIntent: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadEventCount: number;
 };
@@ -34,14 +47,277 @@ export const shouldPinThreadToBottomOnOpen = ({
   suppressOpenBottomPin,
   threadId,
   threadLatestOpenPending,
+  threadOpenedAtLatest,
+  hasUserScrollIntent,
   threadInitialRenderMode,
   threadEventCount,
 }: ThreadOpenBottomPinOpts): boolean =>
   !!threadId &&
   !suppressOpenBottomPin &&
-  threadLatestOpenPending &&
+  (threadLatestOpenPending || (threadOpenedAtLatest && !hasUserScrollIntent)) &&
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
+
+type ThreadAutoPaginateBackOpts = {
+  threadId?: string;
+  // Index of the FIRST virtual row currently rendered (top of the
+  // overscan window). undefined when nothing is rendered yet.
+  firstRenderedIndex: number | undefined;
+  // Single-flight: a back-pagination is already in progress.
+  paginatingBack: boolean;
+  // Same condition that shows the "Load Older Messages" chip — older
+  // content exists in cache or on the server.
+  showLoadOlder: boolean;
+  // A real user scroll gesture (wheel/touch/keyboard) has happened in
+  // this thread view. Auto-pagination is a RESPONSE to the user
+  // scrolling toward the edge; without a gesture, a low rendered
+  // index is an open-time artifact (the virtualizer transiently
+  // renders from index 0 before the pin-to-bottom lands) and must not
+  // fire. Deliberately NOT the open-lifecycle pending flag: that flag
+  // stays true until the whole open-time backfill chain completes,
+  // which on slow networks spans the entire loading phase — exactly
+  // when a scrolling user needs the trigger live (task #125).
+  hasUserScrollIntent: boolean;
+  triggerRows: number;
+};
+
+// Scroll-driven thread back-pagination predicate (task #125). Pure so
+// the trigger condition is unit-testable apart from the effect wiring.
+// Fires when the rendered window's top edge is within `triggerRows` of
+// the loaded content's start — early enough that the cache-first
+// pagination pipeline (IDB read, then network fallback) completes
+// before momentum scrolling reaches the edge. Re-firing after a
+// completed pagination is naturally throttled: the prepend anchor
+// restore pushes firstRenderedIndex back up by the prepended count, so
+// the predicate only becomes true again when the user scrolls further
+// up (or the remaining history is shorter than the headroom, in which
+// case it drains the tail — bounded by showLoadOlder flipping false).
+export const shouldAutoPaginateThreadBack = ({
+  threadId,
+  firstRenderedIndex,
+  paginatingBack,
+  showLoadOlder,
+  hasUserScrollIntent,
+  triggerRows,
+}: ThreadAutoPaginateBackOpts): boolean =>
+  !!threadId &&
+  !paginatingBack &&
+  hasUserScrollIntent &&
+  showLoadOlder &&
+  firstRenderedIndex !== undefined &&
+  firstRenderedIndex <= triggerRows;
+
+type MeasurementScrollCorrectionOpts = {
+  // item.end <= scrollOffset: only a row ENTIRELY above the viewport needs
+  // a compensating scrollTop write (its growth would silently shift what
+  // the user is reading). virtual-core's default uses item.start instead,
+  // which also compensates rows STRADDLING the viewport top — but those are
+  // visible: a user expanding/collapsing an on-screen tool-call block must
+  // see the content unfold in place, not have the view scrolled by the
+  // block's size delta (device report 2026-07-06).
+  itemFullyAboveViewport: boolean;
+  isIOSWebKitDevice: boolean;
+};
+
+// Decides virtual-core's shouldAdjustScrollPositionOnItemSizeChange for the
+// timeline virtualizer. On iOS WebKit, above-viewport corrections NEVER
+// write scrollTop: they are dropped into the offset ledger (container
+// margin + scrollMargin in lockstep, paired with the tile reposition in
+// ONE commit), which cancels them without a write. Mid-scroll writes kill
+// momentum, and even quiet-state applies proved unsafe — virtual-core's
+// internal adjustment bursts can clamp at the top edge (a scrollTo(-44)
+// the prepend one-paint e2e photographed), under-applying silently, and
+// per-call clamp prediction is impossible from the hook (the instance's
+// scrollOffset is stale during a burst). The ledger settles in one
+// exactly-cancelling write at true rest. Off iOS, corrections apply
+// immediately, exactly like the pre-3.17 default.
+export const shouldApplyMeasurementScrollCorrection = ({
+  itemFullyAboveViewport,
+  isIOSWebKitDevice: isIOS,
+}: MeasurementScrollCorrectionOpts): boolean => itemFullyAboveViewport && !isIOS;
+
+type MeasurementScrollCorrectionHookDeps = {
+  // Read lazily per correction: iOS detection is cached module state.
+  isIOSWebKitDevice: () => boolean;
+  // Fired for every fully-above correction that is DROPPED. The delta is
+  // what virtual-core would have added to scrollTop; the caller folds it
+  // into the offset ledger so estimate error never shifts content under
+  // the reader.
+  onDroppedCorrection: (deltaPx: number) => void;
+};
+
+// Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
+// timeline installs on its virtualizer instance. Extracted so the iOS
+// scroll contract test (virtualizerIOSScrollContract.test.ts) exercises the
+// production closure against the real, unmocked virtual-core — not a
+// re-implementation that could drift.
+export const buildMeasurementScrollCorrectionHook =
+  ({ isIOSWebKitDevice, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
+  (
+    item: { end: number },
+    delta: number,
+    instance: { scrollOffset: number | null; isScrolling: boolean }
+  ): boolean => {
+    const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
+    const apply = shouldApplyMeasurementScrollCorrection({
+      itemFullyAboveViewport,
+      isIOSWebKitDevice: isIOSWebKitDevice(),
+    });
+    // Only fully-above drops are ledgered: a visible (straddling) row's
+    // resize is SUPPOSED to reflow in place, and non-iOS corrections are
+    // applied by virtual-core itself.
+    if (!apply && itemFullyAboveViewport) {
+      onDroppedCorrection(delta);
+    }
+    return apply;
+  };
+
+type LedgerBoundaryOpts = {
+  // Accumulated offset-ledger pixels (Σ dropped correction deltas;
+  // container marginTop is -px).
+  ledgerPx: number;
+  // Client-coordinate tops/bottoms of the inner virtual container and
+  // the scroll element.
+  innerTop: number;
+  innerBottom: number;
+  scrollTop: number;
+  scrollBottom: number;
+  clientHeight: number;
+};
+
+// Ledger boundary predicate: the ledger's exact-cancel contract holds
+// only while the viewport stays inside the content region — accumulated
+// debt is real empty space at the container's edge, and a continuous
+// ride can carry the reader into it before any rest repays it (device
+// trace ride-trace-1783391256452: 3.0s blank at px=-9356; e2e measured
+// 367px blank bands and a 4968px clamp flash without the guard, 0/0
+// with it). Within two viewports of the debt edge, settle immediately:
+// one momentum interruption at the extreme of the loaded window instead
+// of visible blank space. Small debts settle at ordinary rests and are
+// invisible even if reached.
+export const shouldSettleLedgerAtBoundary = ({
+  ledgerPx,
+  innerTop,
+  innerBottom,
+  scrollTop,
+  scrollBottom,
+  clientHeight,
+}: LedgerBoundaryOpts): boolean => {
+  if (ledgerPx > -48 && ledgerPx < 48) return false;
+  const guardPx = clientHeight * 2;
+  // Top stop, both signs: shrink-debt (px<0) puts the margin itself as a
+  // blank band above the content box, so the unreadable region starts at
+  // the box top; grow-debt (px>0) pulls the box up by px, carrying the
+  // first px content pixels beyond scrollTop 0 — a freshly folded prepend
+  // IS that region (adversarial review 2026-07-07, finding L4: the old
+  // positive branch only watched the bottom, so an upward ride hit the
+  // hard stop and the new rows appeared only after a rest).
+  const reachableContentTop = innerTop + Math.max(ledgerPx, 0);
+  if (reachableContentTop > scrollTop - guardPx) return true;
+  // Bottom stop, grow-debt only: the negative margin shrinks the scroll
+  // range from the bottom, where the browser clamp bites at rest.
+  if (ledgerPx > 0) return innerBottom < scrollBottom + guardPx;
+  return false;
+};
+
+// Per-row virtualizer estimates from event CONTENT. Thread rows are
+// bimodal — one-liners (~80px) and fold-capped long messages (~150px,
+// CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
+// learned mean is wrong by hundreds of px for every row, and each
+// measurement then shrinks/grows scrollHeight by that error mid-scroll
+// (the −64/−688 quanta the ios-momentum-invariants e2e traced; a big
+// shrink lets the browser clamp a scrolled-up reader back to the bottom).
+// A content heuristic is deterministic, stateless, and per-row-shaped:
+// the residual error drops to tens of px and needs no adoption machinery.
+// CALIBRATED against measured virtualizer tile heights (2026-07-07;
+// device trace ride-trace-1783391256452 measured the previous constants
+// at +50..72px PER ROW for every class — px=-9356 of ledger debt over
+// one ride): one-line row measures 30 (base 10 + line 20), folded long
+// measures 80 (base + 3 lines + banner 10), extras with 2 sections
+// measures 596 (base + 25 wrapped lines + 2 headers = 590). Tile rects
+// exclude inter-row margins, which is exactly what the virtualizer
+// caches. Bias preference: when in doubt, estimate slightly UNDER —
+// grow-debt (negative margin) sits at the bottom boundary where the
+// browser clamp and the boundary guard degrade gracefully, while
+// over-estimates pile blank space at the top the reader scrolls into.
+const THREAD_ROW_BASE_PX = 10;
+const THREAD_ROW_BASE_COMPACT_PX = 6;
+const THREAD_ROW_LINE_PX = 20;
+const THREAD_ROW_FOLD_BANNER_PX = 10;
+// CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
+const THREAD_ROW_FOLD_CONTENT_LINES = 3;
+const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
+// Always-expanded rows render their whole body; the estimate is line-based
+// and bounded (a pathological body should not produce a megapixel row).
+const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
+const THREAD_ROW_BODY_SCAN_CHARS = 4096;
+// Extras sections render as collapsed accordion headers.
+const THREAD_ROW_SECTION_HEADER_PX = 40;
+
+const estimateBodyLines = (body: string): number => {
+  const scanned =
+    body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
+  // Wrap is counted PER PHYSICAL LINE: the previous newlines-plus-
+  // global-length formula double-counted every wrapped line's newline
+  // (part of the systematic over-estimate the calibration removed).
+  let lines = 0;
+  let lineStart = 0;
+  for (let i = 0; i <= scanned.length; i += 1) {
+    if (i === scanned.length || scanned.charCodeAt(i) === 10) {
+      const lineLength = i - lineStart;
+      lines += Math.max(1, Math.ceil(lineLength / THREAD_ROW_WRAP_CHARS_PER_LINE));
+      lineStart = i + 1;
+      if (lines >= THREAD_ROW_MAX_ESTIMATED_LINES) return THREAD_ROW_MAX_ESTIMATED_LINES;
+    }
+  }
+  if (body.length > scanned.length) return THREAD_ROW_MAX_ESTIMATED_LINES;
+  return Math.min(lines, THREAD_ROW_MAX_ESTIMATED_LINES);
+};
+
+export const estimateThreadEventRowHeight = (
+  mEvent: MatrixEvent,
+  { compact }: { compact: boolean }
+): number => {
+  const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
+  const relationType = mEvent.getRelation()?.rel_type;
+  // Edits and reactions render no thread row of their own; their tiles
+  // measure ~0. A tiny non-zero keeps virtual-core's math well-behaved.
+  if (relationType === RelationType.Replace || relationType === RelationType.Annotation) {
+    return 4;
+  }
+  const content = mEvent.getContent();
+  const contentRecord = content as Record<string, unknown>;
+  const body = typeof content.body === 'string' ? content.body : '';
+  // Always-expanded rows (agent tool traces / thread summaries) never
+  // fold: the body renders in full and each extras section adds a
+  // collapsed accordion header. Estimating these at the fold cap made
+  // every one of them mount ~hundreds of px small — the per-frame jumps
+  // the ride-smoothness e2e budget now pins.
+  if (hasMindroomThreadSummary(contentRecord) || hasMindroomMessageExtras(contentRecord)) {
+    const sections = parseMindroomMessageExtras(contentRecord)?.sections.length ?? 0;
+    return (
+      base + estimateBodyLines(body) * THREAD_ROW_LINE_PX + sections * THREAD_ROW_SECTION_HEADER_PX
+    );
+  }
+  const lines = estimateBodyLines(body);
+  if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+  }
+  return base + lines * THREAD_ROW_LINE_PX;
+};
+
+/**
+ * MSC3440: a thread reply carrying `is_falling_back: true` only includes
+ * `m.in_reply_to` as a fallback for thread-unaware clients; thread-aware
+ * rendering must not treat it as a real reply. Read from wire content —
+ * the same source `MatrixEvent.replyEventId` uses.
+ */
+export const isThreadFallbackReply = (mEvent: MatrixEvent): boolean => {
+  const relatesTo = mEvent.getWireContent()?.['m.relates_to'] as
+    | { rel_type?: string; is_falling_back?: boolean }
+    | undefined;
+  return relatesTo?.rel_type === RelationType.Thread && relatesTo.is_falling_back === true;
+};
 
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
@@ -192,6 +468,43 @@ export const pickPreferredThreadRenderEvent = (
     }
   }
 
+  // CINNY-207 AC2 render-gap RG5-fix2 (2026-07-04): structural monotonic
+  // preference on the RAW `.replacingEvent()` field, consulted AFTER
+  // the effective-replacement block above so it does not disturb the
+  // D12-style ts→event_id ordering that block enforces when both sides
+  // have an effective replacement. Encodes "repaired state is monotonic
+  // within a thread-open" — a non-repaired same-id instance cannot
+  // displace a repaired one, whether the repair is same-sender-visible
+  // (handled by the effective block) or raw-only (handled here).
+  //
+  // Threat this closes: `handleThreadNewReply` fires AFTER a reconcile
+  // repair with the SYNC-delivered instance for the same target id;
+  // that instance lacks any replacement. If the repaired instance's
+  // `.replacingEvent()` returns non-null but
+  // `getEffectiveReplacementEvent` drops it (e.g. `isSameSenderEditEvent`
+  // filter fails on a foreign-sender edit, or the raw replacement is
+  // one the helper rejects on shape), the block above cannot fire and
+  // the picker previously fell through to `return incomingEvent` —
+  // silently wiping the repair through a different door than the one
+  // RG5's onRepaired hydrated-view fix closed.
+  //
+  // Symmetric asymmetric check: if exactly one side has ANY raw
+  // replacement while the other has none, prefer the one that does.
+  // If both have raw replacements the effective helper rejected, we
+  // fall through to the final incoming-wins tie-break — both sides
+  // are equally "questionable" by the helper's rules; picking either
+  // is defensible and matches pre-fix behavior for this shape.
+  //
+  // One rule, two seams: this picker is used by both `mergeThreadRenderEvents`
+  // (sink merge post-`setSupplementalThreadEvents`) and — transitively —
+  // by `buildThreadEvents`' final merge that combines SDK
+  // `thread.events` and fallback state. The same monotonicity rule
+  // therefore holds at both seams without duplicating logic.
+  const existingHasRawReplacement = !!existingEvent.replacingEvent();
+  const incomingHasRawReplacement = !!incomingEvent.replacingEvent();
+  if (existingHasRawReplacement && !incomingHasRawReplacement) return existingEvent;
+  if (!existingHasRawReplacement && incomingHasRawReplacement) return incomingEvent;
+
   return incomingEvent;
 };
 
@@ -201,15 +514,189 @@ export const mergeThreadRenderEvents = (
   resolveConfirmedId?: (txnId: string) => string | undefined
 ): MatrixEvent[] => {
   const eventMap = new Map<string, MatrixEvent>();
+  // Reverse index: every key an instance currently holds in `eventMap`.
+  // Maintained on every write so loser-key reclamation is O(keys) per
+  // loser instead of a full-map scan (PR #73 review). The index tracks
+  // HELD keys explicitly, so it stays correct even when an instance's
+  // derivable keys change under it (local echoes mutate their event id
+  // in place on confirmation). Both maps are function-local and die
+  // with this call — no retention hazard.
+  const keysByInstance = new Map<MatrixEvent, Set<string>>();
 
-  const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
-    keys.forEach((key) => {
-      eventMap.set(key, mEvent);
-    });
+  const indexedSet = (key: string, mEvent: MatrixEvent) => {
+    const previous = eventMap.get(key);
+    if (previous === mEvent) return;
+    if (previous) keysByInstance.get(previous)?.delete(key);
+    eventMap.set(key, mEvent);
+    let heldKeys = keysByInstance.get(mEvent);
+    if (!heldKeys) {
+      heldKeys = new Set<string>();
+      keysByInstance.set(mEvent, heldKeys);
+    }
+    heldKeys.add(key);
   };
 
-  const findExistingEvent = (keys: string[]): MatrixEvent | undefined =>
-    keys.map((key) => eventMap.get(key)).find((mEvent): mEvent is MatrixEvent => !!mEvent);
+  // CINNY-207 AC2 render-gap RG5d (2026-07-04): canonicalize on write.
+  //
+  // The prior `setEventForKeys` was a plain multi-set: it wrote the new
+  // event under each of its keys without touching entries for other keys
+  // any conflicting instance already held. That left orphan entries when
+  // two instances of the same event identity arrived with only partially
+  // overlapping key sets (e.g. a bare-txnId sending echo alongside an
+  // eventId-only confirmed instance whose key sets happen not to overlap
+  // because the SDK dropped the txnId from the confirmed instance's
+  // unsigned payload). `Array.from(new Set(eventMap.values()))` at the
+  // tail would then contain both instances — one identity, two
+  // MatrixEvent references — and every downstream consumer (the applier,
+  // the fallback-instance registry, `mergedById` diagnostics, and any
+  // other reader iterating values) inherited the same hazard.
+  //
+  // The fix is a map invariant, not a post-pass rescue: any write for a
+  // key set collects EVERY existing instance reachable through ANY key
+  // (both the incoming keys and every key each conflict currently
+  // occupies in the map), picks a single winner via
+  // `pickPreferredThreadRenderEvent` (chained across 3+ conflicts), and
+  // installs the winner under the full union of keys after fully
+  // deleting each loser's entries. Post-canonicalization the map
+  // invariant is: for any two keys K1, K2 that share an event identity,
+  // `eventMap.get(K1) === eventMap.get(K2)`. `values()` therefore
+  // contains one entry per identity, always.
+  //
+  // Observability: `eventMapCanonicalizedDisplacements` bumps once per
+  // losing instance the canonicalizer had to displace. It is a WORK
+  // counter, not a must-stay-0 tripwire — multiple ingestion paths
+  // legitimately deliver distinct instances of one identity
+  // (onRepaired payloads, sync/echo deliveries), so a stable small
+  // non-zero reading is healthy dedup work (3 per AC2 live run). A
+  // step-change in the reading names a new duplication source. See
+  // cacheProbe.ts for the interpretation block.
+  // A key collision only implies the SAME event identity when the two
+  // instances can actually be the same event: equal event ids, a
+  // missing id on either side (txn key is the only identity), or a
+  // local echo awaiting its confirmed id. Two CONFIRMED events with
+  // different real ids that happen to share a `txn:` key (server
+  // misbehavior or cross-device coincidence) are distinct events —
+  // treating them as one identity would silently drop a real thread
+  // message from the render (greptile P2 on PR #73).
+  const isSameEventIdentity = (a: MatrixEvent, b: MatrixEvent): boolean => {
+    const aId = getThreadRenderEventId(a);
+    const bId = getThreadRenderEventId(b);
+    if (!aId || !bId) return true;
+    if (aId === bId) return true;
+    const aEcho = isLocalEchoEvent(a);
+    const bEcho = isLocalEchoEvent(b);
+    if (!aEcho && !bEcho) return false;
+    if (aEcho && bEcho) {
+      // Two echoes with different provisional ids sharing a txn key:
+      // duplicate sends of one transaction — same identity.
+      return true;
+    }
+    // Echo-vs-confirmed across a shared txn key is the confirmation
+    // bridge ONLY when the echo's resolved confirmed id matches the
+    // confirmed side (or is not yet known — a same-txn confirmed
+    // arrival is then the confirmation by definition). If the echo
+    // already resolves to a DIFFERENT confirmed id, the pair are two
+    // distinct events that merely share a txn key (greptile P1 on
+    // PR #73) and must not collapse.
+    const echo = aEcho ? a : b;
+    const confirmedSideId = aEcho ? bId : aId;
+    const txnId = getThreadRenderTransactionId(echo);
+    const resolvedId = txnId ? resolveConfirmedId?.(txnId) : undefined;
+    return resolvedId === undefined || resolvedId === confirmedSideId;
+  };
+
+  const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
+    if (keys.length === 0) return;
+
+    // Collect every distinct existing instance the incoming write
+    // conflicts with via any of its keys — but only same-identity
+    // instances participate in displacement. A distinct-identity
+    // instance sharing a key keeps its other entries; the contested
+    // key goes to the incoming write (plain last-write semantics for
+    // cross-identity key collisions).
+    const conflicts = new Set<MatrixEvent>();
+    keys.forEach((key) => {
+      const existing = eventMap.get(key);
+      if (existing && existing !== mEvent && isSameEventIdentity(existing, mEvent)) {
+        conflicts.add(existing);
+      }
+    });
+
+    if (conflicts.size === 0) {
+      // Fast path — no conflict. Plain multi-set.
+      keys.forEach((key) => indexedSet(key, mEvent));
+      return;
+    }
+
+    // Reduce (conflicts + incoming) through the picker to a single
+    // winner. The picker's contract is `(existing, incoming)` with
+    // incoming winning ties. To preserve the pre-canonicalization
+    // semantics ("last write with the same key wins ties"), fold with
+    // the conflict as the `existing` argument and the winner-so-far as
+    // the `incoming` argument — so the final incoming `mEvent` retains
+    // tie-break priority over prior conflicts, matching the prior
+    // `existingEvents → incomingEvents` iteration order. The fold is
+    // order-SENSITIVE but fully deterministic: `conflicts` is a Set,
+    // and Set iteration is insertion order, which is the caller's key
+    // order — the same inputs always produce the same winner.
+    // (>1 same-identity conflict additionally requires a key set that
+    // bridges two previously-separate entries, which the identity
+    // check above bounds to local-echo confirmation shapes.)
+    let winner = mEvent;
+    conflicts.forEach((conflict) => {
+      winner = pickPreferredThreadRenderEvent(conflict, winner, resolveConfirmedId);
+    });
+
+    // Every non-winner instance among (conflicts ∪ {mEvent}) is a
+    // loser and must be fully displaced.
+    const losers = new Set<MatrixEvent>();
+    conflicts.forEach((c) => {
+      if (c !== winner) losers.add(c);
+    });
+    if (winner !== mEvent) losers.add(mEvent);
+
+    // Reclaim every key any loser currently occupies BEFORE deleting,
+    // so the winner inherits them. The reverse index gives the HELD
+    // key set per loser directly — a loser's current map keys are not
+    // derivable from the instance (local echoes mutate their event id
+    // in place on confirmation, stranding entries under keys
+    // `getThreadRenderEventKeys` no longer returns), which is why the
+    // index tracks writes rather than recomputing keys.
+    const unionKeys = new Set<string>(keys);
+    getThreadRenderEventKeys(winner, resolveConfirmedId).forEach((k) => unionKeys.add(k));
+    if (losers.size > 0) {
+      losers.forEach((loser) => {
+        keysByInstance.get(loser)?.forEach((key) => {
+          unionKeys.add(key);
+          eventMap.delete(key);
+        });
+        keysByInstance.delete(loser);
+      });
+      losers.forEach(() => countCacheProbe('eventMapCanonicalizedDisplacements'));
+      // CINNY-207 AC2 render-gap RG5c (re-homed post-F1): permanent
+      // must-stay-0 tripwire on the picker rule. Bumps if any loser
+      // carried `.replacingEvent()` non-null while the chosen winner
+      // has `.replacingEvent()` null — the "repaired state is
+      // monotonic across a same-id tie" preference
+      // (`pickPreferredThreadRenderEvent`'s RG5-fix2 raw-presence
+      // rule) is violated at the map layer. The picker's contract
+      // makes this shape unreachable in the current tree; any
+      // non-zero reading names a real regression.
+      if (winner.replacingEvent() == null) {
+        let anyLoserRepaired = false;
+        losers.forEach((loser) => {
+          if (!anyLoserRepaired && loser.replacingEvent() != null) {
+            anyLoserRepaired = true;
+          }
+        });
+        if (anyLoserRepaired) {
+          countCacheProbe('registrySwappedRepairedForUnrepaired');
+        }
+      }
+    }
+
+    unionKeys.forEach((key) => indexedSet(key, winner));
+  };
 
   existingEvents.forEach((mEvent) => {
     const keys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
@@ -217,32 +704,64 @@ export const mergeThreadRenderEvents = (
     setEventForKeys(keys, mEvent);
   });
 
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04) — F9 fold (2026-07-04):
+  // observability for "incoming batch carried at least one m.replace"
+  // (`mergeSawIncomingEditRelation`) is folded into the incoming loop
+  // as a boolean flip — no extra iteration. Bumped once per merge call
+  // if any incoming event had a Replace relation.
+  let incomingHadEditRelation = false;
   incomingEvents.forEach((mEvent) => {
     const incomingKeys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
     if (incomingKeys.length === 0) return;
 
-    const existingEvent = findExistingEvent(incomingKeys);
-    if (!existingEvent) {
-      setEventForKeys(incomingKeys, mEvent);
-      return;
+    if (mEvent.getRelation()?.rel_type === RelationType.Replace) {
+      incomingHadEditRelation = true;
     }
 
-    const preferredEvent = pickPreferredThreadRenderEvent(
-      existingEvent,
-      mEvent,
-      resolveConfirmedId
-    );
-    const mergedKeys = Array.from(
-      new Set([...getThreadRenderEventKeys(existingEvent, resolveConfirmedId), ...incomingKeys])
-    );
-    setEventForKeys(mergedKeys, preferredEvent);
+    // setEventForKeys handles the pick + displacement internally; the
+    // caller just provides the new event and its keys. This is the
+    // canonicalization seam (RG5d); see setEventForKeys comment block.
+    setEventForKeys(incomingKeys, mEvent);
   });
+  if (incomingHadEditRelation) {
+    countCacheProbe('mergeSawIncomingEditRelation');
+  }
 
-  return Array.from(new Set(eventMap.values())).sort((a, b) => {
+  const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {
     const tsDiff = a.getTs() - b.getTs();
     if (tsDiff !== 0) return tsDiff;
     return (a.getId() ?? '').localeCompare(b.getId() ?? '');
   });
+
+  // CINNY-207 AC2 render-gap RG1 (2026-07-04): observability at the
+  // merge seam — bumps once per incoming m.replace whose target IS
+  // present in the merged output but has NO `replacingEvent()` set.
+  // That shape names "the applier ran (or was expected to run) upstream,
+  // but the instance the merge kept for the target does not carry the
+  // repaired replacement" — a merge-preference regression.
+  //
+  // F9 fold (2026-07-04): query `eventMap` directly by the target's
+  // event key instead of building a fresh `Map<id, MatrixEvent>` from
+  // the sorted output. Post-RG5d canonicalization the map already
+  // holds exactly one instance per identity reachable under the
+  // `event:${id}` key, so the lookup is O(1) with no per-call
+  // allocation. Guarded on incomingHadEditRelation so the whole block
+  // is skipped when the incoming batch has no edit relations.
+  if (incomingHadEditRelation) {
+    incomingEvents.forEach((mEvent) => {
+      const relation = mEvent.getRelation();
+      if (relation?.rel_type !== RelationType.Replace) return;
+      const targetEventId = relation.event_id;
+      if (!targetEventId) return;
+      const target = eventMap.get(`event:${targetEventId}`);
+      if (!target) return;
+      if (!target.replacingEvent()) {
+        countCacheProbe('mergeSawEditRelationNoTargetChange');
+      }
+    });
+  }
+
+  return merged;
 };
 
 export const dedupeThreadRenderEventEntries = <

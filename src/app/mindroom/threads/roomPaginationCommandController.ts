@@ -23,12 +23,14 @@ import {
   type Timeline,
 } from './timelinePagination';
 import {
+  createPreferLiveEventMapper,
   getEarliestLoadedRoomEvent,
   loadRoomCachedPaginationSnapshot,
   resolveHydratedRoomBeforeToken,
 } from './eventRepository';
 import { hydrateCachedEvents, reconcileRelationEventsWithAggregation } from './eventCacheEditUtils';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import type { PersistRoomEventCache } from '../engine/enginePersistFacade';
 
 type RoomTimelineState = Timeline;
 
@@ -36,11 +38,12 @@ export const useRoomPaginationCommandController = ({
   alive,
   handleTimelinePagination,
   mx,
+  persistRoomEventCache,
   recalibrateFilterOptsRef,
   room,
   roomIdRef,
   roomPaginatingBackRef,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   sessionId,
   setRoomHasMoreCachedBack,
   setTimeline,
@@ -51,11 +54,12 @@ export const useRoomPaginationCommandController = ({
   alive: () => boolean;
   handleTimelinePagination: (backwards: boolean) => Promise<void>;
   mx: MatrixClient;
+  persistRoomEventCache: PersistRoomEventCache;
   recalibrateFilterOptsRef: RefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
   roomIdRef: MutableRefObject<string>;
   roomPaginatingBackRef: MutableRefObject<boolean>;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   sessionId: string;
   setRoomHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<RoomTimelineState>>;
@@ -98,7 +102,7 @@ export const useRoomPaginationCommandController = ({
         const earliestLoadedEvent = getEarliestLoadedRoomEvent(room, currentLinkedTimelines);
         const mapper = mx.getEventMapper();
         const cachePageLimit = Math.min(
-          safePaginationLimitRef.current,
+          prefetchDepthRef.current,
           ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
         );
         const cachedPaginationSnapshot = await loadRoomCachedPaginationSnapshot({
@@ -106,7 +110,7 @@ export const useRoomPaginationCommandController = ({
           roomId: room.roomId,
           earliestLoadedEvent,
           limit: cachePageLimit,
-          mapEvent: (rawEvent) => mapper(rawEvent),
+          mapEvent: createPreferLiveEventMapper(room, mapper),
         });
 
         if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -185,7 +189,46 @@ export const useRoomPaginationCommandController = ({
         }
 
         setRoomHasMoreCachedBack(false);
+        // Capture the earliest loaded id BEFORE the network paginate
+        // so we can compare after and know which events are new.
+        const preFetchEarliestId = getEarliestLoadedRoomEvent(
+          room,
+          currentLinkedTimelines
+        )?.getId();
         await handleTimelinePagination(true);
+        if (!alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+
+        // CINNY-207 P3.3 (explicit-persist-point, option b): backward
+        // pagination delivers events with `toStartOfTimeline=true`,
+        // which the engine's live write-through deliberately skips.
+        // Batch-persist the newly-fetched slice here per pagination
+        // completion (not per event) so paginated history survives
+        // the deletion of the P1.1 sweep.
+        const afterFirstTimeline = timeline.linkedTimelines[0] ?? firstTimeline;
+        const backfilledTimeline =
+          afterFirstTimeline.getNeighbouringTimeline(Direction.Backward) ??
+          afterFirstTimeline;
+        const backfilledEvents = backfilledTimeline.getEvents();
+        // Newly fetched events are OLDER than the pre-fetch earliest: the
+        // SDK either prepends them into the same timeline (walk from the
+        // oldest end and stop when the pre-fetch earliest is reached) or
+        // places them in a separate backward neighbour timeline (the
+        // pre-fetch earliest is absent and the whole slice is new).
+        const eventsToPersist: MatrixEvent[] = [];
+        for (let idx = 0; idx < backfilledEvents.length; idx += 1) {
+          const mEvent = backfilledEvents[idx];
+          if (mEvent.getId() === preFetchEarliestId) break;
+          eventsToPersist.push(mEvent);
+        }
+        if (eventsToPersist.length > 0) {
+          // The batch contains the new overall-earliest cached event, so the
+          // timeline's backward token is its continuity proof — the deleted
+          // P1.1 sweep used to write exactly this pairing; without it a
+          // reload cannot trust cached back-pagination past this point.
+          // `null` is meaningful (room-start proof) and must flow through.
+          const backwardToken = backfilledTimeline.getPaginationToken(Direction.Backward);
+          persistRoomEventCache(eventsToPersist, backwardToken);
+        }
       } finally {
         roomPaginatingBackRef.current = false;
       }
@@ -194,11 +237,12 @@ export const useRoomPaginationCommandController = ({
       alive,
       handleTimelinePagination,
       mx,
+      persistRoomEventCache,
       recalibrateFilterOptsRef,
       room,
       roomIdRef,
       roomPaginatingBackRef,
-      safePaginationLimitRef,
+      prefetchDepthRef,
       sessionId,
       setRoomHasMoreCachedBack,
       setTimeline,

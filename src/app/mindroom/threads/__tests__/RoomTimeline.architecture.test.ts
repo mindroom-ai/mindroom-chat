@@ -184,25 +184,47 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('loadedRootEntries');
   });
 
-  it('delegates eager room preload orchestration outside RoomTimeline', () => {
+  it('routes deep-history preload through the engine scheduler, not the SDK live timeline', () => {
+    // CINNY-207 P4.3: the `useRoomEagerPreload` hook was deleted.
+    // Deep-history sweep is now a band-4 job on the engine's
+    // BackfillScheduler (`enqueueRoomDeepHistoryJob`) that persists
+    // straight through `saveRoomEventsToCache` and NEVER calls
+    // `mx.paginateEventTimeline` on the room's live timeline. Guard
+    // both invariants: (a) the hook is gone, (b) the enqueue path is
+    // present.
     const source = readRoomTimelineSource();
     const windowControllerSource = readFileSync(
       new URL('../roomTimelineWindowController.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).toContain('useRoomEagerPreload');
+    expect(source).not.toContain('useRoomEagerPreload');
+    expect(source).toContain('enqueueRoomDeepHistoryJob');
     expect(source).toContain('useRoomTimelineWindowController');
     expect(source).not.toContain("from '../../mindroom/threads/roomPreloadTarget'");
     expect(windowControllerSource).toContain("from './roomPreloadTarget'");
     expect(source).not.toContain('[eager-preload]');
   });
 
+  it('keeps backfill network fetchers inside the engine (no direct createMessagesRequest in components)', () => {
+    // CINNY-207 P4.3: any /messages fetch has to go through the
+    // engine's BackfillScheduler (via `enqueueRoomDeepHistoryJob`,
+    // `gapFillExecutor`, etc.). RoomTimeline and other render
+    // components must never call `mx.createMessagesRequest` directly.
+    const source = readRoomTimelineSource();
+    expect(source).not.toContain('createMessagesRequest');
+  });
+
   it('does not import raw event cache stores directly', () => {
     const source = readRoomTimelineSource();
 
+    // CINNY-207 P2.3: the legacy `roomEventCache` / `threadEventCache`
+    // shim files were deleted; the unified store is `./cacheStore`.
+    // Neither the store nor the eventRepository seam may be imported
+    // by the render component.
     expect(source).not.toContain("from './roomEventCache'");
     expect(source).not.toContain("from './threadEventCache'");
+    expect(source).not.toContain("from './cacheStore'");
     expect(source).not.toContain("from '../../mindroom/threads/eventRepository'");
   });
 
@@ -245,19 +267,22 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('serializeEventsForCache(');
   });
 
-  it('delegates cache persistence snapshots to the event repository', () => {
+  it('delegates cache persistence to the MindroomSyncEngine facade', () => {
+    // CINNY-207 P3.3: the pre-strip
+    // `useRoomCacheLifecycleController` / `useThreadCachePersistenceController`
+    // hooks are gone; persistence is owned by MindroomSyncEngine (all
+    // rooms, client-level). The component only consumes the persist
+    // facade via `useMindroomSyncEngine` / `engine.persist.forRoom`
+    // and hands the fns down to the fetch controllers.
     const source = readRoomTimelineSource();
-    const roomCacheLifecycleSource = readFileSync(
-      new URL('../roomCacheLifecycleController.ts', import.meta.url),
-      'utf8'
-    );
 
     expect(source).not.toContain('persistRoomEventCacheSnapshot');
-    expect(roomCacheLifecycleSource).toContain('persistRoomEventCacheSnapshot');
-    expect(source).toContain('useRoomCacheLifecycleController');
-    expect(source).toContain('useThreadCachePersistenceController');
-    expect(source).toContain("from '../../mindroom/threads/threadCachePersistenceController'");
-    expect(source).toContain("from '../../mindroom/threads/roomCacheLifecycleController'");
+    expect(source).not.toContain('useRoomCacheLifecycleController');
+    expect(source).not.toContain('useThreadCachePersistenceController');
+    expect(source).not.toContain("from '../../mindroom/threads/threadCachePersistenceController'");
+    expect(source).not.toContain("from '../../mindroom/threads/roomCacheLifecycleController'");
+    expect(source).toContain('useMindroomSyncEngine');
+    expect(source).toContain('syncEngine.persist.forRoom');
     expect(source).not.toContain('saveRoomEventsToCache(');
     expect(source).not.toContain('saveThreadEventsToCache(');
     expect(source).not.toContain('serializeRoomCacheEvents(room');
@@ -677,14 +702,18 @@ describe('RoomTimeline architecture', () => {
       new URL('../threadPaginationCommandController.ts', import.meta.url),
       'utf8'
     );
-    const cacheFirstSource = readFileSync(
-      new URL('../threadOpenCacheFirst.ts', import.meta.url),
+    // 2026-07-06 consolidation: `threadOpenCacheFirst.ts` no longer
+    // maps cached page events itself (the open-time relations-backfill
+    // leg that needed a mapped baseline was deleted). The mapper stays
+    // defined + consumed inside the event repository.
+    const eventRepositorySource = readFileSync(
+      new URL('../eventRepository.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).not.toContain('loadThreadCachedPaginationSnapshot');
     expect(paginationControllerSource).toContain('loadThreadCachedPaginationSnapshot');
-    expect(cacheFirstSource).toContain('mapCachedThreadPageEvents');
+    expect(eventRepositorySource).toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('loadCachedThreadEventsBefore');
     expect(source).not.toContain('normalizeCachedThreadEvents');
@@ -696,9 +725,21 @@ describe('RoomTimeline architecture', () => {
       new URL('../threadBootstrap.ts', import.meta.url),
       'utf8'
     );
+    // CINNY-207 P5.1 Commit 2: `fetchAllThreadRelations` moved to
+    // `engine/threadRelationsFetcher.ts` so the `/relations` boundary
+    // can be enforced by the dedicated engine-only guard below.
+    // `threadBootstrap.ts` re-exports the engine symbol for the
+    // existing unit-test surface — the assertion just checks the
+    // symbol is still reachable from this file, not where it's
+    // defined.
+    const threadRelationsFetcherSource = readFileSync(
+      new URL('../../engine/threadRelationsFetcher.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).not.toContain("from '../../mindroom/threads/threadBootstrap'");
-    expect(threadBootstrapSource).toContain('export async function fetchAllThreadRelations');
+    expect(threadRelationsFetcherSource).toContain('export async function fetchAllThreadRelations');
+    expect(threadBootstrapSource).toContain('fetchAllThreadRelations');
     expect(threadBootstrapSource).toContain('export const collectPriorityThreadSeedPrewarmRoots =');
     expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadEvents =');
     expect(threadBootstrapSource).toContain('export const getLoadedRoomThreadSeedEvents =');
@@ -721,13 +762,33 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread-open cache/network commands to MindRoom threads', () => {
     const source = readRoomTimelineSource();
+    const cacheControllerSource = readFileSync(
+      new URL('../threadOpenCacheController.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useThreadOpenCacheController');
     expect(source).toContain("from '../../mindroom/threads/threadOpenCacheController'");
     expect(source).not.toContain('const refreshLatestThreadSlice = useCallback');
-    expect(source).not.toContain('const backfillThreadRelationsIntoCache = useCallback');
+    // CINNY-207 P5.1: `refreshLatestThreadRelationsTail` was deleted
+    // from `threadOpenCacheController` — the reconciler owns the
+    // post-open server verify now. The assertion stays so a future
+    // "quick fix" that reintroduces it via a useCallback in the
+    // component tripwires immediately.
     expect(source).not.toContain('const refreshLatestThreadRelationsTail = useCallback');
     expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
+    // 2026-07-06 consolidation: the open-time relations-backfill leg
+    // is gone — the open-path controller must not enqueue
+    // 'thread-backfill' jobs anymore. Full /relations drains are
+    // background-only producers (prewarm band + overview resume); a
+    // thread open converges via the choke-point reconcile plus the
+    // SDK bootstrap + refreshLatestThreadSlice drain.
+    expect(cacheControllerSource).not.toContain('enqueueThreadBackfillJob');
+    // Bare name, not the call form (self-review fix): the paren form
+    // missed the exact regression shape this consolidation deleted —
+    // an import + prop-plumb of the job producer with no direct call
+    // expression in the component source.
+    expect(source).not.toContain('enqueueThreadBackfillJob');
   });
 
   it('delegates thread-open SDK bootstrap to MindRoom threads', () => {
@@ -765,24 +826,35 @@ describe('RoomTimeline architecture', () => {
     expect(lifecycleSource).toContain('runThreadOpenCacheFirst');
     expect(cacheFirstSource).toContain('thread-open-complete-cache-hit');
     expect(source).not.toContain('thread-open-complete-cache-hit');
-    expect(source).not.toContain('shouldBackfillThreadRelationsFromCoverage');
     expect(source).not.toContain('hasUsableThreadCacheSnapshot');
   });
 
-  it('delegates thread-open post-bootstrap refresh to MindRoom threads', () => {
+  // CINNY-207 P5.1 Commit 2: `threadOpenPostBootstrapRefresh.ts` was
+  // deleted — its limit-200 fetchRelations is now the reconciler; its
+  // forward-gap check (with the `'thread-open-forward-gap-check'`
+  // log string that this guard used to hunt for) moved inline into
+  // the lifecycle controller so we keep the same tripwire (the log
+  // string remains a useful marker for debugging).
+  it('keeps the forward-gap check + log string in the lifecycle controller (post-bootstrap-refresh deleted)', () => {
     const source = readRoomTimelineSource();
-    const refreshSource = readFileSync(
-      new URL('../threadOpenPostBootstrapRefresh.ts', import.meta.url),
-      'utf8'
-    );
     const lifecycleSource = readFileSync(
       new URL('../threadOpenLifecycleController.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).not.toContain('runThreadOpenPostBootstrapRefresh');
-    expect(lifecycleSource).toContain('runThreadOpenPostBootstrapRefresh');
-    expect(refreshSource).toContain('thread-open-forward-gap-check');
+    // The runner is gone entirely — assert it doesn't reappear as a
+    // module or symbol reference. We check for `import { … } from …`
+    // + `const … = require(…)` rather than raw string containment
+    // so comments citing the pre-P5 name (for historical clarity)
+    // don't trip the guard.
+    expect(source).not.toMatch(/from ['"][^'"]*threadOpenPostBootstrapRefresh['"]/);
+    expect(lifecycleSource).not.toMatch(/from ['"][^'"]*threadOpenPostBootstrapRefresh['"]/);
+    expect(lifecycleSource).not.toMatch(/\brunThreadOpenPostBootstrapRefresh\(/);
+    // Forward-gap check + log string lives in the lifecycle
+    // controller now. The log string stays as-is so existing capture
+    // consumers keep working.
+    expect(lifecycleSource).toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('thread-open-forward-gap-check');
     expect(source).not.toContain('computeReconciliationToken');
   });
@@ -1221,7 +1293,11 @@ describe('RoomTimeline architecture', () => {
       new URL('../useRoomViewThreadState.ts', import.meta.url),
       'utf8'
     );
-    const cacheSource = readFileSync(new URL('../threadSummaryCache.ts', import.meta.url), 'utf8');
+    // CINNY-207 P2.3: the standalone `threadSummaryCache.ts` shim was
+    // deleted — its exports moved into the unified `./cacheStore`
+    // module. Summary state (`threadSummaryState.ts`) and the facade
+    // (`threadSummaryStore.ts`) still live here and consume the store
+    // directly.
     const stateSource = readFileSync(new URL('../threadSummaryState.ts', import.meta.url), 'utf8');
     const storeSource = readFileSync(new URL('../threadSummaryStore.ts', import.meta.url), 'utf8');
     const publishControllerSource = readFileSync(
@@ -1237,10 +1313,10 @@ describe('RoomTimeline architecture', () => {
       "from '../../mindroom/threads/threadSummaryPublishController'"
     );
     expect(timelineSource).not.toContain('threadSummaryInfoMap.forEach');
-    expect(storeSource).toContain("from './threadSummaryCache'");
+    expect(storeSource).toContain("from './cacheStore'");
     expect(storeSource).toContain("from './threadSummaryState'");
     expect(storeSource).toContain("from './useRoomThreadSummaryState'");
-    expect(cacheSource).toContain('loadCachedThreadSummaries');
+    expect(stateSource).toContain("from './cacheStore'");
     expect(stateSource).toContain('storeThreadSummaryInState');
     expect(publishControllerSource).toContain('useThreadSummaryPublishController');
   });
@@ -1595,10 +1671,14 @@ describe('RoomTimeline architecture', () => {
     expect(settingsRendererSource).toContain('renderLocalMindroomSettingsPage');
     expect(settingsRendererSource).toContain('LocalMindroom');
     expect(settingsExtensionsSource).toContain("from '../local-mindroom/settingsRenderer'");
-    expect(settingsExtensionsSource).toContain('MindroomMessagePreloadLimitSetting');
+    // CINNY-207 P6.1 / D4: the "Message Preload Limit" tile was replaced
+    // by MindroomPrefetchSettings (scope + current-room depth). The
+    // settings extension entry point now points at that instead.
+    expect(settingsExtensionsSource).toContain('MindroomPrefetchSettings');
     expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsMenu'");
     expect(settingsMenuExtensionsSource).toContain("from '../local-mindroom/settingsPage'");
     expect(settingsMenuExtensionsSource).not.toContain('MindroomMessagePreloadLimitSetting');
+    expect(settingsMenuExtensionsSource).not.toContain('MindroomPrefetchSettings');
   });
 
   it('keeps the Local MindRoom sidebar shortcut in the MindRoom namespace', () => {
@@ -2146,10 +2226,18 @@ describe('RoomTimeline architecture', () => {
     expect(implementationSource).toContain('reconcileRelationEventsWithAggregation');
   });
 
-  it('keeps raw event cache stores in MindRoom threads', () => {
-    const roomStoreSource = readFileSync(new URL('../roomEventCache.ts', import.meta.url), 'utf8');
-    const threadStoreSource = readFileSync(
-      new URL('../threadEventCache.ts', import.meta.url),
+  it('keeps raw event cache stores in MindRoom threads under cacheStore', () => {
+    // CINNY-207 P2.3: the legacy `roomEventCache.ts` / `threadEventCache.ts`
+    // shim modules were deleted. The unified `./cacheStore` module owns
+    // the DB name and every read/write API. `eventRepository.ts` is the
+    // only sanctioned consumer besides sessionCleanup and
+    // threadSummaryState (encoded here as an allowlist).
+    const legacyNamesSource = readFileSync(
+      new URL('../cacheStore/legacyCacheDbNames.ts', import.meta.url),
+      'utf8'
+    );
+    const cacheStoreBarrelSource = readFileSync(
+      new URL('../cacheStore/index.ts', import.meta.url),
       'utf8'
     );
     const repositorySource = readFileSync(
@@ -2157,10 +2245,12 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
 
-    expect(roomStoreSource).toContain('mindroom-room-event-cache');
-    expect(threadStoreSource).toContain('mindroom-thread-event-cache');
-    expect(repositorySource).toContain("from './roomEventCache'");
-    expect(repositorySource).toContain("from './threadEventCache'");
+    expect(legacyNamesSource).toContain('mindroom-room-event-cache');
+    expect(legacyNamesSource).toContain('mindroom-thread-event-cache');
+    expect(cacheStoreBarrelSource).toContain("from './cacheStoreEvents'");
+    expect(repositorySource).toContain("from './cacheStore'");
+    expect(repositorySource).not.toContain("from './roomEventCache'");
+    expect(repositorySource).not.toContain("from './threadEventCache'");
     expect(repositorySource).not.toContain('../../features/room/roomEventCache');
     expect(repositorySource).not.toContain('../../features/room/threadEventCache');
   });
@@ -2302,7 +2392,6 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('shouldPinThreadToBottomOnOpen');
     expect(controllerSource).toContain('setupFocusObserver');
     expect(controllerSource).toContain('shouldPinThreadToBottomOnOpen');
-    expect(controllerSource).toContain('restorePendingThreadBackPaginationAnchor');
   });
 
   it('delegates room jump and thread-card navigation handlers to MindRoom threads', () => {
@@ -2328,16 +2417,16 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const controllerSource = readFileSync(
-      new URL('../roomLiveEventController.ts', import.meta.url),
+      new URL('../roomLiveRenderController.ts', import.meta.url),
       'utf8'
     );
 
-    expect(source).toContain("from '../../mindroom/threads/roomLiveEventController'");
+    expect(source).toContain("from '../../mindroom/threads/roomLiveRenderController'");
     expect(source).not.toContain('const useLiveEventArrive');
     expect(source).not.toContain('EventTimelineSetHandlerMap');
     expect(source).not.toContain('getLiveCollapsibleMessageExpandId');
     expect(source).not.toContain('room-thread-cache-persist-paginated');
-    expect(controllerSource).toContain('useRoomLiveEventController');
+    expect(controllerSource).toContain('useRoomLiveRenderController');
     expect(controllerSource).toContain('useLiveEventArrive');
     expect(controllerSource).toContain("from './roomLocalEchoRefresh'");
     expect(controllerSource).toContain('useRoomLocalEchoRefresh');
@@ -2401,5 +2490,28 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('loadCachedRoomPaginationToken');
     expect(source).not.toContain('resolvePersistedRoomBeforeToken');
     expect(source).not.toContain('normalizeCachedRoomEvents');
+  });
+});
+
+// CINNY-207 plan section 6.4: Phase 1 regression guards. Source-scan style,
+// matching this file's idiom — behavioral coverage lives in the dedicated
+// unit suites (RoomTimeline.cache.test.ts, eventCacheEditUtils.test.ts,
+// and the engine suites at src/app/mindroom/engine/).
+//
+// The P1.1 room-cache persist sweep guard was removed in P3.3: the sweep
+// itself is deleted; O(1)-per-live-event writes are now enforced
+// structurally by the engine's per-event write-through (no bulk
+// re-serialization codepath exists). Live-event coverage is asserted in
+// `engine/engineWriteThrough.compaction.test.ts` and
+// `engine/__tests__/engineAllRoomsCoverage.test.ts`.
+describe('CINNY-207 Phase 1 cache guards', () => {
+  it('keeps the cache write boundary rejecting standalone same-sender m.replace records (P1.4)', () => {
+    const serializerSource = readFileSync(
+      new URL('../eventCacheEditUtils.ts', import.meta.url),
+      'utf8'
+    );
+
+    expect(serializerSource).toContain('isStandaloneSameSenderReplace');
+    expect(serializerSource).toMatch(/if \(isStandaloneSameSenderReplace\(mEvent, eventById\)\) return;/);
   });
 });

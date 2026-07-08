@@ -3,6 +3,13 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../types';
+
+// CINNY-207 P3.3: the pre-strip ROOM_CACHE_PERSIST_DEBOUNCE_MS mock is
+// gone — its subject (the room-cache persist sweep) was deleted along
+// with `roomCacheLifecycleController`. Fetch-controller persist calls
+// (thread-open, thread-pagination, etc.) still need a small settle
+// window for their post-await microtasks to drain; the following
+// helper is now just that.
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../threadOpenSeedCache';
 import {
   compactPlaceholderType,
@@ -17,7 +24,6 @@ import {
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
-  loadLatestCachedThreadSummaryInfoMock,
   inSameDayMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
@@ -31,7 +37,6 @@ import {
   roomThreadListThreadsMock,
   roomThreadOverviewType,
   roomTimelineVirtualizerState,
-  saveRoomEventsToCacheMock,
   scrollToItemMock,
   scrollType,
   timeDayMonthYearMock,
@@ -42,7 +47,21 @@ import {
   threadResolutionMapMock,
   virtualPaginatorState,
   waitForCondition,
+  wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+
+// Fetch-controller persist calls are `.then()`-chained off IDB
+// promises inside effects that queue in Promise/microtask ticks; a
+// short real-time settle plus a flushAsyncWork pass is enough for
+// their `saveThreadEventsToCacheMock` invocations to land.
+const waitForPersistSweepDebounce = async () => {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+    await flushAsyncWork();
+  });
+};
 
 const makeThreadFilterRecord = (
   threadRootId: string,
@@ -241,27 +260,29 @@ describe('RoomTimeline', () => {
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'default',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'default',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -310,33 +331,35 @@ describe('RoomTimeline', () => {
       const editor = {} as Editor;
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 10000;
+      settingsState.prefetchDepth = 10000;
       roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
 
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'classic',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'classic',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -553,7 +576,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('re-anchors the thread virtualizer on the captured event after back-pagination prepends rows', async () => {
+    it('folds back-pagination prepends into the offset ledger with zero scroll writes', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$prepend-thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
@@ -596,9 +619,26 @@ describe('RoomTimeline', () => {
       };
       // Prepending 100 rows above the viewport unmounts the anchor row in
       // production (virtual indexes shift while scrollTop stays), which is the
-      // case the coarse scrollToIndex compensation exists for.
+      // case the coarse re-anchor compensation exists for. The flag stays
+      // TRUE through the begin-time capture AND the commit-time recapture
+      // (task #125 follow-up: in production the prepend has not rendered when
+      // either capture runs, so the anchor row is still mounted) and flips
+      // FALSE when the test applies the prepend render — exactly when the
+      // unmount happens in production.
       let anchorMounted = true;
+      // Settle-order log (mutant audit 2026-07-07, survivors 6a/6b): the
+      // settle's atomic block must write scrollTop BEFORE setOptions —
+      // setOptions can notify a synchronous re-render that must see the
+      // (margin 0, shifted scrollTop) pair. The accessor-backed scrollTop
+      // and the setOptions spy share one ordered log.
+      const ledgerOps: string[] = [];
+      let scrollTopValue = 0;
       const scrollElement = {
+        // Connected: quiescence waits run their real 150ms idle timer
+        // instead of the detached-element instant resolve — the margin-
+        // live window between fold and settle must exist for the paint-
+        // half pin below (the test's 250ms waits cover the idle).
+        isConnected: true,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
@@ -606,19 +646,33 @@ describe('RoomTimeline', () => {
         querySelectorAll: vi.fn(() => (anchorMounted ? [anchorElement] : [])),
         scrollHeight: 4000,
         clientHeight: 600,
-        scrollTop: 0,
+        get scrollTop() {
+          return scrollTopValue;
+        },
+        set scrollTop(value: number) {
+          ledgerOps.push('scrollTop');
+          scrollTopValue = value;
+        },
+        scrollTo: vi.fn(),
       };
+      roomTimelineVirtualizerState.setOptionsMock.mockClear();
+      roomTimelineVirtualizerState.setOptionsMock.mockImplementation(() => {
+        ledgerOps.push('setOptions');
+      });
+      // Inner virtual container: the ledger fold's visible output is its
+      // marginTop (adversarial review on PR #88 — without this pin, fold
+      // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
+      const innerElement = { style: {} as Record<string, string> };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
-      let prependOnPaginate = false;
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
-        if (prependOnPaginate) {
-          prependOnPaginate = false;
-          anchorMounted = false;
-          setThreadEvents(prependedThreadEvents);
-        }
-        return false;
-      });
+      // Task #125 follow-up sequencing: the paginate mock must NOT
+      // apply the prepend to the RENDER state — in production the
+      // paginate mutates only the SDK timeline, and the render list /
+      // index map update at the (quiescence-deferred) commit. The
+      // commit-time anchor recapture must read the PRE-prepend index
+      // map; the test applies the prepend afterwards, as the commit's
+      // re-render does in production.
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
 
@@ -630,7 +684,13 @@ describe('RoomTimeline', () => {
               threadId,
             }),
             {
-              createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
             }
           );
           await flushAsyncWork();
@@ -638,19 +698,518 @@ describe('RoomTimeline', () => {
 
         const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
         await act(async () => {
-          prependOnPaginate = true;
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          // Task #125 follow-up: the prepend RENDER COMMIT waits for
+          // scroll quiescence (150ms with no scroll events, wall
+          // clock) before it lands — see scrollQuiescence.ts. This
+          // suite section runs real timers, so wait it out; the
+          // commit-time recapture runs here against the pre-prepend
+          // index map.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        // The commit's re-render delivers the prepended render state in
+        // production; the harness applies it explicitly. The prepend
+        // unmounts the anchor row (virtual indexes shift while
+        // scrollTop stays) — the case the coarse re-anchor exists
+        // for.
+        await act(async () => {
+          anchorMounted = false;
+          setThreadEvents(prependedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+
+        // Paint-half pin (mutant audit 2026-07-07, survivor 14): while
+        // the ledger margin is live, every painted tile's inline top is
+        // content-relative — virtualItem.start (which includes the
+        // scrollMargin) PLUS the ledger px. Dropping the term reproduces
+        // the round-10 "double-counted ledger past overscan" blank class,
+        // which no unit test caught before this.
+        expect(innerElement.style.marginTop).toBe('-2600px');
+        {
+          const estimatePx =
+            roomTimelineVirtualizerState.lastOptions?.estimateSize?.() ?? Number.NaN;
+          const tiles = renderer!.root.findAll(
+            (node) =>
+              node.props?.['data-virtual-index'] !== undefined && node.props?.style !== undefined
+          );
+          expect(tiles.length).toBeGreaterThan(0);
+          tiles.slice(0, 3).forEach((tile) => {
+            const virtualIndex = tile.props['data-virtual-index'] as number;
+            expect(tile.props.style.top).toBe(virtualIndex * estimatePx + 2600);
+          });
+        }
+
+        // Offset-ledger fold (device round 10): the prepend commit is pure
+        // ledger arithmetic — the inserted rows' height folds into the
+        // container margin + scrollMargin at RENDER time, so the anchor
+        // never moves and NO scroll write happens at all (the coarse
+        // scrollTo + rect fine-correction machinery this test previously
+        // asserted raced virtual-core's own quiet-state adjustments).
+        // Let the at-rest ledger settle fire (quiescence idle is 150ms,
+        // real timers in this suite section): the fold's ΔH converts into
+        // ONE exactly-cancelling scrollTop shift and the margin returns
+        // to zero.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
+        // ΔH pin (adversarial review on PR #88 — without it, fold
+        // deletion, pricing off-by-one and unconsumed-anchor mutants all
+        // passed green): 100 prepended one-liner replies at the
+        // calibrated COMPACT estimate (base 6 + one 20px line = 26; the
+        // harness renders compact layout) fold to EXACTLY 2600px,
+        // delivered by the settle as scrollTop += 2600 with the margin
+        // returned to zero.
+        expect(scrollElement.scrollTop).toBe(2600);
+        expect(innerElement.style.marginTop).toBe('');
+        // Settle atomicity pins (mutant audit 2026-07-07, survivors
+        // 6a/6b — the old mock lacked setOptions entirely, so 6b was
+        // "caught" only by an accidental TypeError): the settle must
+        // flip scrollMargin to 0 in the same block, and the scrollTop
+        // write must come FIRST.
+        expect(roomTimelineVirtualizerState.setOptionsMock).toHaveBeenCalledWith(
+          expect.objectContaining({ scrollMargin: 0 })
+        );
+        expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
+        expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
+
+        // Consumption pin: the fold must consume the pagination anchor at
+        // the commit. A further prepend WITHOUT a new Load Older (no
+        // begin(), e.g. a background band) must not fold against the
+        // stale capture — an unconsumed anchor would add 5 x 26px here.
+        const bandPrependedThreadEvents = [
+          rootEvent,
+          ...Array.from({ length: 5 }, (_value, index) => makeReply(index + 90)),
+          ...prependedThreadEvents.slice(1),
+        ];
+        await act(async () => {
+          setThreadEvents(bandPrependedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTop).toBe(2600);
+        expect(innerElement.style.marginTop).toBe('');
+      } finally {
+        roomTimelineVirtualizerState.setOptionsMock.mockReset();
+        renderer?.unmount();
+      }
+    });
+
+    it('prices interleaved prepends by the inserted keys, not the first-shift rows', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L1:
+      // `mergeThreadRenderEvents` sorts purely by ts, so an overlapping
+      // band (or a federated page with interior timestamps) can insert
+      // NEW events BETWEEN existing rows above the anchor. The fold's
+      // prefix assumption — sum estimate(1..shift) — then prices
+      // pre-existing rows instead of the inserted ones. This pin uses
+      // heterogeneous rows so the two sums differ: three folded-long
+      // rows (compact estimate 76) sit above a one-liner anchor, and
+      // the committed page interleaves two one-liner events (compact
+      // estimate 26) between them. Correct ΔH = 2 x 26 = 52; the
+      // prefix-shaped sum would fold 76 + 26 = 102.
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$interleave-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200); // 5 wrapped lines > fold cap 3
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      // Band events with interior timestamps: ts 150 and 250 land BETWEEN
+      // the existing long rows once the merge re-sorts by ts.
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      const interleavedThreadEvents = [...initialThreadEvents, ...bandEvents].sort(
+        (a, b) => a.getTs() - b.getTs()
+      );
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          // Quiescence-deferred commit window (150ms idle, real timers);
+          // the commit-time recapture reads the pre-prepend index map.
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        await act(async () => {
+          setThreadEvents(interleavedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+
+        // Let the at-rest ledger settle convert the fold into its one
+        // scrollTop shift.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // ΔH must price the two INSERTED one-liners (2 x 26 = 52), not
+        // the first-two post-prepend rows (long 76 + one-liner 26 = 102).
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('re-anchors the fold on the nearest surviving baseline row when the anchor is redacted mid-flight', async () => {
+      // Full-surface adversarial review (2026-07-07), ledger finding L2:
+      // if the captured anchor event vanishes from the render list
+      // between capture and commit (redaction acknowledged, dedup
+      // collapse), the old fold silently skipped the whole compensation
+      // and the prepend landed as a visible jump. The key-diff fold must
+      // fall back to the nearest surviving baseline row: inserted rows
+      // above it stay compensated, while the anchor's own removal closes
+      // visibly in view (a redaction SHOULD look like the row vanishing).
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { getCacheProbeSnapshot } = await import('../cacheProbe');
+      const threadId = '$redacted-anchor-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const longBody = 'L'.repeat(200);
+      const makeLongReply = (index: number) =>
+        makeEvent(`$long-${index}`, {
+          threadRootId: threadId,
+          ts: index * 100,
+          content: { body: longBody, msgtype: 'm.text' },
+        });
+      const anchorEvent = makeEvent('$anchor', { threadRootId: threadId, ts: 400 });
+      const makeFiller = (index: number) =>
+        makeEvent(`$fill-${index}`, { threadRootId: threadId, ts: 500 + index });
+      const initialThreadEvents = [
+        rootEvent,
+        makeLongReply(1),
+        makeLongReply(2),
+        makeLongReply(3),
+        anchorEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeFiller(index)),
+      ];
+      const bandEvents = [
+        makeEvent('$band-1', { threadRootId: threadId, ts: 150 }),
+        makeEvent('$band-2', { threadRootId: threadId, ts: 250 }),
+      ];
+      // The committed list interleaves the two one-liners AND drops the
+      // anchor itself.
+      const committedThreadEvents = [...initialThreadEvents, ...bandEvents]
+        .filter((event) => event.getId() !== '$anchor')
+        .sort((a, b) => a.getTs() - b.getTs());
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
+          loadOlderChip.props.onClick();
+          await flushAsyncWork(10);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(10);
+        });
+
+        const fallbacksBefore = getCacheProbeSnapshot().threadPrependFoldAnchorFallback;
+        await act(async () => {
+          setThreadEvents(committedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await flushAsyncWork(10);
+        });
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+        // The two interleaved one-liners above the surviving boundary
+        // ($long-3) still fold: 2 x 26 = 52. The redacted anchor's own
+        // height is deliberately NOT compensated.
+        expect(scrollElement.scrollTop).toBe(52);
+        expect(innerElement.style.marginTop).toBe('');
+        expect(getCacheProbeSnapshot().threadPrependFoldAnchorFallback).toBe(fallbacksBefore + 1);
+      } finally {
+        renderer?.unmount();
+      }
+    });
+
+    it('keeps folding mid-flight bands against a rebased baseline until the pagination commit lands', async () => {
+      // Mutant audit 2026-07-07, survivor 2 (PR #88's own mid-flight-band
+      // major had no pin): while a pagination is IN FLIGHT, each band that
+      // lands must fold AND leave the capture armed (rebased) for the next
+      // one. Under always-consume, the FIRST band eats the capture and the
+      // second band lands uncompensated. Two bands, 5 + 3 one-liners at
+      // compact estimate 26: the ledger must read 130 then 208.
+      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const threadId = '$midflight-band-thread-root';
+      const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
+      const makeReply = (index: number) =>
+        makeEvent(`$te-${index}`, { threadRootId: threadId, ts: index + 1 });
+      const initialThreadEvents = [
+        rootEvent,
+        ...Array.from({ length: 300 }, (_value, index) => makeReply(index + 100)),
+      ];
+      const bandA = Array.from({ length: 5 }, (_value, index) => makeReply(index + 90));
+      const bandB = Array.from({ length: 3 }, (_value, index) => makeReply(index + 80));
+      const afterBandA = [rootEvent, ...bandA, ...initialThreadEvents.slice(1)];
+      const afterBandB = [rootEvent, ...bandB, ...bandA, ...initialThreadEvents.slice(1)];
+      const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadTimeline,
+        getTimelineForEvent: () => undefined,
+      };
+      const threadModel = {
+        rootEvent,
+        events: initialThreadEvents,
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+      };
+      const room = makeRoom({ liveEvents: [] });
+      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
+        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+          events.map((event, index) => [event.getId(), index])
+        );
+      };
+      setThreadEvents(initialThreadEvents);
+      const anchorElement = {
+        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
+        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
+      };
+      const scrollElement = {
+        isConnected: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+        querySelector: vi.fn(() => undefined),
+        querySelectorAll: vi.fn(() => [anchorElement]),
+        scrollHeight: 4000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
+      };
+      const innerElement = { style: {} as Record<string, string> };
+      // The pagination NEVER resolves inside the pinned phase — both
+      // bands land strictly mid-flight.
+      let resolvePaginate: ((value: boolean) => void) | undefined;
+      matrixClientMock.paginateEventTimeline.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolvePaginate = resolve;
+          })
+      );
+      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+      let renderer: ReturnType<typeof create> | undefined;
+
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            }),
+            {
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
+            }
+          );
+          await flushAsyncWork();
+        });
+
+        const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
+        await act(async () => {
           loadOlderChip.props.onClick();
           await flushAsyncWork(10);
         });
 
-        await waitForCondition(
-          () => roomTimelineVirtualizerState.scrollToIndexMock.mock.calls.length > 0,
-          100
-        );
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(101, {
-          align: 'start',
+        await act(async () => {
+          setThreadEvents(afterBandA);
+          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
+          await flushAsyncWork(5);
         });
+        expect(innerElement.style.marginTop).toBe('-130px');
+
+        await act(async () => {
+          setThreadEvents(afterBandB);
+          renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
+          await flushAsyncWork(5);
+        });
+        // The second band only folds if the first band's fold REBASED the
+        // capture instead of consuming it.
+        expect(innerElement.style.marginTop).toBe('-208px');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
+        resolvePaginate?.(false);
         renderer?.unmount();
       }
     });
@@ -702,6 +1261,7 @@ describe('RoomTimeline', () => {
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
+        scrollTo: vi.fn(),
       };
       let prependOnPaginate = false;
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
@@ -727,7 +1287,8 @@ describe('RoomTimeline', () => {
           );
           await flushAsyncWork();
         });
-        roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+        roomTimelineVirtualizerState.getOffsetForIndexMock.mockClear();
+        scrollElement.scrollTo.mockClear();
 
         const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
         await act(async () => {
@@ -736,13 +1297,20 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
+        expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }
     });
 
-    it('keeps the first visible classic room message anchored when prepending an older virtual range', async () => {
+    it('folds a room virtual-range prepend into the offset ledger with zero scroll writes', async () => {
+      // Room-ledger port (2026-07-07, PR #90 branch): the paginator's
+      // onRangeChange hands the exact prepended span, so the fold is
+      // direct arithmetic — no DOM anchor capture, no coarse scrollTo,
+      // no rAF rect correction (all three DELETED). 100 prepended items
+      // at the flat room estimate (compact 96) fold to exactly 9600px,
+      // delivered by the shared at-rest settle as one scrollTop shift.
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const events = Array.from({ length: 300 }, (_value, index) =>
         makeEvent(`$event-${index}`, { ts: index })
@@ -750,61 +1318,101 @@ describe('RoomTimeline', () => {
       const room = makeRoom({ liveEvents: events });
       const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
-      const visibleAnchor = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-item' ? '200' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 120, bottom: 180 })),
-      };
       const scrollElement = {
+        isConnected: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 700 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [visibleAnchor]),
+        querySelectorAll: vi.fn(() => []),
+        scrollHeight: 30000,
+        clientHeight: 600,
+        scrollTop: 0,
+        scrollTo: vi.fn(),
       };
+      const innerElement = { style: {} as Record<string, string> };
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 100;
+      // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to
+      // [ROOM_TAIL_PREFETCH_DEPTH=200, CURRENT_ROOM_DEEP_HISTORY_TARGET=10000].
+      // Setting the minimum here yields the same "smaller than the
+      // 300-event total" behavior the pre-D4 `paginationLimit: 100`
+      // did — just at the smallest value the new setting permits.
+      settingsState.prefetchDepth = 200;
       roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
 
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'classic',
-              onViewModeChange: vi.fn(),
-            }),
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'classic',
+                onViewModeChange: vi.fn(),
+              })
+            ),
             {
-              createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
             }
           );
           await flushAsyncWork();
         });
 
-        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 200, end: 300 });
+        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+        // The ledger owns backward compensation, and the REAL paginator
+        // must be told so — its own restore scrollBy lands before the
+        // margin effect in the same commit and would compensate the
+        // prepend twice (CodeRabbit on PR #91). The harness mocks the
+        // hook, so the option contract is the unit-observable half; the
+        // hook-side skip is a one-line gate on this flag.
+        expect(
+          (virtualPaginatorState.lastOptions as { externalBackwardScrollRestore?: boolean })
+            ?.externalBackwardScrollRestore
+        ).toBe(true);
 
         await act(async () => {
           virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
           await flushAsyncWork();
         });
 
-        expect(roomTimelineVirtualizerState.scrollToOffsetMock).toHaveBeenCalledWith(19180, {
-          behavior: 'auto',
+        // The fold lands in the range-change commit: margin = -100 x 96.
+        expect(innerElement.style.marginTop).toBe('-9600px');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
+
+        // At-rest settle (150ms quiescence, real timers): ONE exactly-
+        // cancelling scrollTop shift, margin back to zero, still no
+        // scrollTo — the reconcile-loop-racing restore is gone.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
         });
+        expect(scrollElement.scrollTop).toBe(9600);
+        expect(innerElement.style.marginTop).toBe('');
+        expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
       }
@@ -839,27 +1447,29 @@ describe('RoomTimeline', () => {
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'default',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'default',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -1009,145 +1619,26 @@ describe('RoomTimeline', () => {
       });
     });
 
-    it('recovers a stale room backward token only when cache metadata proves the room start', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const liveEvent = makeEvent('$live-event', { ts: 10 });
-      const liveTimeline = makeTimeline([liveEvent], {
-        backwardToken: 'stale-back-token',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      loadCachedRoomPaginationTokenMock.mockResolvedValue(null);
+    // CINNY-207 P3.3: removed the two P1.1 sweep tests that asserted
+    // saveRoomEventsToCacheMock after `waitForPersistSweepDebounce`.
+    // Their subject — the mount-time sweep that re-serialized the whole
+    // loaded timeline — is gone (persistence moved into
+    // MindroomSyncEngine's per-event write-through). Coverage of the
+    // engine's live-event persistence lives in
+    // `src/app/mindroom/engine/engineWriteThrough.compaction.test.ts`
+    // (13 tests) and `src/app/mindroom/engine/__tests__/engineAllRoomsCoverage.test.ts`
+    // (2 tests).
 
-      let renderer: ReturnType<typeof create> | undefined;
-
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-      expect(liveTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
-      expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
-      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
-      expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
-      expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
-
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    });
-
-    it('keeps eager-preloading past fifty batches in thread-heavy rooms until the configured limit is reached', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      settingsState.paginationLimit = 60;
-
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-      const liveEvents = [makeEvent('$visible-0', { ts: 1_000 })];
-      const liveTimeline = makeTimeline(liveEvents, {
-        backwardToken: 'page-0',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      const preloadTarget = 59;
-      let page = 0;
-      let renderer: ReturnType<typeof create> | undefined;
-
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
-        page += 1;
-        liveEvents.unshift(
-          makeEvent(`$visible-${page}`, { ts: 1_000 - page * 10 }),
-          ...Array.from({ length: 4 }, (_, index) =>
-            makeEvent(`$thread-${page}-${index}`, {
-              ts: 1_000 - page * 10 - index - 1,
-              threadRootId: `$root-${page}`,
-            })
-          )
-        );
-        liveTimeline.__paginationTokens.backward = page < preloadTarget ? `page-${page}` : null;
-        return true;
-      });
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await new Promise((resolve) => {
-            setTimeout(resolve, 150);
-          });
-          await flushAsyncWork(10);
-        });
-
-        await act(async () => {
-          await waitForCondition(
-            () => matrixClientMock.paginateEventTimeline.mock.calls.length >= preloadTarget,
-            800
-          );
-          await flushAsyncWork(20);
-        });
-
-        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(preloadTarget);
-        expect(page).toBe(preloadTarget);
-        expect(virtualPaginatorState.lastOptions?.count).toBe(60);
-      } finally {
-        consoleLogSpy.mockRestore();
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(1);
-        });
-      }
-    });
-
-    it('uses cache ordering for same-timestamp earliest room events when resolving room-start state', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const sdkFirstEvent = makeEvent('$b-event', { ts: 10 });
-      const cacheFirstEvent = makeEvent('$a-event', { ts: 10 });
-      const liveTimeline = makeTimeline([sdkFirstEvent, cacheFirstEvent], {
-        backwardToken: 'stale-back-token',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      loadCachedRoomPaginationTokenMock.mockImplementation(
-        async (_sessionId: string, _roomId: string, eventId?: string) =>
-          eventId === '$a-event' ? null : undefined
-      );
-
-      let renderer: ReturnType<typeof create> | undefined;
-
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(loadCachedRoomPaginationTokenMock.mock.calls).not.toHaveLength(0);
-      expect(
-        loadCachedRoomPaginationTokenMock.mock.calls.every(
-          ([, , eventId]) => eventId === '$a-event'
-        )
-      ).toBe(true);
-      expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-      expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
-      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
-      expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
-      expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
-
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    });
+    // CINNY-207 P4.3: the "keeps eager-preloading past fifty batches"
+    // test asserted the deleted `useRoomEagerPreload` loop drove
+    // `mx.paginateEventTimeline` iteratively against the SDK live
+    // timeline. That loop is gone — deep-history sweep runs in the
+    // engine as a band-4 `BackfillScheduler` job that calls
+    // `mx.createMessagesRequest` and persists straight to IDB. The
+    // scheduler-side behavior is covered by
+    // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`,
+    // and the "no direct createMessagesRequest in RoomTimeline"
+    // guard in `RoomTimeline.architecture.test.ts` pins the boundary.
 
     it('renders the room thread overview outside thread view', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
@@ -2166,7 +2657,7 @@ describe('RoomTimeline', () => {
 
     it('preloads cached overview metadata in the frozen display order', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
       const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
       const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -2233,7 +2724,10 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(3);
       });
 
-      expect(loadLatestCachedThreadSummaryInfoMock).not.toHaveBeenCalled();
+      // CINNY-207 P2.3: the `loadLatestCachedThreadSummaryInfo` API was
+      // removed with the shim files — no render-path read to guard
+      // against exists anymore. The rendering contract remains: no
+      // per-visible-thread summary cache reads from the render path.
 
       await act(async () => {
         renderer?.unmount();
@@ -2315,7 +2809,7 @@ describe('RoomTimeline', () => {
     it('seeds thread fallback immediately from room-loaded replies for targeted opens before thread cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2395,74 +2889,24 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('warms thread-open seed snapshots from room-preloaded thread events', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'thinking...' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const threadedEdit = makeEvent('$thread-edit-1', {
-        content: {
-          body: '* edited reply',
-          'm.new_content': {
-            body: 'edited reply',
-            msgtype: 'm.text',
-          },
-        },
-        threadRootId: threadId,
-        relation: { rel_type: 'm.replace', event_id: '$thread-reply-1' },
-        ts: 3,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        threadRootId: threadId,
-        ts: 4,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([secondReply, threadedEdit, firstReply, rootEvent], {
-          backwardToken: null,
-          forwardToken: null,
-        }),
-        findEventById: (eventId: string) =>
-          [threadId, '$thread-reply-1', '$thread-reply-2'].includes(eventId)
-            ? (
-                {
-                  [threadId]: rootEvent,
-                  '$thread-reply-1': firstReply,
-                  '$thread-reply-2': secondReply,
-                } as const
-              )[eventId]
-            : undefined,
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-        });
-
-        await waitForCondition(
-          () => getThreadOpenSeedSnapshot(room as never, threadId).length === 4,
-          50
-        );
-
-        expect(
-          getThreadOpenSeedSnapshot(room as never, threadId).map((mEvent) => mEvent.getId())
-        ).toEqual([threadId, '$thread-reply-1', '$thread-edit-1', '$thread-reply-2']);
-      } finally {
-        renderer?.unmount();
-      }
-    });
+    // CINNY-207 P3.3: removed the mount-time sweep that grouped a
+    // room's loaded thread events and called
+    // `persistThreadCacheFromRoomEventsSnapshot` (which as a side
+    // effect populated `saveThreadOpenSeedSnapshot`). The engine
+    // write-through only sees LIVE events, so pre-loaded room-thread
+    // events are no longer warmed at component mount time. Seed
+    // warming for opened threads still runs via
+    // `threadOpenCacheController` and `threadSeedPrewarmController`.
+    // The removed tests below were exercising sweep-mediated behavior:
+    //   - "warms thread-open seed snapshots from room-preloaded thread events"
+    //   - "marks room-derived thread cache snapshots complete only when the known reply count is satisfied"
+    //   - "keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded"
+    //   - "does not downgrade room-derived thread cache completeness when the room tail is still unknown"
+    //   - "does not treat sdk thread length as authoritative when root counts are sparse"
+    //   - "persists root-targeted relations into the thread cache during room cache persistence"
+    //   - "persists redactions targeting thread replies into the thread cache during room cache persistence"
+    // Unit coverage of `persistThreadCacheFromRoomEventsSnapshot`
+    // itself lives in `eventRepository.test.ts`.
 
     it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
       const { collectPriorityThreadSeedPrewarmRoots } = await import('../threadBootstrap');
@@ -2630,7 +3074,7 @@ describe('RoomTimeline', () => {
     it('seeds untargeted first open from the richer in-memory thread snapshot when room and model seeds are thinner', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2756,7 +3200,7 @@ describe('RoomTimeline', () => {
 
     it('seeds untargeted thread reopen immediately from an existing local thread model before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2840,7 +3284,7 @@ describe('RoomTimeline', () => {
 
     it('seeds untargeted zero-reply thread opens from the locally available root before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '~pending-root';
       const rootEvent = makeEvent(threadId, {
         content: { body: 'YOLO' },
@@ -2908,7 +3352,7 @@ describe('RoomTimeline', () => {
 
     it('opens confirmed zero-reply roots without warning when no sdk thread model exists yet', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
       const threadId = '$zero-reply-root';
       const rootEvent = makeEvent(threadId, {
@@ -2966,7 +3410,7 @@ describe('RoomTimeline', () => {
 
     it('reuses the in-memory thread snapshot on untargeted reopen before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -3064,7 +3508,7 @@ describe('RoomTimeline', () => {
     it('hydrates every cached thread page before falling back to network bootstrap', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const room = makeRoom();
@@ -3155,7 +3599,7 @@ describe('RoomTimeline', () => {
 
     it('skips thread bootstrap but still refreshes the latest relations tail on untargeted complete cache hits', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -3232,7 +3676,7 @@ describe('RoomTimeline', () => {
 
     it('prefers cached thread hydrate over a tiny room seed on untargeted open', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -3370,10 +3814,20 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('repairs complete cached thread snapshots that are missing relation hydration', async () => {
+    // 2026-07-06 eager-cache policy: a count-proven complete snapshot
+    // whose relations were never proven by a /relations drain
+    // (relationSnapshotComplete=false — e.g. warmed by the room sweep)
+    // takes the complete-cache FAST PATH at open. The pre-policy
+    // behavior re-downloaded the entire thread at open just to prove
+    // relations. The choke-point reconcile remains the revalidator: it
+    // fetches ONE tail page, detects the missed edit, and persists the
+    // repair — without the SDK bootstrap or a full drain. The
+    // relationSnapshotComplete PROOF now lands from the background
+    // prewarm band (threadSeedPrewarmController), not from the open.
+    it('reconciles a complete-but-relation-unproven snapshot at open without a full relations drain', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
@@ -3511,10 +3965,26 @@ describe('RoomTimeline', () => {
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+        // The reconcile's repair persisted the missed edit into the
+        // thread cache (as a standalone record or folded into the
+        // target's bundled m.replace). The relationSnapshotComplete
+        // flag is deliberately NOT upgraded by the open anymore.
         expect(
           vi
             .mocked(saveThreadEventsToCache)
-            .mock.calls.some((call) => call[2] === threadId && call[9] === true)
+            .mock.calls.some(
+              (call) =>
+                call[2] === threadId && JSON.stringify(call[3]).includes('$thread-reply-1-edit')
+            )
+        ).toBe(true);
+        // PR #84 review (coderabbit): pin the flag contract, not just
+        // the persisted edit — NO open-time save may upgrade
+        // relationSnapshotComplete (arg 10) to true; that proof is
+        // owned by the background prewarm's full /relations drain.
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.every((call) => call[2] !== threadId || call[9] !== true)
         ).toBe(true);
       } finally {
         await act(async () => {
@@ -3526,7 +3996,7 @@ describe('RoomTimeline', () => {
 
     it('infers a complete cached thread snapshot from the persisted expected reply count when root counts are sparse', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3668,7 +4138,7 @@ describe('RoomTimeline', () => {
 
     it('does not trust stale complete cache flags when the persisted expected reply count is larger than the cached reply set', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3758,7 +4228,7 @@ describe('RoomTimeline', () => {
     it('prefers fresher room root counts over stale cached root counts when checking complete cached thread snapshots', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const room = makeRoom({
@@ -3872,11 +4342,33 @@ describe('RoomTimeline', () => {
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
         expect(matrixClientMock.fetchRelations).toHaveBeenCalled();
+        // The stale cached root count (2) claimed completeness, but the
+        // fresher live room root says 3 replies exist — hydrate must
+        // prefer the live count, classify the snapshot partial, and the
+        // open must persist expectedReplyCount=3 (arg index 8).
+        //
+        // 2026-07-06 consolidation: the old backfill leg also stamped
+        // relationSnapshotComplete=true here (its full drain observed
+        // next_batch exhaustion). Open-time relations proofs are gone
+        // with that leg — background prefetch owns them now — so no
+        // persist on this open may claim one.
+        await waitForCondition(
+          () =>
+            vi
+              .mocked(saveThreadEventsToCache)
+              .mock.calls.some((call) => call[2] === threadId && call[8] === 3),
+          50
+        );
         expect(
           vi
             .mocked(saveThreadEventsToCache)
-            .mock.calls.some((call) => call[2] === threadId && call[8] === 3 && call[9] === true)
+            .mock.calls.some((call) => call[2] === threadId && call[8] === 3)
         ).toBe(true);
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some((call) => call[2] === threadId && call[9] === true)
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -3887,7 +4379,7 @@ describe('RoomTimeline', () => {
 
     it('falls back to the cached root count when the fresher room root is sparse', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3990,10 +4482,10 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('fills incomplete cached thread snapshots from thread relations before falling back to sdk bootstrap', async () => {
+    it('paints a partial cached snapshot and drains through SDK bootstrap + refreshLatestThreadSlice (no open-time relations backfill)', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
@@ -4023,9 +4515,16 @@ describe('RoomTimeline', () => {
       const room = makeRoom({
         findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
       });
+      // Minimal `addEvents` so the choke-point reconciler's repair leg
+      // (SDK injection before hydrate/persist) can run against this
+      // mock instead of rejecting the reconcile job.
+      const threadEvents = [rootEvent];
       room.getThread = () =>
         ({
-          events: [rootEvent],
+          addEvents: (added: ReturnType<typeof makeEvent>[]) => {
+            threadEvents.push(...added);
+          },
+          events: threadEvents,
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
         } as never);
@@ -4098,7 +4597,13 @@ describe('RoomTimeline', () => {
         snapshotComplete: false,
         tailLoaded: true,
       } as never);
-      matrixClientMock.fetchRelations.mockResolvedValueOnce({
+      // 2026-07-06 consolidation: the choke-point reconciler
+      // (kind='reconcile') is now the ONLY `/relations` caller on a
+      // partial-coverage open — the open-time thread-backfill drain
+      // was deleted. One chunk mock feeds that single call; the
+      // reconciler uses it to detect divergence against the cached
+      // window (reply-3 is new).
+      const relationsChunkResponse = {
         chunk: [
           {
             content: {
@@ -4141,7 +4646,8 @@ describe('RoomTimeline', () => {
           },
         ],
         next_batch: null,
-      });
+      };
+      matrixClientMock.fetchRelations.mockResolvedValueOnce(relationsChunkResponse);
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -4155,30 +4661,65 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
+        // 2026-07-06 consolidation contract: a partial-coverage open
+        // fires exactly ONE `/relations` call — the choke-point
+        // reconciler's. The open-time thread-backfill leg (the second
+        // full drain STEP d used to assert here) is deleted; the open
+        // falls through to SDK bootstrap + refreshLatestThreadSlice
+        // instead of drain-racing the reconciler.
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // Fall-through evidence: SDK bootstrap ran (thread model was
+        // present so no /context call, but getThreadTimeline fired).
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
+        // The cached snapshot proves the thread's backward start
+        // (beforeToken null), so the bootstrap adopts it and the
+        // refreshLatestThreadSlice drain has nothing older to fetch —
+        // no /messages-style pagination fires and the stale SDK token
+        // ends cleared.
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
         expect(staleThreadTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-            expect.objectContaining({ event_id: '$thread-reply-3' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          null,
-          true,
-          true,
-          3,
-          true
-        );
+        // The open persists the SDK-backed snapshot (root event, null
+        // before-token), and the reconciler's divergence persist
+        // teaches the cache the reply the sweep missed ($thread-reply-3)
+        // — convergence now flows through the reconcile + the single
+        // SDK drain, not through an open-time backfill merge.
+        const hasPersistWith = (eventId: string) =>
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, roomIdArg, threadIdArg, events]) =>
+                roomIdArg === room.roomId &&
+                threadIdArg === threadId &&
+                (events as Array<{ event_id?: string }>).some(
+                  (rawEvent) => rawEvent.event_id === eventId
+                )
+            );
+        await waitForCondition(() => hasPersistWith('$thread-reply-3'), 50);
+        expect(hasPersistWith(threadId)).toBe(true);
+        // Self-review fix (PR #87): pin the cached replies in ONE
+        // persist alongside the missing reply — the pre-consolidation
+        // test required a single merged persist of [root, r1, r2, r3];
+        // asserting the new reply in isolation would let a regression
+        // that drops the cached window from the reconciler's batch
+        // (persisting only [root, reply-3]) pass unnoticed.
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, roomIdArg, threadIdArg, events]) =>
+                roomIdArg === room.roomId &&
+                threadIdArg === threadId &&
+                ['$thread-reply-1', '$thread-reply-2', '$thread-reply-3'].every((eventId) =>
+                  (events as Array<{ event_id?: string }>).some(
+                    (rawEvent) => rawEvent.event_id === eventId
+                  )
+                )
+            )
+        ).toBe(true);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4187,10 +4728,10 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('does not treat an empty relations backfill as complete when the known reply count is still unmet', async () => {
+    it('does not treat an empty relations response as complete when the known reply count is still unmet', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root-empty-backfill';
       const firstReplyId = '$thread-reply-1-empty-backfill';
@@ -4303,8 +4844,15 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        // 2026-07-06 consolidation: the reconciler's choke-point pass
+        // is the only `/relations` caller on this open (the open-time
+        // thread-backfill drain is deleted). The server returned an
+        // empty chunk, so the reconciler has nothing to repair and the
+        // open converges through SDK bootstrap + refreshLatestThreadSlice.
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
+        // The persisted snapshot must keep the known first reply...
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
           room.roomId,
@@ -4315,8 +4863,19 @@ describe('RoomTimeline', () => {
           true,
           false,
           3,
-          true
+          undefined
         );
+        // ...and NO persist on this open may fabricate completeness:
+        // the root's m.relations count says 3 replies exist and only 1
+        // is loaded, so every write must carry snapshotComplete=false
+        // (arg index 7 of the cacheStore writer).
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(([, , threadIdArg, , , , , snapshotCompleteArg]) =>
+              threadIdArg === threadId && snapshotCompleteArg === true
+            )
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4327,7 +4886,7 @@ describe('RoomTimeline', () => {
 
     it('clears stale sdk backward tokens on complete cached thread hydrate', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -4420,7 +4979,7 @@ describe('RoomTimeline', () => {
 
     it('does not treat a sparse cached thread page as complete without a loaded tail marker', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -4466,8 +5025,14 @@ describe('RoomTimeline', () => {
         });
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
+        // A sparse page without a loaded-tail marker must NOT take the
+        // complete-coverage fast path. Under the 2026-07-06 one-drain
+        // contract the evidence is the fall-through itself: the
+        // choke-point reconcile fires /relations AND the open proceeds
+        // into SDK bootstrap (no thread model in this harness, so the
+        // bootstrap's /context call is the tell).
         expect(matrixClientMock.fetchRelations).toHaveBeenCalled();
-        expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getEventTimeline).toHaveBeenCalled();
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4476,378 +5041,25 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('marks room-derived thread cache snapshots complete only when the known reply count is satisfied', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 1,
-            },
-          },
-        },
-      });
-      const threadedReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, threadedReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    // CINNY-207 P3.3: removed six sweep-derived room→thread persist
+    // tests. Their subject was the pre-strip sweep in
+    // `roomCacheLifecycleController` calling
+    // `persistThreadCacheFromRoomEvents` on the room's loaded thread
+    // events. The sweep is gone with P3.3; the engine only sees
+    // LIVE events. Unit coverage for the
+    // `persistThreadCacheFromRoomEventsSnapshot` function itself
+    // lives in `eventRepository.test.ts`. Removed tests:
+    //   - 'marks room-derived thread cache snapshots complete only when the known reply count is satisfied'
+    //   - 'keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded'
+    //   - 'does not downgrade room-derived thread cache completeness when the room tail is still unknown'
+    //   - 'does not treat sdk thread length as authoritative when root counts are sparse'
+    //   - 'persists root-targeted relations into the thread cache during room cache persistence'
+    //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
 
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          null,
-          true,
-          true,
-          1,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 5,
-            },
-          },
-        },
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply-1' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        content: { body: 'reply-2' },
-        threadRootId: threadId,
-        ts: 3,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, firstReply, secondReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          true,
-          false,
-          5,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('does not downgrade room-derived thread cache completeness when the room tail is still unknown', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 5,
-            },
-          },
-        },
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply-1' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        content: { body: 'reply-2' },
-        threadRootId: threadId,
-        ts: 3,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, firstReply, secondReply], {
-          forwardToken: 'forward-gap',
-        }),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          undefined,
-          undefined,
-          5,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('does not treat sdk thread length as authoritative when root counts are sparse', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const threadedReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, threadedReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      room.getThread = () =>
-        ({
-          length: 1,
-        } as never);
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          true,
-          undefined,
-          undefined,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('persists root-targeted relations into the thread cache during room cache persistence', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const reactionEvent = makeEvent('$thread-root-reaction', {
-        associatedId: threadId,
-        relation: { event_id: threadId, rel_type: 'm.annotation' },
-        ts: 2,
-        type: 'm.reaction',
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, reactionEvent]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(
-          vi
-            .mocked(saveThreadEventsToCache)
-            .mock.calls.some(
-              ([, , expectedThreadId, rawEvents]) =>
-                expectedThreadId === threadId &&
-                Array.isArray(rawEvents) &&
-                rawEvents.some(
-                  (rawEvent) =>
-                    typeof rawEvent?.event_id === 'string' &&
-                    rawEvent.event_id === '$thread-root-reaction'
-                )
-            )
-        ).toBe(true);
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('persists redactions targeting thread replies into the thread cache during room cache persistence', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const replyEvent = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const redactionEvent = makeEvent('$thread-reply-1-redaction', {
-        associatedId: '$thread-reply-1',
-        isRedaction: true,
-        ts: 3,
-        type: 'm.room.redaction',
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, replyEvent, redactionEvent]),
-        findEventById: (eventId: string) =>
-          eventId === threadId ? rootEvent : eventId === '$thread-reply-1' ? replyEvent : undefined,
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(
-          vi
-            .mocked(saveThreadEventsToCache)
-            .mock.calls.some(
-              ([, , expectedThreadId, rawEvents]) =>
-                expectedThreadId === threadId &&
-                Array.isArray(rawEvents) &&
-                rawEvents.some(
-                  (rawEvent) =>
-                    typeof rawEvent?.event_id === 'string' &&
-                    rawEvent.event_id === '$thread-reply-1-redaction'
-                )
-            )
-        ).toBe(true);
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
 
     it('persists paginated thread-only room events into the thread cache', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
+      const { saveThreadEventsToCache } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,

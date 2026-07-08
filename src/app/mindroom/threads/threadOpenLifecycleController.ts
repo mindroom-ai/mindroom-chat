@@ -4,20 +4,22 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
+import { Direction } from 'matrix-js-sdk';
 import type { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
+import { countCacheProbe } from './cacheProbe';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
-import { runThreadOpenPostBootstrapRefresh } from './threadOpenPostBootstrapRefresh';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 import {
   runThreadOpenTargetEvent,
   type PendingThreadOpen,
 } from './threadOpenTargetEvent';
-import type { PersistThreadEventCache } from './threadCachePersistenceController';
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 import type { Timeline } from './timelinePagination';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ThreadSeedPrewarmController } from './threadSeedPrewarmController';
+import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 
 type ScrollToBottomState = {
   count: number;
@@ -32,7 +34,6 @@ type FocusItemState = {
 };
 
 export const useThreadOpenLifecycleController = ({
-  backfillThreadRelationsIntoCache,
   ensureThreadSeedPrewarm,
   eventId,
   forceTimelineUpdate,
@@ -45,8 +46,8 @@ export const useThreadOpenLifecycleController = ({
   prewarmingThreadSeedIdsRef,
   prewarmingThreadSeedPromisesRef,
   queuedThreadSeedIdsRef,
-  refreshLatestThreadRelationsTail,
   refreshLatestThreadSlice,
+  scheduleReconcile,
   resetThreadBackPagination,
   resetThreadRenderState,
   room,
@@ -70,7 +71,6 @@ export const useThreadOpenLifecycleController = ({
   threadId,
   threadIdRef,
 }: {
-  backfillThreadRelationsIntoCache: ThreadOpenCacheController['backfillThreadRelationsIntoCache'];
   ensureThreadSeedPrewarm: ThreadSeedPrewarmController['ensureThreadSeedPrewarm'];
   eventId?: string;
   forceTimelineUpdate: () => void;
@@ -83,8 +83,15 @@ export const useThreadOpenLifecycleController = ({
   prewarmingThreadSeedIdsRef: MutableRefObject<Set<string>>;
   prewarmingThreadSeedPromisesRef: MutableRefObject<Map<string, Promise<void>>>;
   queuedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  refreshLatestThreadRelationsTail: ThreadOpenCacheController['refreshLatestThreadRelationsTail'];
   refreshLatestThreadSlice: ThreadOpenCacheController['refreshLatestThreadSlice'];
+  /**
+   * CINNY-207 P5.1: replaces the deleted
+   * `refreshLatestThreadRelationsTail`. Both the cache-first path (see
+   * `runThreadOpenCacheFirst`) and this lifecycle controller schedule
+   * a reconcile pass on every open — coverage decides paint, never
+   * revalidation.
+   */
+  scheduleReconcile: ScheduleReconcileFn;
   resetThreadBackPagination: () => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
   room: Room;
@@ -110,6 +117,12 @@ export const useThreadOpenLifecycleController = ({
 }) => {
   useEffect(() => {
     if (!threadId) return undefined;
+    // CINNY-207 AC2 revision (2026-07-04): every open of a thread bumps
+    // exactly here. Post-choke-point invariant asserted from a docker
+    // probe snapshot: threadOpens == threadOpenScheduledCacheFirst +
+    // threadOpenSkipCacheFirstHydrateGuard +
+    // threadOpenSkipCacheFirstPostHydrateGuard.
+    countCacheProbe('threadOpens');
     setFocusItem(undefined);
     setThreadLoadError(false);
     setThreadHasMoreCachedBack(false);
@@ -159,15 +172,18 @@ export const useThreadOpenLifecycleController = ({
 
       try {
         const cacheFirstResult = await runThreadOpenCacheFirst({
-          backfillThreadRelationsIntoCache,
           debugTraceId: threadDebugTraceId,
           forceTimelineUpdate,
           hydrateThreadFromCache,
           isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
           pinThreadToBottomOnOpen,
-          refreshLatestThreadRelationsTail,
+          scheduleReconcile,
           room,
+          // CINNY-207 P5-GATE-FIX v3 (AC2 dual-injection, render leg):
+          // wire the render's supplemental-events sink into the
+          // cache-first path so the reconciler's widened `onRepaired`
+          // batch can converge the complete-coverage fallback state.
+          setSupplementalThreadEvents,
           setThreadHasMoreCachedBack,
           setThreadInitialCacheHydrated,
           setThreadTailLoaded,
@@ -198,20 +214,48 @@ export const useThreadOpenLifecycleController = ({
         });
         if (!shouldContinueAfterSdkBootstrap) return;
 
-        const shouldContinueAfterPostBootstrapRefresh = await runThreadOpenPostBootstrapRefresh({
-          debugTraceId: threadDebugTraceId,
-          isCurrentThreadOpen: () => mounted && threadIdRef.current === threadId,
-          mx,
-          persistThreadEventCache,
-          refreshLatestThreadSlice,
-          room,
-          setSupplementalThreadEvents,
-          setThreadHasMoreCachedBack,
-          setThreadTailLoaded,
-          shouldScrollToLatestOnOpen,
-          threadId,
-        });
-        if (!shouldContinueAfterPostBootstrapRefresh) return;
+        // CINNY-207 AC2 revision (2026-07-04): the lifecycle-level
+        // partial-coverage scheduleReconcile call that used to live here
+        // has been removed. The single choke-point schedule in
+        // `runThreadOpenCacheFirst` (fired immediately after the
+        // post-hydrate guard) covers this path structurally — the
+        // scheduler dedups against any in-flight reconcile so the
+        // partial-coverage flow still gets a converge pass, but without
+        // this extra call site the invariant "every open schedules
+        // exactly one reconcile" is enforced by construction, not by
+        // scheduler-dedup accounting.
+
+        // CINNY-207 P5.1 Commit 2: `runThreadOpenPostBootstrapRefresh`
+        // was deleted. Its two behaviors are inlined here.
+        //
+        // shouldScrollToLatestOnOpen=true → the jump-to-latest full
+        // pagination stays as-is (refreshLatestThreadSlice — not the
+        // pre-P5 tail refresh; a genuinely different function that
+        // loads all backward history for the "go to bottom" flow).
+        //
+        // shouldScrollToLatestOnOpen=false → the pre-P5 refresher's
+        // limit-200 fetchRelations is REPLACED by the P5 reconcile
+        // that was scheduled above (see the scheduleReconcile call
+        // after runThreadOpenSdkBootstrap). The forward-gap check +
+        // 'thread-open-forward-gap-check' log still fires from here
+        // so the arch guard can keep asserting the log string exists.
+        if (shouldScrollToLatestOnOpen) {
+          await refreshLatestThreadSlice(threadId);
+          if (!mounted || threadIdRef.current !== threadId) return;
+        } else {
+          const hasForwardGap = !!room
+            .getThread(threadId)
+            ?.getUnfilteredTimelineSet()
+            .getLiveTimeline()
+            .getPaginationToken(Direction.Forward);
+          if (!hasForwardGap) {
+            setThreadTailLoaded(true);
+          }
+          logTimelineDebug(threadDebugTraceId, 'thread-open-forward-gap-check', {
+            hasForwardGap,
+            threadId,
+          });
+        }
 
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
@@ -245,14 +289,23 @@ export const useThreadOpenLifecycleController = ({
       }
     };
 
-    loadThreadTimeline();
+    // CINNY-207 P7.2 audit finding #1 (scope reduced 2026-07-06): the
+    // open chain no longer awaits any scheduler job directly (the
+    // open-time relations-backfill leg was deleted), but downstream
+    // layers — `runThreadOpenSdkBootstrap`, `refreshLatestThreadSlice`,
+    // `runThreadOpenTargetEvent` — can still throw during teardown.
+    // Swallow here so the outer promise settles quietly; the
+    // try/finally inside `loadThreadTimeline` already clears the
+    // pending-open flag, and `onThreadLoadError` is invoked from
+    // `runThreadOpenSdkBootstrap` on the paths where a user-visible
+    // error banner is appropriate.
+    loadThreadTimeline().catch(() => undefined);
 
     return () => {
       mounted = false;
       threadOpenSeedSession.cleanup();
     };
   }, [
-    backfillThreadRelationsIntoCache,
     ensureThreadSeedPrewarm,
     eventId,
     forceTimelineUpdate,
@@ -265,8 +318,8 @@ export const useThreadOpenLifecycleController = ({
     prewarmingThreadSeedIdsRef,
     prewarmingThreadSeedPromisesRef,
     queuedThreadSeedIdsRef,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
+    scheduleReconcile,
     resetThreadBackPagination,
     resetThreadRenderState,
     room,

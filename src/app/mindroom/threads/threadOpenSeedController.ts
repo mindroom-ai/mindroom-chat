@@ -45,7 +45,6 @@ export type ThreadOpenSeedSession = {
   initialRoomThreadEvents: MatrixEvent[];
   initialRoomThreadSeedEvents: MatrixEvent[];
   initialThreadMemorySeedEvents: MatrixEvent[];
-  mergeWithInitialRoomThreadSeedEvents: (events: MatrixEvent[]) => MatrixEvent[];
   startUntargetedSeedPrewarmWait: (isCurrentThreadOpen: () => boolean) => void;
 };
 
@@ -185,7 +184,13 @@ export const createThreadOpenSeedSession = ({
         if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
         applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
       }, THREAD_OPEN_PREWARM_WAIT_MS);
-      void threadSeedPrewarmPromise.finally(() => {
+      // CINNY-207 P7.2 audit finding #2: `void p.finally(cb)` returns a
+      // NEW promise that re-rejects with the original reason. When the
+      // 'thread-seed' scheduler job is aborted at engine teardown the
+      // prewarm promise rejects — the `.finally` shape re-raised that
+      // unhandled. `.then(cb, cb)` runs cleanup on both fulfil and
+      // reject without producing another rejection.
+      const applyFallbackSeedNow = () => {
         if (untargetedThreadSeedFallbackTimeout !== undefined) {
           clearTimeout(untargetedThreadSeedFallbackTimeout);
           untargetedThreadSeedFallbackTimeout = undefined;
@@ -193,7 +198,8 @@ export const createThreadOpenSeedSession = ({
         if (!isCurrentThreadOpen()) return;
         if (maybeApplyPrewarmedUntargetedThreadSeed()) return;
         applyInitialUntargetedThreadSeed(initialThreadMemorySeedEvents, 'initial');
-      });
+      };
+      void threadSeedPrewarmPromise.then(applyFallbackSeedNow, applyFallbackSeedNow);
       return;
     }
 
@@ -214,10 +220,6 @@ export const createThreadOpenSeedSession = ({
     initialRoomThreadEvents,
     initialRoomThreadSeedEvents,
     initialThreadMemorySeedEvents,
-    mergeWithInitialRoomThreadSeedEvents: (events) =>
-      initialRoomThreadSeedEvents.length > 0
-        ? mergeThreadBackfillEvents(events, initialRoomThreadSeedEvents)
-        : events,
     startUntargetedSeedPrewarmWait,
   };
 };

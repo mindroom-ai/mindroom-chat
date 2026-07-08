@@ -2,27 +2,27 @@ import {
   RelationType,
   type EventTimeline,
   type IEvent,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
 import {
+  deleteThreadEventsFromCache as deleteThreadEventsFromCacheToStorage,
   getRoomCursorAnchor,
+  getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedRoomEventsBefore as loadCachedRoomEventsBeforeFromCache,
   loadCachedRoomPaginationToken as loadCachedRoomPaginationTokenFromCache,
-  loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
-  normalizeCachedRoomEvents,
-  saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
-  type CachedRoomEventPage,
-} from './roomEventCache';
-import {
-  getThreadCursorAnchor as getCachedThreadCursorAnchor,
   loadCachedThreadEventsBefore as loadCachedThreadEventsBeforeFromCache,
+  loadLatestCachedRoomEvents as loadLatestCachedRoomEventsFromCache,
   loadLatestCachedThreadEvents as loadLatestCachedThreadEventsFromCache,
+  normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
+  saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
   saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
+  type CachedRoomEventPage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from './threadEventCache';
+} from './cacheStore';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { serializeEventsForCache } from './eventCacheEditUtils';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -32,12 +32,15 @@ import {
   getRoomDerivedThreadSnapshotState,
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+import { countCacheProbe } from './cacheProbe';
 
+// CINNY-207 P2.3: the write-boundary now lives inside cacheStore save
+// entry points (single choke point). eventRepository is a serialization
+// seam only — it does NOT wrap the save with its own health gate or
+// catch. Callers still import from here and see the same return shape.
 export {
+  deleteRoomEventsFromCache,
   getRoomCursorAnchor,
   loadCachedRoomEvent,
   loadCachedRoomEventsBefore,
@@ -47,9 +50,11 @@ export {
   saveRoomEventsToCache,
   type CachedRoomEvent,
   type CachedRoomEventPage,
-} from './roomEventCache';
+} from './cacheStore';
 
 export {
+  deleteThreadEventFromCacheByEventId,
+  deleteThreadEventsFromCache,
   getThreadCursorAnchor,
   loadCachedThreadEvent,
   loadCachedThreadEventsBefore,
@@ -58,7 +63,38 @@ export {
   saveThreadEventsToCache,
   type CachedThreadEvent,
   type CachedThreadEventPage,
-} from './threadEventCache';
+} from './cacheStore';
+
+/**
+ * CINNY-207 P1.2 (finding F6-B): prefer the SDK's live event instance over a
+ * cache-mapped clone. The SDK applies redactions and relation removal by
+ * object identity, so clones injected into relation aggregations never learn
+ * about later redactions. When the SDK already holds the event, hydrate with
+ * that instance.
+ *
+ * The mapper also heals the reverse divergence: the SDK's sync store is saved
+ * periodically, so after a reload the restored live instance can predate a
+ * redaction that a cached/fetched raw copy already knows about
+ * (`unsigned.redacted_because`). Applying it via `makeRedacted` cascades into
+ * the SDK's relation cleanup (Relations listens for BeforeRedaction), which
+ * is what removes a stale reaction chip.
+ */
+export const createPreferLiveEventMapper =
+  (
+    room: Room,
+    mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent
+  ): ((rawEvent: Partial<IEvent>) => MatrixEvent) =>
+  (rawEvent) => {
+    const eventId = typeof rawEvent.event_id === 'string' ? rawEvent.event_id : undefined;
+    const liveEvent = eventId ? room.findEventById(eventId) : undefined;
+    if (!liveEvent) return mapEvent(rawEvent);
+
+    const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
+    if (rawRedactedBecause && !liveEvent.isRedacted()) {
+      liveEvent.makeRedacted(mapEvent(rawRedactedBecause as Partial<IEvent>), room);
+    }
+    return liveEvent;
+  };
 
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
@@ -78,10 +114,87 @@ type LoadCachedThreadSnapshotOptions = {
   onPage?: (page: CachedThreadEventPage, pageIndex: number, snapshot: CachedThreadSnapshot) => void;
   loadLatest?: typeof loadLatestCachedThreadEventsFromCache;
   loadBefore?: typeof loadCachedThreadEventsBeforeFromCache;
+  /**
+   * CINNY-207 P1.4: injected so tests can observe/override the lazy cleanup
+   * of legacy standalone m.replace records. Defaults to the storage-backed
+   * delete API.
+   */
+  deleteEvents?: typeof deleteThreadEventsFromCacheToStorage;
 };
 
 export type CachedThreadSnapshot = CachedThreadEventPage & {
   events: CachedThreadEvent[];
+};
+
+/**
+ * CINNY-207 P1.4 (finding F5, decision D5): identify legacy standalone
+ * `m.replace` records inside a hydrated batch that are safe to delete: their
+ * target record is in the same batch AND already carries a bundled edit
+ * (`unsigned['m.relations']['m.replace']`) at least as new as the standalone
+ * record under the D12 ordering (ts, then event id). Deleting a standalone
+ * whose target does NOT yet carry an equal-or-newer bundled edit would lose
+ * the edit from cache until some later re-persist — a stale paint on the
+ * next open — so those are left in place (the Phase 2 D8 wipe purges them).
+ * Cross-sender replaces are never considered.
+ */
+export const collectLegacyStandaloneReplaceIds = (
+  events: Array<Partial<IEvent> | CachedThreadEvent>
+): string[] => {
+  const eventsById = new Map<string, Partial<IEvent>>();
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId === 'string' && eventId.length > 0) {
+      eventsById.set(eventId, rawEvent);
+    }
+  });
+
+  const isBundledReplaceAtLeastAsNew = (
+    targetEvent: Partial<IEvent>,
+    standaloneEvent: Partial<IEvent>
+  ): boolean => {
+    const relations = (targetEvent.unsigned as Record<string, unknown> | undefined)?.[
+      'm.relations'
+    ] as Record<string, unknown> | undefined;
+    const bundled = relations?.[RelationType.Replace] as Partial<IEvent> | undefined;
+    if (!bundled) return false;
+
+    // The bundle only proves supersession if hydration would actually apply
+    // it: it must carry a nonempty event id and come from the same sender as
+    // the standalone (mirroring the read path's serialized-relation and
+    // same-sender validation). A server-provided cross-sender or id-less
+    // aggregation must not license deleting a record hydration still needs.
+    if (typeof bundled.event_id !== 'string' || bundled.event_id.length === 0) return false;
+    if (bundled.sender !== standaloneEvent.sender) return false;
+
+    const bundledTs = bundled.origin_server_ts;
+    const standaloneTs = standaloneEvent.origin_server_ts;
+    if (typeof bundledTs !== 'number' || typeof standaloneTs !== 'number') return false;
+    if (bundledTs !== standaloneTs) return bundledTs > standaloneTs;
+
+    const standaloneId = standaloneEvent.event_id;
+    if (typeof standaloneId !== 'string') return false;
+    // Equal ids mean the bundled edit IS the standalone record's event.
+    return bundled.event_id >= standaloneId;
+  };
+
+  const legacyReplaceIds: string[] = [];
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId !== 'string' || eventId.length === 0) return;
+    const relatesTo = rawEvent.content?.['m.relates_to'] as
+      | { rel_type?: string; event_id?: string }
+      | undefined;
+    if (relatesTo?.rel_type !== RelationType.Replace) return;
+    const targetEventId = relatesTo.event_id;
+    if (!targetEventId) return;
+    const targetEvent = eventsById.get(targetEventId);
+    if (!targetEvent) return;
+    if (targetEvent.sender !== rawEvent.sender) return;
+    if (!isBundledReplaceAtLeastAsNew(targetEvent, rawEvent)) return;
+    legacyReplaceIds.push(eventId);
+  });
+
+  return legacyReplaceIds;
 };
 
 export const loadCachedThreadSnapshot = async ({
@@ -94,6 +207,7 @@ export const loadCachedThreadSnapshot = async ({
   onPage,
   loadLatest = loadLatestCachedThreadEventsFromCache,
   loadBefore = loadCachedThreadEventsBeforeFromCache,
+  deleteEvents,
 }: LoadCachedThreadSnapshotOptions): Promise<CachedThreadSnapshot | undefined> => {
   let cachedPage = await loadLatest(sessionId, roomId, threadId, limit);
   const cachedThreadEvents = [...cachedPage.events];
@@ -148,6 +262,20 @@ export const loadCachedThreadSnapshot = async ({
   }
 
   if (shouldContinue && !shouldContinue()) return undefined;
+
+  // CINNY-207 P1.4: lazy cleanup — legacy standalone m.replace records
+  // whose target is present in the same batch are dead weight (the target
+  // now carries the bundled edit). Delete them best-effort; hydration still
+  // sees the replace via the target's bundled edit, and getLatestEdit
+  // (P1.3 / D12) picks the newest deterministically. `deleteEvents` is
+  // resolved lazily so the storage import is not touched when a test-injected
+  // deleter is passed (avoids evaluating the storage identifier under
+  // partial vitest mocks that reject unlisted exports).
+  const legacyReplaceIds = collectLegacyStandaloneReplaceIds(cachedThreadEvents);
+  if (legacyReplaceIds.length > 0) {
+    const resolvedDeleteEvents = deleteEvents ?? deleteThreadEventsFromCacheToStorage;
+    resolvedDeleteEvents(sessionId, roomId, threadId, legacyReplaceIds).catch(() => undefined);
+  }
 
   return {
     ...cachedPage,
@@ -254,7 +382,14 @@ export const loadThreadCachedPaginationSnapshot = async ({
     events,
     beforeToken: cachedPage.beforeToken,
     hasMoreCachedBack: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
-    status: events.length > 0 ? 'cache-hit' : 'cache-miss',
+    // Hit/miss is judged on the RAW older-reply page, not the mapped list:
+    // `normalizeCachedThreadEvents` folds the thread root into `events`,
+    // and the root is always already rendered at index 0. A root-only page
+    // would otherwise report an eternal barren "cache-hit" — committing
+    // nothing new on every gesture while the network leg (the only source
+    // of genuinely older events) never runs, leaving a partially-opened
+    // thread permanently un-paginatable.
+    status: cachedPage.events.length > 0 ? 'cache-hit' : 'cache-miss',
   };
 };
 
@@ -279,7 +414,8 @@ export const getThreadCacheTargetId = (room: Room, mEvent: MatrixEvent): string 
     return relatedEvent.threadRootId;
   }
 
-  return relatedEvent.isThreadRoot || room.getThread(relatedEventId)?.rootEvent?.getId() === relatedEventId
+  return relatedEvent.isThreadRoot ||
+    room.getThread(relatedEventId)?.rootEvent?.getId() === relatedEventId
     ? relatedEventId
     : undefined;
 };
@@ -368,10 +504,7 @@ export const loadRoomCachePersistenceState = async ({
 
   return {
     cachedBeforeToken,
-    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(
-      currentBeforeToken,
-      cachedBeforeToken
-    ),
+    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(currentBeforeToken, cachedBeforeToken),
     roomStartKnown: currentBeforeToken === null || cachedBeforeToken === null,
     shouldClearBackwardToken: cachedBeforeToken === null && currentBeforeToken !== null,
   };
@@ -399,14 +532,11 @@ export const filterLatestRoomCacheHydrationEvents = (
   loadedEvents: MatrixEvent[]
 ): Partial<IEvent>[] => {
   const loadedEventIds = new Set(
-    loadedEvents
-      .map((mEvent) => mEvent.getId())
-      .filter((eventId): eventId is string => !!eventId)
+    loadedEvents.map((mEvent) => mEvent.getId()).filter((eventId): eventId is string => !!eventId)
   );
 
   return rawCachedEvents.filter(
-    (rawEvent) =>
-      typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
+    (rawEvent) => typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
   );
 };
 
@@ -578,9 +708,14 @@ export const collectStateTargetEvents = (room: Room, events: MatrixEvent[]): Mat
     if (!targetEventId || eventsById.has(targetEventId)) return;
 
     const targetEvent = room.findEventById(targetEventId);
-    if (targetEvent?.getId()) {
-      eventsById.set(targetEventId, targetEvent);
-    }
+    if (!targetEvent?.getId()) return;
+    // CINNY-207 P1.2/P1.4 interplay: a redacted reaction's records are
+    // DELETED by the redaction lifecycle (planRedactionCacheCleanup gives
+    // reactions no tombstone). Pulling the pruned reaction back in here
+    // while persisting the redaction event would re-insert the record the
+    // same handler just deleted.
+    if (mEvent.isRedaction() && targetEvent.getType() === 'm.reaction') return;
+    eventsById.set(targetEventId, targetEvent);
   });
 
   return Array.from(eventsById.values());
@@ -596,10 +731,7 @@ export const serializeThreadCacheEvents = (
     collectStateTargetEvents(room, rootEvent ? [rootEvent, ...events] : events)
   );
 
-export const serializeRoomCacheEvents = (
-  room: Room,
-  events: MatrixEvent[]
-): Partial<IEvent>[] =>
+export const serializeRoomCacheEvents = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] =>
   serializeEventsForCache(
     room,
     collectStateTargetEvents(room, events).filter(
@@ -648,7 +780,7 @@ export const persistThreadEventCacheSnapshot = ({
   const persistedExpectedReplyCount =
     expectedReplyCount ??
     (resolvedRootEvent ? getKnownThreadReplyCount(resolvedRootEvent) : undefined) ??
-    ((snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true))
+    (snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true)
       ? loadedReplyCount
       : undefined);
   const rawEvents = serializeThreadCacheEvents(room, events, resolvedRootEvent);
@@ -656,7 +788,11 @@ export const persistThreadEventCacheSnapshot = ({
     ? rawEvents.find((rawEvent) => rawEvent.event_id === resolvedRootEvent.getId())
     : undefined;
 
-  save(
+  countCacheProbe('serializedEvents', rawEvents.length);
+  // CINNY-207 P2.3: health gate + failure surfacing moved into the
+  // cacheStore save entry point (single choke point). This seam only
+  // serializes and delegates.
+  void save(
     sessionId,
     room.roomId,
     threadId,
@@ -667,7 +803,7 @@ export const persistThreadEventCacheSnapshot = ({
     snapshotComplete,
     persistedExpectedReplyCount,
     relationSnapshotComplete
-  ).catch(() => undefined);
+  );
 
   return {
     rawEvents,
@@ -798,11 +934,89 @@ export const persistRoomEventCacheSnapshot = ({
 }): RoomEventCacheSnapshotWrite => {
   const rawEvents = serializeRoomCacheEvents(room, events);
 
-  save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest).catch(() => undefined);
+  countCacheProbe('serializedEvents', rawEvents.length);
+  // CINNY-207 P2.3: same as the thread path — gating/surfacing lives
+  // in the cacheStore save entry point.
+  void save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest);
 
   return {
     rawEvents,
     sourceEventCount: events.length,
     beforeTokenForEarliest,
   };
+};
+
+/**
+ * CINNY-207 P7.2 audit finding #3: gap-fill and deep-history paths
+ * fetch raw `/messages` chunks and persist them to the room cache. Per
+ * `engine/reconciler.ts`'s header, Tuwunel (and any homeserver) can
+ * serve un-pruned copies of redacted events for ~10s after a
+ * redaction; feeding those raw copies directly to `saveRoomEventsToCache`
+ * overwrites a cached tombstone with pre-redaction plaintext at rest,
+ * violating invariant I2.
+ *
+ * Funnel each chunk event through `createPreferLiveEventMapper` (the
+ * same mapper the reconciler uses) which either returns the SDK's live
+ * instance (if it already knows the event) or applies
+ * `unsigned.redacted_because` before persisting. Then serialize through
+ * the shared `serializeRoomCacheEvents` pipeline via
+ * `persistRoomEventCacheSnapshot` — the same path the write-through and
+ * reconciler use for room-scope persistence.
+ *
+ * `beforeTokenForEarliest` is forwarded so the gap-fill executor's
+ * paging semantics (see `runSaveRoomEventsTxn`) are preserved for the
+ * earliest event's ledger.
+ *
+ * Eager thread cache (2026-07-06): the chunk ALSO teaches the thread
+ * caches. `/messages` returns thread replies (they are room DAG
+ * events), but `serializeRoomCacheEvents` deliberately filters them
+ * out of the room scope — before this fix the deep-history sweep and
+ * gap-fill catchup downloaded every thread's content and then threw
+ * it away, so a cold-cache thread open re-downloaded what the sweep
+ * had already fetched (the pre-P4.3 `useRoomEagerPreload` loop fed
+ * these events through the SDK-timeline persist paths, which grouped
+ * them; the engine jobs dropped that leg). Group the mapped chunk by
+ * thread attribution and persist each group into its thread scope:
+ *   - `roomTailLoaded: true` — both callers page BACKWARD from the
+ *     room's live tail, so every encountered thread's newest replies
+ *     are covered by (live write-through ∪ this sweep). The claim is
+ *     what lets read-time completeness math (reply-count coverage in
+ *     `isCompleteCachedThreadSnapshot`) prove a swept thread complete.
+ *     No `roomStartKnown`/`snapshotComplete` claim is made per chunk —
+ *     a single chunk under-counts a thread's replies, and an explicit
+ *     false would downgrade a previously proven flag.
+ *   - Seed snapshots are NOT written: a 10k-event sweep would pin its
+ *     whole mapped batch in the in-memory seed store. Durable IDB is
+ *     the product here; seeds stay owned by the prewarm/open paths.
+ */
+export const persistRoomChunkWithPreferLive = ({
+  mx,
+  sessionId,
+  room,
+  chunk,
+  beforeTokenForEarliest,
+}: {
+  mx: MatrixClient;
+  sessionId: string;
+  room: Room;
+  chunk: Partial<IEvent>[];
+  beforeTokenForEarliest?: string | null;
+}): RoomEventCacheSnapshotWrite | undefined => {
+  if (chunk.length === 0) return undefined;
+  const mapper = mx.getEventMapper();
+  const preferLive = createPreferLiveEventMapper(room, mapper);
+  const mapped = chunk.map(preferLive);
+  persistThreadCacheFromRoomEventsSnapshot({
+    sessionId,
+    room,
+    events: mapped,
+    opts: { roomTailLoaded: true },
+    saveSeedSnapshot: () => undefined,
+  });
+  return persistRoomEventCacheSnapshot({
+    sessionId,
+    room,
+    events: mapped,
+    beforeTokenForEarliest,
+  });
 };

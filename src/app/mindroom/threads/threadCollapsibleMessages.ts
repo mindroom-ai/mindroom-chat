@@ -122,29 +122,20 @@ export const getLiveCollapsibleMessageExpandId = (
   return shouldTrackLiveCollapsibleMessage(opts) ? mEventId : undefined;
 };
 
-export const getHydratedLongTextExtrasCollapseKey = (
-  mEventId: string,
-  resolvedContent: IContent
-): string | undefined => {
-  const mxcUri = getMindroomLongTextMxcUri(resolvedContent as Record<string, unknown>);
-  return mxcUri ? JSON.stringify([mEventId, mxcUri]) : undefined;
-};
-
 export const getCollapsibleMessageMode = (
   mEventId: string,
   resolvedContent: IContent,
-  liveExpandOnceIds: Set<string>,
-  hydratedLongTextExtrasCollapseKeys?: ReadonlySet<string>
+  liveExpandOnceIds: Set<string>
 ) => {
-  const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
-    mEventId,
-    resolvedContent
-  );
+  // NOTE deliberately NOT exempt: messages whose body was replaced by an
+  // attached long text (getMindroomLongTextMxcUri). They fold like every
+  // other long message — `shouldForceCollapsibleMessageOverflow` already
+  // guarantees the "Show more" affordance. Auto-expanding them on
+  // hydration unfolded giant rows unprompted (device report 2026-07-06)
+  // and flipped their measurement keys mid-life.
   if (
     hasMindroomThreadSummary(resolvedContent as Record<string, unknown>) ||
-    hasMindroomMessageExtras(resolvedContent as Record<string, unknown>) ||
-    (hydratedLongTextExtrasCollapseKey &&
-      hydratedLongTextExtrasCollapseKeys?.has(hydratedLongTextExtrasCollapseKey))
+    hasMindroomMessageExtras(resolvedContent as Record<string, unknown>)
   ) {
     return 'always-expanded';
   }

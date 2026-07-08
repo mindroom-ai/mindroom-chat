@@ -8,22 +8,16 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
-import {
-  getLatestThreadSummaryInfoFromEventSources,
-  type MindroomThreadSummaryInfo,
-} from '../messages/threadSummary';
-import { fetchAllThreadRelations } from './threadBootstrap';
-import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
-import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
-import { getKnownThreadReplyCount } from './threadRecord';
+import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { resolveThreadOverviewRefreshTargets } from './threadOverviewRefreshTargets';
 import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
+import { useMindroomSyncEngine } from '../engine';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -79,8 +73,12 @@ export const useThreadOverviewResumeController = ({
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
 }): void => {
-  const overviewResumeRefreshInFlightRef = useRef(false);
-  const pendingOverviewResumeRefreshRef = useRef(false);
+  const syncEngine = useMindroomSyncEngine();
+  // CINNY-207 P4.4: the `overviewResumeRefreshInFlightRef` and
+  // `pendingOverviewResumeRefreshRef` in-flight-guards are gone —
+  // per-thread fetch dedup is now the engine scheduler's job
+  // (kind: 'thread-backfill'), and the resume trigger is naturally
+  // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
   const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
     () =>
@@ -111,79 +109,60 @@ export const useThreadOverviewResumeController = ({
   );
 
   useEffect(() => {
-    overviewResumeRefreshInFlightRef.current = false;
-    pendingOverviewResumeRefreshRef.current = false;
     lastOverviewResumeRefreshTsRef.current = 0;
   }, [room.roomId]);
 
+  // CINNY-207 P4.4: route each per-thread refresh through the engine
+  // scheduler as a `thread-backfill` job. AC8 dedup means a resume
+  // that triggers during an in-flight overview refresh — or two
+  // resume-driven refreshes for the same thread from different code
+  // paths — reuses the same promise instead of firing two /relations
+  // requests. The rest of the callback (parse response, persist,
+  // notify onApplyThreadRelations) stays exactly the same shape it
+  // had before; only the fetch is deduped.
+  // CINNY-207 P5 review (greptile P1: dedup returns void):
+  // both this overview-resume producer AND `enqueueThreadBackfillJob`
+  // (the thread-open path in `threadOpenCacheController.ts`) share
+  // scheduler key `(roomId, threadId, 'thread-backfill')`. Before this
+  // refactor they enqueued executors with DIFFERENT return types —
+  // this one `Promise<void>`, the other `Promise<ThreadBackfillResult>`.
+  // If the two callers hit the scheduler in the wrong order, the open
+  // path would receive our void promise, resolve as `undefined`, and
+  // its `!relationPageResult` guard would silently skip applying the
+  // relation page fetched by us.
+  //
+  // Fix: both producers now enqueue through `enqueueThreadBackfillJob`
+  // (single source of truth for the shared kind) so the dedup contract
+  // is: the promise ALWAYS resolves to `ThreadBackfillResult`. Any
+  // caller that needs to do more with the page (persist / notify /
+  // seed) does it in a `.then()` on that promise, using the shared
+  // result. That keeps the dedup benefit — a user-triggered thread
+  // open coalescing with a background overview resume still fires a
+  // single `/relations` round-trip — without the type mismatch.
+  // 2026-07-06 eager-cache fix: the fetch→persist→seed pipeline moved
+  // to the shared `fetchAndPersistThreadContent` so this resume path
+  // and the thread-seed prewarm band (cold-start content prefetch)
+  // stay one implementation. Behavior here is unchanged.
   const refreshOverviewThreadCacheFromRelations = useCallback(
     async (expectedThreadId: string): Promise<void> => {
-      const rootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      if (!rootEvent) return;
-
-      const relationPageResult = await fetchAllThreadRelations(
+      await fetchAndPersistThreadContent({
         mx,
-        room.roomId,
-        expectedThreadId,
-        THREAD_BATCH_SIZE,
-        () => !alive() || (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-      );
-      if (
-        !relationPageResult ||
-        !alive() ||
-        (!!threadIdRef.current && threadIdRef.current !== expectedThreadId)
-      ) {
-        return;
-      }
-
-      const relationEvents = relationPageResult.events;
-      const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-      const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
-      const snapshotComplete = isCompleteCachedThreadSnapshot({
+        scheduler: syncEngine.scheduler,
         room,
         threadId: expectedThreadId,
-        rootEvent,
-        cachedRootEvent: rootEvent,
-        cachedEvents: rootEvent ? [rootEvent, ...relationEvents] : relationEvents,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-        expectedReplyCount,
-        snapshotComplete: relationSnapshotComplete,
-        tailLoaded: true,
+        // Priority 2 = "recently-active my-server tails" band. Overview
+        // resume is user-triggered (page focus / online / visibility)
+        // so it beats prewarm (band 3) but yields to the current
+        // room's own gap-fill (band 0-1).
+        priority: 2,
+        shouldContinue: () =>
+          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
+        shouldApply: () =>
+          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
+        persistThreadEventCache,
+        onApplyThreadRelations,
+        onStoreThreadSummary,
       });
-
-      if (relationEvents.length > 0) {
-        saveThreadOpenSeedSnapshot(room, expectedThreadId, relationEvents);
-      }
-
-      onApplyThreadRelations({
-        rootId: expectedThreadId,
-        room,
-        events: relationEvents,
-        rootEvent,
-        beforeToken: relationPageResult.nextBatchToken ?? null,
-        tailLoaded: true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete,
-      });
-
-      persistThreadEventCache(
-        expectedThreadId,
-        relationEvents,
-        rootEvent,
-        relationPageResult.nextBatchToken ?? null,
-        true,
-        snapshotComplete,
-        expectedReplyCount,
-        relationSnapshotComplete
-      );
-
-      const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
-      if (summaryInfo?.summaryText) {
-        onStoreThreadSummary(expectedThreadId, summaryInfo);
-      }
     },
     [
       alive,
@@ -192,6 +171,7 @@ export const useThreadOverviewResumeController = ({
       onStoreThreadSummary,
       persistThreadEventCache,
       room,
+      syncEngine,
       threadIdRef,
     ]
   );
@@ -202,22 +182,17 @@ export const useThreadOverviewResumeController = ({
       if (!compactViewRequested && targetThreadIds.length === 0) return;
 
       const now = Date.now();
-      if (
-        !overviewResumeRefreshInFlightRef.current &&
-        now - lastOverviewResumeRefreshTsRef.current < 1_000
-      ) {
-        return;
-      }
+      if (now - lastOverviewResumeRefreshTsRef.current < 1_000) return;
       lastOverviewResumeRefreshTsRef.current = now;
 
-      if (overviewResumeRefreshInFlightRef.current) {
-        pendingOverviewResumeRefreshRef.current = true;
-        return;
-      }
-
+      // CINNY-207 P4.4: no more in-flight/pending refs. The scheduler
+      // dedupes per (roomId, threadId, 'thread-backfill'), so
+      // launching a new resume while a previous one is still draining
+      // is safe — each per-thread job returns the existing in-flight
+      // promise. The 1s rate-limit above still guards against
+      // burst-fire from stacked resume signals (visibility + focus
+      // firing in quick succession).
       const runRefresh = async () => {
-        overviewResumeRefreshInFlightRef.current = true;
-        pendingOverviewResumeRefreshRef.current = false;
         logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-start', {
           compactViewRequested,
           reason,
@@ -235,6 +210,7 @@ export const useThreadOverviewResumeController = ({
 
           for (const expectedThreadId of targetThreadIds) {
             if (!alive() || threadIdRef.current) return;
+            // eslint-disable-next-line no-await-in-loop
             await refreshOverviewThreadCacheFromRelations(expectedThreadId);
           }
 
@@ -251,14 +227,6 @@ export const useThreadOverviewResumeController = ({
             reason,
             targetCount: targetThreadIds.length,
           });
-        } finally {
-          overviewResumeRefreshInFlightRef.current = false;
-
-          if (pendingOverviewResumeRefreshRef.current && !threadIdRef.current) {
-            queueMicrotask(() => {
-              refreshOverviewThreadsOnResume(reason);
-            });
-          }
         }
       };
 

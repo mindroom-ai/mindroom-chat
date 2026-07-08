@@ -1,6 +1,8 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetCacheHealthForTesting } from './cacheHealth';
 import {
+  collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   loadRoomCachePersistenceState,
   loadThreadCachedPaginationSnapshot,
@@ -37,6 +39,26 @@ describe('eventRepository cache serialization helpers', () => {
         event.getId()
       )
     ).toEqual(['$edit', '$target', '$redaction']);
+  });
+
+  // CINNY-207 P1.2/P1.4 interplay (round-1 review fix): the redaction
+  // lifecycle DELETES a redacted reaction's records; expanding the pruned
+  // reaction back into the persist batch here would re-insert the record
+  // the same handler just deleted.
+  it('does not pull redacted reaction targets back into the persist batch', () => {
+    const reactionEvent = makeEvent('$reaction', { ts: 100, type: 'm.reaction' });
+    const redactionEvent = makeEvent('$redaction', {
+      associatedId: '$reaction',
+      isRedaction: true,
+      ts: 200,
+    });
+    const room = makeRoom({ liveEvents: [reactionEvent] });
+
+    expect(
+      collectStateTargetEvents(room as never, [redactionEvent] as never).map((event) =>
+        event.getId()
+      )
+    ).toEqual(['$redaction']);
   });
 
   it('serializes room cache payloads without thread-only activity', () => {
@@ -334,6 +356,41 @@ describe('eventRepository cached thread snapshots', () => {
     expect(snapshot.beforeToken).toBe('before-older-reply');
     expect(snapshot.hasMoreCachedBack).toBe(true);
   });
+
+  it('reports a root-only cached page as a cache-miss so the network leg runs', async () => {
+    // The cache-store loaders return the thread root alongside EVERY page —
+    // including an empty one — and normalizeCachedThreadEvents folds it into
+    // the mapped events. The root is always already rendered at index 0, so
+    // judging hit/miss on the mapped list made a root-only page an eternal
+    // barren "cache-hit": each pagination gesture committed nothing new and
+    // the network fetch of genuinely older events never fired (found by the
+    // ios-momentum-invariants prepend one-paint e2e).
+    const earliestLoadedReply = makeEvent('$loaded', {
+      ts: 300,
+      threadRootId: '$root',
+    });
+
+    const snapshot = await loadThreadCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      earliestLoadedReply: earliestLoadedReply as never,
+      limit: 50,
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
+      loadBefore: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100 },
+        events: [],
+        hasMoreBefore: false,
+        beforeToken: 'lingering-token',
+      }),
+    });
+
+    expect(snapshot.status).toBe('cache-miss');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$root']);
+  });
 });
 
 describe('eventRepository latest room cache hydration snapshots', () => {
@@ -530,5 +587,320 @@ describe('eventRepository room cache persistence state', () => {
     expect(state.beforeTokenForEarliest).toBe('sdk-before');
     expect(state.roomStartKnown).toBe(false);
     expect(state.shouldClearBackwardToken).toBe(false);
+  });
+});
+
+// CINNY-207 P1.4 (finding F5, decision D5): the write boundary excludes
+// standalone same-sender replace records; hydration lazily cleans up any
+// legacy records that still exist from before compaction landed.
+describe('collectLegacyStandaloneReplaceIds (CINNY-207 P1.4)', () => {
+  it('identifies replace records whose target already bundles an equal-or-newer edit', () => {
+    const events = [
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: {
+              event_id: '$edit-2',
+              origin_server_ts: 300,
+              sender: '@alice:example.org',
+            },
+          },
+        },
+      },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1', '$edit-2']);
+  });
+
+  it('keeps standalone replaces newer than the target bundled edit (no data-loss window)', () => {
+    const events = [
+      {
+        event_id: '$target',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        content: {},
+        unsigned: {
+          'm.relations': {
+            [RelationType.Replace]: {
+              event_id: '$edit-1',
+              origin_server_ts: 200,
+              sender: '@alice:example.org',
+            },
+          },
+        },
+      },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        // Newer than the bundled edit: deleting it would lose the newest
+        // content from cache until a later re-persist.
+        event_id: '$edit-2',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual(['$edit-1']);
+  });
+
+  it('keeps all standalone replaces when the target has no bundled edit', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$edit-1',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+
+  // Round-2 review fix: the bundle only proves supersession if hydration
+  // would actually apply it — same sender as the standalone, nonempty id.
+  it('ignores cross-sender or id-less bundled edits as freshness proof', () => {
+    const standalone = {
+      event_id: '$edit-1',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const crossSenderBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-x',
+            origin_server_ts: 900,
+            sender: '@mallory:example.org',
+          },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([crossSenderBundleTarget, standalone])).toEqual([]);
+
+    const idlessBundleTarget = {
+      event_id: '$target',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: { origin_server_ts: 900, sender: '@alice:example.org' },
+        },
+      },
+    };
+    expect(collectLegacyStandaloneReplaceIds([idlessBundleTarget, standalone])).toEqual([]);
+  });
+
+  it('does not flag cross-sender replaces or replaces whose target is missing', () => {
+    const events = [
+      { event_id: '$target', origin_server_ts: 100, sender: '@alice:example.org', content: {} },
+      {
+        event_id: '$cross-sender',
+        origin_server_ts: 200,
+        sender: '@mallory:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+        },
+      },
+      {
+        event_id: '$orphan-edit',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        content: {
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$missing' },
+        },
+      },
+    ];
+
+    expect(collectLegacyStandaloneReplaceIds(events)).toEqual([]);
+  });
+});
+
+describe('loadCachedThreadSnapshot lazy cleanup (CINNY-207 P1.4)', () => {
+  it('deletes legacy standalone same-sender replace records whose target is in the batch', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+    const rootEvent = {
+      event_id: '$root',
+      origin_server_ts: 100,
+      sender: '@alice:example.org',
+      content: {},
+    };
+    const targetEvent = {
+      event_id: '$target',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      content: {},
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-2',
+            origin_server_ts: 220,
+            sender: '@alice:example.org',
+          },
+        },
+      },
+    };
+    const legacyEdit1 = {
+      event_id: '$edit-1',
+      origin_server_ts: 210,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+    const legacyEdit2 = {
+      event_id: '$edit-2',
+      origin_server_ts: 220,
+      sender: '@alice:example.org',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    };
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent,
+        events: [targetEvent, legacyEdit1, legacyEdit2],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).toHaveBeenCalledTimes(1);
+    expect(deleteEvents).toHaveBeenCalledWith('session', '!room:example.org', '$root', [
+      '$edit-1',
+      '$edit-2',
+    ]);
+  });
+
+  it('does not delete anything when no legacy standalone replaces are present', async () => {
+    const deleteEvents = vi.fn(async () => undefined);
+
+    await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      loadLatest: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100, sender: '@a', content: {} },
+        events: [
+          {
+            event_id: '$reply',
+            origin_server_ts: 200,
+            sender: '@a',
+            content: { body: 'hi' },
+          },
+        ],
+        hasMoreBefore: false,
+        beforeToken: null,
+      }),
+      deleteEvents,
+    });
+
+    expect(deleteEvents).not.toHaveBeenCalled();
+  });
+});
+
+// CINNY-207 P2.3: the cache-write health gate moved OUT of the
+// eventRepository seam and INTO the cacheStore save entry points
+// (single choke point). The seam now unconditionally delegates to the
+// injected `save`; per-save gating is exercised at the store level
+// (see cacheStore/__tests__/cacheHealthGate.test.ts) and cacheHealth
+// classification is exercised in cacheHealth.test.ts.
+describe('persist entry points always delegate to the injected save (CINNY-207 P2.3)', () => {
+  beforeEach(() => {
+    resetCacheHealthForTesting();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    resetCacheHealthForTesting();
+    vi.restoreAllMocks();
+  });
+
+  it('calls the injected room save even after a prior save rejected', async () => {
+    const flakySave = vi.fn().mockRejectedValue(new Error('transient'));
+    const room = makeRoom({ liveEvents: [] });
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: flakySave,
+    });
+    // First call landed; wait for microtasks to settle the (ignored)
+    // rejection — the seam does not catch it.
+    await Promise.resolve();
+
+    persistRoomEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      events: [],
+      save: flakySave,
+    });
+    expect(flakySave).toHaveBeenCalledTimes(2);
+  });
+
+  it('always calls the injected thread save (no seam-level gating)', () => {
+    const threadSave = vi.fn().mockResolvedValue(undefined);
+    const room = makeRoom({ liveEvents: [] });
+
+    persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [],
+      save: threadSave,
+    });
+    // Meta-only save (no replies) still triggers a delegated save call —
+    // the store is responsible for its own idle-check / gating semantics.
+    expect(threadSave).toHaveBeenCalledTimes(1);
   });
 });

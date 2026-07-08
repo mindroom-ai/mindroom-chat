@@ -76,70 +76,10 @@ describe('useThreadBackPaginationController', () => {
     renderer.unmount();
   });
 
-  it('restores the pending anchor exactly once for the matching thread', () => {
-    const { getController, renderer } = renderController();
-    const anchor = makeMessageElement('$anchor', 140, 180);
-    const scrollRoot = makeScrollRoot([anchor]);
 
-    act(() => {
-      getController().begin('$thread', scrollRoot);
-    });
 
-    const shiftedAnchor = makeMessageElement('$anchor', 420, 460);
-    const shiftedScrollRoot = makeScrollRoot([shiftedAnchor]);
-    act(() => {
-      expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(true);
-    });
 
-    expect(shiftedScrollRoot.scrollTop).toBe(320);
-    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('keeps the pending anchor when the first restore runs before the anchor is mounted', () => {
-    const { getController, renderer } = renderController();
-    const anchor = makeMessageElement('$anchor', 140, 180);
-    const scrollRoot = makeScrollRoot([anchor]);
-
-    act(() => {
-      getController().begin('$thread', scrollRoot);
-    });
-
-    expect(getController().restorePendingAnchor(makeScrollRoot([]), '$thread')).toBe(false);
-
-    const shiftedAnchor = makeMessageElement('$anchor', 420, 460);
-    const shiftedScrollRoot = makeScrollRoot([shiftedAnchor]);
-    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(true);
-    expect(shiftedScrollRoot.scrollTop).toBe(320);
-    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('keeps the pending anchor when restore runs before prepended events are rendered', () => {
-    const { getController, renderer } = renderController();
-    const anchor = makeMessageElement('$anchor', 140, 180);
-    const scrollRoot = makeScrollRoot([anchor]);
-
-    act(() => {
-      getController().begin('$thread', scrollRoot, 200);
-    });
-
-    expect(getController().restorePendingAnchor(makeScrollRoot([anchor]), '$thread', 200)).toBe(
-      false
-    );
-
-    const shiftedAnchor = makeMessageElement('$anchor', 420, 460);
-    const shiftedScrollRoot = makeScrollRoot([shiftedAnchor]);
-    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(true);
-    expect(shiftedScrollRoot.scrollTop).toBe(320);
-    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('exposes the pending anchor event id until restore or reset clears it', () => {
+  it('exposes the pending anchor event id and seq until cleared or reset', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);
     const scrollRoot = makeScrollRoot([anchor]);
@@ -151,6 +91,8 @@ describe('useThreadBackPaginationController', () => {
     });
 
     expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+    const firstSeq = getController().getPendingAnchorSeq();
+    expect(typeof firstSeq).toBe('number');
 
     act(() => {
       getController().reset();
@@ -162,17 +104,20 @@ describe('useThreadBackPaginationController', () => {
       getController().begin('$thread', scrollRoot, 200);
     });
 
+    // A fresh begin issues a NEW seq: the render-time ledger fold keys on
+    // it to own exactly one pagination's prepend.
     expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+    expect(getController().getPendingAnchorSeq()).not.toBe(firstSeq);
 
-    const shiftedScrollRoot = makeScrollRoot([makeMessageElement('$anchor', 420, 460)]);
     act(() => {
-      expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(true);
+      getController().clearPendingAnchor();
     });
 
     expect(getController().getPendingAnchorEventId()).toBeUndefined();
 
     renderer.unmount();
   });
+
 
   it('clears the pending anchor on demand without touching pagination state', () => {
     const { getController, renderer } = renderController();
@@ -210,7 +155,7 @@ describe('useThreadBackPaginationController', () => {
 
     expect(getController().isPaginatingBack).toBe(false);
     expect(getController().isPaginatingBackRef.current).toBe(false);
-    expect(getController().restorePendingAnchor(scrollRoot, '$thread')).toBe(false);
+    expect(getController().getPendingAnchorEventId()).toBeUndefined();
 
     renderer.unmount();
   });

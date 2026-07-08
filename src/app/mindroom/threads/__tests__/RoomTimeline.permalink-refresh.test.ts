@@ -795,7 +795,11 @@ describe('RoomTimeline', () => {
 
     const createNodeMock = (element: { type: string }) => {
       if (element.type === scrollType) {
-        return { getBoundingClientRect: () => ({ bottom: 500 }) };
+        return {
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          getBoundingClientRect: () => ({ bottom: 500 }),
+        };
       }
       if (element.type === 'span') {
         return { getBoundingClientRect: () => ({ top: 400 }) };
@@ -894,31 +898,6 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
-    const { restoreThreadPrependScrollAnchor } = await import(
-      '../timelineScrollUtils'
-    );
-
-    const anchor = {
-      getAttribute: vi.fn().mockReturnValue('$anchor'),
-      getBoundingClientRect: vi.fn().mockReturnValue({
-        top: 420,
-        bottom: 460,
-      }),
-    };
-    const scroll = {
-      querySelectorAll: vi.fn().mockReturnValue([anchor]),
-      scrollTop: 40,
-    } as unknown as HTMLElement;
-
-    expect(
-      restoreThreadPrependScrollAnchor(scroll, {
-        eventId: '$anchor',
-        top: 140,
-      })
-    ).toBe(true);
-    expect(scroll.scrollTop).toBe(320);
-  });
       });
     });
 });

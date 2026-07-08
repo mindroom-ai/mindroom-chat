@@ -4,6 +4,12 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../../types/matrix/room';
 import { createDefaultThreadFilterState } from '../roomThreadOverviewModel';
+import {
+  createBackfillScheduler,
+  createEnginePersistFacade,
+  MindroomSyncEngineProvider,
+  type MindroomSyncEngine,
+} from '../../engine';
 
 const RELATION_ANNOTATION = 'm.annotation';
 const RELATION_REPLACE = 'm.replace';
@@ -122,8 +128,10 @@ vi.mock('../../../state/hooks/settings', () => ({
         return ['400'];
       case 'dateFormatString':
         return ['MMM D'];
-      case 'paginationLimit':
+      case 'prefetchDepth':
         return [300];
+      case 'prefetchScope':
+        return ['my-server'];
       default:
         return [false];
     }
@@ -355,6 +363,21 @@ vi.mock('../../../styles/CustomHtml.css', () => ({
 
 vi.mock('../../../features/room/RoomTimeline.css', () => ({
   TimelineFloat: () => 'TimelineFloat',
+}));
+
+vi.mock('../TimelineMinimap.css', () => ({
+  MinimapContainer: 'MinimapContainer',
+  MinimapBody: 'MinimapBody',
+  MinimapRail: 'MinimapRail',
+  MinimapStrip: {
+    Rest: 'MinimapStripRest',
+    Near: 'MinimapStripNear',
+    Close: 'MinimapStripClose',
+    Active: 'MinimapStripActive',
+  },
+  MinimapPreviewCard: 'MinimapPreviewCard',
+  MinimapPreviewTitle: 'MinimapPreviewTitle',
+  MinimapPreviewBody: 'MinimapPreviewBody',
 }));
 
 vi.mock('../../../utils/matrix', () => ({
@@ -654,31 +677,41 @@ vi.mock('../useThreadRenderState', async () => {
   };
 });
 
-vi.mock('../threadEventCache', () => ({
-  getThreadCursorAnchor: () => undefined,
-  loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  normalizeCachedThreadEvents: (events: unknown[]) => events,
-  saveThreadEventsToCache: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: cache APIs now come from `../cacheStore` (single
+// choke point). The legacy `threadEventCache` / `roomEventCache` /
+// `threadSummaryCache` shim files were deleted.
+vi.mock('../cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../cacheStore')>();
+  return {
+    ...actual,
+    getThreadCursorAnchor: () => undefined,
+    loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    normalizeCachedThreadEvents: (events: unknown[]) => events,
+    saveThreadEventsToCache: vi.fn(async () => undefined),
+    getRoomCursorAnchor: () => undefined,
+    loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadCachedRoomPaginationToken: vi.fn(async () => undefined),
+    normalizeCachedRoomEvents: (events: unknown[]) => events,
+    saveRoomEventsToCache: vi.fn(async () => undefined),
+    loadCachedThreadSummaries: vi.fn(async () => new Map()),
+    saveCachedThreadSummary: vi.fn(async () => undefined),
+  };
+});
 
-vi.mock('../eventCacheTokenUtils', () => ({
-  compareCachedPaginationAnchors: () => 0,
-}));
-
-vi.mock('../roomEventCache', () => ({
-  getRoomCursorAnchor: () => undefined,
-  loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedRoomEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadCachedRoomPaginationToken: vi.fn(async () => undefined),
-  normalizeCachedRoomEvents: (events: unknown[]) => events,
-  saveRoomEventsToCache: vi.fn(async () => undefined),
-}));
-
-vi.mock('../threadSummaryCache', () => ({
-  loadCachedThreadSummaries: vi.fn(async () => new Map()),
-  saveCachedThreadSummary: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: partial mock — cacheStore's barrel re-exports
+// `MAX_CACHE_BEFORE_TOKENS` from this module, so a fully synthetic
+// mock breaks the `../cacheStore` mock above (which uses
+// `importOriginal`). Keep the real module intact and only override
+// the comparison helper.
+vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../eventCacheTokenUtils')>();
+  return {
+    ...actual,
+    compareCachedPaginationAnchors: () => 0,
+  };
+});
 
 vi.mock('../eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
@@ -927,29 +960,53 @@ const createControlledRoomTimelineHarness = (
     room: ReturnType<typeof makeRoom>;
     threadId?: string;
   }) {
-    return React.createElement(RoomTimelineComponent, {
-      room,
-      threadId,
-      summaryMap: new Map(),
-      onStoreThreadSummary: vi.fn(),
-      threadFilterState: defaultThreadFilterState,
-      threadSortFreezeState: null,
-      onToggle: vi.fn(),
-      onSortDirectionChange: vi.fn(),
-      onToggleThreadSortFreeze: vi.fn(),
-      setThreadSortFreezeState: vi.fn(),
-      onCycleTag: vi.fn(),
-      onAddTag: vi.fn(),
-      onRemoveTag: vi.fn(),
-      onReset: vi.fn(),
-      onApplyPreset: vi.fn(),
-      onSearchQueryChange: vi.fn(),
-      viewMode: 'threaded',
-      onViewModeChange: vi.fn(),
-      roomInputRef,
-      editor,
+    // CINNY-207 P3.3: wrap in a MindroomSyncEngine provider so the
+    // component's `useMindroomSyncEngine` resolves. The persist facade
+    // is real; its writes route through the mocked cacheStore fns
+    // used by these tests' own vi.mock setup.
+    // eslint-disable-next-line react/no-children-prop
+    return React.createElement(MindroomSyncEngineProvider, {
+      engine: harnessSyncEngine,
+      children: React.createElement(RoomTimelineComponent, {
+        room,
+        threadId,
+        summaryMap: new Map(),
+        onStoreThreadSummary: vi.fn(),
+        threadFilterState: defaultThreadFilterState,
+        threadSortFreezeState: null,
+        onToggle: vi.fn(),
+        onSortDirectionChange: vi.fn(),
+        onToggleThreadSortFreeze: vi.fn(),
+        setThreadSortFreezeState: vi.fn(),
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset: vi.fn(),
+        onApplyPreset: vi.fn(),
+        onSearchQueryChange: vi.fn(),
+        viewMode: 'threaded',
+        onViewModeChange: vi.fn(),
+        roomInputRef,
+        editor,
+      }),
     });
   };
+};
+
+const HARNESS_TEST_SESSION_ID = 'test-session';
+const harnessSyncEngine: MindroomSyncEngine = {
+  mx: {} as MindroomSyncEngine['mx'],
+  sessionId: HARNESS_TEST_SESSION_ID,
+  start: () => undefined,
+  stop: () => undefined,
+  isLiveMode: () => true,
+  persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
+  // CINNY-207 P4.1 / P4.2: harness engine needs a scheduler + a
+  // noteRoomFocused no-op so the RoomTimeline useEffect that fires
+  // per-mount doesn't crash when TypeScript's structural check happens
+  // to pass but the real object lacks the field.
+  scheduler: createBackfillScheduler(),
+  noteRoomFocused: () => undefined,
 };
 
 const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) =>
@@ -1312,8 +1369,12 @@ describe('RoomTimeline collapsible wiring', () => {
     ).toBe('always-expanded');
   });
 
-  it('uses always-expanded mode after hydrated long-text extras are observed', async () => {
-    const { getCollapsibleMessageMode, getHydratedLongTextExtrasCollapseKey } = await import(
+  it('keeps long-text sidecar messages folded — hydration must not auto-expand them', async () => {
+    // Device report 2026-07-06: long-text-replaced messages unfolded by
+    // themselves the moment their attachment hydrated, while every other
+    // long message stayed folded. They now fold like everything else; the
+    // "Show more" affordance is guaranteed by the force-overflow heuristic.
+    const { getCollapsibleMessageMode, shouldForceCollapsibleMessageOverflow } = await import(
       '../threadCollapsibleMessages'
     );
     const longTextContent = {
@@ -1325,13 +1386,9 @@ describe('RoomTimeline collapsible wiring', () => {
         encoding: 'matrix_event_content_json',
       },
     };
-    const collapseKey = getHydratedLongTextExtrasCollapseKey('$long-text', longTextContent);
 
-    expect(collapseKey).toBe(JSON.stringify(['$long-text', 'mxc://server/long-text']));
     expect(getCollapsibleMessageMode('$long-text', longTextContent, new Set())).toBe('default');
-    expect(
-      getCollapsibleMessageMode('$long-text', longTextContent, new Set(), new Set([collapseKey!]))
-    ).toBe('always-expanded');
+    expect(shouldForceCollapsibleMessageOverflow(longTextContent)).toBe(true);
   });
 
   it('marks visible live thread replies for initially-expanded mode', async () => {

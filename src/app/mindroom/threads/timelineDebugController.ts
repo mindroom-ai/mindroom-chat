@@ -72,7 +72,6 @@ export const useTimelineDebugRangeController = ({
   activeTimelineRange,
   canPaginateThreadBack,
   canPaginateThreadFront,
-  eagerPreloading,
   eventsLength,
   filteredLength,
   renderableEventCount,
@@ -91,7 +90,6 @@ export const useTimelineDebugRangeController = ({
   activeTimelineRange: ItemRange;
   canPaginateThreadBack: boolean;
   canPaginateThreadFront: boolean;
-  eagerPreloading: boolean;
   eventsLength: number;
   filteredLength: number;
   renderableEventCount: number;
@@ -109,11 +107,13 @@ export const useTimelineDebugRangeController = ({
 }) => {
   useEffect(() => {
     if (threadId) return;
+    // CINNY-207 P4.3: `eagerPreloading` was a render-loop signal from
+    // the deleted `useRoomEagerPreload` hook. Deep history is now a
+    // scheduler job; there is no render-time preload state to log.
     logTimelineDebug(roomDebugTraceId, 'room-surface', {
       activeRangeEnd: activeTimelineRange.end,
       activeRangeStart: activeTimelineRange.start,
       cacheCount: eventsLength,
-      eagerPreloading,
       preloadTarget: useSurfacePreloadTarget ? 'surface' : 'renderable',
       renderableCount: renderableEventCount,
       surfaceCount: roomSurfaceEventCount,
@@ -123,7 +123,6 @@ export const useTimelineDebugRangeController = ({
   }, [
     activeTimelineRange.end,
     activeTimelineRange.start,
-    eagerPreloading,
     eventsLength,
     renderableEventCount,
     roomDebugTraceId,

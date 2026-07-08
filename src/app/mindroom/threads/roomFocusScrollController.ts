@@ -49,12 +49,6 @@ type RoomUnreadInfoLike = {
   scrollTo?: boolean;
 };
 
-type RestorePendingThreadBackPaginationAnchor = (
-  scrollRoot: HTMLElement | null | undefined,
-  threadId: string | undefined,
-  eventCount?: number
-) => boolean;
-
 type RetryPagination = (opts?: RetryPaginationOptions) => void;
 
 export type RoomFocusScrollControllerOptions = {
@@ -66,7 +60,6 @@ export type RoomFocusScrollControllerOptions = {
   focusScrollResetToken: unknown;
   pendingThreadOpenRef: MutableRefObject<PendingThreadOpen | undefined>;
   pendingThreadOpenTick: number;
-  restorePendingThreadBackPaginationAnchor: RestorePendingThreadBackPaginationAnchor;
   retryPagination: RetryPagination;
   roomId: string;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
@@ -86,6 +79,8 @@ export type RoomFocusScrollControllerOptions = {
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadLatestOpenPending: boolean;
+  threadOpenedAtLatest: boolean;
+  threadUserScrolled: boolean;
   threadTimelineTick: number;
   timelineAtLiveEnd: boolean;
   unreadInfo?: RoomUnreadInfoLike;
@@ -101,7 +96,6 @@ export const useRoomFocusScrollController = ({
   focusScrollResetToken,
   pendingThreadOpenRef,
   pendingThreadOpenTick,
-  restorePendingThreadBackPaginationAnchor,
   retryPagination,
   roomId,
   scrollRef,
@@ -121,6 +115,8 @@ export const useRoomFocusScrollController = ({
   threadId,
   threadInitialRenderMode,
   threadLatestOpenPending,
+  threadOpenedAtLatest,
+  threadUserScrolled,
   threadTimelineTick,
   timelineAtLiveEnd,
   unreadInfo,
@@ -367,6 +363,13 @@ export const useRoomFocusScrollController = ({
         suppressOpenBottomPin: suppressThreadOpenBottomPinRef.current,
         threadId,
         threadLatestOpenPending,
+        // Hydration bands land long after the open chain completes
+        // (background prefetch/reconciler): the pin holds until the
+        // user's FIRST real scroll gesture, then the reader owns the
+        // position (device symptom: open at bottom, drift to the middle
+        // as history streams in).
+        threadOpenedAtLatest,
+        hasUserScrollIntent: threadUserScrolled,
         threadInitialRenderMode,
         threadEventCount: threadEventsLength,
       })
@@ -376,15 +379,27 @@ export const useRoomFocusScrollController = ({
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
     scrollToBottom(scrollEl, 'instant');
+    // Arm the gesture-cancellable bottom-settle loop for this band: the
+    // freshly-mounted tail rows measure over the next frames and their
+    // own estimate error re-opens the gap (self/below resizes are
+    // uncompensated by design) — a single write pins to the ESTIMATED
+    // bottom only.
+    scrollToBottomRef.current = {
+      count: scrollToBottomRef.current.count + 1,
+      smooth: false,
+    };
     setAtBottom(true);
   }, [
     scrollRef,
+    scrollToBottomRef,
     setAtBottom,
     suppressThreadOpenBottomPinRef,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
+    threadOpenedAtLatest,
+    threadUserScrolled,
   ]);
 
   useLayoutEffect(() => {
@@ -462,16 +477,6 @@ export const useRoomFocusScrollController = ({
       }
     }
   }, [scrollRef, scrollToBottomCount, scrollToBottomRef]);
-
-  useLayoutEffect(() => {
-    restorePendingThreadBackPaginationAnchor(scrollRef.current, threadId, threadEventsLength);
-  }, [
-    restorePendingThreadBackPaginationAnchor,
-    scrollRef,
-    threadEventsLength,
-    threadId,
-    threadTimelineTick,
-  ]);
 
   useEffect(() => {
     if (!editId) return;

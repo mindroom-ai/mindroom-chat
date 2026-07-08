@@ -144,6 +144,10 @@ type MockClient = {
   removeListener: ReturnType<typeof vi.fn>;
   getRooms: ReturnType<typeof vi.fn>;
   getSyncState: ReturnType<typeof vi.fn>;
+  // MindroomSyncEngine (CINNY-207 P3.1) reads these to derive its
+  // session id at construction time.
+  getHomeserverUrl: ReturnType<typeof vi.fn>;
+  getSafeUserId: ReturnType<typeof vi.fn>;
   store: {
     getSyncToken: ReturnType<typeof vi.fn>;
   };
@@ -180,6 +184,8 @@ const createMockClient = (
       Array.from({ length: cachedRooms }, (_, index) => ({ roomId: `!room${index}` }))
     ),
     getSyncState: vi.fn(() => syncState),
+    getHomeserverUrl: vi.fn(() => 'https://example.test'),
+    getSafeUserId: vi.fn(() => '@alice:example.test'),
     store: {
       getSyncToken: vi.fn(() => syncToken),
     },
@@ -355,6 +361,11 @@ describe('ClientRoot', () => {
       }),
       once: vi.fn(),
       removeListener: vi.fn(),
+      // Needed by MindroomSyncEngine (CINNY-207 P3.1) to derive its
+      // session id when ClientRoot's engine effect creates it.
+      getHomeserverUrl: vi.fn(() => 'https://example.com'),
+      getSafeUserId: vi.fn(() => '@alice:example.com'),
+      getSyncState: vi.fn(() => null),
     };
 
     currentSession = {

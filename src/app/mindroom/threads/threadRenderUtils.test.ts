@@ -1,14 +1,20 @@
 import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { inSameDay } from '../../utils/time';
+import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
+  isThreadFallbackReply,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
+  shouldApplyMeasurementScrollCorrection,
+  shouldAutoPaginateThreadBack,
   shouldPinThreadToBottomOnOpen,
+  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
 
 const makeMessageEvent = (eventId: string, ts = 1) =>
@@ -186,6 +192,301 @@ describe('pickPreferredThreadRenderEvent', () => {
 
     expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
   });
+
+  // Review candidate-3 (2026-07-04): the picker's local-echo branch
+  // returns early, BEFORE the replacement-preference rules. A repaired
+  // cache-hydrated instance has a real event id and isSending()=false,
+  // so it must never classify as a local echo and lose to an
+  // unrepaired sync-delivered instance — even when it carries local
+  // send metadata (unsigned.transaction_id persisted at seed time),
+  // which makes its key set intersect the incoming instance's on both
+  // the event and txn dimensions.
+  it('keeps a repaired confirmed instance over an unrepaired sync instance despite txn metadata', () => {
+    const repairedHydrated = makeMessageEvent('$target');
+    repairedHydrated.event.unsigned = { transaction_id: 'txn-repair-1' };
+    // Foreign-sender raw replacement: the effective-replacement block
+    // yields nothing for either side (sender-mismatch filter), so the
+    // decision falls through the local-echo branch and the effective
+    // block to the asymmetric raw-presence rule.
+    const foreignEdit = makeEditEvent('$target', '$edit-2', 2);
+    foreignEdit.event.sender = '@mallory:example.org';
+    repairedHydrated.makeReplaced(foreignEdit);
+    const syncInstance = makeMessageEvent('$target');
+
+    expect(repairedHydrated.isSending()).toBe(false);
+    expect(syncInstance.isSending()).toBe(false);
+    expect(pickPreferredThreadRenderEvent(repairedHydrated, syncInstance)).toBe(repairedHydrated);
+    expect(pickPreferredThreadRenderEvent(syncInstance, repairedHydrated)).toBe(repairedHydrated);
+  });
+});
+
+describe('shouldAutoPaginateThreadBack', () => {
+  const base = {
+    threadId: '$thread',
+    firstRenderedIndex: 10,
+    paginatingBack: false,
+    showLoadOlder: true,
+    hasUserScrollIntent: true,
+    triggerRows: 15,
+  };
+
+  it('fires when the rendered window top is within the trigger headroom', () => {
+    expect(shouldAutoPaginateThreadBack(base)).toBe(true);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 15 })).toBe(true);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 0 })).toBe(true);
+  });
+
+  it('does not fire while the rendered window is deeper than the headroom', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 16 })).toBe(false);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: 400 })).toBe(false);
+  });
+
+  it('does not fire outside a thread or before anything rendered', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, threadId: undefined })).toBe(false);
+    expect(shouldAutoPaginateThreadBack({ ...base, firstRenderedIndex: undefined })).toBe(false);
+  });
+
+  it('is single-flight: does not re-fire while a back-pagination is in progress', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, paginatingBack: true })).toBe(false);
+  });
+
+  it('does not fire when no older content exists (chip condition is false)', () => {
+    expect(shouldAutoPaginateThreadBack({ ...base, showLoadOlder: false })).toBe(false);
+  });
+
+  it('does not fire before any real user scroll gesture', () => {
+    // Before a gesture, a low rendered index is the open-time pre-pin
+    // transient (the virtualizer briefly renders from index 0), not a
+    // user scrolled to the top. Note this gate is user intent, NOT the
+    // open-lifecycle pending flag — that flag stays true for the whole
+    // open-time backfill chain, which on slow networks is exactly when
+    // a scrolling user needs the trigger live.
+    expect(shouldAutoPaginateThreadBack({ ...base, hasUserScrollIntent: false })).toBe(false);
+  });
+});
+
+describe('estimateThreadEventRowHeight', () => {
+  const modern = { compact: false };
+
+  it('estimates a one-liner at base + one text line', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(30);
+  });
+
+  it('adds a line per newline for short bodies', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc', msgtype: 'm.text' },
+      event_id: '$multi',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(70);
+  });
+
+  it('caps anything past the fold at the collapsed height (long body)', () => {
+    const event = new MatrixEvent({
+      content: { body: 'x'.repeat(500), msgtype: 'm.text' },
+      event_id: '$long',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+  });
+
+  it('caps short-but-many-lines bodies at the collapsed height too', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc\nd\ne\nf', msgtype: 'm.text' },
+      event_id: '$lines',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+  });
+
+  it('estimates edit/reaction relations near zero (they render no row)', () => {
+    const edit = new MatrixEvent({
+      content: {
+        body: '* fixed',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      event_id: '$edit',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(edit, modern)).toBe(4);
+  });
+
+  it('uses the smaller compact base', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
+      26
+    );
+  });
+
+  it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
+    const body = Array.from({ length: 10 }, (_v, line) => `answer line ${line}`).join('\n');
+    const event = new MatrixEvent({
+      content: {
+        body,
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [
+            { title: 'Tool call 1', content_type: 'text/markdown', content: 'output 1' },
+            { title: 'Tool call 2', content_type: 'text/markdown', content: 'output 2' },
+          ],
+        },
+      },
+      event_id: '$extras',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 +
+    // 10*20 + 2 section headers * 40 (calibrated constants). NOT the
+    // folded 80: these rows never fold, and estimating them small caused
+    // the per-frame jump budget the ride-smoothness e2e pins.
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20 + 2 * 40);
+  });
+
+  it('bounds pathological always-expanded bodies at the line cap', () => {
+    const event = new MatrixEvent({
+      content: {
+        body: 'x\n'.repeat(10_000),
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [{ title: 'Tool', content_type: 'text/markdown', content: 'y' }],
+        },
+      },
+      event_id: '$huge',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20 + 40);
+  });
+});
+
+describe('shouldSettleLedgerAtBoundary', () => {
+  // Viewport 600px tall at client top 0; guard band = 2 viewports.
+  const base = {
+    scrollTop: 0,
+    scrollBottom: 600,
+    clientHeight: 600,
+  };
+
+  it('ignores small debts (ordinary rests settle them invisibly)', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -40, innerTop: 100, innerBottom: 5000 })
+    ).toBe(false);
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: 40, innerTop: -5000, innerBottom: 500 })
+    ).toBe(false);
+  });
+
+  it('settles shrink-debt when the content start approaches the viewport (top dead zone)', () => {
+    // px<0: positive margin above the content. Content start 800px below
+    // the viewport top is inside the 1200px guard band.
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -5000, innerTop: 800, innerBottom: 60000 })
+    ).toBe(true);
+    // Far from the boundary: no settle, the ride keeps its momentum.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: -5000,
+        innerTop: -20000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+  });
+
+  it('settles grow-debt when the content end approaches the viewport (bottom dead zone)', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 1500,
+      })
+    ).toBe(true);
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 20000,
+      })
+    ).toBe(false);
+  });
+
+  it('settles grow-debt when the reader approaches the top hard stop (unreachable prepend region)', () => {
+    // Full-surface adversarial review (2026-07-07), ledger finding L4:
+    // px>0 pulls the inner box up by px (negative margin), so the first
+    // px content pixels sit beyond scrollTop 0 — a freshly folded
+    // prepend (px ≈ +2600) is EXACTLY that region. The reachable
+    // content top is innerTop + px; the guard must fire within two
+    // viewports of it, or an upward ride hits the hard stop and the
+    // new rows pop in only after a rest.
+    // scrollTop(content) = 900 → innerTop = -900 - 3000; reachable top
+    // = -900, inside the 1200px guard band above viewport top 0.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 3000,
+        innerTop: -3900,
+        innerBottom: 60000,
+      })
+    ).toBe(true);
+    // Deep mid-content (scrollTop 10000): no settle, keep the momentum.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 3000,
+        innerTop: -13000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('shouldApplyMeasurementScrollCorrection', () => {
+  const base = {
+    itemFullyAboveViewport: true,
+    isIOSWebKitDevice: true,
+  };
+
+  it('never applies on iOS — corrections are ledgered, not written', () => {
+    // Mid-scroll writes kill momentum; even quiet applies proved unsafe
+    // (virtual-core's internal bursts clamp near the top edge, silently
+    // under-applying — the prepend e2e photographed a scrollTo(-44)).
+    expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
+  });
+
+  it('keeps live-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
+    expect(shouldApplyMeasurementScrollCorrection({ ...base, isIOSWebKitDevice: false })).toBe(
+      true
+    );
+  });
+
+  it('never adjusts for visible (straddling) or below-viewport items', () => {
+    expect(
+      shouldApplyMeasurementScrollCorrection({
+        ...base,
+        itemFullyAboveViewport: false,
+      })
+    ).toBe(false);
+  });
 });
 
 describe('shouldPinThreadToBottomOnOpen', () => {
@@ -194,6 +495,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'cached',
         threadEventCount: 3,
       })
@@ -205,6 +508,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'loading',
         threadEventCount: 3,
       })
@@ -216,6 +521,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: false,
+        threadOpenedAtLatest: false,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 3,
       })
@@ -224,8 +531,36 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 0,
+      })
+    ).toBe(false);
+  });
+
+  it('keeps the pin through post-chain hydration bands until the first gesture', () => {
+    // Device symptom (2026-07-06 trace round): open at the bottom, then
+    // history bands landing AFTER the open chain completed dragged the
+    // view to mid-thread. The latch holds the pin; a real gesture ends it.
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
+      })
+    ).toBe(true);
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: true,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
       })
     ).toBe(false);
   });
@@ -324,6 +659,241 @@ describe('mergeThreadRenderEvents', () => {
     const result = mergeThreadRenderEvents([], [confirmed], resolver);
     expect(result).toEqual([confirmed]);
     expect(result).toHaveLength(1);
+  });
+});
+
+// CINNY-207 AC2 render-gap RG5d (2026-07-04): key-canonicalization
+// invariant. `mergeThreadRenderEvents` maintains one MatrixEvent
+// instance per event identity in its internal `eventMap` regardless of
+// how many key sets the incoming events arrive under. The tests below
+// exercise the dual-key scenarios team-lead named in the B-approval /
+// RG5c-approval messages: entry under {txnId, eventId} followed by a
+// second instance under {eventId} only. Post-canonicalization, the map
+// must resolve to exactly one instance reachable under both keys, and
+// (per the replacement-preferring rule) that instance must be the one
+// carrying an effective replacement.
+describe('mergeThreadRenderEvents RG5d key canonicalization', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+
+  const makeMessageEventWithReplacement = (eventId: string, ts: number, editTs: number) => {
+    const target = makeMessageEvent(eventId, ts);
+    const edit = makeEditEvent(eventId, `$edit-${eventId}`, editTs);
+    target.makeReplaced(edit);
+    return target;
+  };
+
+  it('collapses a dual-key entry and a same-id single-key entry to one instance under both keys', () => {
+    // Team-lead's dual-key scenario, verbatim: event enters under
+    // {txnId, id}, second instance arrives under {id} only, map ends
+    // with exactly one instance reachable under both keys, and it's
+    // the replacement-carrying one (per the picker's preference rule
+    // from RG5-fix2).
+    const dualKey = makeMessageEvent('$remote-dual', 10);
+    dualKey.event.unsigned = { transaction_id: 'txn-dual' };
+    const singleKeyRepaired = makeMessageEventWithReplacement('$remote-dual', 10, 15);
+
+    // Existing = dual-key without replacement.
+    // Incoming = single-key WITH replacement.
+    // Picker must prefer the replacement-carrying instance (asymmetric
+    // raw check from 3fbe8afd). Canonicalizer must displace the loser
+    // from BOTH of its keys, and install the winner under the union.
+    const result = mergeThreadRenderEvents([dualKey], [singleKeyRepaired]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(singleKeyRepaired);
+    // Displacement was observable.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
+
+  it('does not bump the displacement counter when incoming has no conflict', () => {
+    const first = makeMessageEvent('$a', 10);
+    const second = makeMessageEvent('$b', 20);
+    const result = mergeThreadRenderEvents([first], [second]);
+    expect(result).toHaveLength(2);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('does not bump when the same instance is re-registered', () => {
+    const shared = makeMessageEvent('$same', 10);
+    // Both loops write the same instance under the same keys; no
+    // conflict, no displacement.
+    const result = mergeThreadRenderEvents([shared], [shared]);
+    expect(result).toEqual([shared]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('preserves the winner even when the loser held a key the winner did not', () => {
+    // Losing instance has a txnId the winner never had. The
+    // canonicalizer must reclaim that key onto the winner so any
+    // consumer looking up by txnId still resolves to the winner.
+    const withTxn = makeMessageEvent('$id', 10);
+    withTxn.event.unsigned = { transaction_id: 'txn-lost' };
+    const winnerRepaired = makeMessageEventWithReplacement('$id', 10, 15);
+
+    const result = mergeThreadRenderEvents([withTxn], [winnerRepaired]);
+    expect(result).toEqual([winnerRepaired]);
+    // Downstream reachability check: the winner survives regardless
+    // of which key a subsequent merge cycle happens to observe.
+    // Simulate a subsequent merge that supplies only the loser's
+    // txnId — the winner must still be the resolvable instance for
+    // that id via the picker's normal `mergedKeys` logic.
+    const later = makeMessageEvent('$id', 10);
+    later.event.unsigned = { transaction_id: 'txn-lost' };
+    const secondPass = mergeThreadRenderEvents(result, [later]);
+    // The second-pass picker will prefer the raw-replacement carrier
+    // (winnerRepaired) over `later` per the asymmetric rule from
+    // RG5-fix2, so the survivor is still the repaired instance.
+    expect(secondPass).toHaveLength(1);
+    expect(secondPass[0]).toBe(winnerRepaired);
+  });
+
+  it('bumps displacements per losing instance in a 3-way conflict, not per key', () => {
+    // Three instances of the same event id arrive across the two
+    // input arrays, with partially overlapping keys. Two of them
+    // must lose; the counter must bump exactly twice (per-instance).
+    const a = makeMessageEvent('$same', 10);
+    a.event.unsigned = { transaction_id: 'txn-a' };
+    const b = makeMessageEvent('$same', 10);
+    b.event.unsigned = { transaction_id: 'txn-b' };
+    const cRepaired = makeMessageEventWithReplacement('$same', 10, 15);
+
+    const result = mergeThreadRenderEvents([a, b], [cRepaired]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(cRepaired);
+    // Two losers displaced (a and b). Note: existingEvents pass writes
+    // a, then b — b already conflicts with a via `event:$same`, so b
+    // triggers a displacement of a. Then incoming cRepaired displaces
+    // b. Total per-instance displacements: 2.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(2);
+  });
+
+  it('symmetric — replacement-carrier wins whether it is existing or incoming', () => {
+    const bareA = makeMessageEvent('$id', 10);
+    bareA.event.unsigned = { transaction_id: 'txn-x' };
+    const repairedA = makeMessageEventWithReplacement('$id', 10, 15);
+
+    // Existing repaired, incoming bare — repaired must win.
+    expect(mergeThreadRenderEvents([repairedA], [bareA])).toEqual([repairedA]);
+    resetCacheProbe();
+
+    const bareB = makeMessageEvent('$id2', 10);
+    bareB.event.unsigned = { transaction_id: 'txn-y' };
+    const repairedB = makeMessageEventWithReplacement('$id2', 10, 15);
+
+    // Existing bare, incoming repaired — repaired must win.
+    expect(mergeThreadRenderEvents([bareB], [repairedB])).toEqual([repairedB]);
+  });
+
+  it('permanent must-stay-0 tripwire: registrySwappedRepairedForUnrepaired never fires under the picker rule', () => {
+    // The RG5c tripwire re-homed at the canonicalization site (per
+    // team-lead's F1 correction): must stay 0 across every scenario the
+    // picker guards. Any non-zero reading names a picker-rule violation
+    // (a loser carried `.replacingEvent()` non-null while the chosen
+    // winner had it null — the RG5-fix2 raw-presence rule was
+    // bypassed).
+    //
+    // Exercise every RG5d scenario in one describe-scoped assertion so
+    // the invariant is checked against the full canonicalizer surface,
+    // not just one path.
+    resetCacheProbe();
+    const scenarios: Array<() => void> = [
+      // Simple dual-key + single-key collapse.
+      () => {
+        const dual = makeMessageEvent('$s1', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s1' };
+        const repaired = makeMessageEventWithReplacement('$s1', 10, 15);
+        mergeThreadRenderEvents([dual], [repaired]);
+      },
+      // Reversed: existing repaired, incoming bare.
+      () => {
+        const dual = makeMessageEvent('$s2', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s2' };
+        const repaired = makeMessageEventWithReplacement('$s2', 10, 15);
+        mergeThreadRenderEvents([repaired], [dual]);
+      },
+      // Three-way conflict.
+      () => {
+        const a = makeMessageEvent('$s3', 10);
+        a.event.unsigned = { transaction_id: 'txn-3a' };
+        const b = makeMessageEvent('$s3', 10);
+        b.event.unsigned = { transaction_id: 'txn-3b' };
+        const repaired = makeMessageEventWithReplacement('$s3', 10, 15);
+        mergeThreadRenderEvents([a, b], [repaired]);
+      },
+      // Neither side carries replacement — tripwire must not fire.
+      () => {
+        const a = makeMessageEvent('$s4', 10);
+        a.event.unsigned = { transaction_id: 'txn-4' };
+        const b = makeMessageEvent('$s4', 10);
+        mergeThreadRenderEvents([a], [b]);
+      },
+    ];
+    scenarios.forEach((run) => run());
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  // Greptile P2 on PR #73: two DISTINCT confirmed events that happen to
+  // share a transaction_id (server misbehavior / cross-device
+  // coincidence) are separate identities. The shared `txn:` key must
+  // not let one displace the other's `event:` entry — pre-fix, the
+  // conflict scan treated any key collision as same-identity and
+  // silently dropped one real message from the merge output.
+  it('keeps two distinct confirmed events that share a transaction id', () => {
+    const first = makeMessageEvent('$distinct-1', 10);
+    first.event.unsigned = { transaction_id: 'txn-shared' };
+    const second = makeMessageEvent('$distinct-2', 11);
+    second.event.unsigned = { transaction_id: 'txn-shared' };
+
+    const merged = mergeThreadRenderEvents([first], [second]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(first);
+    expect(merged).toContain(second);
+    // Distinct identities — no displacement work should be counted.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('still collapses a local echo with its own confirmed event across a shared txn key', () => {
+    const { localEcho, remoteEcho } = makeLocalEchoPair('txn-collapse');
+
+    const merged = mergeThreadRenderEvents([localEcho], [remoteEcho]);
+
+    expect(merged).toEqual([remoteEcho]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
+
+  // Greptile P1 on PR #73: an echo whose txn already RESOLVES to a
+  // known confirmed id must not collapse a DIFFERENT confirmed event
+  // that reuses its transaction key — the echo-confirmation bridge
+  // only applies to the echo's own confirmation.
+  it('does not let a resolved local echo collapse a different confirmed event reusing its txn key', () => {
+    const localEcho = makeMessageEvent('~local-txn-x', 10);
+    localEcho.setTxnId('txn-x');
+    const impostor = makeMessageEvent('$real-b', 11);
+    impostor.event.unsigned = { transaction_id: 'txn-x' };
+    // Resolver knows txn-x confirms to $real-a — NOT the impostor.
+    const resolver = (txnId: string) => (txnId === 'txn-x' ? '$real-a' : undefined);
+
+    const merged = mergeThreadRenderEvents([localEcho], [impostor], resolver);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(localEcho);
+    expect(merged).toContain(impostor);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('collapses an unresolved local echo with a same-txn confirmed arrival (the confirmation)', () => {
+    const localEcho = makeMessageEvent('~local-txn-y', 10);
+    localEcho.setTxnId('txn-y');
+    const confirmation = makeMessageEvent('$real-y', 10);
+    confirmation.event.unsigned = { transaction_id: 'txn-y' };
+    // No resolver: the echo's confirmed id is not yet known, so a
+    // same-txn confirmed arrival IS the confirmation by definition.
+    const merged = mergeThreadRenderEvents([localEcho], [confirmation]);
+
+    expect(merged).toEqual([confirmation]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
   });
 });
 
@@ -560,5 +1130,70 @@ describe('primeTimelineRenderContextBefore', () => {
       expect(primed?.isPrevRendered ?? false).toBe(foldedRendered);
       expect(primed?.pendingDayDivider ?? false).toBe(foldedDayDivider);
     }
+  });
+});
+
+describe('isThreadFallbackReply', () => {
+  const makeReplyEvent = (relatesTo?: Record<string, unknown>) =>
+    new MatrixEvent({
+      content: {
+        body: 'hello',
+        msgtype: 'm.text',
+        ...(relatesTo ? { 'm.relates_to': relatesTo } : {}),
+      },
+      event_id: '$reply:example.org',
+      origin_server_ts: 10,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+
+  it('is true for a thread reply whose in_reply_to is only a fallback', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: '$prev:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(true);
+  });
+
+  it('is false for an explicit reply inside a thread', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      is_falling_back: false,
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a thread reply without the fallback flag', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.thread',
+      event_id: '$root:example.org',
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a plain rich reply outside threads', () => {
+    const event = makeReplyEvent({
+      'm.in_reply_to': { event_id: '$target:example.org' },
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for non-thread relations even with the flag set', () => {
+    const event = makeReplyEvent({
+      rel_type: 'm.replace',
+      event_id: '$target:example.org',
+      is_falling_back: true,
+    });
+    expect(isThreadFallbackReply(event)).toBe(false);
+  });
+
+  it('is false for a message without relations', () => {
+    expect(isThreadFallbackReply(makeReplyEvent())).toBe(false);
   });
 });
