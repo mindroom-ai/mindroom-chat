@@ -58,11 +58,15 @@ the existing `BackupRestoreTile` / `EnableVerification` /
 `DeviceVerificationSetup` (`resetKeyBackup`) flow lives — no new backup
 machinery.
 
-D7.4 UTD COPY. The undecryptable-event fallback now reads "Couldn't decrypt yet
-— waiting for the encryption key" instead of the terse "Unable to decrypt
-message", complementing (not replacing) the backend D4 in-room notice, which
-must work for users on any client. Copy-only; the string is not asserted by any
-test.
+D7.4 UTD COPY. The undecryptable-event fallback now reads "Couldn't decrypt
+this message — the encryption key isn't available" instead of the terse
+"Unable to decrypt message", complementing (not replacing) the backend D4
+in-room notice, which must work for users on any client. The friendlier tone
+is preserved without promising a key that may never arrive: the component
+renders for every `m.bad.encrypted` event, including permanent failures
+(MEGOLM_KEY_WITHHELD*, historical-no-backup) where waiting would be
+misleading — no failure-code branching is added (out of scope for this
+pass). Copy-only; the string is not asserted by any test.
 
 D7.5 DEPENDENCY POLICY — matrix-js-sdk / MSC4153 (READ BEFORE BUMPING js-sdk).
 matrix-js-sdk carries the Rust crypto stack that implements MSC4153 ("exclude
