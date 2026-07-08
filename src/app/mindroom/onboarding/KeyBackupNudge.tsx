@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Text, color } from 'folds';
-import { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useKeyBackupInfo } from '../../hooks/useKeyBackup';
 import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
 import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudge';
+import { useKeyBackupPresence } from './useKeyBackupPresence';
 
-function KeyBackupNudgeCard({ crypto }: { crypto: CryptoApi }) {
+function KeyBackupNudgeCard() {
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const [dismissed, setDismissed] = useState(() => readKeyBackupNudgeDismissed(userId));
-  const backupInfo = useKeyBackupInfo(crypto);
+  const presence = useKeyBackupPresence();
 
-  // Only nudge once the server has confirmed there is no backup (`null`).
-  // `undefined` means the lookup is still in flight; an object means a backup
-  // already exists, so there is nothing to set up.
-  if (dismissed || backupInfo !== null) return null;
+  // Only nudge once the server has definitively answered that there is no
+  // backup. `unknown` (initial state or transient failure) keeps the nudge
+  // hidden — otherwise a network hiccup at mount would nag a user who already
+  // has backup, and their dismissal would permanently suppress it.
+  if (dismissed || presence !== 'absent') return null;
 
   const openSecuritySettings = () => setSettingsModal({ initialPage: SettingsPages.DevicesPage });
   const onDismiss = () => {
@@ -74,7 +74,8 @@ function KeyBackupNudgeCard({ crypto }: { crypto: CryptoApi }) {
 /**
  * First-run onboarding nudge that steers a user into secure key backup so a new
  * device login can still read their encrypted agent history. Renders nothing
- * without crypto, when a backup already exists, or after the user dismisses it.
+ * without crypto, until the server confirms no backup exists, when a backup
+ * already exists, or after the user dismisses it.
  */
 export function KeyBackupNudge() {
   const mx = useMatrixClient();
@@ -83,5 +84,5 @@ export function KeyBackupNudge() {
 
   // Key by user id so the per-account dismissal state (read once on mount) is
   // re-evaluated if the active session changes without a full unmount.
-  return <KeyBackupNudgeCard key={mx.getSafeUserId()} crypto={crypto} />;
+  return <KeyBackupNudgeCard key={mx.getSafeUserId()} />;
 }

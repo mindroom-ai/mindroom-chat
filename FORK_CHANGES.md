@@ -43,12 +43,20 @@ reserve the namespace (mindroom.chat does so via registration tokens).
 
 D7.3 KEY-BACKUP ONBOARDING. A dismissible `KeyBackupNudge` on the WelcomePage
 first-run column steers users into secure server-side key backup so a new-device
-login can still read their encrypted agent history. Shows only once the server
-confirms no backup exists (`useKeyBackupInfo` → `null`), never when crypto is
-absent, backup already exists, or the user dismissed it (per-account
-localStorage flag, fail-closed). Its action opens Settings → Devices, where the
-existing `BackupRestoreTile` / `EnableVerification` / `DeviceVerificationSetup`
-(`resetKeyBackup`) flow lives — no new backup machinery.
+login can still read their encrypted agent history. The nudge fires only on a
+three-state `useKeyBackupPresence` returning `'absent'` — a direct
+`/room_keys/version` request that maps M_NOT_FOUND (or plain HTTP 404) to
+`'absent'`, a successful response to `'present'`, and every other failure
+(network, rate limit) to `'unknown'` (nudge hidden). This avoids
+`crypto.getKeyBackupInfo()`, whose `null` return conflates "server confirmed
+no backup" with "the check errored" and would otherwise nag users who already
+have backup enabled whenever the first check fails — and their dismissal
+would permanently suppress it per account. Never fires without crypto, when a
+backup already exists, or after the user dismisses it (per-account
+localStorage flag, fail-closed). Its action opens Settings → Devices, where
+the existing `BackupRestoreTile` / `EnableVerification` /
+`DeviceVerificationSetup` (`resetKeyBackup`) flow lives — no new backup
+machinery.
 
 D7.4 UTD COPY. The undecryptable-event fallback now reads "Couldn't decrypt yet
 — waiting for the encryption key" instead of the terse "Unable to decrypt
@@ -76,16 +84,18 @@ message encryption policy config".
 
 - Files changed:
   - `src/app/utils/matrix-crypto.ts` (add `deviceSignedByOwner`)
-  - `src/app/mindroom/matrix/useAgentDeviceTrust.ts` (+ `.test.ts`)
-  - `src/app/mindroom/matrix/AgentVerifiedBadge.tsx`
+  - `src/app/mindroom/matrix/agentIdentity.ts` (+ same-server `isMindroomAgentUserIdForViewer`)
+  - `src/app/mindroom/matrix/useAgentDeviceTrust.ts` (+ `.test.ts`, exports `collectAgentDeviceSignatures` and `allDevicesSignedByOwner`)
+  - `src/app/mindroom/matrix/AgentVerifiedBadge.tsx` (viewer-scoped gate)
   - `src/app/features/room/MembersDrawer.tsx` (badge in member row)
   - `src/app/components/user-profile/UserHero.tsx` (badge in profile card)
   - `src/app/mindroom/onboarding/keyBackupNudge.ts` (+ `.test.ts`)
+  - `src/app/mindroom/onboarding/useKeyBackupPresence.ts` (+ `.test.ts`, three-state absent/present/unknown)
   - `src/app/mindroom/onboarding/KeyBackupNudge.tsx`
   - `src/app/pages/client/WelcomePage.tsx` (mount nudge; test mock gains `getCrypto`)
   - `src/app/components/message/content/FallbackContent.tsx` (UTD copy)
 - Tests and validation:
-  - New focused: `npx vitest run src/app/mindroom/onboarding/keyBackupNudge.test.ts src/app/mindroom/matrix/useAgentDeviceTrust.test.ts` (7 tests).
+  - New focused: `npx vitest run src/app/mindroom/onboarding/keyBackupNudge.test.ts src/app/mindroom/onboarding/useKeyBackupPresence.test.ts src/app/mindroom/matrix/useAgentDeviceTrust.test.ts` (18 tests).
   - Regression: `npx vitest run src/app/pages/client/WelcomePage.test.ts src/app/features/room/MembersDrawer.test.ts` green after adding `getCrypto: () => undefined` to the WelcomePage mock client.
   - `npm run typecheck`, `npm run lint` (warning-only baseline), `npm test`, `npm run build`.
 
