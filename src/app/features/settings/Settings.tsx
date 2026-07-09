@@ -14,6 +14,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { General } from './general';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -52,19 +53,23 @@ const SIMPLE_MODE_HIDDEN_PAGES: SettingsPage[] = [
 const useSettingsMenuItems = (
   showLocalMindRoom: boolean,
   simpleMode: boolean
-): SettingsMenuItem[] =>
-  useMemo(() => {
-    const items = getSettingsMenuItems(showLocalMindRoom);
+): SettingsMenuItem[] => {
+  const { t } = useTranslation();
+
+  return useMemo(() => {
+    const items = getSettingsMenuItems(showLocalMindRoom, t);
     return simpleMode
       ? items.filter((item) => !SIMPLE_MODE_HIDDEN_PAGES.includes(item.page))
       : items;
-  }, [showLocalMindRoom, simpleMode]);
+  }, [showLocalMindRoom, simpleMode, t]);
+};
 
 type SettingsProps = {
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
 export function Settings({ initialPage, requestClose }: SettingsProps) {
+  const { t } = useTranslation();
   const { sidebar } = useClientConfig();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -115,7 +120,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
                   />
                 </Avatar>
                 <Text size="H4" truncate>
-                  Settings
+                  {t('settings.title')}
                 </Text>
               </Box>
               <Box shrink="No">
@@ -163,7 +168,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
                         before={<Icon src={Icons.Power} size="100" />}
                         onClick={() => setLogout(true)}
                       >
-                        <Text size="B400">Logout</Text>
+                        <Text size="B400">{t('settings.logout')}</Text>
                       </Button>
                       {logout && (
                         <Overlay open backdrop={<OverlayBackdrop />}>

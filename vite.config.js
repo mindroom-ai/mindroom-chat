@@ -44,7 +44,10 @@ export const copyFiles = {
       dest: 'public/',
     },
     {
-      src: 'public/locales',
+      // Locale files live in src/app/locales (the single source of truth,
+      // bundle-importable); this copy keeps them fetchable at runtime under
+      // public/locales/{{lng}}.json for i18next-http-backend.
+      src: 'src/app/locales',
       dest: 'public/',
     },
   ],

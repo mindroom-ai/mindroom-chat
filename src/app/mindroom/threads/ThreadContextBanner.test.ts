@@ -119,6 +119,15 @@ vi.mock('./ThreadIndicator.css', () => ({
   ThreadScheduledIcon: 'ThreadScheduledIcon',
 }));
 
+// Resolve t() keys against the real en.json so assertions below keep
+// checking user-visible English copy ('Thread View', 'Resolve', …).
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 /**
  * ThreadContextBanner integration tests.
  *
