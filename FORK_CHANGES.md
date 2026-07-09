@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### E2EE command autocomplete parity (2026-07-09)
+
+- Status:
+  - PR ready.
+- Symptom:
+  - Typing `!e2ee` in the composer and pressing Enter did nothing.
+  - The browser never sent a Matrix event because the MindRoom `!` autocomplete query stayed active with zero matches, and the room input Enter handler intentionally returns while autocomplete is open.
+- Summary:
+  - Add `!encrypt` and `!e2ee` to the fork-owned MindRoom command autocomplete list so the list mirrors the backend command parser again.
+- Validation:
+  - RED: `npm test -- src/app/mindroom/commands/mindroomCommands.test.ts` failed with missing `encrypt` and `e2ee` entries.
+  - GREEN: `npm test -- src/app/mindroom/commands/mindroomCommands.test.ts` passed.
+  - `git diff --check -- src/app/mindroom/commands/mindroomCommands.ts src/app/mindroom/commands/mindroomCommands.test.ts FORK_CHANGES.md` passed.
+  - `npm run lint` passed with existing warnings.
+  - `npm run typecheck` is blocked by existing `MindroomRoomTimeline` virtualizer type errors and the existing `KeyBackupNudge`/`keyBackupNudge` casing collision.
+  - `npm run build` is blocked by the existing `KeyBackupNudge` export/casing collision.
+  - `npm test` is blocked by existing `fake-indexeddb/auto`, virtualizer iOS hook, and `WelcomePage`/`KeyBackupNudge` failures.
+
 ### E2EE Phase 4 — verified-agent affordance, key-backup onboarding, UTD copy (2026-07-08)
 
 Fork end of the cross-repo Matrix E2EE work (mindroom PR #1423 backend +
