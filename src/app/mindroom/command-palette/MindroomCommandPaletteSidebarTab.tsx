@@ -2,10 +2,13 @@ import React from 'react';
 import { Icon, Icons } from 'folds';
 import { useAtom } from 'jotai';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../components/sidebar';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 
 export function MindroomCommandPaletteSidebarTab() {
   const [opened, setOpen] = useAtom(commandPaletteOpenAtom);
+  const simpleMode = useSimpleMode();
+  if (simpleMode) return null;
 
   const open = () => setOpen(true);
 

@@ -21,15 +21,20 @@ import {
 import { CreateTab } from './sidebar/CreateTab';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
+import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
 
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
+  // Simple mode keeps only the essentials: Home, Direct, Threads, plus the
+  // sticky Inbox/Settings stack below.
+  const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
   const showThreads = sidebar?.showThreads ?? true;
-  const showExploreCommunity = sidebar?.showExploreCommunity ?? true;
-  const showAddSpace = sidebar?.showAddSpace ?? true;
-  const showMindRoom = sidebar?.showMindRoom ?? true;
+  const showExploreCommunity = !simpleMode && (sidebar?.showExploreCommunity ?? true);
+  const showAddSpace = !simpleMode && (sidebar?.showAddSpace ?? true);
+  const showMindRoom = !simpleMode && (sidebar?.showMindRoom ?? true);
+  const showSecondStack = showExploreCommunity || showMindRoom || showAddSpace;
 
   return (
     <Sidebar>
@@ -41,13 +46,17 @@ export function SidebarNav() {
               <DirectTab />
               {showThreads && <ThreadsTab />}
             </SidebarStack>
-            <SpaceTabs scrollRef={scrollRef} />
-            <SidebarStackSeparator />
-            <SidebarStack>
-              {showExploreCommunity && <ExploreTab />}
-              {showMindRoom && <MindroomTab />}
-              {showAddSpace && <CreateTab />}
-            </SidebarStack>
+            {!simpleMode && <SpaceTabs scrollRef={scrollRef} />}
+            {showSecondStack && (
+              <>
+                <SidebarStackSeparator />
+                <SidebarStack>
+                  {showExploreCommunity && <ExploreTab />}
+                  {showMindRoom && <MindroomTab />}
+                  {showAddSpace && <CreateTab />}
+                </SidebarStack>
+              </>
+            )}
           </Scroll>
         }
         sticky={

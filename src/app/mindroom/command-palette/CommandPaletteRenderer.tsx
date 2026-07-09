@@ -7,6 +7,7 @@ import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { CommandPalette } from './CommandPalette';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import { useCommandPaletteSource } from './commandPaletteItems';
@@ -132,15 +133,19 @@ export function CommandPaletteRenderer() {
   const [open, setOpen] = useAtom(commandPaletteOpenAtom);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const handleLogout = useCallback(() => setLogoutOpen(true), []);
+  const simpleMode = useSimpleMode();
   useCommandPaletteHotkey(
     open,
     setOpen,
-    useCallback((event: KeyboardEvent) => isKeyHotkey('mod+k', event), [])
+    useCallback(
+      (event: KeyboardEvent) => !simpleMode && isKeyHotkey('mod+k', event),
+      [simpleMode]
+    )
   );
 
   return (
     <>
-      {open && (
+      {open && !simpleMode && (
         <OpenCommandPalette
           requestClose={() => setOpen(false)}
           onLogout={handleLogout}
