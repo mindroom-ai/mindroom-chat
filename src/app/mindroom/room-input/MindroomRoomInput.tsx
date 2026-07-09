@@ -1220,7 +1220,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 <Icon size="600" src={Icons.File} />
                 <Text size="H4" align="Center">
                   {t('composer.dropFiles', {
-                    roomName: room?.name || t('composer.roomFallback'),
+                    roomName: room.name || t('composer.roomFallback'),
                   })}
                 </Text>
                 <Text align="Center">{t('composer.dropFilesHint')}</Text>

@@ -38,6 +38,8 @@ test.describe('live composer i18n', () => {
     await openRoomComposer(page, roomId);
     await expect(composerPlaceholder(page)).toHaveText('Send a message...');
     await expect(page.getByRole('button', { name: 'Record voice message' })).toBeVisible();
+    // Settle time so fonts/paint finish before the documentation screenshot.
+    await page.waitForTimeout(500);
     await page.screenshot({ path: 'ui-audit/i18n-composer-en.png' });
 
     const cases = [
@@ -51,6 +53,7 @@ test.describe('live composer i18n', () => {
       await openRoomComposer(page, roomId);
       await expect(composerPlaceholder(page)).toHaveText(expectedPlaceholder);
       await expect(page.getByRole('button', { name: voiceLabel })).toBeVisible();
+      await page.waitForTimeout(500);
       await page.screenshot({ path: `ui-audit/i18n-composer-${lng}.png` });
     }
   });

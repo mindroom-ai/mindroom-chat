@@ -32,6 +32,8 @@ test.describe('live shell i18n', () => {
     await expect(page.getByPlaceholder('Befehl eingeben oder suchen...')).toBeVisible();
     await expect(page.getByText('Aktionen').first()).toBeVisible();
     await expect(page.getByText('Einstellungen öffnen').first()).toBeVisible();
+    // Settle time so fonts/paint finish before the documentation screenshot.
+    await page.waitForTimeout(500);
     await page.screenshot({ path: 'ui-audit/i18n-shell-de-palette.png' });
     await page.keyboard.press('Escape');
 
@@ -44,6 +46,7 @@ test.describe('live shell i18n', () => {
     await expect(nlPaletteButton).toBeVisible();
     await nlPaletteButton.click();
     await expect(page.getByPlaceholder('Typ een commando of zoek...')).toBeVisible();
+    await page.waitForTimeout(500);
     await page.screenshot({ path: 'ui-audit/i18n-shell-nl-palette.png' });
   });
 });
