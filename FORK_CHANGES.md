@@ -11,7 +11,8 @@ always lands on the room's own view (focused overview, compact, or classic,
 per the room's stored view mode, which is untouched).
 
 Removed: `threads/lastOpenThread.ts` (+ test), the auto-restore /
-save / clear effects in `useRoomThreadRouteRestore` (the hook keeps its two
+save / clear effects in the room thread route hook (renamed
+`useRoomThreadRouteRestore` → `useRoomThreadRouteGuards` for its two
 remaining jobs: classic-mode thread-URL redirect and failed-thread
 `removeRecentThread` cleanup), the `ClientLayout` startup effect that
 re-injected the saved thread into the bare-home redirect
@@ -22,7 +23,9 @@ Session-path restore itself (`routeSessionGuards` → `lastKnownPath`) is
 unaffected: reloading mid-thread still restores the thread because the
 threadId is part of the stored URL. Logout cleanup now removes the legacy
 `lastOpenThread<userId>` localStorage key directly
-(`LEGACY_LAST_OPEN_THREAD_STORE_PREFIX` in `sessionCleanup.ts`).
+(`LEGACY_LAST_OPEN_THREAD_STORE_PREFIX` in `sessionCleanup.ts`), through
+`getSafeLocalStorage()` so a storage-blocked environment cannot abort the
+rest of the cleanup (review follow-up).
 
 Also fixed in the same PR (pre-existing, blocked local validation on macOS):
 `onboarding/keyBackupNudge.ts`/`.test.ts` collided case-insensitively with

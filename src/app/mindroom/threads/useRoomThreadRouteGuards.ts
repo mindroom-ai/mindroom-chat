@@ -3,19 +3,22 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { removeRecentThread } from '../recent-threads/recentThreads';
 import type { RoomViewMode } from './roomViewMode';
 
-type UseRoomThreadRouteRestoreOptions = {
+type UseRoomThreadRouteGuardsOptions = {
   eventId?: string;
   roomId: string;
   threadId?: string;
   viewMode: RoomViewMode;
 };
 
-export const useRoomThreadRouteRestore = ({
+// Guards a room's thread routes: classic view mode never renders a thread
+// route (it redirects to the room timeline), and the returned failed-thread
+// handler drops a thread that failed to load from the recent-threads panel.
+export const useRoomThreadRouteGuards = ({
   eventId,
   roomId,
   threadId,
   viewMode,
-}: UseRoomThreadRouteRestoreOptions): ((failedThreadId: string) => void) => {
+}: UseRoomThreadRouteGuardsOptions): ((failedThreadId: string) => void) => {
   const { navigateRoom } = useRoomNavigate();
 
   useEffect(() => {
