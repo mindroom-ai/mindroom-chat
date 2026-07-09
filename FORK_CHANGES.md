@@ -51,6 +51,13 @@ SURFACES HIDDEN WHEN ON:
   behavior). Stored state is untouched, so leaving simple mode restores
   the power-user setup. The Unresolved button flips only the resolved
   dimension through the existing effective-query-state (DSL) path.
+  GOTCHA (regression 2026-07-09, user-reported): the search-DSL string is
+  authoritative downstream — `useMindroomThreadIndex` recomputes the live
+  state via `applyParsedThreadFilterQuery`, which resets every status key
+  the query does not mention. The projection must therefore serialize its
+  own searchQuery (`-is:resolved`), not blank it; a blank query silently
+  erased the unresolved filter and the toggle did nothing. Pinned by the
+  "survives the DSL round trip" test in `roomThreadOverviewModel.test.ts`.
 - Room header: search + pinned-messages hidden; kebab trimmed to mark-read,
   notifications, invite, leave.
 - Composer: markdown-toolbar toggle and sticker hidden; attach, VOICE,

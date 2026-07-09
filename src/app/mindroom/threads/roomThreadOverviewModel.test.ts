@@ -294,6 +294,7 @@ describe('roomThreadOverviewModel', () => {
       expect(simplifyThreadFilterState(advanced)).toEqual({
         ...createDefaultThreadFilterState(),
         resolved: 'exclude',
+        searchQuery: '-is:resolved',
       });
     });
 
@@ -308,6 +309,34 @@ describe('roomThreadOverviewModel', () => {
       expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }))).toEqual(
         createDefaultThreadFilterState()
       );
+    });
+
+    it('survives the DSL round trip the thread index applies to the live state', async () => {
+      // Regression: the search DSL is authoritative downstream — the index
+      // recomputes the live state as applyParsedThreadFilterQuery(state,
+      // parse(state.searchQuery)), which resets every status key the query
+      // does not mention. A projection with a blank query therefore silently
+      // erased the unresolved filter and the simple-mode toggle did nothing.
+      const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
+      const { applyParsedThreadFilterQuery, parseThreadFilterQuery } = await import(
+        './threadFilterDsl'
+      );
+
+      const projected = simplifyThreadFilterState(makeDefaultState({ resolved: 'exclude' }));
+      const live = applyParsedThreadFilterQuery(
+        projected,
+        parseThreadFilterQuery(projected.searchQuery ?? '')
+      );
+
+      expect(live.resolved).toBe('exclude');
+
+      const projectedOff = simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }));
+      const liveOff = applyParsedThreadFilterQuery(
+        projectedOff,
+        parseThreadFilterQuery(projectedOff.searchQuery ?? '')
+      );
+
+      expect(liveOff.resolved).toBe('any');
     });
   });
 });
