@@ -719,6 +719,7 @@ export function RoomThreadOverview({
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const simpleMode = useSimpleMode();
+  const { t } = useTranslation();
   const filtersActive = hasActiveThreadFilters(state);
   const sortLabel =
     state.sortBy === 'natural'
@@ -856,8 +857,8 @@ export function RoomThreadOverview({
               <Tooltip style={{ maxWidth: toRem(220) }}>
                 <Text size="T200">
                   {unresolvedOnly
-                    ? 'Showing unresolved threads. Click to show all.'
-                    : 'Showing all threads. Click to show only unresolved.'}
+                    ? t('thread.simpleFilter.showingUnresolved')
+                    : t('thread.simpleFilter.showingAll')}
                 </Text>
               </Tooltip>
             }
@@ -871,7 +872,7 @@ export function RoomThreadOverview({
                 onClick={onToggleUnresolvedOnly}
                 data-simple-unresolved-toggle="true"
               >
-                <Text size="T200">Unresolved</Text>
+                <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
               </button>
             )}
           </TooltipProvider>

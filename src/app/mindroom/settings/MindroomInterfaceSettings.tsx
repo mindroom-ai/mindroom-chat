@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, color, Switch, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import {
@@ -17,6 +18,7 @@ type MindroomInterfaceSettingsProps = {
  * stay visible while simple mode is ON — it is the way back out.
  */
 export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
+  const { t } = useTranslation();
   const { simpleMode } = useMindroomAccountSettings();
   const setAccountSettings = useSetMindroomAccountSettings();
   // setAccountData only resolves once the change echoes back over sync, so
@@ -37,18 +39,18 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">Interface</Text>
+      <Text size="L400">{t('settings.general.interface.sectionTitle')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
         <SettingTile
-          title="Simple Mode"
-          description="Hide advanced features like spaces, the command palette and thread filters. Synced across your devices."
+          title={t('settings.general.interface.simpleMode')}
+          description={t('settings.general.interface.simpleModeDescription')}
           after={
             <Switch variant="Primary" value={pending ?? simpleMode} onChange={handleSimpleMode} />
           }
         >
           {saveFailed && (
             <Text size="T200" style={{ color: color.Critical.Main }}>
-              Could not save the change. Check your connection and try again.
+              {t('settings.general.interface.simpleModeSaveFailed')}
             </Text>
           )}
         </SettingTile>
