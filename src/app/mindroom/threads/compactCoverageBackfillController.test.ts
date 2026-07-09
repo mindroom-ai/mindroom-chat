@@ -66,7 +66,9 @@ describe('shouldRunCompactCoverageBackfill', () => {
 
 describe('useCompactCoverageBackfillController', () => {
   it('paginates back when the compact view is enabled and coverage is shallow', async () => {
-    const paginateBack = vi.fn().mockImplementation(() => new Promise<void>(() => undefined));
+    const paginateBack = vi.fn().mockImplementation(() => new Promise<void>(() => {
+          // never settles — pins the in-flight state
+        }));
 
     await act(async () => {
       create(
@@ -150,7 +152,9 @@ describe('useCompactCoverageBackfillController', () => {
   });
 
   it('does not start a second batch while one is in flight', async () => {
-    const paginateBack = vi.fn().mockImplementation(() => new Promise<void>(() => undefined));
+    const paginateBack = vi.fn().mockImplementation(() => new Promise<void>(() => {
+          // never settles — pins the in-flight state
+        }));
     let renderer: ReturnType<typeof create> | undefined;
     const room = makeRoom();
 
