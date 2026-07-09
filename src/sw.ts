@@ -26,8 +26,10 @@ const navigationFallbackDenylist = [
   /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
   // Static documents (the embedded Element Call widget iframe navigates to
   // /public/element-call/index.html); serving the app shell instead leaves
-  // calls stuck on "Joining" because the widget never boots.
-  /^\/(?:[^/]+\/)?public(?:\/|$)/,
+  // calls stuck on "Joining" because the widget never boots. Workbox matches
+  // the denylist against pathname + search, so "?" is a valid boundary too
+  // (fragments never reach the service worker, so "#" is not).
+  /^\/(?:[^/]+\/)?public(?:\/|\?|$)/,
 ];
 
 // createHandlerBoundToURL throws for non-precached URLs, which would fail

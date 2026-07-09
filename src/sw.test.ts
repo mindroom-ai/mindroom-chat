@@ -47,11 +47,15 @@ describe('service worker app shell caching', () => {
     // (with widget query params, so the precache route never matches it).
     // Answering that navigation with the app shell loads Cinny inside its
     // own call iframe and leaves joins stuck on "Joining" forever.
-    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?public(?:\\/|$)/');
+    // Workbox matches denylist entries against pathname + search, so "?"
+    // must be a boundary as well ("#" fragments never reach the SW).
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?public(?:\\/|\\?|$)/');
 
-    const denylistEntry = /^\/(?:[^/]+\/)?public(?:\/|$)/;
+    const denylistEntry = /^\/(?:[^/]+\/)?public(?:\/|\?|$)/;
     expect(denylistEntry.test('/public/element-call/index.html')).toBe(true);
     expect(denylistEntry.test('/mindroom/public/element-call/index.html')).toBe(true);
+    expect(denylistEntry.test('/public?foo=bar')).toBe(true);
+    expect(denylistEntry.test('/publicfoo')).toBe(false);
     expect(denylistEntry.test('/home/some-room')).toBe(false);
     expect(denylistEntry.test('/')).toBe(false);
   });

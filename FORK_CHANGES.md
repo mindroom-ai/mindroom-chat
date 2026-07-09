@@ -24,6 +24,10 @@
     and no Element Call boot logs at all.
   - Fix: denylist `/public/` (base-path aware) in the navigation fallback so
     static documents are always fetched from the network.
+  - Review follow-up: `?` is also accepted as the boundary after `public`
+    because Workbox matches denylist entries against pathname + search
+    (`#` is deliberately not included — fragments never reach the service
+    worker).
 - Files changed:
   - `FORK_CHANGES.md`
   - `src/sw.ts`
