@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
-import { useAccountData } from '../../hooks/useAccountData';
+import { atom, useAtomValue, useSetAtom } from 'jotai';
+import { ClientEvent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
+import { useCallback, useEffect } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
+  DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
   type MindroomAccountSettings,
   mergeMindroomAccountSettings,
@@ -9,17 +11,50 @@ import {
 } from './mindroomAccountSettings';
 
 /**
- * Reactive view of the `io.mindroom.settings` account-data dictionary.
- * Re-renders when the account data changes (locally or from another device).
+ * In-memory mirror of the `io.mindroom.settings` account-data dictionary,
+ * bound once at the client root (see `useBindAtoms`). Readers stay
+ * client-free: components (and their tests) see the default full interface
+ * until the binder seeds the atom from account data.
  */
-export const useMindroomAccountSettings = (): MindroomAccountSettings => {
-  const event = useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE);
-  return useMemo(() => sanitizeMindroomAccountSettings(event?.getContent()), [event]);
+export const mindroomAccountSettingsAtom = atom<MindroomAccountSettings>(
+  DEFAULT_MINDROOM_ACCOUNT_SETTINGS
+);
+
+export const useBindMindroomAccountSettingsAtom = (
+  mx: MatrixClient,
+  settingsAtom: typeof mindroomAccountSettingsAtom
+) => {
+  const setSettings = useSetAtom(settingsAtom);
+
+  useEffect(() => {
+    // Seed unconditionally: an account without the event must reset a value
+    // left behind by a previously bound account.
+    setSettings(
+      sanitizeMindroomAccountSettings(
+        mx.getAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as any)?.getContent()
+      )
+    );
+
+    const handleAccountData = (event: MatrixEvent) => {
+      if (event.getType() === MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE) {
+        setSettings(sanitizeMindroomAccountSettings(event.getContent()));
+      }
+    };
+
+    mx.on(ClientEvent.AccountData, handleAccountData);
+    return () => {
+      mx.removeListener(ClientEvent.AccountData, handleAccountData);
+    };
+  }, [mx, setSettings]);
 };
+
+export const useMindroomAccountSettings = (): MindroomAccountSettings =>
+  useAtomValue(mindroomAccountSettingsAtom);
 
 /**
  * Patch-writer for `io.mindroom.settings`. Merges over the currently stored
- * content so unknown keys written by other/newer clients survive.
+ * content so unknown keys written by other/newer clients survive. The bound
+ * atom updates when the write echoes back over sync.
  */
 export const useSetMindroomAccountSettings = (): ((
   patch: Partial<MindroomAccountSettings>
