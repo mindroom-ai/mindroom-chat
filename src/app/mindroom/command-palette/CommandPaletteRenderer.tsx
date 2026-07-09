@@ -2,7 +2,7 @@ import FocusTrap from 'focus-trap-react';
 import { Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { useAtom } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -142,6 +142,12 @@ export function CommandPaletteRenderer() {
       [simpleMode]
     )
   );
+
+  // Reset the shared open atom when simple mode turns the palette off, so it
+  // does not pop back the moment simple mode is disabled again.
+  useEffect(() => {
+    if (simpleMode && open) setOpen(false);
+  }, [simpleMode, open, setOpen]);
 
   return (
     <>
