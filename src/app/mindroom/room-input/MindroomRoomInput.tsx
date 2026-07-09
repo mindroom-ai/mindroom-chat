@@ -290,8 +290,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms: Room[] = useImagePackRooms(roomId, roomToParents);
 
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
-    // Simple mode keeps the composer to attach, emoji, and send — no
-    // markdown toolbar, stickers, or voice recording.
+    // Simple mode keeps the composer to attach, voice, emoji, and send — no
+    // markdown toolbar or stickers. Voice stays by explicit product choice:
+    // dictating a message is exactly what a non-technical user reaches for.
     const simpleMode = useSimpleMode();
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
@@ -1342,29 +1343,27 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               >
                 <Icon src={Icons.PlusCircle} />
               </IconButton>
-              {!simpleMode && (
-                <IconButton
-                  onClick={() => {
-                    if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft)
-                      return;
-                    pauseAllMediaElements();
-                    setVoiceRecorderOpen(true);
-                  }}
-                  variant="SurfaceVariant"
-                  size="300"
-                  radii="300"
-                  disabled={
-                    voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft
-                  }
-                  aria-label={
-                    otherPendingVoiceRoomName
-                      ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
-                      : 'Record voice message'
-                  }
-                >
-                  <Icon src={Icons.Mic} />
-                </IconButton>
-              )}
+              <IconButton
+                onClick={() => {
+                  if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft)
+                    return;
+                  pauseAllMediaElements();
+                  setVoiceRecorderOpen(true);
+                }}
+                variant="SurfaceVariant"
+                size="300"
+                radii="300"
+                disabled={
+                  voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft
+                }
+                aria-label={
+                  otherPendingVoiceRoomName
+                    ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
+                    : 'Record voice message'
+                }
+              >
+                <Icon src={Icons.Mic} />
+              </IconButton>
             </>
           }
           after={
