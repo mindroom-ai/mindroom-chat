@@ -7,6 +7,7 @@ import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
+import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -73,9 +74,7 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
 export const clearMindroomSessionUiState = (userId: string): void => {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem(`${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
-  }
+  getSafeLocalStorage()?.removeItem(`${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
