@@ -26,11 +26,11 @@ import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSetting
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
-  // Simple mode keeps only the essentials: Home, Direct, Threads, plus the
-  // sticky Inbox/Settings stack below.
+  // Simple mode keeps only the essentials: Home and Direct, plus the sticky
+  // Inbox/Settings stack below.
   const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
-  const showThreads = sidebar?.showThreads ?? true;
+  const showThreads = !simpleMode && (sidebar?.showThreads ?? true);
   const showExploreCommunity = !simpleMode && (sidebar?.showExploreCommunity ?? true);
   const showAddSpace = !simpleMode && (sidebar?.showAddSpace ?? true);
   const showMindRoom = !simpleMode && (sidebar?.showMindRoom ?? true);
