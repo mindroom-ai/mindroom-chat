@@ -96,7 +96,10 @@ describe('toSupportedLanguageCode', () => {
 
   it('reduces regional variants to their base language', () => {
     expect(toSupportedLanguageCode('de-AT')).toBe('de');
+    expect(toSupportedLanguageCode('de_AT')).toBe('de');
     expect(toSupportedLanguageCode('EN-US')).toBe('en');
+    expect(toSupportedLanguageCode('EN_US')).toBe('en');
+    expect(toSupportedLanguageCode('nl-BE')).toBe('nl');
   });
 
   it('falls back to the default language for unsupported or missing codes', () => {

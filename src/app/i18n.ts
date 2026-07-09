@@ -39,6 +39,14 @@ i18n
     },
   });
 
+// i18next reports locale-fetch failures through this event rather than by
+// rejecting the changeLanguage() promise — without a listener a failed
+// de.json/nl.json request would silently leave the UI on the fallback language.
+i18n.on('failedLoading', (lng, ns, msg) => {
+  // eslint-disable-next-line no-console
+  console.error(`[i18n] failed loading locale "${lng}" (namespace "${ns}"): ${msg}`);
+});
+
 const syncDocumentLanguage = (language: string) => {
   if (typeof document === 'undefined') return;
   document.documentElement.setAttribute('lang', language);

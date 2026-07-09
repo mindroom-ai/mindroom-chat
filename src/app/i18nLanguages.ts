@@ -17,6 +17,8 @@ export const DEFAULT_LANGUAGE_CODE = 'en';
 
 export const toSupportedLanguageCode = (language: string | undefined): string => {
   if (!language) return DEFAULT_LANGUAGE_CODE;
-  const baseCode = language.toLowerCase().split('-')[0];
+  // Split on '_' as well as '-': POSIX-style codes (de_DE) can reach us via
+  // the detector's querystring/localStorage sources even though BCP-47 uses hyphens.
+  const baseCode = language.toLowerCase().split(/[-_]/)[0];
   return APP_LANGUAGE_CODES.includes(baseCode) ? baseCode : DEFAULT_LANGUAGE_CODE;
 };

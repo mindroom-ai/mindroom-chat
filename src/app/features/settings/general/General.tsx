@@ -74,7 +74,12 @@ function SelectLanguage() {
   };
 
   const handleLanguageSelect = (language: AppLanguage) => {
-    i18n.changeLanguage(language.code);
+    i18n.changeLanguage(language.code).catch((error) => {
+      // Load failures surface via the 'failedLoading' listener in i18n.ts;
+      // this covers genuine rejections (and unhandled-rejection noise).
+      // eslint-disable-next-line no-console
+      console.error(`[i18n] failed switching language to "${language.code}":`, error);
+    });
     setMenuCords(undefined);
   };
 
