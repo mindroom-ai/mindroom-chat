@@ -5,8 +5,19 @@
 ### i18n foundation: language picker + first translated surface (2026-07-09)
 
 - Status:
-  - Step 1 done: working multi-language pipeline (en/de) with a picker; rest of
-    the app is still hardcoded English and migrates surface-by-surface.
+  - Step 1 done: working multi-language pipeline (en/de) with a picker.
+  - Step 2 done (same PR, after review): Dutch (nl) added with full key
+    coverage, and the whole Settings shell is now translated — nav
+    (`settingsMenu.ts` takes a `TFunction`; `useSettingsMenuItems` supplies it),
+    "Settings" header + "Logout" button, theme names (`useThemeNames`), the
+    MindRoom prefetch card (`MindroomPrefetchSettings`, incl. `{{min}}`/
+    `{{max}}` interpolation), and the dead `name` field on
+    `useDateFormatItems` removed. "Local MindRoom" stays untranslated by
+    design (product name). Component tests that assert on visible copy use
+    `src/app/test-utils/i18n.ts` `translateFromEn` (resolves keys against the
+    real en.json) instead of hardcoding strings next to a react-i18next mock.
+  - Rest of the app is still hardcoded English and migrates
+    surface-by-surface.
 - Background:
   - Upstream Cinny ships i18next scaffolding but only one vestigial key
     (`Organisms.RoomCommon.changed_room_name`); nothing else was translated and
@@ -37,14 +48,11 @@
     German in the legacy key (" hat den Raum Name geändert" → " hat den
     Raumnamen geändert").
 - Known limits / next steps:
-  - Settings nav ("General", "Account", …) and every other surface remain
-    English — next slices; `getSettingsMenuItems` needs `t` threaded through
-    (its `settingsIntegration.test.ts` asserts on names). Still English on the
-    General page itself: the MindRoom prefetch card
-    (`MindroomPrefetchSettings.tsx`) and theme names from `useTheme.ts`, so
-    German mode shows a mixed-language seam there. `useDateFormatItems`'s
-    `name` field is dead data (its only consumer renders `getDisplayDate`) —
-    remove in a follow-up.
+  - Everything outside the Settings shell (timeline, composer, dialogs, auth,
+    room settings, member drawer, …) remains English — next slices. That
+    includes `LogoutDialog` (shared with the command palette and DeviceTile):
+    clicking the translated "Abmelden"/"Uitloggen" still opens an English
+    confirmation dialog.
   - Logout clears `i18nextLng` with the rest of localStorage (initMatrix
     logout wipes all but the session store), so language resets to browser
     default after logout — same behavior as theme settings.
@@ -60,10 +68,21 @@
     `i18n-tester`): picker switches the whole General page to German in place,
     `<html lang>`/localStorage update, choice survives a full reload, and
     `/public/locales/de.json` serves 200 via the static-copy middleware.
-    Screenshots: `ui-audit/i18n-settings-{english,german}.png`. NOTE: dev-boot
-    verification required a temporary local `.tsx`-suffixed import of
-    `KeyBackupNudge` in WelcomePage (the pre-existing casing collision breaks
-    macOS dev boot); reverted before commit, not part of the change.
+    Screenshots: `ui-audit/i18n-settings-{english,german,dutch}.png`. Step 2
+    re-verified live: Nederlands switches the full settings shell (nav, theme
+    names, prefetch card with interpolated min/max) in place and persists
+    (`<html lang="nl">`, `i18nextLng: nl`). NOTE: dev-boot verification
+    required a temporary local `.tsx`-suffixed import of `KeyBackupNudge` in
+    WelcomePage (the pre-existing casing collision breaks macOS dev boot);
+    reverted before commit, not part of the change. Root cause identified
+    while resolving this PR's merge conflicts: PR #95 committed BOTH casings
+    (`KeyBackupNudge.test.ts` + `keyBackupNudge.test.ts`, and the
+    `KeyBackupNudge.tsx` + `keyBackupNudge.ts` pair) — on macOS's
+    case-insensitive FS one test file is a permanent phantom "modified" entry,
+    `git stash`/`rebase` malfunction (merge works), and typecheck/build/dev
+    boot fail. Needs its own fix: drop one test-file casing and rename the
+    helper module so it no longer collides with the component
+    (see the `macos-case-collision` naming rule).
 
 ### Service worker no longer hijacks the Element Call widget iframe (2026-07-09)
 

@@ -20,9 +20,32 @@
     },
     "dateFormat": {
       "custom": "Custom"
+    },
+    "themeName": {
+      "light": "Light",
+      "silver": "Silver",
+      "dark": "Dark",
+      "midnight": "Midnight",
+      "butter": "Butter"
+    },
+    "prefetchScope": {
+      "myHomeserver": "My homeserver",
+      "allRooms": "All rooms",
+      "currentRoomOnly": "Current room only"
     }
   },
   "settings": {
+    "title": "Settings",
+    "logout": "Logout",
+    "nav": {
+      "general": "General",
+      "account": "Account",
+      "notifications": "Notifications",
+      "devices": "Devices",
+      "emojisStickers": "Emojis & Stickers",
+      "developerTools": "Developer Tools",
+      "about": "About"
+    },
     "general": {
       "title": "General",
       "language": {
@@ -79,6 +102,10 @@
         "sectionTitle": "Messages",
         "messageLayout": "Message Layout",
         "messageSpacing": "Message Spacing",
+        "prefetchScope": "Prefetch scope",
+        "prefetchScopeDescription": "Which rooms are kept ready in the background",
+        "historyDepth": "Current room history depth",
+        "historyDepthDescription": "Target number of events preloaded for the room you are viewing. Minimum {{min}}, maximum {{max}}.",
         "legacyUsernameColor": "Legacy Username Color",
         "hideMembershipChange": "Hide Membership Change",
         "hideProfileChange": "Hide Profile Change",

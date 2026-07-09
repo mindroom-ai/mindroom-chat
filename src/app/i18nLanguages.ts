@@ -8,6 +8,7 @@ export type AppLanguage = {
 export const APP_LANGUAGES: AppLanguage[] = [
   { code: 'en', nativeName: 'English' },
   { code: 'de', nativeName: 'Deutsch' },
+  { code: 'nl', nativeName: 'Nederlands' },
 ];
 
 export const APP_LANGUAGE_CODES: string[] = APP_LANGUAGES.map((language) => language.code);

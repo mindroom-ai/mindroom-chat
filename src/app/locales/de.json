@@ -20,9 +20,32 @@
     },
     "dateFormat": {
       "custom": "Benutzerdefiniert"
+    },
+    "themeName": {
+      "light": "Hell",
+      "silver": "Silber",
+      "dark": "Dunkel",
+      "midnight": "Mitternacht",
+      "butter": "Butter"
+    },
+    "prefetchScope": {
+      "myHomeserver": "Mein Heimserver",
+      "allRooms": "Alle Räume",
+      "currentRoomOnly": "Nur aktueller Raum"
     }
   },
   "settings": {
+    "title": "Einstellungen",
+    "logout": "Abmelden",
+    "nav": {
+      "general": "Allgemein",
+      "account": "Konto",
+      "notifications": "Benachrichtigungen",
+      "devices": "Geräte",
+      "emojisStickers": "Emojis & Sticker",
+      "developerTools": "Entwicklertools",
+      "about": "Über"
+    },
     "general": {
       "title": "Allgemein",
       "language": {
@@ -79,6 +102,10 @@
         "sectionTitle": "Nachrichten",
         "messageLayout": "Nachrichtenlayout",
         "messageSpacing": "Nachrichtenabstand",
+        "prefetchScope": "Vorabruf-Umfang",
+        "prefetchScopeDescription": "Welche Räume im Hintergrund bereitgehalten werden",
+        "historyDepth": "Verlaufstiefe des aktuellen Raums",
+        "historyDepthDescription": "Zielanzahl vorab geladener Ereignisse für den Raum, den du gerade ansiehst. Minimum {{min}}, Maximum {{max}}.",
         "legacyUsernameColor": "Klassische Benutzernamen-Farben",
         "hideMembershipChange": "Mitgliedschaftsänderungen ausblenden",
         "hideProfileChange": "Profiländerungen ausblenden",
