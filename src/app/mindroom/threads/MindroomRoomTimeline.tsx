@@ -427,6 +427,10 @@ export function RoomTimeline({
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
+  // Bumped by the timeline-reset relink; refreshes the compact coverage
+  // controller's batch budget so post-gap rebuilds restore depth.
+  const [coverageEpoch, setCoverageEpoch] = useState(0);
+  const bumpCoverageEpoch = useCallback(() => setCoverageEpoch((epoch) => epoch + 1), []);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
@@ -977,6 +981,7 @@ export function RoomTimeline({
     hasMoreCachedBack: roomHasMoreCachedBack,
     paginateBack: handleRoomTimelinePagination,
     room,
+    coverageEpoch,
   });
 
   const {
@@ -1974,6 +1979,9 @@ export function RoomTimeline({
     atBottomRef,
     scrollToBottomRef,
     roomPaginatingBackRef,
+    // The rebuilt chain is shallow; refresh the coverage budget so the
+    // compact view restores depth even when pre-gap batches spent it.
+    onRelink: bumpCoverageEpoch,
   });
 
   useThreadAwareTimelineRefresh({

@@ -16,6 +16,7 @@ type HarnessProps = {
   hasMoreCachedBack: boolean;
   paginateBack: (backwards: boolean) => Promise<void>;
   room: Room;
+  coverageEpoch?: number;
 };
 
 const CoverageHarness = (props: HarnessProps) => {
@@ -254,6 +255,89 @@ describe('useCompactCoverageBackfillController', () => {
     await flush();
 
     expect(paginateBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes the batch budget when the coverage epoch bumps', async () => {
+    const paginateBack = vi.fn().mockResolvedValue(undefined);
+    const room = makeRoom();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(CoverageHarness, {
+          enabled: true,
+          loadedEventCount: 10,
+          canPaginateBack: true,
+          hasMoreCachedBack: false,
+          paginateBack,
+          room,
+          coverageEpoch: 0,
+        })
+      );
+    });
+    for (let i = 0; i < COMPACT_COVERAGE_MAX_BATCHES * 2; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await flush();
+    }
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_COVERAGE_MAX_BATCHES);
+
+    // Gappy-sync relink installs a shallow chain and bumps the epoch: the
+    // spent budget must not block restoring depth after the gap.
+    await act(async () => {
+      renderer?.update(
+        React.createElement(CoverageHarness, {
+          enabled: true,
+          loadedEventCount: 10,
+          canPaginateBack: true,
+          hasMoreCachedBack: false,
+          paginateBack,
+          room,
+          coverageEpoch: 1,
+        })
+      );
+    });
+    await flush();
+
+    expect(paginateBack.mock.calls.length).toBeGreaterThan(COMPACT_COVERAGE_MAX_BATCHES);
+  });
+
+  it('refreshes the batch budget when the room changes', async () => {
+    const paginateBack = vi.fn().mockResolvedValue(undefined);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(CoverageHarness, {
+          enabled: true,
+          loadedEventCount: 10,
+          canPaginateBack: true,
+          hasMoreCachedBack: false,
+          paginateBack,
+          room: makeRoom('!a:example.org'),
+        })
+      );
+    });
+    for (let i = 0; i < COMPACT_COVERAGE_MAX_BATCHES * 2; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await flush();
+    }
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_COVERAGE_MAX_BATCHES);
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(CoverageHarness, {
+          enabled: true,
+          loadedEventCount: 10,
+          canPaginateBack: true,
+          hasMoreCachedBack: false,
+          paginateBack,
+          room: makeRoom('!b:example.org'),
+        })
+      );
+    });
+    await flush();
+
+    expect(paginateBack.mock.calls.length).toBeGreaterThan(COMPACT_COVERAGE_MAX_BATCHES);
   });
 
   it('swallows pagination errors and continues within budget', async () => {

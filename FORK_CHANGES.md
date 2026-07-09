@@ -304,6 +304,18 @@ stale/shallow:
     after `eventId` clears without a remount. (b) StrictMode: the coverage
     controller's mounted guard is set in the effect body, not at ref init,
     so a preserved-ref remount cannot permanently suppress the settle tick.
+  - Review pass (independent agent) found one remaining hole, fixed same
+    PR: COVERAGE BUDGET AFTER RELINK — the per-mount batch budget is spent
+    on cold-start; a later gappy sync rebuilds a shallow chain, and the
+    exhausted budget would block restoring depth until a manual room
+    re-entry. The relink now fires `onRelink` → `coverageEpoch` state in
+    `MindroomRoomTimeline` → the coverage controller resets
+    `batchesUsedRef` on epoch change (room-switch reset unchanged;
+    in-flight guard deliberately NOT cleared by an epoch bump). Accepted
+    as-is from that review: refs written during render (matches existing
+    component patterns), closure `eventId` vs ref `threadIdRef` asymmetry,
+    and the dev-StrictMode-only double cold-start batch (app does not
+    render in StrictMode).
 
 Repro notes (for e2e later): gappy sync = >STARTUP_SYNC_TIMELINE_LIMIT
 (20) room events in one /sync window — routine in agent rooms (streaming

@@ -49,6 +49,7 @@ export const useRoomTimelineResetRelink = ({
   atBottomRef,
   scrollToBottomRef,
   roomPaginatingBackRef,
+  onRelink,
 }: {
   room: Room;
   threadIdRef: MutableRefObject<string | undefined>;
@@ -59,6 +60,12 @@ export const useRoomTimelineResetRelink = ({
   atBottomRef: MutableRefObject<boolean>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   roomPaginatingBackRef: MutableRefObject<boolean>;
+  /**
+   * Fired on every re-link (handler and self-heal). The caller uses it to
+   * refresh the compact coverage budget: the rebuilt chain is shallow, and
+   * a budget spent before the gap must not block restoring depth after it.
+   */
+  onRelink: () => void;
 }): void => {
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
@@ -86,13 +93,14 @@ export const useRoomTimelineResetRelink = ({
         scrollToBottomRef.current.smooth = false;
       }
       setTimeline(rebuildTimeline());
+      onRelink();
     };
 
     room.on(RoomEvent.TimelineReset, handleTimelineReset);
     return () => {
       room.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
     };
-  }, [room, eventId, rebuildTimeline, setTimeline, threadIdRef, atBottomRef, scrollToBottomRef]);
+  }, [room, eventId, rebuildTimeline, setTimeline, threadIdRef, atBottomRef, scrollToBottomRef, onRelink]);
 
   useEffect(() => {
     if (!resetPendingRef.current) return;
@@ -113,7 +121,11 @@ export const useRoomTimelineResetRelink = ({
       scrollToBottomRef.current.smooth = false;
     }
     setTimeline(rebuildTimeline());
+    onRelink();
   }, [
+    // Re-fires ride on `timeline` changes alone — the refs below are stable
+    // objects read at each commit and can never trigger the effect
+    // themselves; they are listed for lint-visible completeness.
     timeline,
     room,
     eventId,
@@ -123,5 +135,6 @@ export const useRoomTimelineResetRelink = ({
     atBottomRef,
     scrollToBottomRef,
     roomPaginatingBackRef,
+    onRelink,
   ]);
 };

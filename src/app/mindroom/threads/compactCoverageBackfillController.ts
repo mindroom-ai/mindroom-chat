@@ -49,6 +49,7 @@ export const useCompactCoverageBackfillController = ({
   hasMoreCachedBack,
   paginateBack,
   room,
+  coverageEpoch = 0,
 }: {
   /**
    * Room view with the compact overview requested, after the initial cache
@@ -68,6 +69,14 @@ export const useCompactCoverageBackfillController = ({
    */
   paginateBack: (backwards: boolean) => Promise<void>;
   room: Room;
+  /**
+   * Bumped by the timeline-reset relink after it installs a fresh (shallow)
+   * live chain. Without this, a gappy sync AFTER the per-mount budget was
+   * spent would leave the view shallow forever — the relink drops
+   * `loadedEventCount` back below target, but `batchesUsedRef` still reads
+   * exhausted until a remount.
+   */
+  coverageEpoch?: number;
 }): void => {
   const paginateBackRef = useRef(paginateBack);
   paginateBackRef.current = paginateBack;
@@ -95,6 +104,12 @@ export const useCompactCoverageBackfillController = ({
     batchesUsedRef.current = 0;
     inFlightRef.current = false;
   }, [room.roomId]);
+
+  // Epoch bump refreshes the budget only — a genuinely running batch must
+  // keep its single-flight guard until it settles.
+  useEffect(() => {
+    batchesUsedRef.current = 0;
+  }, [coverageEpoch]);
 
   useEffect(() => {
     if (inFlightRef.current) return;
@@ -127,5 +142,6 @@ export const useCompactCoverageBackfillController = ({
     hasMoreCachedBack,
     room.roomId,
     batchSettledTick,
+    coverageEpoch,
   ]);
 };

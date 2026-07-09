@@ -63,6 +63,7 @@ type HarnessProps = {
   atBottom?: boolean;
   scrollToBottomRef?: { current: { count: number; smooth: boolean } };
   roomPaginatingBackRef?: { current: boolean };
+  onRelink?: () => void;
 };
 
 const ResetHarness = ({
@@ -75,6 +76,7 @@ const ResetHarness = ({
   atBottom = false,
   scrollToBottomRef = { current: { count: 0, smooth: false } },
   roomPaginatingBackRef = { current: false },
+  onRelink = () => undefined,
 }: HarnessProps) => {
   useRoomTimelineResetRelink({
     room: room as unknown as Room,
@@ -86,6 +88,7 @@ const ResetHarness = ({
     atBottomRef: { current: atBottom },
     scrollToBottomRef,
     roomPaginatingBackRef,
+    onRelink,
   });
   return null;
 };
@@ -241,6 +244,71 @@ describe('useRoomTimelineResetRelink', () => {
 
     expect(scrollToBottomRef.current.count).toBe(1);
     expect(scrollToBottomRef.current.smooth).toBe(false);
+  });
+
+  it('does not bump the bottom pin for a scrolled-up reader', async () => {
+    const props = makeProps();
+    props.setLiveTimeline(props.newLiveTimeline);
+    const scrollToBottomRef = { current: { count: 0, smooth: true } };
+
+    await act(async () => {
+      create(
+        React.createElement(ResetHarness, {
+          room: props.room,
+          timeline: props.timeline,
+          rebuildTimeline: props.rebuildTimeline,
+          setTimeline: props.setTimeline,
+          atBottom: false,
+          scrollToBottomRef,
+        })
+      );
+    });
+    await act(async () => {
+      props.room.emit(RoomEvent.TimelineReset, props.room, props.room.getUnfilteredTimelineSet());
+    });
+
+    expect(props.setTimeline).toHaveBeenCalledTimes(1);
+    expect(scrollToBottomRef.current.count).toBe(0);
+  });
+
+  it('notifies onRelink for both the handler and the self-heal path', async () => {
+    const props = makeProps();
+    props.setLiveTimeline(props.newLiveTimeline);
+    const onRelink = vi.fn();
+    const roomPaginatingBackRef = { current: true };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ResetHarness, {
+          room: props.room,
+          timeline: props.timeline,
+          rebuildTimeline: props.rebuildTimeline,
+          setTimeline: props.setTimeline,
+          roomPaginatingBackRef,
+          onRelink,
+        })
+      );
+    });
+    await act(async () => {
+      props.room.emit(RoomEvent.TimelineReset, props.room, props.room.getUnfilteredTimelineSet());
+    });
+    expect(onRelink).toHaveBeenCalledTimes(1);
+
+    roomPaginatingBackRef.current = false;
+    await act(async () => {
+      renderer?.update(
+        React.createElement(ResetHarness, {
+          room: props.room,
+          timeline: { ...props.timeline },
+          rebuildTimeline: props.rebuildTimeline,
+          setTimeline: props.setTimeline,
+          roomPaginatingBackRef,
+          onRelink,
+        })
+      );
+    });
+    expect(onRelink).toHaveBeenCalledTimes(2);
   });
 
   it('re-heals when an in-flight pagination clobbers the relinked chain', async () => {
