@@ -23,16 +23,41 @@ palette", "Type a command or search...". Split into focused commits:
   break on every i18n migration, grep for them
   (`readFileSync.*toContain`). E2E specs matching `Open thread:` aria
   labels stay safe (English detector default in e2e browsers).
-- Sidebar tabs + Direct page (next): tooltips/labels in
-  `pages/client/sidebar/*.tsx` (Home, Direct Messages, Threads, Inbox,
-  Explore Community, Add Space/Create Space/Join with Address, Manage
-  accounts/Add Account, AccountSwitcher copy) and `pages/client/direct/`
-  ("Direct Messages" header, "No Direct Messages").
-- Command palette (next): input placeholder + aria-labels + section
-  titles + "No results" in `CommandPalette.tsx`/`CommandPaletteRenderer`,
-  header button + sidebar tab, and the quick-action titles/descriptions in
-  `commandPaletteActions.ts` (pure function — will take a `TFunction`,
-  same pattern as `getSettingsMenuItems`).
+- Sidebar tabs + Direct page (done): `nav.*`, `accountsRail.*`, and
+  `accountSwitcher.*` keys cover the sidebar tab tooltips (Home, Direct
+  Messages, Threads, Inbox, Explore Community, Add Space, Unverified
+  Device(s)), the CreateTab menu (Create Space / Join with Address), the
+  account-rail tooltips/aria-labels ({{name}}/{{userId}} interpolation),
+  the AccountSwitcher modal copy, and the Home/Direct page navs (headers,
+  empty states, Create Room / Join with Address / Message Search / Rooms /
+  Create Chat / Chats / Direct Message). The e2e account-rail selectors in
+  `e2e/helpers/auth.ts` match the ENGLISH aria-labels — safe because e2e
+  browsers have no cached language, but a future "run e2e in German" idea
+  would need those helpers keyed differently. SpaceTabs (hidden in simple
+  mode) is NOT in this slice.
+- Command palette (done): `commandPalette.*` keys. `CommandPalette.tsx`
+  section titles became `SECTION_TITLE_KEYS`/`PREFIX_LABEL_KEYS` key maps
+  (`as const satisfies` — a plain `Record<..., string>` breaks the typed
+  `t()`); result count uses `resultCount_one/_other` plurals + a separate
+  `noResults` key; footer split into prefixes label / shortcut label /
+  suffix so the `<b>` shortcut chip survives. `commandPaletteActions.ts`'s
+  `getCommandPaletteQuickActions`/`getCommandPaletteMessageTargets` take a
+  `TFunction` (same pattern as `getSettingsMenuItems`); `t` is supplied by
+  `useCommandPaletteSource` and added to the `actions`/`getMessages` memo
+  deps. Header button, sidebar tab (also exported as `SearchTab`), and the
+  renderer dialog aria-label translated. Action `keywords` stay English on
+  purpose (supplemental search terms; translated titles are also matched).
+- `translateFromEn` (test util) now resolves `_one`/`_other` plural
+  suffixes when `options.count` is a number, so mocked tests render real
+  copy for plural keys (`thread.replyCount`, `commandPalette.resultCount`)
+  instead of the raw key.
+- Tests: react-i18next `translateFromEn` mocks added to
+  `CommandPalette.test.ts`, `CommandPaletteRenderer.test.ts`,
+  `MindroomCommandPaletteSidebarTab.test.ts`,
+  `__tests__/RoomViewHeader.test.ts` (renders the real header button);
+  `commandPaletteActions.test.ts` passes `translateFromEn as TFunction`
+  directly. FULL suite green: 354 files / 2811 tests; typecheck, build,
+  eslint clean on touched files.
 
 ### i18n: composer slice (2026-07-09)
 

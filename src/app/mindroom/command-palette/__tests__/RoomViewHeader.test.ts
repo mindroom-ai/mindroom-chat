@@ -13,6 +13,13 @@ const { encryptionState, screenSizeState } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
   const reactModule = await import('react');

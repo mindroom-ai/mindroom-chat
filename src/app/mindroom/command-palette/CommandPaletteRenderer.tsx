@@ -3,6 +3,7 @@ import { Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { useAtom } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import React, { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -39,6 +40,7 @@ const DESKTOP_MODAL_STYLE: React.CSSProperties = {
 };
 
 function RenderPalette({ mobileSheet, requestClose, children }: RenderPaletteProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const { overlayProps } = useOverlay(
     {
@@ -50,7 +52,7 @@ function RenderPalette({ mobileSheet, requestClose, children }: RenderPalettePro
   );
   const { dialogProps } = useDialog(
     {
-      'aria-label': 'Command palette',
+      'aria-label': t('commandPalette.inputAria'),
     },
     dialogRef
   );
