@@ -14,6 +14,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { General } from './general';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -41,14 +42,18 @@ import {
 import { SettingsPage, SettingsPages } from './settingsPages';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
 
-const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
-  useMemo(() => getSettingsMenuItems(showLocalMindRoom), [showLocalMindRoom]);
+const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] => {
+  const { t } = useTranslation();
+
+  return useMemo(() => getSettingsMenuItems(showLocalMindRoom, t), [showLocalMindRoom, t]);
+};
 
 type SettingsProps = {
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
 export function Settings({ initialPage, requestClose }: SettingsProps) {
+  const { t } = useTranslation();
   const { sidebar } = useClientConfig();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -89,7 +94,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
                   />
                 </Avatar>
                 <Text size="H4" truncate>
-                  Settings
+                  {t('settings.title')}
                 </Text>
               </Box>
               <Box shrink="No">
@@ -137,7 +142,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
                         before={<Icon src={Icons.Power} size="100" />}
                         onClick={() => setLogout(true)}
                       >
-                        <Text size="B400">Logout</Text>
+                        <Text size="B400">{t('settings.logout')}</Text>
                       </Button>
                       {logout && (
                         <Overlay open backdrop={<OverlayBackdrop />}>

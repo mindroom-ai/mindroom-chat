@@ -1,5 +1,6 @@
 import React, { ChangeEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, Icon, Icons, Input, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_CROSS_ROOM_THREAD_FILTERS,
   type CrossRoomThreadActivityWindow,
@@ -120,6 +121,7 @@ function LabeledSelect({
 }
 
 function FilterControls({ filters, setFilters, resetFilters }: FilterControlsProps) {
+  const { t } = useTranslation();
   const unreadId = useId();
   const attentionId = useId();
   const update = (patch: Partial<CrossRoomThreadFilters>) =>
@@ -128,32 +130,32 @@ function FilterControls({ filters, setFilters, resetFilters }: FilterControlsPro
   return (
     <>
       <LabeledSelect
-        label="Scope"
+        label={t('thread.filters.scope')}
         value={filters.scope}
         options={[
-          { value: 'involved', label: 'Involved' },
-          { value: 'all', label: 'All rooms' },
+          { value: 'involved', label: t('thread.filters.scopeInvolved') },
+          { value: 'all', label: t('thread.filters.scopeAllRooms') },
         ]}
         onChange={(value) => update({ scope: value as CrossRoomThreadScope })}
       />
       <LabeledSelect
-        label="Status"
+        label={t('thread.filters.status')}
         value={filters.resolved}
         options={[
-          { value: 'all', label: 'All' },
-          { value: 'unresolved', label: 'Unresolved' },
-          { value: 'resolved', label: 'Resolved' },
+          { value: 'all', label: t('thread.filters.statusAll') },
+          { value: 'unresolved', label: t('thread.filters.statusUnresolved') },
+          { value: 'resolved', label: t('thread.filters.statusResolved') },
         ]}
         onChange={(value) => update({ resolved: value as CrossRoomThreadResolvedFilter })}
       />
       <LabeledSelect
-        label="Activity"
+        label={t('thread.filters.activity')}
         value={filters.activityWindow}
         options={[
-          { value: 'today', label: 'Today' },
-          { value: '7d', label: '7d' },
-          { value: '30d', label: '30d' },
-          { value: 'all', label: 'All' },
+          { value: 'today', label: t('thread.filters.activityToday') },
+          { value: '7d', label: t('thread.filters.activity7d') },
+          { value: '30d', label: t('thread.filters.activity30d') },
+          { value: 'all', label: t('thread.filters.activityAll') },
         ]}
         onChange={(value) => update({ activityWindow: value as CrossRoomThreadActivityWindow })}
       />
@@ -165,7 +167,7 @@ function FilterControls({ filters, setFilters, resetFilters }: FilterControlsPro
           onChange={(evt) => update({ unreadOnly: evt.target.checked })}
         />
         <Text as="label" size="T200" htmlFor={unreadId}>
-          Unread
+          {t('thread.filters.unread')}
         </Text>
       </div>
       <div className={css.Group}>
@@ -176,45 +178,46 @@ function FilterControls({ filters, setFilters, resetFilters }: FilterControlsPro
           onChange={(evt) => update({ hasAttention: evt.target.checked })}
         />
         <Text as="label" size="T200" htmlFor={attentionId}>
-          Attention
+          {t('thread.filters.attention')}
         </Text>
       </div>
       <CsvFilterInput
-        ariaLabel="Room id filters"
-        placeholder="Room IDs"
+        ariaLabel={t('thread.filters.roomIdsAria')}
+        placeholder={t('thread.filters.roomIdsPlaceholder')}
         values={filters.roomIds}
         onCommit={(roomIds) => update({ roomIds })}
       />
       <CsvFilterInput
-        ariaLabel="Space id filters"
-        placeholder="Space IDs"
+        ariaLabel={t('thread.filters.spaceIdsAria')}
+        placeholder={t('thread.filters.spaceIdsPlaceholder')}
         values={filters.spaceIds}
         onCommit={(spaceIds) => update({ spaceIds })}
       />
       <CsvFilterInput
-        ariaLabel="Included tag filters"
-        placeholder="Tags"
+        ariaLabel={t('thread.filters.tagsIncludeAria')}
+        placeholder={t('thread.filters.tagsPlaceholder')}
         values={filters.tag.include}
         onCommit={(include) =>
           setFilters((current) => ({ ...current, tag: { ...current.tag, include } }))
         }
       />
       <CsvFilterInput
-        ariaLabel="Excluded tag filters"
-        placeholder="Exclude tags"
+        ariaLabel={t('thread.filters.tagsExcludeAria')}
+        placeholder={t('thread.filters.excludeTagsPlaceholder')}
         values={filters.tag.exclude}
         onCommit={(exclude) =>
           setFilters((current) => ({ ...current, tag: { ...current.tag, exclude } }))
         }
       />
       <Button size="300" variant="Secondary" fill="Soft" onClick={resetFilters}>
-        <Text size="B300">Clear</Text>
+        <Text size="B300">{t('thread.filters.clear')}</Text>
       </Button>
     </>
   );
 }
 
 export function FilterBar({ filters, setFilters }: FilterBarProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState(filters.query);
   const [mobileOpen, setMobileOpen] = useState(false);
   const resetFilters = () => {
@@ -240,8 +243,8 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
     <Box className={css.Bar} data-testid="threads-filter-bar">
       <div className={css.Search}>
         <Input
-          aria-label="Search threads"
-          placeholder="Search threads"
+          aria-label={t('thread.filters.search')}
+          placeholder={t('thread.filters.search')}
           value={query}
           onChange={(evt: ChangeEvent<HTMLInputElement>) => setQuery(evt.target.value)}
         />
@@ -251,7 +254,7 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
       </div>
       <Button className={css.MobileControls} size="300" onClick={() => setMobileOpen(true)}>
         <Icon src={Icons.Filter} size="100" />
-        <Text size="B300">Filters</Text>
+        <Text size="B300">{t('thread.filters.open')}</Text>
       </Button>
       <FilterBarMobileSheet open={mobileOpen} requestClose={() => setMobileOpen(false)}>
         <FilterControls filters={filters} setFilters={setFilters} resetFilters={resetFilters} />

@@ -2,6 +2,104 @@
 
 ## Runbook
 
+### i18n foundation: language picker + first translated surface (2026-07-09)
+
+- Status:
+  - Step 1 done: working multi-language pipeline (en/de) with a picker.
+  - Step 2 done (same PR, after review): Dutch (nl) added with full key
+    coverage, and the whole Settings shell is now translated — nav
+    (`settingsMenu.ts` takes a `TFunction`; `useSettingsMenuItems` supplies it),
+    "Settings" header + "Logout" button, theme names (`useThemeNames`), the
+    MindRoom prefetch card (`MindroomPrefetchSettings`, incl. `{{min}}`/
+    `{{max}}` interpolation), and the dead `name` field on
+    `useDateFormatItems` removed. "Local MindRoom" stays untranslated by
+    design (product name). Component tests that assert on visible copy use
+    `src/app/test-utils/i18n.ts` `translateFromEn` (resolves keys against the
+    real en.json) instead of hardcoding strings next to a react-i18next mock.
+  - Step 3 done (same PR): the thread-resolution affordance and thread
+    status/filter cluster are translated — the Resolve/Resolved button in
+    `ThreadContextBanner` ("Threadweergave"/"Oplossen"/"Opgelost"), the
+    `ThreadIndicator` chip incl. the reply-count plural
+    (`thread.replyCount_one/_other`), `CompactThreadCard` aria fragments, the
+    `RoomThreadOverview` tri-state filter chips/tooltips/aria + status labels
+    + stats popover (label maps became `*_LABEL_KEYS` key maps; the tooltip
+    helpers take a `TFunction`), and the whole cross-room threads `FilterBar`
+    + mobile sheet. Tests that assert visible copy (`ThreadContextBanner`,
+    `RoomThreadOverview`, `__tests__/FilterBar`, `__tests__/Threads`) mock
+    react-i18next with `translateFromEn`. E2E specs keying on
+    `getByText('Thread View')` are safe: the e2e browser has no cached
+    language, so English stays the detector default.
+  - Rest of the app is still hardcoded English and migrates
+    surface-by-surface. Still English near this slice: `RoomThreadOverview`'s
+    view-mode/sort/preset controls and its own search toggle
+    ("Search threads..."), and the "Showing all N thread(s)." aria-live
+    summary.
+- Background:
+  - Upstream Cinny ships i18next scaffolding but only one vestigial key
+    (`Organisms.RoomCommon.changed_room_name`); nothing else was translated and
+    there was no way to switch language.
+- Summary:
+  - Locale files moved `public/locales/` → `src/app/locales/` (single source of
+    truth). REQUIRED, not cosmetic: importing JSON from `public/` broke the dev
+    server — the vite-plugin-static-copy dev middleware intercepts
+    `/public/locales/en.json?import` and serves raw JSON (`application/json`
+    MIME), killing the module graph at boot. The static-copy target now copies
+    `src/app/locales` → `dist/public/locales`, so the runtime fetch URL
+    (`public/locales/{{lng}}.json`) is unchanged for deployments.
+  - `i18n.ts`: `supportedLngs` from a new `i18nLanguages.ts` registry
+    (en/English, de/Deutsch); English bundled via `resources` +
+    `partialBundledLanguages` (no raw-key flash while the async fetch is in
+    flight; non-en locales still load over HTTP); `react.useSuspense: false`
+    because the app has NO Suspense boundary — with suspense on, the first
+    switch to a not-yet-loaded language would blank/crash the UI;
+    `languageChanged` listener syncs `<html lang dir>`.
+  - `i18next.d.ts` types `t()` keys against `en.json`, so key typos fail
+    `npm run typecheck`. `i18n.test.ts` enforces en/de key-set parity, no empty
+    translations, and registry ↔ locale-file agreement (a new locale MUST be
+    added in both places or tests fail).
+  - Settings → General: new Language section (picker persists via the
+    i18next detector cache, localStorage `i18nextLng`); all strings owned by
+    `General.tsx` plus `useMessageLayoutItems`/`useMessageSpacingItems` names
+    are translated in en+de as the proof-of-pipeline surface. Fixed broken
+    German in the legacy key (" hat den Raum Name geändert" → " hat den
+    Raumnamen geändert").
+- Known limits / next steps:
+  - Everything outside the Settings shell (timeline, composer, dialogs, auth,
+    room settings, member drawer, …) remains English — next slices. That
+    includes `LogoutDialog` (shared with the command palette and DeviceTile):
+    clicking the translated "Abmelden"/"Uitloggen" still opens an English
+    confirmation dialog.
+  - Logout clears `i18nextLng` with the rest of localStorage (initMatrix
+    logout wipes all but the session store), so language resets to browser
+    default after logout — same behavior as theme settings.
+  - "System default" picker option (clear the cached choice) not implemented;
+    dayjs date locales not wired to the language.
+- Validation:
+  - `npx vitest run src/app/i18n.test.ts src/app/mindroom/local-mindroom/settingsIntegration.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts` passed (26 tests).
+  - `npm run typecheck` / `npm run build`: identical to baseline — only the
+    pre-existing WelcomePage `KeyBackupNudge`/`keyBackupNudge.ts` casing
+    collision (both captured before and after).
+  - `npx eslint` clean on all touched files.
+  - Live-driven on the dev server against the :28008 Tuwunel (account
+    `i18n-tester`): picker switches the whole General page to German in place,
+    `<html lang>`/localStorage update, choice survives a full reload, and
+    `/public/locales/de.json` serves 200 via the static-copy middleware.
+    Screenshots: `ui-audit/i18n-settings-{english,german,dutch}.png`. Step 2
+    re-verified live: Nederlands switches the full settings shell (nav, theme
+    names, prefetch card with interpolated min/max) in place and persists
+    (`<html lang="nl">`, `i18nextLng: nl`). NOTE: dev-boot verification
+    required a temporary local `.tsx`-suffixed import of `KeyBackupNudge` in
+    WelcomePage (the pre-existing casing collision breaks macOS dev boot);
+    reverted before commit, not part of the change. Root cause identified
+    while resolving this PR's merge conflicts: PR #95 committed BOTH casings
+    (`KeyBackupNudge.test.ts` + `keyBackupNudge.test.ts`, and the
+    `KeyBackupNudge.tsx` + `keyBackupNudge.ts` pair) — on macOS's
+    case-insensitive FS one test file is a permanent phantom "modified" entry,
+    `git stash`/`rebase` malfunction (merge works), and typecheck/build/dev
+    boot fail. Needs its own fix: drop one test-file casing and rename the
+    helper module so it no longer collides with the component
+    (see the `macos-case-collision` naming rule).
+
 ### Remove last-open-thread auto-restore on room entry (2026-07-09)
 
 User-testing feedback: clicking a room silently jumped back into the last
@@ -71,6 +169,7 @@ Validation: `npm run typecheck`, full `vitest run` (352 files / 2786 tests),
     entry and its base-path behavior).
   - Live validation on prod after deploy: browser join reaches the LiveKit SFU
     websocket with the service worker active.
+
 ### E2EE command autocomplete parity (2026-07-09)
 
 - Status:

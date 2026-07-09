@@ -21,6 +21,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';
@@ -52,31 +53,31 @@ type MindroomPrefetchSettingsProps = {
   className?: string;
 };
 
-type PrefetchScopeItem = {
-  readonly scope: PrefetchScope;
-  readonly label: string;
-};
-
-const PREFETCH_SCOPE_ITEMS: ReadonlyArray<PrefetchScopeItem> = [
-  { scope: 'my-server', label: 'My homeserver' },
-  { scope: 'all-rooms', label: 'All rooms' },
-  { scope: 'current-room-only', label: 'Current room only' },
-];
+const PREFETCH_SCOPE_ITEMS = [
+  { scope: 'my-server', labelKey: 'options.prefetchScope.myHomeserver' },
+  { scope: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },
+  { scope: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
+] as const satisfies ReadonlyArray<{ scope: PrefetchScope; labelKey: string }>;
 
 export function MindroomPrefetchSettings({ className }: MindroomPrefetchSettingsProps) {
+  const { t } = useTranslation();
+
   return (
     <>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
         <SettingTile
-          title="Prefetch scope"
-          description="Which rooms are kept ready in the background"
+          title={t('settings.general.messages.prefetchScope')}
+          description={t('settings.general.messages.prefetchScopeDescription')}
           after={<SelectPrefetchScope />}
         />
       </SequenceCard>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
         <SettingTile
-          title="Current room history depth"
-          description={`Target number of events preloaded for the room you are viewing. Minimum ${ROOM_TAIL_PREFETCH_DEPTH}, maximum ${CURRENT_ROOM_DEEP_HISTORY_TARGET}.`}
+          title={t('settings.general.messages.historyDepth')}
+          description={t('settings.general.messages.historyDepthDescription', {
+            min: ROOM_TAIL_PREFETCH_DEPTH,
+            max: CURRENT_ROOM_DEEP_HISTORY_TARGET,
+          })}
           after={<PrefetchDepthInput />}
         />
       </SequenceCard>
@@ -85,6 +86,7 @@ export function MindroomPrefetchSettings({ className }: MindroomPrefetchSettings
 }
 
 export function SelectPrefetchScope() {
+  const { t } = useTranslation();
   const [menuCords, setMenuCords] = useState<RectCords>();
   const [prefetchScope, setPrefetchScope] = useSetting(mindroomSettingsAtom, 'prefetchScope');
 
@@ -97,8 +99,8 @@ export function SelectPrefetchScope() {
     setMenuCords(undefined);
   };
 
-  const currentLabel =
-    PREFETCH_SCOPE_ITEMS.find((item) => item.scope === prefetchScope)?.label ?? prefetchScope;
+  const currentItem = PREFETCH_SCOPE_ITEMS.find((item) => item.scope === prefetchScope);
+  const currentLabel = currentItem ? t(currentItem.labelKey) : prefetchScope;
 
   return (
     <>
@@ -141,7 +143,7 @@ export function SelectPrefetchScope() {
                     radii="300"
                     onClick={() => handleSelect(item.scope)}
                   >
-                    <Text size="T300">{item.label}</Text>
+                    <Text size="T300">{t(item.labelKey)}</Text>
                   </MenuItem>
                 ))}
               </Box>
