@@ -5,9 +5,9 @@ import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThre
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
-import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
+import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -69,8 +69,12 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 };
 
 
+// The last-open-thread auto-restore feature was removed; its per-user
+// localStorage key may still exist on installs that ran older builds.
+const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
+
 export const clearMindroomSessionUiState = (userId: string): void => {
-  clearLastOpenThreadStore(userId);
+  getSafeLocalStorage()?.removeItem(`${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
