@@ -1,17 +1,19 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';
 import { useThreadsSelected } from '../../../hooks/router/useThreadsSelected';
 import { getThreadsPath } from '../../pathUtils';
 
 export function ThreadsTab() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const selected = useThreadsSelected();
 
   return (
     <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip="Threads">
+      <SidebarItemTooltip tooltip={t('nav.threads')}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"

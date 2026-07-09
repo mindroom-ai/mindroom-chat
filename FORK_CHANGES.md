@@ -2,6 +2,137 @@
 
 ## Runbook
 
+### i18n PR #101 bot-review response (2026-07-09)
+
+Triage of the sourcery/gemini/greptile reviews on PR #101 (commit
+baba7975): accepted gemini's `room?.name` → `room.name` cleanup (the
+optional chain was dead — `room` is non-nullable in `RoomInputProps`) and
+its 500ms settle-before-screenshot suggestion for the two live i18n specs
+(the screenshots are ui-audit documentation artifacts). REFUTED
+greptile's two "missing mkdir before screenshots" P1s: Playwright's
+`page.screenshot` creates parent dirs itself (`mkdirIfNeeded` →
+recursive `fs.mkdir` in `playwright-core/lib/client/page.js:475`); the
+explicit `mkdir` in `app-store-screenshots.spec.ts` guards its own
+`node:fs` writes only. Sourcery's error-code refactor and
+drive-language-via-settings-UI suggestions were declined as documented
+tradeoffs (see the slice entries below). All five inline threads replied
+to and resolved; review-level points answered in a PR comment.
+
+### i18n: recent threads + navigation shell slices (2026-07-09)
+
+User-reported still-English strings after the composer slice: "Recent
+Threads"/"No recent threads", then "Direct Messages", "Open command
+palette", "Type a command or search...". Split into focused commits:
+
+- Recent Threads panel (done): `recentThreads.*` keys in en/de/nl cover the
+  panel header + empty state (`RecentThreadsPanel.tsx`), the mobile toggle
+  aria-label/heading and the resize-separator aria-label
+  (`RecentThreadsDivider.tsx`), and the entry aria-label
+  (`RecentThreadEntry.tsx` — reuses `thread.aria.openThread`, new
+  `recentThreads.openedAt` for the "Opened {{time}}" fragment; the
+  relative-time string itself is still English until dayjs locales are
+  wired). The three component tests got the standard react-i18next
+  `translateFromEn` mock. GOTCHA: the namespace-boundary test
+  `RoomTimeline.architecture.test.ts` asserts on the RAW SOURCE of
+  `RecentThreadsPanel.tsx`; its `toContain('Recent Threads')` became
+  `toContain('recentThreads.title')` — source-level assertions like this
+  break on every i18n migration, grep for them
+  (`readFileSync.*toContain`). E2E specs matching `Open thread:` aria
+  labels stay safe (English detector default in e2e browsers).
+- Sidebar tabs + Direct page (done): `nav.*`, `accountsRail.*`, and
+  `accountSwitcher.*` keys cover the sidebar tab tooltips (Home, Direct
+  Messages, Threads, Inbox, Explore Community, Add Space, Unverified
+  Device(s)), the CreateTab menu (Create Space / Join with Address), the
+  account-rail tooltips/aria-labels ({{name}}/{{userId}} interpolation),
+  the AccountSwitcher modal copy, and the Home/Direct page navs (headers,
+  empty states, Create Room / Join with Address / Message Search / Rooms /
+  Create Chat / Chats / Direct Message). The e2e account-rail selectors in
+  `e2e/helpers/auth.ts` match the ENGLISH aria-labels — safe because e2e
+  browsers have no cached language, but a future "run e2e in German" idea
+  would need those helpers keyed differently. SpaceTabs (hidden in simple
+  mode) is NOT in this slice.
+- Command palette (done): `commandPalette.*` keys. `CommandPalette.tsx`
+  section titles became `SECTION_TITLE_KEYS`/`PREFIX_LABEL_KEYS` key maps
+  (`as const satisfies` — a plain `Record<..., string>` breaks the typed
+  `t()`); result count uses `resultCount_one/_other` plurals + a separate
+  `noResults` key; footer split into prefixes label / shortcut label /
+  suffix so the `<b>` shortcut chip survives. `commandPaletteActions.ts`'s
+  `getCommandPaletteQuickActions`/`getCommandPaletteMessageTargets` take a
+  `TFunction` (same pattern as `getSettingsMenuItems`); `t` is supplied by
+  `useCommandPaletteSource` and added to the `actions`/`getMessages` memo
+  deps. Header button, sidebar tab (also exported as `SearchTab`), and the
+  renderer dialog aria-label translated. Action `keywords` stay English on
+  purpose (supplemental search terms; translated titles are also matched).
+- `translateFromEn` (test util) now resolves `_one`/`_other` plural
+  suffixes when `options.count` is a number, so mocked tests render real
+  copy for plural keys (`thread.replyCount`, `commandPalette.resultCount`)
+  instead of the raw key.
+- Tests: react-i18next `translateFromEn` mocks added to
+  `CommandPalette.test.ts`, `CommandPaletteRenderer.test.ts`,
+  `MindroomCommandPaletteSidebarTab.test.ts`,
+  `__tests__/RoomViewHeader.test.ts` (renders the real header button);
+  `commandPaletteActions.test.ts` passes `translateFromEn as TFunction`
+  directly. FULL suite green: 354 files / 2811 tests; typecheck, build,
+  eslint clean on touched files.
+- Live-verified against the :28008 docker Tuwunel via the new
+  self-seeding spec `e2e/live/i18n-shell-live.spec.ts` (skips without
+  `E2E_USERNAME`): after a localStorage `i18nextLng` switch + reload, the
+  Home nav, Recent Threads panel, and command palette (opened via the
+  translated sidebar-tab aria-label; placeholder, result count, section
+  badges, action rows, prefix/shortcut footer) all render in de and nl.
+  Screenshots: `ui-audit/i18n-shell-{de,nl}-palette.png`.
+- Review pass (independent subagent over e35e9250..HEAD): no blockers;
+  applied fixes — de wording (accusative `aktuellen Raum` action
+  fallback, `Per Adresse beitreten`, infinitive-style
+  `openSettingsDescription`, `Benachrichtigungen im Posteingang öffnen`,
+  genitive `eines Spaces`), nl `Globaal zoeken in berichten`, and the two
+  previously hardcoded CreateTab tile descriptions
+  (`nav.createSpaceDescription` / `nav.joinWithAddressDescription`).
+  Reviewer notes accepted as-is: the palette-actions room-name fallback is
+  currently unreachable (room actions only exist when a room is selected);
+  the footer's shortcut chip stays "Ctrl + K" even on German keyboards
+  ("Strg") — cosmetic; the split shortcut sentence fragments are a known
+  word-order compromise that composes fine in en/de/nl.
+
+### i18n: composer slice (2026-07-09)
+
+- Status: done. The message composer (`MindroomRoomInput.tsx`) is translated
+  in en/de/nl under new `composer.*` keys: the "Send a message..."
+  placeholder (user-reported as still-English after #99), the file drop-zone
+  overlay (title with `{{roomName}}` interpolation + `roomFallback` for
+  nameless rooms, and the hint line), the voice-record button aria-labels
+  (idle + paused-in-other-room with `{{roomName}}`), and the two voice-send
+  guard errors (room-unavailable, another-send-pending) thrown inside
+  `handleVoiceSend` — translated at throw time, so the message is baked in
+  the language active when the send fails; `t` added to the callback deps.
+- Tests: `__tests__/RoomInput.test.ts` gained the standard react-i18next
+  mock (`translateFromEn` from `src/app/test-utils/i18n.ts`), so its many
+  `aria-label === 'Record voice message'` and error-message assertions keep
+  asserting real English copy. `RoomInputMindroomExtensions.test.ts` needs
+  no mock (helpers only); RoomView tests mock the whole module.
+- Still English near this slice (next candidates): the editor `Toolbar`
+  formatting tooltips, upload board/card strings, the voice recorder
+  composer UI (`MindroomVoiceRecorderComposer` and
+  `VoiceRecordingCapsule.tsx`'s "Voice recording paused" — reviewer note:
+  its translated aria-label sibling now diverges), `useVoiceRecorder`'s
+  `RETRY_BUSY_MESSAGE`, autocomplete empty states, and
+  `Editor.preview.tsx` (dead code — not imported anywhere; left alone).
+  Reviewer note, acceptable for now: the two voice-send errors are baked
+  at throw time into the pending-draft atom, so a mid-session language
+  switch redisplays a stale-language error until the draft is discarded.
+- Validation: `npx vitest run src/app/i18n.test.ts
+  src/app/mindroom/room-input/__tests__/RoomInput.test.ts
+  src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` — 58
+  tests green (parity tests enforce the new keys in all three locales);
+  `npm run typecheck` clean; `npm run build` passes; `npx eslint` clean on
+  touched files. Live-verified against the :28008 docker Tuwunel via the
+  new self-seeding spec `e2e/live/i18n-composer-live.spec.ts` (skips
+  without `E2E_USERNAME`, creates its own room): placeholder and
+  voice-record aria-label render "Nachricht senden..." /
+  "Sprachnachricht aufnehmen" (de) and "Stuur een bericht..." /
+  "Spraakbericht opnemen" (nl) after a localStorage `i18nextLng` switch +
+  reload. Screenshots: `ui-audit/i18n-composer-{en,de,nl}.png`.
+
 ### Simple mode (2026-07-09)
 
 A per-account "Simple Mode" switch (Settings → General → Interface) that
@@ -156,7 +287,8 @@ assertions) not yet written.
     Raumnamen geändert").
 - Known limits / next steps:
   - Everything outside the Settings shell (timeline, composer, dialogs, auth,
-    room settings, member drawer, …) remains English — next slices. That
+    room settings, member drawer, …) remains English — next slices. (Composer
+    core done 2026-07-09, see the "i18n: composer slice" entry above.) That
     includes `LogoutDialog` (shared with the command palette and DeviceTile):
     clicking the translated "Abmelden"/"Uitloggen" still opens an English
     confirmation dialog.

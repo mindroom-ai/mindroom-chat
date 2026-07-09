@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { type TFunction } from 'i18next';
+import { translateFromEn } from '../../test-utils/i18n';
 import {
   commandPaletteStaticActionPaths,
   getCommandPaletteMessageTargets,
@@ -6,9 +8,11 @@ import {
   resolveCommandPaletteUserTarget,
 } from './commandPaletteActions';
 
+const t = translateFromEn as unknown as TFunction;
+
 describe('getCommandPaletteQuickActions', () => {
   it('shows only the global action set when no room or thread is selected', () => {
-    expect(getCommandPaletteQuickActions({}).map((item) => item.id)).toEqual([
+    expect(getCommandPaletteQuickActions({}, t).map((item) => item.id)).toEqual([
       'open-settings',
       'go-home',
       'go-direct',
@@ -24,12 +28,12 @@ describe('getCommandPaletteQuickActions', () => {
     expect(
       getCommandPaletteQuickActions({
         currentRoomName: 'General',
-      }).map((item) => item.id)
+      }, t).map((item) => item.id)
     ).toContain('mark-current-room-read');
     expect(
       getCommandPaletteQuickActions({
         currentRoomName: 'General',
-      }).map((item) => item.id)
+      }, t).map((item) => item.id)
     ).toContain('open-current-room-settings');
   });
 
@@ -38,20 +42,20 @@ describe('getCommandPaletteQuickActions', () => {
       getCommandPaletteQuickActions({
         currentThreadId: '$thread',
         isCurrentThreadResolved: false,
-      }).map((item) => item.id)
+      }, t).map((item) => item.id)
     ).toContain('resolve-current-thread');
     expect(
       getCommandPaletteQuickActions({
         currentThreadId: '$thread',
         isCurrentThreadResolved: false,
-      }).map((item) => item.id)
+      }, t).map((item) => item.id)
     ).not.toContain('unresolve-current-thread');
 
     expect(
       getCommandPaletteQuickActions({
         currentThreadId: '$thread',
         isCurrentThreadResolved: true,
-      }).map((item) => item.id)
+      }, t).map((item) => item.id)
     ).toContain('unresolve-current-thread');
   });
 });
@@ -65,7 +69,7 @@ describe('getCommandPaletteMessageTargets', () => {
         currentRoomName: 'General',
         currentSpaceId: '!space:example.org',
         currentSpaceName: 'MindRoom',
-      }).map((item) => item.path)
+      }, t).map((item) => item.path)
     ).toEqual([
       '/!space%3Aexample.org/search?term=deploy+checklist&rooms=%21room%3Aexample.org',
       '/!space%3Aexample.org/search?term=deploy+checklist',
@@ -78,7 +82,7 @@ describe('getCommandPaletteMessageTargets', () => {
       getCommandPaletteMessageTargets({
         query: '   ',
         currentRoomId: '!room:example.org',
-      })
+      }, t)
     ).toEqual([]);
   });
 });

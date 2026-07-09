@@ -2,6 +2,13 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('./recentThreads.css', () => ({
   Divider: 'Divider',
   DividerActive: 'DividerActive',

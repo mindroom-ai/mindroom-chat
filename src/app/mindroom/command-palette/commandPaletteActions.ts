@@ -1,3 +1,4 @@
+import { type TFunction } from 'i18next';
 import {
   getDirectCreatePath,
   getDirectPath,
@@ -74,43 +75,42 @@ const actionItem = (
   ...options,
 });
 
-export const getCommandPaletteQuickActions = ({
-  currentRoomName,
-  currentThreadId,
-  isCurrentThreadResolved,
-}: CommandPaletteQuickActionContext): CommandPaletteActionItem[] => {
-  const roomLabel = currentRoomName ?? 'current room';
+export const getCommandPaletteQuickActions = (
+  { currentRoomName, currentThreadId, isCurrentThreadResolved }: CommandPaletteQuickActionContext,
+  t: TFunction
+): CommandPaletteActionItem[] => {
+  const roomLabel = currentRoomName ?? t('commandPalette.actions.currentRoomFallback');
   const actions: CommandPaletteActionItem[] = [
-    actionItem('open-settings', 'Open Settings', 130, {
-      description: 'Open the shared settings modal',
+    actionItem('open-settings', t('commandPalette.actions.openSettings'), 130, {
+      description: t('commandPalette.actions.openSettingsDescription'),
       keywords: ['preferences'],
     }),
-    actionItem('go-home', 'Go Home', 120, {
-      description: 'Jump to Home',
+    actionItem('go-home', t('commandPalette.actions.goHome'), 120, {
+      description: t('commandPalette.actions.goHomeDescription'),
       keywords: ['rooms'],
     }),
-    actionItem('go-direct', 'Go Direct Messages', 110, {
-      description: 'Jump to Direct Messages',
+    actionItem('go-direct', t('commandPalette.actions.goDirect'), 110, {
+      description: t('commandPalette.actions.goDirectDescription'),
       keywords: ['dm', 'messages'],
     }),
-    actionItem('go-inbox', 'Go Inbox', 100, {
-      description: 'Open Inbox notifications',
+    actionItem('go-inbox', t('commandPalette.actions.goInbox'), 100, {
+      description: t('commandPalette.actions.goInboxDescription'),
       keywords: ['notifications'],
     }),
-    actionItem('create-room', 'Create Room', 90, {
-      description: 'Open the room creation modal',
+    actionItem('create-room', t('commandPalette.actions.createRoom'), 90, {
+      description: t('commandPalette.actions.createRoomDescription'),
       keywords: ['new room'],
     }),
-    actionItem('create-space', 'Create Space', 80, {
-      description: 'Open the space creation modal',
+    actionItem('create-space', t('commandPalette.actions.createSpace'), 80, {
+      description: t('commandPalette.actions.createSpaceDescription'),
       keywords: ['new space'],
     }),
-    actionItem('toggle-theme', 'Toggle Theme', 20, {
-      description: 'Switch between light and dark',
+    actionItem('toggle-theme', t('commandPalette.actions.toggleTheme'), 20, {
+      description: t('commandPalette.actions.toggleThemeDescription'),
       keywords: ['appearance'],
     }),
-    actionItem('logout', 'Logout', 10, {
-      description: 'Sign out of Cinny',
+    actionItem('logout', t('commandPalette.actions.logout'), 10, {
+      description: t('commandPalette.actions.logoutDescription'),
       keywords: ['sign out'],
     }),
   ];
@@ -119,18 +119,29 @@ export const getCommandPaletteQuickActions = ({
     actions.splice(
       6,
       0,
-      actionItem('mark-current-room-read', 'Mark Current Room Read', 70, {
-        description: `Mark ${roomLabel} as read`,
+      actionItem('mark-current-room-read', t('commandPalette.actions.markCurrentRoomRead'), 70, {
+        description: t('commandPalette.actions.markCurrentRoomReadDescription', {
+          room: roomLabel,
+        }),
         keywords: ['read', 'unread'],
       }),
-      actionItem('copy-current-room-link', 'Copy Current Room Link', 60, {
-        description: `Copy an app link for ${roomLabel}`,
+      actionItem('copy-current-room-link', t('commandPalette.actions.copyCurrentRoomLink'), 60, {
+        description: t('commandPalette.actions.copyCurrentRoomLinkDescription', {
+          room: roomLabel,
+        }),
         keywords: ['share', 'link'],
       }),
-      actionItem('open-current-room-settings', 'Open Current Room Settings', 50, {
-        description: `Open settings for ${roomLabel}`,
-        keywords: ['room settings'],
-      })
+      actionItem(
+        'open-current-room-settings',
+        t('commandPalette.actions.openCurrentRoomSettings'),
+        50,
+        {
+          description: t('commandPalette.actions.openCurrentRoomSettingsDescription', {
+            room: roomLabel,
+          }),
+          keywords: ['room settings'],
+        }
+      )
     );
   }
 
@@ -139,12 +150,12 @@ export const getCommandPaletteQuickActions = ({
       actions.findIndex((item) => item.id === 'toggle-theme'),
       0,
       isCurrentThreadResolved
-        ? actionItem('unresolve-current-thread', 'Unresolve Current Thread', 40, {
-            description: 'Move the active thread back into the unresolved queue',
+        ? actionItem('unresolve-current-thread', t('commandPalette.actions.unresolveCurrentThread'), 40, {
+            description: t('commandPalette.actions.unresolveCurrentThreadDescription'),
             keywords: ['thread', 'reopen'],
           })
-        : actionItem('resolve-current-thread', 'Resolve Current Thread', 40, {
-            description: 'Mark the active thread resolved',
+        : actionItem('resolve-current-thread', t('commandPalette.actions.resolveCurrentThread'), 40, {
+            description: t('commandPalette.actions.resolveCurrentThreadDescription'),
             keywords: ['thread', 'done'],
           })
     );
@@ -161,13 +172,10 @@ export type CommandPaletteMessageContext = {
   currentSpaceName?: string;
 };
 
-export const getCommandPaletteMessageTargets = ({
-  query,
-  currentRoomId,
-  currentRoomName,
-  currentSpaceId,
-  currentSpaceName,
-}: CommandPaletteMessageContext): CommandPaletteMessageTarget[] => {
+export const getCommandPaletteMessageTargets = (
+  { query, currentRoomId, currentRoomName, currentSpaceId, currentSpaceName }: CommandPaletteMessageContext,
+  t: TFunction
+): CommandPaletteMessageTarget[] => {
   const trimmedQuery = query.trim();
   if (trimmedQuery.length === 0) return [];
 
@@ -178,8 +186,11 @@ export const getCommandPaletteMessageTargets = ({
     items.push({
       id: `message-room-${currentRoomId}-${trimmedQuery}`,
       kind: 'message',
-      title: `Search ${quotedQuery} in ${currentRoomName ?? 'current room'}`,
-      description: currentRoomName ?? 'Current room',
+      title: t('commandPalette.messages.searchIn', {
+        query: quotedQuery,
+        scope: currentRoomName ?? t('commandPalette.messages.currentRoomFallback'),
+      }),
+      description: currentRoomName ?? t('commandPalette.messages.currentRoomDescription'),
       scope: 'room',
       path: buildPathWithSearch(
         currentSpaceId ? getSpaceSearchPath(currentSpaceId) : getHomeSearchPath(),
@@ -195,8 +206,11 @@ export const getCommandPaletteMessageTargets = ({
     items.push({
       id: `message-space-${currentSpaceId}-${trimmedQuery}`,
       kind: 'message',
-      title: `Search ${quotedQuery} in ${currentSpaceName ?? 'current space'}`,
-      description: currentSpaceName ?? 'Current space',
+      title: t('commandPalette.messages.searchIn', {
+        query: quotedQuery,
+        scope: currentSpaceName ?? t('commandPalette.messages.currentSpaceFallback'),
+      }),
+      description: currentSpaceName ?? t('commandPalette.messages.currentSpaceDescription'),
       scope: 'space',
       path: buildPathWithSearch(getSpaceSearchPath(currentSpaceId), {
         term: trimmedQuery,
@@ -207,8 +221,8 @@ export const getCommandPaletteMessageTargets = ({
   items.push({
     id: `message-all-${trimmedQuery}`,
     kind: 'message',
-    title: `Search ${quotedQuery} across all rooms`,
-    description: 'Global message search',
+    title: t('commandPalette.messages.searchAll', { query: quotedQuery }),
+    description: t('commandPalette.messages.globalSearchDescription'),
     scope: 'all',
     path: buildPathWithSearch(getHomeSearchPath(), {
       term: trimmedQuery,

@@ -1,6 +1,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { StateEvent } from '../../../types/matrix/room';
 import { useAllJoinedRoomsSet, useGetRoom } from '../../hooks/useGetRoom';
@@ -81,6 +82,7 @@ export const useCommandPaletteSource = (
   options: UseCommandPaletteSourceOptions = {}
 ): CommandPaletteSource => {
   const { onLogout } = options;
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const location = useLocation();
   const navigate = useNavigate();
@@ -382,11 +384,14 @@ export const useCommandPaletteSource = (
 
   const actions = useMemo(
     () =>
-      getCommandPaletteQuickActions({
-        currentRoomName: selectedRoom?.name ?? selectedRoom?.roomId,
-        currentThreadId: currentThreadRootId,
-        isCurrentThreadResolved: currentThreadResolved,
-      }).map((item) => ({
+      getCommandPaletteQuickActions(
+        {
+          currentRoomName: selectedRoom?.name ?? selectedRoom?.roomId,
+          currentThreadId: currentThreadRootId,
+          isCurrentThreadResolved: currentThreadResolved,
+        },
+        t
+      ).map((item) => ({
         ...item,
         onSelect: actionCallbacks[item.id as CommandPaletteQuickActionId],
       })),
@@ -396,24 +401,28 @@ export const useCommandPaletteSource = (
       currentThreadResolved,
       selectedRoom?.name,
       selectedRoom?.roomId,
+      t,
     ]
   );
 
   const getMessages = useCallback(
     (query: string) =>
-      getCommandPaletteMessageTargets({
-        query,
-        currentRoomId: selectedRoom?.roomId,
-        currentRoomName: selectedRoom?.name,
-        currentSpaceId: selectedSpace
-          ? getCanonicalAliasOrRoomId(mx, selectedSpace.roomId)
-          : undefined,
-        currentSpaceName: selectedSpace?.name,
-      }).map((item) => ({
+      getCommandPaletteMessageTargets(
+        {
+          query,
+          currentRoomId: selectedRoom?.roomId,
+          currentRoomName: selectedRoom?.name,
+          currentSpaceId: selectedSpace
+            ? getCanonicalAliasOrRoomId(mx, selectedSpace.roomId)
+            : undefined,
+          currentSpaceName: selectedSpace?.name,
+        },
+        t
+      ).map((item) => ({
         ...item,
         onSelect: () => navigate(item.path),
       })),
-    [mx, navigate, selectedRoom, selectedSpace]
+    [mx, navigate, selectedRoom, selectedSpace, t]
   );
 
   return {
