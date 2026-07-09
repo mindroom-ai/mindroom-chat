@@ -58,7 +58,10 @@ import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { SequenceCardStyle } from '../styles.css';
 import { sanitizePageZoom } from '../../../utils/pageZoom';
-import { MindroomGeneralMessageSettings } from '../../../mindroom/settings/settingsExtensions';
+import {
+  MindroomGeneralMessageSettings,
+  MindroomInterfaceSettings,
+} from '../../../mindroom/settings/settingsExtensions';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -1021,6 +1024,7 @@ export function General({ requestClose }: GeneralProps) {
         <Scroll hideTrack visibility="Hover">
           <PageContent>
             <Box direction="Column" gap="700">
+              <MindroomInterfaceSettings className={SequenceCardStyle} />
               <Appearance />
               <DateAndTime />
               <Editor />
