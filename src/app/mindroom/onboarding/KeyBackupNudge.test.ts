@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudge';
+import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudgeDismissal';
 import { useKeyBackupPresence } from './useKeyBackupPresence';
 import { KeyBackupNudge } from './KeyBackupNudge';
 

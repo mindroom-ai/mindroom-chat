@@ -4,7 +4,7 @@ import { useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
-import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudge';
+import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudgeDismissal';
 import { useKeyBackupPresence } from './useKeyBackupPresence';
 import { WelcomeCardStyle } from './welcomeCard';
 

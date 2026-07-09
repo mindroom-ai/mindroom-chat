@@ -3,7 +3,7 @@ import {
   dismissKeyBackupNudge,
   getKeyBackupNudgeDismissStorageKey,
   readKeyBackupNudgeDismissed,
-} from './keyBackupNudge';
+} from './keyBackupNudgeDismissal';
 
 const makeMemoryStorage = () => {
   const store = new Map<string, string>();
