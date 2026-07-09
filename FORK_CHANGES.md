@@ -53,8 +53,12 @@ SURFACES HIDDEN WHEN ON:
   dimension through the existing effective-query-state (DSL) path.
 - Room header: search + pinned-messages hidden; kebab trimmed to mark-read,
   notifications, invite, leave.
-- Composer: markdown-toolbar toggle, sticker, voice recorder hidden; attach,
-  emoji, send stay.
+- Composer: markdown-toolbar toggle and sticker hidden; attach, VOICE,
+  emoji, send stay. Voice was hidden at first and restored per user
+  feedback 2026-07-09 — dictation is core for non-technical users.
+- Sidebar footer: the Add Account plus button is hidden (user feedback
+  2026-07-09); Manage accounts stays so an existing multi-account setup
+  can still switch.
 - Settings: menu drops Developer Tools, Emojis & Stickers, Local MindRoom
   (deep links fall back like deployments that disable that tab); General
   reduces to Interface + Appearance. The Interface group is the way back
