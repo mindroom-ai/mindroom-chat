@@ -1973,6 +1973,7 @@ export function RoomTimeline({
     setTimeline,
     atBottomRef,
     scrollToBottomRef,
+    roomPaginatingBackRef,
   });
 
   useThreadAwareTimelineRefresh({

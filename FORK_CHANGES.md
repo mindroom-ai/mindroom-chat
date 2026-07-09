@@ -292,6 +292,18 @@ stale/shallow:
     the orphaned-chain rebuild, the linked-chain no-op, thread/event view
     scoping, foreign timeline-set scoping, the bottom pin, and listener
     teardown.
+  - Hardening (same PR, self-review): (a) CLOBBER RACE — a back-pagination
+    in flight when the reset lands completes by reinstalling its captured
+    (orphaned) chain via `recalibrateTimelinePagination`, undoing the
+    relink with no further reset event to recover from. The reset now
+    latches `resetPendingRef`; a self-heal effect re-links on timeline
+    changes until the chain contains the live timeline while
+    `roomPaginatingBackRef` is quiescent, then clears the latch. The latch
+    (not an unconditional per-render check) keeps the heal from hijacking
+    legitimate live-timeline-less states — e.g. an event-focused chain kept
+    after `eventId` clears without a remount. (b) StrictMode: the coverage
+    controller's mounted guard is set in the effect body, not at ref init,
+    so a preserved-ref remount cannot permanently suppress the settle tick.
 
 Repro notes (for e2e later): gappy sync = >STARTUP_SYNC_TIMELINE_LIMIT
 (20) room events in one /sync window — routine in agent rooms (streaming

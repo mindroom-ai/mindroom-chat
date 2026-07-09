@@ -81,12 +81,15 @@ export const useCompactCoverageBackfillController = ({
   // by unmount alone — not by the reactive effect's cleanup.
   const [batchSettledTick, setBatchSettledTick] = useState(0);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set on the effect body, not at ref init, so a StrictMode
+    // mount→unmount→remount (which preserves refs) does not leave the
+    // guard permanently false and stall the settle tick.
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   useEffect(() => {
     batchesUsedRef.current = 0;

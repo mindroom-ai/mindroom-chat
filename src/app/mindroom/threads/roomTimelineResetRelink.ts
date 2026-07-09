@@ -27,6 +27,17 @@ type ScrollToBottomState = {
  * from the linked chain — a reset that kept the chain intact must not yank
  * the window. After the rebuild the view sits at the (shallow) live end;
  * the compact coverage controller restores depth from cache/network.
+ *
+ * Clobber race: a back-pagination that was already in flight when the reset
+ * landed completes by REBUILDING timeline state from its captured (now
+ * orphaned) chain (`recalibrateTimelinePagination` → setTimeline), undoing
+ * the relink with no further reset event to recover from. The reset
+ * therefore latches `resetPendingRef`, and a per-render self-heal effect
+ * keeps re-linking until the chain contains the live timeline while no
+ * back-pagination is in flight — only then is the latch cleared. The latch
+ * (not an unconditional per-render check) is what keeps the heal from
+ * hijacking legitimate live-timeline-less states, e.g. an event-focused
+ * chain kept after `eventId` clears without a remount.
  */
 export const useRoomTimelineResetRelink = ({
   room,
@@ -37,6 +48,7 @@ export const useRoomTimelineResetRelink = ({
   setTimeline,
   atBottomRef,
   scrollToBottomRef,
+  roomPaginatingBackRef,
 }: {
   room: Room;
   threadIdRef: MutableRefObject<string | undefined>;
@@ -46,9 +58,15 @@ export const useRoomTimelineResetRelink = ({
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   atBottomRef: MutableRefObject<boolean>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
+  roomPaginatingBackRef: MutableRefObject<boolean>;
 }): void => {
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
+  const resetPendingRef = useRef(false);
+
+  useEffect(() => {
+    resetPendingRef.current = false;
+  }, [room.roomId]);
 
   useEffect(() => {
     const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (
@@ -62,6 +80,7 @@ export const useRoomTimelineResetRelink = ({
       const liveTimeline = getLiveTimeline(room);
       if (timelineRef.current.linkedTimelines.includes(liveTimeline)) return;
 
+      resetPendingRef.current = true;
       if (atBottomRef.current) {
         scrollToBottomRef.current.count += 1;
         scrollToBottomRef.current.smooth = false;
@@ -74,4 +93,35 @@ export const useRoomTimelineResetRelink = ({
       room.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
     };
   }, [room, eventId, rebuildTimeline, setTimeline, threadIdRef, atBottomRef, scrollToBottomRef]);
+
+  useEffect(() => {
+    if (!resetPendingRef.current) return;
+    if (threadIdRef.current || eventId) return;
+
+    const liveTimeline = getLiveTimeline(room);
+    if (timeline.linkedTimelines.includes(liveTimeline)) {
+      if (!roomPaginatingBackRef.current) {
+        // Linked and quiescent — no in-flight pagination can clobber the
+        // chain with a pre-reset snapshot anymore.
+        resetPendingRef.current = false;
+      }
+      return;
+    }
+
+    if (atBottomRef.current) {
+      scrollToBottomRef.current.count += 1;
+      scrollToBottomRef.current.smooth = false;
+    }
+    setTimeline(rebuildTimeline());
+  }, [
+    timeline,
+    room,
+    eventId,
+    rebuildTimeline,
+    setTimeline,
+    threadIdRef,
+    atBottomRef,
+    scrollToBottomRef,
+    roomPaginatingBackRef,
+  ]);
 };
