@@ -2,6 +2,69 @@
 
 ## Runbook
 
+### i18n foundation: language picker + first translated surface (2026-07-09)
+
+- Status:
+  - Step 1 done: working multi-language pipeline (en/de) with a picker; rest of
+    the app is still hardcoded English and migrates surface-by-surface.
+- Background:
+  - Upstream Cinny ships i18next scaffolding but only one vestigial key
+    (`Organisms.RoomCommon.changed_room_name`); nothing else was translated and
+    there was no way to switch language.
+- Summary:
+  - Locale files moved `public/locales/` → `src/app/locales/` (single source of
+    truth). REQUIRED, not cosmetic: importing JSON from `public/` broke the dev
+    server — the vite-plugin-static-copy dev middleware intercepts
+    `/public/locales/en.json?import` and serves raw JSON (`application/json`
+    MIME), killing the module graph at boot. The static-copy target now copies
+    `src/app/locales` → `dist/public/locales`, so the runtime fetch URL
+    (`public/locales/{{lng}}.json`) is unchanged for deployments.
+  - `i18n.ts`: `supportedLngs` from a new `i18nLanguages.ts` registry
+    (en/English, de/Deutsch); English bundled via `resources` +
+    `partialBundledLanguages` (no raw-key flash while the async fetch is in
+    flight; non-en locales still load over HTTP); `react.useSuspense: false`
+    because the app has NO Suspense boundary — with suspense on, the first
+    switch to a not-yet-loaded language would blank/crash the UI;
+    `languageChanged` listener syncs `<html lang dir>`.
+  - `i18next.d.ts` types `t()` keys against `en.json`, so key typos fail
+    `npm run typecheck`. `i18n.test.ts` enforces en/de key-set parity, no empty
+    translations, and registry ↔ locale-file agreement (a new locale MUST be
+    added in both places or tests fail).
+  - Settings → General: new Language section (picker persists via the
+    i18next detector cache, localStorage `i18nextLng`); all strings owned by
+    `General.tsx` plus `useMessageLayoutItems`/`useMessageSpacingItems` names
+    are translated in en+de as the proof-of-pipeline surface. Fixed broken
+    German in the legacy key (" hat den Raum Name geändert" → " hat den
+    Raumnamen geändert").
+- Known limits / next steps:
+  - Settings nav ("General", "Account", …) and every other surface remain
+    English — next slices; `getSettingsMenuItems` needs `t` threaded through
+    (its `settingsIntegration.test.ts` asserts on names). Still English on the
+    General page itself: the MindRoom prefetch card
+    (`MindroomPrefetchSettings.tsx`) and theme names from `useTheme.ts`, so
+    German mode shows a mixed-language seam there. `useDateFormatItems`'s
+    `name` field is dead data (its only consumer renders `getDisplayDate`) —
+    remove in a follow-up.
+  - Logout clears `i18nextLng` with the rest of localStorage (initMatrix
+    logout wipes all but the session store), so language resets to browser
+    default after logout — same behavior as theme settings.
+  - "System default" picker option (clear the cached choice) not implemented;
+    dayjs date locales not wired to the language.
+- Validation:
+  - `npx vitest run src/app/i18n.test.ts src/app/mindroom/local-mindroom/settingsIntegration.test.ts src/app/mindroom/threads/__tests__/RoomTimelineCollapsible.test.ts` passed (26 tests).
+  - `npm run typecheck` / `npm run build`: identical to baseline — only the
+    pre-existing WelcomePage `KeyBackupNudge`/`keyBackupNudge.ts` casing
+    collision (both captured before and after).
+  - `npx eslint` clean on all touched files.
+  - Live-driven on the dev server against the :28008 Tuwunel (account
+    `i18n-tester`): picker switches the whole General page to German in place,
+    `<html lang>`/localStorage update, choice survives a full reload, and
+    `/public/locales/de.json` serves 200 via the static-copy middleware.
+    Screenshots: `ui-audit/i18n-settings-{english,german}.png`. NOTE: dev-boot
+    verification required a temporary local `.tsx`-suffixed import of
+    `KeyBackupNudge` in WelcomePage (the pre-existing casing collision breaks
+    macOS dev boot); reverted before commit, not part of the change.
+
 ### E2EE command autocomplete parity (2026-07-09)
 
 - Status:

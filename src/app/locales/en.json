@@ -1,0 +1,92 @@
+{
+  "Organisms": {
+    "RoomCommon": {
+      "changed_room_name": " changed room name"
+    }
+  },
+  "options": {
+    "messageLayout": {
+      "modern": "Modern",
+      "compact": "Compact",
+      "bubble": "Bubble"
+    },
+    "messageSpacing": {
+      "none": "None",
+      "ultraSmall": "Ultra Small",
+      "extraSmall": "Extra Small",
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large"
+    },
+    "dateFormat": {
+      "custom": "Custom"
+    }
+  },
+  "settings": {
+    "general": {
+      "title": "General",
+      "language": {
+        "sectionTitle": "Language",
+        "appLanguage": "App Language",
+        "appLanguageDescription": "Applies to menus and interface text. Message content is never translated."
+      },
+      "appearance": {
+        "sectionTitle": "Appearance",
+        "systemTheme": "System Theme",
+        "systemThemeDescription": "Choose between light and dark theme based on system preference.",
+        "lightTheme": "Light Theme:",
+        "darkTheme": "Dark Theme:",
+        "theme": "Theme",
+        "themeDescription": "Theme to use when system theme is not enabled.",
+        "monochromeMode": "Monochrome Mode",
+        "twitterEmoji": "Twitter Emoji",
+        "pageZoom": "Page Zoom"
+      },
+      "dateTime": {
+        "sectionTitle": "Date & Time",
+        "hour24Clock": "24-Hour Time Format",
+        "dateFormat": "Date Format",
+        "save": "Save",
+        "formatHints": {
+          "title": "Formatting",
+          "year": "Year",
+          "twoDigitYear": "Two-digit year",
+          "fourDigitYear": "Four-digit year",
+          "month": "Month",
+          "theMonth": "The month",
+          "twoDigitMonth": "Two-digit month",
+          "shortMonthName": "Short month name",
+          "fullMonthName": "Full month name",
+          "dayOfMonth": "Day of the Month",
+          "theDayOfMonth": "Day of the month",
+          "twoDigitDayOfMonth": "Two-digit day of the month",
+          "dayOfWeek": "Day of the Week",
+          "theDayOfWeek": "Day of the week (Sunday = 0)",
+          "twoLetterDayName": "Two-letter day name",
+          "shortDayName": "Short day name",
+          "fullDayName": "Full day name"
+        }
+      },
+      "editor": {
+        "sectionTitle": "Editor",
+        "enterForNewline": "ENTER for Newline",
+        "enterForNewlineDescription": "Use {{sendKey}} + ENTER to send message and ENTER for newline.",
+        "markdownFormatting": "Markdown Formatting",
+        "hideActivity": "Hide Typing & Read Receipts",
+        "hideActivityDescription": "Turn off both typing status and read receipts to keep your activity private."
+      },
+      "messages": {
+        "sectionTitle": "Messages",
+        "messageLayout": "Message Layout",
+        "messageSpacing": "Message Spacing",
+        "legacyUsernameColor": "Legacy Username Color",
+        "hideMembershipChange": "Hide Membership Change",
+        "hideProfileChange": "Hide Profile Change",
+        "disableMediaAutoLoad": "Disable Media Auto Load",
+        "urlPreview": "Url Preview",
+        "urlPreviewEncrypted": "Url Preview in Encrypted Room",
+        "showHiddenEvents": "Show Hidden Events"
+      }
+    }
+  }
+}
