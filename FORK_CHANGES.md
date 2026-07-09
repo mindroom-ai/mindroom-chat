@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### iOS App Store 4.12.4 release execution (2026-07-09)
+
+- Status: release hardening and version bump validated locally; pending final PR
+  #103 CI before merge.
+- The public App Store record shows `Mindroom AI` version `4.12.3` was released
+  on 2026-07-09 at 20:42 UTC, so Apple's `4.12.3` train is closed. A build-only
+  increment would repeat the prior closed-train failure mode.
+- Release target: GitHub `v4.12.3-mindroom.33`, Apple marketing version/build
+  `4.12.4 (33)`. The Xcode project fallback is bumped to both values; after the
+  merge-to-`dev` auto-release, Xcode Cloud can resolve build `33` from the tag
+  while retaining the deliberately-ahead Apple marketing version `4.12.4`.
+- PR review hardening: require the home-reminders fixture in overview readiness,
+  wrap both screenshot-theme storage reads and writes in an explicit failure
+  boundary, derive collapsed-message expansion count from the live DOM instead
+  of a hard-coded cap, and wait for each SPA thread navigation before the
+  theme-triggered reload.
+- Ground-truthed Gemini's suggestion to remove the initial collapsed-message
+  readiness wait: a cold full capture reproduced the overlay race and stalled
+  on the campground tool button because the overlay mounted after the tool
+  header became visible. The helper now keeps the wait as an explicit fixture
+  invariant (all four thread scenes are intentionally collapsed), but removes
+  the swallowed timeout and hard-coded ten-expansion cap; the live DOM count
+  determines the exact work.
+- Green: full `npm run appstore:screenshots` after the review fixes (iPhone +
+  iPad, 10 assets, 24.5 seconds), `node scripts/ios-ci-version.mjs` resolves
+  `4.12.4 (33)`, App Store preflight, plist lint, typecheck, production build,
+  lint (0 errors, 19 pre-existing warnings), and `npm test` (354 files, 2812
+  tests).
+
 ### iOS release metadata aligned with current MindRoom positioning (2026-07-09)
 
 - Status: complete; pushed to PR #103 with the PR title and description updated

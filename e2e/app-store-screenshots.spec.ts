@@ -58,19 +58,26 @@ const applySceneTheme = async (page: Page, scene: AppStoreScreenshotScene) => {
     let storedSettings: Record<string, unknown> = {};
     try {
       const storedValue = localStorage.getItem('settings');
-      if (storedValue) storedSettings = JSON.parse(storedValue) as Record<string, unknown>;
-    } catch {
-      storedSettings = {};
-    }
+      const parsedSettings = storedValue ? (JSON.parse(storedValue) as unknown) : undefined;
+      if (
+        parsedSettings !== null &&
+        typeof parsedSettings === 'object' &&
+        !Array.isArray(parsedSettings)
+      ) {
+        storedSettings = parsedSettings as Record<string, unknown>;
+      }
 
-    localStorage.setItem(
-      'settings',
-      JSON.stringify({
-        ...storedSettings,
-        useSystemTheme: false,
-        themeId,
-      })
-    );
+      localStorage.setItem(
+        'settings',
+        JSON.stringify({
+          ...storedSettings,
+          useSystemTheme: false,
+          themeId,
+        })
+      );
+    } catch {
+      throw new Error('App Store screenshot capture requires localStorage for theme selection.');
+    }
   }, `${scene.theme}-theme`);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -176,6 +183,7 @@ const expectFixtureRoomOverview = async (page: Page) => {
   await expect(getThreadEntry(page, MINDROOM_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
   await expect(getThreadEntry(page, CAMPGROUND_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
   await expect(getThreadEntry(page, CAR_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
+  await expect(getThreadEntry(page, HOME_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
 };
 
 const openFixtureRoom = async (page: Page, roomId: string) => {
@@ -189,14 +197,12 @@ const returnToFixtureRoomOverview = async (page: Page) => {
 };
 
 const expandCollapsedMessages = async (page: Page) => {
-  const initialShowMoreButton = page.getByRole('button', { name: /show more/i }).last();
-  await initialShowMoreButton.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+  const showMoreButtons = page.getByRole('button', { name: /show more/i });
+  await expect(showMoreButtons.last()).toBeVisible({ timeout: 10_000 });
+  const collapsedCount = await showMoreButtons.count();
 
-  for (let expandedCount = 0; expandedCount < 10; expandedCount += 1) {
-    const showMoreButton = page.getByRole('button', { name: /show more/i }).last();
-    if (!(await showMoreButton.isVisible().catch(() => false))) break;
-
-    await showMoreButton.click({ force: true });
+  for (let expandedCount = 0; expandedCount < collapsedCount; expandedCount += 1) {
+    await showMoreButtons.last().click({ force: true });
     await waitForNextPaint(page);
   }
 };
@@ -244,6 +250,7 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await captureScene(page, device, sceneById('personal-workspace'), capturedDigests);
 
       await getThreadEntry(page, MINDROOM_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('mindroom-explained'));
       await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('MindRoom is a personal AI agent platform')).toBeVisible({
@@ -255,6 +262,7 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, CAMPGROUND_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('campground-monitor'));
       await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       const toolCallsButton = page.getByRole('button', { name: /3 tool calls/i }).first();
@@ -269,23 +277,25 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, CAR_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('car-search'));
       await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-      await expandCollapsedMessages(page);
       await expect(
         page.getByText('I updated the shortlist with two promising options')
       ).toBeVisible({
         timeout: 30_000,
       });
+      await expandCollapsedMessages(page);
       await expect(page.getByText('Option A:', { exact: true })).toBeVisible();
       await captureScene(page, device, sceneById('car-search'), capturedDigests);
 
       await returnToFixtureRoomOverview(page);
       await getThreadEntry(page, HOME_THREAD_TITLE).click();
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await applySceneTheme(page, sceneById('home-reminders'));
       await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-      await expandCollapsedMessages(page);
       await expect(page.getByText("Tonight's batch is ready:")).toBeVisible({ timeout: 30_000 });
+      await expandCollapsedMessages(page);
       await expect(page.getByText('Package:', { exact: true })).toBeVisible();
       await captureScene(page, device, sceneById('home-reminders'), capturedDigests);
     });
