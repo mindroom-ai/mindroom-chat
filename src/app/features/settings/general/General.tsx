@@ -62,6 +62,7 @@ import {
   MindroomGeneralMessageSettings,
   MindroomInterfaceSettings,
 } from '../../../mindroom/settings/settingsExtensions';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -1004,6 +1005,9 @@ type GeneralProps = {
   requestClose: () => void;
 };
 export function General({ requestClose }: GeneralProps) {
+  // Simple mode keeps General to the Interface group (the way back out of
+  // simple mode) and Appearance; the technical sections are hidden.
+  const simpleMode = useSimpleMode();
   return (
     <Page>
       <PageHeader outlined={false}>
@@ -1026,9 +1030,13 @@ export function General({ requestClose }: GeneralProps) {
             <Box direction="Column" gap="700">
               <MindroomInterfaceSettings className={SequenceCardStyle} />
               <Appearance />
-              <DateAndTime />
-              <Editor />
-              <Messages />
+              {!simpleMode && (
+                <>
+                  <DateAndTime />
+                  <Editor />
+                  <Messages />
+                </>
+              )}
             </Box>
           </PageContent>
         </Scroll>

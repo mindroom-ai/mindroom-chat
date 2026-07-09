@@ -40,9 +40,25 @@ import {
 } from './settingsMenu';
 import { SettingsPage, SettingsPages } from './settingsPages';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
+import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
 
-const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
-  useMemo(() => getSettingsMenuItems(showLocalMindRoom), [showLocalMindRoom]);
+// Kept out of the menu in simple mode; General (hosting the Simple Mode
+// switch itself), Account, Notifications, Devices, and About stay.
+const SIMPLE_MODE_HIDDEN_PAGES: SettingsPage[] = [
+  SettingsPages.DeveloperToolsPage,
+  SettingsPages.EmojisStickersPage,
+];
+
+const useSettingsMenuItems = (
+  showLocalMindRoom: boolean,
+  simpleMode: boolean
+): SettingsMenuItem[] =>
+  useMemo(() => {
+    const items = getSettingsMenuItems(showLocalMindRoom);
+    return simpleMode
+      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_PAGES.includes(item.page))
+      : items;
+  }, [showLocalMindRoom, simpleMode]);
 
 type SettingsProps = {
   initialPage?: SettingsPage;
@@ -60,11 +76,12 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     : undefined;
 
   const screenSize = useScreenSizeContext();
-  const showLocalMindRoom = sidebar?.showMindRoom ?? true;
+  const simpleMode = useSimpleMode();
+  const showLocalMindRoom = (sidebar?.showMindRoom ?? true) && !simpleMode;
   const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
   );
-  const menuItems = useSettingsMenuItems(showLocalMindRoom);
+  const menuItems = useSettingsMenuItems(showLocalMindRoom, simpleMode);
 
   const handlePageRequestClose = () => {
     if (screenSize === ScreenSize.Mobile) {
