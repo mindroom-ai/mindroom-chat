@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Switch, Text } from 'folds';
+import { Box, color, Switch, Text } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import {
@@ -23,11 +23,15 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
   // show the requested value immediately and hand back to the store when the
   // write settles (echo arrived, or failed and the stored value still rules).
   const [pending, setPending] = useState<boolean>();
+  // A failed write snaps the switch back to the stored value; the target
+  // audience is non-technical, so say why instead of failing silently.
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const handleSimpleMode = (next: boolean) => {
     setPending(next);
+    setSaveFailed(false);
     setAccountSettings({ simpleMode: next })
-      .catch(() => undefined)
+      .catch(() => setSaveFailed(true))
       .finally(() => setPending(undefined));
   };
 
@@ -41,7 +45,13 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
           after={
             <Switch variant="Primary" value={pending ?? simpleMode} onChange={handleSimpleMode} />
           }
-        />
+        >
+          {saveFailed && (
+            <Text size="T200" style={{ color: color.Critical.Main }}>
+              Could not save the change. Check your connection and try again.
+            </Text>
+          )}
+        </SettingTile>
       </SequenceCard>
     </Box>
   );
