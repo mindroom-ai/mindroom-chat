@@ -220,6 +220,7 @@ import {
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
+import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
@@ -1955,6 +1956,23 @@ export function RoomTimeline({
     setTimeline,
     threadId,
     threadIdRef,
+  });
+
+  // Gappy sync: `resetLiveTimeline` forks an UNLINKED live timeline, so the
+  // chain held in `timeline` state goes permanently stale — every later
+  // live event lands in a timeline this component never reads (new
+  // standalone roots stop appearing as compact cards; classic view
+  // freezes). TimelineRefresh below does not cover this (MSC2716-only, and
+  // gated on liveTimelineLinked — false exactly after a reset).
+  useRoomTimelineResetRelink({
+    room,
+    threadIdRef,
+    eventId,
+    timeline,
+    rebuildTimeline: buildRoomCacheHydratedTimeline,
+    setTimeline,
+    atBottomRef,
+    scrollToBottomRef,
   });
 
   useThreadAwareTimelineRefresh({

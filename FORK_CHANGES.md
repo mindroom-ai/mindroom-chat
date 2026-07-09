@@ -279,10 +279,27 @@ stale/shallow:
     swallowed and retry within budget. Unit tests cover the decision
     helper, single-flight, budget cap, target stop, settle-tick
     continuation, and error tolerance.
-  - Step 2 next: relink the render timeline on `RoomEvent.TimelineReset`
-    (room scope, unfiltered set, only when the live timeline is no longer
-    in the linked chain) so live arrivals resume after a gappy sync; the
-    step-1 coverage loop then restores depth from cache/network.
+  - Step 2 done: `roomTimelineResetRelink.ts` —
+    `useRoomTimelineResetRelink` listens for `RoomEvent.TimelineReset`
+    (room view only, unfiltered set only) and rebuilds the render timeline
+    via the cache-hydration builder, but ONLY when the current linked
+    chain no longer contains `getLiveTimeline(room)` — a reset that kept
+    the chain intact must not yank the window. Readers at bottom get the
+    non-smooth bottom pin; scrolled-up readers are left in place (the
+    orphaned chain was frozen anyway — jumping to live is the recovery,
+    same call Element makes). The step-1 coverage loop then restores
+    depth from cache/network, so pre-gap cards return. Unit tests cover
+    the orphaned-chain rebuild, the linked-chain no-op, thread/event view
+    scoping, foreign timeline-set scoping, the bottom pin, and listener
+    teardown.
+
+Repro notes (for e2e later): gappy sync = >STARTUP_SYNC_TIMELINE_LIMIT
+(20) room events in one /sync window — routine in agent rooms (streaming
+`m.replace` storms + tab throttling/sleep). Manual: DevTools offline ~20s
+during agent streaming, back online, agent posts an untagged root; without
+step 2 the card never appears until room re-entry. Cold start: clear site
+data, open a room with old standalone roots; without step 1 only real
+threads (server `/threads` list) render as cards.
 
 Validation (step 1): `npm run typecheck` clean; controller suite 8/8.
 
