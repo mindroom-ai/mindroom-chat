@@ -115,5 +115,78 @@
         "showHiddenEvents": "Show Hidden Events"
       }
     }
+  },
+  "thread": {
+    "chip": "Thread",
+    "view": "Thread View",
+    "resolve": "Resolve",
+    "resolved": "Resolved",
+    "replyCount_one": "{{count}} reply",
+    "replyCount_other": "{{count}} replies",
+    "aria": {
+      "openThread": "Open thread: {{title}}",
+      "resolvedThread": "Resolved thread",
+      "unresolvedThread": "Unresolved thread",
+      "unreadMessages": "Unread messages",
+      "agentStreaming": "Agent streaming",
+      "messageSending": "Message sending",
+      "lastActivity": "Last activity {{time}}",
+      "removeTagFilter": "Remove {{tag}} filter"
+    },
+    "status": {
+      "resolved": "Resolved",
+      "streaming": "Streaming",
+      "scheduled": "Scheduled",
+      "unread": "Unread",
+      "idle": "Idle",
+      "idleFilter": "Idle (resolved, not streaming, no tasks)"
+    },
+    "stats": {
+      "aria": "Thread statistics",
+      "showing": "Showing {{shown}} of {{total}}",
+      "threadCount_one": "{{count}} thread",
+      "threadCount_other": "{{count}} threads",
+      "tags": "Tags"
+    },
+    "filterTooltip": {
+      "any": "{{label}}: showing all. Click to show only.",
+      "include": "{{label}}: show only. Click to hide.",
+      "exclude": "{{label}}: hiding. Click to clear filter.",
+      "tagAny": "Tag \"{{tag}}\"",
+      "tagInclude": "Tag \"{{tag}}\": show only. Click to hide.",
+      "tagExclude": "Tag \"{{tag}}\": hiding. Click to clear filter.",
+      "stateAny": "showing all",
+      "stateInclude": "show only",
+      "stateExclude": "hiding"
+    },
+    "filters": {
+      "scope": "Scope",
+      "scopeInvolved": "Involved",
+      "scopeAllRooms": "All rooms",
+      "status": "Status",
+      "statusAll": "All",
+      "statusUnresolved": "Unresolved",
+      "statusResolved": "Resolved",
+      "activity": "Activity",
+      "activityToday": "Today",
+      "activity7d": "7d",
+      "activity30d": "30d",
+      "activityAll": "All",
+      "unread": "Unread",
+      "attention": "Attention",
+      "roomIdsPlaceholder": "Room IDs",
+      "roomIdsAria": "Room id filters",
+      "spaceIdsPlaceholder": "Space IDs",
+      "spaceIdsAria": "Space id filters",
+      "tagsPlaceholder": "Tags",
+      "tagsIncludeAria": "Included tag filters",
+      "excludeTagsPlaceholder": "Exclude tags",
+      "tagsExcludeAria": "Excluded tag filters",
+      "clear": "Clear",
+      "open": "Filters",
+      "search": "Search threads",
+      "sheetAria": "Thread filters",
+      "closeAria": "Close thread filters"
+    }
   }
 }

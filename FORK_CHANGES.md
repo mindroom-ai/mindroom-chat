@@ -16,8 +16,24 @@
     design (product name). Component tests that assert on visible copy use
     `src/app/test-utils/i18n.ts` `translateFromEn` (resolves keys against the
     real en.json) instead of hardcoding strings next to a react-i18next mock.
+  - Step 3 done (same PR): the thread-resolution affordance and thread
+    status/filter cluster are translated — the Resolve/Resolved button in
+    `ThreadContextBanner` ("Threadweergave"/"Oplossen"/"Opgelost"), the
+    `ThreadIndicator` chip incl. the reply-count plural
+    (`thread.replyCount_one/_other`), `CompactThreadCard` aria fragments, the
+    `RoomThreadOverview` tri-state filter chips/tooltips/aria + status labels
+    + stats popover (label maps became `*_LABEL_KEYS` key maps; the tooltip
+    helpers take a `TFunction`), and the whole cross-room threads `FilterBar`
+    + mobile sheet. Tests that assert visible copy (`ThreadContextBanner`,
+    `RoomThreadOverview`, `__tests__/FilterBar`, `__tests__/Threads`) mock
+    react-i18next with `translateFromEn`. E2E specs keying on
+    `getByText('Thread View')` are safe: the e2e browser has no cached
+    language, so English stays the detector default.
   - Rest of the app is still hardcoded English and migrates
-    surface-by-surface.
+    surface-by-surface. Still English near this slice: `RoomThreadOverview`'s
+    view-mode/sort/preset controls and its own search toggle
+    ("Search threads..."), and the "Showing all N thread(s)." aria-live
+    summary.
 - Background:
   - Upstream Cinny ships i18next scaffolding but only one vestigial key
     (`Organisms.RoomCommon.changed_room_name`); nothing else was translated and

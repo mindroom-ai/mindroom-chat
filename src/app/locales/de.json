@@ -115,5 +115,78 @@
         "showHiddenEvents": "Versteckte Ereignisse anzeigen"
       }
     }
+  },
+  "thread": {
+    "chip": "Thread",
+    "view": "Thread-Ansicht",
+    "resolve": "Auflösen",
+    "resolved": "Gelöst",
+    "replyCount_one": "{{count}} Antwort",
+    "replyCount_other": "{{count}} Antworten",
+    "aria": {
+      "openThread": "Thread öffnen: {{title}}",
+      "resolvedThread": "Gelöster Thread",
+      "unresolvedThread": "Ungelöster Thread",
+      "unreadMessages": "Ungelesene Nachrichten",
+      "agentStreaming": "Agent antwortet gerade",
+      "messageSending": "Nachricht wird gesendet",
+      "lastActivity": "Letzte Aktivität {{time}}",
+      "removeTagFilter": "Filter {{tag}} entfernen"
+    },
+    "status": {
+      "resolved": "Gelöst",
+      "streaming": "Streaming",
+      "scheduled": "Geplant",
+      "unread": "Ungelesen",
+      "idle": "Inaktiv",
+      "idleFilter": "Inaktiv (gelöst, kein Streaming, keine Aufgaben)"
+    },
+    "stats": {
+      "aria": "Thread-Statistiken",
+      "showing": "{{shown}} von {{total}} angezeigt",
+      "threadCount_one": "{{count}} Thread",
+      "threadCount_other": "{{count}} Threads",
+      "tags": "Tags"
+    },
+    "filterTooltip": {
+      "any": "{{label}}: alle werden angezeigt. Klicken, um nur diese anzuzeigen.",
+      "include": "{{label}}: nur diese werden angezeigt. Klicken, um sie auszublenden.",
+      "exclude": "{{label}}: ausgeblendet. Klicken, um den Filter zu entfernen.",
+      "tagAny": "Tag „{{tag}}“",
+      "tagInclude": "Tag „{{tag}}“: nur anzeigen. Klicken, um auszublenden.",
+      "tagExclude": "Tag „{{tag}}“: ausgeblendet. Klicken, um den Filter zu entfernen.",
+      "stateAny": "alle anzeigen",
+      "stateInclude": "nur anzeigen",
+      "stateExclude": "ausgeblendet"
+    },
+    "filters": {
+      "scope": "Bereich",
+      "scopeInvolved": "Beteiligt",
+      "scopeAllRooms": "Alle Räume",
+      "status": "Status",
+      "statusAll": "Alle",
+      "statusUnresolved": "Ungelöst",
+      "statusResolved": "Gelöst",
+      "activity": "Aktivität",
+      "activityToday": "Heute",
+      "activity7d": "7d",
+      "activity30d": "30d",
+      "activityAll": "Alle",
+      "unread": "Ungelesen",
+      "attention": "Aufmerksamkeit",
+      "roomIdsPlaceholder": "Raum-IDs",
+      "roomIdsAria": "Raum-ID-Filter",
+      "spaceIdsPlaceholder": "Space-IDs",
+      "spaceIdsAria": "Space-ID-Filter",
+      "tagsPlaceholder": "Tags",
+      "tagsIncludeAria": "Eingeschlossene Tag-Filter",
+      "excludeTagsPlaceholder": "Tags ausschließen",
+      "tagsExcludeAria": "Ausgeschlossene Tag-Filter",
+      "clear": "Zurücksetzen",
+      "open": "Filter",
+      "search": "Threads durchsuchen",
+      "sheetAria": "Thread-Filter",
+      "closeAria": "Thread-Filter schließen"
+    }
   }
 }

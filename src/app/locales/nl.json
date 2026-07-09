@@ -115,5 +115,78 @@
         "showHiddenEvents": "Verborgen gebeurtenissen tonen"
       }
     }
+  },
+  "thread": {
+    "chip": "Thread",
+    "view": "Threadweergave",
+    "resolve": "Oplossen",
+    "resolved": "Opgelost",
+    "replyCount_one": "{{count}} antwoord",
+    "replyCount_other": "{{count}} antwoorden",
+    "aria": {
+      "openThread": "Thread openen: {{title}}",
+      "resolvedThread": "Opgeloste thread",
+      "unresolvedThread": "Onopgeloste thread",
+      "unreadMessages": "Ongelezen berichten",
+      "agentStreaming": "Agent is aan het antwoorden",
+      "messageSending": "Bericht wordt verzonden",
+      "lastActivity": "Laatste activiteit {{time}}",
+      "removeTagFilter": "Filter {{tag}} verwijderen"
+    },
+    "status": {
+      "resolved": "Opgelost",
+      "streaming": "Streaming",
+      "scheduled": "Gepland",
+      "unread": "Ongelezen",
+      "idle": "Inactief",
+      "idleFilter": "Inactief (opgelost, geen streaming, geen taken)"
+    },
+    "stats": {
+      "aria": "Threadstatistieken",
+      "showing": "{{shown}} van {{total}} getoond",
+      "threadCount_one": "{{count}} thread",
+      "threadCount_other": "{{count}} threads",
+      "tags": "Tags"
+    },
+    "filterTooltip": {
+      "any": "{{label}}: alles wordt getoond. Klik om alleen deze te tonen.",
+      "include": "{{label}}: alleen deze worden getoond. Klik om te verbergen.",
+      "exclude": "{{label}}: verborgen. Klik om het filter te wissen.",
+      "tagAny": "Tag \"{{tag}}\"",
+      "tagInclude": "Tag \"{{tag}}\": alleen tonen. Klik om te verbergen.",
+      "tagExclude": "Tag \"{{tag}}\": verborgen. Klik om het filter te wissen.",
+      "stateAny": "alles tonen",
+      "stateInclude": "alleen tonen",
+      "stateExclude": "verborgen"
+    },
+    "filters": {
+      "scope": "Bereik",
+      "scopeInvolved": "Betrokken",
+      "scopeAllRooms": "Alle kamers",
+      "status": "Status",
+      "statusAll": "Alle",
+      "statusUnresolved": "Onopgelost",
+      "statusResolved": "Opgelost",
+      "activity": "Activiteit",
+      "activityToday": "Vandaag",
+      "activity7d": "7d",
+      "activity30d": "30d",
+      "activityAll": "Alle",
+      "unread": "Ongelezen",
+      "attention": "Aandacht",
+      "roomIdsPlaceholder": "Kamer-ID's",
+      "roomIdsAria": "Kamer-ID-filters",
+      "spaceIdsPlaceholder": "Space-ID's",
+      "spaceIdsAria": "Space-ID-filters",
+      "tagsPlaceholder": "Tags",
+      "tagsIncludeAria": "Ingesloten tagfilters",
+      "excludeTagsPlaceholder": "Tags uitsluiten",
+      "tagsExcludeAria": "Uitgesloten tagfilters",
+      "clear": "Wissen",
+      "open": "Filters",
+      "search": "Threads doorzoeken",
+      "sheetAria": "Threadfilters",
+      "closeAria": "Threadfilters sluiten"
+    }
   }
 }
