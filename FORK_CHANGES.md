@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### iOS release metadata aligned with current MindRoom positioning (2026-07-09)
+
+- Status: complete; PR update in progress.
+- Re-evaluated the App Store name-adjacent copy against the latest
+  `mindroom-ai/mindroom` `origin/main` README at `53afe1a08` (2026-07-09),
+  whose current lead is "AI agents that live in your chat rooms" and whose
+  product story emphasizes multi-agent routing/collaboration, persistent
+  memory, 100+ configured tool integrations, scheduling, voice, streaming tool
+  traces, Matrix bridges, and hosted or self-hosted operation.
+- Replaced the generic "Matrix client built for AI-agent collaboration"
+  description with user-facing agent benefits while preserving the product
+  boundary: agent capabilities are explicitly conditional on connecting the
+  iOS client to a MindRoom runtime, and available agents/models/tools/bridges/
+  memory remain dependent on the connected deployment.
+- Updated the App Store subtitle, promotional text, description, keywords, and
+  review-note opener; synchronized the submission packet and the in-app
+  MindRoom branding subtitle. Field lengths are within App Store limits:
+  subtitle 28 characters, promotional text 143 characters, description 1207
+  characters, keywords 88 bytes.
+- Green: focused branding tests, `npm run appstore:preflight`,
+  `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, 19
+  pre-existing warnings), and `npm test` (354 files, 2812 tests).
+
 ### iOS release screenshots: unique light/dark scene set (2026-07-09)
 
 - Status: complete. The final ten release PNGs were regenerated and visually
