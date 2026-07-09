@@ -1,5 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
+import { useTranslation } from 'react-i18next';
+import { type TFunction } from 'i18next';
 import {
   IconCalendarEvent,
   IconChevronDown,
@@ -34,49 +36,49 @@ export type { ThreadFilterState, ThreadFilterKey };
 
 // ─── Tooltip text helpers ────────────────────────────────────────────────────
 
-const FILTER_LABELS: Record<ThreadFilterKey, string> = {
-  resolved: 'Resolved',
-  streaming: 'Streaming',
-  scheduled: 'Scheduled',
-  unread: 'Unread',
-  idle: 'Idle (resolved, not streaming, no tasks)',
-};
+const FILTER_LABEL_KEYS = {
+  resolved: 'thread.status.resolved',
+  streaming: 'thread.status.streaming',
+  scheduled: 'thread.status.scheduled',
+  unread: 'thread.status.unread',
+  idle: 'thread.status.idleFilter',
+} as const satisfies Record<ThreadFilterKey, string>;
 
-const getTooltipText = (key: ThreadFilterKey, state: TriState): string => {
-  const label = FILTER_LABELS[key];
+const getTooltipText = (t: TFunction, key: ThreadFilterKey, state: TriState): string => {
+  const label = t(FILTER_LABEL_KEYS[key]);
   switch (state) {
     case 'any':
-      return `${label}: showing all. Click to show only.`;
+      return t('thread.filterTooltip.any', { label });
     case 'include':
-      return `${label}: show only. Click to hide.`;
+      return t('thread.filterTooltip.include', { label });
     case 'exclude':
-      return `${label}: hiding. Click to clear filter.`;
+      return t('thread.filterTooltip.exclude', { label });
     default:
       return label;
   }
 };
 
-const getAriaValueText = (state: TriState): string => {
+const getAriaValueText = (t: TFunction, state: TriState): string => {
   switch (state) {
     case 'any':
-      return 'showing all';
+      return t('thread.filterTooltip.stateAny');
     case 'include':
-      return 'show only';
+      return t('thread.filterTooltip.stateInclude');
     case 'exclude':
-      return 'hiding';
+      return t('thread.filterTooltip.stateExclude');
     default:
       return state;
   }
 };
 
-const getTagTooltipText = (tag: string, state: TriState): string => {
+const getTagTooltipText = (t: TFunction, tag: string, state: TriState): string => {
   switch (state) {
     case 'include':
-      return `Tag "${tag}": show only. Click to hide.`;
+      return t('thread.filterTooltip.tagInclude', { tag });
     case 'exclude':
-      return `Tag "${tag}": hiding. Click to clear filter.`;
+      return t('thread.filterTooltip.tagExclude', { tag });
     default:
-      return `Tag "${tag}"`;
+      return t('thread.filterTooltip.tagAny', { tag });
   }
 };
 
@@ -95,7 +97,8 @@ function TriStateIconToggle({
   onToggle: (key: ThreadFilterKey) => void;
   children: React.ReactNode;
 }) {
-  const tooltipText = getTooltipText(filterKey, state);
+  const { t } = useTranslation();
+  const tooltipText = getTooltipText(t, filterKey, state);
 
   return (
     <TooltipProvider
@@ -118,7 +121,7 @@ function TriStateIconToggle({
           )}
           onClick={() => onToggle(filterKey)}
           aria-roledescription="tri-state toggle"
-          aria-valuetext={getAriaValueText(state)}
+          aria-valuetext={getAriaValueText(t, state)}
           aria-label={tooltipText}
           data-filter-key={filterKey}
           data-filter-state={state}
@@ -143,7 +146,8 @@ function TagPill({
   onCycle: (tag: string) => void;
   onRemove: (tag: string) => void;
 }) {
-  const tooltipText = getTagTooltipText(tag, state);
+  const { t } = useTranslation();
+  const tooltipText = getTagTooltipText(t, tag, state);
 
   return (
     <TooltipProvider
@@ -171,7 +175,7 @@ function TagPill({
             className={css.TagPillLabel}
             onClick={() => onCycle(tag)}
             aria-roledescription="tri-state toggle"
-            aria-valuetext={getAriaValueText(state)}
+            aria-valuetext={getAriaValueText(t, state)}
             aria-label={tooltipText}
           >
             <Text size="T200">{tag}</Text>
@@ -180,7 +184,7 @@ function TagPill({
             type="button"
             className={css.TagPillRemove}
             onClick={() => onRemove(tag)}
-            aria-label={`Remove ${tag} filter`}
+            aria-label={t('thread.aria.removeTagFilter', { tag })}
           >
             <Text size="T200">&times;</Text>
           </button>
@@ -441,13 +445,13 @@ function ThreadPresetDropdown({
 
 // ─── ThreadInfoPopover ──────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<ThreadFilterKey, string> = {
-  resolved: 'Resolved',
-  streaming: 'Streaming',
-  scheduled: 'Scheduled',
-  unread: 'Unread',
-  idle: 'Idle',
-};
+const STATUS_LABEL_KEYS = {
+  resolved: 'thread.status.resolved',
+  streaming: 'thread.status.streaming',
+  scheduled: 'thread.status.scheduled',
+  unread: 'thread.status.unread',
+  idle: 'thread.status.idle',
+} as const satisfies Record<ThreadFilterKey, string>;
 
 function ThreadInfoPopover({
   statusCounts,
@@ -460,14 +464,17 @@ function ThreadInfoPopover({
   threadCount: number;
   totalThreadCount: number;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const tooltipText = statusCounts
-    ? (Object.keys(STATUS_LABELS) as ThreadFilterKey[])
-        .map((key) => `${statusCounts[key]} ${STATUS_LABELS[key].toLowerCase()}`)
+    ? (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[])
+        // Lowercasing works for en/de/nl alike here: the labels read as
+        // adjectives in the count summary ("3 gel\u00F6st"), not as nouns.
+        .map((key) => `${statusCounts[key]} ${t(STATUS_LABEL_KEYS[key]).toLowerCase()}`)
         .join(' \u00B7 ')
-    : `${totalThreadCount} thread${totalThreadCount !== 1 ? 's' : ''}`;
+    : t('thread.stats.threadCount', { count: totalThreadCount });
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
     if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
@@ -495,7 +502,7 @@ function ThreadInfoPopover({
             type="button"
             className={css.InfoButton}
             onClick={() => setOpen((prev) => !prev)}
-            aria-label="Thread statistics"
+            aria-label={t('thread.stats.aria')}
             aria-expanded={open}
             aria-haspopup="dialog"
             data-info-button="true"
@@ -508,18 +515,18 @@ function ThreadInfoPopover({
         <div
           className={css.InfoPopover}
           role="dialog"
-          aria-label="Thread statistics"
+          aria-label={t('thread.stats.aria')}
           data-info-popover="true"
         >
           <Text size="T200" style={{ fontWeight: 600, marginBottom: toRem(4) }}>
             {isFiltered
-              ? `Showing ${threadCount} of ${totalThreadCount}`
-              : `${totalThreadCount} threads`}
+              ? t('thread.stats.showing', { shown: threadCount, total: totalThreadCount })
+              : t('thread.stats.threadCount', { count: totalThreadCount })}
           </Text>
           {statusCounts &&
-            (Object.keys(STATUS_LABELS) as ThreadFilterKey[]).map((key) => (
+            (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[]).map((key) => (
               <div key={key} className={css.InfoStatRow}>
-                <Text size="T200">{STATUS_LABELS[key]}</Text>
+                <Text size="T200">{t(STATUS_LABEL_KEYS[key])}</Text>
                 <Text size="T200">{statusCounts[key]}</Text>
               </div>
             ))}
@@ -527,7 +534,7 @@ function ThreadInfoPopover({
             <>
               <div className={css.InfoSectionDivider} />
               <Text size="T200" style={{ fontWeight: 600, marginBottom: toRem(2) }}>
-                Tags
+                {t('thread.stats.tags')}
               </Text>
               {tagEntries.map(([tag, count]) => (
                 <div key={tag} className={css.InfoStatRow}>

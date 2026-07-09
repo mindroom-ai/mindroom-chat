@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageSpacing } from '../state/settings';
 
 export type MessageSpacingItem = {
@@ -6,33 +7,36 @@ export type MessageSpacingItem = {
   spacing: MessageSpacing;
 };
 
-export const useMessageSpacingItems = (): MessageSpacingItem[] =>
-  useMemo(
+export const useMessageSpacingItems = (): MessageSpacingItem[] => {
+  const { t } = useTranslation();
+
+  return useMemo(
     () => [
       {
         spacing: '0',
-        name: 'None',
+        name: t('options.messageSpacing.none'),
       },
       {
         spacing: '100',
-        name: 'Ultra Small',
+        name: t('options.messageSpacing.ultraSmall'),
       },
       {
         spacing: '200',
-        name: 'Extra Small',
+        name: t('options.messageSpacing.extraSmall'),
       },
       {
         spacing: '300',
-        name: 'Small',
+        name: t('options.messageSpacing.small'),
       },
       {
         spacing: '400',
-        name: 'Normal',
+        name: t('options.messageSpacing.normal'),
       },
       {
         spacing: '500',
-        name: 'Large',
+        name: t('options.messageSpacing.large'),
       },
     ],
-    []
+    [t]
   );
+};

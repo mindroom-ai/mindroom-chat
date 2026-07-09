@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
 import { Box, Icon, IconButton, Icons, Text, Button } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
@@ -67,6 +68,7 @@ export function ThreadContextBanner({
   summaryInfo,
   onExitThread,
 }: ThreadContextBannerProps) {
+  const { t } = useTranslation();
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, scheduledDisplayText } = useThreadHeaderInfo(
     room,
@@ -137,7 +139,7 @@ export function ThreadContextBanner({
         </IconButton>
         <div className={css.TitleColumn}>
           <Box direction="Row" alignItems="Center" gap="200">
-            <Text size="B400">Thread View</Text>
+            <Text size="B400">{t('thread.view')}</Text>
             {/* Desktop: tags inline on title row */}
             {(hasTags || headerModel.canEdit) && (
               <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
@@ -239,7 +241,7 @@ export function ThreadContextBanner({
             onClick={handleToggleResolve}
             disabled={!headerModel.canEdit || headerModel.pickerDisabled}
           >
-            <Text size="T200">{headerModel.isResolved ? 'Resolved' : 'Resolve'}</Text>
+            <Text size="T200">{headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}</Text>
           </Button>
         </div>
       </div>
