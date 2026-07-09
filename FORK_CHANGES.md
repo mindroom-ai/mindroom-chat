@@ -2,6 +2,120 @@
 
 ## Runbook
 
+### E2EE Phase 4 — verified-agent affordance, key-backup onboarding, UTD copy (2026-07-08)
+
+Fork end of the cross-repo Matrix E2EE work (mindroom PR #1423 backend +
+mindroom-nio 0.26.0 cross-signing). Design: mindroom
+`docs/superpowers/specs/2026-07-07-matrix-e2ee-user-experience-design.md`,
+section D7. These are polish and safety rails on an already-quiet baseline
+(encrypted DMs are the default via `createRoom.defaultEncryption ?? true`; no
+per-message shields for other users' devices), not prerequisites.
+
+D7.2 VERIFIED-AGENT AFFORDANCE. A `mindroom_`-prefixed agent on the viewer's
+own homeserver whose devices are ALL cross-signed now shows a small
+success-colored shield next to its name in the members drawer and the user
+profile card. The signal is the SDK's `DeviceVerificationStatus.signedByOwner`
+(device signed by the account's own self-signing key), NOT
+`crossSigningVerified` — the latter requires the local user to have verified
+the agent, which is a deliberate non-goal (bots auto-accept, so per-user SAS
+adds ceremony without trust). `signedByOwner` is exactly what mindroom-nio D2
+produces and what MSC4153 keys off. New: `deviceSignedByOwner` in
+`matrix-crypto.ts`, `useAgentDeviceCrossSigned` hook +
+`allDevicesSignedByOwner` classifier over an extracted
+`collectAgentDeviceSignatures` per-device pipeline, and the
+`AgentVerifiedBadge` component (renders null for non-agents, cross-homeserver
+users, agents with any un-cross-signed device, or when crypto is absent, and
+fails safe to hidden on any crypto error). The whole-user check enumerates
+devices via `crypto.getUserDeviceInfo([userId])`.
+
+Threat model. `signedByOwner` is self-attestation, and
+`isMindroomAgentUserId` is a bare `localpart.startsWith('mindroom_')` — the
+combination alone would let anyone who registers `@mindroom_*:anyserver.org`
+and bootstraps their own cross-signing earn the shield in shared rooms.
+The badge therefore restricts to targets whose server-name matches the
+viewer's own (`isMindroomAgentUserIdForViewer`). Requiring ALL devices to be
+cross-signed (not just one) closes the leaked-password/rogue-second-device
+gap while MSC4153 key-sharing exclusion is not yet active in this client
+(D7.5) — the rogue device would otherwise still receive room keys behind a
+green shield. Residual risk: anyone who can register a `mindroom_`-prefixed
+localpart on the viewer's OWN homeserver still qualifies — operators must
+reserve the namespace (mindroom.chat does so via registration tokens).
+
+Efficiency. A member drawer with many agents plus the profile card for
+the same user would previously enumerate devices, fetch per-device
+verification status, and register a client-level `DevicesUpdated`
+listener once per rendered instance; each scroll remount refetched.
+`useAgentDeviceCrossSigned` now shares a module-level trust cache keyed
+by userId (`getOrFetchAgentTrust`), so concurrent lookups coalesce onto
+one crypto pipeline and later mounts of the same userId reuse the
+resolved value. `DevicesUpdated` for a userId drops the cache entry
+before scheduling the re-fetch, so every mounted hook re-reads a single
+fresh result. Per-instance listeners are unchanged.
+
+D7.3 KEY-BACKUP ONBOARDING. A dismissible `KeyBackupNudge` on the WelcomePage
+first-run column steers users into secure server-side key backup so a new-device
+login can still read their encrypted agent history. The nudge fires only on a
+three-state `useKeyBackupPresence` returning `'absent'` — a direct
+`/room_keys/version` request that maps M_NOT_FOUND (or plain HTTP 404) to
+`'absent'`, a successful response to `'present'`, and every other failure
+(network, rate limit) to `'unknown'` (nudge hidden). This avoids
+`crypto.getKeyBackupInfo()`, whose `null` return conflates "server confirmed
+no backup" with "the check errored" and would otherwise nag users who already
+have backup enabled whenever the first check fails — and their dismissal
+would permanently suppress it per account. Never fires without crypto, when a
+backup already exists, or after the user dismisses it (per-account
+localStorage flag, fail-closed). Its action opens Settings → Devices, where
+the existing `BackupRestoreTile` / `EnableVerification` /
+`DeviceVerificationSetup` (`resetKeyBackup`) flow lives — no new backup
+machinery.
+
+D7.4 UTD COPY. The undecryptable-event fallback now reads "Couldn't decrypt
+this message — the encryption key isn't available" instead of the terse
+"Unable to decrypt message", complementing (not replacing) the backend D4
+in-room notice, which must work for users on any client. The friendlier tone
+is preserved without promising a key that may never arrive: the component
+renders for every `m.bad.encrypted` event, including permanent failures
+(MEGOLM_KEY_WITHHELD*, historical-no-backup) where waiting would be
+misleading — no failure-code branching is added (out of scope for this
+pass). Copy-only; the string is not asserted by any test.
+
+D7.5 DEPENDENCY POLICY — matrix-js-sdk / MSC4153 (READ BEFORE BUMPING js-sdk).
+matrix-js-sdk carries the Rust crypto stack that implements MSC4153 ("exclude
+non-cross-signed devices"). A future bump (or lab-flag flip) that tightens
+key-sharing defaults will stop the client from sending room keys to any bot
+device that is not cross-signed, breaking every encrypted room on the sender's
+side where the backend cannot fix it. Gate such a bump on mindroom-nio D2 (bot
+cross-signing bootstrap, shipped in 0.26.0) being DEPLOYED across the agent
+fleet first, then verify against an agent room before rolling out.
+
+D7.1 EMERGENCY VALVE (config-only rollback). If an E2EE regression ever hits
+production chat, set `createRoom.defaultEncryption: false` in
+`config.mindroom.json` (published as `config.json`) and re-publish the client —
+no rebuild of the source is required. New DMs are then created unencrypted while
+the regression is diagnosed; existing encrypted rooms are unaffected
+(encryption is irreversible per room). This is the deployed counterpart to the
+`showEncryptionOption` / `defaultEncryption` policy documented under "Direct
+message encryption policy config".
+
+- Files changed:
+  - `src/app/utils/matrix-crypto.ts` (add `deviceSignedByOwner`)
+  - `src/app/mindroom/matrix/agentIdentity.ts` (+ same-server `isMindroomAgentUserIdForViewer`)
+  - `src/app/mindroom/matrix/useAgentDeviceTrust.ts` (+ `.test.ts`, exports `collectAgentDeviceSignatures` and `allDevicesSignedByOwner`)
+  - `src/app/mindroom/matrix/AgentVerifiedBadge.tsx` (viewer-scoped gate)
+  - `src/app/features/room/MembersDrawer.tsx` (badge in member row)
+  - `src/app/components/user-profile/UserHero.tsx` (badge in profile card)
+  - `src/app/mindroom/onboarding/keyBackupNudge.ts` (+ `.test.ts`)
+  - `src/app/mindroom/onboarding/useKeyBackupPresence.ts` (+ `.test.ts`, three-state absent/present/unknown)
+  - `src/app/mindroom/onboarding/KeyBackupNudge.tsx` (+ `.test.ts` pinning the visibility gate: hidden on present/unknown/dismissed, shown on absent, dismissal persists)
+  - `src/app/mindroom/onboarding/welcomeCard.ts` (shared `WelcomeCardStyle` for the stacked WelcomePage cards)
+  - `src/app/utils/safeLocalStorage.ts` (fail-closed localStorage getter, deduped from WelcomePage and the nudge dismissal store)
+  - `src/app/pages/client/WelcomePage.tsx` (mount nudge; test mock gains `getCrypto`)
+  - `src/app/components/message/content/FallbackContent.tsx` (UTD copy)
+- Tests and validation:
+  - New focused: `npx vitest run src/app/mindroom/onboarding/ src/app/mindroom/matrix/useAgentDeviceTrust.test.ts` (28 tests).
+  - Regression: `npx vitest run src/app/pages/client/WelcomePage.test.ts src/app/features/room/MembersDrawer.test.ts` green after adding `getCrypto: () => undefined` to the WelcomePage mock client.
+  - `npm run typecheck`, `npm run lint` (warning-only baseline), `npm test`, `npm run build`.
+
 ### Create-DM flow: reuse invite user autocomplete (2026-07-08)
 
 - Status:

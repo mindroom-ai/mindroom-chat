@@ -34,7 +34,7 @@ export const MessageFailedContent = as<'div', { children?: never }>(({ ...props 
 export const MessageBadEncryptedContent = as<'div', { children?: never }>(({ ...props }, ref) => (
   <Box as="span" alignItems="Center" gap="100" style={warningStyle} {...props} ref={ref}>
     <Icon size="50" src={Icons.Lock} />
-    <i>Unable to decrypt message</i>
+    <i>Couldn&apos;t decrypt this message — the encryption key isn&apos;t available</i>
   </Box>
 ));
 
