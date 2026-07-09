@@ -122,6 +122,49 @@
       }
     }
   },
+  "nav": {
+    "home": "Home",
+    "directMessages": "Direct Messages",
+    "threads": "Threads",
+    "inbox": "Inbox",
+    "exploreCommunity": "Explore Community",
+    "addSpace": "Add Space",
+    "createSpace": "Create Space",
+    "joinWithAddress": "Join with Address",
+    "createRoom": "Create Room",
+    "messageSearch": "Message Search",
+    "rooms": "Rooms",
+    "chats": "Chats",
+    "createChat": "Create Chat",
+    "directMessage": "Direct Message",
+    "noRooms": "No Rooms",
+    "noRoomsDescription": "You do not have any rooms yet.",
+    "noDirectMessages": "No Direct Messages",
+    "noDirectMessagesDescription": "You do not have any direct messages yet.",
+    "exploreCommunityRooms": "Explore Community Rooms",
+    "unverifiedDevice": "Unverified Device",
+    "unverifiedDevices": "Unverified Devices"
+  },
+  "accountsRail": {
+    "settingsTooltip": "Settings: {{name}}",
+    "switchTooltip": "Switch to {{name}} ({{userId}})",
+    "openSettingsAria": "Open settings for {{name}}",
+    "switchAria": "Switch to account {{name}} ({{userId}})",
+    "manageAccounts": "Manage accounts",
+    "addAccount": "Add Account",
+    "addAccountAria": "Add account"
+  },
+  "accountSwitcher": {
+    "title": "Accounts",
+    "description": "Switch accounts, add another account, or remove an inactive one.",
+    "active": "Active",
+    "openSettings": "Open Settings",
+    "switch": "Switch",
+    "removing": "Removing...",
+    "removeFromDevice": "Remove from Device",
+    "addAccount": "Add Account",
+    "close": "Close"
+  },
   "recentThreads": {
     "title": "Recent Threads",
     "empty": "No recent threads",

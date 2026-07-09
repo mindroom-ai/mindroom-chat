@@ -122,6 +122,49 @@
       }
     }
   },
+  "nav": {
+    "home": "Startseite",
+    "directMessages": "Direktnachrichten",
+    "threads": "Threads",
+    "inbox": "Posteingang",
+    "exploreCommunity": "Community erkunden",
+    "addSpace": "Space hinzufügen",
+    "createSpace": "Space erstellen",
+    "joinWithAddress": "Über Adresse beitreten",
+    "createRoom": "Raum erstellen",
+    "messageSearch": "Nachrichtensuche",
+    "rooms": "Räume",
+    "chats": "Chats",
+    "createChat": "Chat erstellen",
+    "directMessage": "Direktnachricht",
+    "noRooms": "Keine Räume",
+    "noRoomsDescription": "Du hast noch keine Räume.",
+    "noDirectMessages": "Keine Direktnachrichten",
+    "noDirectMessagesDescription": "Du hast noch keine Direktnachrichten.",
+    "exploreCommunityRooms": "Community-Räume erkunden",
+    "unverifiedDevice": "Nicht verifiziertes Gerät",
+    "unverifiedDevices": "Nicht verifizierte Geräte"
+  },
+  "accountsRail": {
+    "settingsTooltip": "Einstellungen: {{name}}",
+    "switchTooltip": "Zu {{name}} wechseln ({{userId}})",
+    "openSettingsAria": "Einstellungen für {{name}} öffnen",
+    "switchAria": "Zu Konto {{name}} wechseln ({{userId}})",
+    "manageAccounts": "Konten verwalten",
+    "addAccount": "Konto hinzufügen",
+    "addAccountAria": "Konto hinzufügen"
+  },
+  "accountSwitcher": {
+    "title": "Konten",
+    "description": "Wechsle das Konto, füge ein weiteres hinzu oder entferne ein inaktives.",
+    "active": "Aktiv",
+    "openSettings": "Einstellungen öffnen",
+    "switch": "Wechseln",
+    "removing": "Wird entfernt...",
+    "removeFromDevice": "Von diesem Gerät entfernen",
+    "addAccount": "Konto hinzufügen",
+    "close": "Schließen"
+  },
   "recentThreads": {
     "title": "Letzte Threads",
     "empty": "Keine kürzlich geöffneten Threads",

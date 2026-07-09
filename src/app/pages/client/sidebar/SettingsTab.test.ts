@@ -13,6 +13,13 @@ import { mxcUrlToHttp } from '../../../utils/matrix';
 
 const navigate = vi.fn();
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
