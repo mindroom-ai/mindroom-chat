@@ -274,4 +274,40 @@ describe('roomThreadOverviewModel', () => {
       expect(state.resolved).toBe('any');
     });
   });
+
+  describe('simplifyThreadFilterState', () => {
+    it('keeps only the unresolved (resolved: exclude) dimension', async () => {
+      const { createDefaultThreadFilterState, simplifyThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+
+      const advanced = makeDefaultState({
+        resolved: 'exclude',
+        streaming: 'include',
+        unread: 'exclude',
+        sortBy: 'natural',
+        statusMode: 'or',
+        searchQuery: 'is:unread tag:priority',
+        tags: new Map([['priority', 'include']]),
+      });
+
+      expect(simplifyThreadFilterState(advanced)).toEqual({
+        ...createDefaultThreadFilterState(),
+        resolved: 'exclude',
+      });
+    });
+
+    it('maps every non-exclude resolved value to showing all threads', async () => {
+      const { createDefaultThreadFilterState, simplifyThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+
+      expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'include' }))).toEqual(
+        createDefaultThreadFilterState()
+      );
+      expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }))).toEqual(
+        createDefaultThreadFilterState()
+      );
+    });
+  });
 });

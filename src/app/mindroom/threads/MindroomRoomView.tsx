@@ -101,6 +101,7 @@ export function RoomView({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleToggleUnresolvedOnly,
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
@@ -153,6 +154,7 @@ export function RoomView({
           onToggle={handleToggle}
           onSortDirectionChange={handleSortDirectionChange}
           onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
+          onToggleUnresolvedOnly={handleToggleUnresolvedOnly}
           setThreadSortFreezeState={setThreadSortFreezeState}
           onCycleTag={handleCycleTag}
           onAddTag={handleAddTag}

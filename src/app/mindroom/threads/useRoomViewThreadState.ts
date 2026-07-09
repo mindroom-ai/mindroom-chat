@@ -27,13 +27,15 @@ import {
   type FilterPreset,
   removeTagFilter,
   resetThreadFilterState,
+  simplifyThreadFilterState,
   type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
-import { roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import { DEFAULT_ROOM_VIEW_MODE, roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
@@ -61,6 +63,7 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  handleToggleUnresolvedOnly: () => void;
   handleRoomMessageSent: (eventId: string) => void;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
@@ -90,6 +93,15 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  // Simple mode hides every filter control except the unresolved toggle, so
+  // the state handed to the view is projected onto that subspace — persisted
+  // advanced filters must not keep hiding threads with no visible cause. The
+  // stored state is untouched; leaving simple mode restores it.
+  const simpleMode = useSimpleMode();
+  const effectiveThreadFilterState = useMemo(
+    () => (simpleMode ? simplifyThreadFilterState(threadFilterState) : threadFilterState),
+    [simpleMode, threadFilterState]
+  );
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
@@ -174,6 +186,17 @@ export const useRoomViewThreadState = ({
     },
     [updateFromEffectiveQueryState]
   );
+
+  // Simple mode's single binary control: unresolved-only on/off. Flips only
+  // the resolved dimension so the hidden advanced dimensions survive in
+  // storage. ('exclude' is the one resolved value the simple-mode projection
+  // keeps, so flipping the raw value matches what the user sees.)
+  const handleToggleUnresolvedOnly = useCallback(() => {
+    updateFromEffectiveQueryState((state) => ({
+      ...state,
+      resolved: state.resolved === 'exclude' ? 'any' : 'exclude',
+    }));
+  }, [updateFromEffectiveQueryState]);
 
   const handleSortDirectionChange = useCallback(() => {
     setThreadFilterState({
@@ -297,14 +320,17 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleToggleUnresolvedOnly,
     handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
     summaryMap,
-    threadFilterState,
+    threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState,
     threadSummaryInfo,
-    viewMode,
+    // The view-mode toggles are hidden in simple mode, so a persisted
+    // non-default choice must not stick either.
+    viewMode: simpleMode ? DEFAULT_ROOM_VIEW_MODE : viewMode,
   };
 };

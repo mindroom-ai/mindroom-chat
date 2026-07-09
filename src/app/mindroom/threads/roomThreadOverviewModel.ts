@@ -263,6 +263,21 @@ export const applyFrozenThreadOrder = (
 export const resetThreadFilterState = (): ThreadFilterState =>
   createDefaultThreadFilterState();
 
+// ─── Simple mode ─────────────────────────────────────────────────────────────
+
+/**
+ * Project a persisted filter state onto the subspace reachable in simple
+ * mode: defaults everywhere except the resolved dimension, of which only
+ * 'exclude' ("unresolved only") survives. Controls for the other dimensions
+ * are hidden in simple mode, so their persisted values must not keep
+ * influencing which threads are shown. The stored state itself is left
+ * untouched — leaving simple mode restores the full setup.
+ */
+export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  resolved: state.resolved === 'exclude' ? 'exclude' : 'any',
+});
+
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
 
 export const cycleTagFilter = (

@@ -29,6 +29,7 @@ import {
   isOrModeStatusChip,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 
 export type { ThreadFilterState, ThreadFilterKey };
 
@@ -632,6 +633,7 @@ export type RoomThreadOverviewProps = {
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
   onToggleThreadSortFreeze: () => void;
+  onToggleUnresolvedOnly: () => void;
   onReset: () => void;
   onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
@@ -700,6 +702,7 @@ export function RoomThreadOverview({
   onToggle,
   onSortDirectionChange,
   onToggleThreadSortFreeze,
+  onToggleUnresolvedOnly,
   onReset,
   onCycleTag,
   onAddTag,
@@ -708,6 +711,7 @@ export function RoomThreadOverview({
   onSearchQueryChange,
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
+  const simpleMode = useSimpleMode();
   const filtersActive = hasActiveThreadFilters(state);
   const sortLabel =
     state.sortBy === 'natural'
@@ -779,40 +783,104 @@ export function RoomThreadOverview({
     : filterSummary;
   const freezeLabel = isThreadSortFrozen ? 'Unlock thread sort order' : 'Lock thread sort order';
 
+  const liveRegion = (
+    <div
+      aria-live="polite"
+      aria-atomic="true"
+      style={{
+        position: 'absolute',
+        width: 1,
+        height: 1,
+        overflow: 'hidden',
+        clip: 'rect(0,0,0,0)',
+      }}
+    >
+      {liveSummary}
+    </div>
+  );
+
+  const countBadge = (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(200) }}>
+          <Text size="T200">{`${threadCount} thread${threadCount !== 1 ? 's' : ''}`}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
+          <IconMessages size={14} stroke={1.8} aria-hidden="true" />
+          <Text size="T200">{threadCount}</Text>
+        </span>
+      )}
+    </TooltipProvider>
+  );
+
+  const emptyFilteredState = threadCount === 0 && filtersActive && (
+    <div className={css.EmptyState}>
+      <Text size="T200">No threads match current filters.</Text>
+      <button
+        type="button"
+        className={css.ResetLink}
+        onClick={onReset}
+        aria-label="Reset all thread filters"
+      >
+        <Text size="T200">Reset</Text>
+      </button>
+    </div>
+  );
+
+  // Simple mode: the count plus one binary toggle — hide resolved threads or
+  // show everything. The upstream filter state is already projected onto this
+  // subspace, so state.resolved is the only dimension that can be active here.
+  if (simpleMode) {
+    const unresolvedOnly = state.resolved === 'exclude';
+    return (
+      <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
+        {liveRegion}
+        <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
+          {countBadge}
+          <TooltipProvider
+            position="Bottom"
+            align="Center"
+            tooltip={
+              <Tooltip style={{ maxWidth: toRem(220) }}>
+                <Text size="T200">
+                  {unresolvedOnly
+                    ? 'Showing unresolved threads. Click to show all.'
+                    : 'Showing all threads. Click to show only unresolved.'}
+                </Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <button
+                ref={triggerRef}
+                type="button"
+                className={classNames(css.SortButton, unresolvedOnly && css.SortButtonActive)}
+                aria-pressed={unresolvedOnly}
+                onClick={onToggleUnresolvedOnly}
+                data-simple-unresolved-toggle="true"
+              >
+                <Text size="T200">Unresolved</Text>
+              </button>
+            )}
+          </TooltipProvider>
+        </div>
+        {emptyFilteredState}
+      </Box>
+    );
+  }
+
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
-      <div
-        aria-live="polite"
-        aria-atomic="true"
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          overflow: 'hidden',
-          clip: 'rect(0,0,0,0)',
-        }}
-      >
-        {liveSummary}
-      </div>
+      {liveRegion}
       {/* Single-line toolbar */}
       <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
         {/* Count */}
-        <TooltipProvider
-          position="Bottom"
-          align="Center"
-          tooltip={
-            <Tooltip style={{ maxWidth: toRem(200) }}>
-              <Text size="T200">{`${threadCount} thread${threadCount !== 1 ? 's' : ''}`}</Text>
-            </Tooltip>
-          }
-        >
-          {(triggerRef) => (
-            <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
-              <IconMessages size={14} stroke={1.8} aria-hidden="true" />
-              <Text size="T200">{threadCount}</Text>
-            </span>
-          )}
-        </TooltipProvider>
+        {countBadge}
 
         {/* Status toggles */}
         <div className={css.ToggleGroup} role="group" aria-label="Status filters">
@@ -1004,19 +1072,7 @@ export function RoomThreadOverview({
         )}
       </div>
 
-      {threadCount === 0 && filtersActive && (
-        <div className={css.EmptyState}>
-          <Text size="T200">No threads match current filters.</Text>
-          <button
-            type="button"
-            className={css.ResetLink}
-            onClick={onReset}
-            aria-label="Reset all thread filters"
-          >
-            <Text size="T200">Reset</Text>
-          </button>
-        </div>
-      )}
+      {emptyFilteredState}
     </Box>
   );
 }
