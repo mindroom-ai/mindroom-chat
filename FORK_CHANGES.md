@@ -4,7 +4,8 @@
 
 ### iOS release metadata aligned with current MindRoom positioning (2026-07-09)
 
-- Status: complete; PR update in progress.
+- Status: complete; pushed to PR #103 with the PR title and description updated
+  to cover both screenshots and App Store metadata.
 - Re-evaluated the App Store name-adjacent copy against the latest
   `mindroom-ai/mindroom` `origin/main` README at `53afe1a08` (2026-07-09),
   whose current lead is "AI agents that live in your chat rooms" and whose
