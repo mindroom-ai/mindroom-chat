@@ -2,12 +2,11 @@ import FocusTrap from 'focus-trap-react';
 import { Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { useAtom } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
-import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { CommandPalette } from './CommandPalette';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import { useCommandPaletteSource } from './commandPaletteItems';
@@ -133,25 +132,18 @@ export function CommandPaletteRenderer() {
   const [open, setOpen] = useAtom(commandPaletteOpenAtom);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const handleLogout = useCallback(() => setLogoutOpen(true), []);
-  const simpleMode = useSimpleMode();
+  // Simple mode hides the palette's visible triggers (sidebar tab, room
+  // header button) but deliberately keeps mod+k working as an unadvertised
+  // power-user path, so the renderer and hotkey stay ungated.
   useCommandPaletteHotkey(
     open,
     setOpen,
-    useCallback(
-      (event: KeyboardEvent) => !simpleMode && isKeyHotkey('mod+k', event),
-      [simpleMode]
-    )
+    useCallback((event: KeyboardEvent) => isKeyHotkey('mod+k', event), [])
   );
-
-  // Reset the shared open atom when simple mode turns the palette off, so it
-  // does not pop back the moment simple mode is disabled again.
-  useEffect(() => {
-    if (simpleMode && open) setOpen(false);
-  }, [simpleMode, open, setOpen]);
 
   return (
     <>
-      {open && !simpleMode && (
+      {open && (
         <OpenCommandPalette
           requestClose={() => setOpen(false)}
           onLogout={handleLogout}

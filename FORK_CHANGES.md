@@ -35,10 +35,10 @@ SURFACES HIDDEN WHEN ON:
   matches) because hiding spaces must not make space-organized rooms
   unreachable. Home's Create Room / Join with Address nav items hidden.
   Kept: Home, Direct, Inbox, Unverified, Settings.
-- Command palette: sidebar tab, room-header button, `mod+k` matcher, and the
-  renderer's open state are all gated; an effect resets the shared open atom
-  while simple mode is on, so a palette open at flip-on closes and does not
-  pop back at flip-off.
+- Command palette: only the visible triggers are hidden (sidebar tab,
+  room-header button). `mod+k` and the renderer deliberately stay ungated —
+  user decision 2026-07-09: the palette remains an unadvertised power-user
+  path in simple mode; people who don't know the shortcut never see it.
 - Thread overview toolbar: count + one binary "Unresolved" button
   (`data-simple-unresolved-toggle`). INVARIANT: hidden controls must not
   keep influencing results — `simplifyThreadFilterState` projects the
