@@ -81,6 +81,12 @@ over a90e9d6e..HEAD found and fixed two issues — raw-atom view-mode reads
 inside `useRoomViewThreadState` bypassing the simple-mode forcing, and the
 command-palette open atom lingering true across a simple-mode flip.
 
+i18n: after merging the i18n foundation (#99, entry below), the strings this
+work introduced are translated — `settings.general.interface.*` (Interface
+group, Simple Mode switch, save-error message) and `thread.simpleFilter.*`
+(Unresolved button + tooltips) in en/de/nl. The Language section stays
+visible in simple mode, right below the Interface group.
+
 Not done / candidates for a later pass: per-message options menu trimming
 (read receipts, view source, copy link, pin, AI token-usage items),
 members-drawer simplification, account-switcher hiding, DM-create
