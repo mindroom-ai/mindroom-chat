@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -82,6 +82,15 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
   );
   const menuItems = useSettingsMenuItems(showLocalMindRoom, simpleMode);
+
+  // If the mode flips while the window is open (e.g. simple mode synced from
+  // another device), a page that just left the menu must not keep rendering
+  // with no menu entry pointing at it.
+  useEffect(() => {
+    if (activePage === undefined) return;
+    if (menuItems.some((item) => item.page === activePage)) return;
+    setActivePage(screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage);
+  }, [activePage, menuItems, screenSize]);
 
   const handlePageRequestClose = () => {
     if (screenSize === ScreenSize.Mobile) {
