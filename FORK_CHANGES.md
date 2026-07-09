@@ -2,6 +2,45 @@
 
 ## Runbook
 
+### i18n: composer slice (2026-07-09)
+
+- Status: done. The message composer (`MindroomRoomInput.tsx`) is translated
+  in en/de/nl under new `composer.*` keys: the "Send a message..."
+  placeholder (user-reported as still-English after #99), the file drop-zone
+  overlay (title with `{{roomName}}` interpolation + `roomFallback` for
+  nameless rooms, and the hint line), the voice-record button aria-labels
+  (idle + paused-in-other-room with `{{roomName}}`), and the two voice-send
+  guard errors (room-unavailable, another-send-pending) thrown inside
+  `handleVoiceSend` — translated at throw time, so the message is baked in
+  the language active when the send fails; `t` added to the callback deps.
+- Tests: `__tests__/RoomInput.test.ts` gained the standard react-i18next
+  mock (`translateFromEn` from `src/app/test-utils/i18n.ts`), so its many
+  `aria-label === 'Record voice message'` and error-message assertions keep
+  asserting real English copy. `RoomInputMindroomExtensions.test.ts` needs
+  no mock (helpers only); RoomView tests mock the whole module.
+- Still English near this slice (next candidates): the editor `Toolbar`
+  formatting tooltips, upload board/card strings, the voice recorder
+  composer UI (`MindroomVoiceRecorderComposer` and
+  `VoiceRecordingCapsule.tsx`'s "Voice recording paused" — reviewer note:
+  its translated aria-label sibling now diverges), `useVoiceRecorder`'s
+  `RETRY_BUSY_MESSAGE`, autocomplete empty states, and
+  `Editor.preview.tsx` (dead code — not imported anywhere; left alone).
+  Reviewer note, acceptable for now: the two voice-send errors are baked
+  at throw time into the pending-draft atom, so a mid-session language
+  switch redisplays a stale-language error until the draft is discarded.
+- Validation: `npx vitest run src/app/i18n.test.ts
+  src/app/mindroom/room-input/__tests__/RoomInput.test.ts
+  src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` — 58
+  tests green (parity tests enforce the new keys in all three locales);
+  `npm run typecheck` clean; `npm run build` passes; `npx eslint` clean on
+  touched files. Live-verified against the :28008 docker Tuwunel via the
+  new self-seeding spec `e2e/live/i18n-composer-live.spec.ts` (skips
+  without `E2E_USERNAME`, creates its own room): placeholder and
+  voice-record aria-label render "Nachricht senden..." /
+  "Sprachnachricht aufnehmen" (de) and "Stuur een bericht..." /
+  "Spraakbericht opnemen" (nl) after a localStorage `i18nextLng` switch +
+  reload. Screenshots: `ui-audit/i18n-composer-{en,de,nl}.png`.
+
 ### Simple mode (2026-07-09)
 
 A per-account "Simple Mode" switch (Settings → General → Interface) that
@@ -156,7 +195,8 @@ assertions) not yet written.
     Raumnamen geändert").
 - Known limits / next steps:
   - Everything outside the Settings shell (timeline, composer, dialogs, auth,
-    room settings, member drawer, …) remains English — next slices. That
+    room settings, member drawer, …) remains English — next slices. (Composer
+    core done 2026-07-09, see the "i18n: composer slice" entry above.) That
     includes `LogoutDialog` (shared with the command palette and DeviceTile):
     clicking the translated "Abmelden"/"Uitloggen" still opens an English
     confirmation dialog.

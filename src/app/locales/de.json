@@ -122,6 +122,16 @@
       }
     }
   },
+  "composer": {
+    "placeholder": "Nachricht senden...",
+    "recordVoice": "Sprachnachricht aufnehmen",
+    "voicePausedInOtherRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme in {{roomName}} ab oder verwirf sie",
+    "dropFiles": "Dateien in \"{{roomName}}\" ablegen",
+    "dropFilesHint": "Dateien hierher ziehen oder klicken, um den Auswahldialog zu öffnen",
+    "roomFallback": "Raum",
+    "voiceRoomUnavailable": "Dieser Raum ist nicht mehr verfügbar. Verwirf die nicht gesendete Sprachnachricht und versuche es später erneut.",
+    "voiceStillSending": "Eine andere Sprachnachricht wird noch gesendet. Bitte warte, bevor du erneut aufnimmst."
+  },
   "thread": {
     "chip": "Thread",
     "view": "Thread-Ansicht",
