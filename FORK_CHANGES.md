@@ -106,11 +106,13 @@ message encryption policy config".
   - `src/app/components/user-profile/UserHero.tsx` (badge in profile card)
   - `src/app/mindroom/onboarding/keyBackupNudge.ts` (+ `.test.ts`)
   - `src/app/mindroom/onboarding/useKeyBackupPresence.ts` (+ `.test.ts`, three-state absent/present/unknown)
-  - `src/app/mindroom/onboarding/KeyBackupNudge.tsx`
+  - `src/app/mindroom/onboarding/KeyBackupNudge.tsx` (+ `.test.ts` pinning the visibility gate: hidden on present/unknown/dismissed, shown on absent, dismissal persists)
+  - `src/app/mindroom/onboarding/welcomeCard.ts` (shared `WelcomeCardStyle` for the stacked WelcomePage cards)
+  - `src/app/utils/safeLocalStorage.ts` (fail-closed localStorage getter, deduped from WelcomePage and the nudge dismissal store)
   - `src/app/pages/client/WelcomePage.tsx` (mount nudge; test mock gains `getCrypto`)
   - `src/app/components/message/content/FallbackContent.tsx` (UTD copy)
 - Tests and validation:
-  - New focused: `npx vitest run src/app/mindroom/onboarding/keyBackupNudge.test.ts src/app/mindroom/onboarding/useKeyBackupPresence.test.ts src/app/mindroom/matrix/useAgentDeviceTrust.test.ts` (18 tests).
+  - New focused: `npx vitest run src/app/mindroom/onboarding/ src/app/mindroom/matrix/useAgentDeviceTrust.test.ts` (28 tests).
   - Regression: `npx vitest run src/app/pages/client/WelcomePage.test.ts src/app/features/room/MembersDrawer.test.ts` green after adding `getCrypto: () => undefined` to the WelcomePage mock client.
   - `npm run typecheck`, `npm run lint` (warning-only baseline), `npm test`, `npm run build`.
 

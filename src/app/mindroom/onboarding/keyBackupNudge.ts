@@ -8,23 +8,16 @@
  * blocked or unavailable store fails closed to "not dismissed".
  */
 
+import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
+
 const DISMISS_KEY_PREFIX = 'mindroom.keyBackupNudgeDismissed:';
 const DISMISSED_VALUE = '1';
-
-const getStorage = (): Storage | undefined => {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return undefined;
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
-};
 
 export const getKeyBackupNudgeDismissStorageKey = (userId: string): string =>
   `${DISMISS_KEY_PREFIX}${userId}`;
 
 export const readKeyBackupNudgeDismissed = (userId: string): boolean => {
-  const storage = getStorage();
+  const storage = getSafeLocalStorage();
   if (typeof storage?.getItem !== 'function') return false;
 
   try {
@@ -35,7 +28,7 @@ export const readKeyBackupNudgeDismissed = (userId: string): boolean => {
 };
 
 export const dismissKeyBackupNudge = (userId: string): void => {
-  const storage = getStorage();
+  const storage = getSafeLocalStorage();
   if (typeof storage?.setItem !== 'function') return;
 
   try {

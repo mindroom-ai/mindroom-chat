@@ -36,8 +36,8 @@ export const isMindroomAgentUserIdForViewer = (
   userId: string | undefined,
   viewerUserId: string | undefined
 ): boolean => {
-  if (!isMindroomAgentUserId(userId) || !viewerUserId) return false;
-  const targetServer = getMxIdServer(userId as string);
+  if (!userId || !viewerUserId || !isMindroomAgentUserId(userId)) return false;
+  const targetServer = getMxIdServer(userId);
   const viewerServer = getMxIdServer(viewerUserId);
   return !!targetServer && targetServer === viewerServer;
 };

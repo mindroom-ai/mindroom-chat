@@ -6,6 +6,7 @@ import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
 import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudge';
 import { useKeyBackupPresence } from './useKeyBackupPresence';
+import { WelcomeCardStyle } from './welcomeCard';
 
 function KeyBackupNudgeCard() {
   const mx = useMatrixClient();
@@ -27,16 +28,7 @@ function KeyBackupNudgeCard() {
   };
 
   return (
-    <Box
-      direction="Column"
-      gap="200"
-      style={{
-        border: '1px solid rgba(125, 125, 125, 0.28)',
-        borderRadius: '8px',
-        padding: '12px',
-        textAlign: 'left',
-      }}
-    >
+    <Box direction="Column" gap="200" style={WelcomeCardStyle}>
       <Box alignItems="Center" gap="200">
         <Icon size="100" src={Icons.ShieldLock} style={{ color: color.Success.Main }} />
         <Text as="span" size="L400">
