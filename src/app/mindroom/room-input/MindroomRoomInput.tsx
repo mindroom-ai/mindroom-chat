@@ -93,6 +93,7 @@ import {
 } from '../../utils/dom';
 import { safeFile } from '../../utils/mimeTypes';
 import { useSetting } from '../../state/hooks/settings';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { settingsAtom } from '../../state/settings';
 import {
   getAudioMsgContent,
@@ -289,6 +290,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms: Room[] = useImagePackRooms(roomId, roomToParents);
 
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
+    // Simple mode keeps the composer to attach, emoji, and send — no
+    // markdown toolbar, stickers, or voice recording.
+    const simpleMode = useSimpleMode();
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
@@ -1338,39 +1342,43 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               >
                 <Icon src={Icons.PlusCircle} />
               </IconButton>
-              <IconButton
-                onClick={() => {
-                  if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft)
-                    return;
-                  pauseAllMediaElements();
-                  setVoiceRecorderOpen(true);
-                }}
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                disabled={
-                  voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft
-                }
-                aria-label={
-                  otherPendingVoiceRoomName
-                    ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
-                    : 'Record voice message'
-                }
-              >
-                <Icon src={Icons.Mic} />
-              </IconButton>
+              {!simpleMode && (
+                <IconButton
+                  onClick={() => {
+                    if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft)
+                      return;
+                    pauseAllMediaElements();
+                    setVoiceRecorderOpen(true);
+                  }}
+                  variant="SurfaceVariant"
+                  size="300"
+                  radii="300"
+                  disabled={
+                    voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft
+                  }
+                  aria-label={
+                    otherPendingVoiceRoomName
+                      ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
+                      : 'Record voice message'
+                  }
+                >
+                  <Icon src={Icons.Mic} />
+                </IconButton>
+              )}
             </>
           }
           after={
             <>
-              <IconButton
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                onClick={() => setToolbar(!toolbar)}
-              >
-                <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
-              </IconButton>
+              {!simpleMode && (
+                <IconButton
+                  variant="SurfaceVariant"
+                  size="300"
+                  radii="300"
+                  onClick={() => setToolbar(!toolbar)}
+                >
+                  <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
+                </IconButton>
+              )}
               <UseStateProvider initial={undefined}>
                 {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
                   <PopOut
@@ -1404,7 +1412,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                       />
                     }
                   >
-                    {!hideStickerBtn && (
+                    {!hideStickerBtn && !simpleMode && (
                       <IconButton
                         aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
                         onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
@@ -1444,7 +1452,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           bottom={
-            toolbar && (
+            toolbar &&
+            !simpleMode && (
               <div>
                 <Line variant="SurfaceVariant" size="300" />
                 <Toolbar />
