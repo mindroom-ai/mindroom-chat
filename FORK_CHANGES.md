@@ -58,6 +58,25 @@ palette", "Type a command or search...". Split into focused commits:
   `commandPaletteActions.test.ts` passes `translateFromEn as TFunction`
   directly. FULL suite green: 354 files / 2811 tests; typecheck, build,
   eslint clean on touched files.
+- Live-verified against the :28008 docker Tuwunel via the new
+  self-seeding spec `e2e/live/i18n-shell-live.spec.ts` (skips without
+  `E2E_USERNAME`): after a localStorage `i18nextLng` switch + reload, the
+  Home nav, Recent Threads panel, and command palette (opened via the
+  translated sidebar-tab aria-label; placeholder, result count, section
+  badges, action rows, prefix/shortcut footer) all render in de and nl.
+  Screenshots: `ui-audit/i18n-shell-{de,nl}-palette.png`.
+- Review pass (independent subagent over e35e9250..HEAD): no blockers;
+  applied fixes — de wording (accusative `aktuellen Raum` action
+  fallback, `Per Adresse beitreten`, infinitive-style
+  `openSettingsDescription`, `Benachrichtigungen im Posteingang öffnen`,
+  genitive `eines Spaces`), nl `Globaal zoeken in berichten`, and the two
+  previously hardcoded CreateTab tile descriptions
+  (`nav.createSpaceDescription` / `nav.joinWithAddressDescription`).
+  Reviewer notes accepted as-is: the palette-actions room-name fallback is
+  currently unreachable (room actions only exist when a room is selected);
+  the footer's shortcut chip stays "Ctrl + K" even on German keyboards
+  ("Strg") — cosmetic; the split shortcut sentence fragments are a known
+  word-order compromise that composes fine in en/de/nl.
 
 ### i18n: composer slice (2026-07-09)
 

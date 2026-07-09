@@ -77,7 +77,7 @@ export function CreateTab() {
                       <SettingTile before={<Icon size="400" src={Icons.Space} />}>
                         <Text size="H6">{t('nav.createSpace')}</Text>
                         <Text size="T300" priority="300">
-                          Build a space for your community.
+                          {t('nav.createSpaceDescription')}
                         </Text>
                       </SettingTile>
                     </SequenceCard>
@@ -94,7 +94,7 @@ export function CreateTab() {
                       <SettingTile before={<Icon size="400" src={Icons.Link} />}>
                         <Text size="H6">{t('nav.joinWithAddress')}</Text>
                         <Text size="T300" priority="300">
-                          Become a part of existing community.
+                          {t('nav.joinWithAddressDescription')}
                         </Text>
                       </SettingTile>
                     </SequenceCard>

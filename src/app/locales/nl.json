@@ -130,7 +130,9 @@
     "exploreCommunity": "Community verkennen",
     "addSpace": "Space toevoegen",
     "createSpace": "Space aanmaken",
+    "createSpaceDescription": "Bouw een space voor je community.",
     "joinWithAddress": "Deelnemen via adres",
+    "joinWithAddressDescription": "Word onderdeel van een bestaande community.",
     "createRoom": "Kamer aanmaken",
     "messageSearch": "Berichten zoeken",
     "rooms": "Kamers",
@@ -216,7 +218,7 @@
       "currentRoomDescription": "Huidige kamer",
       "currentSpaceFallback": "huidige space",
       "currentSpaceDescription": "Huidige space",
-      "globalSearchDescription": "Globale berichtenzoekopdracht"
+      "globalSearchDescription": "Globaal zoeken in berichten"
     }
   },
   "accountSwitcher": {
