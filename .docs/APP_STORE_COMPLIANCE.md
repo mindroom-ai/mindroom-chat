@@ -1,11 +1,11 @@
 # MindRoom iOS App Store Compliance Checklist
 
-Last updated: 2026-03-12
+Last updated: 2026-07-09
 
 Use this checklist before every TestFlight/App Store submission.
 Use `APP_STORE_SUBMISSION_PACKET.md` to populate App Store Connect metadata and review notes.
 
-## Current Progress (2026-03-12)
+## Current Progress (2026-07-09)
 
 Use this section as the live status for the current submission attempt. Keep the main checklist below as the reusable template.
 
@@ -32,7 +32,8 @@ Use this section as the live status for the current submission attempt. Keep the
 - [x] Homeserver used for submission exposes Apple SSO provider (`https://mindroom.chat/_matrix/client/v3/login` returns `m.login.sso` with Apple provider metadata).
 - [x] Review-access requirement clarified: `mindroom.chat` registration is token-gated (`m.login.registration_token`), so App Review must receive a temporary account or one-time registration token.
 - [x] `config.json` support/privacy/terms URLs point to final public endpoints (`https://docs.mindroom.chat/support`, `/privacy`, `/terms`) and are reachable.
-- [x] Final uploaded version/build is `4.10.3` / `2`.
+- [ ] Final release target is Apple version/build `4.12.4 (33)`; verify the
+      processed Xcode Cloud archive before submission.
 - [ ] Complete App Store Connect metadata, App Privacy answers, and review notes packet (packet copy is now mostly drafted; reviewer credentials/token still need to be inserted).
 
 ## References (Apple)

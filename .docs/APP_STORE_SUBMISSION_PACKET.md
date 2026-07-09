@@ -1,10 +1,10 @@
 # MindRoom iOS App Store Submission Packet
 
-Last updated: 2026-03-12
+Last updated: 2026-07-09
 
 Use this file to paste content directly into App Store Connect.
 
-## Current Packet Progress (2026-03-12)
+## Current Packet Progress (2026-07-09)
 
 - [x] Reviewer note template drafted below.
 - [x] Product summary / fork positioning note available.
@@ -18,7 +18,7 @@ Use this file to paste content directly into App Store Connect.
 ## 1) App Review Notes (Paste As-Is, Then Edit Bracketed Fields)
 
 ```text
-Mindroom AI is a Matrix client app optimized for AI-agent workflows.
+Mindroom AI is the Matrix chat client for MindRoom agents and multi-agent workflows.
 
 Important behavior for review:
 - This iOS build supports both existing-account login and account creation.
@@ -52,32 +52,40 @@ Reviewer access to include at submission time:
 ## 2) Metadata Completion Checklist
 
 - App Name: `Mindroom AI`
-- Subtitle: `Free your AI from app silos`
+- Subtitle: `AI agents in your chat rooms`
 - Category: `Social Networking` (or your final selected category)
 - Promotional Text:
 
 ```text
-Your AI is trapped in apps. We set it free.
+Bring specialist AI agents into your chat rooms—with shared memory, tools, voice, scheduling, and collaboration across Matrix and bridged apps.
 ```
 
 - Description:
 
 ```text
-Mindroom AI is a Matrix client built for AI-agent collaboration.
+Mindroom AI is the chat home for AI agents that live in your rooms.
 
-Use secure threaded chat, voice messages, and media sharing in Matrix rooms while keeping compatibility with existing Matrix accounts and homeservers. The app is optimized for fast edit rendering, thread-heavy workflows, and visibility into AI tool and run activity.
+Talk to specialized agents in DMs and organized threads. Let smart routing pick the best agent for a request, or mention several agents to have them collaborate. Stream responses in place, inspect tool activity, share files, and continue by voice.
 
-Features:
-- Matrix messaging with end-to-end encrypted rooms
+When connected to a MindRoom runtime, your agents can:
+- Remember useful context and preferences across conversations
+- Use configured tools for research, code, email, smart-home tasks, and more
+- Schedule follow-ups, recurring checks, and background work
+- Work with knowledge bases and files
+- Collaborate as teams while keeping each task in its own thread
+- Reach bridged chat platforms with the same persistent memory
+
+Built on Matrix:
+- Support for end-to-end encrypted rooms
 - Voice messages and photo/video sharing
-- Apple SSO support when offered by your homeserver
-- In-app account deactivation entry point
-- Open-source client based on Cinny and adapted for MindRoom workflows
+- Existing Matrix accounts and compatible homeservers
+- Apple sign-in when supported by your homeserver
+- An open-source client based on Cinny
 
-Mindroom AI can connect to your chosen Matrix homeserver. Availability of registration, SSO providers, moderation, and retention policies depends on the homeserver you use.
+Use the hosted service at mindroom.chat or connect to a compatible Matrix homeserver and MindRoom deployment. Available agents, models, tools, bridges, memory, registration, and retention depend on the services you connect.
 ```
 
-- Keywords: `matrix,chat,ai agents,threads,encryption,collaboration`
+- Keywords: `agents,multi agent,matrix,assistant,automation,memory,tools,chat,voice,self hosted,teams`
 - Support URL: must be public and live.
 - Privacy Policy URL: must be public and live (required).
 - Marketing URL: optional.
@@ -95,7 +103,7 @@ If reviewers ask for project context, point them to:
 Use this one-liner summary:
 
 ```text
-MindRoom is a Matrix client forked from Cinny and optimized for AI-agent workflows, with emphasis on streaming edit rendering, thread UX, and tool/run metadata visibility.
+Mindroom AI is the Matrix chat client for MindRoom, an open-source multi-agent runtime where specialist agents live in rooms, remember context, use tools, and collaborate in threads.
 ```
 
 ## 4) Privacy / Policy Consistency Checks

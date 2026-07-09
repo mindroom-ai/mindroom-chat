@@ -1,4 +1,4 @@
-Mindroom AI is a Matrix client app optimized for AI-agent workflows.
+Mindroom AI is the Matrix chat client for MindRoom agents and multi-agent workflows.
 
 Important behavior for review:
 - This iOS build supports both existing-account login and account creation.

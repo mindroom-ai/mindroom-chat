@@ -99,12 +99,14 @@ account and room for each run, seeds a public-safe fake `Personal` room with
 Bas Nijholt as the user, downloads the public `nijho.lt` profile avatar at
 seed time, provisions AI agent users and avatars, and uses Playwright to render
 device-scaled viewports that write exact iPhone 6.9" (`1320 x 2868`) and iPad
-13" (`2064 x 2752`) PNGs into `fastlane/screenshots/en-US/`. The fixture
-focuses on the personal-agent product story: a daily workspace overview, Mind's
-public-safe markdown-formatted explanation of MindRoom, and a campground
-watcher with expanded tool calls. The wrapper starts a fresh Vite server on an
-available port by default so dependency-cache changes cannot reuse a stale
-localhost build.
+13" (`2064 x 2752`) PNGs into `fastlane/screenshots/en-US/`. The five-scene
+set mixes explicit light and dark themes and tells distinct personal-agent
+stories: a daily workspace overview, Mind's public-safe markdown-formatted
+explanation of MindRoom, a campground watcher with expanded tool calls, car
+research, and a household reminder batch. Capture fails if two scenes within a
+device class produce byte-identical PNGs. The wrapper starts a fresh Vite server
+on an available port by default so dependency-cache changes cannot reuse a
+stale localhost build.
 
 To only start Matrix and seed the fixture room:
 

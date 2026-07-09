@@ -2,6 +2,91 @@
 
 ## Runbook
 
+### iOS App Store 4.12.4 release execution (2026-07-09)
+
+- Status: release hardening and version bump validated locally; pending final PR
+  #103 CI before merge.
+- The public App Store record shows `Mindroom AI` version `4.12.3` was released
+  on 2026-07-09 at 20:42 UTC, so Apple's `4.12.3` train is closed. A build-only
+  increment would repeat the prior closed-train failure mode.
+- Release target: GitHub `v4.12.3-mindroom.33`, Apple marketing version/build
+  `4.12.4 (33)`. The Xcode project fallback is bumped to both values; after the
+  merge-to-`dev` auto-release, Xcode Cloud can resolve build `33` from the tag
+  while retaining the deliberately-ahead Apple marketing version `4.12.4`.
+- PR review hardening: require the home-reminders fixture in overview readiness,
+  wrap both screenshot-theme storage reads and writes in an explicit failure
+  boundary, derive collapsed-message expansion count from the live DOM instead
+  of a hard-coded cap, and wait for each SPA thread navigation before the
+  theme-triggered reload.
+- Ground-truthed Gemini's suggestion to remove the initial collapsed-message
+  readiness wait: a cold full capture reproduced the overlay race and stalled
+  on the campground tool button because the overlay mounted after the tool
+  header became visible. The helper now keeps the wait as an explicit fixture
+  invariant (all four thread scenes are intentionally collapsed), but removes
+  the swallowed timeout and hard-coded ten-expansion cap; the live DOM count
+  determines the exact work.
+- Green: full `npm run appstore:screenshots` after the review fixes (iPhone +
+  iPad, 10 assets, 24.5 seconds), `node scripts/ios-ci-version.mjs` resolves
+  `4.12.4 (33)`, App Store preflight, plist lint, typecheck, production build,
+  lint (0 errors, 19 pre-existing warnings), and `npm test` (354 files, 2812
+  tests).
+
+### iOS release metadata aligned with current MindRoom positioning (2026-07-09)
+
+- Status: complete; pushed to PR #103 with the PR title and description updated
+  to cover both screenshots and App Store metadata.
+- Re-evaluated the App Store name-adjacent copy against the latest
+  `mindroom-ai/mindroom` `origin/main` README at `53afe1a08` (2026-07-09),
+  whose current lead is "AI agents that live in your chat rooms" and whose
+  product story emphasizes multi-agent routing/collaboration, persistent
+  memory, 100+ configured tool integrations, scheduling, voice, streaming tool
+  traces, Matrix bridges, and hosted or self-hosted operation.
+- Replaced the generic "Matrix client built for AI-agent collaboration"
+  description with user-facing agent benefits while preserving the product
+  boundary: agent capabilities are explicitly conditional on connecting the
+  iOS client to a MindRoom runtime, and available agents/models/tools/bridges/
+  memory remain dependent on the connected deployment.
+- Updated the App Store subtitle, promotional text, description, keywords, and
+  review-note opener; synchronized the submission packet and the in-app
+  MindRoom branding subtitle. Field lengths are within App Store limits:
+  subtitle 28 characters, promotional text 143 characters, description 1207
+  characters, keywords 88 bytes.
+- Green: focused branding tests, `npm run appstore:preflight`,
+  `npm run typecheck`, `npm run build`, `npm run lint` (0 errors, 19
+  pre-existing warnings), and `npm test` (354 files, 2812 tests).
+
+### iOS release screenshots: unique light/dark scene set (2026-07-09)
+
+- Status: complete. The final ten release PNGs were regenerated and visually
+  reviewed (five iPhone 6.9", five iPad 13").
+- Expanded the App Store capture plan from three light/default-theme scenes to
+  five explicitly themed scenes per device class: light personal workspace,
+  dark MindRoom explanation, light campground tool trace, dark car research,
+  and light household reminders.
+- Added the theme to release filenames so the intended visual mix is reviewable
+  before upload, and added a SHA-256 duplicate guard that fails the capture when
+  two scenes for the same device produce identical PNG bytes.
+- The capture spec now forces each scene's theme through persisted settings and
+  reloads before asserting/capturing, so output does not depend on the release
+  engineer's system appearance preference.
+- Capture readiness now waits for transient catch-up/loading indicators to
+  clear and for the seeded primary profile image to load. It expands collapsed
+  messages deterministically and hides capture-only pagination controls; these
+  gates came from visual review of cold-run artifacts that otherwise showed a
+  loading pill, fallback avatar, or "Load Newer Messages" control.
+- Screenshot binaries remain gitignored. The generated iPhone 6.9" and iPad 13"
+  assets are release artifacts under `ios/App/fastlane/screenshots/en-US/`.
+- Green: screenshot-plan unit tests, TypeScript typecheck, and two consecutive
+  full `npm run appstore:screenshots` runs after the interaction-race fix. The
+  final run completed in 37 seconds with both device tests passing; all files
+  have unique SHA-256 digests and exact App Store dimensions (`1320x2868` and
+  `2064x2752`). Final iPhone/iPad contact sheets were visually reviewed with no
+  duplicate scenes, transient loaders, fallback profile avatars, or exposed
+  pagination controls.
+- Final release gate green: `npm run appstore:preflight`, `npm run typecheck`,
+  `npm run build`, `npm run lint` (0 errors, 19 pre-existing warnings), and
+  `npm test` (354 files, 2812 tests).
+
 ### i18n PR #101 bot-review response (2026-07-09)
 
 Triage of the sourcery/gemini/greptile reviews on PR #101 (commit
