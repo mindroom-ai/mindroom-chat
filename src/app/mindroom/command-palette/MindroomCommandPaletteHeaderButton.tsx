@@ -1,13 +1,16 @@
 import React, { useCallback } from 'react';
 import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
 import { useSetAtom } from 'jotai';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 
 export function MindroomCommandPaletteHeaderButton() {
   const setCommandPaletteOpen = useSetAtom(commandPaletteOpenAtom);
+  const simpleMode = useSimpleMode();
   const handleOpenCommandPalette = useCallback(() => {
     setCommandPaletteOpen(true);
   }, [setCommandPaletteOpen]);
+  if (simpleMode) return null;
 
   return (
     <TooltipProvider

@@ -62,6 +62,7 @@ import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
 import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 type HomeMenuProps = {
   requestClose: () => void;
@@ -182,6 +183,7 @@ export function Home() {
   const navigate = useNavigate();
 
   const selectedRoomId = useSelectedRoom();
+  const simpleMode = useSimpleMode();
   const createRoomSelected = useHomeCreateSelected();
   const searchSelected = useHomeSearchSelected();
   const noRoomToDisplay = rooms.length === 0;
@@ -220,60 +222,64 @@ export function Home() {
           <PageNavContent scrollRef={scrollRef}>
             <Box direction="Column" gap="300">
               <NavCategory>
-                <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
-                  <NavButton onClick={() => navigate(getHomeCreatePath())}>
-                    <NavItemContent>
-                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                        <Avatar size="200" radii="400">
-                          <Icon src={Icons.Plus} size="100" />
-                        </Avatar>
-                        <Box as="span" grow="Yes">
-                          <Text as="span" size="Inherit" truncate>
-                            Create Room
-                          </Text>
+                {!simpleMode && (
+                  <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
+                    <NavButton onClick={() => navigate(getHomeCreatePath())}>
+                      <NavItemContent>
+                        <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                          <Avatar size="200" radii="400">
+                            <Icon src={Icons.Plus} size="100" />
+                          </Avatar>
+                          <Box as="span" grow="Yes">
+                            <Text as="span" size="Inherit" truncate>
+                              Create Room
+                            </Text>
+                          </Box>
                         </Box>
-                      </Box>
-                    </NavItemContent>
-                  </NavButton>
-                </NavItem>
-                <UseStateProvider initial={false}>
-                  {(open, setOpen) => (
-                    <>
-                      <NavItem variant="Background" radii="400">
-                        <NavButton onClick={() => setOpen(true)}>
-                          <NavItemContent>
-                            <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                              <Avatar size="200" radii="400">
-                                <Icon src={Icons.Link} size="100" />
-                              </Avatar>
-                              <Box as="span" grow="Yes">
-                                <Text as="span" size="Inherit" truncate>
-                                  Join with Address
-                                </Text>
+                      </NavItemContent>
+                    </NavButton>
+                  </NavItem>
+                )}
+                {!simpleMode && (
+                  <UseStateProvider initial={false}>
+                    {(open, setOpen) => (
+                      <>
+                        <NavItem variant="Background" radii="400">
+                          <NavButton onClick={() => setOpen(true)}>
+                            <NavItemContent>
+                              <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                                <Avatar size="200" radii="400">
+                                  <Icon src={Icons.Link} size="100" />
+                                </Avatar>
+                                <Box as="span" grow="Yes">
+                                  <Text as="span" size="Inherit" truncate>
+                                    Join with Address
+                                  </Text>
+                                </Box>
                               </Box>
-                            </Box>
-                          </NavItemContent>
-                        </NavButton>
-                      </NavItem>
-                      {open && (
-                        <JoinAddressPrompt
-                          onCancel={() => setOpen(false)}
-                          onOpen={(roomIdOrAlias, viaServers, eventId) => {
-                            setOpen(false);
-                            const path = getHomeRoomPath(roomIdOrAlias, eventId);
-                            navigate(
-                              viaServers
-                                ? withSearchParam<_RoomSearchParams>(path, {
-                                    viaServers: encodeSearchParamValueArray(viaServers),
-                                  })
-                                : path
-                            );
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </UseStateProvider>
+                            </NavItemContent>
+                          </NavButton>
+                        </NavItem>
+                        {open && (
+                          <JoinAddressPrompt
+                            onCancel={() => setOpen(false)}
+                            onOpen={(roomIdOrAlias, viaServers, eventId) => {
+                              setOpen(false);
+                              const path = getHomeRoomPath(roomIdOrAlias, eventId);
+                              navigate(
+                                viaServers
+                                  ? withSearchParam<_RoomSearchParams>(path, {
+                                      viaServers: encodeSearchParamValueArray(viaServers),
+                                    })
+                                  : path
+                              );
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </UseStateProvider>
+                )}
                 <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
                   <NavLink to={getHomeSearchPath()}>
                     <NavItemContent>

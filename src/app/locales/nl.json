@@ -48,6 +48,12 @@
     },
     "general": {
       "title": "Algemeen",
+      "interface": {
+        "sectionTitle": "Interface",
+        "simpleMode": "Eenvoudige modus",
+        "simpleModeDescription": "Verbergt geavanceerde functies zoals spaces, het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
+        "simpleModeSaveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."
+      },
       "language": {
         "sectionTitle": "Taal",
         "appLanguage": "Taal van de app",
@@ -187,6 +193,11 @@
       "search": "Threads doorzoeken",
       "sheetAria": "Threadfilters",
       "closeAria": "Threadfilters sluiten"
+    },
+    "simpleFilter": {
+      "unresolved": "Onopgelost",
+      "showingUnresolved": "Toont onopgeloste threads. Klik om alle threads te tonen.",
+      "showingAll": "Toont alle threads. Klik om alleen onopgeloste te tonen."
     }
   }
 }

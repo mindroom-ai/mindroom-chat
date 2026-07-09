@@ -2,6 +2,97 @@
 
 ## Runbook
 
+### Simple mode (2026-07-09)
+
+A per-account "Simple Mode" switch (Settings → General → Interface) that
+strips advanced UI for non-technical users. Stored in Matrix account data
+under `io.mindroom.settings` — the fork's global dictionary for account-level
+MindRoom settings — so it roams across devices, unlike the
+localStorage-backed `mindroomSettingsAtom`.
+
+STORE. `mindroomAccountSettings.ts` owns the event type, the sanitizer
+(strict-boolean `simpleMode`, defaults over garbage — truthy junk from
+another client must not strip the UI), and a patch-merge that preserves
+unknown keys so an older client never destroys settings written by a newer
+one. Future account-level settings should be added to this dictionary, not
+new event types. READ PATH IS A BOUND ATOM, NOT useAccountData: the first
+implementation read via `useAccountData` and made every `useSimpleMode`
+consumer require a Matrix client, breaking 118 component tests whose mock
+clients have no account-data surface. `useBindMindroomAccountSettingsAtom`
+(registered in `useBindAtoms`, the ClientBindAtoms pattern next to
+`mDirectAtom`) seeds a plain jotai atom unconditionally (account switches
+reset stale values) and tracks `ClientEvent.AccountData`; readers are
+client-free and default to the full interface. The write path
+(`useSetMindroomAccountSettings`) merges over raw stored content via
+`mx.setAccountData`. js-sdk 41.7 resolves `setAccountData` only after the
+sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an
+optimistic pending value and hands back to the store when the write settles.
+
+SURFACES HIDDEN WHEN ON:
+- Sidebar: `SpaceTabs`, the global Threads tab (user-requested 2026-07-09),
+  Explore, Create, Local MindRoom tab. Home FLATTENS every joined room into
+  one list (`useHomeRooms` switches orphan→all selector; home search
+  matches) because hiding spaces must not make space-organized rooms
+  unreachable. Home's Create Room / Join with Address nav items hidden.
+  Kept: Home, Direct, Inbox, Unverified, Settings.
+- Command palette: only the visible triggers are hidden (sidebar tab,
+  room-header button). `mod+k` and the renderer deliberately stay ungated —
+  user decision 2026-07-09: the palette remains an unadvertised power-user
+  path in simple mode; people who don't know the shortcut never see it.
+- Thread overview toolbar: count + one binary "Unresolved" button
+  (`data-simple-unresolved-toggle`). INVARIANT: hidden controls must not
+  keep influencing results — `simplifyThreadFilterState` projects the
+  persisted per-room filter state onto the simple subspace (defaults
+  everywhere; only `resolved:'exclude'` survives) inside
+  `useRoomViewThreadState`, and the persisted room view mode is forced to
+  the default EVERYWHERE the hook consults it (send-opens-thread, edge
+  swipes, recent-thread bumps — not just the value handed to the view;
+  reading the raw atom there would render compact UI with classic
+  behavior). Stored state is untouched, so leaving simple mode restores
+  the power-user setup. The Unresolved button flips only the resolved
+  dimension through the existing effective-query-state (DSL) path.
+  GOTCHA (regression 2026-07-09, user-reported): the search-DSL string is
+  authoritative downstream — `useMindroomThreadIndex` recomputes the live
+  state via `applyParsedThreadFilterQuery`, which resets every status key
+  the query does not mention. The projection must therefore serialize its
+  own searchQuery (`-is:resolved`), not blank it; a blank query silently
+  erased the unresolved filter and the toggle did nothing. Pinned by the
+  "survives the DSL round trip" test in `roomThreadOverviewModel.test.ts`.
+- Room header: search + pinned-messages hidden; kebab trimmed to mark-read,
+  notifications, invite, leave.
+- Composer: markdown-toolbar toggle and sticker hidden; attach, VOICE,
+  emoji, send stay. Voice was hidden at first and restored per user
+  feedback 2026-07-09 — dictation is core for non-technical users.
+- Sidebar footer: the Add Account plus button is hidden (user feedback
+  2026-07-09); Manage accounts stays so an existing multi-account setup
+  can still switch.
+- Settings: menu drops Developer Tools, Emojis & Stickers, Local MindRoom
+  (deep links fall back like deployments that disable that tab); General
+  reduces to Interface + Appearance. The Interface group is the way back
+  out and must never be hidden.
+
+Validation: `npm run typecheck` clean; `npx vitest run` FULL suite green —
+353 files / 2806 tests (the KeyBackupNudge casing fix — documented below,
+landed on dev via #98 — unblocked typecheck, build, and the previously
+failing suite files); `npm run build` passes;
+`npm run lint` 0 errors, 19 pre-existing warnings. Review: the independent
+review agent was stopped by the user mid-run; the fallback self-review pass
+over a90e9d6e..HEAD found and fixed two issues — raw-atom view-mode reads
+inside `useRoomViewThreadState` bypassing the simple-mode forcing, and the
+command-palette open atom lingering true across a simple-mode flip.
+
+i18n: after merging the i18n foundation (#99, entry below), the strings this
+work introduced are translated — `settings.general.interface.*` (Interface
+group, Simple Mode switch, save-error message) and `thread.simpleFilter.*`
+(Unresolved button + tooltips) in en/de/nl. The Language section stays
+visible in simple mode, right below the Interface group.
+
+Not done / candidates for a later pass: per-message options menu trimming
+(read receipts, view source, copy link, pin, AI token-usage items),
+members-drawer simplification, account-switcher hiding, DM-create
+simplification. E2E coverage for simple mode (live toggle + surface
+assertions) not yet written.
+
 ### i18n foundation: language picker + first translated surface (2026-07-09)
 
 - Status:

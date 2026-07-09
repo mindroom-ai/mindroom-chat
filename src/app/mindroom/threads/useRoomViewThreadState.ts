@@ -27,13 +27,15 @@ import {
   type FilterPreset,
   removeTagFilter,
   resetThreadFilterState,
+  simplifyThreadFilterState,
   type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
-import { roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import { DEFAULT_ROOM_VIEW_MODE, roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
@@ -61,6 +63,7 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  handleToggleUnresolvedOnly: () => void;
   handleRoomMessageSent: (eventId: string) => void;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
@@ -90,6 +93,20 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  // Simple mode hides every filter control except the unresolved toggle, so
+  // the state handed to the view is projected onto that subspace — persisted
+  // advanced filters must not keep hiding threads with no visible cause. The
+  // stored state is untouched; leaving simple mode restores it.
+  const simpleMode = useSimpleMode();
+  const effectiveThreadFilterState = useMemo(
+    () => (simpleMode ? simplifyThreadFilterState(threadFilterState) : threadFilterState),
+    [simpleMode, threadFilterState]
+  );
+  // The view-mode toggles are hidden in simple mode, so everything tied to
+  // the view mode (send-opens-thread, edge swipes, recent-thread bumps, and
+  // the value handed to the view) must follow the forced default too — not
+  // the persisted choice.
+  const effectiveViewMode = simpleMode ? DEFAULT_ROOM_VIEW_MODE : viewMode;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
@@ -137,19 +154,26 @@ export const useRoomViewThreadState = ({
   }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, roomId, setLastExitedThread]);
 
   const handleSwipeForwardToThread = useCallback(() => {
-    if (viewMode === 'classic') return;
+    if (effectiveViewMode === 'classic') return;
     if (threadId) return;
     if (!lastExitedThread || lastExitedThread.roomId !== roomId) return;
 
     const targetThreadId = lastExitedThread.threadId;
     navigateRoomThread(roomId, targetThreadId);
     setLastExitedThread(null);
-  }, [lastExitedThread, navigateRoomThread, roomId, setLastExitedThread, threadId, viewMode]);
+  }, [
+    effectiveViewMode,
+    lastExitedThread,
+    navigateRoomThread,
+    roomId,
+    setLastExitedThread,
+    threadId,
+  ]);
 
-  useEdgeSwipeBack(handleExitThread, viewMode !== 'classic' && !!threadId);
+  useEdgeSwipeBack(handleExitThread, effectiveViewMode !== 'classic' && !!threadId);
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    viewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
+    effectiveViewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
   );
 
   const updateFromEffectiveQueryState = useCallback(
@@ -174,6 +198,17 @@ export const useRoomViewThreadState = ({
     },
     [updateFromEffectiveQueryState]
   );
+
+  // Simple mode's single binary control: unresolved-only on/off. Flips only
+  // the resolved dimension so the hidden advanced dimensions survive in
+  // storage. ('exclude' is the one resolved value the simple-mode projection
+  // keeps, so flipping the raw value matches what the user sees.)
+  const handleToggleUnresolvedOnly = useCallback(() => {
+    updateFromEffectiveQueryState((state) => ({
+      ...state,
+      resolved: state.resolved === 'exclude' ? 'any' : 'exclude',
+    }));
+  }, [updateFromEffectiveQueryState]);
 
   const handleSortDirectionChange = useCallback(() => {
     setThreadFilterState({
@@ -242,12 +277,12 @@ export const useRoomViewThreadState = ({
 
   const handleRoomMessageSent = useCallback(
     (sentEventId: string) => {
-      if (viewMode !== 'compact' || threadId || effectiveThreadId) return;
+      if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return;
       if (!isConfirmedMatrixEventId(sentEventId)) return;
 
       navigateRoomThread(roomId, sentEventId);
     },
-    [effectiveThreadId, navigateRoomThread, roomId, threadId, viewMode]
+    [effectiveThreadId, effectiveViewMode, navigateRoomThread, roomId, threadId]
   );
 
   useEffect(() => {
@@ -280,10 +315,10 @@ export const useRoomViewThreadState = ({
   }, [effectiveThreadId, eventId, navigateRoomThread, roomId, threadId]);
 
   useEffect(() => {
-    if (viewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
+    if (effectiveViewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
 
     bumpRecentThread(roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, recentThreadSummaryText, roomId, viewMode]);
+  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId]);
 
   return {
     effectiveThreadId,
@@ -297,14 +332,15 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleToggleUnresolvedOnly,
     handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
     summaryMap,
-    threadFilterState,
+    threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState,
     threadSummaryInfo,
-    viewMode,
+    viewMode: effectiveViewMode,
   };
 };

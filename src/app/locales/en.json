@@ -48,6 +48,12 @@
     },
     "general": {
       "title": "General",
+      "interface": {
+        "sectionTitle": "Interface",
+        "simpleMode": "Simple Mode",
+        "simpleModeDescription": "Hide advanced features like spaces, the command palette and thread filters. Synced across your devices.",
+        "simpleModeSaveFailed": "Could not save the change. Check your connection and try again."
+      },
       "language": {
         "sectionTitle": "Language",
         "appLanguage": "App Language",
@@ -187,6 +193,11 @@
       "search": "Search threads",
       "sheetAria": "Thread filters",
       "closeAria": "Close thread filters"
+    },
+    "simpleFilter": {
+      "unresolved": "Unresolved",
+      "showingUnresolved": "Showing unresolved threads. Click to show all.",
+      "showingAll": "Showing all threads. Click to show only unresolved."
     }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -41,11 +41,27 @@ import {
 } from './settingsMenu';
 import { SettingsPage, SettingsPages } from './settingsPages';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
+import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
 
-const useSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] => {
+// Kept out of the menu in simple mode; General (hosting the Simple Mode
+// switch itself), Account, Notifications, Devices, and About stay.
+const SIMPLE_MODE_HIDDEN_PAGES: SettingsPage[] = [
+  SettingsPages.DeveloperToolsPage,
+  SettingsPages.EmojisStickersPage,
+];
+
+const useSettingsMenuItems = (
+  showLocalMindRoom: boolean,
+  simpleMode: boolean
+): SettingsMenuItem[] => {
   const { t } = useTranslation();
 
-  return useMemo(() => getSettingsMenuItems(showLocalMindRoom, t), [showLocalMindRoom, t]);
+  return useMemo(() => {
+    const items = getSettingsMenuItems(showLocalMindRoom, t);
+    return simpleMode
+      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_PAGES.includes(item.page))
+      : items;
+  }, [showLocalMindRoom, simpleMode, t]);
 };
 
 type SettingsProps = {
@@ -65,11 +81,21 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     : undefined;
 
   const screenSize = useScreenSizeContext();
-  const showLocalMindRoom = sidebar?.showMindRoom ?? true;
+  const simpleMode = useSimpleMode();
+  const showLocalMindRoom = (sidebar?.showMindRoom ?? true) && !simpleMode;
   const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
   );
-  const menuItems = useSettingsMenuItems(showLocalMindRoom);
+  const menuItems = useSettingsMenuItems(showLocalMindRoom, simpleMode);
+
+  // If the mode flips while the window is open (e.g. simple mode synced from
+  // another device), a page that just left the menu must not keep rendering
+  // with no menu entry pointing at it.
+  useEffect(() => {
+    if (activePage === undefined) return;
+    if (menuItems.some((item) => item.page === activePage)) return;
+    setActivePage(screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage);
+  }, [activePage, menuItems, screenSize]);
 
   const handlePageRequestClose = () => {
     if (screenSize === ScreenSize.Mobile) {

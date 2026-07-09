@@ -93,6 +93,7 @@ import {
 } from '../../utils/dom';
 import { safeFile } from '../../utils/mimeTypes';
 import { useSetting } from '../../state/hooks/settings';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { settingsAtom } from '../../state/settings';
 import {
   getAudioMsgContent,
@@ -289,6 +290,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms: Room[] = useImagePackRooms(roomId, roomToParents);
 
     const [toolbar, setToolbar] = useSetting(settingsAtom, 'editorToolbar');
+    // Simple mode keeps the composer to attach, voice, emoji, and send — no
+    // markdown toolbar or stickers. Voice stays by explicit product choice:
+    // dictating a message is exactly what a non-technical user reaches for.
+    const simpleMode = useSimpleMode();
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
@@ -1363,14 +1368,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           after={
             <>
-              <IconButton
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                onClick={() => setToolbar(!toolbar)}
-              >
-                <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
-              </IconButton>
+              {!simpleMode && (
+                <IconButton
+                  variant="SurfaceVariant"
+                  size="300"
+                  radii="300"
+                  onClick={() => setToolbar(!toolbar)}
+                >
+                  <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
+                </IconButton>
+              )}
               <UseStateProvider initial={undefined}>
                 {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
                   <PopOut
@@ -1404,7 +1411,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                       />
                     }
                   >
-                    {!hideStickerBtn && (
+                    {!hideStickerBtn && !simpleMode && (
                       <IconButton
                         aria-pressed={emojiBoardTab === EmojiBoardTab.Sticker}
                         onClick={() => setEmojiBoardTab(EmojiBoardTab.Sticker)}
@@ -1444,7 +1451,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           bottom={
-            toolbar && (
+            toolbar &&
+            !simpleMode && (
               <div>
                 <Line variant="SurfaceVariant" size="300" />
                 <Toolbar />

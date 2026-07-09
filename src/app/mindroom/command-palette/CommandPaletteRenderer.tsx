@@ -132,6 +132,9 @@ export function CommandPaletteRenderer() {
   const [open, setOpen] = useAtom(commandPaletteOpenAtom);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const handleLogout = useCallback(() => setLogoutOpen(true), []);
+  // Simple mode hides the palette's visible triggers (sidebar tab, room
+  // header button) but deliberately keeps mod+k working as an unadvertised
+  // power-user path, so the renderer and hotkey stay ungated.
   useCommandPaletteHotkey(
     open,
     setOpen,
