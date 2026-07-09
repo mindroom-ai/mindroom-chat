@@ -14,6 +14,8 @@ describe('MINDROOM_COMMANDS', () => {
       'config',
       'model',
       'thread_mode',
+      'encrypt',
+      'e2ee',
       'hi',
     ]);
   });
