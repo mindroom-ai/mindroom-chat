@@ -122,6 +122,12 @@
       }
     }
   },
+  "recentThreads": {
+    "title": "Letzte Threads",
+    "empty": "Keine kürzlich geöffneten Threads",
+    "resizeAria": "Bereich \"Letzte Threads\" in der Größe anpassen",
+    "openedAt": "Geöffnet {{time}}"
+  },
   "composer": {
     "placeholder": "Nachricht senden...",
     "recordVoice": "Sprachnachricht aufnehmen",

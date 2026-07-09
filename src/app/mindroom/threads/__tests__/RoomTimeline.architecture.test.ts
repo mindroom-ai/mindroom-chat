@@ -1750,7 +1750,7 @@ describe('RoomTimeline architecture', () => {
       expect(source).toContain("from '../../../mindroom/recent-threads/RecentThreadsPanel'");
       expect(source).not.toContain("from '../../../features/recent-threads'");
     });
-    expect(panelSource).toContain('Recent Threads');
+    expect(panelSource).toContain('recentThreads.title');
     expect(summarySource).toContain('resolveRecentThreadSummaryText');
     expect(threadRecordSource).toContain("from '../recent-threads/recentThreadSummaryUtils'");
     expect(stateSource).toContain('makeRecentThreadsAtom');

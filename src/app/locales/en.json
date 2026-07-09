@@ -122,6 +122,12 @@
       }
     }
   },
+  "recentThreads": {
+    "title": "Recent Threads",
+    "empty": "No recent threads",
+    "resizeAria": "Resize recent threads panel",
+    "openedAt": "Opened {{time}}"
+  },
   "composer": {
     "placeholder": "Send a message...",
     "recordVoice": "Record voice message",

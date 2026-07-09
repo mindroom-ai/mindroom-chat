@@ -122,6 +122,12 @@
       }
     }
   },
+  "recentThreads": {
+    "title": "Recente threads",
+    "empty": "Geen recente threads",
+    "resizeAria": "Formaat van paneel \"Recente threads\" aanpassen",
+    "openedAt": "Geopend {{time}}"
+  },
   "composer": {
     "placeholder": "Stuur een bericht...",
     "recordVoice": "Spraakbericht opnemen",

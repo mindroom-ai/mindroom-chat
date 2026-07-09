@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Icon, Icons, Text } from 'folds';
 import * as css from './recentThreads.css';
 
@@ -54,6 +55,7 @@ const getResolvedHeight = (
 };
 
 export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
+  const { t } = useTranslation();
   const { mode } = props;
   const resizeProps = mode === 'resize' ? props : undefined;
   const toggleProps = mode === 'toggle' ? props : undefined;
@@ -197,7 +199,7 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
       {toggleProps ? (
         <button
           type="button"
-          aria-label="Recent Threads"
+          aria-label={t('recentThreads.title')}
           aria-expanded={toggleProps.isExpanded}
           className={css.DividerToggle}
           onClick={toggleProps.onToggle}
@@ -208,7 +210,7 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
               aria-hidden="true"
             />
             <Text as="span" size="T200" priority="300" role="heading" aria-level={2}>
-              Recent Threads
+              {t('recentThreads.title')}
             </Text>
           </Box>
           <Box as="span" alignItems="Center" gap="100" style={{ flexShrink: 0 }}>
@@ -229,7 +231,7 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
           {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
           <div
             role="separator"
-            aria-label="Resize recent threads panel"
+            aria-label={t('recentThreads.resizeAria')}
             aria-orientation="horizontal"
             aria-valuemin={resizeProps?.collapsedHeight}
             aria-valuemax={resizeProps?.maxHeight}

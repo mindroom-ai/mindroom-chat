@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### i18n: recent threads + navigation shell slices (2026-07-09)
+
+User-reported still-English strings after the composer slice: "Recent
+Threads"/"No recent threads", then "Direct Messages", "Open command
+palette", "Type a command or search...". Split into focused commits:
+
+- Recent Threads panel (done): `recentThreads.*` keys in en/de/nl cover the
+  panel header + empty state (`RecentThreadsPanel.tsx`), the mobile toggle
+  aria-label/heading and the resize-separator aria-label
+  (`RecentThreadsDivider.tsx`), and the entry aria-label
+  (`RecentThreadEntry.tsx` — reuses `thread.aria.openThread`, new
+  `recentThreads.openedAt` for the "Opened {{time}}" fragment; the
+  relative-time string itself is still English until dayjs locales are
+  wired). The three component tests got the standard react-i18next
+  `translateFromEn` mock. GOTCHA: the namespace-boundary test
+  `RoomTimeline.architecture.test.ts` asserts on the RAW SOURCE of
+  `RecentThreadsPanel.tsx`; its `toContain('Recent Threads')` became
+  `toContain('recentThreads.title')` — source-level assertions like this
+  break on every i18n migration, grep for them
+  (`readFileSync.*toContain`). E2E specs matching `Open thread:` aria
+  labels stay safe (English detector default in e2e browsers).
+- Sidebar tabs + Direct page (next): tooltips/labels in
+  `pages/client/sidebar/*.tsx` (Home, Direct Messages, Threads, Inbox,
+  Explore Community, Add Space/Create Space/Join with Address, Manage
+  accounts/Add Account, AccountSwitcher copy) and `pages/client/direct/`
+  ("Direct Messages" header, "No Direct Messages").
+- Command palette (next): input placeholder + aria-labels + section
+  titles + "No results" in `CommandPalette.tsx`/`CommandPaletteRenderer`,
+  header button + sidebar tab, and the quick-action titles/descriptions in
+  `commandPaletteActions.ts` (pure function — will take a `TFunction`,
+  same pattern as `getSettingsMenuItems`).
+
 ### i18n: composer slice (2026-07-09)
 
 - Status: done. The message composer (`MindroomRoomInput.tsx`) is translated

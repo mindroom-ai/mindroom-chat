@@ -1,4 +1,5 @@
 import React, { memo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
@@ -21,13 +22,14 @@ export const RecentThreadEntry = memo(({
   openedAt,
   summaryText,
 }: RecentThreadEntryProps) => {
+  const { t } = useTranslation();
   const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
   const relativeTime = useRelativeTime(openedAt);
   const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
   const ariaLabel = [
-    `Open thread: ${viewModel.summaryText}`,
+    t('thread.aria.openThread', { title: viewModel.summaryText }),
     viewModel.roomName,
-    relativeTime ? `Opened ${relativeTime}` : undefined,
+    relativeTime ? t('recentThreads.openedAt', { time: relativeTime }) : undefined,
   ]
     .filter(Boolean)
     .join('. ');
