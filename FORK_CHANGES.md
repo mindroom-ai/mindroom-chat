@@ -237,6 +237,55 @@ palette", "Type a command or search...". Split into focused commits:
   "Spraakbericht opnemen" (nl) after a localStorage `i18nextLng` switch +
   reload. Screenshots: `ui-audit/i18n-composer-{en,de,nl}.png`.
 
+### Compact view: zero-reply root visibility (cold start + gappy sync) (2026-07-09)
+
+User reports (2026-07-09): (a) while watching a room's compact view, new
+untagged agent root messages sometimes never appear as cards until the room
+is re-entered or the window reloaded; (b) on a fresh device/cleared cache
+(mobile Safari), a room's compact view shows every real thread but none of
+the standalone no-reply messages that should render as zero-reply cards.
+
+Root cause, shared by both: zero-reply standalone roots are discoverable
+ONLY from the locally loaded main timeline
+(`buildCompactZeroReplyRootData` ← `roomSurfaceEventEntries` ←
+`timeline.linkedTimelines` component state). Real threads are immune —
+`loadRoomThreads` drains the server-side MSC3856 `/threads` list and
+`ThreadEvent.*` re-render independently. Two ways the local timeline goes
+stale/shallow:
+
+1. COLD START: fresh session syncs only the last
+   `STARTUP_SYNC_TIMELINE_LIMIT` (20) events; after a cache clear there is
+   no IndexedDB hydration; the compact view mounts no scroll paginator, so
+   nothing ever deepens the timeline. Historical standalone roots stay
+   invisible (the deep-history job writes cache only — cards would appear
+   on the NEXT open).
+2. GAPPY SYNC (step 2): on `limited: true` the SDK forks a NEW live
+   timeline with no neighbour link (`resetLiveTimeline`); the component
+   keeps counting the orphaned chain (`eventsLength` memo key), so no
+   later live event ever re-enters the render pipeline. Only
+   `RoomEvent.TimelineRefresh` (MSC2716, never fires) was handled — and
+   its room branch is gated on `liveTimelineLinked`, false exactly then.
+
+- Status:
+  - Step 1 done: `compactCoverageBackfillController.ts` —
+    `useCompactCoverageBackfillController` drives the existing cache-first
+    pagination command (`handleRoomTimelinePagination(true)`) while the
+    compact room view is active (`!threadId && !eventId`, after initial
+    cache hydration) until the linked main timeline holds
+    `COMPACT_COVERAGE_TARGET_EVENTS` (200) raw events, capped at
+    `COMPACT_COVERAGE_MAX_BATCHES` (8) pages per mount. One batch in
+    flight at a time; a settle tick keeps the loop alive when a page
+    changes no reactive input (fully-filtered events); errors are
+    swallowed and retry within budget. Unit tests cover the decision
+    helper, single-flight, budget cap, target stop, settle-tick
+    continuation, and error tolerance.
+  - Step 2 next: relink the render timeline on `RoomEvent.TimelineReset`
+    (room scope, unfiltered set, only when the live timeline is no longer
+    in the linked chain) so live arrivals resume after a gappy sync; the
+    step-1 coverage loop then restores depth from cache/network.
+
+Validation (step 1): `npm run typecheck` clean; controller suite 8/8.
+
 ### Simple mode (2026-07-09)
 
 A per-account "Simple Mode" switch (Settings → General → Interface) that
