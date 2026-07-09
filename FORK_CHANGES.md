@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### i18n PR #101 bot-review response (2026-07-09)
+
+Triage of the sourcery/gemini/greptile reviews on PR #101 (commit
+baba7975): accepted gemini's `room?.name` → `room.name` cleanup (the
+optional chain was dead — `room` is non-nullable in `RoomInputProps`) and
+its 500ms settle-before-screenshot suggestion for the two live i18n specs
+(the screenshots are ui-audit documentation artifacts). REFUTED
+greptile's two "missing mkdir before screenshots" P1s: Playwright's
+`page.screenshot` creates parent dirs itself (`mkdirIfNeeded` →
+recursive `fs.mkdir` in `playwright-core/lib/client/page.js:475`); the
+explicit `mkdir` in `app-store-screenshots.spec.ts` guards its own
+`node:fs` writes only. Sourcery's error-code refactor and
+drive-language-via-settings-UI suggestions were declined as documented
+tradeoffs (see the slice entries below). All five inline threads replied
+to and resolved; review-level points answered in a PR comment.
+
 ### i18n: recent threads + navigation shell slices (2026-07-09)
 
 User-reported still-English strings after the composer slice: "Recent
