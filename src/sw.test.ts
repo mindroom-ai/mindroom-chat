@@ -39,4 +39,20 @@ describe('service worker app shell caching', () => {
     expect(swSource).toContain('/^\\/(?:[^/]+\\/)?_synapse(?:\\/|$)/');
     expect(swSource).toContain('/^\\/(?:[^/]+\\/)?\\.well-known(?:\\/|$)/');
   });
+
+  it('does not use the SPA fallback for static documents like the Element Call widget', () => {
+    const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
+
+    // The call widget iframe navigates to /public/element-call/index.html
+    // (with widget query params, so the precache route never matches it).
+    // Answering that navigation with the app shell loads Cinny inside its
+    // own call iframe and leaves joins stuck on "Joining" forever.
+    expect(swSource).toContain('/^\\/(?:[^/]+\\/)?public(?:\\/|$)/');
+
+    const denylistEntry = /^\/(?:[^/]+\/)?public(?:\/|$)/;
+    expect(denylistEntry.test('/public/element-call/index.html')).toBe(true);
+    expect(denylistEntry.test('/mindroom/public/element-call/index.html')).toBe(true);
+    expect(denylistEntry.test('/home/some-room')).toBe(false);
+    expect(denylistEntry.test('/')).toBe(false);
+  });
 });

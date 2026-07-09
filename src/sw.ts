@@ -24,6 +24,10 @@ const navigationFallbackDenylist = [
   /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,
   /^\/(?:[^/]+\/)?_synapse(?:\/|$)/,
   /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
+  // Static documents (the embedded Element Call widget iframe navigates to
+  // /public/element-call/index.html); serving the app shell instead leaves
+  // calls stuck on "Joining" because the widget never boots.
+  /^\/(?:[^/]+\/)?public(?:\/|$)/,
 ];
 
 // createHandlerBoundToURL throws for non-precached URLs, which would fail

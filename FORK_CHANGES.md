@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Service worker no longer hijacks the Element Call widget iframe (2026-07-09)
+
+- Status:
+  - Complete.
+- Summary:
+  - The Workbox `NavigationRoute` app-shell fallback answered the Element Call
+    widget iframe's document navigation (`/public/element-call/index.html?widgetId=...`)
+    with the precached Cinny `index.html`, because `/public/` was not on the
+    navigation fallback denylist and the widget's query params prevent the
+    precache route from matching.
+  - The iframe therefore booted a nested Cinny app shell instead of Element
+    Call, the widget never sent `contentLoaded`, and joining a call on
+    deployments with the service worker active (e.g. prod `chat.mindroom.chat`)
+    hung on "Joining" forever without ever contacting the LiveKit JWT service.
+  - Root-caused via headless Playwright against prod: with service workers
+    blocked, the exact same build completes the whole join
+    (widget handshake, `get_openid`, membership state event, LiveKit JWT
+    exchange, SFU websocket); with the service worker active, the widget frame
+    shows the app shell doing OIDC discovery (`/_tuwunel/oidc/jwks` CORS noise)
+    and no Element Call boot logs at all.
+  - Fix: denylist `/public/` (base-path aware) in the navigation fallback so
+    static documents are always fetched from the network.
+- Files changed:
+  - `FORK_CHANGES.md`
+  - `src/sw.ts`
+  - `src/sw.test.ts`
+- Tests and validation:
+  - `npx vitest run src/sw.test.ts` (new case covers the `/public/` denylist
+    entry and its base-path behavior).
+  - Live validation on prod after deploy: browser join reaches the LiveKit SFU
+    websocket with the service worker active.
+
 ### E2EE Phase 4 — verified-agent affordance, key-backup onboarding, UTD copy (2026-07-08)
 
 Fork end of the cross-repo Matrix E2EE work (mindroom PR #1423 backend +
