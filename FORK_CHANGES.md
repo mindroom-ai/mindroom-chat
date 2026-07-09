@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Remove last-open-thread auto-restore on room entry (2026-07-09)
+
+User-testing feedback: clicking a room silently jumped back into the last
+thread the user had open there, which reads as "the app took me somewhere I
+didn't click". Removed the whole persistence feature — opening a room now
+always lands on the room's own view (focused overview, compact, or classic,
+per the room's stored view mode, which is untouched).
+
+Removed: `threads/lastOpenThread.ts` (+ test), the auto-restore /
+save / clear effects in `useRoomThreadRouteRestore` (the hook keeps its two
+remaining jobs: classic-mode thread-URL redirect and failed-thread
+`removeRecentThread` cleanup), the `ClientLayout` startup effect that
+re-injected the saved thread into the bare-home redirect
+(`getLastOpenThreadRestoreTarget`, `buildThreadRestorePath`,
+`getRoomIdFromLastKnownPath` in `routing/clientRouteRestore.ts` — all
+restore-only helpers), and the atom registration in `clientStorageAtoms`.
+Session-path restore itself (`routeSessionGuards` → `lastKnownPath`) is
+unaffected: reloading mid-thread still restores the thread because the
+threadId is part of the stored URL. Logout cleanup now removes the legacy
+`lastOpenThread<userId>` localStorage key directly
+(`LEGACY_LAST_OPEN_THREAD_STORE_PREFIX` in `sessionCleanup.ts`).
+
+Also fixed in the same PR (pre-existing, blocked local validation on macOS):
+`onboarding/keyBackupNudge.ts`/`.test.ts` collided case-insensitively with
+`KeyBackupNudge.tsx`/`.test.ts`, breaking `tsc` module resolution and leaving
+a permanently-dirty `KeyBackupNudge.test.ts` on case-insensitive filesystems.
+Helpers renamed to `keyBackupNudgeDismissal.ts` (+ test); imports updated.
+
+Validation: `npm run typecheck`, full `vitest run` (352 files / 2786 tests),
+`npm run build`, eslint on changed files — all clean.
+
 ### E2EE Phase 4 — verified-agent affordance, key-backup onboarding, UTD copy (2026-07-08)
 
 Fork end of the cross-repo Matrix E2EE work (mindroom PR #1423 backend +

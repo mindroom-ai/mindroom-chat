@@ -6,7 +6,6 @@ import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThre
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
-import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import {
@@ -43,10 +42,6 @@ vi.mock('../recent-threads/recentThreads', () => ({
 
 vi.mock('../cross-room-threads/crossRoomThreadFilters', () => ({
   clearCrossRoomThreadFiltersStore: vi.fn(),
-}));
-
-vi.mock('../threads/lastOpenThread', () => ({
-  clearLastOpenThreadStore: vi.fn(),
 }));
 
 vi.mock('../recent-threads/recentThreadsPanelHeight', () => ({
@@ -156,11 +151,16 @@ describe('MindRoom session cleanup', () => {
   });
 
   it('clears MindRoom UI, native, and in-memory state', () => {
+    const removeItem = vi.fn();
+    vi.stubGlobal('localStorage', { removeItem });
+
     clearMindroomSessionUiState('@alice:example.com');
     clearMindroomSessionNativeState('session-a');
     clearMindroomInMemoryCaches();
 
-    expect(vi.mocked(clearLastOpenThreadStore)).toHaveBeenCalledWith('@alice:example.com');
+    vi.unstubAllGlobals();
+
+    expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearCrossRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
