@@ -15,8 +15,14 @@ export type AppStoreScreenshotDevice = {
 };
 
 export type AppStoreScreenshotScene = {
-  id: 'personal-workspace' | 'mindroom-explained' | 'campground-monitor';
+  id:
+    | 'personal-workspace'
+    | 'mindroom-explained'
+    | 'campground-monitor'
+    | 'car-search'
+    | 'home-reminders';
   order: number;
+  theme: 'light' | 'dark';
 };
 
 export const APP_STORE_SCREENSHOT_LOCALE = 'en-US';
@@ -44,15 +50,17 @@ export const APP_STORE_SCREENSHOT_DEVICES: AppStoreScreenshotDevice[] = [
 ];
 
 export const APP_STORE_SCREENSHOT_SCENES: AppStoreScreenshotScene[] = [
-  { id: 'personal-workspace', order: 0 },
-  { id: 'mindroom-explained', order: 1 },
-  { id: 'campground-monitor', order: 2 },
+  { id: 'personal-workspace', order: 0, theme: 'light' },
+  { id: 'mindroom-explained', order: 1, theme: 'dark' },
+  { id: 'campground-monitor', order: 2, theme: 'light' },
+  { id: 'car-search', order: 3, theme: 'dark' },
+  { id: 'home-reminders', order: 4, theme: 'light' },
 ];
 
 export const getAppStoreScreenshotFileName = (
   device: AppStoreScreenshotDevice,
   scene: AppStoreScreenshotScene
-): string => `${scene.order}_${device.id}_${scene.id}.png`;
+): string => `${scene.order}_${device.id}_${scene.theme}_${scene.id}.png`;
 
 export const getAppStoreScreenshotRelativePath = (
   device: AppStoreScreenshotDevice,

@@ -33,6 +33,16 @@ describe('app store screenshot plan', () => {
       'personal-workspace',
       'mindroom-explained',
       'campground-monitor',
+      'car-search',
+      'home-reminders',
+    ]);
+
+    expect(APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.theme)).toEqual([
+      'light',
+      'dark',
+      'light',
+      'dark',
+      'light',
     ]);
 
     expect(
@@ -40,18 +50,28 @@ describe('app store screenshot plan', () => {
         getAppStoreScreenshotFileName(APP_STORE_SCREENSHOT_DEVICES[0], scene)
       )
     ).toEqual([
-      '0_iphone-6-9_personal-workspace.png',
-      '1_iphone-6-9_mindroom-explained.png',
-      '2_iphone-6-9_campground-monitor.png',
+      '0_iphone-6-9_light_personal-workspace.png',
+      '1_iphone-6-9_dark_mindroom-explained.png',
+      '2_iphone-6-9_light_campground-monitor.png',
+      '3_iphone-6-9_dark_car-search.png',
+      '4_iphone-6-9_light_home-reminders.png',
     ]);
+  });
+
+  it('uses unique content and includes both light and dark release screenshots', () => {
+    const sceneIds = APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.id);
+    const themes = new Set(APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.theme));
+
+    expect(new Set(sceneIds).size).toBe(sceneIds.length);
+    expect(themes).toEqual(new Set(['light', 'dark']));
   });
 
   it('writes screenshots into the fastlane locale folder', () => {
     expect(
       getAppStoreScreenshotRelativePath(
         APP_STORE_SCREENSHOT_DEVICES[1],
-        APP_STORE_SCREENSHOT_SCENES[2]
+        APP_STORE_SCREENSHOT_SCENES[4]
       )
-    ).toBe('ios/App/fastlane/screenshots/en-US/2_ipad-13_campground-monitor.png');
+    ).toBe('ios/App/fastlane/screenshots/en-US/4_ipad-13_light_home-reminders.png');
   });
 });

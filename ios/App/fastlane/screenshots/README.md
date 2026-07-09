@@ -17,8 +17,22 @@ sizes matter. Required current capture targets:
 | iPad Pro 13" (required if iPad is supported) | 2064 x 2752 |
 
 Ordering: `deliver` sorts filenames alphabetically per device class, so use
-numeric prefixes (`0_iphone-6-9_personal-workspace.png`,
-`1_iphone-6-9_mindroom-explained.png`, ...).
+numeric prefixes (`0_iphone-6-9_light_personal-workspace.png`,
+`1_iphone-6-9_dark_mindroom-explained.png`, ...).
+
+The automated release set contains five different scenes per device class:
+
+| Order | Theme | Content |
+| ----- | ----- | ------- |
+| 0 | Light | Personal workspace overview |
+| 1 | Dark | MindRoom product explanation |
+| 2 | Light | Campground watcher with expanded tool calls |
+| 3 | Dark | Car research and negotiation shortlist |
+| 4 | Light | Household reminder batch |
+
+The theme is part of each filename, and the capture test rejects byte-identical
+screenshots within a device class. This prevents an unnoticed navigation or
+rendering failure from uploading duplicate release artwork.
 
 Automated capture, from the repository root:
 
@@ -31,9 +45,10 @@ an isolated disposable account and room for each run, seeds a public-safe fake
 `Personal` room with Bas Nijholt as the user, downloads and uploads the public
 `nijho.lt` profile avatar at seed time, uploads AI agent avatars, and captures
 the required iPhone 6.9" and iPad 13" PNGs into `en-US/`. The fixture shows
-personal-agent examples: a daily workspace overview, Mind's public-safe
-markdown-formatted explanation of MindRoom, and a campground watcher with
-expanded tool calls. It starts a fresh Vite server on an available port by
+five distinct personal-agent examples across explicit light and dark themes: a
+daily workspace overview, Mind's public-safe markdown-formatted explanation of
+MindRoom, a campground watcher with expanded tool calls, car research, and a
+household reminder batch. It starts a fresh Vite server on an available port by
 default to avoid reusing stale local dependency caches.
 
 To set up only the Matrix fixture without taking screenshots:

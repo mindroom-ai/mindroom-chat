@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### iOS release screenshots: unique light/dark scene set (2026-07-09)
+
+- Status: complete. The final ten release PNGs were regenerated and visually
+  reviewed (five iPhone 6.9", five iPad 13").
+- Expanded the App Store capture plan from three light/default-theme scenes to
+  five explicitly themed scenes per device class: light personal workspace,
+  dark MindRoom explanation, light campground tool trace, dark car research,
+  and light household reminders.
+- Added the theme to release filenames so the intended visual mix is reviewable
+  before upload, and added a SHA-256 duplicate guard that fails the capture when
+  two scenes for the same device produce identical PNG bytes.
+- The capture spec now forces each scene's theme through persisted settings and
+  reloads before asserting/capturing, so output does not depend on the release
+  engineer's system appearance preference.
+- Capture readiness now waits for transient catch-up/loading indicators to
+  clear and for the seeded primary profile image to load. It expands collapsed
+  messages deterministically and hides capture-only pagination controls; these
+  gates came from visual review of cold-run artifacts that otherwise showed a
+  loading pill, fallback avatar, or "Load Newer Messages" control.
+- Screenshot binaries remain gitignored. The generated iPhone 6.9" and iPad 13"
+  assets are release artifacts under `ios/App/fastlane/screenshots/en-US/`.
+- Green: screenshot-plan unit tests, TypeScript typecheck, and two consecutive
+  full `npm run appstore:screenshots` runs after the interaction-race fix. The
+  final run completed in 37 seconds with both device tests passing; all files
+  have unique SHA-256 digests and exact App Store dimensions (`1320x2868` and
+  `2064x2752`). Final iPhone/iPad contact sheets were visually reviewed with no
+  duplicate scenes, transient loaders, fallback profile avatars, or exposed
+  pagination controls.
+- Final release gate green: `npm run appstore:preflight`, `npm run typecheck`,
+  `npm run build`, `npm run lint` (0 errors, 19 pre-existing warnings), and
+  `npm test` (354 files, 2812 tests).
+
 ### i18n PR #101 bot-review response (2026-07-09)
 
 Triage of the sourcery/gemini/greptile reviews on PR #101 (commit
