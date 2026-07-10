@@ -1213,7 +1213,7 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
   });
 
-  it('defers long-text hydration while a default room message row is collapsed', async () => {
+  it('hydrates rich long-text content while a default room message row stays collapsed', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const longTextEvent = makeEvent('$long-text', {
       content: {
@@ -1241,9 +1241,46 @@ describe('RoomTimeline collapsible wiring', () => {
 
     expect(findCollapseModeForEvent(renderer, '$long-text')).toBe('default');
     expect(findCollapsibleForEvent(renderer, '$long-text').props.forceOverflowing).toBe(true);
-    expect(findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText).toBe(
-      false
+    expect(
+      findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText
+    ).toBeUndefined();
+  });
+
+  it('hydrates rich long-text content in a collapsed decrypted message row', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const encryptedLongTextEvent = makeEvent('$encrypted-long-text', {
+      type: MessageEvent.RoomMessageEncrypted,
+      renderInsideEncryptedContentAs: MessageEvent.RoomMessage,
+      content: {
+        body: 'Encrypted long output.txt',
+        msgtype: 'm.file',
+        url: 'mxc://server/encrypted-long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+    const room = makeRoom({ liveEvents: [encryptedLongTextEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(findCollapseModeForEvent(renderer, '$encrypted-long-text')).toBe('default');
+    expect(findCollapsibleForEvent(renderer, '$encrypted-long-text').props.forceOverflowing).toBe(
+      true
     );
+    expect(
+      findRenderMessageContentPropsForEvent(renderer, '$encrypted-long-text').hydrateLongText
+    ).toBeUndefined();
   });
 
   it('forces overflow for very long plain text without measuring the collapsed row', async () => {
