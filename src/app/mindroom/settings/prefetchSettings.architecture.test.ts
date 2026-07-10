@@ -9,13 +9,11 @@
  *       symbol, or references a `_PAGINATION_LIMIT` constant. The scan
  *       exempts:
  *         - this arch test file (recursive self-reference),
- *         - the D4 drop machinery itself, which must NAME the key it
- *           discards (`mindroomSettings.ts`, `mindroomSettingsBootstrap.ts`,
- *           `mindroomSettings.test.ts`),
+ *         - the D4 migration machinery itself, which must NAME the key it
+ *           discards (`mindroomSettingsStorage.ts`, `mindroomSettings.test.ts`),
  *         - negation guards elsewhere in `mindroom/**` that assert the
  *           string is not present in some other file
- *           (`RoomTimeline.architecture.test.ts`,
- *           `RoomTimeline.cache.test.ts`, `MindroomPrefetchSettings.test.ts`,
+ *           (`RoomTimeline.cache.test.ts`, `MindroomPrefetchSettings.test.ts`,
  *           `preloadSettings.ts` header),
  *         - the divergence note is recorded in Deviations §8.
  *       The Commit-3 rename of `timelinePagination.ts`'s
@@ -24,13 +22,8 @@
  *       docstring references.
  *   (c) Positive assertions:
  *       - `settingsExtensions.tsx` imports `MindroomPrefetchSettings`.
- *       - `mindroomSettings.ts` declares `prefetchScope` and imports
+ *       - `mindroomSettingsStorage.ts` declares `prefetchScope` and imports
  *         from `../engine/prefetchPolicy`.
- *   (d) `mindroomSettings.test.ts` is the Commit-4 rewrite (drop test,
- *       garbage-scope test, no-paginationLimit-key-after-write test,
- *       scrub test) — enforced by asserting the four test names exist
- *       in that file's source.
- *
  * D4 semantics (stored value DROPPED, never mapped to prefetchDepth) is
  * covered functionally by the `mindroomSettings.test.ts` "hydrates
  * prefetchDepth to the default even when a legacy paginationLimit is
@@ -54,12 +47,10 @@ const THIS_FILE = resolve(
 // negation guards elsewhere. Every entry is justified in a code
 // comment at the referenced file.
 const NON_CONSUMER_EXEMPTIONS = new Set([
-  resolve(MINDROOM_DIR, 'settings/mindroomSettings.ts'),
   resolve(MINDROOM_DIR, 'settings/mindroomSettings.test.ts'),
-  resolve(MINDROOM_DIR, 'settings/mindroomSettingsBootstrap.ts'),
+  resolve(MINDROOM_DIR, 'settings/mindroomSettingsStorage.ts'),
   resolve(MINDROOM_DIR, 'settings/MindroomPrefetchSettings.test.ts'),
   resolve(MINDROOM_DIR, 'threads/preloadSettings.ts'),
-  resolve(MINDROOM_DIR, 'threads/__tests__/RoomTimeline.architecture.test.ts'),
   resolve(MINDROOM_DIR, 'threads/__tests__/RoomTimeline.cache.test.ts'),
 ]);
 
@@ -80,9 +71,9 @@ const walkMindroomSources = (dir: string): string[] => {
 
 describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
   it('deletes MindroomMessagePreloadLimitSetting.tsx and its test', () => {
-    expect(existsSync(resolve(MINDROOM_DIR, 'settings/MindroomMessagePreloadLimitSetting.tsx'))).toBe(
-      false
-    );
+    expect(
+      existsSync(resolve(MINDROOM_DIR, 'settings/MindroomMessagePreloadLimitSetting.tsx'))
+    ).toBe(false);
     expect(
       existsSync(resolve(MINDROOM_DIR, 'settings/MindroomMessagePreloadLimitSetting.test.ts'))
     ).toBe(false);
@@ -121,90 +112,26 @@ describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
     expect(settingsExtensionsSource).not.toContain('MindroomMessagePreloadLimitSetting');
   });
 
-  it('declares prefetchScope + prefetchDepth in mindroomSettings.ts sourced from ../engine/prefetchPolicy', () => {
-    const source = readFileSync(resolve(MINDROOM_DIR, 'settings/mindroomSettings.ts'), 'utf8');
+  it('declares prefetchScope + prefetchDepth in the versioned MindRoom store', () => {
+    const source = readFileSync(
+      resolve(MINDROOM_DIR, 'settings/mindroomSettingsStorage.ts'),
+      'utf8'
+    );
     expect(source).toContain('prefetchScope');
     expect(source).toContain('prefetchDepth');
     expect(source).toContain("from '../engine/prefetchPolicy'");
+    expect(source).toContain('MINDROOM_SETTINGS_STORE_VERSION = 1');
   });
 
-  it('rewrites mindroomSettings.test.ts around the D4 shape', () => {
-    const source = readFileSync(
-      resolve(MINDROOM_DIR, 'settings/mindroomSettings.test.ts'),
-      'utf8'
-    );
-    // Four post-D4 case titles this arch guard pins.
-    expect(source).toContain(
-      'drops a stored paginationLimit value without mapping it onto prefetchDepth'
-    );
-    expect(source).toContain('coerces a garbage prefetchScope back to the default');
-    expect(source).toContain(
-      'never writes a paginationLimit key back to the settings blob after a settings update'
-    );
-    expect(source).toContain(
-      'scrubs a legacy paginationLimit key from stored settings at module import'
-    );
-  });
+  it('keeps fork settings out of generic state and migrates explicitly at app bootstrap', () => {
+    const atomSource = readFileSync(resolve(MINDROOM_DIR, 'settings/mindroomSettings.ts'), 'utf8');
+    const genericSource = readFileSync(resolve(MINDROOM_DIR, '../state/settings.ts'), 'utf8');
+    const indexSource = readFileSync(resolve(MINDROOM_DIR, '../../index.tsx'), 'utf8');
 
-  // CINNY-207 P7.2 audit finding #4 — the scrub-before-init guarantee
-  // is enforced by module evaluation ordering, not by a top-level
-  // statement in `src/index.tsx` (ES import hoisting defeats that).
-  // `mindroomSettingsBootstrap.ts` therefore MUST run the scrub as a
-  // module-scope side effect, AND MUST NOT import anything that
-  // transitively reaches `state/settings.ts` — otherwise the atom
-  // could initialize first via the same import graph.
-  //
-  // This test proves both properties by static inspection:
-  //   1. The bootstrap module's source ends with a bare
-  //      `dropLegacyMindroomSettings();` call outside of any function.
-  //   2. Recursively following the bootstrap module's `import`
-  //      statements (staying inside `src/`) never lands on
-  //      `state/settings`.
-  it('runs the scrub as a module-scope side effect and has no transitive import of state/settings.ts', () => {
-    const bootstrapPath = resolve(MINDROOM_DIR, 'settings/mindroomSettingsBootstrap.ts');
-    const source = readFileSync(bootstrapPath, 'utf8');
-    // Property 1: the scrub is invoked outside any function scope. The
-    // bootstrap file's structure (const arrow assigned to
-    // `dropLegacyMindroomSettings`, followed by a bare call) means a
-    // line matching `dropLegacyMindroomSettings();` at column 0 is the
-    // side-effect call. A call indented inside a block would not.
-    const bareCall = /^dropLegacyMindroomSettings\(\);$/m;
-    expect(source).toMatch(bareCall);
-
-    // Property 2: crawl imports recursively and assert no path
-    // reaches `state/settings`. Only relative imports inside src/
-    // are followed; matrix-js-sdk, jotai, node_modules, etc. are
-    // skipped by the relative-import filter.
-    const importRegex = /^import[^'"]*['"]([^'"]+)['"]/gm;
-    const visited = new Set<string>();
-    const stack = [bootstrapPath];
-    while (stack.length > 0) {
-      const file = stack.pop() as string;
-      if (visited.has(file)) continue;
-      visited.add(file);
-      const src = readFileSync(file, 'utf8');
-      let match: RegExpExecArray | null;
-      // eslint-disable-next-line no-cond-assign
-      while ((match = importRegex.exec(src)) !== null) {
-        const spec = match[1];
-        if (!spec.startsWith('.') && !spec.startsWith('/')) continue;
-        const dir = dirname(file);
-        // Try each of the common extensions vite/tsc would resolve.
-        const bases = [
-          resolve(dir, spec),
-          resolve(dir, `${spec}.ts`),
-          resolve(dir, `${spec}.tsx`),
-          resolve(dir, spec, 'index.ts'),
-          resolve(dir, spec, 'index.tsx'),
-        ];
-        const resolved = bases.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
-        if (!resolved) continue;
-        if (visited.has(resolved)) continue;
-        stack.push(resolved);
-      }
-    }
-    const stateSettings = resolve(MINDROOM_DIR, '../state/settings.ts');
-    expect(visited.has(stateSettings)).toBe(false);
+    expect(atomSource).not.toContain("from '../../state/settings'");
+    expect(genericSource).not.toContain('prefetchScope');
+    expect(genericSource).not.toContain('prefetchDepth');
+    expect(indexSource).toContain('migrateMindroomSettingsStorage();');
   });
 
   it('keeps prefetchDepth OUT of paint-time cache reads (PR #72 greptile P2 pair)', () => {

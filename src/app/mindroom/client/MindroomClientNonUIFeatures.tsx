@@ -1,10 +1,12 @@
 import { useAtomValue } from 'jotai';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import type { MatrixClient } from 'matrix-js-sdk';
 import InviteSound from '../../../../public/sound/invite.ogg';
+import { toSupportedLanguageCode } from '../../i18nLanguages';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -175,13 +177,15 @@ export function MindroomInviteNotifications() {
 
 function MindroomNativeIOSPushFeature() {
   const mx = useMatrixClient();
+  const { i18n } = useTranslation();
+  const language = toSupportedLanguageCode(i18n.resolvedLanguage ?? i18n.language);
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
 
   useEffect(() => {
-    const pushConfig = resolveIOSPushConfig(clientConfig, sessionId);
+    const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
     if (!isNativeIOSPlatform() || !pushConfig) return undefined;
 
     let disposed = false;
@@ -245,7 +249,7 @@ function MindroomNativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [clientConfig, mx, nativePushNotifications, sessionId]);
+  }, [clientConfig, language, mx, nativePushNotifications, sessionId]);
 
   return null;
 }

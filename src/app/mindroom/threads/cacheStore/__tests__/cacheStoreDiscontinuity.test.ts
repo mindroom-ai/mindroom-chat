@@ -4,8 +4,9 @@
  */
 
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
@@ -21,6 +22,9 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
+    await resetCacheStoreForTesting();
+    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     await resetCacheStoreForTesting();
   });
 
@@ -30,10 +34,11 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
   });
 
   it('marks a room and reads the marker back', async () => {
-    await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+    const committed = await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
       markedAt: 1000,
       prevBatch: 'batch-token-1',
     });
+    expect(committed).toEqual({ markedAt: 1000, prevBatch: 'batch-token-1' });
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     expect(marker).toEqual({ markedAt: 1000, prevBatch: 'batch-token-1' });
   });
@@ -50,6 +55,50 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     expect(marker).toEqual({ markedAt: 2000, prevBatch: 'batch-new' });
   });
+
+  it('an older mark cannot overwrite a newer generation', async () => {
+    await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+      markedAt: 2000,
+      prevBatch: 'batch-new',
+    });
+    const committed = await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+      markedAt: 1000,
+      prevBatch: 'batch-stale',
+    });
+
+    expect(committed).toMatchObject({ markedAt: 2000, prevBatch: 'batch-new' });
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toMatchObject({
+      markedAt: 2000,
+      prevBatch: 'batch-new',
+    });
+  });
+
+  it.each([[['$original-tail']], [[]]] as const)(
+    'keeps the original overlap boundary when a newer reset replaces the cursor (%j)',
+    async (overlapEventIds) => {
+      await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+        markedAt: 1000,
+        generation: 'old-generation',
+        nextToken: 'old-cursor',
+        overlapEventIds: [...overlapEventIds],
+      });
+
+      const committed = await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+        markedAt: 2000,
+        generation: 'new-generation',
+        nextToken: 'new-cursor',
+        overlapEventIds: ['$newer-page'],
+      });
+
+      expect(committed).toEqual({
+        markedAt: 2000,
+        generation: 'new-generation',
+        nextToken: 'new-cursor',
+        overlapEventIds: [...overlapEventIds],
+      });
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toEqual(committed);
+    }
+  );
 
   it('preserves other meta fields when marking (additive write)', async () => {
     // Prime a meta row via mark, then re-open through openCacheStore to
@@ -81,6 +130,37 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
     expect(marker).toBeUndefined();
   });
 
+  it('checkpoints and clears only the matching generation', async () => {
+    await markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, {
+      markedAt: 1000,
+      prevBatch: 'batch-1',
+      generation: 'generation-1',
+      nextToken: 'batch-1',
+    });
+
+    expect(
+      await checkpointRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'stale-generation', 'stale-token')
+    ).toBe(false);
+    expect(
+      await checkpointRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'generation-1', 'batch-2', [
+        '$cached-tail',
+      ])
+    ).toBe(true);
+    expect(
+      await checkpointRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'generation-1', 'batch-3')
+    ).toBe(true);
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toMatchObject({
+      generation: 'generation-1',
+      nextToken: 'batch-3',
+      overlapEventIds: ['$cached-tail'],
+    });
+
+    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'stale-generation');
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toBeDefined();
+    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'generation-1');
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toBeUndefined();
+  });
+
   it('clear() on an unmarked room is a no-op', async () => {
     await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
@@ -101,5 +181,15 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     expect(marker?.markedAt).toBe(1000);
     expect(marker?.prevBatch).toBeUndefined();
+  });
+
+  it('rejects marker writes and clears when IndexedDB is unavailable', async () => {
+    await resetCacheStoreForTesting();
+    vi.stubGlobal('indexedDB', undefined);
+
+    await expect(
+      markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, { markedAt: 1000 })
+    ).rejects.toThrow('unavailable');
+    await expect(clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
   });
 });

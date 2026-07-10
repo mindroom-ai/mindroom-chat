@@ -10,10 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
-import {
-  createEngineGapTracker,
-  createInMemoryGapFillScheduler,
-} from '../engineGapTracker';
+import { createEngineGapTracker, createInMemoryGapFillScheduler } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
 
 const makeRoom = ({
@@ -27,7 +24,8 @@ const makeRoom = ({
   paginationToken?: string | null;
   unfiltered?: EventTimelineSet;
 }): Room => {
-  const timelineSet = unfiltered ?? ({ __id: `${roomId}:unfiltered` } as unknown as EventTimelineSet);
+  const timelineSet =
+    unfiltered ?? ({ __id: `${roomId}:unfiltered` } as unknown as EventTimelineSet);
   return {
     roomId,
     getMyMembership: () => membership,
@@ -35,7 +33,7 @@ const makeRoom = ({
       ({
         getPaginationToken: (dir: Direction) =>
           dir === Direction.Backward ? paginationToken : null,
-      }) as never,
+      } as never),
     getUnfilteredTimelineSet: () => timelineSet,
   } as unknown as Room;
 };
@@ -80,18 +78,25 @@ describe('createInMemoryGapFillScheduler (CINNY-207 P3.2)', () => {
 });
 
 describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
-  const markDiscontinuity = vi.fn().mockResolvedValue(undefined);
+  const defaultMarkDiscontinuity = async (
+    _sessionId: string,
+    _roomId: string,
+    marker: { markedAt: number; prevBatch?: string | null; generation?: string }
+  ) => marker;
+  const markDiscontinuity = vi.fn(defaultMarkDiscontinuity);
 
   beforeEach(() => {
     resetCacheProbe();
-    markDiscontinuity.mockClear();
+    markDiscontinuity.mockReset();
+    markDiscontinuity.mockImplementation(defaultMarkDiscontinuity);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     resetCacheProbe();
   });
 
-  it('marks the room and enqueues a limited-sync job on TimelineReset for the unfiltered timelineSet', () => {
+  it('marks the room and enqueues a limited-sync job on TimelineReset for the unfiltered timelineSet', async () => {
     const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const tracker = createEngineGapTracker({
@@ -103,13 +108,23 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
+    await markDiscontinuity.mock.results[0].value;
+    await Promise.resolve();
 
     expect(markDiscontinuity).toHaveBeenCalledWith('session', '!a', {
       markedAt: 1000,
       prevBatch: 'batch-1',
+      generation: '1000:batch-1',
+      nextToken: 'batch-1',
     });
     expect(scheduler.pendingJobs()).toEqual([
-      { roomId: '!a', reason: 'limited-sync', markedAt: 1000, prevBatch: 'batch-1' },
+      {
+        roomId: '!a',
+        reason: 'limited-sync',
+        markedAt: 1000,
+        prevBatch: 'batch-1',
+        generation: '1000:batch-1',
+      },
     ]);
     expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(1);
   });
@@ -122,6 +137,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      onPersistenceError: vi.fn(),
     });
 
     const differentSet = { __id: 'thread-set' } as unknown as EventTimelineSet;
@@ -151,7 +167,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     expect(scheduler.pendingJobs()).toHaveLength(0);
   });
 
-  it('enqueues one startup job per joined room on Sync→PREPARED, skipping non-joined rooms', () => {
+  it('enqueues startup jobs only for joined rooms with durable markers', async () => {
     const scheduler = createInMemoryGapFillScheduler();
     const joinedA = makeRoom({ roomId: '!join-a', paginationToken: 'ta' });
     const joinedB = makeRoom({ roomId: '!join-b', paginationToken: null });
@@ -167,20 +183,35 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
-      now: () => 2000,
+      loadDiscontinuity: async (_sessionId, roomId) => {
+        if (roomId === '!join-a') {
+          return {
+            markedAt: 1000,
+            prevBatch: 'ta',
+            nextToken: 'ta-checkpoint',
+            generation: 'gap-a',
+          };
+        }
+        return undefined;
+      },
     });
 
-    tracker.handleSyncPrepared();
+    await tracker.handleSyncPrepared();
 
     const jobs = scheduler.pendingJobs();
-    expect(jobs).toHaveLength(2);
-    expect(jobs.map((j) => j.roomId).sort()).toEqual(['!join-a', '!join-b']);
-    expect(jobs.every((j) => j.reason === 'startup' && j.markedAt === 2000)).toBe(true);
-    expect(jobs.find((j) => j.roomId === '!join-a')?.prevBatch).toBe('ta');
-    expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(2);
+    expect(jobs).toEqual([
+      {
+        roomId: '!join-a',
+        reason: 'startup',
+        markedAt: 1000,
+        prevBatch: 'ta-checkpoint',
+        generation: 'gap-a',
+      },
+    ]);
+    expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(1);
   });
 
-  it('a limited-sync job that arrives after a startup job wins the dedup', () => {
+  it('a limited-sync job that arrives after a startup job wins the dedup', async () => {
     const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const mx = { getRooms: () => [room] } as unknown as MatrixClient;
@@ -189,11 +220,17 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      loadDiscontinuity: async () => ({
+        markedAt: 2000,
+        prevBatch: 'old-batch',
+      }),
       now: () => 3000,
     });
 
-    tracker.handleSyncPrepared();
+    await tracker.handleSyncPrepared();
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
+    await markDiscontinuity.mock.results[0].value;
+    await Promise.resolve();
 
     const jobs = scheduler.pendingJobs();
     expect(jobs).toHaveLength(1);
@@ -201,7 +238,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     expect(jobs[0].prevBatch).toBe('batch-1');
   });
 
-  it('handleSyncPrepared is a no-op when no MatrixClient is present (safety valve)', () => {
+  it('handleSyncPrepared is a no-op when no MatrixClient is present (safety valve)', async () => {
     const scheduler = createInMemoryGapFillScheduler();
     const tracker = createEngineGapTracker({
       // @ts-expect-error deliberately omit for the safety test
@@ -210,7 +247,107 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       scheduler,
       markDiscontinuity,
     });
-    tracker.handleSyncPrepared();
+    await tracker.handleSyncPrepared();
     expect(scheduler.pendingJobs()).toHaveLength(0);
+  });
+
+  it('retains and retries a limited-sync job until its marker is durable', async () => {
+    vi.useFakeTimers();
+    const scheduler = createInMemoryGapFillScheduler();
+    const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    const onPersistenceError = vi.fn();
+    markDiscontinuity
+      .mockRejectedValueOnce(new Error('blocked cache'))
+      .mockImplementationOnce(async (_sessionId, _roomId, marker) => marker);
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'session',
+      scheduler,
+      markDiscontinuity,
+      onPersistenceError,
+      now: () => 1000,
+    });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(scheduler.pendingJobs()).toEqual([]);
+    expect(onPersistenceError).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(scheduler.pendingJobs()).toEqual([
+      {
+        roomId: '!a',
+        reason: 'limited-sync',
+        markedAt: 1000,
+        prevBatch: 'batch-1',
+        generation: '1000:batch-1',
+      },
+    ]);
+    tracker.stop();
+  });
+
+  it('cancels an undurable marker retry when the tracker stops', async () => {
+    vi.useFakeTimers();
+    const scheduler = createInMemoryGapFillScheduler();
+    const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    markDiscontinuity.mockRejectedValue(new Error('blocked cache'));
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'session',
+      scheduler,
+      markDiscontinuity,
+      onPersistenceError: vi.fn(),
+    });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    await Promise.resolve();
+    await Promise.resolve();
+    tracker.stop();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(markDiscontinuity).toHaveBeenCalledTimes(1);
+    expect(scheduler.pendingJobs()).toEqual([]);
+  });
+
+  it('does not enqueue a stale marker after a newer reset supersedes it', async () => {
+    const scheduler = createInMemoryGapFillScheduler();
+    const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
+    let resolveFirst:
+      | ((marker: { markedAt: number; prevBatch?: string | null }) => void)
+      | undefined;
+    markDiscontinuity
+      .mockImplementationOnce(
+        async () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(defaultMarkDiscontinuity);
+    const now = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'session',
+      scheduler,
+      markDiscontinuity,
+      now,
+    });
+
+    tracker.handleTimelineReset(firstRoom, firstRoom.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(secondRoom, secondRoom.getUnfilteredTimelineSet());
+    resolveFirst?.({ markedAt: 1000, prevBatch: 'batch-1' });
+    await vi.waitFor(() => {
+      expect(scheduler.pendingJobs()).toEqual([
+        {
+          roomId: '!a',
+          reason: 'limited-sync',
+          markedAt: 2000,
+          prevBatch: 'batch-2',
+          generation: '2000:batch-2',
+        },
+      ]);
+    });
+    tracker.stop();
   });
 });

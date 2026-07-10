@@ -18,17 +18,17 @@ import React, { MouseEventHandler, ReactNode, useEffect, useMemo, useState } fro
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
-import { getDefaultStore } from 'jotai';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   ClientBootstrapSession,
   clearAllCacheAndReload,
-  clearLoginData,
   initClient,
   logoutClient,
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
+import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
 import { ServerConfigsLoader } from '../../components/ServerConfigsLoader';
 import { CapabilitiesProvider } from '../../hooks/useCapabilities';
@@ -52,10 +52,12 @@ import {
 import {
   createMindroomSyncEngine,
   MindroomSyncEngineProvider,
-  resolvePrefetchConfig,
   type MindroomSyncEngine,
 } from '../../mindroom/engine';
-import { mindroomSettingsAtom } from '../../mindroom/settings/mindroomSettings';
+import {
+  useLivePrefetchConfig,
+  usePrefetchConfigSubscription,
+} from '../../mindroom/settings/useLivePrefetchConfig';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -98,7 +100,7 @@ function ClientRootOptions({
   activeSession,
 }: {
   mx?: ClientMatrixClient;
-  activeSession?: StoredSession;
+  activeSession: StoredSession;
 }) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [clearing, setClearing] = useState(false);
@@ -113,9 +115,7 @@ function ClientRootOptions({
 
   const handleClearCache = async () => {
     if (!mx || clearing) return;
-
     setClearing(true);
-
     try {
       await clearAllCacheAndReload(mx);
     } catch {
@@ -125,6 +125,7 @@ function ClientRootOptions({
 
   return (
     <IconButton
+      aria-label="Startup recovery options"
       style={{
         position: 'absolute',
         top: config.space.S100,
@@ -173,11 +174,7 @@ function ClientRootOptions({
                       logoutClient(mx).catch(() => undefined);
                       return;
                     }
-                    if (activeSession) {
-                      removeSessionAndReload(activeSession).catch(() => undefined);
-                      return;
-                    }
-                    clearLoginData().catch(() => undefined);
+                    removeSessionAndReload(activeSession).catch(() => undefined);
                   }}
                   size="300"
                   radii="300"
@@ -238,39 +235,41 @@ type ClientState =
 type ClientRootProps = {
   children: ReactNode;
 };
-export function ClientRoot({ children }: ClientRootProps) {
-  const clientConfig = useClientConfig();
-  const activeSession = useActiveSession();
-  const [retryCount, setRetryCount] = useState(0);
+
+type ClientSessionRootProps = ClientRootProps & {
+  activeSession: StoredSession;
+  loadingMessages?: readonly string[];
+};
+
+const toClientBootstrapSession = (session: StoredSession): ClientBootstrapSession => ({
+  sessionId: session.sessionId,
+  baseUrl: session.baseUrl,
+  userId: session.userId,
+  deviceId: session.deviceId,
+  accessToken: session.accessToken,
+  refreshToken: session.refreshToken,
+});
+
+function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientSessionRootProps) {
+  const getPrefetchConfig = useLivePrefetchConfig();
+  const subscribePrefetchConfig = usePrefetchConfigSubscription();
+  const [queryClient] = useState(() => new QueryClient());
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
-  const mx = 'mx' in clientState ? clientState.mx : undefined;
-  const activeSessionId = activeSession?.sessionId;
-  const activeSessionBaseUrl = activeSession?.baseUrl;
-  const activeSessionUserId = activeSession?.userId;
-  const activeSessionDeviceId = activeSession?.deviceId;
-  const activeSessionAccessToken = activeSession?.accessToken;
-  const clientBootstrapSession = useMemo(
-    (): ClientBootstrapSession | undefined =>
-      activeSessionId &&
-      activeSessionBaseUrl &&
-      activeSessionUserId &&
-      activeSessionDeviceId &&
-      activeSessionAccessToken
-        ? {
-            sessionId: activeSessionId,
-            baseUrl: activeSessionBaseUrl,
-            userId: activeSessionUserId,
-            deviceId: activeSessionDeviceId,
-            accessToken: activeSessionAccessToken,
-          }
-        : undefined,
-    [
-      activeSessionAccessToken,
-      activeSessionBaseUrl,
-      activeSessionDeviceId,
-      activeSessionId,
-      activeSessionUserId,
-    ]
+  // Failed clients remain on the error state only for recovery cleanup. Do
+  // not leave them mounted in providers, listeners, or the sync engine.
+  const mx = clientState.status !== 'error' && 'mx' in clientState ? clientState.mx : undefined;
+  // This component is keyed by account + device below. Capture the credentials
+  // used to create that runtime once: SDK token rotation updates the session
+  // store, but must not tear down the client that performed the rotation.
+  const [clientBootstrapSession, setClientBootstrapSession] = useState<ClientBootstrapSession>(() =>
+    toClientBootstrapSession(activeSession)
+  );
+
+  useEffect(
+    () => () => {
+      clearSecretStorageKeys();
+    },
+    []
   );
 
   useLogoutListener(mx, activeSession);
@@ -290,20 +289,10 @@ export function ClientRoot({ children }: ClientRootProps) {
       setSyncEngine(undefined);
       return undefined;
     }
-    // CINNY-207 P7.2 audit finding #5: supply a live PrefetchConfig
-    // supplier so the gap-fill executor can honor the user's
-    // `prefetchScope` selection (my-server / all-rooms / current-room-
-    // only). Reads through the default jotai store on every call so a
-    // mid-session scope change takes effect on the next enqueue
-    // without an engine rebuild.
-    const store = getDefaultStore();
     const engine = createMindroomSyncEngine({
       mx,
-      // Read through `mindroomSettingsAtom` (derived from the base
-      // settings atom via `withMindroomSettings`) so the prefetch
-      // fields are present and sanitized BY TYPE — no cast asserting
-      // that the base `Settings` shape happens to carry them.
-      getPrefetchConfig: () => resolvePrefetchConfig(store.get(mindroomSettingsAtom)),
+      getPrefetchConfig,
+      subscribePrefetchConfig,
     });
     engine.start();
     setSyncEngine(engine);
@@ -311,7 +300,7 @@ export function ClientRoot({ children }: ClientRootProps) {
       engine.stop();
       setSyncEngine((current) => (current === engine ? undefined : current));
     };
-  }, [mx]);
+  }, [getPrefetchConfig, mx, subscribePrefetchConfig]);
 
   const [hasCachedShell, setHasCachedShell] = useState(false);
   const [syncStateData, setSyncStateData] = useState<ClientSyncStateData>({
@@ -389,7 +378,7 @@ export function ClientRoot({ children }: ClientRootProps) {
       disposed = true;
       nextClient?.stopClient();
     };
-  }, [clientBootstrapSession, retryCount]);
+  }, [clientBootstrapSession]);
 
   useEffect(() => {
     if (clientState.status !== 'starting' || !clientState.mx) return undefined;
@@ -438,10 +427,6 @@ export function ClientRoot({ children }: ClientRootProps) {
     };
   }, [clientState]);
 
-  if (!activeSession) {
-    return <Navigate to={getLoginPath()} replace />;
-  }
-
   const hasSeenSyncActivity = syncStateData.current !== null;
   const hasCompletedInitialCatchup = !isInitialClientCatchupInProgress(syncStateData);
   const canRenderReadyContent = Boolean(mx) && (hasSeenSyncActivity || hasCachedShell);
@@ -471,48 +456,92 @@ export function ClientRoot({ children }: ClientRootProps) {
   ) : null;
 
   return (
-    <SpecVersions baseUrl={activeSession.baseUrl}>
-      {clientState.status !== 'error' &&
-        canRenderReadyContent &&
-        mx &&
-        (!hasSeenSyncActivity ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
-      {clientState.status !== 'error' && !mx && (
-        <ClientRootOptions mx={mx} activeSession={activeSession} />
-      )}
-      {clientState.status === 'error' && (
-        <SplashScreen>
-          <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
-            <Dialog>
-              <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-                <Text>{`Failed to start account ${clientState.session.userId}. ${clientState.error.message}`}</Text>
-                <Button variant="Critical" onClick={() => setRetryCount((count) => count + 1)}>
-                  <Text as="span" size="B400">
-                    Retry
-                  </Text>
-                </Button>
-                <Button
-                  variant="Critical"
-                  fill="Soft"
-                  onClick={() => {
-                    removeSessionAndReload(clientState.session, clientState.mx).catch(
-                      () => undefined
-                    );
-                  }}
-                >
-                  <Text as="span" size="B400">
-                    Remove Account
-                  </Text>
-                </Button>
-              </Box>
-            </Dialog>
-          </Box>
-        </SplashScreen>
-      )}
-      {clientState.status !== 'error' && !canRenderReadyContent ? (
-        <ClientRootLoading loadingMessages={clientConfig.splash?.loadingMessages} />
-      ) : (
-        readyContent
-      )}
-    </SpecVersions>
+    <QueryClientProvider client={queryClient}>
+      <SpecVersions baseUrl={activeSession.baseUrl}>
+        {clientState.status !== 'error' &&
+          canRenderReadyContent &&
+          mx &&
+          (!hasSeenSyncActivity ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
+        {clientState.status !== 'error' && !canRenderReadyContent && (
+          <ClientRootOptions mx={mx} activeSession={activeSession} />
+        )}
+        {clientState.status === 'error' && (
+          <SplashScreen>
+            <Box
+              direction="Column"
+              grow="Yes"
+              alignItems="Center"
+              justifyContent="Center"
+              gap="400"
+            >
+              <Dialog>
+                <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+                  <Text>{`Failed to start account ${clientState.session.userId}. ${clientState.error.message}`}</Text>
+                  <Button
+                    variant="Critical"
+                    onClick={() =>
+                      setClientBootstrapSession(toClientBootstrapSession(activeSession))
+                    }
+                  >
+                    <Text as="span" size="B400">
+                      Retry
+                    </Text>
+                  </Button>
+                  {clientState.mx && (
+                    <Button
+                      fill="Soft"
+                      onClick={() => {
+                        clearAllCacheAndReload(clientState.mx).catch(() => undefined);
+                      }}
+                    >
+                      <Text as="span" size="B400">
+                        Clear Cache and Reload
+                      </Text>
+                    </Button>
+                  )}
+                  <Button
+                    variant="Critical"
+                    fill="Soft"
+                    onClick={() => {
+                      removeSessionAndReload(clientState.session, clientState.mx).catch(
+                        () => undefined
+                      );
+                    }}
+                  >
+                    <Text as="span" size="B400">
+                      Remove Account
+                    </Text>
+                  </Button>
+                </Box>
+              </Dialog>
+            </Box>
+          </SplashScreen>
+        )}
+        {clientState.status !== 'error' && !canRenderReadyContent ? (
+          <ClientRootLoading loadingMessages={loadingMessages} />
+        ) : (
+          readyContent
+        )}
+      </SpecVersions>
+    </QueryClientProvider>
+  );
+}
+
+export function ClientRoot({ children }: ClientRootProps) {
+  const clientConfig = useClientConfig();
+  const activeSession = useActiveSession();
+
+  if (!activeSession) {
+    return <Navigate to={getLoginPath()} replace />;
+  }
+
+  return (
+    <ClientSessionRoot
+      key={`${activeSession.sessionId}:${activeSession.deviceId}`}
+      activeSession={activeSession}
+      loadingMessages={clientConfig.splash?.loadingMessages}
+    >
+      {children}
+    </ClientSessionRoot>
   );
 }

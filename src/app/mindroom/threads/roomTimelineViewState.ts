@@ -10,7 +10,8 @@ export const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
 };
 

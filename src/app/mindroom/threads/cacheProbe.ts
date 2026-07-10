@@ -87,11 +87,9 @@ export type CacheProbeCounters = {
   reconcilesThreadNull: number;
   // CINNY-207 P5-GATE-FIX v4 (final iteration — team-lead directive
   // 2026-07-04): definitive evidence that the widened `onRepaired`
-  // component-side callback was invoked and returned normally, i.e. the
-  // supplemental sink into `setSupplementalThreadEvents` had a chance to
-  // run. `reconcilesRepaired` bumps BEFORE the callback fires (so a
-  // guard-skipped or throwing callback would still leave reconcilesRepaired
-  // at N and reconcilesOnRepairedFired at 0 — that gap is diagnostic).
+  // observer callback returned normally. A shared in-flight repair can notify
+  // multiple observers, so this callback count may exceed the repaired-pass
+  // count. Throwing callbacks do not increment it.
   reconcilesOnRepairedFired: number;
   // CINNY-207 P5-GATE-FIX v4 (final iteration — team-lead directive
   // 2026-07-04): counts reconciler repair passes that persisted the
@@ -114,7 +112,7 @@ export type CacheProbeCounters = {
   //   reconcilesScheduled ==
   //     reconcilesSignalAborted +
   //     reconcilesFetchFailed + reconcilesNoDivergence +
-  //     reconcilesNoRoom + reconcilesRoomScopeNoop +
+  //     reconcilesNoRoom +
   //     reconcilesRepaired
   // holds and can be asserted from a docker probe snapshot.
   //
@@ -131,9 +129,6 @@ export type CacheProbeCounters = {
   //   reconcilesNoRoom: schedule reached the executor but
   //     `mx.getRoom(roomId)` returned null (rare — room unloaded
   //     between schedule and drain).
-  //   reconcilesRoomScopeNoop: room-scope reconcile (no threadId)
-  //     completed its scheduler tripwire without fetching (tail
-  //     catchup is owned by the gap-fill executor).
   reconcilesSignalAborted: number;
   reconcilesFetchFailed: number;
   reconcilesNoDivergence: number;
@@ -202,8 +197,9 @@ export type CacheProbeCounters = {
   //     so `setSupplementalThreadEvents` did NOT run for this batch.
   //     Diagnostic for candidate (b) / (c): the repair batch reached
   //     the render seam but was gated out before the sink ran.
-  //     Together with `reconcilesOnRepairedFired` (bumped inside the
-  //     reconciler before calling the callback), the relation
+  //     For the production thread-open observer,
+  //     `reconcilesOnRepairedFired` is bumped after its callback returns, so
+  //     the relation
   //     reconcilesOnRepairedFired == onRepairedGuardBailed +
   //       supplementalEventsExecuted + supplementalEventsSkippedEmpty
   //     holds and can be asserted from a probe snapshot.
@@ -408,7 +404,6 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesFetchFailed: 0,
   reconcilesNoDivergence: 0,
   reconcilesNoRoom: 0,
-  reconcilesRoomScopeNoop: 0,
   threadOpens: 0,
   threadOpenScheduledCacheFirst: 0,
   threadOpenSkipCacheFirstHydrateGuard: 0,

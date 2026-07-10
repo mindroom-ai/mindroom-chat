@@ -6,8 +6,9 @@ import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThre
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
-import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
+import { clearRoomViewModeStore } from '../threads/roomViewMode';
+import { clearThreadSummarySharedState } from '../threads/threadSummaryStore';
 import {
   deleteCacheStoreDb,
   getCacheStoreDbName,
@@ -23,6 +24,7 @@ import {
   clearMindroomInMemoryCaches,
   clearMindroomSessionNativeState,
   clearMindroomSessionUiState,
+  clearMindroomUserUiState,
   deleteMindroomSessionCaches,
   getMindroomSessionIndexedDbNames,
 } from './sessionCleanup';
@@ -52,12 +54,16 @@ vi.mock('../recent-threads/recentThreadsPanelMobileExpanded', () => ({
   clearRecentThreadsPanelMobileExpandedStore: vi.fn(),
 }));
 
-vi.mock('../threads/recentThreadViewModel', () => ({
-  clearRecentThreadViewModelSharedState: vi.fn(),
-}));
-
 vi.mock('../threads/roomThreadFilterState', () => ({
   clearRoomThreadFiltersStore: vi.fn(),
+}));
+
+vi.mock('../threads/roomViewMode', () => ({
+  clearRoomViewModeStore: vi.fn(),
+}));
+
+vi.mock('../threads/threadSummaryStore', () => ({
+  clearThreadSummarySharedState: vi.fn(),
 }));
 
 // CINNY-207 P2.3: sessionCleanup now imports directly from `cacheStore`
@@ -150,11 +156,33 @@ describe('MindRoom session cleanup', () => {
     );
   });
 
+  it('attempts every database without rejecting blocked logout cleanup', async () => {
+    const blockedError = new Error('blocked');
+    blockedError.name = 'CacheStoreBlockedError';
+    vi.mocked(deleteCacheStoreDb).mockRejectedValueOnce(blockedError);
+    (globalThis as { indexedDB?: unknown }).indexedDB = {
+      deleteDatabase: vi.fn((dbName: string) => {
+        deleteCalls.push(dbName);
+        const request: { onblocked?: () => void } = {};
+        queueMicrotask(() => request.onblocked?.());
+        return request;
+      }),
+    };
+
+    await expect(deleteMindroomSessionCaches('session-a')).resolves.toBeUndefined();
+
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith('session-a');
+    expect(deleteCalls.sort()).toEqual(
+      ['room-cache::session-a', 'summary-cache::session-a', 'thread-cache::session-a'].sort()
+    );
+  });
+
   it('clears MindRoom UI, native, and in-memory state', () => {
     const removeItem = vi.fn();
     vi.stubGlobal('localStorage', { removeItem });
 
-    clearMindroomSessionUiState('@alice:example.com');
+    clearMindroomUserUiState('@alice:example.com');
+    clearMindroomSessionUiState('session-a');
     clearMindroomSessionNativeState('session-a');
     clearMindroomInMemoryCaches();
 
@@ -170,7 +198,8 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(clearRoomViewModeStore)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(clearThreadSummarySharedState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearMindroomLongTextHydrationCache)).toHaveBeenCalledTimes(1);
   });

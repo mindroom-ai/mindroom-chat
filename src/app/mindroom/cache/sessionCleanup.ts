@@ -5,9 +5,10 @@ import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThre
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
-import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
-import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
+import { clearRoomViewModeStore } from '../threads/roomViewMode';
+import { clearThreadSummarySharedState } from '../threads/threadSummaryStore';
+import { getSafeLocalStorage, removeStorageItemSafe } from '../../utils/safeLocalStorage';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -44,43 +45,51 @@ export const getMindroomSessionIndexedDbNames = (sessionId: string): string[] =>
   getCacheStoreDbName(sessionId),
 ];
 
+const deleteLegacyCacheDb = (dbName: string): Promise<void> =>
+  new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve();
+      return;
+    }
+
+    try {
+      const request = indexedDB.deleteDatabase(dbName);
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      request.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+
 export const deleteMindroomSessionCaches = async (sessionId: string): Promise<void> => {
   // Delete the unified DB plus each legacy per-session DB name. The
   // three-way legacy split collapsed to a single unified DB in P2.1;
   // enumerating the legacy names here is the logout-cleanup fallback
   // for installs that never opened v3.
   const legacyNames = getLegacySessionScopedCacheDbNames(sessionId);
-  await Promise.all([
-    deleteCacheStoreDb(sessionId),
-    ...legacyNames.map(
-      (dbName) =>
-        new Promise<void>((resolve) => {
-          if (typeof indexedDB === 'undefined') {
-            resolve();
-            return;
-          }
-          const request = indexedDB.deleteDatabase(dbName);
-          request.onsuccess = () => resolve();
-          request.onerror = () => resolve();
-          request.onblocked = () => resolve();
-        })
-    ),
+  await Promise.allSettled([
+    Promise.resolve().then(() => deleteCacheStoreDb(sessionId)),
+    ...legacyNames.map(deleteLegacyCacheDb),
   ]);
 };
-
 
 // The last-open-thread auto-restore feature was removed; its per-user
 // localStorage key may still exist on installs that ran older builds.
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
-export const clearMindroomSessionUiState = (userId: string): void => {
-  getSafeLocalStorage()?.removeItem(`${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
+export const clearMindroomUserUiState = (userId: string): void => {
+  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
   clearRecentThreadsPanelHeightStore(userId);
   clearRecentThreadsPanelMobileExpandedStore(userId);
-  clearRecentThreadViewModelSharedState();
+};
+
+export const clearMindroomSessionUiState = (sessionId: string): void => {
+  clearRoomViewModeStore(sessionId);
+  clearThreadSummarySharedState(sessionId);
 };
 
 export const clearMindroomSessionNativeState = (sessionId: string): void => {

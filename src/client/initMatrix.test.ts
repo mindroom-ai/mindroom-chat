@@ -6,7 +6,6 @@ import {
   clearAllCacheAndReload,
   clearBrowserCacheAndReload,
   clearCacheAndReload,
-  clearLoginData,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
@@ -21,6 +20,7 @@ import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/lo
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
+  SessionStoreWriteError,
   createSessionId,
   getSessionIndexedDbStoreName,
   getLegacySessionRustCryptoStoreNames,
@@ -45,6 +45,7 @@ import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentTh
 import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
+import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -65,6 +66,10 @@ vi.mock('../app/mindroom/messages/longText', () => ({
 
 vi.mock('../app/mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
+}));
+
+vi.mock('../app/mindroom/engine/mindroomSyncEngine', () => ({
+  stopMindroomSyncEngineForClient: vi.fn(),
 }));
 
 vi.mock('../app/state/navToActivePath', () => ({
@@ -302,6 +307,78 @@ describe('initClient', () => {
     expect(settled).toBe(true);
   });
 
+  it.each([
+    {
+      name: 'waits for late Rust initialization before disposing a failed sync runtime',
+      failedInitializer: 'sync' as const,
+    },
+    {
+      name: 'waits for late sync startup before disposing a failed Rust runtime',
+      failedInitializer: 'rust' as const,
+    },
+  ])('$name', async ({ failedInitializer }) => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const initializationFailure = new Error(`${failedInitializer} initialization failed`);
+    let resolveSibling: (() => void) | undefined;
+    const pendingInitializer = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSibling = resolve;
+        })
+    );
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    const startup =
+      failedInitializer === 'sync'
+        ? vi.fn().mockRejectedValue(initializationFailure)
+        : pendingInitializer;
+    const initRustCrypto =
+      failedInitializer === 'rust'
+        ? vi.fn().mockRejectedValue(initializationFailure)
+        : pendingInitializer;
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          startup,
+          destroy,
+        } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+
+    const stopClient = vi.fn();
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      setMaxListeners,
+      stopClient,
+    } as never);
+
+    let rejected = false;
+    const initPromise = initClient({
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    }).catch((error) => {
+      rejected = true;
+      throw error;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(rejected).toBe(false);
+    expect(stopClient).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+
+    resolveSibling?.();
+    await expect(initPromise).rejects.toBe(initializationFailure);
+    expect(stopClient).toHaveBeenCalledTimes(1);
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).not.toHaveBeenCalled();
+  });
+
   it('does not lower a larger existing sync archive limit', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     const startup = vi.fn().mockResolvedValue(undefined);
@@ -336,6 +413,102 @@ describe('initClient', () => {
     });
 
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
+  });
+
+  it('refreshes and persists rotated access credentials', async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'access-a',
+        refreshToken: 'refresh-a',
+      },
+      undefined,
+      storage
+    );
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: storage,
+    });
+
+    try {
+      vi.mocked(IndexedDBStore).mockImplementation(
+        () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
+      );
+      vi.mocked(IndexedDBCryptoStore).mockImplementation(
+        () => ({} as unknown as IndexedDBCryptoStore)
+      );
+
+      const refreshToken = vi.fn().mockResolvedValue({
+        access_token: 'access-b',
+        refresh_token: 'refresh-b',
+        expires_in_ms: 60_000,
+      });
+      const refreshClient = { refreshToken };
+      const matrixClient = {
+        initRustCrypto: vi.fn().mockResolvedValue(undefined),
+        setMaxListeners: vi.fn(),
+      };
+      vi.mocked(createMatrixClient)
+        .mockReturnValueOnce(refreshClient as never)
+        .mockReturnValueOnce(matrixClient as never);
+
+      await initClient(session);
+
+      expect(vi.mocked(createMatrixClient)).toHaveBeenNthCalledWith(1, {
+        baseUrl: session.baseUrl,
+      });
+      const clientOptions = vi.mocked(createMatrixClient).mock.calls[1]?.[0];
+      expect(clientOptions).toEqual(
+        expect.objectContaining({
+          accessToken: 'access-a',
+          refreshToken: 'refresh-a',
+          tokenRefreshFunction: expect.any(Function),
+        })
+      );
+
+      const tokens = await clientOptions?.tokenRefreshFunction?.('refresh-a');
+
+      expect(refreshToken).toHaveBeenCalledWith('refresh-a');
+      expect(tokens).toEqual(
+        expect.objectContaining({
+          accessToken: 'access-b',
+          refreshToken: 'refresh-b',
+          expiry: expect.any(Date),
+        })
+      );
+      expect(getSessionStore(storage).sessions[0]).toEqual(
+        expect.objectContaining({
+          accessToken: 'access-b',
+          refreshToken: 'refresh-b',
+          expiresInMs: 60_000,
+        })
+      );
+
+      refreshToken.mockResolvedValueOnce({ access_token: 'access-c' });
+      const tokensWithoutRotation = await clientOptions?.tokenRefreshFunction?.('refresh-b');
+
+      expect(tokensWithoutRotation).toEqual({
+        accessToken: 'access-c',
+        refreshToken: 'refresh-b',
+        expiry: undefined,
+      });
+      expect(getSessionStore(storage).sessions[0]).toEqual(
+        expect.objectContaining({
+          accessToken: 'access-c',
+          refreshToken: 'refresh-b',
+          expiresInMs: undefined,
+        })
+      );
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+    }
   });
 });
 
@@ -432,7 +605,7 @@ describe('clearAllCacheAndReload', () => {
     }
   });
 
-  it('clears all localStorage (preserving only the multi-account store), clears sessionStorage, and navigates to the cache-busted app base path', async () => {
+  it('clears app-owned localStorage while preserving sessions and unrelated origin data', async () => {
     (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = '/mindroom';
     vi.spyOn(Date, 'now').mockReturnValue(1234);
 
@@ -546,6 +719,8 @@ describe('clearAllCacheAndReload', () => {
 
     await clearAllCacheAndReload({
       getDeviceId: vi.fn().mockReturnValue(undefined),
+      getHomeserverUrl: vi.fn().mockReturnValue(session.baseUrl),
+      getSafeUserId: vi.fn().mockReturnValue(session.userId),
       stopClient,
     } as never);
 
@@ -557,19 +732,21 @@ describe('clearAllCacheAndReload', () => {
     expect(appCache.delete).toHaveBeenCalledWith(appRequest);
     expect(otherCache.delete).not.toHaveBeenCalled();
     expect(cacheStorage.delete).not.toHaveBeenCalled();
-    expect(localStorageMock.clear).toHaveBeenCalledTimes(1);
+    expect(localStorageMock.clear).not.toHaveBeenCalled();
     expect(sessionStorageMock.clear).toHaveBeenCalledTimes(1);
     expect(sessionStorageState.size).toBe(0);
     expect(localStorageState.get(SESSION_STORE_KEY)).toBe(preservedSessionStore);
-    expect(localStorageState.has('third_party_key')).toBe(false);
-    expect(localStorageState.has('settings')).toBe(false);
-    expect(localStorageState.has('after_login_redirect_url')).toBe(false);
-    expect(localStorageState.has(MINDROOM_EDIT_DEBUG_STORAGE_KEY)).toBe(false);
-    expect(localStorageState.has('i18nextLng')).toBe(false);
-    expect(localStorageState.has('kb-color-mode')).toBe(false);
+    expect(localStorageState.get('third_party_key')).toBe('keep');
+    expect(localStorageState.get('settings')).toBe('settings');
+    expect(localStorageState.get('after_login_redirect_url')).toBe('/room');
+    expect(localStorageState.get(MINDROOM_EDIT_DEBUG_STORAGE_KEY)).toBe('1');
+    expect(localStorageState.get('i18nextLng')).toBe('en');
+    expect(localStorageState.get('kb-color-mode')).toBe('dark');
     expect(localStorageState.has('cinny_access_token')).toBe(false);
-    expect(localStorageState.has(`navToActivePath${session.userId}`)).toBe(false);
-    expect(localStorageState.has(`mindroom_ios_push_token::${session.sessionId}`)).toBe(false);
+    expect(localStorageState.get(`navToActivePath${session.userId}`)).toBe('/room');
+    expect(localStorageState.get(`mindroom_ios_push_token::${session.sessionId}`)).toBe(
+      'push-token'
+    );
     expect(localStorageState.has('mx_pending_events_!room:example.com')).toBe(false);
     expect(localStorageState.has('mxjssdk_memory_filter_sync')).toBe(false);
     expect(localStorageState.has('crypto.account')).toBe(false);
@@ -893,13 +1070,15 @@ describe('clearAllCacheAndReload', () => {
 
     await clearAllCacheAndReload({
       getDeviceId: vi.fn().mockReturnValue(undefined),
+      getHomeserverUrl: vi.fn().mockReturnValue('https://example.com'),
+      getSafeUserId: vi.fn().mockReturnValue('@alice:example.com'),
       stopClient,
     } as never);
 
     expect(getRegistrations).toHaveBeenCalledTimes(1);
     expect(cacheStorage.keys).toHaveBeenCalledTimes(1);
     expect(deleteDatabase).toHaveBeenCalledWith('mindroom-room-event-cache');
-    expect(localStorageMock.clear).toHaveBeenCalledTimes(1);
+    expect(localStorageMock.clear).not.toHaveBeenCalled();
     expect(sessionStorageMock.clear).toHaveBeenCalledTimes(1);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=9012');
   });
@@ -972,15 +1151,23 @@ describe('clearCacheAndReload', () => {
     const stopClient = vi.fn();
     const clearStores = vi.fn().mockResolvedValue(undefined);
     const getSafeUserId = vi.fn().mockReturnValue(session.userId);
+    vi.mocked(stopMindroomSyncEngineForClient).mockClear();
 
-    await clearCacheAndReload({
+    const mx = {
       clearStores,
+      getDeviceId: vi.fn().mockReturnValue(session.deviceId),
+      getHomeserverUrl: vi.fn().mockReturnValue(session.baseUrl),
       getSafeUserId,
       stopClient,
-    } as never);
+    };
+    await clearCacheAndReload(mx as never);
 
+    expect(stopMindroomSyncEngineForClient).toHaveBeenCalledWith(mx);
+    expect(vi.mocked(stopMindroomSyncEngineForClient).mock.invocationCallOrder[0]).toBeLessThan(
+      clearStores.mock.invocationCallOrder[0]
+    );
     expect(stopClient).toHaveBeenCalledTimes(1);
-    expect(getSafeUserId).toHaveBeenCalledTimes(1);
+    expect(getSafeUserId).toHaveBeenCalled();
     expect(clearStores).toHaveBeenCalledWith({
       cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
     });
@@ -994,7 +1181,7 @@ describe('clearCacheAndReload', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       session.userId
     );
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -1178,7 +1365,7 @@ describe('logoutClient', () => {
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(userId);
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).not.toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1187,63 +1374,10 @@ describe('logoutClient', () => {
     expect(stopClient).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
-});
 
-describe('clearLoginData', () => {
-  const originalIndexedDB = globalThis.indexedDB;
-  const originalWindow = globalThis.window;
-  const originalLocalStorage = globalThis.localStorage;
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-
-    if (originalIndexedDB === undefined) {
-      Reflect.deleteProperty(globalThis, 'indexedDB');
-    } else {
-      Object.defineProperty(globalThis, 'indexedDB', {
-        value: originalIndexedDB,
-        configurable: true,
-      });
-    }
-
-    if (originalWindow === undefined) {
-      Reflect.deleteProperty(globalThis, 'window');
-    } else {
-      Object.defineProperty(globalThis, 'window', {
-        value: originalWindow,
-        configurable: true,
-      });
-    }
-
-    if (originalLocalStorage === undefined) {
-      Reflect.deleteProperty(globalThis, 'localStorage');
-    } else {
-      Object.defineProperty(globalThis, 'localStorage', {
-        value: originalLocalStorage,
-        configurable: true,
-      });
-    }
-  });
-
-  it('deletes session-scoped and legacy app-owned IndexedDB databases when legacy auth state is present', async () => {
-    const storageState = new Map<string, string>();
-    const localStorageMock = {
-      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        storageState.set(key, value);
-      }),
-      removeItem: vi.fn((key: string) => {
-        storageState.delete(key);
-      }),
-    };
-    const reload = vi.fn();
-
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: localStorageMock,
-      configurable: true,
-    });
-
-    const session = putSession(
+  it('cleans the mounted client account without removing a different active account', async () => {
+    const { storage: localStorageMock } = createStorageMock();
+    const mountedSession = putSession(
       {
         baseUrl: 'https://example.com',
         userId: '@alice:example.com',
@@ -1253,114 +1387,65 @@ describe('clearLoginData', () => {
       undefined,
       localStorageMock
     );
-    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-      localStorageMock.setItem(key, `legacy-${key}`);
+    const activeSession = putSession(
+      {
+        baseUrl: 'https://matrix.org',
+        userId: '@bob:matrix.org',
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-b',
+      },
+      undefined,
+      localStorageMock
+    );
+    const deleteDatabase = createDeleteDatabaseMock();
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
     });
-
-    const deletedDatabaseNames: string[] = [];
-    const deleteDatabase = vi.fn((name: string) => {
-      deletedDatabaseNames.push(name);
-      const request = {} as IDBOpenDBRequest;
-      queueMicrotask(() => {
-        request.onsuccess?.call(request, new Event('success'));
-      });
-      return request;
-    });
-
-    const indexedDBMock = {
-      databases: vi
-        .fn()
-        .mockResolvedValue([
-          { name: getSessionIndexedDbStoreName(session).sync },
-          { name: 'matrix-js-sdk:web-sync-store' },
-          { name: getSessionRustCryptoStoreNames(session)[1] },
-          { name: getSessionRustCryptoStoreNames(session)[0] },
-          { name: getSessionIndexedDbStoreName(session).crypto },
-          { name: 'crypto-store' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-          { name: 'mindroom-room-event-cache' },
-          { name: 'mindroom-thread-event-cache' },
-          { name: 'matrix-js-sdk:web-sync-store::other-session' },
-          { name: 'crypto-store::other-session' },
-          { name: 'matrix-js-sdk::other-session::OTHERDEVICE::matrix-sdk-crypto' },
-          { name: 'unrelated-db' },
-        ]),
-      deleteDatabase,
-    };
-
     Object.defineProperty(globalThis, 'indexedDB', {
-      value: indexedDBMock,
+      value: {
+        databases: vi.fn().mockResolvedValue([]),
+        deleteDatabase,
+      },
       configurable: true,
     });
     Object.defineProperty(globalThis, 'window', {
       value: {
-        indexedDB: indexedDBMock,
         localStorage: localStorageMock,
         dispatchEvent: vi.fn(),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
-        location: {
-          reload,
-        },
+        location: { reload },
       },
       configurable: true,
     });
 
-    await clearLoginData();
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    await logoutClient({
+      clearStores,
+      getDeviceId: vi.fn(() => mountedSession.deviceId),
+      getHomeserverUrl: vi.fn(() => mountedSession.baseUrl),
+      getSafeUserId: vi.fn(() => mountedSession.userId),
+      logout: vi.fn().mockResolvedValue(undefined),
+      stopClient: vi.fn(),
+    } as never);
 
-    // CINNY-207 P2.3: sessionCleanup also fires
-    // indexedDB.deleteDatabase(dbName) for each legacy per-session DB
-    // (three-way legacy split) so rolled-back installs that never
-    // opened v3 still get their per-session DBs deleted on logout.
-    expect(deletedDatabaseNames).toEqual([
-      getSessionIndexedDbStoreName(session).sync,
-      'matrix-js-sdk:web-sync-store',
-      getSessionRustCryptoStoreNames(session)[1],
-      getSessionRustCryptoStoreNames(session)[0],
-      getSessionIndexedDbStoreName(session).crypto,
-      'crypto-store',
-      'matrix-js-sdk::matrix-sdk-crypto',
-      'matrix-js-sdk::matrix-sdk-crypto-meta',
-      'mindroom-room-event-cache',
-      'mindroom-thread-event-cache',
-      `mindroom-room-event-cache::${session.sessionId}`,
-      `mindroom-thread-event-cache::${session.sessionId}`,
-      `mindroom-thread-summary-cache::${session.sessionId}`,
-    ]);
-    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
-    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
-    expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
-      session.userId
-    );
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
-    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
-    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
-      expect(storageState.has(key)).toBe(false);
+    expect(clearStores).toHaveBeenCalledWith({
+      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(mountedSession),
     });
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(mountedSession.sessionId);
+    expect(vi.mocked(deleteCacheStoreDb)).not.toHaveBeenCalledWith(activeSession.sessionId);
+    expect(getSessionStore(localStorageMock).sessions.map(({ sessionId }) => sessionId)).toEqual([
+      activeSession.sessionId,
+    ]);
+    expect(getSessionStore(localStorageMock).activeSessionId).toBe(activeSession.sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('does not delete legacy singleton IndexedDB databases without this app legacy auth state', async () => {
-    const storageState = new Map<string, string>();
-    const localStorageMock = {
-      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        storageState.set(key, value);
-      }),
-      removeItem: vi.fn((key: string) => {
-        storageState.delete(key);
-      }),
-    };
-    const reload = vi.fn();
-
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: localStorageMock,
-      configurable: true,
-    });
-
+  it('finishes logout cleanup when legacy localStorage removals are blocked', async () => {
+    const { storage: localStorageMock } = createStorageMock();
     const session = putSession(
       {
         baseUrl: 'https://example.com',
@@ -1371,70 +1456,157 @@ describe('clearLoginData', () => {
       undefined,
       localStorageMock
     );
-
-    const deletedDatabaseNames: string[] = [];
-    const deleteDatabase = vi.fn((name: string) => {
-      deletedDatabaseNames.push(name);
-      const request = {} as IDBOpenDBRequest;
-      queueMicrotask(() => {
-        request.onsuccess?.call(request, new Event('success'));
-      });
-      return request;
+    localStorageMock.removeItem = vi.fn(() => {
+      throw new Error('blocked remove');
     });
 
-    const indexedDBMock = {
-      databases: vi
-        .fn()
-        .mockResolvedValue([
-          { name: getSessionIndexedDbStoreName(session).sync },
-          { name: getSessionRustCryptoStoreNames(session)[0] },
-          { name: getSessionRustCryptoStoreNames(session)[1] },
-          { name: getSessionIndexedDbStoreName(session).crypto },
-          { name: 'mindroom-room-event-cache' },
-          { name: 'mindroom-thread-event-cache' },
-          { name: 'matrix-js-sdk:web-sync-store' },
-          { name: 'crypto-store' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-        ]),
-      deleteDatabase,
-    };
-
+    const deleteDatabase = createDeleteDatabaseMock();
+    const reload = vi.fn();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
     Object.defineProperty(globalThis, 'indexedDB', {
-      value: indexedDBMock,
+      value: { deleteDatabase },
       configurable: true,
     });
     Object.defineProperty(globalThis, 'window', {
       value: {
-        indexedDB: indexedDBMock,
         localStorage: localStorageMock,
         dispatchEvent: vi.fn(),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
-        location: {
-          reload,
-        },
+        location: { reload },
       },
       configurable: true,
     });
 
-    await clearLoginData();
+    const stopClient = vi.fn();
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    await logoutClient({
+      clearStores,
+      getDeviceId: vi.fn(() => session.deviceId),
+      getHomeserverUrl: vi.fn(() => session.baseUrl),
+      getSafeUserId: vi.fn(() => session.userId),
+      logout: vi.fn().mockResolvedValue(undefined),
+      stopClient,
+    } as never);
 
-    // CINNY-207 P2.3: sessionCleanup now deletes each legacy per-session
-    // DB directly (three-way legacy split) alongside the unified store,
-    // so the logout gesture picks up rolled-back installs that never
-    // opened v3.
-    expect(deletedDatabaseNames).toEqual([
-      getSessionIndexedDbStoreName(session).sync,
-      getSessionRustCryptoStoreNames(session)[0],
-      getSessionRustCryptoStoreNames(session)[1],
-      getSessionIndexedDbStoreName(session).crypto,
-      'mindroom-room-event-cache',
-      'mindroom-thread-event-cache',
-      `mindroom-room-event-cache::${session.sessionId}`,
-      `mindroom-thread-event-cache::${session.sessionId}`,
-      `mindroom-thread-summary-cache::${session.sessionId}`,
-    ]);
+    expect(stopClient).toHaveBeenCalled();
+    expect(clearStores).toHaveBeenCalled();
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
+    expect(localStorageMock.removeItem).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps local account data intact when credential removal cannot be committed', async () => {
+    const { storage: localStorageMock } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      localStorageMock
+    );
+    localStorageMock.setItem = vi.fn(() => {
+      throw new Error('blocked write');
+    });
+
+    const reload = vi.fn();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: { deleteDatabase: createDeleteDatabaseMock() },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+
+    const stopClient = vi.fn();
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      logoutClient({
+        clearStores,
+        getDeviceId: vi.fn(() => session.deviceId),
+        getHomeserverUrl: vi.fn(() => session.baseUrl),
+        getSafeUserId: vi.fn(() => session.userId),
+        logout: vi.fn().mockResolvedValue(undefined),
+        stopClient,
+      } as never)
+    ).rejects.toBeInstanceOf(SessionStoreWriteError);
+
+    expect(stopClient).toHaveBeenCalled();
+    expect(clearStores).not.toHaveBeenCalled();
+    expect(vi.mocked(deleteCacheStoreDb)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadsStore)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearIOSPushState)).not.toHaveBeenCalled();
+    expect(getSessionStore(localStorageMock).sessions).toEqual([session]);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('continues logout when one cache database cannot be deleted', async () => {
+    const { storage: localStorageMock } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      localStorageMock
+    );
+    vi.mocked(deleteCacheStoreDb).mockRejectedValueOnce(new Error('blocked cache database'));
+
+    const reload = vi.fn();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: { deleteDatabase: createDeleteDatabaseMock() },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    await logoutClient({
+      clearStores,
+      getDeviceId: vi.fn(() => session.deviceId),
+      getHomeserverUrl: vi.fn(() => session.baseUrl),
+      getSafeUserId: vi.fn(() => session.userId),
+      logout: vi.fn().mockResolvedValue(undefined),
+      stopClient: vi.fn(),
+    } as never);
+
+    expect(clearStores).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
+    expect(getSessionStore(localStorageMock).sessions).toHaveLength(0);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
@@ -1584,6 +1756,67 @@ describe('removeStoredSession', () => {
     }
   });
 
+  it('keeps an inactive account intact when its registry removal is blocked', async () => {
+    vi.clearAllMocks();
+    const { storage: localStorageMock } = createStorageMock();
+    const activeSession = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      localStorageMock
+    );
+    const inactiveSession = putSession(
+      {
+        baseUrl: 'https://matrix.org',
+        userId: '@bob:matrix.org',
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-b',
+      },
+      undefined,
+      localStorageMock
+    );
+    setActiveSession(activeSession.sessionId, localStorageMock);
+    localStorageMock.setItem = vi.fn(() => {
+      throw new Error('blocked write');
+    });
+    const deleteDatabase = createDeleteDatabaseMock();
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: { databases: vi.fn().mockResolvedValue([]), deleteDatabase },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+
+    await expect(removeStoredSession(inactiveSession)).rejects.toBeInstanceOf(
+      SessionStoreWriteError
+    );
+
+    expect(deleteDatabase).not.toHaveBeenCalled();
+    expect(vi.mocked(deleteCacheStoreDb)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadsStore)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearIOSPushState)).not.toHaveBeenCalled();
+    expect(getSessionStore(localStorageMock).sessions).toEqual([activeSession, inactiveSession]);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('removes an inactive account without reloading the active one', async () => {
     const storageState = new Map<string, string>();
     const localStorageMock = {
@@ -1602,6 +1835,7 @@ describe('removeStoredSession', () => {
       });
       return request;
     });
+    const databases = vi.fn().mockResolvedValue([]);
     const reload = vi.fn();
 
     Object.defineProperty(globalThis, 'localStorage', {
@@ -1610,6 +1844,7 @@ describe('removeStoredSession', () => {
     });
     Object.defineProperty(globalThis, 'indexedDB', {
       value: {
+        databases,
         deleteDatabase,
       },
       configurable: true,
@@ -1641,6 +1876,12 @@ describe('removeStoredSession', () => {
     });
     setActiveSession(activeSession.sessionId);
 
+    const previousDeviceRustCryptoStoreNames = getSessionRustCryptoStoreNames({
+      ...inactiveSession,
+      deviceId: 'DEVICE_OLD',
+    });
+    databases.mockResolvedValue(previousDeviceRustCryptoStoreNames.map((name) => ({ name })));
+
     await removeStoredSession(inactiveSession);
 
     const indexedDbStoreNames = getSessionIndexedDbStoreName(inactiveSession);
@@ -1652,6 +1893,8 @@ describe('removeStoredSession', () => {
     const legacyRustCryptoStoreNames = getLegacySessionRustCryptoStoreNames(inactiveSession);
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
+    expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[0]);
+    expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[1]);
     // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
     // to a single deleteCacheStoreDb call inside sessionCleanup; the
     // legacy per-session DB names are also deleted via
@@ -1664,12 +1907,62 @@ describe('removeStoredSession', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       inactiveSession.userId
     );
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).not.toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
       activeSession.sessionId,
     ]);
     expect(getSessionStore().activeSessionId).toBe(activeSession.sessionId);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('preserves user-scoped UI state when the same MXID remains on another base URL', async () => {
+    vi.clearAllMocks();
+    const { storage: localStorageMock } = createStorageMock();
+    const deleteDatabase = createDeleteDatabaseMock();
+    const reload = vi.fn();
+
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: { databases: vi.fn().mockResolvedValue([]), deleteDatabase },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+
+    const activeSession = putSession({
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+    });
+    const oldProxySession = putSession({
+      baseUrl: 'https://proxy.example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_B',
+      accessToken: 'token-b',
+    });
+    setActiveSession(activeSession.sessionId);
+
+    await removeStoredSession(oldProxySession);
+
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(oldProxySession.sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(oldProxySession.sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).not.toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).not.toHaveBeenCalled();
+    expect(getSessionStore().sessions).toEqual([activeSession]);
     expect(reload).not.toHaveBeenCalled();
   });
 });

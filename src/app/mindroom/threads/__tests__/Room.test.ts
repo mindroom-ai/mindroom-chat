@@ -108,6 +108,10 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({}),
 }));
 
+vi.mock('../useRoomViewMode', () => ({
+  useRoomViewMode: () => ({ viewMode: 'threaded' }),
+}));
+
 vi.mock('../../../hooks/useRoomMembers', () => ({
   useRoomMembers: () => [],
 }));

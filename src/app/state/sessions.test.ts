@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
+  SessionStoreWriteError,
+  clearLegacySessionStorage,
   clearSessionStore,
   createSessionId,
   getActiveSession,
@@ -18,6 +20,7 @@ import {
   removeSession,
   setActiveSession,
   updateSessionProfile,
+  updateSessionCredentials,
 } from './sessions';
 
 const createStorage = (seed: Record<string, string> = {}) => {
@@ -257,6 +260,68 @@ describe('sessions', () => {
     );
   });
 
+  it('persists a refresh-token rotation without changing account metadata', () => {
+    const storage = createStorage();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        lastKnownDisplayName: 'Alice',
+      },
+      undefined,
+      storage
+    );
+
+    const updated = updateSessionCredentials(
+      session.sessionId,
+      {
+        accessToken: 'token-b',
+        refreshToken: 'refresh-b',
+        expiresInMs: 60_000,
+      },
+      { expectedRefreshToken: 'refresh-a' },
+      storage
+    );
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        accessToken: 'token-b',
+        refreshToken: 'refresh-b',
+        expiresInMs: 60_000,
+        lastKnownDisplayName: 'Alice',
+        lastUsedAt: session.lastUsedAt,
+      })
+    );
+  });
+
+  it('rejects a stale refresh-token rotation', () => {
+    const storage = createStorage();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-current',
+      },
+      undefined,
+      storage
+    );
+
+    expect(
+      updateSessionCredentials(
+        session.sessionId,
+        { accessToken: 'stale-token', refreshToken: 'stale-refresh' },
+        { expectedRefreshToken: 'refresh-old' },
+        storage
+      )
+    ).toBeUndefined();
+    expect(getActiveSession(storage)?.accessToken).toBe('token-a');
+  });
+
   it('allows cached profile metadata to be explicitly cleared', () => {
     const storage = createStorage();
 
@@ -320,6 +385,35 @@ describe('sessions', () => {
       expect(storage.getItem(key)).toBeNull();
     });
     expect(getSessionStore(storage).sessions).toEqual([]);
+  });
+
+  it('isolates blocked session-storage operations', () => {
+    const storage = createStorage();
+    storage.setItem.mockImplementation(() => {
+      throw new Error('blocked write');
+    });
+
+    expect(() =>
+      putSession(
+        {
+          baseUrl: 'https://example.com',
+          userId: '@alice:example.com',
+          deviceId: 'DEVICE_A',
+          accessToken: 'token-a',
+        },
+        undefined,
+        storage
+      )
+    ).toThrow(SessionStoreWriteError);
+
+    const removed: string[] = [];
+    storage.removeItem.mockImplementation((key: string) => {
+      if (key === LEGACY_SESSION_STORAGE_KEYS[0]) throw new Error('blocked remove');
+      removed.push(key);
+    });
+
+    expect(() => clearLegacySessionStorage(storage)).not.toThrow();
+    expect(removed).toEqual(LEGACY_SESSION_STORAGE_KEYS.slice(1));
   });
 
   it('returns session-scoped store names and storage keys', () => {

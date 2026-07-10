@@ -20,39 +20,7 @@ import { removeStoredSession } from '../../../../client/initMatrix';
 import { AccountSwitcher, AccountSwitcherItem } from './AccountSwitcher';
 import { resolveSessionRestorePath } from '../sessionRouteRestore';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
-
-const buildStoredAvatarHttpUrl = (
-  homeserverUrl: string,
-  mxcUrl: string,
-  width: number,
-  height: number,
-  accessToken?: string
-): string | undefined => {
-  const match = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
-  if (!match) return undefined;
-
-  try {
-    const [, serverName, mediaId] = match;
-    const homeserver = new URL(homeserverUrl);
-    const basePath = homeserver.pathname.replace(/\/+$/, '');
-    const mediaPath = `${basePath}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}`.replace(
-      /\/{2,}/g,
-      '/'
-    );
-    homeserver.pathname = mediaPath;
-    homeserver.search = '';
-    homeserver.searchParams.set('width', String(width));
-    homeserver.searchParams.set('height', String(height));
-    homeserver.searchParams.set('method', 'crop');
-    homeserver.searchParams.set('allow_redirect', 'true');
-    if (accessToken) {
-      homeserver.searchParams.set('access_token', accessToken);
-    }
-    return homeserver.toString();
-  } catch {
-    return undefined;
-  }
-};
+import { validMediaRequest } from '../../../../swMediaAuth';
 
 const blobToDataUrl = async (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -72,7 +40,8 @@ export function SettingsTab() {
   const sessions = useStoredSessions();
   const activeSession = useMemo(
     () =>
-      sessions.find((session) => session.sessionId === rawActiveSession?.sessionId) ?? rawActiveSession,
+      sessions.find((session) => session.sessionId === rawActiveSession?.sessionId) ??
+      rawActiveSession,
     [rawActiveSession, sessions]
   );
   const userId = mx.getUserId() ?? activeSession?.userId ?? '';
@@ -80,57 +49,75 @@ export function SettingsTab() {
 
   const [accountSwitcher, setAccountSwitcher] = useState(false);
   const [removingSessionId, setRemovingSessionId] = useState<string>();
+  const [accountActionError, setAccountActionError] = useState<string>();
   // Simple mode hides the Add Account entry point; Manage accounts stays so
   // an existing multi-account setup can still switch.
   const simpleMode = useSimpleMode();
 
-  const displayName = profile.displayName ?? getMxIdLocalPart(userId) ?? userId;
+  const displayName = profile.isDisplayNameResolved
+    ? profile.displayName ?? getMxIdLocalPart(userId) ?? userId
+    : activeSession?.lastKnownDisplayName ??
+      profile.displayName ??
+      getMxIdLocalPart(userId) ??
+      userId;
   const activeSessionId = activeSession?.sessionId;
   const lastKnownAvatarUrl = activeSession?.lastKnownAvatarUrl;
   const lastKnownAvatarDataUrl = activeSession?.lastKnownAvatarDataUrl;
   const avatarUrl = profile.avatarUrl
     ? mxcUrlToHttp(mx, profile.avatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
-  const lastKnownAvatarHttpUrl =
-    (lastKnownAvatarUrl
-      ? buildStoredAvatarHttpUrl(
-          mx.getHomeserverUrl(),
-          lastKnownAvatarUrl,
-          96,
-          96,
-          activeSession?.accessToken
-        )
-      : undefined) ??
-    (lastKnownAvatarUrl
-      ? mxcUrlToHttp(mx, lastKnownAvatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
-      : undefined);
-  const activeAvatarSrc = lastKnownAvatarDataUrl ?? lastKnownAvatarHttpUrl ?? avatarUrl;
+  const lastKnownAvatarHttpUrl = lastKnownAvatarUrl
+    ? mxcUrlToHttp(mx, lastKnownAvatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
+    : undefined;
+  const activeAvatarSrc = lastKnownAvatarDataUrl;
 
   useEffect(() => {
     if (!activeSessionId) return;
 
-    updateSessionProfile(activeSessionId, {
-      lastKnownDisplayName: displayName,
-      lastKnownAvatarUrl: profile.avatarUrl ?? undefined,
-    });
-  }, [activeSessionId, displayName, profile.avatarUrl]);
+    const update: { lastKnownDisplayName?: string; lastKnownAvatarUrl?: string } = {};
+    if (profile.isDisplayNameResolved) {
+      update.lastKnownDisplayName = displayName;
+    }
+    if (profile.avatarUrl !== undefined || profile.isAvatarResolved) {
+      update.lastKnownAvatarUrl = profile.avatarUrl;
+    }
+    if (Object.keys(update).length > 0) updateSessionProfile(activeSessionId, update);
+  }, [
+    activeSessionId,
+    displayName,
+    profile.avatarUrl,
+    profile.displayName,
+    profile.isAvatarResolved,
+    profile.isDisplayNameResolved,
+  ]);
 
   useEffect(() => {
     if (!activeSessionId) return undefined;
-    const avatarFetchUrl = avatarUrl ?? lastKnownAvatarHttpUrl;
-    if (!avatarFetchUrl) {
+    if (profile.isAvatarResolved && !profile.avatarUrl) {
       updateSessionProfile(activeSessionId, {
         lastKnownAvatarDataUrl: undefined,
       });
       return undefined;
     }
+    if (!profile.isAvatarResolved && !profile.avatarUrl && lastKnownAvatarDataUrl) {
+      return undefined;
+    }
+    const avatarFetchUrl = avatarUrl ?? lastKnownAvatarHttpUrl;
+    if (!avatarFetchUrl) return undefined;
     if (profile.avatarUrl === lastKnownAvatarUrl && lastKnownAvatarDataUrl) {
       return undefined;
     }
 
     const abortController = new AbortController();
 
-    fetch(avatarFetchUrl, { signal: abortController.signal })
+    const accessToken =
+      useAuthentication && validMediaRequest(avatarFetchUrl, mx.getHomeserverUrl())
+        ? mx.getAccessToken()
+        : undefined;
+    fetch(avatarFetchUrl, {
+      signal: abortController.signal,
+      ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
+    })
       .then(async (response) => {
         if (!response.ok) return undefined;
         const blob = await response.blob();
@@ -154,23 +141,16 @@ export function SettingsTab() {
     lastKnownAvatarDataUrl,
     lastKnownAvatarHttpUrl,
     lastKnownAvatarUrl,
+    mx,
     profile.avatarUrl,
+    profile.isAvatarResolved,
+    useAuthentication,
   ]);
 
-  const orderedSessions = useMemo(() => sessions, [sessions]);
   const accountItems = useMemo<AccountSwitcherItem[]>(
     () =>
-      orderedSessions.map((session) => {
+      sessions.map((session) => {
         const active = session.sessionId === activeSession?.sessionId;
-        const sessionStoredAvatarHttpUrl = session.lastKnownAvatarUrl
-          ? buildStoredAvatarHttpUrl(
-              session.baseUrl,
-              session.lastKnownAvatarUrl,
-              96,
-              96,
-              session.accessToken
-            )
-          : undefined;
         return {
           session,
           active,
@@ -178,15 +158,18 @@ export function SettingsTab() {
             ? displayName
             : session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId,
           avatarUrl: active
-            ? activeAvatarSrc ?? session.lastKnownAvatarDataUrl ?? sessionStoredAvatarHttpUrl
-            : session.lastKnownAvatarDataUrl ?? sessionStoredAvatarHttpUrl,
+            ? activeAvatarSrc ?? session.lastKnownAvatarDataUrl
+            : session.lastKnownAvatarDataUrl,
         };
       }),
-    [activeAvatarSrc, activeSession?.sessionId, displayName, orderedSessions]
+    [activeAvatarSrc, activeSession?.sessionId, displayName, sessions]
   );
 
   const openAccountSwitcher = () => setAccountSwitcher(true);
-  const closeAccountSwitcher = () => setAccountSwitcher(false);
+  const closeAccountSwitcher = () => {
+    setAccountSwitcher(false);
+    setAccountActionError(undefined);
+  };
   const openSettings = () => setSettingsModal({});
   const openSettingsFromSwitcher = () => {
     closeAccountSwitcher();
@@ -199,7 +182,18 @@ export function SettingsTab() {
   };
 
   const switchAccount = (sessionId: string, path?: string) => {
-    setActiveSession(sessionId);
+    setAccountActionError(undefined);
+    try {
+      if (!setActiveSession(sessionId)) {
+        setAccountActionError(t('accountSwitcher.actionError'));
+        setAccountSwitcher(true);
+        return;
+      }
+    } catch {
+      setAccountActionError(t('accountSwitcher.actionError'));
+      setAccountSwitcher(true);
+      return;
+    }
     closeAccountSwitcher();
     navigate(resolveSessionRestorePath(path));
   };
@@ -208,9 +202,12 @@ export function SettingsTab() {
     const session = sessions.find((item) => item.sessionId === sessionId);
     if (!session || session.sessionId === activeSession?.sessionId) return;
 
+    setAccountActionError(undefined);
     setRemovingSessionId(sessionId);
     try {
       await removeStoredSession(session);
+    } catch {
+      setAccountActionError(t('accountSwitcher.actionError'));
     } finally {
       setRemovingSessionId((current) => (current === sessionId ? undefined : current));
     }
@@ -307,8 +304,9 @@ export function SettingsTab() {
             onRemoveAccount={(session) => {
               removeAccount(session.sessionId).catch(() => undefined);
             }}
-            onAddAccount={addAccount}
+            onAddAccount={simpleMode ? undefined : addAccount}
             onClose={closeAccountSwitcher}
+            error={accountActionError}
           />
         </Modal500>
       )}

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { SESSION_STORE_KEY, createSessionId } from '../state/sessions';
 import { mxcUrlToHttp } from './mediaUrl';
 
 describe('mxcUrlToHttp', () => {
@@ -56,7 +55,8 @@ describe('mxcUrlToHttp', () => {
 
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
-      mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96',
+      mxcUrlToHttp: () =>
+        'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96',
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop')).toBe(
@@ -64,35 +64,12 @@ describe('mxcUrlToHttp', () => {
     );
   });
 
-  it('adds an access token for authenticated media on the web before service worker control', () => {
-    const sessionId = createSessionId('https://mindroom.chat', '@user:mindroom.chat');
+  it('keeps authenticated browser media token-free before service worker control', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
           protocol: 'https:',
         },
-      },
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: {
-        getItem: (key: string) =>
-          key === SESSION_STORE_KEY
-            ? JSON.stringify({
-                version: 1,
-                activeSessionId: sessionId,
-                sessions: [
-                  {
-                    sessionId,
-                    baseUrl: 'https://mindroom.chat',
-                    userId: '@user:mindroom.chat',
-                    deviceId: 'DEVICE',
-                    accessToken: 'secret-token',
-                    lastUsedAt: 1,
-                  },
-                ],
-              })
-            : null,
       },
       configurable: true,
     });
@@ -107,44 +84,22 @@ describe('mxcUrlToHttp', () => {
 
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
       mxcUrlToHttp: () =>
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96',
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop')).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&access_token=secret-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96'
     );
   });
 
   it('adds an access token for authenticated media on capacitor without service workers', () => {
-    const sessionId = createSessionId('https://mindroom.chat', '@user:mindroom.chat');
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
           protocol: 'capacitor:',
         },
-      },
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: {
-        getItem: (key: string) =>
-          key === SESSION_STORE_KEY
-            ? JSON.stringify({
-                version: 1,
-                activeSessionId: sessionId,
-                sessions: [
-                  {
-                    sessionId,
-                    baseUrl: 'https://mindroom.chat',
-                    userId: '@user:mindroom.chat',
-                    deviceId: 'DEVICE',
-                    accessToken: 'secret-token',
-                    lastUsedAt: 1,
-                  },
-                ],
-              })
-            : null,
       },
       configurable: true,
     });
@@ -155,12 +110,13 @@ describe('mxcUrlToHttp', () => {
 
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
       mxcUrlToHttp: () =>
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96',
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop')).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&access_token=secret-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&access_token=client-token'
     );
   });
 
@@ -186,10 +142,32 @@ describe('mxcUrlToHttp', () => {
 
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
       mxcUrlToHttp: () => 'https://mindroom.chat/not-media',
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe('https://mindroom.chat/not-media');
+  });
+
+  it('never appends the client token to a different origin', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: { protocol: 'capacitor:' } },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {},
+      configurable: true,
+    });
+
+    const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
+      mxcUrlToHttp: () => 'https://attacker.example/_matrix/client/v1/media/download/server/id',
+    } as any;
+
+    expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
+      'https://attacker.example/_matrix/client/v1/media/download/server/id'
+    );
   });
 
   it('rebases same-origin media urls to the homeserver path on the web', () => {

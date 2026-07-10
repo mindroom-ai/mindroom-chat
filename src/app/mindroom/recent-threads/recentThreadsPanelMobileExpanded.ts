@@ -7,6 +7,7 @@ import {
 import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
 import { getImperativeJotaiStore } from '../../state/jotaiStore';
+import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 
 const RECENT_THREADS_PANEL_MOBILE_EXPANDED = 'recentThreadsPanelMobileExpanded';
 const RECENT_THREADS_PANEL_MOBILE_EXPANDED_STORE_VERSION = 1;
@@ -37,15 +38,9 @@ const serializePanelMobileExpanded = (
 
 const getStoreKey = (userId: string): string => `${RECENT_THREADS_PANEL_MOBILE_EXPANDED}:${userId}`;
 
-let activeRecentThreadsPanelMobileExpandedAtom: RecentThreadsPanelMobileExpandedAtom | undefined;
-const recentThreadsPanelMobileExpandedAtoms = new Map<string, RecentThreadsPanelMobileExpandedAtom>();
-
-export const makeRecentThreadsPanelMobileExpandedAtom = (
+const createRecentThreadsPanelMobileExpandedAtom = (
   userId: string
 ): RecentThreadsPanelMobileExpandedAtom => {
-  const existingAtom = recentThreadsPanelMobileExpandedAtoms.get(userId);
-  if (existingAtom) return existingAtom;
-
   const storeKey = getStoreKey(userId);
 
   const baseRecentThreadsPanelMobileExpandedAtom = atomWithLocalStorage<boolean>(
@@ -62,31 +57,26 @@ export const makeRecentThreadsPanelMobileExpandedAtom = (
     }
   );
 
-  recentThreadsPanelMobileExpandedAtoms.set(userId, recentThreadsPanelMobileExpandedAtom);
   return recentThreadsPanelMobileExpandedAtom;
 };
 
-export const registerRecentThreadsPanelMobileExpandedAtom = (
-  recentThreadsPanelMobileExpandedAtom: RecentThreadsPanelMobileExpandedAtom
-) => {
-  activeRecentThreadsPanelMobileExpandedAtom = recentThreadsPanelMobileExpandedAtom;
+const recentThreadsPanelMobileExpandedRegistry =
+  createUserScopedAtomRegistry<RecentThreadsPanelMobileExpandedAtom>({
+    create: createRecentThreadsPanelMobileExpandedAtom,
+    getStorageKey: getStoreKey,
+  });
 
-  return () => {
-    if (activeRecentThreadsPanelMobileExpandedAtom === recentThreadsPanelMobileExpandedAtom) {
-      activeRecentThreadsPanelMobileExpandedAtom = undefined;
-    }
-  };
-};
+export const makeRecentThreadsPanelMobileExpandedAtom =
+  recentThreadsPanelMobileExpandedRegistry.getOrCreate;
+
+export const registerRecentThreadsPanelMobileExpandedAtom =
+  recentThreadsPanelMobileExpandedRegistry.registerActive;
 
 const getResolvedRecentThreadsPanelMobileExpandedAtom = ():
   | RecentThreadsPanelMobileExpandedAtom
   | undefined => {
-  if (activeRecentThreadsPanelMobileExpandedAtom) {
-    return activeRecentThreadsPanelMobileExpandedAtom;
-  }
-
   const userId = getActiveSession()?.userId;
-  return userId ? makeRecentThreadsPanelMobileExpandedAtom(userId) : undefined;
+  return recentThreadsPanelMobileExpandedRegistry.resolveActiveOrCreate(userId);
 };
 
 export const setRecentThreadsPanelMobileExpanded = (expanded: boolean) => {
@@ -97,11 +87,5 @@ export const setRecentThreadsPanelMobileExpanded = (expanded: boolean) => {
 };
 
 export const clearRecentThreadsPanelMobileExpandedStore = (userId: string) => {
-  const recentThreadsPanelMobileExpandedAtom = recentThreadsPanelMobileExpandedAtoms.get(userId);
-  if (activeRecentThreadsPanelMobileExpandedAtom === recentThreadsPanelMobileExpandedAtom) {
-    activeRecentThreadsPanelMobileExpandedAtom = undefined;
-  }
-
-  recentThreadsPanelMobileExpandedAtoms.delete(userId);
-  localStorage.removeItem(getStoreKey(userId));
+  recentThreadsPanelMobileExpandedRegistry.clear(userId);
 };

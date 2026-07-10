@@ -687,8 +687,7 @@ describe('RoomTimeline', () => {
               createNodeMock: (element) =>
                 element.type === scrollType
                   ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
-                    undefined
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
                   ? innerElement
                   : null,
             }
@@ -799,7 +798,12 @@ describe('RoomTimeline', () => {
         // stale capture — an unconsumed anchor would add 5 x 26px here.
         const bandPrependedThreadEvents = [
           rootEvent,
-          ...Array.from({ length: 5 }, (_value, index) => makeReply(index + 90)),
+          ...Array.from({ length: 5 }, (_value, index) =>
+            makeEvent(`$te-background-band-${index}`, {
+              threadRootId: threadId,
+              ts: index + 1,
+            })
+          ),
           ...prependedThreadEvents.slice(1),
         ];
         await act(async () => {
@@ -915,8 +919,7 @@ describe('RoomTimeline', () => {
               createNodeMock: (element) =>
                 element.type === scrollType
                   ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
-                    undefined
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
                   ? innerElement
                   : null,
             }
@@ -1055,8 +1058,7 @@ describe('RoomTimeline', () => {
               createNodeMock: (element) =>
                 element.type === scrollType
                   ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
-                    undefined
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
                   ? innerElement
                   : null,
             }
@@ -1182,8 +1184,7 @@ describe('RoomTimeline', () => {
               createNodeMock: (element) =>
                 element.type === scrollType
                   ? scrollElement
-                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
-                    undefined
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
                   ? innerElement
                   : null,
             }
@@ -1641,9 +1642,7 @@ describe('RoomTimeline', () => {
     // engine as a band-4 `BackfillScheduler` job that calls
     // `mx.createMessagesRequest` and persists straight to IDB. The
     // scheduler-side behavior is covered by
-    // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`,
-    // and the "no direct createMessagesRequest in RoomTimeline"
-    // guard in `RoomTimeline.architecture.test.ts` pins the boundary.
+    // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`.
 
     it('renders the room thread overview outside thread view', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
@@ -2662,7 +2661,7 @@ describe('RoomTimeline', () => {
 
     it('preloads cached overview metadata in the frozen display order', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
+      const { loadLatestCachedThreadEventsBatch } = await import('../cacheStore');
       const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
       const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
       const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -2695,7 +2694,7 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(2);
       });
 
-      vi.mocked(loadLatestCachedThreadEvents).mockClear();
+      vi.mocked(loadLatestCachedThreadEventsBatch).mockClear();
       threadLastActivityTsMapMock.set(firstThread.getId(), 500);
 
       await act(async () => {
@@ -2703,11 +2702,12 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(2);
       });
 
-      expect(vi.mocked(loadLatestCachedThreadEvents).mock.calls.map((call) => call[2])).toEqual([
-        thirdThread.getId(),
-        secondThread.getId(),
-        firstThread.getId(),
-      ]);
+      expect(vi.mocked(loadLatestCachedThreadEventsBatch)).toHaveBeenCalledWith(
+        expect.any(String),
+        room.roomId,
+        [thirdThread.getId(), secondThread.getId(), firstThread.getId()],
+        32
+      );
     });
 
     it('does not issue per-visible-thread summary cache reads from the render path', async () => {
@@ -4877,8 +4877,9 @@ describe('RoomTimeline', () => {
         expect(
           vi
             .mocked(saveThreadEventsToCache)
-            .mock.calls.some(([, , threadIdArg, , , , , snapshotCompleteArg]) =>
-              threadIdArg === threadId && snapshotCompleteArg === true
+            .mock.calls.some(
+              ([, , threadIdArg, , , , , snapshotCompleteArg]) =>
+                threadIdArg === threadId && snapshotCompleteArg === true
             )
         ).toBe(false);
       } finally {
@@ -5060,7 +5061,6 @@ describe('RoomTimeline', () => {
     //   - 'does not treat sdk thread length as authoritative when root counts are sparse'
     //   - 'persists root-targeted relations into the thread cache during room cache persistence'
     //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
-
 
     it('persists paginated thread-only room events into the thread cache', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');

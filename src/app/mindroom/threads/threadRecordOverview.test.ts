@@ -20,7 +20,8 @@ const makeDefaultState = (overrides: Partial<ThreadFilterState> = {}): ThreadFil
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
   ...overrides,
 });

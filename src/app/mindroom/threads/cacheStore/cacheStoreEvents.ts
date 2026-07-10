@@ -1,10 +1,8 @@
 import type { IEvent } from 'matrix-js-sdk';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
-import {
-  getCachedPaginationToken,
-  mergeCachedPaginationTokens,
-} from '../eventCacheTokenUtils';
+import { mergeRawEventRevisions, type RelationSnapshotMode } from '../eventRevision';
+import { getCachedPaginationToken, mergeCachedPaginationTokens } from '../eventCacheTokenUtils';
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import { openCacheStore } from './cacheStoreDb';
 import { createLedgerTracker } from './cacheStoreLedger';
@@ -43,6 +41,28 @@ import {
 
 const isRawLocalEchoEventId = (eventId: unknown): boolean =>
   typeof eventId === 'string' && eventId.startsWith('~');
+
+const buildMergedEventRecord = (
+  roomId: string,
+  scope: string,
+  incoming: CachedRoomEvent | CachedThreadEvent,
+  previous: CachedEventRecord | undefined,
+  relationSnapshotMode: RelationSnapshotMode
+): CachedEventRecord => {
+  const rawEvent = mergeRawEventRevisions(previous?.rawEvent, incoming, relationSnapshotMode);
+  return {
+    cacheKey: buildEventCacheKey(roomId, scope, incoming.event_id),
+    roomId,
+    scope,
+    eventId: incoming.event_id,
+    ts:
+      typeof rawEvent.origin_server_ts === 'number' && Number.isFinite(rawEvent.origin_server_ts)
+        ? rawEvent.origin_server_ts
+        : incoming.origin_server_ts,
+    rawEvent,
+    approxBytes: estimateRawEventBytes(rawEvent),
+  };
+};
 
 export type CachedRoomEventPage = {
   events: CachedRoomEvent[];
@@ -90,9 +110,7 @@ type ScopedCursorResult = {
   meta: CachedMetaRecord | undefined;
 };
 
-const runScopedCursor = async (
-  options: ScopedCursorOptions
-): Promise<ScopedCursorResult> => {
+const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCursorResult> => {
   const db = await openCacheStore(options.sessionId);
   if (!db || options.limit <= 0) {
     return { events: [], hasMoreBefore: false, meta: undefined };
@@ -254,18 +272,19 @@ export const loadCachedRoomEvent = async (
   });
 };
 
-export const saveRoomEventsToCache = async (
+export const saveRoomEventsToCacheCommitted = async (
   sessionId: string,
   roomId: string,
   rawEvents: Partial<IEvent>[],
-  beforeTokenForEarliest?: string | null
-): Promise<void> => {
+  beforeTokenForEarliest?: string | null,
+  relationSnapshotMode: RelationSnapshotMode = 'partial'
+): Promise<boolean> => {
   // CINNY-207 P2.3: cache health gate lives at the single write choke
   // point. After a quota failure the session is cache-read-only —
   // skip further writes silently. Deletes stay ungated (they only
   // shrink storage). The eventRepository seam no longer wraps this
   // call in its own gate/catch.
-  if (!isCacheWritable()) return;
+  if (!isCacheWritable()) return false;
 
   // CINNY-207 P2 review: the entire body (including the openCacheStore
   // await) must live inside the error-reporting boundary. Callers
@@ -273,10 +292,10 @@ export const saveRoomEventsToCache = async (
   // as an unhandled rejection and never trip the health gate.
   try {
     const db = await openCacheStore(sessionId);
-    if (!db) return;
+    if (!db) return false;
 
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
-    if (normalizedEvents.length === 0) return;
+    if (normalizedEvents.length === 0) return true;
 
     countCacheProbe('roomSaveCalls');
     countCacheProbe('roomEventPuts', normalizedEvents.length);
@@ -284,28 +303,39 @@ export const saveRoomEventsToCache = async (
       countCacheProbe('roomMetaPuts');
     }
 
-    await runSaveRoomEventsTxn(db, roomId, normalizedEvents, beforeTokenForEarliest);
+    await runSaveRoomEventsTxn(
+      db,
+      roomId,
+      normalizedEvents,
+      beforeTokenForEarliest,
+      relationSnapshotMode
+    );
   } catch (error) {
     reportCacheWriteError('roomEventCache.save', error);
-    return;
+    return false;
   }
 
   // CINNY-207 P2.2 commit 3: cheap over-budget probe after saves.
   // Fire-and-forget, module-level debounced.
   maybeScheduleEvictionCheck(sessionId);
+  return true;
+};
+
+export const saveRoomEventsToCache = async (
+  ...args: Parameters<typeof saveRoomEventsToCacheCommitted>
+): Promise<void> => {
+  await saveRoomEventsToCacheCommitted(...args);
 };
 
 const runSaveRoomEventsTxn = async (
   db: IDBDatabase,
   roomId: string,
   normalizedEvents: CachedRoomEvent[],
-  beforeTokenForEarliest: string | null | undefined
+  beforeTokenForEarliest: string | null | undefined,
+  relationSnapshotMode: RelationSnapshotMode
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE],
-      'readwrite'
-    );
+    const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
@@ -325,18 +355,16 @@ const runSaveRoomEventsTxn = async (
       };
       normalizedEvents.forEach((rawEvent) => {
         const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, rawEvent.event_id);
-        const eventRecord: CachedEventRecord = {
-          cacheKey,
-          roomId,
-          scope: ROOM_SCOPE,
-          eventId: rawEvent.event_id,
-          ts: rawEvent.origin_server_ts,
-          rawEvent,
-          approxBytes: estimateRawEventBytes(rawEvent),
-        };
         const previousRequest = eventStore.get(cacheKey);
         previousRequest.onsuccess = () => {
           const previous = previousRequest.result as CachedEventRecord | undefined;
+          const eventRecord = buildMergedEventRecord(
+            roomId,
+            ROOM_SCOPE,
+            rawEvent,
+            previous,
+            relationSnapshotMode
+          );
           ledger.notePut(eventRecord, previous);
           eventStore.put(eventRecord);
           maybeFinalizeLedger();
@@ -413,10 +441,7 @@ export const deleteRoomEventsFromCache = async (
     countCacheProbe('eventDeletes', uniqueEventIds.length);
 
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(
-        [EVENTS_STORE, ROOM_LEDGER_STORE],
-        'readwrite'
-      );
+      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);
@@ -476,6 +501,86 @@ export const loadLatestCachedThreadEvents = async (
     relationSnapshotComplete: meta?.relationSnapshotComplete === true,
     tailLoaded: meta?.tailLoaded === true,
   };
+};
+
+/** Read several thread tails in one IndexedDB transaction. */
+export const loadLatestCachedThreadEventsBatch = async (
+  sessionId: string,
+  roomId: string,
+  threadIds: readonly string[],
+  limit: number
+): Promise<Map<string, CachedThreadEventPage>> => {
+  const uniqueThreadIds = Array.from(new Set(threadIds));
+  const empty = new Map<string, CachedThreadEventPage>();
+  if (uniqueThreadIds.length === 0) return empty;
+  const db = await openCacheStore(sessionId);
+  if (!db || limit <= 0) {
+    uniqueThreadIds.forEach((threadId) => {
+      empty.set(threadId, { events: [], hasMoreBefore: false });
+    });
+    return empty;
+  }
+
+  return new Promise<Map<string, CachedThreadEventPage>>((resolve, reject) => {
+    const transaction = db.transaction([EVENTS_STORE, META_STORE], 'readonly');
+    const eventIndex = transaction.objectStore(EVENTS_STORE).index(EVENTS_BY_SCOPE_TS_INDEX);
+    const metaStore = transaction.objectStore(META_STORE);
+    const states = uniqueThreadIds.map((threadId) => {
+      const events: CachedThreadEvent[] = [];
+      let hasMoreBefore = false;
+      const range = IDBKeyRange.bound(
+        [roomId, threadId, 0, ''],
+        [roomId, threadId, MAX_EVENT_TS, MAX_EVENT_ID]
+      );
+      const cursorRequest = eventIndex.openCursor(range, 'prev');
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+        const record = cursor.value as CachedEventRecord;
+        const normalized = toRawEventInternal(record.rawEvent) as CachedThreadEvent | undefined;
+        if (!normalized || record.eventId === threadId) {
+          cursor.continue();
+          return;
+        }
+        if (events.length < limit) {
+          events.push(normalized);
+          cursor.continue();
+          return;
+        }
+        hasMoreBefore = true;
+      };
+      cursorRequest.onerror = () => reject(cursorRequest.error);
+      return {
+        threadId,
+        events,
+        get hasMoreBefore() {
+          return hasMoreBefore;
+        },
+        metaRequest: metaStore.get(buildMetaKey(roomId, threadId)),
+      };
+    });
+
+    transaction.oncomplete = () => {
+      const pages = new Map<string, CachedThreadEventPage>();
+      states.forEach(({ threadId, events, hasMoreBefore, metaRequest }) => {
+        const orderedEvents = events.reverse();
+        const meta = metaRequest.result as CachedMetaRecord | undefined;
+        pages.set(threadId, {
+          rootEvent: meta?.rootEvent,
+          events: orderedEvents,
+          hasMoreBefore,
+          beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+          expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+          snapshotComplete: meta?.snapshotComplete === true,
+          relationSnapshotComplete: meta?.relationSnapshotComplete === true,
+          tailLoaded: meta?.tailLoaded === true,
+        });
+      });
+      resolve(pages);
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 };
 
 export const loadCachedThreadEventsBefore = async (
@@ -544,7 +649,8 @@ export const loadCachedThreadEvent = async (
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const eventRequest = eventStore.get(buildEventCacheKey(roomId, threadId, eventId));
-    const metaRequest = eventId === threadId ? metaStore.get(buildMetaKey(roomId, threadId)) : undefined;
+    const metaRequest =
+      eventId === threadId ? metaStore.get(buildMetaKey(roomId, threadId)) : undefined;
 
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedEventRecord | undefined;
@@ -557,7 +663,11 @@ export const loadCachedThreadEvent = async (
         return;
       }
       const meta = metaRequest.result as CachedMetaRecord | undefined;
-      resolve(meta?.rootEvent ? (toRawEventInternal(meta.rootEvent) as CachedThreadEvent | undefined) : undefined);
+      resolve(
+        meta?.rootEvent
+          ? (toRawEventInternal(meta.rootEvent) as CachedThreadEvent | undefined)
+          : undefined
+      );
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -566,7 +676,7 @@ export const loadCachedThreadEvent = async (
   });
 };
 
-export const saveThreadEventsToCache = async (
+export const saveThreadEventsToCacheCommitted = async (
   sessionId: string,
   roomId: string,
   threadId: string,
@@ -576,22 +686,23 @@ export const saveThreadEventsToCache = async (
   tailLoaded?: boolean,
   snapshotComplete?: boolean,
   expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-): Promise<void> => {
+  relationSnapshotComplete?: boolean,
+  relationSnapshotMode: RelationSnapshotMode = 'partial'
+): Promise<boolean> => {
   // CINNY-207 P2.3: cache health gate (same rationale as the room save).
-  if (!isCacheWritable()) return;
+  if (!isCacheWritable()) return false;
 
   // CINNY-207 P2 review: keep the open inside the error boundary — see
   // saveRoomEventsToCache for the rationale (callers use `void save`).
   try {
     const db = await openCacheStore(sessionId);
-    if (!db) return;
+    if (!db) return false;
 
     const normalizedEvents = filterPageableCachedThreadEvents(
       normalizeCachedThreadEvents(rawEvents),
       threadId
     );
-    if (normalizedEvents.length === 0 && !rootEvent) return;
+    if (normalizedEvents.length === 0 && !rootEvent) return true;
 
     countCacheProbe('threadSaveCalls');
     countCacheProbe('threadEventPuts', normalizedEvents.length);
@@ -607,15 +718,23 @@ export const saveThreadEventsToCache = async (
       tailLoaded,
       snapshotComplete,
       expectedReplyCount,
-      relationSnapshotComplete
+      relationSnapshotComplete,
+      relationSnapshotMode
     );
   } catch (error) {
     reportCacheWriteError('threadEventCache.save', error);
-    return;
+    return false;
   }
 
   // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
   maybeScheduleEvictionCheck(sessionId);
+  return true;
+};
+
+export const saveThreadEventsToCache = async (
+  ...args: Parameters<typeof saveThreadEventsToCacheCommitted>
+): Promise<void> => {
+  await saveThreadEventsToCacheCommitted(...args);
 };
 
 const runSaveThreadEventsTxn = async (
@@ -628,7 +747,8 @@ const runSaveThreadEventsTxn = async (
   tailLoaded: boolean | undefined,
   snapshotComplete: boolean | undefined,
   expectedReplyCount: number | undefined,
-  relationSnapshotComplete: boolean | undefined
+  relationSnapshotComplete: boolean | undefined,
+  relationSnapshotMode: RelationSnapshotMode
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
@@ -636,9 +756,7 @@ const runSaveThreadEventsTxn = async (
     // untouched (per plan: "ledger untouched by meta-only writes").
     const hasEventPuts = normalizedEvents.length > 0;
     const transaction = db.transaction(
-      hasEventPuts
-        ? [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE]
-        : [EVENTS_STORE, META_STORE],
+      hasEventPuts ? [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE] : [EVENTS_STORE, META_STORE],
       'readwrite'
     );
     const eventStore = transaction.objectStore(EVENTS_STORE);
@@ -659,18 +777,16 @@ const runSaveThreadEventsTxn = async (
       };
       normalizedEvents.forEach((rawEvent) => {
         const cacheKey = buildEventCacheKey(roomId, threadId, rawEvent.event_id);
-        const eventRecord: CachedEventRecord = {
-          cacheKey,
-          roomId,
-          scope: threadId,
-          eventId: rawEvent.event_id,
-          ts: rawEvent.origin_server_ts,
-          rawEvent,
-          approxBytes: estimateRawEventBytes(rawEvent),
-        };
         const previousRequest = eventStore.get(cacheKey);
         previousRequest.onsuccess = () => {
           const previous = previousRequest.result as CachedEventRecord | undefined;
+          const eventRecord = buildMergedEventRecord(
+            roomId,
+            threadId,
+            rawEvent,
+            previous,
+            relationSnapshotMode
+          );
           if (ledger) ledger.notePut(eventRecord, previous);
           eventStore.put(eventRecord);
           maybeFinalizeLedger();
@@ -692,6 +808,8 @@ const runSaveThreadEventsTxn = async (
     const metaRequest = metaStore.get(metaKey);
     metaRequest.onsuccess = () => {
       const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
+      const incomingRootEvent =
+        rootEvent && !isRawLocalEchoEventPublic(rootEvent) ? rootEvent : undefined;
       const nextMeta: CachedMetaRecord = {
         metaKey,
         roomId,
@@ -701,8 +819,9 @@ const runSaveThreadEventsTxn = async (
           earliestEventId,
           beforeTokenForEarliest
         ),
-        rootEvent:
-          rootEvent && !isRawLocalEchoEventPublic(rootEvent) ? rootEvent : currentMeta?.rootEvent,
+        rootEvent: incomingRootEvent
+          ? mergeRawEventRevisions(currentMeta?.rootEvent, incomingRootEvent, relationSnapshotMode)
+          : currentMeta?.rootEvent,
         expectedReplyCount: mergeThreadExpectedReplyCount(
           currentMeta?.expectedReplyCount,
           normalizedExpectedReplyCount,
@@ -714,6 +833,7 @@ const runSaveThreadEventsTxn = async (
           relationSnapshotComplete
         ),
         tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
+        threadReconcileContinuation: currentMeta?.threadReconcileContinuation,
         updatedAt: Date.now(),
       };
       metaStore.put(nextMeta);
@@ -725,30 +845,25 @@ const runSaveThreadEventsTxn = async (
     transaction.onabort = () => reject(transaction.error);
   });
 
-export const deleteThreadEventsFromCache = async (
+const deleteThreadEvents = async (
   sessionId: string,
   roomId: string,
   threadId: string,
   eventIds: string[]
-): Promise<void> => {
-  if (eventIds.length === 0) return;
+): Promise<boolean> => {
+  if (eventIds.length === 0) return true;
   // CINNY-207 P2 review: dedupe (same rationale as
   // deleteRoomEventsFromCache — avoid double-decrementing the ledger).
   const uniqueEventIds = Array.from(new Set(eventIds));
 
-  // CINNY-207 P2 review: swallow open/txn failures instead of leaking
-  // as unhandled rejections (deletes are ungated but must be safe).
   try {
     const db = await openCacheStore(sessionId);
-    if (!db) return;
+    if (!db) return false;
 
     countCacheProbe('eventDeletes', uniqueEventIds.length);
 
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(
-        [EVENTS_STORE, ROOM_LEDGER_STORE],
-        'readwrite'
-      );
+      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);
@@ -775,10 +890,27 @@ export const deleteThreadEventsFromCache = async (
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
+    return true;
   } catch {
-    // Best-effort — see rationale above.
+    return false;
   }
 };
+
+/** Best-effort compatibility API used by fire-and-forget cleanup paths. */
+export const deleteThreadEventsFromCache = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  eventIds: string[]
+): Promise<void> => {
+  await deleteThreadEvents(sessionId, roomId, threadId, eventIds);
+};
+
+/**
+ * Durable variant used by convergence paths that must distinguish a committed
+ * delete from the legacy best-effort API above.
+ */
+export const deleteThreadEventsFromCacheCommitted = deleteThreadEvents;
 
 /**
  * Stamp `lastOpenedTs` on the meta row for a scope. Used by the eviction
@@ -788,11 +920,7 @@ export const deleteThreadEventsFromCache = async (
  * created. Callers are wired in Phase 3/4 when the sync engine and open
  * controllers land.
  */
-const noteScopeOpened = async (
-  sessionId: string,
-  roomId: string,
-  scope: string
-): Promise<void> => {
+const noteScopeOpened = async (sessionId: string, roomId: string, scope: string): Promise<void> => {
   const db = await openCacheStore(sessionId);
   if (!db) return;
 
@@ -822,10 +950,8 @@ const noteScopeOpened = async (
   });
 };
 
-export const noteRoomOpened = (
-  sessionId: string,
-  roomId: string
-): Promise<void> => noteScopeOpened(sessionId, roomId, ROOM_SCOPE);
+export const noteRoomOpened = (sessionId: string, roomId: string): Promise<void> =>
+  noteScopeOpened(sessionId, roomId, ROOM_SCOPE);
 
 export const noteThreadOpened = (
   sessionId: string,
@@ -863,10 +989,7 @@ export const deleteThreadEventFromCacheByEventId = async (
     if (!db) return [];
 
     return await new Promise<string[]>((resolve, reject) => {
-      const transaction = db.transaction(
-        [EVENTS_STORE, ROOM_LEDGER_STORE],
-        'readwrite'
-      );
+      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);

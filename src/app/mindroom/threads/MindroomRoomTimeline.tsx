@@ -18,7 +18,6 @@ import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
 import { type SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/membershipData';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
   Badge,
@@ -136,18 +135,11 @@ import {
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
-  buildMeasurementScrollCorrectionHook,
   estimateThreadEventRowHeight,
   isThreadFallbackReply,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
-  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
-import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
-import {
-  isIOSWebKitDevice,
-  waitForScrollQuiescence,
-} from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -185,7 +177,6 @@ import {
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import {
-  getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
   shouldRenderUnreadDividerAt,
@@ -203,14 +194,14 @@ import {
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from './preloadSettings';
 import { countCacheProbe } from './cacheProbe';
-import { sanitizePrefetchDepth,
-  sanitizePrefetchScope } from '../engine/prefetchPolicy';
+import { sanitizePrefetchDepth, sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
+import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
 import {
   enqueueRoomDeepHistoryJob,
@@ -355,10 +346,7 @@ export function RoomTimeline({
   const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
   const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
   const prefetchScope = sanitizePrefetchScope(prefetchScopeSetting);
-  const interactivePaginationLimit = Math.min(
-    prefetchDepth,
-    ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
-  );
+  const interactivePaginationLimit = Math.min(prefetchDepth, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE);
   const prefetchDepthRef = useRef(prefetchDepth);
   prefetchDepthRef.current = prefetchDepth;
 
@@ -717,6 +705,7 @@ export function RoomTimeline({
     thread,
     threadBackwardPaginationToken,
     threadEventMap,
+    threadEventIndexMap,
     threadEventIndexMapRef,
     threadEvents,
     threadInitialRenderMode,
@@ -856,15 +845,9 @@ export function RoomTimeline({
   // room-bound persist facade off the engine and hands the fns down
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
-  const enginePersistForRoom = useMemo(
-    () => syncEngine.persist.forRoom(room),
-    [syncEngine, room]
-  );
-  const {
-    persistRoomEventCache,
-    persistThreadEventCache,
-    queueRoomThreadCachePersist,
-  } = enginePersistForRoom;
+  const enginePersistForRoom = useMemo(() => syncEngine.persist.forRoom(room), [syncEngine, room]);
+  const { persistRoomEventCache, persistThreadEventCache, queueRoomThreadCachePersist } =
+    enginePersistForRoom;
 
   // CINNY-207 P4.2: whenever the mounted room (or the currently open
   // thread) changes, tell the engine so it can stamp the ledger
@@ -1006,10 +989,7 @@ export function RoomTimeline({
     setTimeline((ct) => ({ ...ct }));
   }, []);
 
-  const {
-    hydrateThreadFromCache,
-    refreshLatestThreadSlice,
-  } = useThreadOpenCacheController({
+  const { hydrateThreadFromCache, refreshLatestThreadSlice } = useThreadOpenCacheController({
     alive,
     debugTraceId: threadDebugTraceId,
     forceTimelineUpdate,
@@ -1100,6 +1080,14 @@ export function RoomTimeline({
     },
     [compactRowLayout, defaultRowEstimate, threadEvents, threadId]
   );
+  // The paginator runs before the ledger controller in hook order because
+  // its returned items define the virtualizer's room surface. Record room
+  // prepend debt here; the controller consumes it only with the render that
+  // commits the matching range.
+  const pendingRoomLedgerFoldPxRef = useRef(0);
+  const roomLedgerFoldPriceRef = useRef((_key: string | number | bigint, index: number) =>
+    estimateRoomTimelineItemSize(index)
+  );
 
   const {
     getItems,
@@ -1129,23 +1117,13 @@ export function RoomTimeline({
           let foldPx = 0;
           for (let item = r.start; item < activeTimelineRange.start; item += 1) {
             const key = threadFilteredEventEntries[item]?.event.getId() ?? item;
-            foldPx +=
-              ledgerFoldSizeCacheRef.current?.get(key) ?? estimateRoomTimelineItemSize();
+            foldPx += roomLedgerFoldPriceRef.current(key, item);
           }
-          if (foldPx > 0) {
-            scrollCompensationPxRef.current += foldPx;
-            ledgerSettleWantedRef.current = true;
-          }
+          if (foldPx > 0) pendingRoomLedgerFoldPxRef.current += foldPx;
         }
         setTimeline((cs) => ({ ...cs, range: r }));
       },
-      [
-        activeTimelineRange.start,
-        estimateRoomTimelineItemSize,
-        roomThreadFilterActive,
-        threadFilteredEventEntries,
-        threadId,
-      ]
+      [activeTimelineRange.start, roomThreadFilterActive, threadFilteredEventEntries, threadId]
     ),
     getScrollElement,
     getItemElement: getTimelineItemElement,
@@ -1188,404 +1166,35 @@ export function RoomTimeline({
   // scrollTop write ONLY at true rest — never via a timeout cap
   // mid-momentum (the trace's full-screen settle flash): an unsettled
   // ledger is coherent, so it can wait indefinitely.
-  const scrollCompensationPxRef = useRef(0);
-  const virtualInnerRef = useRef<HTMLDivElement | null>(null);
-  const compensationSettleArmedRef = useRef(false);
-  // Last native/programmatic offset observed by the direction-aware ledger
-  // boundary guard. Settlement writes update this synchronously because iOS
-  // may coalesce their echoing scroll event; a stale pre-write baseline can
-  // invert the direction of the next native momentum frame.
-  const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
-  // Bumped by the room/thread render-time reset: an armed quiescence wait
-  // from a previous view resolves early when its scroll element
-  // disconnects, and must not settle (or block re-arming for) the next
-  // view's ledger (greptile P1 on PR #83).
-  const ledgerGenerationRef = useRef(0);
-  // Room/thread switch drops the ledger at RENDER time, and it MUST run
-  // before the useVirtualizer call below: the virtualizer reads
-  // options.scrollMargin from the ref in this very render, and a
-  // ref-only reset schedules no re-render — resetting after the call
-  // would hand the new view a stale (possibly thousands-of-px) margin
-  // for an unbounded number of frames (adversarial review on PR #88).
-  const compensationResetKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
-  if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
-    compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
-    scrollCompensationPxRef.current = 0;
-    ledgerGenerationRef.current += 1;
-    compensationSettleArmedRef.current = false;
-    ledgerBoundaryScrollTopRef.current = undefined;
-    if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
-  }
-  const [, setLedgerCommitTick] = useState(0);
-  // Prepend detection state (declared here because the render-time fold
-  // below must run BEFORE the virtualizer reads scrollMargin). A prepend
-  // is detected by the pending anchor's index shifting upward versus its
-  // index captured at begin()/recapture time: the thread root permanently
-  // occupies index 0, so watching the first event id would never fire.
-  const threadVirtualPrependCaptureRef = useRef<
-    | {
-        threadId: string;
-        anchorEventId: string;
-        anchorIndex: number;
-        anchorSeq: number;
-        // Rows 1..anchorIndex-1 at capture/rebase time, each priced the way
-        // virtual-core prices them (measured cache, else estimator). The
-        // fold diffs against this to find what was actually inserted or
-        // removed above the anchor — merge order is pure ts-sort, so a
-        // page/band can interleave new rows BETWEEN existing ones and a
-        // positional 1..shift sum would price the wrong rows (full-surface
-        // adversarial review 2026-07-07, finding L1).
-        abovePrices: Map<string, number>;
-        // threadEvents reference at the last fold scan — O(1) gate so the
-        // diff only runs on renders that actually changed the list.
-        foldedEvents: unknown;
-      }
-    | undefined
-  >(undefined);
-  const ledgerSettleWantedRef = useRef(false);
-  // The PREVIOUS render's virtualizer size cache, for fold pricing.
-  // roomTimelineVirtualizerRef is declared below the useVirtualizer call
-  // and would be a TDZ read from the render-time fold.
-  const ledgerFoldSizeCacheRef = useRef<Map<string | number | bigint, number> | undefined>(
-    undefined
-  );
-  const priceThreadRowForLedger = useCallback(
-    (eventId: string, index: number): number =>
-      ledgerFoldSizeCacheRef.current?.get(eventId) ?? estimateRoomTimelineItemSize(index),
-    [estimateRoomTimelineItemSize]
-  );
-  const threadEventsRef = useRef(threadEvents);
-  threadEventsRef.current = threadEvents;
-  // Rows 1..boundary-1 priced for a fresh capture/rebase baseline.
-  const buildLedgerFoldBaseline = useCallback(
-    (boundaryIndex: number): Map<string, number> => {
-      const events = threadEventsRef.current;
-      const abovePrices = new Map<string, number>();
-      for (let index = 1; index < boundaryIndex; index += 1) {
-        const id = events[index]?.getId();
-        if (id) abovePrices.set(id, priceThreadRowForLedger(id, index));
-      }
-      return abovePrices;
-    },
-    [priceThreadRowForLedger]
-  );
-  // PREPEND COMMITS ARE PURE LEDGER ARITHMETIC — no scroll write at all.
-  // Folding the prepended block's height into the ledger AT RENDER TIME
-  // keeps every quantity in the same commit: options.scrollMargin (read
-  // below) drops by ΔH while every shifted row's start grows by ΔH, so
-  // the rendered window and painted positions are IDENTICAL to the
-  // pre-prepend frame by construction — the reader cannot see the commit,
-  // scrollTop is never touched (nothing for iOS momentum to lose), and
-  // concurrent measurement corrections stay independently ledgered.
-  // ΔH is a KEY DIFF against the capture's priced baseline, not a
-  // positional 1..shift sum: merge order is pure ts-sort, so a page or
-  // band can interleave its new rows BETWEEN existing rows above the
-  // anchor, and redactions can remove rows there (full-surface
-  // adversarial review 2026-07-07, findings L1/L2). Added rows price at
-  // the estimator — they have never been measured, so virtual-core
-  // prices them with the same function; removed rows price at the
-  // baseline capture (measured cache when one existed). (Replaces the
-  // coarse-scrollTo + rect-based fine-correction restore, whose two
-  // writes the e2e photographed racing virtual-core's own quiet-state
-  // adjustments inside the commit.)
-  {
-    const prependCapture = threadVirtualPrependCaptureRef.current;
-    if (
-      prependCapture &&
-      (prependCapture.threadId !== (threadId ?? '') ||
-        getPendingThreadBackPaginationAnchorSeq() !== prependCapture.anchorSeq)
-    ) {
-      // Anchor cleared, restored or re-captured elsewhere (barren page,
-      // thread switch, rapid second Load Older): nothing left to fold for
-      // THIS pagination.
-      threadVirtualPrependCaptureRef.current = undefined;
-    }
-    if (
-      prependCapture &&
-      threadId &&
-      prependCapture.threadId === threadId &&
-      getPendingThreadBackPaginationAnchorSeq() === prependCapture.anchorSeq &&
-      prependCapture.foldedEvents !== threadEvents
-    ) {
-      let boundaryEventId = prependCapture.anchorEventId;
-      let boundaryIndex = threadEventIndexMapRef.current.get(boundaryEventId) ?? -1;
-      if (boundaryIndex < 0) {
-        // The anchor event vanished from the render list (redaction
-        // acknowledged, identity dedup collapse). Fall back to the
-        // nearest surviving baseline row as the boundary: rows above it
-        // stay compensated, and the anchor's own removal closes visibly
-        // in view — which is what a redaction should look like.
-        prependCapture.abovePrices.forEach((_px, id) => {
-          const index = threadEventIndexMapRef.current.get(id);
-          if (typeof index === 'number' && index > boundaryIndex) {
-            boundaryIndex = index;
-            boundaryEventId = id;
-          }
-        });
-        countCacheProbe(
-          boundaryIndex >= 0 ? 'threadPrependFoldAnchorFallback' : 'threadPrependFoldAnchorLost'
-        );
-      }
-      if (boundaryIndex < 0) {
-        // No baseline row survived either — nothing to anchor the diff
-        // to; compensating would be guesswork.
-        threadVirtualPrependCaptureRef.current = undefined;
-      } else {
-        let addedPx = 0;
-        let addedCount = 0;
-        for (let index = 1; index < boundaryIndex; index += 1) {
-          const id = threadEvents[index]?.getId();
-          if (id && !prependCapture.abovePrices.has(id)) {
-            addedPx += priceThreadRowForLedger(id, index);
-            addedCount += 1;
-          }
-        }
-        let removedPx = 0;
-        prependCapture.abovePrices.forEach((px, id) => {
-          if (threadEventIndexMapRef.current.get(id) === undefined) {
-            removedPx += px;
-          }
-        });
-        const foldPx = addedPx - removedPx;
-        if (foldPx !== 0) {
-          scrollCompensationPxRef.current += foldPx;
-          ledgerSettleWantedRef.current = true;
-        }
-        if (addedCount > 0 && !threadPaginatingBackRef.current) {
-          // The pagination commit landed: consume.
-          threadVirtualPrependCaptureRef.current = undefined;
-          clearPendingThreadBackPaginationAnchor();
-        } else if (addedCount > 0 || removedPx !== 0) {
-          // Mid-flight band or a removal-only change: fold it, but
-          // REBASE the capture instead of consuming — the actual
-          // pagination commit renders later and must still find its
-          // baseline, or its rows land uncompensated (adversarial
-          // review on PR #88). Rebase whenever the above-boundary
-          // region CHANGED, even if adds and removes cancelled to a
-          // zero fold — a stale baseline would double-count the same
-          // keys on the next scan.
-          threadVirtualPrependCaptureRef.current = {
-            ...prependCapture,
-            anchorEventId: boundaryEventId,
-            anchorIndex: boundaryIndex,
-            abovePrices: buildLedgerFoldBaseline(boundaryIndex),
-            foldedEvents: threadEvents,
-          };
-        } else {
-          // List changed below the boundary only (live append, etc.):
-          // nothing to fold; just advance the change gate.
-          prependCapture.foldedEvents = threadEvents;
-        }
-      }
-    }
-  }
-  // RENDER SNAPSHOT of the ledger: scrollMargin (below), the inner
-  // container's marginTop (layout effect) and every tile's inline top all
-  // read THIS value, so any single paint is internally consistent by
-  // construction. A correction dropping into the ledger MID-COMMIT (the
-  // sync measureElement path — a tile mounting at rest measures inside
-  // the ref callback, before this commit's layout effects) mutates only
-  // the ref; the whole new value lands together in the tick-forced next
-  // commit. Reading the live ref from the layout effect instead would
-  // pair the NEW margin with THIS render's OLD tile tops for one paint
-  // (full-surface adversarial review 2026-07-07, finding L3).
-  const ledgerPxAtRender = scrollCompensationPxRef.current;
-  const roomTimelineVirtualizer = useVirtualizer({
-    count: threadId ? threadEvents.length : timelineItems.length,
-    getScrollElement,
+  const {
+    captureThreadPrepend,
+    clearThreadPrependCapture,
+    ledgerPxAtRender,
+    virtualInnerRef,
+    virtualizer: roomTimelineVirtualizer,
+  } = useTimelineScrollLedgerController({
+    alive,
+    clearPendingThreadAnchor: clearPendingThreadBackPaginationAnchor,
     estimateSize: estimateRoomTimelineItemSize,
-    overscan: 10,
-    scrollMargin: -ledgerPxAtRender,
+    // Keep this function fresh. virtual-core uses its identity to rebuild
+    // unmeasured rows from the latest content-aware estimates.
     getItemKey: (index) => {
-      if (threadId) {
-        return threadEvents[index]?.getId() ?? index;
-      }
+      if (threadId) return threadEvents[index]?.getId() ?? index;
       const item = timelineItems[index];
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
+    getScrollElement,
+    itemCount: threadId ? threadEvents.length : timelineItems.length,
+    pendingRoomFoldPxRef: pendingRoomLedgerFoldPxRef,
+    roomFoldPriceRef: roomLedgerFoldPriceRef,
+    roomId: room.roomId,
+    threadEventIndexMap,
+    threadEvents,
+    threadId,
+    threadInitialRenderMode,
+    threadPaginatingBack: threadPaginatingBackRef.current,
+    threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
   });
-  ledgerFoldSizeCacheRef.current = roomTimelineVirtualizer.itemSizeCache;
-
-
-  // The settle is ONE synchronous JS block: margin removal and the
-  // cancelling scrollTop shift land in the same layout pass, so they are
-  // atomic with respect to paints and rAF samplers (a React-commit-based
-  // settle measured 20x worse on the sustained-ride e2e — the extra
-  // scheduling hop split the pair across paints under CPU throttle). The
-  // scroll event from the write re-renders the virtualizer, which then
-  // reads scrollMargin 0 from the zeroed ref; tile positions are
-  // margin-independent (rel coordinates), so the one-render option lag
-  // shifts nothing visually.
-  const settleScrollCompensation = useCallback(
-    (cause: 'quiescence' | 'boundary') => {
-      // The armed flag is NOT cleared here: it tracks the outstanding
-      // quiescence WAIT, not the settle. Clearing it at settle entry (e.g.
-      // from a boundary-guard settle) let a new drop arm a SECOND wait
-      // while the first was still pending (adversarial review 2026-07-07,
-      // periphery F5); each waiter clears the flag in its own resolution.
-      const px = scrollCompensationPxRef.current;
-      const inner = virtualInnerRef.current;
-      const scrollElement = getScrollElement();
-      if (px === 0 || !inner || !scrollElement) return;
-      scrollCompensationPxRef.current = 0;
-      inner.style.marginTop = '';
-      // The option must flip in the SAME synchronous block: tile positions
-      // are margin-independent, but the WINDOW computation is not — at
-      // prepend-fold scale (thousands of px) a one-render stale option
-      // renders a faraway range for a frame (photographed as a 140px
-      // anchor flash by the latency-ride e2e).
-      // scrollTop FIRST: setOptions can notify a synchronous re-render,
-      // which must see the (margin 0, shifted scrollTop) pair — the other
-      // order lets that render compute the window with the old offset.
-      scrollElement.scrollTop += px;
-      // Read back the browser-clamped value instead of assuming old+px.
-      // Safari can suppress/coalesce the setter's scroll event, so waiting
-      // for that event would leave the boundary direction baseline stale.
-      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
-      countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
-      const virtualizer = roomTimelineVirtualizerRef.current;
-      virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
-    },
-    [getScrollElement]
-  );
-  // Ledger boundary guard: negative ledger can expose a real top margin,
-  // while positive ledger can clamp the bottom, so those edges retain a
-  // direction-aware two-viewport guard. Positive ledger has no top blank;
-  // it may coast through the remaining physical range and settles only at
-  // actual top exhaustion. The distinction comes from two v3 iPhone
-  // traces: a +72px bottom settle while travelling away and a +89px top
-  // settle 1025px before the hard stop both reversed a live native frame
-  // and killed Safari momentum.
-  useEffect(() => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return undefined;
-    ledgerBoundaryScrollTopRef.current = scrollEl.scrollTop;
-    const onLedgerBoundaryScroll = () => {
-      const currentScrollTop = scrollEl.scrollTop;
-      const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
-      const scrollDirection =
-        currentScrollTop > previousScrollTop
-          ? 'forward'
-          : currentScrollTop < previousScrollTop
-          ? 'backward'
-          : null;
-      // Keep the baseline current even while the ledger is zero or below
-      // its arming floor. Otherwise the first correction-bearing event can
-      // compare against an arbitrarily old offset.
-      ledgerBoundaryScrollTopRef.current = currentScrollTop;
-      const px = scrollCompensationPxRef.current;
-      // Cheap early exit on the hot path (direction tracking above is just
-      // scrollTop arithmetic; the common px=0 case still avoids rect reads).
-      if (px > -48 && px < 48) return;
-      const inner = virtualInnerRef.current;
-      if (!inner) return;
-      const innerRect = inner.getBoundingClientRect();
-      const scrollRect = scrollEl.getBoundingClientRect();
-      if (
-        shouldSettleLedgerAtBoundary({
-          ledgerPx: px,
-          innerTop: innerRect.top,
-          innerBottom: innerRect.bottom,
-          scrollTop: scrollRect.top,
-          scrollBottom: scrollRect.bottom,
-          scrollOffset: currentScrollTop,
-          clientHeight: scrollEl.clientHeight,
-          scrollDirection,
-        })
-      ) {
-        settleScrollCompensation('boundary');
-      }
-    };
-    scrollEl.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
-    return () => scrollEl.removeEventListener('scroll', onLedgerBoundaryScroll);
-  }, [scrollRef, settleScrollCompensation, threadId, threadInitialRenderMode]);
-  const handleDroppedCorrection = useCallback(
-    (deltaPx: number) => {
-      // Accumulate + FORCE a commit. The tiles are absolutely positioned,
-      // so the layout shift this delta cancels only materializes when a
-      // render repositions them — and react-virtual SKIPS its rerender
-      // when the visible range is unchanged, which round 8's "a drop
-      // always rerenders" premise missed (the paired ±140px flashes the
-      // sustained-ride e2e isolated). The tick guarantees the commit; the
-      // margin style (sync effect below), the scrollMargin option (read
-      // at render) and the repositioned tiles then land in ONE paint.
-      scrollCompensationPxRef.current += deltaPx;
-      setLedgerCommitTick((tick) => tick + 1);
-      if (!compensationSettleArmedRef.current) {
-        compensationSettleArmedRef.current = true;
-        // No maxWait cap: a forced settle mid-momentum is a scrollTop
-        // write mid-momentum (the trace's full-screen flash). The ledger
-        // is coherent while unsettled, so only TRUE rest settles it.
-        const generation = ledgerGenerationRef.current;
-        waitForScrollQuiescence(getScrollElement(), {
-          maxWaitMs: Infinity,
-        }).then(() => {
-          compensationSettleArmedRef.current = false;
-          if (!alive() || ledgerGenerationRef.current !== generation) return;
-          settleScrollCompensation('quiescence');
-        });
-      }
-    },
-    [alive, getScrollElement, settleScrollCompensation]
-  );
-  // Sync the ledger margin in the SAME paint as the committed layout
-  // shift (runs on every commit; a string compare when idle). It writes
-  // the RENDER SNAPSHOT, not the live ref: scrollMargin and the tile
-  // tops came from this render, and a mid-commit drop must not split
-  // the pair for a paint (see ledgerPxAtRender above).
-  useLayoutEffect(() => {
-    const inner = virtualInnerRef.current;
-    if (!inner) return;
-    const px = ledgerPxAtRender;
-    const marginTop = px === 0 ? '' : `${-px}px`;
-    if (inner.style.marginTop !== marginTop) {
-      inner.style.marginTop = marginTop;
-    }
-    // A render-time ledger fold (prepend commit) grows px outside the
-    // dropped-correction path; arm its settle here, in the same commit.
-    if (ledgerSettleWantedRef.current) {
-      ledgerSettleWantedRef.current = false;
-      if (!compensationSettleArmedRef.current) {
-        compensationSettleArmedRef.current = true;
-        const generation = ledgerGenerationRef.current;
-        waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
-          compensationSettleArmedRef.current = false;
-          if (!alive() || ledgerGenerationRef.current !== generation) return;
-          settleScrollCompensation('quiescence');
-        });
-      }
-    }
-  });
-  // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
-  // with a one-tap export overlay — the phone captures the same trace the
-  // e2e recorder samples, for the device-only symptom classes the desktop
-  // harness cannot reproduce. Off (one localStorage read) otherwise.
-  useEffect(() => {
-    if (!isRideTraceEnabled()) return undefined;
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return undefined;
-    return installRideTraceRecorder(scrollEl, () => virtualInnerRef.current, {
-      roomId: room.roomId,
-      threadId,
-    });
-  }, [room.roomId, scrollRef, threadId]);
-  // Thread/room switch drops the pending compensation at RENDER time: the
-  // new view's first tiles measure during the commit, before any effect
-  // could reset stale state (same pattern as the other render-time resets).
-  // Instance property, not an option (mirrors how virtual-core consults it:
-  // `this.shouldAdjust...`, set on the instance).
-  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = useMemo(
-    () =>
-      buildMeasurementScrollCorrectionHook({
-        isIOSWebKitDevice,
-        onDroppedCorrection: handleDroppedCorrection,
-      }),
-    [handleDroppedCorrection]
-  );
-  // (The room coarse-scrollTo + rAF rect-correction restore effect and
-  // its DOM-scanning anchor capture are GONE — room prepends fold into
-  // the offset ledger inside the paginator's onRangeChange, same as
-  // thread prepends. One architecture, zero scroll writes.)
   const roomTimelineLatestVirtualIndex = useMemo(() => {
     if (timelineItems.length === 0) return -1;
     if (!roomOverviewOrderActive) return timelineItems.length - 1;
@@ -1729,7 +1338,7 @@ export function RoomTimeline({
       // clickable showing "Loading..."); a refused call must not wipe the
       // in-flight pagination's armed capture.
       if (!began) return began;
-      threadVirtualPrependCaptureRef.current = undefined;
+      clearThreadPrependCapture();
       if (beginThreadId) {
         const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
         const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
@@ -1742,21 +1351,20 @@ export function RoomTimeline({
           anchorSeq !== undefined &&
           typeof anchorIndex === 'number'
         ) {
-          threadVirtualPrependCaptureRef.current = {
+          captureThreadPrepend({
             threadId: beginThreadId,
             anchorEventId,
             anchorIndex,
             anchorSeq,
-            abovePrices: buildLedgerFoldBaseline(anchorIndex),
-            foldedEvents: threadEventsRef.current,
-          };
+          });
         }
       }
       return began;
     },
     [
       beginThreadBackPagination,
-      buildLedgerFoldBaseline,
+      captureThreadPrepend,
+      clearThreadPrependCapture,
       getPendingThreadBackPaginationAnchorEventId,
       getPendingThreadBackPaginationAnchorSeq,
       threadEventIndexMapRef,
@@ -1765,8 +1373,7 @@ export function RoomTimeline({
   // Task #125 follow-up: re-capture just before the (quiescence-
   // deferred) prepend commit, so the restore targets the row the user
   // actually stopped on rather than where the fire happened. Mirrors
-  // beginThreadBackPaginationWithCapture's component-side bookkeeping
-  // (the coarse scrollToIndex leg reads threadVirtualPrependCaptureRef).
+  // beginThreadBackPaginationWithCapture's controller capture.
   const recaptureThreadBackPaginationAnchorWithCapture = useCallback(
     (
       recaptureThreadId: string | undefined,
@@ -1784,52 +1391,47 @@ export function RoomTimeline({
         // fetched page is already persisted, so the next gesture
         // retries as a fast cache-hit once the viewport has rows.
         clearPendingThreadBackPaginationAnchor();
-        threadVirtualPrependCaptureRef.current = undefined;
+        clearThreadPrependCapture();
         return false;
       }
       if (!recaptureThreadId) return true;
       const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
       const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
       const anchorIndex =
-        anchorEventId === undefined
-          ? undefined
-          : threadEventIndexMapRef.current.get(anchorEventId);
+        anchorEventId === undefined ? undefined : threadEventIndexMapRef.current.get(anchorEventId);
       if (
         anchorEventId !== undefined &&
         anchorSeq !== undefined &&
         typeof anchorIndex === 'number'
       ) {
-        threadVirtualPrependCaptureRef.current = {
+        captureThreadPrepend({
           threadId: recaptureThreadId,
           anchorEventId,
           anchorIndex,
           anchorSeq,
-          abovePrices: buildLedgerFoldBaseline(anchorIndex),
-          foldedEvents: threadEventsRef.current,
-        };
+        });
       }
       return true;
     },
     [
       recaptureThreadBackPaginationAnchor,
-      buildLedgerFoldBaseline,
+      captureThreadPrepend,
       clearPendingThreadBackPaginationAnchor,
+      clearThreadPrependCapture,
       getPendingThreadBackPaginationAnchorEventId,
       getPendingThreadBackPaginationAnchorSeq,
       threadEventIndexMapRef,
     ]
   );
-  const roomTimelineVirtualizerRef = useRef(roomTimelineVirtualizer);
-  roomTimelineVirtualizerRef.current = roomTimelineVirtualizer;
   const scrollThreadEventIntoView = useCallback(
     (eventId: string) => {
       const eventIndex = threadEventIndexMapRef.current.get(eventId);
       if (typeof eventIndex !== 'number') return false;
       threadSettleStopRef.current?.();
-      roomTimelineVirtualizerRef.current.scrollToIndex(eventIndex, { align: 'center' });
+      roomTimelineVirtualizer.scrollToIndex(eventIndex, { align: 'center' });
       return true;
     },
-    [threadEventIndexMapRef]
+    [roomTimelineVirtualizer, threadEventIndexMapRef]
   );
   const cancelThreadBottomSettle = useCallback(() => {
     threadSettleStopRef.current?.();
@@ -2522,6 +2124,7 @@ export function RoomTimeline({
                 activeThreadId: threadId,
                 room,
                 onClick: handleOpenReply,
+                includeRecentSummaryData: true,
               })
             : null;
 
@@ -2637,6 +2240,7 @@ export function RoomTimeline({
               activeThreadId: threadId,
               room,
               onClick: handleOpenReply,
+              includeRecentSummaryData: true,
             })
           : null;
 
@@ -3571,8 +3175,8 @@ export function RoomTimeline({
               ref={roomTimelineVirtualizer.measureElement}
               virtualItem={virtualItem}
               // Content-relative top: virtualItem.start includes the
-              // scrollMargin option (-scrollCompensationPxRef, the offset
-              // ledger), which the container's marginTop already applies in
+              // scrollMargin option (the negative offset-ledger snapshot),
+              // which the container's marginTop already applies in
               // the DOM — keeping start verbatim would double-count the
               // ledger and push the painted tiles out from under the
               // computed window (the sustained-ride e2e's blank bands at

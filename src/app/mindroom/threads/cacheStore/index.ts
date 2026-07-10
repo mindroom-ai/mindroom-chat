@@ -37,6 +37,7 @@ export {
   getOpenCacheStoreDbPromise,
   setLegacyWipeHook,
   __setLegacyWipeHookForTests,
+  CacheStoreBlockedError,
 } from './cacheStoreDb';
 
 export {
@@ -57,6 +58,7 @@ export {
   deleteRoomEventsFromCache,
   deleteThreadEventFromCacheByEventId,
   deleteThreadEventsFromCache,
+  deleteThreadEventsFromCacheCommitted,
   loadCachedRoomEvent,
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
@@ -65,10 +67,13 @@ export {
   loadCachedThreadPaginationToken,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
+  loadLatestCachedThreadEventsBatch,
   noteRoomOpened,
   noteThreadOpened,
   saveRoomEventsToCache,
+  saveRoomEventsToCacheCommitted,
   saveThreadEventsToCache,
+  saveThreadEventsToCacheCommitted,
   type CachedRoomEventPage,
   type CachedThreadEventPage,
 } from './cacheStoreEvents';
@@ -90,17 +95,25 @@ export {
   EVICTION_CHECK_MIN_INTERVAL_MS,
 } from './cacheStoreSchema';
 
-export {
-  loadCachedThreadSummaries,
-  saveCachedThreadSummary,
-} from './cacheStoreSummaries';
+export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreSummaries';
 
 export {
   markRoomTailDiscontinuity,
+  checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
+  getTailDiscontinuityGeneration,
   loadRoomTailDiscontinuity,
   type TailDiscontinuityMarker,
 } from './cacheStoreDiscontinuity';
+
+export {
+  beginThreadReconcileContinuation,
+  checkpointThreadReconcileContinuation,
+  clearThreadReconcileContinuation,
+  loadThreadReconcileContinuation,
+  restartThreadReconcileContinuationFromHead,
+  type ThreadReconcileContinuation,
+} from './cacheStoreReconcileContinuation';
 
 export {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,

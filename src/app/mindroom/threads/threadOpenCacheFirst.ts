@@ -3,10 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
-import {
-  hasUsableThreadCacheSnapshot,
-  isCompleteThreadCacheCoverage,
-} from './threadCacheCoverage';
+import { hasUsableThreadCacheSnapshot, isCompleteThreadCacheCoverage } from './threadCacheCoverage';
 import type { HydratedThreadCachePage } from './types';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
@@ -54,7 +51,11 @@ type RunThreadOpenCacheFirstOptions = {
    * engine boundary stays clean (engine has no knowledge of
    * `setSupplementalThreadEvents`).
    */
-  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
+  setSupplementalThreadEvents: (
+    expectedThreadId: string,
+    events: MatrixEvent[],
+    removedEventIds?: readonly string[]
+  ) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setThreadInitialCacheHydrated: Dispatch<SetStateAction<boolean>>;
   setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
@@ -142,7 +143,7 @@ export const runThreadOpenCacheFirst = async ({
     threadId,
     cachedPage: hydratedCachedPage,
     reason: 'open-thread-choke-point',
-    onRepaired: (repairedEvents) => {
+    onRepaired: (repairedEvents, removedEventIds = []) => {
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the
       // component-side onRepaired callback so a docker probe snapshot
@@ -153,13 +154,16 @@ export const runThreadOpenCacheFirst = async ({
       //     onRepairedGuardBailed +
       //     supplementalEventsExecuted +
       //     supplementalEventsSkippedEmpty
-      // (reconcilesOnRepairedFired is bumped in reconciler.ts BEFORE
-      // this callback is invoked.)
+      // (reconcilesOnRepairedFired is bumped in reconciler.ts AFTER
+      // this callback returns normally.)
       if (!isCurrentThreadOpen()) {
         countCacheProbe('onRepairedGuardBailed');
         return;
       }
-      if (repairedEvents.length > 0) {
+      if (removedEventIds.length > 0) {
+        setSupplementalThreadEvents(threadId, [...repairedEvents], removedEventIds);
+        countCacheProbe('supplementalEventsExecuted');
+      } else if (repairedEvents.length > 0) {
         setSupplementalThreadEvents(threadId, [...repairedEvents]);
         countCacheProbe('supplementalEventsExecuted');
       } else {

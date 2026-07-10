@@ -6,7 +6,10 @@ import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
 } from './compactThreadRootData';
-import { type CachedThreadEventPage, loadLatestCachedThreadEvents } from './eventRepository';
+import {
+  type CachedThreadEventPage,
+  loadLatestCachedThreadEventsBatch,
+} from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
@@ -358,9 +361,23 @@ export const useThreadOverviewCacheHydration = ({
     const mapper = mx.getEventMapper();
 
     const loadCachedThreadOverviewRecords = async () => {
-      const updates = await Promise.all(
-        threadRootIdsToLoad.map(async (rootId) => {
-          const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
+      let cachedPages: Map<string, CachedThreadEventPage>;
+      try {
+        cachedPages = await loadLatestCachedThreadEventsBatch(
+          sessionId,
+          room.roomId,
+          threadRootIdsToLoad,
+          32
+        );
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+
+      const updates = threadRootIdsToLoad.map((rootId) => {
+        const cachedPage = cachedPages.get(rootId);
+        if (!cachedPage) return null;
+        try {
           const currentRecord = (
             showCompactRoomView ? compactThreadRecordMap : threadRecordMap
           ).get(rootId);
@@ -380,8 +397,10 @@ export const useThreadOverviewCacheHydration = ({
             compactCachedThreadRootBodyMap,
             compactThreadRootBodyMap,
           });
-        })
-      );
+        } catch {
+          return null;
+        }
+      });
 
       if (cancelled) return;
 
@@ -399,7 +418,7 @@ export const useThreadOverviewCacheHydration = ({
       });
     };
 
-    loadCachedThreadOverviewRecords();
+    void loadCachedThreadOverviewRecords();
 
     return () => {
       cancelled = true;

@@ -33,6 +33,13 @@ const REQUIRED_STORES = [
   THREAD_SUMMARIES_STORE,
 ] as const;
 
+export class CacheStoreBlockedError extends Error {
+  constructor(operation: 'open' | 'delete', dbName: string) {
+    super(`IndexedDB ${operation} blocked for ${dbName}`);
+    this.name = 'CacheStoreBlockedError';
+  }
+}
+
 const hasRequiredCacheStoreStores = (
   db: Pick<IDBDatabase, 'objectStoreNames'>
 ): boolean => REQUIRED_STORES.every((store) => db.objectStoreNames.contains(store));
@@ -44,7 +51,7 @@ const deleteIndexedDb = async (dbName: string): Promise<void> => {
     const request = indexedDB.deleteDatabase(dbName);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
+    request.onblocked = () => reject(new CacheStoreBlockedError('delete', dbName));
   });
 };
 
@@ -117,6 +124,7 @@ export const openCacheStore = (
 
   const dbPromise = new Promise<IDBDatabase | undefined>((resolve, reject) => {
     const request = indexedDB.open(dbName, CACHE_STORE_DB_VERSION);
+    let blocked = false;
 
     request.onupgradeneeded = () => {
       applyUpgrade(request.result);
@@ -124,6 +132,10 @@ export const openCacheStore = (
 
     request.onsuccess = () => {
       const db = request.result;
+      if (blocked) {
+        db.close();
+        return;
+      }
       if (!hasRequiredCacheStoreStores(db)) {
         // Corruption self-heal — delete and recreate once.
         db.close();
@@ -155,6 +167,10 @@ export const openCacheStore = (
     };
 
     request.onerror = () => reject(request.error);
+    request.onblocked = () => {
+      blocked = true;
+      reject(new CacheStoreBlockedError('open', dbName));
+    };
   });
 
   // CINNY-207 P2 review: on rejection, evict the memo entry so the next
@@ -178,7 +194,7 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
   if (typeof indexedDB === 'undefined') return;
 
   const dbName = getCacheStoreDbName(sessionId);
-  const currentDb = await dbPromiseByName.get(dbName);
+  const currentDb = await dbPromiseByName.get(dbName)?.catch(() => undefined);
   currentDb?.close();
   dbPromiseByName.delete(dbName);
   await deleteIndexedDb(dbName);

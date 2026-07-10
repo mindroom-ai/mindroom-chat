@@ -18,7 +18,9 @@ import {
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
+  saveRoomEventsToCacheCommitted,
   saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
+  saveThreadEventsToCacheCommitted,
   type CachedRoomEventPage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
@@ -34,6 +36,14 @@ import {
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
+import {
+  compareEventRevisions,
+  describeMatrixEventRevision,
+  describeRawEventRevision,
+  mergeRawEventRevisions,
+  mergeSameIdEventRevision,
+  type RelationSnapshotMode,
+} from './eventRevision';
 
 // CINNY-207 P2.3: the write-boundary now lives inside cacheStore save
 // entry points (single choke point). eventRepository is a serialization
@@ -59,6 +69,7 @@ export {
   loadCachedThreadEvent,
   loadCachedThreadEventsBefore,
   loadLatestCachedThreadEvents,
+  loadLatestCachedThreadEventsBatch,
   normalizeCachedThreadEvents,
   saveThreadEventsToCache,
   type CachedThreadEvent,
@@ -87,19 +98,26 @@ export const createPreferLiveEventMapper =
   (rawEvent) => {
     const eventId = typeof rawEvent.event_id === 'string' ? rawEvent.event_id : undefined;
     const liveEvent = eventId ? room.findEventById(eventId) : undefined;
-    if (!liveEvent) return mapEvent(rawEvent);
-
-    const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
-    if (rawRedactedBecause && !liveEvent.isRedacted()) {
-      liveEvent.makeRedacted(mapEvent(rawRedactedBecause as Partial<IEvent>), room);
+    if (!liveEvent) {
+      const mappedEvent = mapEvent(rawEvent);
+      const redactedBecause = rawEvent.unsigned?.redacted_because;
+      if (redactedBecause) {
+        mappedEvent.makeRedacted(mapEvent(redactedBecause), room);
+      }
+      return mappedEvent;
     }
-    return liveEvent;
+
+    return mergeSameIdEventRevision({ liveEvent, rawEvent, mapEvent, room });
   };
 
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
-type SaveThreadEventsToCache = typeof saveThreadEventsToCacheToStorage;
-type SaveRoomEventsToCache = typeof saveRoomEventsToCacheToStorage;
+type SaveThreadEventsToCache = (
+  ...args: Parameters<typeof saveThreadEventsToCacheToStorage>
+) => Promise<void | boolean>;
+type SaveRoomEventsToCache = (
+  ...args: Parameters<typeof saveRoomEventsToCacheToStorage>
+) => Promise<void | boolean>;
 type LoadCachedRoomEventsBefore = typeof loadCachedRoomEventsBeforeFromCache;
 type LoadCachedRoomPaginationToken = typeof loadCachedRoomPaginationTokenFromCache;
 type LoadCachedThreadEventsBefore = typeof loadCachedThreadEventsBeforeFromCache;
@@ -519,25 +537,53 @@ export const getLatestLoadedRoomEvent = (
 };
 
 export const shouldHydrateLatestRoomCache = (
-  loadedLatestEvent: Partial<IEvent> | undefined,
+  loadedLatestEvent: Partial<IEvent> | MatrixEvent | undefined,
   cachedLatestEvent: Partial<IEvent> | undefined
-): boolean =>
-  compareCachedPaginationAnchors(
+): boolean => {
+  if (!cachedLatestEvent) return false;
+  const loadedRaw = loadedLatestEvent
+    ? 'event' in loadedLatestEvent
+      ? (loadedLatestEvent.event as Partial<IEvent>)
+      : loadedLatestEvent
+    : undefined;
+  const anchorComparison = compareCachedPaginationAnchors(
     getRoomCursorAnchor(cachedLatestEvent),
-    getRoomCursorAnchor(loadedLatestEvent)
-  ) > 0;
+    getRoomCursorAnchor(loadedRaw)
+  );
+  if (anchorComparison !== 0) return anchorComparison > 0;
+  if (!loadedLatestEvent || !loadedRaw || cachedLatestEvent.event_id !== loadedRaw.event_id) {
+    return false;
+  }
+  const loadedRevision =
+    'event' in loadedLatestEvent
+      ? describeMatrixEventRevision(loadedLatestEvent)
+      : describeRawEventRevision(loadedLatestEvent);
+  return compareEventRevisions(describeRawEventRevision(cachedLatestEvent), loadedRevision) > 0;
+};
 
 export const filterLatestRoomCacheHydrationEvents = (
   rawCachedEvents: Partial<IEvent>[],
-  loadedEvents: MatrixEvent[]
+  loadedEvents: MatrixEvent[],
+  includeMissing = true
 ): Partial<IEvent>[] => {
-  const loadedEventIds = new Set(
-    loadedEvents.map((mEvent) => mEvent.getId()).filter((eventId): eventId is string => !!eventId)
-  );
+  const loadedEventsById = new Map<string, MatrixEvent>();
+  loadedEvents.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId) loadedEventsById.set(eventId, mEvent);
+  });
 
-  return rawCachedEvents.filter(
-    (rawEvent) => typeof rawEvent.event_id === 'string' && !loadedEventIds.has(rawEvent.event_id)
-  );
+  return rawCachedEvents.filter((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId !== 'string') return false;
+    const loadedEvent = loadedEventsById.get(eventId);
+    if (!loadedEvent) return includeMissing;
+    return (
+      compareEventRevisions(
+        describeRawEventRevision(rawEvent),
+        describeMatrixEventRevision(loadedEvent)
+      ) > 0
+    );
+  });
 };
 
 type LoadLatestRoomCacheHydrationSnapshotOptions = {
@@ -565,16 +611,16 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
   loadLatest = loadLatestCachedRoomEventsFromCache,
 }: LoadLatestRoomCacheHydrationSnapshotOptions): Promise<LatestRoomCacheHydrationSnapshot> => {
   const cachedPage = await loadLatest(sessionId, roomId, limit);
-  const loadedLatestEvent = loadedEvents[loadedEvents.length - 1]?.event as
-    | Partial<IEvent>
-    | undefined;
+  const loadedLatestEvent = loadedEvents[loadedEvents.length - 1];
+  const cachedLatestEvent = cachedPage.events[cachedPage.events.length - 1];
+  const cachedTailIsNewer = shouldHydrateLatestRoomCache(loadedLatestEvent, cachedLatestEvent);
+  const rawEventsToHydrate = filterLatestRoomCacheHydrationEvents(
+    cachedPage.events,
+    loadedEvents,
+    cachedTailIsNewer
+  );
 
-  if (
-    !shouldHydrateLatestRoomCache(
-      loadedLatestEvent,
-      cachedPage.events[cachedPage.events.length - 1]
-    )
-  ) {
+  if (!cachedTailIsNewer && rawEventsToHydrate.length === 0) {
     return {
       cachedPage,
       events: [],
@@ -583,9 +629,9 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
     };
   }
 
-  const events = normalizeCachedRoomEvents(
-    filterLatestRoomCacheHydrationEvents(cachedPage.events, loadedEvents)
-  ).map((rawEvent) => mapEvent(rawEvent));
+  const events = normalizeCachedRoomEvents(rawEventsToHydrate).map((rawEvent) =>
+    mapEvent(rawEvent)
+  );
 
   return {
     cachedPage,
@@ -748,6 +794,51 @@ export type ThreadEventCacheSnapshotWrite = {
   tailLoaded?: boolean;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
+  write: Promise<void | boolean>;
+};
+
+export type PersistThreadEventCacheSnapshotArgs = {
+  sessionId: string;
+  room: Room;
+  threadId: string;
+  events: MatrixEvent[];
+  rootEvent?: MatrixEvent | null;
+  beforeTokenForEarliest?: string | null;
+  tailLoaded?: boolean;
+  snapshotComplete?: boolean;
+  expectedReplyCount?: number;
+  relationSnapshotComplete?: boolean;
+  relationSnapshotMode?: RelationSnapshotMode;
+  /** Raw server observations used when their relation snapshot is authoritative. */
+  authoritativeRawEvents?: Partial<IEvent>[];
+  save?: SaveThreadEventsToCache;
+};
+
+const sanitizeAuthoritativeRawEvents = (
+  events: MatrixEvent[],
+  authoritativeRawEvents: Partial<IEvent>[]
+): Partial<IEvent>[] => {
+  const redactedEventById = new Map<string, MatrixEvent>();
+  events.forEach((mEvent) => {
+    const eventId = mEvent.getId();
+    if (eventId && mEvent.isRedacted()) redactedEventById.set(eventId, mEvent);
+  });
+
+  return authoritativeRawEvents.map((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    const redactedEvent = eventId ? redactedEventById.get(eventId) : undefined;
+    if (!redactedEvent) return rawEvent;
+
+    // The prefer-live mapper has already applied makeRedacted(room), so this
+    // base carries the SDK's pruned content. Merge the server observation only
+    // for its authoritative non-replacement relation bundles; never let its
+    // temporarily stale plaintext become the persisted base again.
+    return mergeRawEventRevisions(
+      redactedEvent.event as Partial<IEvent>,
+      rawEvent,
+      'authoritative'
+    );
+  });
 };
 
 export const persistThreadEventCacheSnapshot = ({
@@ -761,20 +852,10 @@ export const persistThreadEventCacheSnapshot = ({
   snapshotComplete,
   expectedReplyCount,
   relationSnapshotComplete,
+  relationSnapshotMode,
+  authoritativeRawEvents,
   save = saveThreadEventsToCacheToStorage,
-}: {
-  sessionId: string;
-  room: Room;
-  threadId: string;
-  events: MatrixEvent[];
-  rootEvent?: MatrixEvent | null;
-  beforeTokenForEarliest?: string | null;
-  tailLoaded?: boolean;
-  snapshotComplete?: boolean;
-  expectedReplyCount?: number;
-  relationSnapshotComplete?: boolean;
-  save?: SaveThreadEventsToCache;
-}): ThreadEventCacheSnapshotWrite => {
+}: PersistThreadEventCacheSnapshotArgs): ThreadEventCacheSnapshotWrite => {
   const resolvedRootEvent = rootEvent ?? undefined;
   const loadedReplyCount = buildThreadReplyCountMap(events).get(threadId) ?? 0;
   const persistedExpectedReplyCount =
@@ -783,7 +864,9 @@ export const persistThreadEventCacheSnapshot = ({
     (snapshotComplete === true || (beforeTokenForEarliest === null && tailLoaded === true)
       ? loadedReplyCount
       : undefined);
-  const rawEvents = serializeThreadCacheEvents(room, events, resolvedRootEvent);
+  const rawEvents = authoritativeRawEvents
+    ? sanitizeAuthoritativeRawEvents(events, authoritativeRawEvents)
+    : serializeThreadCacheEvents(room, events, resolvedRootEvent);
   const rawRootEvent = resolvedRootEvent
     ? rawEvents.find((rawEvent) => rawEvent.event_id === resolvedRootEvent.getId())
     : undefined;
@@ -792,7 +875,7 @@ export const persistThreadEventCacheSnapshot = ({
   // CINNY-207 P2.3: health gate + failure surfacing moved into the
   // cacheStore save entry point (single choke point). This seam only
   // serializes and delegates.
-  void save(
+  const saveArgs = [
     sessionId,
     room.roomId,
     threadId,
@@ -802,8 +885,12 @@ export const persistThreadEventCacheSnapshot = ({
     tailLoaded,
     snapshotComplete,
     persistedExpectedReplyCount,
-    relationSnapshotComplete
-  );
+    relationSnapshotComplete,
+  ] as const;
+  const write =
+    relationSnapshotMode === undefined
+      ? save(...saveArgs)
+      : save(...saveArgs, relationSnapshotMode);
 
   return {
     rawEvents,
@@ -814,8 +901,18 @@ export const persistThreadEventCacheSnapshot = ({
     tailLoaded,
     snapshotComplete,
     relationSnapshotComplete,
+    write,
   };
 };
+
+/** Snapshot writer whose result distinguishes a committed transaction from a skipped/failed write. */
+export const persistThreadEventCacheSnapshotCommitted = (
+  args: Omit<PersistThreadEventCacheSnapshotArgs, 'save'>
+): ThreadEventCacheSnapshotWrite =>
+  persistThreadEventCacheSnapshot({
+    ...args,
+    save: saveThreadEventsToCacheCommitted,
+  });
 
 type ThreadCacheFromRoomEventsOptions = {
   beforeTokenForEarliest?: string | null;
@@ -917,6 +1014,7 @@ export type RoomEventCacheSnapshotWrite = {
   rawEvents: Partial<IEvent>[];
   sourceEventCount: number;
   beforeTokenForEarliest?: string | null;
+  write: Promise<void | boolean>;
 };
 
 export const persistRoomEventCacheSnapshot = ({
@@ -937,12 +1035,13 @@ export const persistRoomEventCacheSnapshot = ({
   countCacheProbe('serializedEvents', rawEvents.length);
   // CINNY-207 P2.3: same as the thread path — gating/surfacing lives
   // in the cacheStore save entry point.
-  void save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest);
+  const write = save(sessionId, room.roomId, rawEvents, beforeTokenForEarliest);
 
   return {
     rawEvents,
     sourceEventCount: events.length,
     beforeTokenForEarliest,
+    write,
   };
 };
 
@@ -989,7 +1088,7 @@ export const persistRoomEventCacheSnapshot = ({
  *     whole mapped batch in the in-memory seed store. Durable IDB is
  *     the product here; seeds stay owned by the prewarm/open paths.
  */
-export const persistRoomChunkWithPreferLive = ({
+export const persistRoomChunkWithPreferLive = async ({
   mx,
   sessionId,
   room,
@@ -1001,22 +1100,32 @@ export const persistRoomChunkWithPreferLive = ({
   room: Room;
   chunk: Partial<IEvent>[];
   beforeTokenForEarliest?: string | null;
-}): RoomEventCacheSnapshotWrite | undefined => {
+}): Promise<RoomEventCacheSnapshotWrite | undefined> => {
   if (chunk.length === 0) return undefined;
   const mapper = mx.getEventMapper();
   const preferLive = createPreferLiveEventMapper(room, mapper);
   const mapped = chunk.map(preferLive);
-  persistThreadCacheFromRoomEventsSnapshot({
+  const threadWrites = persistThreadCacheFromRoomEventsSnapshot({
     sessionId,
     room,
     events: mapped,
     opts: { roomTailLoaded: true },
     saveSeedSnapshot: () => undefined,
+    saveThreadSnapshot: saveThreadEventsToCacheCommitted,
   });
-  return persistRoomEventCacheSnapshot({
+  const roomWrite = persistRoomEventCacheSnapshot({
     sessionId,
     room,
     events: mapped,
     beforeTokenForEarliest,
+    save: saveRoomEventsToCacheCommitted,
   });
+  const commitResults = await Promise.all([
+    roomWrite.write,
+    ...threadWrites.map((threadWrite) => threadWrite.cacheSnapshot.write),
+  ]);
+  if (commitResults.some((committed) => committed !== true)) {
+    throw new Error('cache chunk did not commit');
+  }
+  return roomWrite;
 };

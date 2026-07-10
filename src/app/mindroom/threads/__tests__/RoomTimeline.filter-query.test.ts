@@ -48,8 +48,7 @@ const syncQueryState = (
   prev: ReturnType<typeof createDefaultThreadFilterState>,
   updater: (state: ReturnType<typeof createDefaultThreadFilterState>) => ReturnType<typeof createDefaultThreadFilterState>
 ) => {
-  const next = updater(applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(prev.searchQuery ?? ''))); const searchQuery = serializeThreadFilterQuery(next);
-  return searchQuery === prev.searchQuery ? next : { ...next, searchQuery };
+  return updater(prev);
 };
 
 const setup = async () => {
@@ -72,7 +71,10 @@ const setup = async () => {
       onReset: vi.fn(),
       onApplyPreset: (preset: (typeof FILTER_PRESETS)[number]) =>
         setThreadFilterState((prev) => syncQueryState(prev, (state) => applyPreset(state, preset))),
-      onSearchQueryChange: (searchQuery: string) => setThreadFilterState((prev) => ({ ...prev, searchQuery })),
+      onSearchQueryChange: (searchQuery: string) =>
+        setThreadFilterState((prev) =>
+          applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(searchQuery))
+        ),
       viewMode: 'threaded',
       onViewModeChange: vi.fn(),
       roomInputRef: React.createRef<HTMLElement>(),
@@ -100,11 +102,12 @@ describe('RoomTimeline filter query wiring', () => {
   beforeEach(() => { vi.useFakeTimers(); scheduledEventsByType.clear(); threadStreamingStateMock.clear(); stateEventsByTypeMock.clear(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('lights working chips immediately and applies the OR union after debounce', async () => {
+  it('applies structured DSL filters immediately without a second parse pass', async () => {
     const { overview, renderer, streamingId, scheduledId, plainId, type, settle } = await setup();
     await type('is:streaming OR is:scheduled');
-    expect(overview().state).toMatchObject({ searchQuery: 'is:streaming OR is:scheduled', streaming: 'include', scheduled: 'include', statusMode: 'or' });
-    expect(overview().threadCount).toBe(3);
+    expect(serializeThreadFilterQuery(overview().state)).toBe('is:streaming OR is:scheduled');
+    expect(overview().state).toMatchObject({ streaming: 'include', scheduled: 'include', statusMode: 'or' });
+    expect(overview().threadCount).toBe(2);
     await settle();
     expect(overview().threadCount).toBe(2);
     expect(getRenderedEventIds(renderer)).toEqual([scheduledId, streamingId]);
@@ -115,27 +118,30 @@ describe('RoomTimeline filter query wiring', () => {
     const { overview, type, toggle } = await setup();
     await type('is:streaming OR is:scheduled');
     await toggle('streaming');
-    expect(overview().state).toMatchObject({ searchQuery: 'is:scheduled -is:streaming', streaming: 'exclude', scheduled: 'include', statusMode: 'and' });
+    expect(serializeThreadFilterQuery(overview().state)).toBe('is:scheduled -is:streaming');
+    expect(overview().state).toMatchObject({ streaming: 'exclude', scheduled: 'include', statusMode: 'and' });
   });
 
   it('clearing the bar clears parsed status and tag chip state immediately', async () => {
     const { overview, type, settle } = await setup();
     await type('is:streaming OR is:scheduled tag:bug');
     expect(overview().state).toMatchObject({
-      searchQuery: 'is:streaming OR is:scheduled tag:bug',
       streaming: 'include',
       scheduled: 'include',
       statusMode: 'or',
     });
+    expect(serializeThreadFilterQuery(overview().state)).toBe(
+      'is:streaming OR is:scheduled tag:bug'
+    );
     expect([...overview().state.tags]).toEqual([['bug', 'include']]);
 
     await type('');
     expect(overview().state).toMatchObject({
-      searchQuery: '',
       streaming: 'any',
       scheduled: 'any',
       statusMode: 'and',
     });
+    expect(serializeThreadFilterQuery(overview().state)).toBe('');
     expect([...overview().state.tags]).toEqual([]);
 
     await settle();
@@ -147,18 +153,21 @@ describe('RoomTimeline filter query wiring', () => {
     await type('tag:bug');
     await preset('working');
     expect(overview().state).toMatchObject({
-      searchQuery: 'is:streaming OR is:scheduled tag:bug',
       streaming: 'include',
       scheduled: 'include',
       statusMode: 'or',
     });
+    expect(serializeThreadFilterQuery(overview().state)).toBe(
+      'is:streaming OR is:scheduled tag:bug'
+    );
     expect([...overview().state.tags]).toEqual([['bug', 'include']]);
   });
 
   it('preserves unsupported OR text without silently turning it into active chips', async () => {
     const { overview, type, settle } = await setup();
     await type('tag:a OR tag:b');
-    expect(overview().state).toMatchObject({ searchQuery: 'tag:a OR tag:b', statusMode: 'and', streaming: 'any', scheduled: 'any' });
+    expect(serializeThreadFilterQuery(overview().state)).toBe('tag:a OR tag:b');
+    expect(overview().state).toMatchObject({ statusMode: 'and', streaming: 'any', scheduled: 'any' });
     await settle();
     expect(overview().threadCount).toBe(3);
   });

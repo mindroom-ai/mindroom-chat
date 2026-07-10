@@ -49,6 +49,22 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
+const makeReactionEvent = (eventId: string, ts: number, targetEventId: string) =>
+  new MatrixEvent({
+    content: {
+      'm.relates_to': {
+        event_id: targetEventId,
+        key: '👍',
+        rel_type: 'm.annotation',
+      },
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.reaction',
+  });
+
 const attachSerializedReplacement = (
   targetEvent: MatrixEvent,
   replacementEventId: string,
@@ -131,6 +147,7 @@ const makeTimelineSet = (): EventTimelineSet =>
   ({
     relations: {
       aggregateChildEvent: vi.fn(),
+      getChildEventsForEvent: vi.fn(() => undefined),
     },
   } as unknown as EventTimelineSet);
 
@@ -211,6 +228,40 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
     expect(getSnapshot().threadEvents).toEqual([replyEvent]);
     expect(getSnapshot().threadEventIndexMapRef.current.get('$reply')).toBe(0);
+
+    renderer.unmount();
+  });
+
+  it('removes authoritative missing reactions from the fallback view', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replyEvent = makeMessageEvent('$reply', 2);
+    const reactionEvent = makeReactionEvent('$reaction', 3, '$reply');
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const threadTimelineSet = makeTimelineSet();
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: true,
+    });
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [replyEvent, reactionEvent]);
+    });
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '$reply',
+      '$reaction',
+    ]);
+
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [], ['$reaction']);
+    });
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
 
     renderer.unmount();
   });
@@ -694,17 +745,12 @@ describe('useThreadRenderState', () => {
     });
 
     act(() => {
-      getSnapshot().setSupplementalThreadEvents('$root', [
-        cachedReplyEvent,
-        cachedEditTargetV1,
-      ]);
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedReplyEvent, cachedEditTargetV1]);
     });
 
     // Sanity: after the cache hydrate the render sees v1 with no
     // replacement.
-    const beforeRepair = getSnapshot().threadEvents.find(
-      (mEvt) => mEvt.getId() === '$edit-target'
-    );
+    const beforeRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(beforeRepair).toBeDefined();
     expect(beforeRepair?.replacingEvent()).toBeNull();
     expect(beforeRepair?.getContent().body).toBe('edit-target v1');
@@ -735,9 +781,7 @@ describe('useThreadRenderState', () => {
     // the ONE the render holds carries the replacement. The idiom
     // the fix implements is "repair must reach the render-held
     // instance".
-    const afterRepair = getSnapshot().threadEvents.find(
-      (mEvt) => mEvt.getId() === '$edit-target'
-    );
+    const afterRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(afterRepair).toBeDefined();
     expect(afterRepair?.replacingEvent()).toBe(editEventC);
     // The bundled body reachable through the SDK's own resolver is
@@ -800,12 +844,7 @@ describe('useThreadRenderState', () => {
       '@alice:example.org',
       'edit-target v1'
     );
-    const sdkTargetV1 = makeMessageEvent(
-      '$edit-target',
-      3,
-      '@alice:example.org',
-      'edit-target v1'
-    );
+    const sdkTargetV1 = makeMessageEvent('$edit-target', 3, '@alice:example.org', 'edit-target v1');
     const room = makeRoom(rootEvent);
     const roomTimelineSet = makeTimelineSet();
     const thread = makeThread(rootEvent, [sdkTargetV1]);
@@ -845,9 +884,7 @@ describe('useThreadRenderState', () => {
 
     // Sanity: after the sink lands the repair, the target carries
     // it.
-    const afterRepair = getSnapshot().threadEvents.find(
-      (mEvt) => mEvt.getId() === '$edit-target'
-    );
+    const afterRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(afterRepair?.replacingEvent()).toBe(editEventC);
 
     // NEW: simulate a subsequent SDK sync burst that replaces the
@@ -899,12 +936,7 @@ describe('useThreadRenderState', () => {
     // The SDK Thread had its own instance for the target id — same
     // event, different MatrixEvent instance, also no replacement.
     // Populated by the SDK's own sync burst before reconciler runs.
-    const sdkTargetV1 = makeMessageEvent(
-      '$edit-target',
-      3,
-      '@alice:example.org',
-      'edit-target v1'
-    );
+    const sdkTargetV1 = makeMessageEvent('$edit-target', 3, '@alice:example.org', 'edit-target v1');
     expect(sdkTargetV1).not.toBe(cachedEditTargetV1);
 
     const room = makeRoom(rootEvent);
@@ -960,9 +992,7 @@ describe('useThreadRenderState', () => {
     // This is the invariant "repair must reach the render-held
     // instance": no matter which instance the merge selects, the
     // one delivered to render must carry the repair.
-    const afterRepair = getSnapshot().threadEvents.find(
-      (mEvt) => mEvt.getId() === '$edit-target'
-    );
+    const afterRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(afterRepair).toBeDefined();
     expect(afterRepair?.replacingEvent()).toBe(editEventC);
     expect(
@@ -1094,18 +1124,8 @@ describe('useThreadRenderState', () => {
     // helper's filter drops any replacement whose sender differs.
     // Pre-fix, this shape lets the non-repaired incoming sibling win
     // — that is exactly the door the fix closes.
-    const hydratedTarget = makeMessageEvent(
-      '$edit-target',
-      3,
-      targetSender,
-      'edit-target v1'
-    );
-    const foreignSenderEdit = makeEditEvent(
-      '$edit-foreign',
-      4,
-      '$edit-target',
-      '@bob:example.org'
-    );
+    const hydratedTarget = makeMessageEvent('$edit-target', 3, targetSender, 'edit-target v1');
+    const foreignSenderEdit = makeEditEvent('$edit-foreign', 4, '$edit-target', '@bob:example.org');
     // Bypass the sink's own hydrate (which wouldn't set a foreign-
     // sender replacement in the first place) by populating the
     // replacement directly. This isolates the picker's fall-through
@@ -1122,12 +1142,7 @@ describe('useThreadRenderState', () => {
     });
     expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
 
-    const syncArrivalTarget = makeMessageEvent(
-      '$edit-target',
-      3,
-      targetSender,
-      'edit-target v1'
-    );
+    const syncArrivalTarget = makeMessageEvent('$edit-target', 3, targetSender, 'edit-target v1');
     expect(syncArrivalTarget.replacingEvent()).toBeNull();
     act(() => {
       getSnapshot().setSupplementalThreadEvents('$root', [syncArrivalTarget]);

@@ -1,6 +1,6 @@
 import to from 'await-to-js';
 import { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClientConfig, clientAllowedServer } from '../../../hooks/useClientConfig';
 import { autoDiscovery, specVersions } from '../../../cs-api';
@@ -74,7 +74,9 @@ export const login = async (
   }
 
   const mx = createMatrixClient({ baseUrl: url });
-  const [err, res] = await to<LoginResponse, MatrixError>(mx.loginRequest(data));
+  const [err, res] = await to<LoginResponse, MatrixError>(
+    mx.loginRequest({ ...data, refresh_token: true })
+  );
 
   if (err) {
     if (err.httpStatus === 400) {
@@ -111,18 +113,25 @@ export const login = async (
 
 export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false) => {
   const navigate = useNavigate();
+  const [sessionStoreError, setSessionStoreError] = useState(false);
 
   useEffect(() => {
     if (data) {
       const { response: loginRes, baseUrl: loginBaseUrl } = data;
-      putSession({
-        accessToken: loginRes.access_token,
-        deviceId: loginRes.device_id,
-        userId: loginRes.user_id,
-        baseUrl: loginBaseUrl,
-        expiresInMs: loginRes.expires_in_ms,
-        refreshToken: loginRes.refresh_token,
-      });
+      setSessionStoreError(false);
+      try {
+        putSession({
+          accessToken: loginRes.access_token,
+          deviceId: loginRes.device_id,
+          userId: loginRes.user_id,
+          baseUrl: loginBaseUrl,
+          expiresInMs: loginRes.expires_in_ms,
+          refreshToken: loginRes.refresh_token,
+        });
+      } catch {
+        setSessionStoreError(true);
+        return;
+      }
 
       if (addAccount) {
         navigate(getHomePath(), { replace: true });
@@ -134,4 +143,6 @@ export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false)
       navigate(afterLoginRedirectUrl ?? getHomePath(), { replace: true });
     }
   }, [addAccount, data, navigate]);
+
+  return sessionStoreError;
 };

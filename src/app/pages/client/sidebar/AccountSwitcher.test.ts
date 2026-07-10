@@ -136,4 +136,25 @@ describe('AccountSwitcher', () => {
     expect(onSwitchAccount).toHaveBeenCalledWith(inactiveSession);
     expect(onRemoveAccount).toHaveBeenCalledWith(inactiveSession);
   });
+
+  it('omits Add Account when no add callback is provided', () => {
+    const renderer = create(
+      React.createElement(AccountSwitcher, {
+        accounts: [
+          {
+            session: activeSession,
+            active: true,
+            displayName: 'Alice',
+          },
+        ],
+        onOpenSettings: () => undefined,
+        onSwitchAccount: () => undefined,
+        onRemoveAccount: () => undefined,
+        onClose: () => undefined,
+      })
+    );
+
+    expect(findButtonByText(renderer, 'Add Account')).toBeUndefined();
+    expect(findButtonByText(renderer, 'Close')).toBeDefined();
+  });
 });

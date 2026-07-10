@@ -6,7 +6,7 @@ import {
   RegisterRequest,
   RegisterResponse,
 } from 'matrix-js-sdk';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoginPathSearchParams } from '../../paths';
 import { ErrorCode } from '../../../cs-errorcode';
@@ -40,7 +40,9 @@ export const register = async (
   mx: MatrixClient,
   requestData: RegisterRequest
 ): Promise<RegisterResult> => {
-  const [err, res] = await to<RegisterResponse, MatrixError>(mx.registerRequest(requestData));
+  const [err, res] = await to<RegisterResponse, MatrixError>(
+    mx.registerRequest({ ...requestData, refresh_token: true })
+  );
 
   if (err) {
     if (err.httpStatus === 401) {
@@ -110,6 +112,7 @@ export const register = async (
 
 export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = false) => {
   const navigate = useNavigate();
+  const [sessionStoreError, setSessionStoreError] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -120,14 +123,20 @@ export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = 
       const deviceId = response.device_id;
 
       if (accessToken && deviceId) {
-        putSession({
-          accessToken,
-          deviceId,
-          userId,
-          baseUrl,
-          expiresInMs: response.expires_in_ms,
-          refreshToken: response.refresh_token,
-        });
+        setSessionStoreError(false);
+        try {
+          putSession({
+            accessToken,
+            deviceId,
+            userId,
+            baseUrl,
+            expiresInMs: response.expires_in_ms,
+            refreshToken: response.refresh_token,
+          });
+        } catch {
+          setSessionStoreError(true);
+          return;
+        }
 
         if (addAccount) {
           navigate(getHomePath(), { replace: true });
@@ -152,4 +161,6 @@ export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = 
       }
     }
   }, [addAccount, data, navigate]);
+
+  return sessionStoreError;
 };

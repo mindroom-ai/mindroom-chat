@@ -123,8 +123,10 @@ export const mergeCompactThreadRootBodyMaps = (
   liveBodyMap: ReadonlyMap<string, string>,
   cachedBodyMap: ReadonlyMap<string, string>
 ): Map<string, string> => {
-  const bodyMap = new Map(liveBodyMap);
-  cachedBodyMap.forEach((value, key) => {
+  // Cached previews fill cold-start gaps, but live SDK state is authoritative
+  // once present. Applying cache last could mask a newer root edit forever.
+  const bodyMap = new Map(cachedBodyMap);
+  liveBodyMap.forEach((value, key) => {
     bodyMap.set(key, value);
   });
   return bodyMap;

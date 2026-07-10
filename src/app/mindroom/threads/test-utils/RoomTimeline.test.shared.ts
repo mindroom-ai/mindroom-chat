@@ -11,11 +11,6 @@ import {
   updateThreadFilterKey,
 } from '../roomThreadOverviewModel';
 import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-  serializeThreadFilterQuery,
-} from '../threadFilterDsl';
-import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
@@ -578,7 +573,7 @@ vi.mock('../../../utils/matrix', () => ({
 vi.mock('../../../utils/room', () => ({
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
-  getEditedEvent: () => undefined,
+  getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEventReactions: () => undefined,
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
@@ -1085,7 +1080,10 @@ vi.mock('../../messages/threadSummary', async (importOriginal) => {
 });
 
 vi.mock('../useThreadRenderState', () => ({
-  useThreadRenderState: () => threadRenderStateMock,
+  useThreadRenderState: () => ({
+    ...threadRenderStateMock,
+    threadEventIndexMap: threadRenderStateMock.threadEventIndexMapRef.current,
+  }),
 }));
 
 // CINNY-207 P2.3: eventRepository imports thread APIs directly from
@@ -1094,6 +1092,9 @@ vi.mock('../useThreadRenderState', () => ({
 // code and is no longer exported.
 vi.mock('../cacheStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../cacheStore')>();
+  const saveThreadEventsToCache = vi.fn(
+    async (..._args: Parameters<typeof actual.saveThreadEventsToCache>) => undefined
+  );
   return {
     ...actual,
     getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
@@ -1106,8 +1107,18 @@ vi.mock('../cacheStore', async (importOriginal) => {
     ),
     loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
     loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEventsBatch: vi.fn(
+      async (_sessionId, _roomId, threadIds: string[]) =>
+        new Map(threadIds.map((threadId) => [threadId, { events: [], hasMoreBefore: false }]))
+    ),
     normalizeCachedThreadEvents: (events: unknown[]) => events,
-    saveThreadEventsToCache: vi.fn(async () => undefined),
+    saveThreadEventsToCache,
+    saveThreadEventsToCacheCommitted: vi.fn(
+      async (...args: Parameters<typeof actual.saveThreadEventsToCacheCommitted>) => {
+        await saveThreadEventsToCache(...args);
+        return true;
+      }
+    ),
     loadCachedThreadSummaries: loadCachedThreadSummariesMock,
     saveCachedThreadSummary: saveCachedThreadSummaryMock,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
@@ -1582,10 +1593,7 @@ const TEST_DEFAULT_THREAD_FILTER_STATE = {
 
 const canonicalizeThreadFilterState = (
   state: import('../roomThreadOverviewModel').ThreadFilterState
-): import('../roomThreadOverviewModel').ThreadFilterState => {
-  const searchQuery = serializeThreadFilterQuery(state);
-  return searchQuery === state.searchQuery ? state : { ...state, searchQuery };
-};
+): import('../roomThreadOverviewModel').ThreadFilterState => state;
 
 const syncQueryState = (
   state: import('../roomThreadOverviewModel').ThreadFilterState,
@@ -1593,11 +1601,7 @@ const syncQueryState = (
     nextState: import('../roomThreadOverviewModel').ThreadFilterState
   ) => import('../roomThreadOverviewModel').ThreadFilterState
 ): import('../roomThreadOverviewModel').ThreadFilterState => {
-  const next = updater(
-    applyParsedThreadFilterQuery(state, parseThreadFilterQuery(state.searchQuery ?? ''))
-  );
-  const searchQuery = serializeThreadFilterQuery(next);
-  return searchQuery === state.searchQuery ? next : { ...next, searchQuery };
+  return updater(state);
 };
 
 const threadFilterStateFromLegacy = (

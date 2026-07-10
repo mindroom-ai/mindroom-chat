@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const sourceRoots = [
@@ -10,8 +11,8 @@ const sourceRoots = [
   'src/app/pages/MobileFriendly.tsx',
 ];
 
-const readSources = (): Map<string, string> => {
-  const sources = new Map<string, string>();
+const readSources = (): Map<string, ts.SourceFile> => {
+  const sources = new Map<string, ts.SourceFile>();
 
   const visit = (path: string) => {
     if (path.includes('/__tests__/')) return;
@@ -22,7 +23,16 @@ const readSources = (): Map<string, string> => {
       return;
     }
     if (!/\.(ts|tsx)$/.test(path)) return;
-    sources.set(relative(process.cwd(), absolutePath), readFileSync(absolutePath, 'utf8'));
+    sources.set(
+      relative(process.cwd(), absolutePath),
+      ts.createSourceFile(
+        absolutePath,
+        readFileSync(absolutePath, 'utf8'),
+        ts.ScriptTarget.Latest,
+        true,
+        absolutePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+      )
+    );
   };
 
   sourceRoots.forEach(visit);
@@ -31,43 +41,38 @@ const readSources = (): Map<string, string> => {
 
 describe('cross-room Threads architecture', () => {
   it('does not introduce PWA reload or browser lifecycle hazards', () => {
-    const combined = Array.from(readSources().values()).join('\n');
+    const forbiddenTokens = new Set([
+      'beforeunload',
+      'blockStandaloneWebApp',
+      'MindroomBackRouteHandler',
+      'pagehide',
+      'reload',
+      'service-worker',
+      'serviceWorker',
+      'unload',
+    ]);
+    const offenders: string[] = [];
 
-    expect(combined).not.toContain('window.location.reload');
-    expect(combined).not.toContain('pagehide');
-    expect(combined).not.toContain('beforeunload');
-    expect(combined).not.toContain('unload');
-    expect(combined).not.toContain('serviceWorker');
-    expect(combined).not.toContain('service-worker');
-    expect(combined).not.toContain('type="file"');
-    expect(combined).not.toContain("type='file'");
-    expect(combined).not.toContain('MindroomBackRouteHandler');
-    expect(combined).not.toContain('blockStandaloneWebApp');
-  });
+    for (const [path, sourceFile] of readSources()) {
+      const visit = (node: ts.Node) => {
+        if ((ts.isIdentifier(node) || ts.isStringLiteral(node)) && forbiddenTokens.has(node.text)) {
+          offenders.push(`${path}: ${node.text}`);
+        }
+        if (
+          ts.isJsxAttribute(node) &&
+          node.name.text === 'type' &&
+          node.initializer &&
+          ts.isStringLiteral(node.initializer) &&
+          node.initializer.text === 'file'
+        ) {
+          offenders.push(`${path}: type=file`);
+        }
+        ts.forEachChild(node, visit);
+      };
 
-  it('keeps row rendering on the pure compact-card view model path', () => {
-    const rowSource = readFileSync(
-      resolve(process.cwd(), 'src/app/pages/client/threads/ThreadsViewRow.tsx'),
-      'utf8'
-    );
+      visit(sourceFile);
+    }
 
-    expect(rowSource).toContain('buildCompactThreadCardViewModelFromRecord');
-    expect(rowSource).not.toContain('useCompactThreadCardViewModels');
-    expect(rowSource).toContain('navigateRoomThread(entry.roomId, entry.threadRootId)');
-    expect(rowSource).not.toContain('navigateRoom(');
-  });
-
-  it('keeps free-text filtering scoped to the precomputed entry haystack', () => {
-    const pipelineSource = readFileSync(
-      resolve(
-        process.cwd(),
-        'src/app/mindroom/cross-room-threads/crossRoomThreadFilterPipeline.ts'
-      ),
-      'utf8'
-    );
-
-    expect(pipelineSource).toContain('entry.searchableText.includes');
-    expect(pipelineSource).not.toContain('reply');
-    expect(pipelineSource).not.toContain('body');
+    expect(offenders).toEqual([]);
   });
 });

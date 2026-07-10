@@ -7,6 +7,7 @@ import {
 import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
 import { getImperativeJotaiStore } from '../../state/jotaiStore';
+import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 
 const RECENT_THREADS_PANEL_HEIGHT = 'recentThreadsPanelHeight';
 const RECENT_THREADS_PANEL_HEIGHT_STORE_VERSION = 1;
@@ -45,13 +46,7 @@ const serializePanelHeight = (height: number): RecentThreadsPanelHeightStore => 
 
 const getStoreKey = (userId: string): string => `${RECENT_THREADS_PANEL_HEIGHT}:${userId}`;
 
-let activeRecentThreadsPanelHeightAtom: RecentThreadsPanelHeightAtom | undefined;
-const recentThreadsPanelHeightAtoms = new Map<string, RecentThreadsPanelHeightAtom>();
-
-export const makeRecentThreadsPanelHeightAtom = (userId: string): RecentThreadsPanelHeightAtom => {
-  const existingAtom = recentThreadsPanelHeightAtoms.get(userId);
-  if (existingAtom) return existingAtom;
-
+const createRecentThreadsPanelHeightAtom = (userId: string): RecentThreadsPanelHeightAtom => {
   const storeKey = getStoreKey(userId);
 
   const baseRecentThreadsPanelHeightAtom = atomWithLocalStorage<number>(
@@ -67,27 +62,23 @@ export const makeRecentThreadsPanelHeightAtom = (userId: string): RecentThreadsP
     }
   );
 
-  recentThreadsPanelHeightAtoms.set(userId, recentThreadsPanelHeightAtom);
   return recentThreadsPanelHeightAtom;
 };
 
-export const registerRecentThreadsPanelHeightAtom = (
-  recentThreadsPanelHeightAtom: RecentThreadsPanelHeightAtom
-) => {
-  activeRecentThreadsPanelHeightAtom = recentThreadsPanelHeightAtom;
+const recentThreadsPanelHeightRegistry = createUserScopedAtomRegistry<RecentThreadsPanelHeightAtom>(
+  {
+    create: createRecentThreadsPanelHeightAtom,
+    getStorageKey: getStoreKey,
+  }
+);
 
-  return () => {
-    if (activeRecentThreadsPanelHeightAtom === recentThreadsPanelHeightAtom) {
-      activeRecentThreadsPanelHeightAtom = undefined;
-    }
-  };
-};
+export const makeRecentThreadsPanelHeightAtom = recentThreadsPanelHeightRegistry.getOrCreate;
+
+export const registerRecentThreadsPanelHeightAtom = recentThreadsPanelHeightRegistry.registerActive;
 
 const getResolvedRecentThreadsPanelHeightAtom = (): RecentThreadsPanelHeightAtom | undefined => {
-  if (activeRecentThreadsPanelHeightAtom) return activeRecentThreadsPanelHeightAtom;
-
   const userId = getActiveSession()?.userId;
-  return userId ? makeRecentThreadsPanelHeightAtom(userId) : undefined;
+  return recentThreadsPanelHeightRegistry.resolveActiveOrCreate(userId);
 };
 
 export const setRecentThreadsPanelHeight = (height: number) => {
@@ -98,11 +89,5 @@ export const setRecentThreadsPanelHeight = (height: number) => {
 };
 
 export const clearRecentThreadsPanelHeightStore = (userId: string) => {
-  const recentThreadsPanelHeightAtom = recentThreadsPanelHeightAtoms.get(userId);
-  if (activeRecentThreadsPanelHeightAtom === recentThreadsPanelHeightAtom) {
-    activeRecentThreadsPanelHeightAtom = undefined;
-  }
-
-  recentThreadsPanelHeightAtoms.delete(userId);
-  localStorage.removeItem(getStoreKey(userId));
+  recentThreadsPanelHeightRegistry.clear(userId);
 };

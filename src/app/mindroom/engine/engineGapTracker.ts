@@ -25,7 +25,11 @@
 import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
 import { countCacheProbe } from '../threads/cacheProbe';
-import { markRoomTailDiscontinuity } from '../threads/cacheStore';
+import {
+  getTailDiscontinuityGeneration,
+  loadRoomTailDiscontinuity,
+  markRoomTailDiscontinuity,
+} from '../threads/cacheStore';
 
 export type GapFillReason = 'limited-sync' | 'startup';
 
@@ -34,6 +38,7 @@ export type GapFillJob = {
   reason: GapFillReason;
   markedAt: number;
   prevBatch?: string | null;
+  generation?: string;
 };
 
 export type GapFillScheduler = {
@@ -46,6 +51,7 @@ export type GapFillScheduler = {
    * the queue promptly rather than polling.
    */
   onEnqueue(listener: (job: GapFillJob) => void): () => void;
+  remove(roomId: string): void;
   /** Test-only: drop all queued jobs. */
   clear(): void;
 };
@@ -84,6 +90,7 @@ export const createInMemoryGapFillScheduler = (): GapFillScheduler => {
         listeners.delete(listener);
       };
     },
+    remove: (roomId) => jobs.delete(roomId),
     clear: () => jobs.clear(),
   };
 };
@@ -95,8 +102,12 @@ export type EngineGapTrackerOptions = {
   scheduler?: GapFillScheduler;
   /** Test hook: swap the durable marker writer. */
   markDiscontinuity?: typeof markRoomTailDiscontinuity;
+  /** Test hook: swap the durable marker reader. */
+  loadDiscontinuity?: typeof loadRoomTailDiscontinuity;
   /** Test hook: override the wall-clock time. */
   now?: () => number;
+  /** Report a durable marker failure while the tracker retains it for retry. */
+  onPersistenceError?: (error: Error, job: GapFillJob) => void;
 };
 
 export type EngineGapTracker = {
@@ -106,22 +117,98 @@ export type EngineGapTracker = {
     timelineSet: EventTimelineSet | undefined,
     resetAllTimelines?: boolean
   ): void;
-  handleSyncPrepared(): void;
+  handleSyncPrepared(): Promise<void>;
   stop(): void;
 };
 
-export const createEngineGapTracker = (
-  options?: EngineGapTrackerOptions
-): EngineGapTracker => {
+export const GAP_MARK_RETRY_BASE_MS = 1_000;
+export const GAP_MARK_RETRY_MAX_MS = 30_000;
+
+type PendingGapMark = {
+  job: GapFillJob;
+  marker: {
+    markedAt: number;
+    prevBatch?: string | null;
+    generation: string;
+    nextToken?: string | null;
+  };
+  failureCount: number;
+  reported: boolean;
+  retryTimer?: ReturnType<typeof globalThis.setTimeout>;
+};
+
+export const createEngineGapTracker = (options?: EngineGapTrackerOptions): EngineGapTracker => {
   const scheduler = options?.scheduler ?? createInMemoryGapFillScheduler();
   const markDiscontinuity = options?.markDiscontinuity ?? markRoomTailDiscontinuity;
+  const loadDiscontinuity = options?.loadDiscontinuity ?? loadRoomTailDiscontinuity;
   const now = options?.now ?? (() => Date.now());
+  const pendingMarks = new Map<string, PendingGapMark>();
+  const inFlightMarks = new Set<string>();
+  let stopped = false;
+
+  const reportPersistenceError = (error: unknown, pending: PendingGapMark): void => {
+    if (pending.reported) return;
+    pending.reported = true;
+    const normalizedError =
+      error instanceof Error ? error : new Error('Tail-discontinuity marker persistence failed.');
+    if (options?.onPersistenceError) {
+      try {
+        options.onPersistenceError(normalizedError, pending.job);
+      } catch {
+        // Error reporting must not discard retained gap work.
+      }
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.error('[MindRoom gap tracker] Retrying an undurable timeline gap.', normalizedError);
+  };
+
+  const attemptPendingMark = (roomId: string): void => {
+    if (stopped || inFlightMarks.has(roomId)) return;
+    const pending = pendingMarks.get(roomId);
+    if (!pending) return;
+    inFlightMarks.add(roomId);
+
+    void markDiscontinuity(options?.sessionId ?? '', roomId, pending.marker)
+      .then((durableMarker) => {
+        if (stopped || pendingMarks.get(roomId) !== pending) return;
+        pendingMarks.delete(roomId);
+        scheduler.enqueueGapFill({
+          roomId,
+          reason: 'limited-sync',
+          markedAt: durableMarker.markedAt,
+          prevBatch: durableMarker.nextToken ?? durableMarker.prevBatch,
+          generation: getTailDiscontinuityGeneration(durableMarker),
+        });
+      })
+      .catch((error: unknown) => {
+        if (stopped || pendingMarks.get(roomId) !== pending) return;
+        pending.failureCount += 1;
+        reportPersistenceError(error, pending);
+        const retryDelay = Math.min(
+          GAP_MARK_RETRY_BASE_MS * 2 ** (pending.failureCount - 1),
+          GAP_MARK_RETRY_MAX_MS
+        );
+        pending.retryTimer = globalThis.setTimeout(() => {
+          pending.retryTimer = undefined;
+          attemptPendingMark(roomId);
+        }, retryDelay);
+      })
+      .finally(() => {
+        inFlightMarks.delete(roomId);
+        const current = pendingMarks.get(roomId);
+        if (!stopped && current && current !== pending && !current.retryTimer) {
+          attemptPendingMark(roomId);
+        }
+      });
+  };
 
   const handleTimelineReset = (
     room: Room | undefined,
     timelineSet: EventTimelineSet | undefined,
     _resetAllTimelines?: boolean
   ) => {
+    if (stopped) return;
     if (!room || !timelineSet) return;
     // Only the room's UNFILTERED live timelineSet reset means "limited
     // sync". Thread timelineSets can reset for other reasons (thread
@@ -130,46 +217,68 @@ export const createEngineGapTracker = (
 
     const prevBatch = room.getLiveTimeline().getPaginationToken(Direction.Backward);
     const markedAt = now();
-
-    if (options?.sessionId) {
-      markDiscontinuity(options.sessionId, room.roomId, { markedAt, prevBatch }).catch(
-        () => undefined
-      );
-    }
-
-    scheduler.enqueueGapFill({
+    const marker = { markedAt, prevBatch };
+    const generation = getTailDiscontinuityGeneration(marker);
+    const job: GapFillJob = {
       roomId: room.roomId,
       reason: 'limited-sync',
       markedAt,
       prevBatch,
-    });
+      generation,
+    };
+
+    if (options?.sessionId) {
+      const previous = pendingMarks.get(room.roomId);
+      if (previous?.retryTimer) globalThis.clearTimeout(previous.retryTimer);
+      pendingMarks.set(room.roomId, {
+        job,
+        marker: {
+          ...marker,
+          generation,
+          nextToken: prevBatch,
+        },
+        failureCount: 0,
+        reported: false,
+      });
+      attemptPendingMark(room.roomId);
+      return;
+    }
+
+    scheduler.enqueueGapFill(job);
   };
 
-  const handleSyncPrepared = () => {
+  const handleSyncPrepared = async () => {
+    if (stopped) return;
     const mx = options?.mx;
     if (!mx) return;
 
-    const markedAt = now();
     const rooms = mx.getRooms?.() ?? [];
-    rooms.forEach((room) => {
-      // Membership filter: only joined rooms. Left rooms have no live
-      // tail worth filling.
-      const membership = room.getMyMembership?.();
-      if (membership && membership !== 'join') return;
+    await Promise.all(
+      rooms.map(async (room) => {
+        // Membership filter: only joined rooms. Left rooms have no live
+        // tail worth filling.
+        const membership = room.getMyMembership?.();
+        if (membership && membership !== 'join') return;
 
-      const prevBatch = room.getLiveTimeline?.().getPaginationToken?.(Direction.Backward);
-      scheduler.enqueueGapFill({
-        roomId: room.roomId,
-        reason: 'startup',
-        markedAt,
-        prevBatch,
-      });
-    });
+        const marker = await loadDiscontinuity(options?.sessionId ?? '', room.roomId);
+        if (stopped || !marker) return;
+        scheduler.enqueueGapFill({
+          roomId: room.roomId,
+          reason: 'startup',
+          markedAt: marker.markedAt,
+          prevBatch: marker.nextToken ?? marker.prevBatch,
+          generation: getTailDiscontinuityGeneration(marker),
+        });
+      })
+    );
   };
 
   const stop = () => {
-    // In-memory scheduler needs no teardown. Kept as a slot for
-    // symmetry when Phase 4 wires a real executor with pending timers.
+    stopped = true;
+    pendingMarks.forEach(({ retryTimer }) => {
+      if (retryTimer) globalThis.clearTimeout(retryTimer);
+    });
+    pendingMarks.clear();
   };
 
   return {

@@ -1,5 +1,10 @@
 import { atom } from 'jotai';
 import { atomWithLocalStorage } from '../../state/utils/atomWithLocalStorage';
+import {
+  getSafeLocalStorage,
+  getStorageItemSafe,
+  setStorageItemSafe,
+} from '../../utils/safeLocalStorage';
 
 export const VOICE_PLAYBACK_RATES = [1, 1.5, 2] as const;
 export type VoicePlaybackRate = typeof VOICE_PLAYBACK_RATES[number];
@@ -33,9 +38,7 @@ export const cycleVoicePlaybackRate = (rate: VoicePlaybackRate): VoicePlaybackRa
 };
 
 const getStoredVoicePlaybackRate = (key: string): VoicePlaybackRate => {
-  if (typeof globalThis.localStorage?.getItem !== 'function') return DEFAULT_VOICE_PLAYBACK_RATE;
-
-  const item = globalThis.localStorage.getItem(key);
+  const item = getStorageItemSafe(getSafeLocalStorage(), key);
   if (item === null) return DEFAULT_VOICE_PLAYBACK_RATE;
 
   try {
@@ -46,9 +49,11 @@ const getStoredVoicePlaybackRate = (key: string): VoicePlaybackRate => {
 };
 
 const setStoredVoicePlaybackRate = (key: string, value: unknown) => {
-  if (typeof globalThis.localStorage?.setItem !== 'function') return;
-
-  globalThis.localStorage.setItem(key, JSON.stringify(sanitizeVoicePlaybackRate(value)));
+  setStorageItemSafe(
+    getSafeLocalStorage(),
+    key,
+    JSON.stringify(sanitizeVoicePlaybackRate(value))
+  );
 };
 
 const voiceMessagePlaybackRateStorageAtom = atomWithLocalStorage<unknown>(
@@ -58,9 +63,7 @@ const voiceMessagePlaybackRateStorageAtom = atomWithLocalStorage<unknown>(
 );
 
 const getStoredVoiceMessageVolume = (key: string): number => {
-  if (typeof globalThis.localStorage?.getItem !== 'function') return DEFAULT_VOICE_MESSAGE_VOLUME;
-
-  const item = globalThis.localStorage.getItem(key);
+  const item = getStorageItemSafe(getSafeLocalStorage(), key);
   if (item === null) return DEFAULT_VOICE_MESSAGE_VOLUME;
 
   try {
@@ -71,9 +74,11 @@ const getStoredVoiceMessageVolume = (key: string): number => {
 };
 
 const setStoredVoiceMessageVolume = (key: string, value: unknown) => {
-  if (typeof globalThis.localStorage?.setItem !== 'function') return;
-
-  globalThis.localStorage.setItem(key, JSON.stringify(sanitizeVoiceMessageVolume(value)));
+  setStorageItemSafe(
+    getSafeLocalStorage(),
+    key,
+    JSON.stringify(sanitizeVoiceMessageVolume(value))
+  );
 };
 
 const voiceMessageVolumeStorageAtom = atomWithLocalStorage<unknown>(

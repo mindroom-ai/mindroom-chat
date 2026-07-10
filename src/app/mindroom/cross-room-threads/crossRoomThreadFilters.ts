@@ -5,6 +5,7 @@ import {
   setLocalStorageItem,
 } from '../../state/utils/atomWithLocalStorage';
 import { isRecord } from '../../utils/isRecord';
+import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 
 const CROSS_ROOM_THREAD_FILTERS = 'crossRoomThreadFilters';
 const CROSS_ROOM_THREAD_FILTERS_VERSION = 1;
@@ -148,9 +149,6 @@ const sanitizePersistedCrossRoomThreadFilters = (
   };
 };
 
-let activeCrossRoomThreadFiltersAtom: CrossRoomThreadFiltersAtom | undefined;
-const crossRoomThreadFiltersAtoms = new Map<string, CrossRoomThreadFiltersAtom>();
-
 const makeEphemeralCrossRoomThreadFiltersAtom = (): CrossRoomThreadFiltersAtom => {
   const baseAtom = atom<CrossRoomThreadFilters>(DEFAULT_CROSS_ROOM_THREAD_FILTERS);
   return atom<CrossRoomThreadFilters, [CrossRoomThreadFiltersUpdate], undefined>(
@@ -165,11 +163,8 @@ const makeEphemeralCrossRoomThreadFiltersAtom = (): CrossRoomThreadFiltersAtom =
   );
 };
 
-export const makeCrossRoomThreadFiltersAtom = (userId: string): CrossRoomThreadFiltersAtom => {
+const createCrossRoomThreadFiltersAtom = (userId: string): CrossRoomThreadFiltersAtom => {
   if (!userId) return makeEphemeralCrossRoomThreadFiltersAtom();
-
-  const existingAtom = crossRoomThreadFiltersAtoms.get(userId);
-  if (existingAtom) return existingAtom;
 
   const storeKey = getStoreKey(userId);
   const persistedAtom = atomWithLocalStorage<PersistedCrossRoomThreadFilters>(
@@ -199,26 +194,19 @@ export const makeCrossRoomThreadFiltersAtom = (userId: string): CrossRoomThreadF
     }
   );
 
-  crossRoomThreadFiltersAtoms.set(userId, filtersAtom);
   return filtersAtom;
 };
 
-export const registerCrossRoomThreadFiltersAtom = (filtersAtom: CrossRoomThreadFiltersAtom) => {
-  activeCrossRoomThreadFiltersAtom = filtersAtom;
+const crossRoomThreadFiltersRegistry = createUserScopedAtomRegistry<CrossRoomThreadFiltersAtom>({
+  create: createCrossRoomThreadFiltersAtom,
+  getStorageKey: getStoreKey,
+  cacheEmptyUserId: false,
+});
 
-  return () => {
-    if (activeCrossRoomThreadFiltersAtom === filtersAtom) {
-      activeCrossRoomThreadFiltersAtom = undefined;
-    }
-  };
-};
+export const makeCrossRoomThreadFiltersAtom = crossRoomThreadFiltersRegistry.getOrCreate;
+
+export const registerCrossRoomThreadFiltersAtom = crossRoomThreadFiltersRegistry.registerActive;
 
 export const clearCrossRoomThreadFiltersStore = (userId: string) => {
-  const filtersAtom = crossRoomThreadFiltersAtoms.get(userId);
-  if (activeCrossRoomThreadFiltersAtom === filtersAtom) {
-    activeCrossRoomThreadFiltersAtom = undefined;
-  }
-
-  crossRoomThreadFiltersAtoms.delete(userId);
-  localStorage.removeItem(getStoreKey(userId));
+  crossRoomThreadFiltersRegistry.clear(userId);
 };

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, color, Spinner, Switch, Text } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
@@ -7,6 +8,7 @@ import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
+import { toSupportedLanguageCode } from '../../i18nLanguages';
 import { MINDROOM_APP_NAME } from '../branding/branding';
 import {
   NativePushPermission,
@@ -24,11 +26,13 @@ export function IOSPushNotification() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
+  const { i18n } = useTranslation();
+  const language = toSupportedLanguageCode(i18n.resolvedLanguage ?? i18n.language);
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
   const iosPushConfig = useMemo(
-    () => resolveIOSPushConfig(clientConfig, sessionId),
-    [clientConfig, sessionId]
+    () => resolveIOSPushConfig(clientConfig, sessionId, language),
+    [clientConfig, language, sessionId]
   );
   const [permission, setPermission] = useState<NativePushPermission>('prompt');
 

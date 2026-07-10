@@ -34,16 +34,16 @@ import {
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
-import { DEFAULT_ROOM_VIEW_MODE, roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
-  serializeThreadFilterQuery,
 } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { useRoomViewMode } from './useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
@@ -86,8 +86,7 @@ export const useRoomViewThreadState = ({
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
 
-  const roomViewModeAtom = roomViewModeAtomFamily(roomId);
-  const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
+  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
@@ -102,11 +101,6 @@ export const useRoomViewThreadState = ({
     () => (simpleMode ? simplifyThreadFilterState(threadFilterState) : threadFilterState),
     [simpleMode, threadFilterState]
   );
-  // The view-mode toggles are hidden in simple mode, so everything tied to
-  // the view mode (send-opens-thread, edge swipes, recent-thread bumps, and
-  // the value handed to the view) must follow the forced default too — not
-  // the persisted choice.
-  const effectiveViewMode = simpleMode ? DEFAULT_ROOM_VIEW_MODE : viewMode;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
@@ -178,16 +172,7 @@ export const useRoomViewThreadState = ({
 
   const updateFromEffectiveQueryState = useCallback(
     (updater: (state: ThreadFilterState) => ThreadFilterState) => {
-      const next = updater(
-        applyParsedThreadFilterQuery(
-          threadFilterState,
-          parseThreadFilterQuery(threadFilterState.searchQuery ?? '')
-        )
-      );
-      const searchQuery = serializeThreadFilterQuery(next);
-      setThreadFilterState(
-        searchQuery === threadFilterState.searchQuery ? next : { ...next, searchQuery }
-      );
+      setThreadFilterState(updater(threadFilterState));
     },
     [setThreadFilterState, threadFilterState]
   );
@@ -262,10 +247,9 @@ export const useRoomViewThreadState = ({
 
   const handleSearchQueryChange = useCallback(
     (query: string) => {
-      setThreadFilterState({
-        ...threadFilterState,
-        searchQuery: query,
-      });
+      setThreadFilterState(
+        applyParsedThreadFilterQuery(threadFilterState, parseThreadFilterQuery(query))
+      );
     },
     [setThreadFilterState, threadFilterState]
   );

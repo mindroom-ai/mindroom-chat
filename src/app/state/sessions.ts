@@ -2,6 +2,7 @@ import {
   MINDROOM_SESSION_STORE_EVENT,
   MINDROOM_SESSION_STORE_KEY,
 } from '../mindroom/cache/sessionStoreConfig';
+import { removeStorageItemSafe, setStorageItemSafe } from '../utils/safeLocalStorage';
 
 export type StoredSession = {
   sessionId: string;
@@ -42,6 +43,12 @@ type PutSessionInput = {
   lastKnownAvatarDataUrl?: string;
 };
 
+type SessionCredentialUpdate = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresInMs?: number;
+};
+
 type LocalStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type SessionStoreListener = () => void;
 type SessionStoreSnapshot = {
@@ -74,6 +81,13 @@ const EMPTY_SESSION_SNAPSHOT: SessionStoreSnapshot = {
 };
 const sessionStoreSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
 
+export class SessionStoreWriteError extends Error {
+  constructor() {
+    super('Unable to save account credentials on this device. Check browser storage permissions.');
+    this.name = 'SessionStoreWriteError';
+  }
+}
+
 const getLocalStorageSafe = (): LocalStorageLike | undefined => {
   try {
     if (typeof localStorage === 'undefined') return undefined;
@@ -94,7 +108,7 @@ export const clearLegacySessionStorage = (
   if (!storage) return;
 
   LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-    storage.removeItem(key);
+    removeStorageItemSafe(storage, key);
   });
 };
 
@@ -122,7 +136,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const toStoredSession = (value: unknown): StoredSession | undefined => {
   if (!isRecord(value)) return undefined;
 
-  const baseUrl = typeof value.baseUrl === 'string' ? normalizeSessionBaseUrl(value.baseUrl) : undefined;
+  const baseUrl =
+    typeof value.baseUrl === 'string' ? normalizeSessionBaseUrl(value.baseUrl) : undefined;
   const userId = typeof value.userId === 'string' ? normalizeUserId(value.userId) : undefined;
   const deviceId = typeof value.deviceId === 'string' ? value.deviceId : undefined;
   const accessToken = typeof value.accessToken === 'string' ? value.accessToken : undefined;
@@ -153,7 +168,11 @@ const toStoredSession = (value: unknown): StoredSession | undefined => {
 };
 
 const sanitizeSessionStore = (value: unknown): SessionStore => {
-  if (!isRecord(value) || value.version !== SESSION_STORE_VERSION || !Array.isArray(value.sessions)) {
+  if (
+    !isRecord(value) ||
+    value.version !== SESSION_STORE_VERSION ||
+    !Array.isArray(value.sessions)
+  ) {
     return {
       version: SESSION_STORE_VERSION,
       sessions: [],
@@ -184,12 +203,22 @@ const sanitizeSessionStore = (value: unknown): SessionStore => {
 const writeSessionStore = (
   store: SessionStore,
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): void => {
-  if (!storage) return;
+): boolean => {
+  if (!storage) return false;
 
   clearLegacySessionStorage(storage);
-  storage.setItem(SESSION_STORE_KEY, JSON.stringify(store));
-  dispatchSessionStoreEvent();
+  if (setStorageItemSafe(storage, SESSION_STORE_KEY, JSON.stringify(store))) {
+    dispatchSessionStoreEvent();
+    return true;
+  }
+  return false;
+};
+
+const writeSessionStoreOrThrow = (
+  store: SessionStore,
+  storage: LocalStorageLike | undefined
+): void => {
+  if (!writeSessionStore(store, storage)) throw new SessionStoreWriteError();
 };
 
 const createSessionStoreSnapshot = (
@@ -241,12 +270,12 @@ const getSessionStoreSnapshot = (
   }
 };
 
-export const getSessionStore = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
-) => getSessionStoreSnapshot(storage).store;
+export const getSessionStore = (storage: LocalStorageLike | undefined = getLocalStorageSafe()) =>
+  getSessionStoreSnapshot(storage).store;
 
-export const listSessions = (storage: LocalStorageLike | undefined = getLocalStorageSafe()): StoredSession[] =>
-  getSessionStoreSnapshot(storage).sessions;
+export const listSessions = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession[] => getSessionStoreSnapshot(storage).sessions;
 
 export const hasStoredSessions = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
@@ -258,7 +287,9 @@ export const getActiveSession = (
 
 const upsertSession = (sessions: StoredSession[], nextSession: StoredSession): StoredSession[] => {
   const nextSessions = [...sessions];
-  const existingIndex = nextSessions.findIndex((session) => session.sessionId === nextSession.sessionId);
+  const existingIndex = nextSessions.findIndex(
+    (session) => session.sessionId === nextSession.sessionId
+  );
 
   if (existingIndex >= 0) {
     nextSessions.splice(existingIndex, 1, nextSession);
@@ -270,10 +301,7 @@ const upsertSession = (sessions: StoredSession[], nextSession: StoredSession): S
 };
 
 const selectNextActiveSessionId = (sessions: StoredSession[]): string | undefined =>
-  [...sessions]
-    .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
-    .find(() => true)
-    ?.sessionId;
+  [...sessions].sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.sessionId;
 
 export const putSession = (
   input: PutSessionInput,
@@ -304,7 +332,7 @@ export const putSession = (
     lastKnownAvatarDataUrl: input.lastKnownAvatarDataUrl ?? existing?.lastKnownAvatarDataUrl,
   };
 
-  writeSessionStore(
+  writeSessionStoreOrThrow(
     {
       version: SESSION_STORE_VERSION,
       sessions: upsertSession(store.sessions, nextSession),
@@ -329,7 +357,7 @@ export const setActiveSession = (
     lastUsedAt: Date.now(),
   };
 
-  writeSessionStore(
+  writeSessionStoreOrThrow(
     {
       version: SESSION_STORE_VERSION,
       sessions: upsertSession(store.sessions, nextSession),
@@ -338,6 +366,39 @@ export const setActiveSession = (
     storage
   );
 
+  return nextSession;
+};
+
+export const updateSessionCredentials = (
+  sessionId: string,
+  credentials: SessionCredentialUpdate,
+  options: { expectedRefreshToken?: string } = {},
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession | undefined => {
+  const store = getSessionStore(storage);
+  const session = store.sessions.find((item) => item.sessionId === sessionId);
+  if (!session) return undefined;
+  if (
+    options.expectedRefreshToken !== undefined &&
+    session.refreshToken !== options.expectedRefreshToken
+  ) {
+    return undefined;
+  }
+
+  const nextSession: StoredSession = {
+    ...session,
+    accessToken: credentials.accessToken,
+    refreshToken: credentials.refreshToken,
+    expiresInMs: credentials.expiresInMs,
+  };
+
+  writeSessionStoreOrThrow(
+    {
+      ...store,
+      sessions: upsertSession(store.sessions, nextSession),
+    },
+    storage
+  );
   return nextSession;
 };
 
@@ -421,14 +482,16 @@ export const removeSession = (
   const store = getSessionStore(storage);
   const sessions = store.sessions.filter((session) => session.sessionId !== sessionId);
   const activeSessionId =
-    store.activeSessionId === sessionId ? selectNextActiveSessionId(sessions) : store.activeSessionId;
+    store.activeSessionId === sessionId
+      ? selectNextActiveSessionId(sessions)
+      : store.activeSessionId;
   const nextStore = {
     version: SESSION_STORE_VERSION,
     sessions,
     activeSessionId,
   };
 
-  writeSessionStore(nextStore, storage);
+  writeSessionStoreOrThrow(nextStore, storage);
   return nextStore;
 };
 
@@ -443,9 +506,9 @@ export const removeActiveSession = (
 export const clearSessionStore = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
 ): void => {
-  if (!storage) return;
+  if (!storage) throw new SessionStoreWriteError();
   clearLegacySessionStorage(storage);
-  storage.removeItem(SESSION_STORE_KEY);
+  if (!removeStorageItemSafe(storage, SESSION_STORE_KEY)) throw new SessionStoreWriteError();
   dispatchSessionStoreEvent();
 };
 
@@ -467,7 +530,9 @@ export const subscribeToSessionStore = (listener: SessionStoreListener): (() => 
   };
 };
 
-export const getSessionStoreName = (session: Pick<StoredSession, 'sessionId'>): SessionStoreName => ({
+export const getSessionStoreName = (
+  session: Pick<StoredSession, 'sessionId'>
+): SessionStoreName => ({
   sync: `web-sync-store${SESSION_DB_PREFIX}${session.sessionId}`,
   crypto: `crypto-store${SESSION_DB_PREFIX}${session.sessionId}`,
 });
@@ -500,7 +565,8 @@ export const getSessionRustCryptoStorePrefix = (
 
 export const getLegacySessionRustCryptoStoreNames = (
   session: Pick<StoredSession, 'sessionId'>
-): [string, string] => getRustCryptoStoreNamesForPrefix(getLegacySessionRustCryptoStorePrefix(session));
+): [string, string] =>
+  getRustCryptoStoreNamesForPrefix(getLegacySessionRustCryptoStorePrefix(session));
 
 export const getSessionRustCryptoStoreNames = (
   session: Pick<StoredSession, 'sessionId' | 'deviceId'>

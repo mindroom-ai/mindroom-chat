@@ -1,0 +1,401 @@
+import 'fake-indexeddb/auto';
+import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  createPreferLiveEventMapper,
+  persistThreadEventCacheSnapshot,
+} from '../../eventRepository';
+import {
+  deleteCacheStoreDb,
+  loadLatestCachedRoomEvents,
+  loadLatestCachedThreadEvents,
+  resetCacheStoreForTesting,
+  saveRoomEventsToCache,
+  saveThreadEventsToCache,
+} from '..';
+
+const SESSION_ID = 'revision-merge-session';
+const ROOM_ID = '!room:example.org';
+const THREAD_ID = '$thread-root';
+const SENDER = '@alice:example.org';
+
+const message = (eventId: string, body: string, ts = 100): Partial<IEvent> => ({
+  event_id: eventId,
+  origin_server_ts: ts,
+  sender: SENDER,
+  type: 'm.room.message',
+  content: { msgtype: 'm.text', body },
+});
+
+const edit = (eventId: string, targetId: string, body: string, ts: number): Partial<IEvent> => ({
+  event_id: eventId,
+  origin_server_ts: ts,
+  sender: SENDER,
+  type: 'm.room.message',
+  content: {
+    msgtype: 'm.text',
+    body: `* ${body}`,
+    'm.new_content': { msgtype: 'm.text', body },
+    'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+  },
+});
+
+const withRevision = (
+  eventId: string,
+  editId: string,
+  editTs: number,
+  threadCount: number
+): Partial<IEvent> => ({
+  ...message(eventId, 'original'),
+  unsigned: {
+    'm.relations': {
+      'm.replace': edit(editId, eventId, editId, editTs),
+      'm.thread': { count: threadCount },
+    },
+  },
+});
+
+const withThreadBundle = (
+  eventId: string,
+  count: number,
+  latestEventId: string,
+  latestEventTs: number
+): Partial<IEvent> => ({
+  ...message(eventId, 'original'),
+  unsigned: {
+    'm.relations': {
+      'm.thread': {
+        count,
+        latest_event: message(latestEventId, latestEventId, latestEventTs),
+      },
+    },
+  },
+});
+
+const withAnnotationBundle = (eventId: string, count: number): Partial<IEvent> => ({
+  ...message(eventId, 'original'),
+  unsigned: {
+    'm.relations': {
+      'm.annotation': {
+        chunk: [
+          {
+            type: 'm.reaction',
+            key: '👍',
+            count,
+          },
+        ],
+      },
+    },
+  },
+});
+
+const redacted = (eventId: string): Partial<IEvent> => ({
+  ...message(eventId, 'removed'),
+  content: {},
+  unsigned: {
+    'm.relations': {
+      'm.replace': edit('$redacted-edit', eventId, 'edited secret', 250),
+    },
+    redacted_because: {
+      event_id: `$redaction-${eventId}`,
+      origin_server_ts: 300,
+      sender: SENDER,
+      type: 'm.room.redaction',
+      redacts: eventId,
+      content: {},
+    },
+  },
+});
+
+const expectRedacted = (event: Partial<IEvent> | undefined): void => {
+  expect(event?.content).toEqual({});
+  expect(event?.unsigned?.redacted_because).toBeDefined();
+  expect(
+    (event?.unsigned?.['m.relations'] as Record<string, unknown> | undefined)?.['m.replace']
+  ).toBeUndefined();
+  expect(JSON.stringify(event)).not.toContain('removed');
+  expect(JSON.stringify(event)).not.toContain('edited secret');
+};
+
+const expectNewestEditWithExistingAggregations = (event: Partial<IEvent> | undefined): void => {
+  const relations = event?.unsigned?.['m.relations'] as
+    | Record<string, Partial<IEvent> & { count?: number }>
+    | undefined;
+  expect(relations?.['m.replace']?.event_id).toBe('$edit-v3');
+  expect(relations?.['m.thread']?.count).toBe(3);
+};
+
+describe('cache storage same-ID revision merge', () => {
+  beforeEach(() => resetCacheStoreForTesting());
+  afterEach(async () => {
+    await deleteCacheStoreDb(SESSION_ID);
+    resetCacheStoreForTesting();
+  });
+
+  it('does not overwrite a redacted room event with stale plaintext', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [redacted('$room-event')]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [message('$room-event', 'secret')]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    expectRedacted(page.events[0]);
+  });
+
+  it('keeps the newest room edit and existing partial aggregations', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withRevision('$room-event', '$edit-v3', 300, 3),
+    ]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withRevision('$room-event', '$edit-v2', 200, 7),
+    ]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    expectNewestEditWithExistingAggregations(page.events[0]);
+  });
+
+  it('keeps existing thread aggregations when a newer edit observation omits them', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withRevision('$room-event', '$edit-v2', 200, 7),
+    ]);
+    const newerEditWithoutAggregations = {
+      ...message('$room-event', 'original'),
+      unsigned: {
+        'm.relations': {
+          'm.replace': edit('$edit-v3', '$room-event', 'v3', 300),
+        },
+      },
+    };
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [newerEditWithoutAggregations]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    const relations = page.events[0]?.unsigned?.['m.relations'] as
+      | Record<string, { event_id?: string; count?: number }>
+      | undefined;
+    expect(relations?.['m.replace']?.event_id).toBe('$edit-v3');
+    expect(relations?.['m.thread']?.count).toBe(7);
+  });
+
+  it('accepts a lower thread count from an authoritative snapshot', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withThreadBundle('$thread-root-event', 7, '$latest-old', 100),
+    ]);
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [withThreadBundle('$thread-root-event', 3, '$latest-new', 200)],
+      undefined,
+      'authoritative'
+    );
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    const thread = (
+      page.events[0]?.unsigned?.['m.relations'] as
+        | Record<string, { count?: number; latest_event?: Partial<IEvent> }>
+        | undefined
+    )?.['m.thread'];
+    expect(thread?.count).toBe(3);
+    expect(thread?.latest_event?.event_id).toBe('$latest-new');
+  });
+
+  it('does not let a partial annotation observation replace an existing bucket', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [withAnnotationBundle('$annotated', 5)]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [withAnnotationBundle('$annotated', 2)]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    const annotation = (
+      page.events[0]?.unsigned?.['m.relations'] as
+        | Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }>
+        | undefined
+    )?.['m.annotation'];
+    expect(annotation?.chunk).toEqual([expect.objectContaining({ count: 5 })]);
+  });
+
+  it('removes unrelated bundles when an authoritative snapshot omits them', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      {
+        ...message('$referenced', 'original'),
+        unsigned: { 'm.relations': { 'm.reference': { chunk: [{ event_id: '$ref' }] } } },
+      },
+    ]);
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [message('$referenced', 'authoritative')],
+      undefined,
+      'authoritative'
+    );
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    expect(page.events[0]?.unsigned?.['m.relations']).toBeUndefined();
+  });
+
+  it('does not overwrite a redacted thread reply with stale plaintext', async () => {
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [redacted('$reply')]);
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [message('$reply', 'secret')]);
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectRedacted(page.events[0]);
+  });
+
+  it('prunes a stale authoritative redaction before it reaches IndexedDB', async () => {
+    const redaction = {
+      event_id: '$redaction-reply',
+      origin_server_ts: 300,
+      sender: SENDER,
+      type: 'm.room.redaction',
+      redacts: '$reply',
+      content: {},
+    } satisfies Partial<IEvent>;
+    const staleServerReply = {
+      ...message('$reply', 'secret from stale /relations'),
+      unsigned: {
+        redacted_because: redaction,
+        'm.relations': {
+          'm.annotation': { chunk: [{ type: 'm.reaction', key: '👍', count: 2 }] },
+          'm.replace': edit('$stale-edit', '$reply', 'edited secret', 250),
+        },
+      },
+    } satisfies Partial<IEvent>;
+    const room = {
+      roomId: ROOM_ID,
+      findEventById: () => undefined,
+    } as unknown as Room;
+    const mapped = createPreferLiveEventMapper(
+      room,
+      (rawEvent) => new MatrixEvent(rawEvent as IEvent)
+    )(staleServerReply);
+
+    const snapshot = persistThreadEventCacheSnapshot({
+      sessionId: SESSION_ID,
+      room,
+      threadId: THREAD_ID,
+      events: [mapped],
+      authoritativeRawEvents: [staleServerReply],
+      relationSnapshotMode: 'authoritative',
+    });
+    await snapshot.write;
+    resetCacheStoreForTesting();
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectRedacted(page.events[0]);
+    expect(page.events[0]?.unsigned?.['m.relations']).toMatchObject({
+      'm.annotation': { chunk: [{ type: 'm.reaction', key: '👍', count: 2 }] },
+    });
+    expect(JSON.stringify(page.events[0])).not.toContain('secret from stale /relations');
+  });
+
+  it('keeps the newest thread-reply edit and existing partial aggregations', async () => {
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [
+      withRevision('$reply', '$edit-v3', 300, 3),
+    ]);
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [
+      withRevision('$reply', '$edit-v2', 200, 7),
+    ]);
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectNewestEditWithExistingAggregations(page.events[0]);
+  });
+
+  it('does not overwrite a redacted thread root with stale plaintext', async () => {
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], redacted(THREAD_ID));
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], message(THREAD_ID, 'secret'));
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectRedacted(page.rootEvent);
+  });
+
+  it('keeps a redacted thread root while accepting newer thread aggregations', async () => {
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], redacted(THREAD_ID));
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      withRevision(THREAD_ID, '$stale-secret-edit', 400, 7)
+    );
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectRedacted(page.rootEvent);
+    const relations = page.rootEvent?.unsigned?.['m.relations'] as
+      | Record<string, { count?: number }>
+      | undefined;
+    expect(relations?.['m.thread']?.count).toBe(7);
+    expect(JSON.stringify(page.rootEvent)).not.toContain('$stale-secret-edit');
+  });
+
+  it('applies authoritative thread-root decreases and participation changes', async () => {
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], {
+      ...message(THREAD_ID, 'root'),
+      unsigned: {
+        'm.relations': {
+          'm.thread': { count: 7, current_user_participated: true },
+        },
+      },
+    });
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      {
+        ...message(THREAD_ID, 'root'),
+        unsigned: {
+          'm.relations': {
+            'm.thread': { count: 3, current_user_participated: false },
+          },
+        },
+      },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'authoritative'
+    );
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    const thread = (
+      page.rootEvent?.unsigned?.['m.relations'] as
+        | Record<string, { count?: number; current_user_participated?: boolean }>
+        | undefined
+    )?.['m.thread'];
+    expect(thread).toEqual({ count: 3, current_user_participated: false });
+  });
+
+  it('preserves cached thread aggregations when a newer tombstone has none', async () => {
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      withRevision(THREAD_ID, '$edit-before-redaction', 200, 3)
+    );
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], redacted(THREAD_ID));
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectRedacted(page.rootEvent);
+    const relations = page.rootEvent?.unsigned?.['m.relations'] as
+      | Record<string, { count?: number }>
+      | undefined;
+    expect(relations?.['m.thread']?.count).toBe(3);
+  });
+
+  it('keeps the newest thread-root edit and existing partial aggregations', async () => {
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      withRevision(THREAD_ID, '$edit-v3', 300, 3)
+    );
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      withRevision(THREAD_ID, '$edit-v2', 200, 7)
+    );
+
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+    expectNewestEditWithExistingAggregations(page.rootEvent);
+  });
+});

@@ -24,7 +24,13 @@ type TypingMemberDeleteAction = {
   roomId: string;
   userId: string;
 };
-export type IRoomIdToTypingMembersAction = TypingMemberPutAction | TypingMemberDeleteAction;
+type TypingMembersResetAction = {
+  type: 'RESET';
+};
+export type IRoomIdToTypingMembersAction =
+  | TypingMemberPutAction
+  | TypingMemberDeleteAction
+  | TypingMembersResetAction;
 
 const baseRoomIdToTypingMembersAtom = atom<IRoomIdToTypingMembers>(new Map());
 
@@ -79,6 +85,11 @@ export const roomIdToTypingMembersAtom = atom<
 >(
   (get) => get(baseRoomIdToTypingMembersAtom),
   (get, set, action) => {
+    if (action.type === 'RESET') {
+      set(baseRoomIdToTypingMembersAtom, new Map());
+      return;
+    }
+
     const rToTyping = get(baseRoomIdToTypingMembersAtom);
 
     if (action.type === 'PUT') {
@@ -132,6 +143,8 @@ export const useBindRoomIdToTypingMembersAtom = (
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
   useEffect(() => {
+    setTypingMembers({ type: 'RESET' });
+
     const handleTypingEvent: RoomMemberEventHandlerMap[RoomMemberEvent.Typing] = (
       event,
       member

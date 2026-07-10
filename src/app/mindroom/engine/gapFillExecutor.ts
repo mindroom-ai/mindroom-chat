@@ -11,9 +11,10 @@
  * `tailDiscontinuity` marker when done.
  *
  * Contract with the durable marker:
- *   - On success (any events persisted OR the SDK confirmed there is
- *     nothing left to fetch): clear the marker so the next boot skips
- *     the retry.
+ *   - Snapshot the pre-gap cached tail before fetching and keep those
+ *     event ids on the marker across cursor checkpoints.
+ *   - Clear only after a committed page overlaps that cached tail, or
+ *     the SDK confirms there is no more history to fetch.
  *   - On abort: leave the marker in place — the next boot will retry.
  *   - On error: leave the marker in place. We swallow the error so the
  *     scheduler slot frees; the next `RoomEvent.TimelineReset` or
@@ -28,7 +29,13 @@
 
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
-import { clearRoomTailDiscontinuity } from '../threads/cacheStore';
+import {
+  checkpointRoomTailDiscontinuity,
+  clearRoomTailDiscontinuity,
+  getTailDiscontinuityGeneration,
+  loadLatestCachedRoomEvents,
+  loadRoomTailDiscontinuity,
+} from '../threads/cacheStore';
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import type { GapFillJob, GapFillScheduler } from './engineGapTracker';
@@ -44,6 +51,16 @@ import {
 // batches so the scheduler's cooperative abort granularity is
 // consistent across job kinds.
 const GAP_FILL_BATCH_SIZE = 200;
+
+// The startup/ongoing sync filter is capped at 20 timeline events
+// (STARTUP_SYNC_TIMELINE_LIMIT in client/initMatrix.ts). Keeping ten
+// such windows ensures the snapshot taken for a limited-sync reset
+// still contains the pre-reset side of the gap. A contract test ties
+// these independently-owned constants together without making the
+// engine depend on client startup code. The ids are persisted on the
+// marker before any /messages page is written, so later capped runs
+// cannot displace this original boundary.
+export const GAP_FILL_OVERLAP_TAIL_LIMIT = GAP_FILL_BATCH_SIZE;
 
 // Cap on iterations per gap-fill job. Guards against pathological
 // homeservers that stream tokens forever. In practice a gap-fill
@@ -75,6 +92,10 @@ export type GapFillExecutorOptions = {
    * for the same back-compat reason as `getPrefetchConfig`.
    */
   readonly getFocusedRoomId?: () => string | undefined;
+  /** Test hook for proving cursor advancement follows a committed write. */
+  readonly persistChunk?: typeof persistRoomChunkWithPreferLive;
+  /** Test hook for controlling the pre-gap cached-tail snapshot. */
+  readonly loadCachedTail?: typeof loadLatestCachedRoomEvents;
 };
 
 /**
@@ -87,6 +108,8 @@ export type GapFillExecutorOptions = {
  */
 export type GapFillExecutor = {
   drainNow(): void;
+  /** Retry policy-deferred or capped work after focus or prefetch scope changes. */
+  recheckDeferred(roomId?: string): void;
   stop(): void;
 };
 
@@ -98,11 +121,56 @@ export const createGapFillExecutor = (
   const priority = options.priority ?? 1;
   const getPrefetchConfig = options.getPrefetchConfig;
   const getFocusedRoomId = options.getFocusedRoomId ?? (() => undefined);
+  const persistChunk = options.persistChunk ?? persistRoomChunkWithPreferLive;
+  const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
   let stopped = false;
+  const latestJobs = new Map<string, GapFillJob>();
+  const deferredJobs = new Map<string, GapFillJob>();
+  const activeRooms = new Set<string>();
 
-  const runOnce = async (job: GapFillJob, signal: AbortSignal): Promise<void> => {
+  const runOnce = async (
+    job: GapFillJob,
+    signal: AbortSignal
+  ): Promise<'policy-deferred' | 'continuation-deferred' | undefined> => {
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
+    const durableMarker = await loadRoomTailDiscontinuity(sessionId, job.roomId);
+    const generation =
+      job.generation ??
+      getTailDiscontinuityGeneration(
+        durableMarker ?? { markedAt: job.markedAt, prevBatch: job.prevBatch }
+      );
+
+    let fromToken: string | null =
+      durableMarker?.nextToken ?? job.prevBatch ?? durableMarker?.prevBatch ?? null;
+    let overlapEventIds = durableMarker?.overlapEventIds;
+    if (overlapEventIds === undefined) {
+      let cachedTail;
+      try {
+        cachedTail = await loadCachedTail(sessionId, job.roomId, GAP_FILL_OVERLAP_TAIL_LIMIT);
+      } catch {
+        // Without a trustworthy boundary, preserve the marker and retry
+        // instead of risking an unnecessary crawl to room genesis.
+        return;
+      }
+      overlapEventIds = [
+        ...new Set(
+          cachedTail.events.flatMap((event) =>
+            typeof event.event_id === 'string' && event.event_id.length > 0 ? [event.event_id] : []
+          )
+        ),
+      ];
+      if (durableMarker) {
+        const boundaryCheckpointed = await checkpointRoomTailDiscontinuity(
+          sessionId,
+          job.roomId,
+          generation,
+          fromToken,
+          overlapEventIds
+        );
+        if (!boundaryCheckpointed) return;
+      }
+    }
 
     // CINNY-207 P7.2 audit finding #5: scope-aware gate. Under
     // `my-server` (default) this collapses to the historical
@@ -138,17 +206,21 @@ export const createGapFillExecutor = (
       if (isRoomEligibleForRawFetch(mx, room)) {
         // Only reachable under `current-room-only` for a non-focused
         // eligible room. Marker preserved.
-      } else if (resolveRoomPrefetchTier(mx, room) === 'own') {
-        await clearRoomTailDiscontinuity(sessionId, room.roomId).catch(
-          () => undefined
-        );
+        return 'policy-deferred';
+      }
+      if (resolveRoomPrefetchTier(mx, room) === 'own') {
+        await clearRoomTailDiscontinuity(sessionId, room.roomId, generation).catch(() => undefined);
+      } else {
+        // A federated/background room can become eligible when the user
+        // widens the live scope to all-rooms.
+        return 'policy-deferred';
       }
       return;
     }
 
-    let fromToken: string | null = job.prevBatch ?? null;
+    const overlapEventIdSet = new Set(overlapEventIds);
     let iterations = 0;
-    let reachedEnd = false;
+    let reachedBoundary = false;
     while (iterations < GAP_FILL_MAX_ITERATIONS) {
       if (signal.aborted) return;
       iterations += 1;
@@ -169,6 +241,9 @@ export const createGapFillExecutor = (
       const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
         ? (response.chunk as Partial<IEvent>[])
         : [];
+      const overlapsCachedTail = chunk.some(
+        (event) => typeof event.event_id === 'string' && overlapEventIdSet.has(event.event_id)
+      );
       if (chunk.length > 0) {
         // CINNY-207 P7.2 audit finding #3: chunks must funnel through
         // `createPreferLiveEventMapper` (see reconciler.ts header + I2)
@@ -182,37 +257,61 @@ export const createGapFillExecutor = (
         // serialize+save path the write-through uses. Ordering is
         // normalized inside `runSaveRoomEventsTxn` via
         // origin_server_ts sorting.
-        persistRoomChunkWithPreferLive({
-          mx,
-          sessionId,
-          room,
-          chunk,
-          beforeTokenForEarliest: response.end ?? null,
-        });
+        try {
+          // Writes must commit before the durable cursor advances.
+          // eslint-disable-next-line no-await-in-loop
+          await persistChunk({
+            mx,
+            sessionId,
+            room,
+            chunk,
+            beforeTokenForEarliest: response.end ?? null,
+          });
+        } catch {
+          return;
+        }
+      }
+      // The overlap page must commit before the marker is cleared. It
+      // is safe (and useful for edit/redaction healing) to persist the
+      // whole page, including the already-cached boundary event.
+      if (overlapsCachedTail) {
+        reachedBoundary = true;
+        break;
       }
       // `end === undefined` (or an empty end string) means the SDK has
       // no more history to fetch in this direction.
       if (!response.end) {
-        reachedEnd = true;
+        reachedBoundary = true;
         break;
       }
-      // Same token twice in a row means the SDK is stuck — bail.
+      // Same token twice is not proof of exhaustion. Preserve the
+      // marker at its last committed cursor for a later retry.
       if (response.end === fromToken) {
-        reachedEnd = true;
-        break;
+        return;
       }
+      // The marker may have been superseded by a newer TimelineReset
+      // while this request was in flight. Stop instead of overwriting
+      // the new generation's cursor.
+      // eslint-disable-next-line no-await-in-loop
+      const checkpointed = await checkpointRoomTailDiscontinuity(
+        sessionId,
+        job.roomId,
+        generation,
+        response.end
+      );
+      if (durableMarker && !checkpointed) return;
       fromToken = response.end;
       // Empty chunk after the first iteration indicates we've walked
       // past the useful range — stop persisting nothing.
       if (chunk.length === 0 && iterations > 1) {
-        reachedEnd = true;
-        break;
+        return;
       }
     }
 
     // CINNY-207 P5 review (greptile P1: gap marker clears early):
     // only clear the marker when the server has signaled "no more
-    // history in this direction" (reachedEnd). Previously we cleared
+    // history in this direction" or a committed page overlaps the
+    // durable pre-gap tail. Previously we cleared
     // as soon as ANY batch persisted, which meant a gap larger than
     // GAP_FILL_MAX_ITERATIONS × GAP_FILL_BATCH_SIZE (= 4,000 events)
     // dropped the marker while the tail was still incomplete —
@@ -221,14 +320,47 @@ export const createGapFillExecutor = (
     // With this contract, if we hit the iteration cap with more
     // history still available (response.end still present after
     // batch 20), the marker survives and a subsequent boot / focus-
-    // triggered run picks up from where we stopped. `prevBatch` on
-    // the marker still points at the ORIGINAL gap boundary — the
-    // executor re-fetches from there each run — so the next attempt
-    // walks forward using the same paging contract until reachedEnd
-    // is observed or the gap is truly closed.
-    if (reachedEnd) {
-      await clearRoomTailDiscontinuity(sessionId, job.roomId).catch(() => undefined);
+    // triggered run picks up from `nextToken`. The overlap ids remain
+    // attached to the marker across checkpoints, so a later run still
+    // recognizes the original cached tail even after many committed
+    // gap pages have changed the cache's newest-event window.
+    if (reachedBoundary) {
+      await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(() => undefined);
+      return;
     }
+    return 'continuation-deferred';
+  };
+
+  const runLatest = (roomId: string): void => {
+    if (stopped || activeRooms.has(roomId)) return;
+    activeRooms.add(roomId);
+    void (async () => {
+      try {
+        while (!stopped) {
+          const job = latestJobs.get(roomId);
+          if (!job) break;
+          latestJobs.delete(roomId);
+          let shouldDefer = false;
+          // eslint-disable-next-line no-await-in-loop
+          await scheduler
+            .enqueue({
+              roomId: job.roomId,
+              kind: 'gap-fill',
+              priority,
+              execute: async (signal) => {
+                shouldDefer = (await runOnce(job, signal)) !== undefined;
+              },
+            })
+            .catch(() => undefined);
+          if (shouldDefer && !latestJobs.has(roomId)) {
+            deferredJobs.set(roomId, job);
+          }
+        }
+      } finally {
+        activeRooms.delete(roomId);
+        if (!stopped && latestJobs.has(roomId)) runLatest(roomId);
+      }
+    })();
   };
 
   const enqueue = (job: GapFillJob): void => {
@@ -242,33 +374,48 @@ export const createGapFillExecutor = (
     // and encrypted rooms; those runs resolve fast (marker cleared for
     // encrypted-own, marker preserved for federated per Deviations §8)
     // and count as `schedulerCompleted`.
-    scheduler
-      .enqueue({
-        roomId: job.roomId,
-        kind: 'gap-fill',
-        priority,
-        execute: (signal) => runOnce(job, signal),
-      })
-      .catch(() => undefined);
+    deferredJobs.delete(job.roomId);
+    const queued = latestJobs.get(job.roomId);
+    if (!queued || job.markedAt >= queued.markedAt) latestJobs.set(job.roomId, job);
+    runLatest(job.roomId);
+  };
+
+  const recheckDeferred = (roomId?: string): void => {
+    if (stopped) return;
+    const jobs = roomId
+      ? [deferredJobs.get(roomId)].filter((job): job is GapFillJob => !!job)
+      : Array.from(deferredJobs.values());
+    jobs.forEach((job) => {
+      if (deferredJobs.get(job.roomId) !== job) return;
+      deferredJobs.delete(job.roomId);
+      enqueue(job);
+    });
   };
 
   const drainNow = (): void => {
     if (stopped) return;
     const pending = gapFillScheduler.pendingJobs();
     if (pending.length === 0) return;
-    pending.forEach(enqueue);
-    gapFillScheduler.clear();
+    pending.forEach((job) => {
+      gapFillScheduler.remove(job.roomId);
+      enqueue(job);
+    });
   };
 
   // Drain everything already queued (usually nothing on wire), then
   // subscribe so future enqueues dispatch immediately.
   drainNow();
-  const unsubscribe = gapFillScheduler.onEnqueue((job) => enqueue(job));
+  const unsubscribe = gapFillScheduler.onEnqueue((job) => {
+    gapFillScheduler.remove(job.roomId);
+    enqueue(job);
+  });
 
   const stop = (): void => {
     stopped = true;
+    latestJobs.clear();
+    deferredJobs.clear();
     unsubscribe();
   };
 
-  return { drainNow, stop };
+  return { drainNow, recheckDeferred, stop };
 };

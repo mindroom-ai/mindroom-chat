@@ -72,10 +72,7 @@ const openTestDb = (dbName: string): Promise<IDBDatabase> =>
 const readLedger = async (
   db: IDBDatabase,
   roomId: string
-): Promise<
-  | { approxBytes: number; eventCount: number; lastActivityTs: number }
-  | undefined
-> =>
+): Promise<{ approxBytes: number; eventCount: number; lastActivityTs: number } | undefined> =>
   new Promise((resolve, reject) => {
     const txn = db.transaction(ROOM_LEDGER_STORE, 'readonly');
     const store = txn.objectStore(ROOM_LEDGER_STORE);
@@ -153,10 +150,7 @@ describe('CINNY-207 P2 review: open-failure health gate', () => {
           onupgradeneeded: null,
         };
         queueMicrotask(() => {
-          req.onerror?.call(
-            req as unknown as IDBRequest,
-            new Event('error')
-          );
+          req.onerror?.call(req as unknown as IDBRequest, new Event('error'));
         });
         return req as IDBOpenDBRequest;
       },
@@ -371,12 +365,13 @@ describe('CINNY-207 P2 review: duplicate eventIds do not underflow the ledger', 
       rootEvent
     );
 
-    await cacheStore.deleteThreadEventsFromCache(
-      SESSION_ID,
-      ROOM_ID_A,
-      THREAD_ID,
-      ['$rA', '$rA', '$rA']
-    );
+    await expect(
+      cacheStore.deleteThreadEventsFromCacheCommitted(SESSION_ID, ROOM_ID_A, THREAD_ID, [
+        '$rA',
+        '$rA',
+        '$rA',
+      ])
+    ).resolves.toBe(true);
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID_A);
@@ -398,17 +393,13 @@ describe('CINNY-207 P2 review: eviction meta scan uses key-range', () => {
     vi.restoreAllMocks();
   });
 
-  it('evicts only the target room\'s meta rows (leaves the other room untouched)', async () => {
+  it("evicts only the target room's meta rows (leaves the other room untouched)", async () => {
     const cacheStore = await import('../index');
     const dbName = cacheStore.getCacheStoreDbName(SESSION_ID);
 
     // Seed events into both rooms so ledger rows populate for both.
-    await cacheStore.saveRoomEventsToCache(SESSION_ID, ROOM_ID_A, [
-      makeRawEvent('$a', 100, 300),
-    ]);
-    await cacheStore.saveRoomEventsToCache(SESSION_ID, ROOM_ID_B, [
-      makeRawEvent('$b', 200, 300),
-    ]);
+    await cacheStore.saveRoomEventsToCache(SESSION_ID, ROOM_ID_A, [makeRawEvent('$a', 100, 300)]);
+    await cacheStore.saveRoomEventsToCache(SESSION_ID, ROOM_ID_B, [makeRawEvent('$b', 200, 300)]);
 
     // Manually add multiple meta rows for both rooms — mimicking a
     // room with several thread scopes.
