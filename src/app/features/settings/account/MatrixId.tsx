@@ -5,10 +5,16 @@ import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import { copyToClipboard } from '../../../utils/dom';
+import { useTimeoutToggle } from '../../../hooks/useTimeoutToggle';
 
 export function MatrixId() {
   const mx = useMatrixClient();
   const userId = mx.getUserId()!;
+  const [copied, setCopied] = useTimeoutToggle();
+
+  const handleCopy = async () => {
+    if (await copyToClipboard(userId)) setCopied();
+  };
 
   return (
     <Box direction="Column" gap="100">
@@ -22,8 +28,8 @@ export function MatrixId() {
         <SettingTile
           title={userId}
           after={
-            <Chip variant="Secondary" radii="Pill" onClick={() => copyToClipboard(userId)}>
-              <Text size="T200">Copy</Text>
+            <Chip variant={copied ? 'Success' : 'Secondary'} radii="Pill" onClick={handleCopy}>
+              <Text size="T200">{copied ? 'Copied' : 'Copy'}</Text>
             </Chip>
           }
         />

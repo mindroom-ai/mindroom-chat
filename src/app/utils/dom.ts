@@ -1,3 +1,6 @@
+import { Clipboard } from '@capacitor/clipboard';
+import { Capacitor } from '@capacitor/core';
+
 export const targetFromEvent = (evt: Event, selector: string): Element | undefined => {
   const targets = evt.composedPath() as Element[];
   return targets.find((target) => target.matches?.(selector));
@@ -33,7 +36,8 @@ export const isInScrollView = (scrollElement: HTMLElement, childElement: HTMLEle
 export const canFitInScrollView = (
   scrollElement: HTMLElement,
   childElement: HTMLElement
-): boolean => childElement.getBoundingClientRect().height < scrollElement.getBoundingClientRect().height;
+): boolean =>
+  childElement.getBoundingClientRect().height < scrollElement.getBoundingClientRect().height;
 
 export type FilesOrFile<T extends boolean | undefined = undefined> = T extends true ? File[] : File;
 
@@ -234,22 +238,50 @@ export const scrollToBottom = (scrollEl: HTMLElement, behavior?: 'auto' | 'insta
   });
 };
 
-export const copyToClipboard = (text: string) => {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text);
-  } else {
-    const host = document.body;
-    const copyInput = document.createElement('input');
-    copyInput.style.position = 'fixed';
-    copyInput.style.opacity = '0';
-    copyInput.value = text;
-    host.append(copyInput);
+const copyWithExecCommand = (text: string): boolean => {
+  if (typeof document === 'undefined') return false;
 
-    copyInput.select();
-    copyInput.setSelectionRange(0, 99999);
-    document.execCommand('Copy');
+  const copyInput = document.createElement('input');
+  copyInput.dataset.clipboardFallback = 'true';
+  copyInput.readOnly = true;
+  copyInput.setAttribute('aria-hidden', 'true');
+  copyInput.style.position = 'fixed';
+  copyInput.style.left = '-9999px';
+  copyInput.style.opacity = '0';
+  copyInput.value = text;
+  document.body.append(copyInput);
+
+  copyInput.select();
+  copyInput.setSelectionRange(0, text.length);
+  try {
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
     copyInput.remove();
   }
+};
+
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('Clipboard')) {
+    try {
+      await Clipboard.write({ string: text });
+      return true;
+    } catch {
+      // Fall through to browser APIs if native clipboard unexpectedly fails.
+    }
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Safari/WKWebView can expose Clipboard API while rejecting writes.
+    }
+  }
+
+  return copyWithExecCommand(text);
 };
 
 export const setFavicon = (url: string): void => {

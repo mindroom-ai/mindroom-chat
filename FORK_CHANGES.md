@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### iOS account-settings Matrix ID copy (2026-07-10)
+
+- Status: complete; independent review found no actionable issues.
+- Root cause: the shared copy helper preferred `navigator.clipboard.writeText(...)` whenever the
+  browser exposed it, but returned immediately and ignored rejected writes. iOS WKWebView can
+  expose that API without completing the write, so the fallback never ran and Account Settings
+  also gave no success/failure feedback.
+- Native apps now write through the official Capacitor Clipboard plugin. Browser clients retain
+  the web Clipboard API, with a cleaned-up `execCommand('copy')` fallback when the async API
+  rejects or is absent. The helper reports success instead of leaving callers unable to distinguish
+  a completed copy from a denied write.
+- The Matrix ID control changes to `Copied`/success styling only after a confirmed write, then uses
+  the existing timeout-toggle behavior to return to `Copy`.
+- RED: two focused helper tests failed against the old implementation because it returned `void`,
+  never invoked the native plugin, and never recovered from a rejected browser Clipboard write.
+- GREEN: focused helper/component coverage passes (4 tests), including exact Matrix ID payload,
+  native-plugin selection, rejected-web-API fallback cleanup, and success-only UI confirmation.
+  Typecheck and production build pass; full ESLint passes with 0 errors / 19 pre-existing warnings.
+- Native sync updated the Podfile and lockfile with `CapacitorClipboard`. Web assets and plugin
+  metadata copied successfully, but local `pod install`/native build could not run because this
+  machine only has Command Line Tools selected and no Xcode app installed.
+- Full `npm test` ran: 357 files / 2833 tests passed; the unrelated existing
+  `virtualizerIOSScrollContract.test.ts` cleanup guard failed (also fails alone) with an unexpected
+  adjustment write. No clipboard code participates in that virtualizer test.
+- Independent review verified native plugin registration and versions, Pod/lock changes, browser
+  fallback cleanup and boolean semantics, compatibility with existing fire-and-forget callers,
+  success-only Account Settings feedback, and focused coverage; no findings.
+
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
 - Status: complete; opened as PR #108. Before the fix, a failing
