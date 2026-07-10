@@ -23,6 +23,13 @@
   validation passes: 356 files / 2833 tests, TypeScript typecheck, production
   build, and lint with 0 errors / 19 pre-existing warnings. Independent final
   review reports no findings.
+- PR review follow-up: refuted Gemini's paired render-phase state-update
+  suggestions with a focused render-count probe. The current effect path
+  rendered the function child twice after expansion; moving the setter into
+  render increased that to three, so the proposed optimization made the cited
+  behavior worse. The existing `shouldLoadFullContent` bridge already supplies
+  `true` to children on the first expanded render, before the persistence
+  effect, so no raw-preview paint occurs.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
