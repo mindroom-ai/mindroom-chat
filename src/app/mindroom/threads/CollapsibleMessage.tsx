@@ -24,6 +24,49 @@ const listeners = new Set<ExpandAllListener>();
 // `undefined` means "no override — use the per-message default".
 export const ExpandAllInitContext = React.createContext<boolean | undefined>(undefined);
 
+// Manual expansion is user preference, unlike the module-level overflow
+// verdict cache below (which is only a measurement warm-start hint). Keep it
+// in a room/thread timeline-owned Map so virtualization remounts can reuse it
+// without leaking UI state across navigation.
+export const ManualExpansionStateContext = React.createContext<Map<string, boolean> | undefined>(
+  undefined
+);
+export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
+
+export const rememberManualExpansionState = (
+  state: Map<string, boolean>,
+  key: string,
+  expanded: boolean,
+  limit = MANUAL_EXPANSION_STATE_LIMIT
+) => {
+  // Refresh existing keys so oldest-entry eviction retains recently-used rows.
+  state.delete(key);
+  state.set(key, expanded);
+  while (state.size > limit) {
+    const oldestKey = state.keys().next().value;
+    if (oldestKey === undefined) break;
+    state.delete(oldestKey);
+  }
+};
+
+export function CollapsibleMessageStateProvider({
+  children,
+  expandAllInit,
+  manualExpansionState,
+}: {
+  children: ReactNode;
+  expandAllInit: boolean | undefined;
+  manualExpansionState: Map<string, boolean>;
+}) {
+  return (
+    <ManualExpansionStateContext.Provider value={manualExpansionState}>
+      <ExpandAllInitContext.Provider value={expandAllInit}>
+        {children}
+      </ExpandAllInitContext.Provider>
+    </ManualExpansionStateContext.Provider>
+  );
+}
+
 export function expandAllMessages() {
   listeners.forEach((fn) => fn(true));
 }
@@ -128,6 +171,7 @@ export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'in
 type CollapsibleMessageProps = {
   children: ReactNode | ((state: CollapsibleMessageRenderState) => ReactNode);
   collapseMode?: CollapsibleMessageCollapseMode;
+  expansionKey?: string;
   forceOverflowing?: boolean;
   measurementKey?: string;
   onInitialExpandConsumed?: () => void;
@@ -140,6 +184,7 @@ export type CollapsibleMessageRenderState = {
 export function CollapsibleMessage({
   children,
   collapseMode = 'default',
+  expansionKey,
   forceOverflowing = false,
   measurementKey,
   onInitialExpandConsumed,
@@ -151,6 +196,7 @@ export function CollapsibleMessage({
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
+  const manualExpansionState = useContext(ManualExpansionStateContext);
   const [overflowing, setOverflowing] = useState(() => {
     // forceOverflowing is a prop-driven override (lazily-hydrated
     // collapsed content) and must win over any cached verdict — a row
@@ -179,6 +225,10 @@ export function CollapsibleMessage({
     // only after paint (a visible collapsed flash on virtualized mounts).
     if (collapseMode === 'initially-expanded') {
       return true;
+    }
+    if (!isExempt && expansionKey !== undefined) {
+      const remembered = manualExpansionState?.get(expansionKey);
+      if (remembered !== undefined) return remembered;
     }
     if (!isExempt && expandAllInit !== undefined) {
       return expandAllInit;
@@ -268,6 +318,16 @@ export function CollapsibleMessage({
   }, []);
   useExpandAllListener(handleGlobalToggle, !isExempt);
 
+  const setManualExpanded = useCallback(
+    (nextExpanded: boolean) => {
+      if (manualExpansionState && expansionKey !== undefined) {
+        rememberManualExpansionState(manualExpansionState, expansionKey, nextExpanded);
+      }
+      setExpanded(nextExpanded);
+    },
+    [expansionKey, manualExpansionState]
+  );
+
   // Focus management: after collapse, focus the gradient expand control
   useEffect(() => {
     if (needsFocusOnCollapseRef.current && !expanded && overflowing && gradientRef.current) {
@@ -277,32 +337,41 @@ export function CollapsibleMessage({
   }, [expanded, overflowing]);
 
   const handleGradientClick = useCallback(() => {
-    setExpanded(true);
-  }, []);
+    setManualExpanded(true);
+  }, [setManualExpanded]);
 
-  const handleGradientKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setExpanded(true);
-    }
-  }, []);
+  const handleGradientKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setManualExpanded(true);
+      }
+    },
+    [setManualExpanded]
+  );
 
-  const handleCollapseClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    needsFocusOnCollapseRef.current = true;
-    setExpanded(false);
-    setOverflowing(false);
-  }, []);
-
-  const handleCollapseKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
+  const handleCollapseClick = useCallback(
+    (e: React.MouseEvent) => {
       e.stopPropagation();
       needsFocusOnCollapseRef.current = true;
-      setExpanded(false);
+      setManualExpanded(false);
       setOverflowing(false);
-    }
-  }, []);
+    },
+    [setManualExpanded]
+  );
+
+  const handleCollapseKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.stopPropagation();
+        needsFocusOnCollapseRef.current = true;
+        setManualExpanded(false);
+        setOverflowing(false);
+      }
+    },
+    [setManualExpanded]
+  );
 
   const showCloseButton = !isExempt && expanded && overflowing;
   const showGradient = !isExempt && !expanded && overflowing;
