@@ -4,7 +4,7 @@
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
-- Status: complete locally; pending PR. User report reproduced red-first at
+- Status: complete; opened as PR #108. User report reproduced red-first at
   the component boundary: a row expanded with `Show more` stored that choice
   only in the mounted `CollapsibleMessage` state, so virtualizing the row out
   and back in created a fresh collapsed instance.
