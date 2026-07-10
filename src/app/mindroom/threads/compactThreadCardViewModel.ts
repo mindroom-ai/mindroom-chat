@@ -20,9 +20,27 @@ const TITLE_FALLBACK = 'Thread started';
 const LAST_MESSAGE_FALLBACK = 'No replies yet';
 const TITLE_TEXT_LIMIT = 160;
 const PREVIEW_TEXT_LIMIT = 96;
+const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
+const MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP = /[.,!?;:)\]}'"`*_~>]+$/;
 
 const truncateText = (value: string, limit: number): string =>
   value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
+
+export const replaceMatrixUserIdsWithDisplayNames = (room: Room, text: string): string =>
+  text.replace(MATRIX_USER_ID_CANDIDATE_REGEXP, (candidate) => {
+    const exactDisplayName = getMemberDisplayName(room, candidate);
+    if (exactDisplayName) return exactDisplayName;
+
+    const trailingPunctuation =
+      candidate.match(MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP)?.[0] ?? '';
+    for (let length = 1; length <= trailingPunctuation.length; length += 1) {
+      const userId = candidate.slice(0, -length);
+      const displayName = getMemberDisplayName(room, userId);
+      if (displayName) return `${displayName}${candidate.slice(-length)}`;
+    }
+
+    return candidate;
+  });
 
 export const getCompactThreadMessageCountLabel = (messageCount: number): string => {
   if (messageCount === 0) return '0 replies';
@@ -107,14 +125,24 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   useAuthentication,
 }: BuildCompactThreadCardViewModelFromRecordOptions): CompactThreadCardViewModel => {
   const { presentation, status } = record;
-  const titleText = getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK;
-  const latestPreviewText =
+  const titleText = replaceMatrixUserIdsWithDisplayNames(
+    room,
+    getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK
+  );
+  const latestPreviewText = replaceMatrixUserIdsWithDisplayNames(
+    room,
     presentation.latestReplyPreviewText ??
-    presentation.rootPreviewText ??
-    (presentation.messageCount > 0 ? titleText : LAST_MESSAGE_FALLBACK);
+      presentation.rootPreviewText ??
+      (presentation.messageCount > 0 ? titleText : LAST_MESSAGE_FALLBACK)
+  );
   const lastSenderId = presentation.lastSenderId;
   const lastSenderName =
-    presentation.lastSenderDisplayName ??
+    (lastSenderId ? getMemberDisplayName(room, lastSenderId) : undefined) ??
+    (presentation.lastSenderDisplayName
+      ? lastSenderId
+        ? presentation.lastSenderDisplayName
+        : replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
+      : undefined) ??
     (lastSenderId ? getMxIdLocalPart(lastSenderId) ?? lastSenderId : undefined);
   const previewText = lastSenderName
     ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`

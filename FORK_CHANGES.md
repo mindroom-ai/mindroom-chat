@@ -43,13 +43,46 @@
   coverage. Expanded focused clipboard coverage passes (7 files / 37 tests); typecheck and touched
   ESLint pass (0 errors / 1 pre-existing warning in `UserChips.tsx`).
 - Follow-up validation is fully green: production build, full ESLint (0 errors / 19 pre-existing
-  warnings), and full `npm test` (362 files / 2847 tests). The fresh full run also passed the
+  warnings), and full `npm test` (362 files / 2848 tests). The fresh full run also passed the
   unchanged virtualizer cleanup guard that failed in the earlier environment run.
 - Independent audit review found one missing-coverage issue: the profile-chip and pairing-command
   result branches changed without direct regression tests. Added true/false component coverage for
   Copy Server, Copy User ID, Copy User Link, and the extracted pairing-command copy button; final
   re-review found no remaining issues. The extraction preserves synchronous user-gesture entry,
   cleans up its success-reset timeout on unmount, and resets feedback when the command changes.
+- `origin/dev` advanced through PR #111 during the audit. Merged the new base without rewriting
+  history; the only conflict was the Runbook insertion point, and both this clipboard section and
+  the upstream compact-card section were preserved. Post-merge focused tests pass (8 files / 44
+  tests), along with typecheck, production build, and the full suite above.
+- Independent merge-resolution review found no issues and confirmed all three upstream code/test
+  files are byte-identical to `origin/dev`, both Runbook sections are intact, and no unmerged entries
+  remain.
+
+### Compact cards render member display names for raw Matrix IDs (2026-07-10)
+
+- Status: complete; ready for PR.
+- Compact room cards previously resolved only the latest sender label. Raw Matrix user IDs embedded
+  in an AI summary, root preview, or latest-reply preview remained visible in the title and preview.
+- The compact-card view-model boundary now replaces IDs belonging to known room members with their
+  current room display names before title/preview truncation. Unknown IDs remain unchanged rather
+  than inventing an identity, and the canonical thread record/cache data remains untouched.
+- Coverage: focused view-model regression exercises summary text, latest-reply text, sender display
+  name, prose punctuation, unknown-user prefix collisions, and IPv6 homeserver IDs. A live Matrix
+  Playwright fixture seeds a room member display name plus raw IDs in both summary and reply text.
+- Before/after screenshots were captured from the same fixed local Matrix account and fixture under
+  the gitignored `ui-audit/` artifact directory; screenshot binaries are not version-controlled.
+- Independent review found and drove two parser hardening fixes: unknown valid IDs that extend a
+  known ID are never partially replaced, and exact lookup happens before punctuation removal so
+  valid IPv6-server IDs ending in `]` still resolve. Final re-review found no remaining issues.
+- PR review follow-up: accepted Gemini's punctuated-IPv6 report and regression request. Trailing
+  punctuation is now removed one character at a time with an exact member lookup after each step,
+  so `@ipv6:[::1].` resolves without confusing `]` for prose while port/subdomain prefix collisions
+  remain untouched. Also accepted its redundant sender-lookup cleanup while preserving cached
+  display-name fallback behavior. Independent follow-up review found no remaining issues.
+- Validation: focused compact-card tests (4 files / 12 tests), live Matrix Playwright, typecheck,
+  production build, full `npm test` (356 files / 2831 tests), full lint (0 errors / 19 pre-existing
+  warnings), touched-file lint, Prettier, and `git diff --check` all pass on the review-follow-up
+  tree.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
