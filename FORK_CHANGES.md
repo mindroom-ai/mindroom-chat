@@ -48,6 +48,69 @@
 - Final merge review confirmed all upstream code files match `origin/dev` and the iOS diff remains
   correct; its only finding was one dropped Runbook separator, restored before push.
 
+### iOS account-settings Matrix ID copy (2026-07-10)
+
+- Status: complete; independent review found no actionable issues.
+- Root cause: the shared copy helper preferred `navigator.clipboard.writeText(...)` whenever the
+  browser exposed it, but returned immediately and ignored rejected writes. iOS WKWebView can
+  expose that API without completing the write, so the fallback never ran and Account Settings
+  also gave no success/failure feedback.
+- Native apps now write through the official Capacitor Clipboard plugin. Browser clients retain
+  the web Clipboard API, with a cleaned-up `execCommand('copy')` fallback when the async API
+  rejects or is absent. The helper reports success instead of leaving callers unable to distinguish
+  a completed copy from a denied write.
+- The Matrix ID control changes to `Copied`/success styling only after a confirmed write, then uses
+  the existing timeout-toggle behavior to return to `Copy`.
+- RED: two focused helper tests failed against the old implementation because it returned `void`,
+  never invoked the native plugin, and never recovered from a rejected browser Clipboard write.
+- GREEN: focused helper/component coverage passes (4 tests), including exact Matrix ID payload,
+  native-plugin selection, rejected-web-API fallback cleanup, and success-only UI confirmation.
+  Typecheck and production build pass; full ESLint passes with 0 errors / 19 pre-existing warnings.
+- Native sync updated the Podfile and lockfile with `CapacitorClipboard`. Web assets and plugin
+  metadata copied successfully, but local `pod install`/native build could not run because this
+  machine only has Command Line Tools selected and no Xcode app installed.
+- Full `npm test` ran: 357 files / 2833 tests passed; the unrelated existing
+  `virtualizerIOSScrollContract.test.ts` cleanup guard failed (also fails alone) with an unexpected
+  adjustment write. No clipboard code participates in that virtualizer test.
+- Independent review verified native plugin registration and versions, Pod/lock changes, browser
+  fallback cleanup and boolean semantics, compatibility with existing fire-and-forget callers,
+  success-only Account Settings feedback, and focused coverage; no findings.
+- Codebase-wide follow-up audit: all 16 ordinary production copy actions already route through
+  `copyToClipboard`, so the native/plugin fix covers room links, event links, message text, code,
+  recovery keys, developer IDs/tokens, profile IDs/links, pairing commands, and text viewers. The
+  on-device ride-trace exporter was the sole direct `navigator.clipboard` bypass; it now uses the
+  shared helper and falls back to console only when every clipboard path reports failure.
+- Corrected the three remaining optimistic feedback groups: custom-HTML code blocks, profile
+  server/user/link chips, and the Local MindRoom pairing command now show their success state only
+  after `copyToClipboard` resolves `true`. Menu closing remains immediate while the native write
+  completes.
+- Added a codebase ownership guard that rejects direct native/browser/legacy clipboard calls outside
+  `utils/dom.ts`, ride-trace success/failure coverage, and code-block success/failure feedback
+  coverage. Expanded focused clipboard coverage passes (7 files / 37 tests); typecheck and touched
+  ESLint pass (0 errors / 1 pre-existing warning in `UserChips.tsx`).
+- Follow-up validation is fully green: production build, full ESLint (0 errors / 19 pre-existing
+  warnings), and full `npm test` (362 files / 2848 tests). The fresh full run also passed the
+  unchanged virtualizer cleanup guard that failed in the earlier environment run.
+- Independent audit review found one missing-coverage issue: the profile-chip and pairing-command
+  result branches changed without direct regression tests. Added true/false component coverage for
+  Copy Server, Copy User ID, Copy User Link, and the extracted pairing-command copy button; final
+  re-review found no remaining issues. The extraction preserves synchronous user-gesture entry,
+  cleans up its success-reset timeout on unmount, and resets feedback when the command changes.
+- `origin/dev` advanced through PR #111 during the audit. Merged the new base without rewriting
+  history; the only conflict was the Runbook insertion point, and both this clipboard section and
+  the upstream compact-card section were preserved. Post-merge focused tests pass (8 files / 44
+  tests), along with typecheck, production build, and the full suite above.
+- Independent merge-resolution review found no issues and confirmed all three upstream code/test
+  files are byte-identical to `origin/dev`, both Runbook sections are intact, and no unmerged entries
+  remain.
+- PR #112 review follow-up: accepted Gemini's `document.body === null` crash report after a focused
+  RED test reproduced the uncaught `TypeError`; the legacy fallback now returns `false` before
+  creating an input when no body exists. Accepted Greptile's missing-path coverage report and added
+  native-plugin rejection to browser success plus missing-browser-API to failed-legacy-result cases.
+  Expanded clipboard coverage passes (7 files / 40 tests), along with typecheck and touched lint;
+  independent review found no issues. Fresh full validation passes: production build, full ESLint
+  (0 errors / 19 pre-existing warnings), and `npm test` (362 files / 2851 tests).
+
 ### Compact cards render member display names for raw Matrix IDs (2026-07-10)
 
 - Status: complete; ready for PR.
