@@ -381,6 +381,28 @@ palette", "Type a command or search...". Split into focused commits:
   "Spraakbericht opnemen" (nl) after a localStorage `i18nextLng` switch +
   reload. Screenshots: `ui-audit/i18n-composer-{en,de,nl}.png`.
 
+### Compact view: zero-reply cold-start coverage (2026-07-09)
+
+On a fresh device or cleared cache, compact room view showed server-listed
+threads but missed historical standalone zero-reply roots. Those roots exist
+only in locally loaded main-timeline history, while initial sync supplies about
+20 events and compact view has no scroll paginator.
+
+`useCompactCoverageBackfillController` now drives existing cache-first room
+pagination after initial cache hydration. It stops when at least 200 events and
+a real standalone zero-reply root are loaded, when history is exhausted, or
+after eight batches. Requests stay single-flight; settled and failed pages
+continue within the fixed budget.
+
+Scope is deliberately cold-start only. Gappy-sync `TimelineReset` recovery is
+split into a separate follow-up so pagination and reset lifecycles remain
+independently reviewable.
+
+Validation after scope reduction: focused timeline/coverage suites 101/101;
+full Vitest 355 files / 2822 tests; typecheck, production build, and diff check
+pass. Touched-file lint has no errors and the existing unused
+`getEventElementById` warning. Two independent reviews found no blocker.
+
 ### Simple mode (2026-07-09)
 
 A per-account "Simple Mode" switch (Settings → General → Interface) that

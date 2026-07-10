@@ -219,6 +219,7 @@ import {
 } from '../engine';
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
+import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
@@ -636,6 +637,7 @@ export function RoomTimeline({
     roomSurfaceEventEntries,
     visibleThreadRootData,
     compactThreadRootData,
+    hasZeroReplyRootCoverage,
     normalThreadRecordMap,
     threadRecordMap,
     threadReplyCountMap,
@@ -961,6 +963,27 @@ export function RoomTimeline({
     roomSurfaceEventEntries,
     roomThreadListThreads,
     setOverviewRefreshCounter,
+  });
+
+  // Zero-reply standalone roots are discoverable ONLY from the locally
+  // loaded main timeline (real threads come from the server-side thread
+  // list). The compact view mounts no scroll paginator, so on a fresh
+  // session (cold cache) nothing would ever deepen the timeline and
+  // historical standalone roots stayed invisible until the next app open.
+  // Gated on the initial cache hydration so the open-time cached page is
+  // not raced with a redundant fetch.
+  useCompactCoverageBackfillController({
+    enabled:
+      !threadId &&
+      !eventId &&
+      compactViewRequested &&
+      roomInitialCacheHydrated &&
+      liveTimelineLinked,
+    loadedEventCount: eventsLength,
+    hasZeroReplyRootCoverage,
+    canPaginateBack,
+    hasMoreCachedBack: roomHasMoreCachedBack,
+    paginateBack: handleRoomTimelinePagination,
   });
 
   const {
