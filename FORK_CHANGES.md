@@ -29,6 +29,27 @@
 - Independent review verified native plugin registration and versions, Pod/lock changes, browser
   fallback cleanup and boolean semantics, compatibility with existing fire-and-forget callers,
   success-only Account Settings feedback, and focused coverage; no findings.
+- Codebase-wide follow-up audit: all 16 ordinary production copy actions already route through
+  `copyToClipboard`, so the native/plugin fix covers room links, event links, message text, code,
+  recovery keys, developer IDs/tokens, profile IDs/links, pairing commands, and text viewers. The
+  on-device ride-trace exporter was the sole direct `navigator.clipboard` bypass; it now uses the
+  shared helper and falls back to console only when every clipboard path reports failure.
+- Corrected the three remaining optimistic feedback groups: custom-HTML code blocks, profile
+  server/user/link chips, and the Local MindRoom pairing command now show their success state only
+  after `copyToClipboard` resolves `true`. Menu closing remains immediate while the native write
+  completes.
+- Added a codebase ownership guard that rejects direct native/browser/legacy clipboard calls outside
+  `utils/dom.ts`, ride-trace success/failure coverage, and code-block success/failure feedback
+  coverage. Expanded focused clipboard coverage passes (7 files / 37 tests); typecheck and touched
+  ESLint pass (0 errors / 1 pre-existing warning in `UserChips.tsx`).
+- Follow-up validation is fully green: production build, full ESLint (0 errors / 19 pre-existing
+  warnings), and full `npm test` (362 files / 2847 tests). The fresh full run also passed the
+  unchanged virtualizer cleanup guard that failed in the earlier environment run.
+- Independent audit review found one missing-coverage issue: the profile-chip and pairing-command
+  result branches changed without direct regression tests. Added true/false component coverage for
+  Copy Server, Copy User ID, Copy User Link, and the extracted pairing-command copy button; final
+  re-review found no remaining issues. The extraction preserves synchronous user-gesture entry,
+  cleans up its success-reset timeout on unmount, and resets feedback when the command changes.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 

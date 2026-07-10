@@ -1,15 +1,29 @@
 import React from 'react';
 import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CodeBlock,
   LINKIFY_OPTS,
   getReactCustomHtmlParser,
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { withMindroomToolTraceMarkerParserOptions } from '../mindroom/messages/MindroomHtmlBlocks';
+
+const clipboardMocks = vi.hoisted(() => ({
+  copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
+}));
+
+vi.mock('../utils/dom', async () => {
+  const actual = await vi.importActual<typeof import('../utils/dom')>('../utils/dom');
+  return {
+    ...actual,
+    copyToClipboard: clipboardMocks.copyToClipboard,
+  };
+});
 
 vi.mock('folds', async () => {
   const ReactModule = await import('react');
@@ -55,6 +69,10 @@ vi.mock('folds', async () => {
 vi.mock('../styles/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
+  CodeBlock: 'CodeBlock',
+  CodeBlockHeader: 'CodeBlockHeader',
+  CodeBlockInternal: 'CodeBlockInternal',
+  CodeBlockBottomShadow: 'CodeBlockBottomShadow',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -121,6 +139,65 @@ const collectTextContent = (
   const self = typeof node.children === 'object' ? collectTextContent(node.children) : '';
   return self;
 };
+
+describe('CodeBlock clipboard feedback', () => {
+  const originalWindow = globalThis.window;
+
+  beforeEach(() => {
+    clipboardMocks.copyToClipboard.mockReset();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { setTimeout: globalThis.setTimeout.bind(globalThis) },
+    });
+  });
+
+  afterEach(() => {
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      });
+    }
+  });
+
+  const renderCodeBlock = () =>
+    create(
+      React.createElement(CodeBlock, { opts: {} }, [
+        new DOMText('copy me'),
+      ] as unknown as React.ReactNode)
+    );
+
+  const getCopyControl = (renderer: ReactTestRenderer) =>
+    renderer.root.findAllByType('span').find((node) => typeof node.props.onClick === 'function')!;
+
+  it('shows Copied only after confirmed clipboard success', async () => {
+    clipboardMocks.copyToClipboard.mockResolvedValue(true);
+    const renderer = renderCodeBlock();
+
+    await act(async () => {
+      await getCopyControl(renderer).props.onClick();
+    });
+
+    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('copy me');
+    expect(collectTextContent(renderer.toJSON())).toContain('Copied');
+    renderer.unmount();
+  });
+
+  it('keeps Copy visible when every clipboard path fails', async () => {
+    clipboardMocks.copyToClipboard.mockResolvedValue(false);
+    const renderer = renderCodeBlock();
+
+    await act(async () => {
+      await getCopyControl(renderer).props.onClick();
+    });
+
+    expect(collectTextContent(renderer.toJSON())).toContain('Copy');
+    expect(collectTextContent(renderer.toJSON())).not.toContain('Copied');
+    renderer.unmount();
+  });
+});
 
 const renderCustomHtmlTree = (html: string): ReactTestRenderer => {
   const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
