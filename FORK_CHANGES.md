@@ -287,6 +287,23 @@ SURFACES HIDDEN WHEN ON:
   reduces to Interface + Appearance. The Interface group is the way back
   out and must never be hidden.
 
+ROUTE INVARIANT (regression fix 2026-07-10): simple mode navigation keeps
+non-direct rooms under Home, including thread and event deep links. Previously,
+opening a compact thread from a space-organized room in the flattened Home list
+called `useRoomNavigate`, whose parent-space resolver rewrote the route from
+`/home/:room` to `/:space/:room`. The router then replaced the flattened Home
+sidebar with that space's room list. `useRoomNavigate` now resolves simple-mode
+DMs to Direct and every other room to Home before considering space parents;
+normal-mode space routing is unchanged. `useRoomNavigate.test.ts` pins the
+simple-mode thread route, its Direct-room branch, and the normal-mode control.
+
+Current validation (2026-07-10): focused navigation tests pass (10/10); full
+Vitest passes (354 files / 2815 tests); typecheck and production build pass;
+lint reports 0 errors and 19 pre-existing warnings. Independent review found
+no source or architecture issues; its Direct-route coverage and dated
+validation follow-ups are included here. The validation block below records
+the original 2026-07-09 simple-mode rollout.
+
 Validation: `npm run typecheck` clean; `npx vitest run` FULL suite green —
 353 files / 2806 tests (the KeyBackupNudge casing fix — documented below,
 landed on dev via #98 — unblocked typecheck, build, and the previously
