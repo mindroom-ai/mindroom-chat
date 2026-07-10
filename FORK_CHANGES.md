@@ -16,11 +16,13 @@
 - Independent review caught the initial eager-hydration performance regression
   and weak mocked-only assertion. The viewport gate fixes the former. Coverage
   now proves the real collapsible stays `aria-expanded=false` when it enables
-  full content, hydrated `formatted_body` and tool-trace metadata render inside
-  a collapsed parent, and both plain and decrypted timeline paths opt into the
-  visible-row load.
-- Focused message/collapse suites pass (4 files / 89 tests). TypeScript
-  typecheck passes.
+  full content; the real long-text, `RenderBody`, and tool-marker parser chain
+  renders formatted Markdown plus a valid tool card without expansion; and
+  both plain and decrypted timeline paths opt into the visible-row load.
+- Focused message/collapse/parser suites pass (5 files / 109 tests). TypeScript
+  typecheck passes. Full validation before the final integration-test
+  hardening passed: 356 files / 2833 tests, production build, and lint with 0
+  errors / 19 pre-existing warnings.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
