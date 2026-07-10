@@ -15,6 +15,8 @@ import {
   expandAllMessages,
   ExpandAllInitContext,
   CollapsibleMessage,
+  ManualExpansionStateContext,
+  rememberManualExpansionState,
 } from './CollapsibleMessage';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
@@ -85,7 +87,8 @@ const renderCollapsibleMessage = (
   },
   gradientElement: MockGradientElement = { focus: vi.fn() },
   children: React.ReactNode = React.createElement('span', undefined, 'message'),
-  expandAllInit: boolean | undefined = undefined
+  expandAllInit: boolean | undefined = undefined,
+  manualExpansionState: Map<string, boolean> | undefined = undefined
 ) => {
   let renderer!: ReactTestRenderer;
 
@@ -93,10 +96,17 @@ const renderCollapsibleMessage = (
   // Only wrap when an override is provided; an undefined provider is equivalent
   // to the default context, and leaving the element unwrapped keeps the root
   // type stable for tests that drive their own renderer.update(...).
-  const tree =
+  let tree: React.ReactElement =
     expandAllInit === undefined
       ? element
       : React.createElement(ExpandAllInitContext.Provider, { value: expandAllInit }, element);
+  if (manualExpansionState !== undefined) {
+    tree = React.createElement(
+      ManualExpansionStateContext.Provider,
+      { value: manualExpansionState },
+      tree
+    );
+  }
 
   act(() => {
     renderer = create(tree, {
@@ -918,5 +928,141 @@ describe('CollapsibleMessage', () => {
     act(() => {
       second.unmount();
     });
+  });
+
+  it('keeps a manually expanded message expanded across a virtualized remount', () => {
+    const expansionKey = '$manual-expansion';
+    const manualExpansionState = new Map<string, boolean>();
+    const first = renderCollapsibleMessage(
+      {
+        collapseMode: 'default',
+        expansionKey,
+        measurementKey: '$manual-expansion|active|$edit-1|default',
+      },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      manualExpansionState
+    );
+
+    act(() => {
+      getExpandZone(first).props.onClick();
+    });
+    expect(getContentContainer(first).props['aria-expanded']).toBe(true);
+    act(() => {
+      first.unmount();
+    });
+
+    const second = renderCollapsibleMessage(
+      {
+        collapseMode: 'default',
+        expansionKey,
+        measurementKey: '$manual-expansion|active|$edit-2|default',
+      },
+      { clientHeight: 0, scrollHeight: 0 },
+      undefined,
+      undefined,
+      undefined,
+      manualExpansionState
+    );
+    expect(getContentContainer(second).props['aria-expanded']).toBe(true);
+    expect(getCloseButton(second).props['aria-label']).toBe('Show less');
+    act(() => {
+      second.unmount();
+    });
+  });
+
+  it('remembers Show less and keeps other messages isolated', () => {
+    const expansionKey = '$manual-collapse';
+    const manualExpansionState = new Map<string, boolean>();
+    const first = renderCollapsibleMessage(
+      { collapseMode: 'default', expansionKey },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      manualExpansionState
+    );
+
+    act(() => {
+      getExpandZone(first).props.onClick();
+    });
+    act(() => {
+      getCloseButton(first).props.onClick({ stopPropagation: vi.fn() });
+    });
+    expect(manualExpansionState.get(expansionKey)).toBe(false);
+    act(() => {
+      first.unmount();
+    });
+
+    const sameMessage = renderCollapsibleMessage(
+      { collapseMode: 'default', expansionKey },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      manualExpansionState
+    );
+    expect(getContentContainer(sameMessage).props['aria-expanded']).toBe(false);
+    act(() => {
+      sameMessage.unmount();
+    });
+
+    rememberManualExpansionState(manualExpansionState, expansionKey, true);
+    const otherMessage = renderCollapsibleMessage(
+      { collapseMode: 'default', expansionKey: '$other-message' },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      manualExpansionState
+    );
+    expect(getContentContainer(otherMessage).props['aria-expanded']).toBe(false);
+    act(() => {
+      otherMessage.unmount();
+    });
+  });
+
+  it('lets newer manual choices override the expand-all baseline', () => {
+    const expansionKey = '$manual-after-global';
+    const manualExpansionState = new Map<string, boolean>([[expansionKey, true]]);
+    const expanded = renderCollapsibleMessage(
+      { collapseMode: 'default', expansionKey },
+      undefined,
+      undefined,
+      undefined,
+      false,
+      manualExpansionState
+    );
+    expect(getContentContainer(expanded).props['aria-expanded']).toBe(true);
+    act(() => {
+      expanded.unmount();
+    });
+
+    rememberManualExpansionState(manualExpansionState, expansionKey, false);
+    const collapsed = renderCollapsibleMessage(
+      { collapseMode: 'default', expansionKey },
+      undefined,
+      undefined,
+      undefined,
+      true,
+      manualExpansionState
+    );
+    expect(getContentContainer(collapsed).props['aria-expanded']).toBe(false);
+    act(() => {
+      collapsed.unmount();
+    });
+  });
+
+  it('bounds manual expansion state by evicting the oldest key', () => {
+    const state = new Map<string, boolean>();
+    rememberManualExpansionState(state, '$oldest', true, 2);
+    rememberManualExpansionState(state, '$middle', false, 2);
+    rememberManualExpansionState(state, '$newest', true, 2);
+
+    expect(state.get('$oldest')).toBeUndefined();
+    expect(state.get('$middle')).toBe(false);
+    expect(state.get('$newest')).toBe(true);
   });
 });

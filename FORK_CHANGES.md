@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Preserve manual message expansion across virtualized remounts (2026-07-10)
+
+- Status: complete locally; pending PR. User report reproduced red-first at
+  the component boundary: a row expanded with `Show more` stored that choice
+  only in the mounted `CollapsibleMessage` state, so virtualizing the row out
+  and back in created a fresh collapsed instance.
+- The old virtualization review explicitly accepted per-row collapse-state
+  resets as a tradeoff. This task reverses that decision with a bounded
+  timeline-owned `Map<string, boolean>` keyed by stable Matrix event id. It
+  preserves both `Show more` and `Show less`, survives edit-driven measurement
+  key churn, resets on the existing room/thread-keyed remount, and avoids a
+  module-global user-preference cache. Global expand/collapse clears older
+  per-message choices before setting its baseline; later manual choices win.
+- Coverage: component remount behavior (including `Show less`, edit-key
+  changes, different-message isolation, global-baseline precedence, and
+  bounded eviction), plain/encrypted timeline wiring, and a live Playwright
+  guard that proves the expanded event leaves the DOM before returning
+  expanded with `Show less` visible.
+- Validation: focused Vitest 49/49, typecheck, production build, full `npm
+  test` (354 files / 2820 tests), full lint (0 errors / 19 pre-existing
+  warnings), and focused docker-Matrix Playwright. The live guard passed once
+  in the implementation pass plus 4/4 consecutive independent-review runs.
+- Two independent review agents found no actionable issues; the test reviewer
+  specifically verified that the live guard cannot pass without a real
+  virtualized unmount/remount.
+
 ### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
 
 - Status: complete; opened as PR #107.
