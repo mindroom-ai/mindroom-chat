@@ -12,6 +12,7 @@ import {
 type HarnessProps = {
   enabled: boolean;
   loadedEventCount: number;
+  hasZeroReplyRootCoverage?: boolean;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
   paginateBack: (backwards: boolean) => Promise<void>;
@@ -19,8 +20,8 @@ type HarnessProps = {
   coverageEpoch?: number;
 };
 
-const CoverageHarness = (props: HarnessProps) => {
-  useCompactCoverageBackfillController(props);
+const CoverageHarness = ({ hasZeroReplyRootCoverage = true, ...props }: HarnessProps) => {
+  useCompactCoverageBackfillController({ ...props, hasZeroReplyRootCoverage });
   return null;
 };
 
@@ -37,6 +38,7 @@ describe('shouldRunCompactCoverageBackfill', () => {
     const base = {
       enabled: true,
       loadedEventCount: 0,
+      hasZeroReplyRootCoverage: true,
       canPaginateBack: true,
       hasMoreCachedBack: false,
       batchesUsed: 0,
@@ -60,6 +62,13 @@ describe('shouldRunCompactCoverageBackfill', () => {
         ...base,
         canPaginateBack: false,
         hasMoreCachedBack: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldRunCompactCoverageBackfill({
+        ...base,
+        loadedEventCount: COMPACT_COVERAGE_TARGET_EVENTS,
+        hasZeroReplyRootCoverage: false,
       })
     ).toBe(true);
   });
@@ -117,6 +126,31 @@ describe('useCompactCoverageBackfillController', () => {
     });
 
     expect(paginateBack).not.toHaveBeenCalled();
+  });
+
+  it('keeps paginating at the numeric target until zero-reply coverage is proven', async () => {
+    const paginateBack = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>(() => {
+          // never settles — pins the first coverage request
+        })
+    );
+
+    await act(async () => {
+      create(
+        React.createElement(CoverageHarness, {
+          enabled: true,
+          loadedEventCount: COMPACT_COVERAGE_TARGET_EVENTS,
+          hasZeroReplyRootCoverage: false,
+          canPaginateBack: true,
+          hasMoreCachedBack: false,
+          paginateBack,
+          room: makeRoom(),
+        })
+      );
+    });
+
+    expect(paginateBack).toHaveBeenCalledTimes(1);
   });
 
   it('keeps batching after a settled page even when inputs are unchanged', async () => {

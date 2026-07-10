@@ -28,40 +28,32 @@ type ScrollToBottomState = {
  * the window. After the rebuild the view sits at the (shallow) live end;
  * the compact coverage controller restores depth from cache/network.
  *
- * Clobber race: a back-pagination that was already in flight when the reset
- * landed completes by REBUILDING timeline state from its captured (now
- * orphaned) chain (`recalibrateTimelinePagination` → setTimeline), undoing
- * the relink with no further reset event to recover from. The reset
- * therefore latches `resetPendingRef`, and a per-render self-heal effect
- * keeps re-linking until the chain contains the live timeline while no
- * back-pagination is in flight — only then is the latch cleared. The latch
- * (not an unconditional per-render check) is what keeps the heal from
- * hijacking legitimate live-timeline-less states, e.g. an event-focused
- * chain kept after `eventId` clears without a remount.
+ * Pagination completions are guarded at `recalibrateTimelinePagination`:
+ * work captured against an older linked-array identity cannot replace this
+ * newly installed chain. That shared choke point covers both pagination
+ * directions without a render-side recovery latch.
  */
 export const useRoomTimelineResetRelink = ({
   room,
-  threadIdRef,
+  threadId,
   eventId,
   timeline,
   rebuildTimeline,
   setTimeline,
-  atBottomRef,
+  isViewportAtBottomNow,
   scrollToBottomRef,
-  roomPaginatingBackRef,
   onRelink,
 }: {
   room: Room;
-  threadIdRef: MutableRefObject<string | undefined>;
+  threadId: string | undefined;
   eventId: string | undefined;
   timeline: Timeline;
   rebuildTimeline: () => Timeline;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
-  atBottomRef: MutableRefObject<boolean>;
+  isViewportAtBottomNow: () => boolean;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-  roomPaginatingBackRef: MutableRefObject<boolean>;
   /**
-   * Fired on every re-link (handler and self-heal). The caller uses it to
+   * Fired on every re-link. The caller uses it to
    * refresh the compact coverage budget: the rebuilt chain is shallow, and
    * a budget spent before the gap must not block restoring depth after it.
    */
@@ -69,72 +61,52 @@ export const useRoomTimelineResetRelink = ({
 }): void => {
   const timelineRef = useRef(timeline);
   timelineRef.current = timeline;
-  const resetPendingRef = useRef(false);
+  const threadIdRef = useRef(threadId);
+  threadIdRef.current = threadId;
+  const eventIdRef = useRef(eventId);
+  eventIdRef.current = eventId;
 
   useEffect(() => {
-    resetPendingRef.current = false;
-  }, [room.roomId]);
+    const relinkIfOrphaned = () => {
+      if (threadIdRef.current || eventIdRef.current) return;
 
-  useEffect(() => {
+      const liveTimeline = getLiveTimeline(room);
+      if (timelineRef.current.linkedTimelines.includes(liveTimeline)) return;
+
+      const rebuiltTimeline = rebuildTimeline();
+      // Publish synchronously to close the subscribe/check and duplicate-reset
+      // windows before React commits the state update.
+      timelineRef.current = rebuiltTimeline;
+      if (isViewportAtBottomNow()) {
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+      }
+      setTimeline(rebuiltTimeline);
+      onRelink();
+    };
+
     const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (
       eventRoom,
       timelineSet
     ) => {
       if (eventRoom?.roomId !== room.roomId) return;
-      if (threadIdRef.current || eventId) return;
       if (timelineSet !== room.getUnfilteredTimelineSet()) return;
-
-      const liveTimeline = getLiveTimeline(room);
-      if (timelineRef.current.linkedTimelines.includes(liveTimeline)) return;
-
-      resetPendingRef.current = true;
-      if (atBottomRef.current) {
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-      }
-      setTimeline(rebuildTimeline());
-      onRelink();
+      relinkIfOrphaned();
     };
 
     room.on(RoomEvent.TimelineReset, handleTimelineReset);
+    // Subscribe first, then compare current chain. A one-shot reset between
+    // render and this passive effect is therefore recovered without a gap.
+    relinkIfOrphaned();
     return () => {
       room.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
     };
-  }, [room, eventId, rebuildTimeline, setTimeline, threadIdRef, atBottomRef, scrollToBottomRef, onRelink]);
-
-  useEffect(() => {
-    if (!resetPendingRef.current) return;
-    if (threadIdRef.current || eventId) return;
-
-    const liveTimeline = getLiveTimeline(room);
-    if (timeline.linkedTimelines.includes(liveTimeline)) {
-      if (!roomPaginatingBackRef.current) {
-        // Linked and quiescent — no in-flight pagination can clobber the
-        // chain with a pre-reset snapshot anymore.
-        resetPendingRef.current = false;
-      }
-      return;
-    }
-
-    if (atBottomRef.current) {
-      scrollToBottomRef.current.count += 1;
-      scrollToBottomRef.current.smooth = false;
-    }
-    setTimeline(rebuildTimeline());
-    onRelink();
   }, [
-    // Re-fires ride on `timeline` changes alone — the refs below are stable
-    // objects read at each commit and can never trigger the effect
-    // themselves; they are listed for lint-visible completeness.
-    timeline,
     room,
-    eventId,
     rebuildTimeline,
     setTimeline,
-    threadIdRef,
-    atBottomRef,
+    isViewportAtBottomNow,
     scrollToBottomRef,
-    roomPaginatingBackRef,
     onRelink,
   ]);
 };

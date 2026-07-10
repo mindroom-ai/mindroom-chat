@@ -640,6 +640,7 @@ export function RoomTimeline({
     roomSurfaceEventEntries,
     visibleThreadRootData,
     compactThreadRootData,
+    hasZeroReplyRootCoverage,
     normalThreadRecordMap,
     threadRecordMap,
     threadReplyCountMap,
@@ -975,8 +976,14 @@ export function RoomTimeline({
   // Gated on the initial cache hydration so the open-time cached page is
   // not raced with a redundant fetch.
   useCompactCoverageBackfillController({
-    enabled: !threadId && !eventId && compactViewRequested && roomInitialCacheHydrated,
+    enabled:
+      !threadId &&
+      !eventId &&
+      compactViewRequested &&
+      roomInitialCacheHydrated &&
+      liveTimelineLinked,
     loadedEventCount: eventsLength,
+    hasZeroReplyRootCoverage,
     canPaginateBack,
     hasMoreCachedBack: roomHasMoreCachedBack,
     paginateBack: handleRoomTimelinePagination,
@@ -1971,14 +1978,13 @@ export function RoomTimeline({
   // gated on liveTimelineLinked — false exactly after a reset).
   useRoomTimelineResetRelink({
     room,
-    threadIdRef,
+    threadId,
     eventId,
     timeline,
     rebuildTimeline: buildRoomCacheHydratedTimeline,
     setTimeline,
-    atBottomRef,
+    isViewportAtBottomNow,
     scrollToBottomRef,
-    roomPaginatingBackRef,
     // The rebuilt chain is shallow; refresh the coverage budget so the
     // compact view restores depth even when pre-gap batches spent it.
     onRelink: bumpCoverageEpoch,

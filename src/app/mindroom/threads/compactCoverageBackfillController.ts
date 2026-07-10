@@ -24,6 +24,7 @@ export const COMPACT_COVERAGE_MAX_BATCHES = 8;
 export type CompactCoverageBackfillDecisionInput = {
   enabled: boolean;
   loadedEventCount: number;
+  hasZeroReplyRootCoverage: boolean;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
   batchesUsed: number;
@@ -32,19 +33,21 @@ export type CompactCoverageBackfillDecisionInput = {
 export const shouldRunCompactCoverageBackfill = ({
   enabled,
   loadedEventCount,
+  hasZeroReplyRootCoverage,
   canPaginateBack,
   hasMoreCachedBack,
   batchesUsed,
 }: CompactCoverageBackfillDecisionInput): boolean => {
   if (!enabled) return false;
   if (batchesUsed >= COMPACT_COVERAGE_MAX_BATCHES) return false;
-  if (loadedEventCount >= COMPACT_COVERAGE_TARGET_EVENTS) return false;
+  if (loadedEventCount >= COMPACT_COVERAGE_TARGET_EVENTS && hasZeroReplyRootCoverage) return false;
   return canPaginateBack || hasMoreCachedBack;
 };
 
 export const useCompactCoverageBackfillController = ({
   enabled,
   loadedEventCount,
+  hasZeroReplyRootCoverage,
   canPaginateBack,
   hasMoreCachedBack,
   paginateBack,
@@ -60,6 +63,8 @@ export const useCompactCoverageBackfillController = ({
   enabled: boolean;
   /** Raw event count across the currently linked main-timeline chain. */
   loadedEventCount: number;
+  /** Whether loaded history proves at least one standalone zero-reply root. */
+  hasZeroReplyRootCoverage: boolean;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
   /**
@@ -117,6 +122,7 @@ export const useCompactCoverageBackfillController = ({
       !shouldRunCompactCoverageBackfill({
         enabled,
         loadedEventCount,
+        hasZeroReplyRootCoverage,
         canPaginateBack,
         hasMoreCachedBack,
         batchesUsed: batchesUsedRef.current,
@@ -138,6 +144,7 @@ export const useCompactCoverageBackfillController = ({
   }, [
     enabled,
     loadedEventCount,
+    hasZeroReplyRootCoverage,
     canPaginateBack,
     hasMoreCachedBack,
     room.roomId,

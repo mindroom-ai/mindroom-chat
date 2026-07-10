@@ -271,8 +271,13 @@ stale/shallow:
     `useCompactCoverageBackfillController` drives the existing cache-first
     pagination command (`handleRoomTimelinePagination(true)`) while the
     compact room view is active (`!threadId && !eventId`, after initial
-    cache hydration) until the linked main timeline holds
-    `COMPACT_COVERAGE_TARGET_EVENTS` (200) raw events, capped at
+    cache hydration, and only while the chain contains the current live
+    timeline) until the linked main timeline holds
+    `COMPACT_COVERAGE_TARGET_EVENTS` (200) raw events AND the fully loaded
+    server thread list proves at least one loaded root is a standalone
+    zero-reply root. The second condition prevents a page of state events,
+    edits, or thread-only activity from falsely satisfying the actual card
+    coverage goal. Work is capped at
     `COMPACT_COVERAGE_MAX_BATCHES` (8) pages per mount. One batch in
     flight at a time; a settle tick keeps the loop alive when a page
     changes no reactive input (fully-filtered events); errors are
@@ -292,30 +297,23 @@ stale/shallow:
     the orphaned-chain rebuild, the linked-chain no-op, thread/event view
     scoping, foreign timeline-set scoping, the bottom pin, and listener
     teardown.
-  - Hardening (same PR, self-review): (a) CLOBBER RACE — a back-pagination
-    in flight when the reset lands completes by reinstalling its captured
-    (orphaned) chain via `recalibrateTimelinePagination`, undoing the
-    relink with no further reset event to recover from. The reset now
-    latches `resetPendingRef`; a self-heal effect re-links on timeline
-    changes until the chain contains the live timeline while
-    `roomPaginatingBackRef` is quiescent, then clears the latch. The latch
-    (not an unconditional per-render check) keeps the heal from hijacking
-    legitimate live-timeline-less states — e.g. an event-focused chain kept
-    after `eventId` clears without a remount. (b) StrictMode: the coverage
-    controller's mounted guard is set in the effect body, not at ref init,
-    so a preserved-ref remount cannot permanently suppress the settle tick.
-  - Review pass (independent agent) found one remaining hole, fixed same
-    PR: COVERAGE BUDGET AFTER RELINK — the per-mount batch budget is spent
-    on cold-start; a later gappy sync rebuilds a shallow chain, and the
-    exhausted budget would block restoring depth until a manual room
-    re-entry. The relink now fires `onRelink` → `coverageEpoch` state in
-    `MindroomRoomTimeline` → the coverage controller resets
-    `batchesUsedRef` on epoch change (room-switch reset unchanged;
-    in-flight guard deliberately NOT cleared by an epoch bump). Accepted
-    as-is from that review: refs written during render (matches existing
-    component patterns), closure `eventId` vs ref `threadIdRef` asymmetry,
-    and the dev-StrictMode-only double cold-start batch (app does not
-    render in StrictMode).
+  - Review hardening: stale pagination commits are rejected at the shared
+    `recalibrateTimelinePagination` choke point whenever React has installed
+    a different linked-array identity. This covers backward and forward
+    pagination, event-route focus, and TimelineReset without the former
+    render-side reset latch/self-heal loop. Concurrent backward callers now
+    share the exact active promise instead of spending the compact coverage
+    budget on resolved no-ops. Coverage is disabled on orphaned chains.
+  - Reset listener hardening: the listener reads render-fresh `threadId` and
+    `eventId` refs, subscribes before checking for an already-missed reset,
+    and publishes the rebuilt timeline to its ref synchronously. Bottom-pin
+    decisions use the live DOM viewport check, not the approximately
+    one-second-debounced `atBottom` UI state. Each reset therefore installs
+    and pins at most one recovery chain.
+  - Coverage budget after relink: `onRelink` bumps `coverageEpoch`, resetting
+    only the per-mount batch budget while preserving an actual in-flight
+    request. The StrictMode mounted guard remains effect-owned so settle
+    ticks survive React's development replay.
 
 Repro notes (for e2e later): gappy sync = >STARTUP_SYNC_TIMELINE_LIMIT
 (20) room events in one /sync window — routine in agent rooms (streaming
@@ -325,7 +323,11 @@ step 2 the card never appears until room re-entry. Cold start: clear site
 data, open a room with old standalone roots; without step 1 only real
 threads (server `/threads` list) render as cards.
 
-Validation (step 1): `npm run typecheck` clean; controller suite 8/8.
+Review-fix validation: focused timeline/controller suites 59/59; room
+regression suites 222/222; full `npm test` 356 files / 2840 tests;
+`npm run typecheck`, `npm run build`, and `git diff --check` clean. Touched-file
+eslint has zero errors and the existing unused `getEventElementById` warning.
+Three independent review passes found no remaining blocker.
 
 ### Simple mode (2026-07-09)
 

@@ -99,6 +99,7 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
   roomSurfaceEventEntries: TimelineEventEntry[];
   visibleThreadRootData: VisibleThreadRootData;
   compactThreadRootData: VisibleThreadRootData;
+  hasZeroReplyRootCoverage: boolean;
   threadReplyCountMap: Map<string, number>;
   threadParticipantMap: Map<string, string[]>;
   threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
@@ -394,13 +395,18 @@ export const useMindroomThreadIndex = ({
     });
     return { ids, indexMap, bodyMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
-  const { threads: roomThreadListThreads, retry: refreshRoomThreadList } = useRoomThreadList(
-    room,
-    compactViewRequested
-  );
-  const compactThreadRootData = useMemo(() => {
+  const {
+    threads: roomThreadListThreads,
+    loading: roomThreadListLoading,
+    fullyLoaded: roomThreadListFullyLoaded,
+    retry: refreshRoomThreadList,
+  } = useRoomThreadList(room, compactViewRequested);
+  const { compactThreadRootData, hasZeroReplyRootCoverage } = useMemo(() => {
     if (threadId || !compactViewRequested) {
-      return visibleThreadRootData;
+      return {
+        compactThreadRootData: visibleThreadRootData,
+        hasZeroReplyRootCoverage: false,
+      };
     }
 
     const baseCompactThreadRootData = buildCompactThreadRootData({
@@ -410,13 +416,32 @@ export const useMindroomThreadIndex = ({
       visibleBodyMap: visibleThreadRootData.bodyMap,
       threads: roomThreadListThreads,
     });
+    const knownRealThreadRootIds = new Set(
+      roomThreadListThreads
+        .map((thread) => thread.id)
+        .filter((threadId): threadId is string => !!threadId)
+    );
+    visibleThreadRootData.ids.forEach((rootId) => {
+      if (room.getThread(rootId) || (threadReplyCountMap.get(rootId) ?? 0) > 0) {
+        knownRealThreadRootIds.add(rootId);
+      }
+    });
     const compactZeroReplyRootData = buildCompactZeroReplyRootData({
       room,
       roomSurfaceEntries: roomSurfaceEventEntries,
-      knownThreadRootIds: baseCompactThreadRootData.ids,
+      knownThreadRootIds: knownRealThreadRootIds,
     });
 
-    return mergeCompactThreadRootData(baseCompactThreadRootData, compactZeroReplyRootData);
+    return {
+      compactThreadRootData: mergeCompactThreadRootData(
+        baseCompactThreadRootData,
+        compactZeroReplyRootData
+      ),
+      hasZeroReplyRootCoverage:
+        roomThreadListFullyLoaded &&
+        !roomThreadListLoading &&
+        compactZeroReplyRootData.ids.length > 0,
+    };
   }, [
     threadId,
     compactViewRequested,
@@ -424,6 +449,9 @@ export const useMindroomThreadIndex = ({
     roomSurfaceEventEntries,
     visibleThreadRootData,
     roomThreadListThreads,
+    roomThreadListLoading,
+    roomThreadListFullyLoaded,
+    threadReplyCountMap,
   ]);
   const readUpToTs = useMemo(() => {
     // Receipts mutate on the room object, so the overview refresh tick is intentional.
@@ -619,6 +647,7 @@ export const useMindroomThreadIndex = ({
     roomSurfaceEventEntries,
     visibleThreadRootData,
     compactThreadRootData,
+    hasZeroReplyRootCoverage,
     threadReplyCountMap,
     threadParticipantMap,
     threadSummaryInfoMap,
