@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Room timeline re-links after gappy sync (2026-07-10)
+
+- Status: implementation complete in PR #113; compact cold-start PR #102 is
+  merged, so the shared stale-pagination guard now comes from `dev`.
+- A limited sync can replace the SDK live timeline with an unlinked chain while
+  the room view still renders the previous chain. Listen for the unfiltered
+  room `TimelineReset`, rebuild only an orphaned room timeline, and preserve a
+  reader's live bottom pin.
+- Reject pagination commits captured from a different linked-array identity so
+  in-flight work cannot reinstall the orphaned chain after recovery.
+- Scope excludes compact-history coverage and pagination scheduling changes.
+
 ### iOS voice-call readiness (2026-07-12, follow-up to the agent-calls PR)
 
 - Status: implemented on `caveman/ios-voice-call-shell` (based on the agent-calls branch).
