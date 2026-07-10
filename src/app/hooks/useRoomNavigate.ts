@@ -18,6 +18,7 @@ import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 import { _RoomSearchParams } from '../pages/paths';
 import { navigateMindroomRoomThread } from '../mindroom/threads/threadNavigation';
+import { useSimpleMode } from '../mindroom/settings/useMindroomAccountSettings';
 
 export const useRoomNavigate = () => {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export const useRoomNavigate = () => {
   const mDirects = useAtomValue(mDirectAtom);
   const spaceSelectedId = useSelectedSpace();
   const [developerTools] = useSetting(settingsAtom, 'developerTools');
+  const simpleMode = useSimpleMode();
 
   const navigateSpace = useCallback(
     (roomId: string) => {
@@ -39,6 +41,12 @@ export const useRoomNavigate = () => {
     (roomId: string, eventId?: string) => {
       const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
       const openSpaceTimeline = developerTools && spaceSelectedId === roomId;
+
+      if (simpleMode) {
+        return mDirects.has(roomId)
+          ? getDirectRoomPath(roomIdOrAlias, eventId)
+          : getHomeRoomPath(roomIdOrAlias, eventId);
+      }
 
       const orphanParents = openSpaceTimeline ? [roomId] : getOrphanParents(roomToParents, roomId);
       if (orphanParents.length > 0) {
@@ -64,7 +72,7 @@ export const useRoomNavigate = () => {
 
       return getHomeRoomPath(roomIdOrAlias, eventId);
     },
-    [mx, spaceSelectedId, roomToParents, mDirects, developerTools]
+    [mx, spaceSelectedId, roomToParents, mDirects, developerTools, simpleMode]
   );
 
   const navigateRoom = useCallback(

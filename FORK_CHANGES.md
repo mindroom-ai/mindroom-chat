@@ -27,11 +27,36 @@
 - Independent post-fix review confirmed the lazy helper preserves the prior direct-message contract,
   the URL-key explanation matches `RoomAvatar` state behavior, and the new mocks/tests cover the
   requested paths without TypeScript or React issues.
+- All four inline PR threads received evidence-backed replies and are resolved; the review-level
+  direct-message resolution explanation and complete validation result were posted on PR #105.
+- `origin/dev` advanced through PRs #106 and #107 during the review loop. Merged the new base without
+  rewriting history; the only conflict was the Runbook insertion point. Both this section and the
+  key-backup section were preserved, while all upstream code/test blobs remain identical to
+  `origin/dev`. Independent merge-resolution review reported no findings.
 - Independent review found one missing real-event subscription test; that test was added and the
   follow-up review reported no remaining findings.
-- Green: focused tests (2 files, 8 tests), TypeScript typecheck, production build, full ESLint (0
-  errors, 19 pre-existing warnings), Prettier on touched TypeScript files, `git diff --check`, and
-  full `npm test` (356 files, 2820 tests).
+- Green on the merged tree: focused tests (4 files, 24 tests), TypeScript typecheck, production
+  build, full ESLint (0 errors, 19 pre-existing warnings), Prettier on touched TypeScript files,
+  `git diff --check`, and full `npm test` (356 files, 2825 tests).
+
+### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
+
+- Status: complete; opened as PR #107.
+- The Welcome-page key-backup nudge should stay hidden when room encryption is
+  explicitly unavailable by policy: both `createRoom.showEncryptionOption` and
+  `createRoom.defaultEncryption` are `false`.
+- A hidden encryption switch does not by itself disable encryption. When
+  `defaultEncryption` is `true`, rooms are still created encrypted and the
+  backup reminder remains relevant.
+- Baseline: the focused `KeyBackupNudge` suite passes (4 tests) before changes.
+- RED: the new disabled-policy regression rendered the nudge before the gate
+  was added (1 failed, 5 passed).
+- GREEN: the focused suite passes (6 tests), including disabled false/false and
+  forced-encryption false/true policy cases.
+- Full validation passes: typecheck, production build, lint (0 errors, 19
+  pre-existing warnings), and `npm test` (354 files, 2817 tests).
+- Independent review found no issues in the policy semantics, hook ordering,
+  regression coverage, or scope.
 
 ### iOS App Store 4.12.4 release execution (2026-07-09)
 
@@ -317,6 +342,23 @@ SURFACES HIDDEN WHEN ON:
   (deep links fall back like deployments that disable that tab); General
   reduces to Interface + Appearance. The Interface group is the way back
   out and must never be hidden.
+
+ROUTE INVARIANT (regression fix 2026-07-10): simple mode navigation keeps
+non-direct rooms under Home, including thread and event deep links. Previously,
+opening a compact thread from a space-organized room in the flattened Home list
+called `useRoomNavigate`, whose parent-space resolver rewrote the route from
+`/home/:room` to `/:space/:room`. The router then replaced the flattened Home
+sidebar with that space's room list. `useRoomNavigate` now resolves simple-mode
+DMs to Direct and every other room to Home before considering space parents;
+normal-mode space routing is unchanged. `useRoomNavigate.test.ts` pins the
+simple-mode thread route, its Direct-room branch, and the normal-mode control.
+
+Current validation (2026-07-10): focused navigation tests pass (10/10); full
+Vitest passes (354 files / 2815 tests); typecheck and production build pass;
+lint reports 0 errors and 19 pre-existing warnings. Independent review found
+no source or architecture issues; its Direct-route coverage and dated
+validation follow-ups are included here. The validation block below records
+the original 2026-07-09 simple-mode rollout.
 
 Validation: `npm run typecheck` clean; `npx vitest run` FULL suite green —
 353 files / 2806 tests (the KeyBackupNudge casing fix — documented below,
