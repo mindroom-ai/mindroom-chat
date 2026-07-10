@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Room sidebar avatars (2026-07-10)
+
+- Status: complete; ready for PR.
+- Room navigation rows now subscribe to `m.room.avatar` state and render the room image when
+  available in Home and space room lists.
+- Rooms without a usable image keep the existing room-type/privacy icon, including the
+  hash-with-globe and hash-with-lock variants. Direct-message rows keep their existing initials
+  fallback.
+- The image is keyed by its resolved URL so a failed old avatar does not leave the row stuck on
+  fallback after the room receives a valid replacement avatar.
+- Focused coverage verifies image rendering, missing/invalid/broken-image fallbacks, direct-message
+  initials, URL replacement recovery, and real Matrix avatar-state add/change/removal events.
+- Independent review found one missing real-event subscription test; that test was added and the
+  follow-up review reported no remaining findings.
+- Green: focused tests (2 files, 5 tests), TypeScript typecheck, production build, full ESLint (0
+  errors, 19 pre-existing warnings), Prettier on touched TypeScript files, `git diff --check`, and
+  full `npm test` (356 files, 2817 tests).
+
 ### iOS App Store 4.12.4 release execution (2026-07-09)
 
 - Status: release hardening and version bump validated locally; pending final PR

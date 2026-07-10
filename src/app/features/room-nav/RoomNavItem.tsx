@@ -23,7 +23,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
-import { getDirectRoomAvatarUrl, getRoomAvatarUrl, getStateEvent } from '../../utils/room';
+import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { nameInitials } from '../../utils/common';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomUnread } from '../../state/hooks/unread';
@@ -37,7 +37,7 @@ import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { stopPropagation } from '../../utils/keyboard';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
-import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../utils/matrix';
+import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { getViaServers } from '../../plugins/via-servers';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
@@ -50,7 +50,7 @@ import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationS
 import { getRoomCreatorsForRoomId, useRoomCreators } from '../../hooks/useRoomCreators';
 import { getRoomPermissionsAPI, useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
-import { useRoomName } from '../../hooks/useRoomMeta';
+import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
 import { useCallMembers, useCallSession } from '../../hooks/useCall';
 import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
 import { callChatAtom } from '../../state/callEmbed';
@@ -246,6 +246,13 @@ export function RoomNavItem({
   );
 
   const roomName = useRoomName(room);
+  const roomAvatarMxc = useRoomAvatar(room, direct);
+  const directRoomAvatarFallbackUrl = direct
+    ? getRoomAvatarUrl(mx, room, 96, useAuthentication)
+    : undefined;
+  const roomAvatarUrl = roomAvatarMxc
+    ? mxcUrlToHttp(mx, roomAvatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
+    : directRoomAvatarFallbackUrl;
 
   const handleContextMenu: MouseEventHandler<HTMLElement> = (evt) => {
     evt.preventDefault();
@@ -296,6 +303,18 @@ export function RoomNavItem({
     }
   };
 
+  const roomIcon = (
+    <RoomIcon
+      style={{
+        opacity: unread ? config.opacity.P500 : config.opacity.P300,
+      }}
+      filled={selected}
+      size="100"
+      joinRule={room.getJoinRule()}
+      roomType={room.getType()}
+    />
+  );
+
   return (
     <NavItem
       variant="Background"
@@ -311,31 +330,24 @@ export function RoomNavItem({
         <NavItemContent>
           <Box as="span" grow="Yes" alignItems="Center" gap="200">
             <Avatar size="200" radii="400">
-              {showAvatar ? (
+              {roomAvatarUrl || showAvatar ? (
                 <RoomAvatar
+                  key={roomAvatarUrl}
                   roomId={room.roomId}
-                  src={
-                    direct
-                      ? getDirectRoomAvatarUrl(mx, room, 96, useAuthentication)
-                      : getRoomAvatarUrl(mx, room, 96, useAuthentication)
-                  }
+                  src={roomAvatarUrl}
                   alt={roomName}
-                  renderFallback={() => (
-                    <Text as="span" size="H6">
-                      {nameInitials(roomName)}
-                    </Text>
-                  )}
+                  renderFallback={() =>
+                    showAvatar ? (
+                      <Text as="span" size="H6">
+                        {nameInitials(roomName)}
+                      </Text>
+                    ) : (
+                      roomIcon
+                    )
+                  }
                 />
               ) : (
-                <RoomIcon
-                  style={{
-                    opacity: unread ? config.opacity.P500 : config.opacity.P300,
-                  }}
-                  filled={selected}
-                  size="100"
-                  joinRule={room.getJoinRule()}
-                  roomType={room.getType()}
-                />
+                roomIcon
               )}
             </Avatar>
             <Box as="span" grow="Yes">
