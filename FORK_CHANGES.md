@@ -4,10 +4,11 @@
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
-- Status: complete; opened as PR #108. User report reproduced red-first at
-  the component boundary: a row expanded with `Show more` stored that choice
-  only in the mounted `CollapsibleMessage` state, so virtualizing the row out
-  and back in created a fresh collapsed instance.
+- Status: complete; opened as PR #108. Before the fix, a failing
+  component-level regression test reproduced the report: a row expanded with
+  `Show more` stored that choice only in the mounted `CollapsibleMessage`
+  state, so virtualizing the row out and back in created a fresh collapsed
+  instance.
 - The old virtualization review explicitly accepted per-row collapse-state
   resets as a tradeoff. This task reverses that decision with a bounded
   timeline-owned `Map<string, boolean>` keyed by stable Matrix event id. It
@@ -27,6 +28,13 @@
 - Two independent review agents found no actionable issues; the test reviewer
   specifically verified that the live guard cannot pass without a real
   virtualized unmount/remount.
+- PR review follow-up: accepted Greptile's semantic concern that a
+  correctness-owned mutable cache must not rely on React's discardable
+  `useMemo`, and moved the map to `useRef`; accepted Sourcery's wording clarity
+  concern while preserving the current PR status; refuted Gemini's request for
+  room/thread memo dependencies because the sole production owner already
+  keys `RoomTimeline` by both values, guaranteeing a fresh instance on
+  navigation.
 
 ### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
 

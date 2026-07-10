@@ -412,7 +412,8 @@ export function RoomTimeline({
   // room:thread, so this state (and the context derived from it) resets on
   // navigation via remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
-  const manualExpansionState = useMemo(() => new Map<string, boolean>(), []);
+  const manualExpansionStateRef = useRef(new Map<string, boolean>());
+  const manualExpansionState = manualExpansionStateRef.current;
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
   atBottomRef.current = atBottom;

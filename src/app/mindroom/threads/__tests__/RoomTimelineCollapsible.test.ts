@@ -1208,7 +1208,9 @@ describe('RoomTimeline collapsible wiring', () => {
 
     expect(manualExpansionState.size).toBe(0);
     expect(expandAllMessages).toHaveBeenCalledTimes(1);
-    expect(provider.props.expandAllInit).toBe(true);
+    const refreshedProvider = renderer.root.findByType('collapsible-message-state-provider');
+    expect(refreshedProvider.props.expandAllInit).toBe(true);
+    expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
   });
 
   it('defers long-text hydration while a default room message row is collapsed', async () => {
