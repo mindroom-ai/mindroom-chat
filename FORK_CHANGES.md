@@ -30,6 +30,14 @@
   behavior worse. The existing `shouldLoadFullContent` bridge already supplies
   `true` to children on the first expanded render, before the persistence
   effect, so no raw-preview paint occurs.
+- Merged current `origin/dev` after PR #111 without rewriting history. The only
+  conflict was the Runbook insertion point; both feature sections were
+  preserved. Independent follow-up review found no issues in the triage,
+  feature diff, or merge resolution.
+- Review-follow-up validation on the merged tree passes: focused suites (6
+  files / 116 tests), full `npm test` (356 files / 2834 tests), typecheck,
+  production build, full lint (0 errors / 19 pre-existing warnings), and
+  `git diff --check`.
 
 ### Compact cards render member display names for raw Matrix IDs (2026-07-10)
 
