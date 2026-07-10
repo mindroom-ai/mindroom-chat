@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import React from 'react';
+import React, { type Dispatch, type SetStateAction } from 'react';
 import { RoomEvent, type EventTimeline, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -30,7 +30,7 @@ type HarnessProps = {
   eventId?: string;
   timeline: Timeline;
   rebuildTimeline: () => Timeline;
-  setTimeline: (timeline: Timeline) => void;
+  setTimeline: Dispatch<SetStateAction<Timeline>>;
   atBottom?: boolean;
   scrollToBottomRef?: { current: { count: number; smooth: boolean } };
 };
@@ -51,7 +51,7 @@ const Harness = ({
     eventId,
     timeline,
     rebuildTimeline,
-    setTimeline: setTimeline as never,
+    setTimeline,
     isViewportAtBottomNow: () => atBottom,
     scrollToBottomRef,
   });
