@@ -4,7 +4,7 @@
 
 ### Render collapsed long-text responses before expansion (2026-07-10)
 
-- Status: complete; PR pending.
+- Status: complete; opened as PR #110.
 - Root cause: collapsed room and thread rows passed `hydrateLongText={false}`
   into `RenderMessageContent`. Long-text sidecars therefore showed only their
   raw preview body until `Show more` was pressed; rich Markdown and tool-trace
