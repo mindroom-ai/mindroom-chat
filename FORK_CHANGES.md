@@ -237,97 +237,27 @@ palette", "Type a command or search...". Split into focused commits:
   "Spraakbericht opnemen" (nl) after a localStorage `i18nextLng` switch +
   reload. Screenshots: `ui-audit/i18n-composer-{en,de,nl}.png`.
 
-### Compact view: zero-reply root visibility (cold start + gappy sync) (2026-07-09)
+### Compact view: zero-reply cold-start coverage (2026-07-09)
 
-User reports (2026-07-09): (a) while watching a room's compact view, new
-untagged agent root messages sometimes never appear as cards until the room
-is re-entered or the window reloaded; (b) on a fresh device/cleared cache
-(mobile Safari), a room's compact view shows every real thread but none of
-the standalone no-reply messages that should render as zero-reply cards.
+On a fresh device or cleared cache, compact room view showed server-listed
+threads but missed historical standalone zero-reply roots. Those roots exist
+only in locally loaded main-timeline history, while initial sync supplies about
+20 events and compact view has no scroll paginator.
 
-Root cause, shared by both: zero-reply standalone roots are discoverable
-ONLY from the locally loaded main timeline
-(`buildCompactZeroReplyRootData` ← `roomSurfaceEventEntries` ←
-`timeline.linkedTimelines` component state). Real threads are immune —
-`loadRoomThreads` drains the server-side MSC3856 `/threads` list and
-`ThreadEvent.*` re-render independently. Two ways the local timeline goes
-stale/shallow:
+`useCompactCoverageBackfillController` now drives existing cache-first room
+pagination after initial cache hydration. It stops when at least 200 events and
+a real standalone zero-reply root are loaded, when history is exhausted, or
+after eight batches. Requests stay single-flight; settled and failed pages
+continue within the fixed budget.
 
-1. COLD START: fresh session syncs only the last
-   `STARTUP_SYNC_TIMELINE_LIMIT` (20) events; after a cache clear there is
-   no IndexedDB hydration; the compact view mounts no scroll paginator, so
-   nothing ever deepens the timeline. Historical standalone roots stay
-   invisible (the deep-history job writes cache only — cards would appear
-   on the NEXT open).
-2. GAPPY SYNC (step 2): on `limited: true` the SDK forks a NEW live
-   timeline with no neighbour link (`resetLiveTimeline`); the component
-   keeps counting the orphaned chain (`eventsLength` memo key), so no
-   later live event ever re-enters the render pipeline. Only
-   `RoomEvent.TimelineRefresh` (MSC2716, never fires) was handled — and
-   its room branch is gated on `liveTimelineLinked`, false exactly then.
+Scope is deliberately cold-start only. Gappy-sync `TimelineReset` recovery is
+split into a separate follow-up so pagination and reset lifecycles remain
+independently reviewable.
 
-- Status:
-  - Step 1 done: `compactCoverageBackfillController.ts` —
-    `useCompactCoverageBackfillController` drives the existing cache-first
-    pagination command (`handleRoomTimelinePagination(true)`) while the
-    compact room view is active (`!threadId && !eventId`, after initial
-    cache hydration, and only while the chain contains the current live
-    timeline) until the linked main timeline holds
-    `COMPACT_COVERAGE_TARGET_EVENTS` (200) raw events AND the fully loaded
-    server thread list proves at least one loaded root is a standalone
-    zero-reply root. The second condition prevents a page of state events,
-    edits, or thread-only activity from falsely satisfying the actual card
-    coverage goal. Work is capped at
-    `COMPACT_COVERAGE_MAX_BATCHES` (8) pages per mount. One batch in
-    flight at a time; a settle tick keeps the loop alive when a page
-    changes no reactive input (fully-filtered events); errors are
-    swallowed and retry within budget. Unit tests cover the decision
-    helper, single-flight, budget cap, target stop, settle-tick
-    continuation, and error tolerance.
-  - Step 2 done: `roomTimelineResetRelink.ts` —
-    `useRoomTimelineResetRelink` listens for `RoomEvent.TimelineReset`
-    (room view only, unfiltered set only) and rebuilds the render timeline
-    via the cache-hydration builder, but ONLY when the current linked
-    chain no longer contains `getLiveTimeline(room)` — a reset that kept
-    the chain intact must not yank the window. Readers at bottom get the
-    non-smooth bottom pin; scrolled-up readers are left in place (the
-    orphaned chain was frozen anyway — jumping to live is the recovery,
-    same call Element makes). The step-1 coverage loop then restores
-    depth from cache/network, so pre-gap cards return. Unit tests cover
-    the orphaned-chain rebuild, the linked-chain no-op, thread/event view
-    scoping, foreign timeline-set scoping, the bottom pin, and listener
-    teardown.
-  - Review hardening: stale pagination commits are rejected at the shared
-    `recalibrateTimelinePagination` choke point whenever React has installed
-    a different linked-array identity. This covers backward and forward
-    pagination, event-route focus, and TimelineReset without the former
-    render-side reset latch/self-heal loop. Concurrent backward callers now
-    share the exact active promise instead of spending the compact coverage
-    budget on resolved no-ops. Coverage is disabled on orphaned chains.
-  - Reset listener hardening: the listener reads render-fresh `threadId` and
-    `eventId` refs, subscribes before checking for an already-missed reset,
-    and publishes the rebuilt timeline to its ref synchronously. Bottom-pin
-    decisions use the live DOM viewport check, not the approximately
-    one-second-debounced `atBottom` UI state. Each reset therefore installs
-    and pins at most one recovery chain.
-  - Coverage budget after relink: `onRelink` bumps `coverageEpoch`, resetting
-    only the per-mount batch budget while preserving an actual in-flight
-    request. The StrictMode mounted guard remains effect-owned so settle
-    ticks survive React's development replay.
-
-Repro notes (for e2e later): gappy sync = >STARTUP_SYNC_TIMELINE_LIMIT
-(20) room events in one /sync window — routine in agent rooms (streaming
-`m.replace` storms + tab throttling/sleep). Manual: DevTools offline ~20s
-during agent streaming, back online, agent posts an untagged root; without
-step 2 the card never appears until room re-entry. Cold start: clear site
-data, open a room with old standalone roots; without step 1 only real
-threads (server `/threads` list) render as cards.
-
-Review-fix validation: focused timeline/controller suites 59/59; room
-regression suites 222/222; full `npm test` 356 files / 2840 tests;
-`npm run typecheck`, `npm run build`, and `git diff --check` clean. Touched-file
-eslint has zero errors and the existing unused `getEventElementById` warning.
-Three independent review passes found no remaining blocker.
+Validation after scope reduction: focused timeline/coverage suites 101/101;
+full Vitest 355 files / 2822 tests; typecheck, production build, and diff check
+pass. Touched-file lint has no errors and the existing unused
+`getEventElementById` warning. Two independent reviews found no blocker.
 
 ### Simple mode (2026-07-09)
 

@@ -220,7 +220,6 @@ import {
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
-import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
@@ -427,10 +426,6 @@ export function RoomTimeline({
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
-  // Bumped by the timeline-reset relink; refreshes the compact coverage
-  // controller's batch budget so post-gap rebuilds restore depth.
-  const [coverageEpoch, setCoverageEpoch] = useState(0);
-  const bumpCoverageEpoch = useCallback(() => setCoverageEpoch((epoch) => epoch + 1), []);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
@@ -987,8 +982,6 @@ export function RoomTimeline({
     canPaginateBack,
     hasMoreCachedBack: roomHasMoreCachedBack,
     paginateBack: handleRoomTimelinePagination,
-    room,
-    coverageEpoch,
   });
 
   const {
@@ -1968,26 +1961,6 @@ export function RoomTimeline({
     setTimeline,
     threadId,
     threadIdRef,
-  });
-
-  // Gappy sync: `resetLiveTimeline` forks an UNLINKED live timeline, so the
-  // chain held in `timeline` state goes permanently stale — every later
-  // live event lands in a timeline this component never reads (new
-  // standalone roots stop appearing as compact cards; classic view
-  // freezes). TimelineRefresh below does not cover this (MSC2716-only, and
-  // gated on liveTimelineLinked — false exactly after a reset).
-  useRoomTimelineResetRelink({
-    room,
-    threadId,
-    eventId,
-    timeline,
-    rebuildTimeline: buildRoomCacheHydratedTimeline,
-    setTimeline,
-    isViewportAtBottomNow,
-    scrollToBottomRef,
-    // The rebuilt chain is shallow; refresh the coverage budget so the
-    // compact view restores depth even when pre-gap batches spent it.
-    onRelink: bumpCoverageEpoch,
   });
 
   useThreadAwareTimelineRefresh({

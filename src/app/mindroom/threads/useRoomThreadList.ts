@@ -11,19 +11,23 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 export const useRoomThreadList = (room: Room, enabled = true) => {
   const mx = useMatrixClient();
   const [loading, setLoading] = useState(enabled);
+  const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
 
   const handleThreadListProgress = useCallback(() => {
+    setLoadedSuccessfully(true);
     setVersion((current) => current + 1);
   }, []);
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setLoading(false);
+      setLoadedSuccessfully(false);
       return;
     }
     setLoading(true);
+    setLoadedSuccessfully(false);
     setError(undefined);
 
     try {
@@ -38,6 +42,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   useEffect(() => {
     if (!enabled) {
       setLoading(false);
+      setLoadedSuccessfully(false);
       setError(undefined);
       return undefined;
     }
@@ -45,6 +50,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     let mounted = true;
 
     setLoading(true);
+    setLoadedSuccessfully(false);
     setError(undefined);
 
     loadRoomThreads(room, () => {
@@ -110,6 +116,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     threads,
     threadUnreads,
     loading,
+    loadedSuccessfully,
     fullyLoaded,
     error,
     retry: refresh,

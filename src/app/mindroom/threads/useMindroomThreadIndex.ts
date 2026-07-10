@@ -398,6 +398,7 @@ export const useMindroomThreadIndex = ({
   const {
     threads: roomThreadListThreads,
     loading: roomThreadListLoading,
+    loadedSuccessfully: roomThreadListLoadedSuccessfully,
     fullyLoaded: roomThreadListFullyLoaded,
     retry: refreshRoomThreadList,
   } = useRoomThreadList(room, compactViewRequested);
@@ -438,6 +439,8 @@ export const useMindroomThreadIndex = ({
         compactZeroReplyRootData
       ),
       hasZeroReplyRootCoverage:
+        roomThreadListLoadedSuccessfully &&
+        !!room.threadsTimelineSets[0]?.getLiveTimeline() &&
         roomThreadListFullyLoaded &&
         !roomThreadListLoading &&
         compactZeroReplyRootData.ids.length > 0,
@@ -450,6 +453,7 @@ export const useMindroomThreadIndex = ({
     visibleThreadRootData,
     roomThreadListThreads,
     roomThreadListLoading,
+    roomThreadListLoadedSuccessfully,
     roomThreadListFullyLoaded,
     threadReplyCountMap,
   ]);

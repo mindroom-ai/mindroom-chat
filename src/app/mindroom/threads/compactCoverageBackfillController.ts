@@ -1,24 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Room } from 'matrix-js-sdk';
 
-// Zero-reply standalone thread roots have NO server-side listing (unlike
-// real threads, which `loadRoomThreads` fetches to exhaustion via the
-// MSC3856 `/threads` API). They only become compact-view cards when their
-// event is present in the locally loaded main timeline. On a fresh session
-// (or after the user clears site data) that timeline is just the last
-// ~STARTUP_SYNC_TIMELINE_LIMIT sync events — in an agent room mostly thread
-// replies and edits — so historical standalone roots are invisible until
-// something back-paginates, and nothing did in the compact view (classic
-// view paginates via the virtual paginator's scroll sentinel, which the
-// compact view does not mount). This controller drives the existing
-// cache-first pagination command until the loaded main timeline reaches a
-// coverage floor, so standalone roots materialize without user scrolling.
 export const COMPACT_COVERAGE_TARGET_EVENTS = 200;
-
-// Absolute per-mount batch budget. Each batch is either one cached page or
-// one network /messages page via `handleRoomTimelinePagination(true)`; the
-// cap bounds worst-case work in rooms whose history is mostly filtered
-// (e.g. membership floods) where the target may be slow to reach.
 export const COMPACT_COVERAGE_MAX_BATCHES = 8;
 
 export type CompactCoverageBackfillDecisionInput = {
@@ -38,12 +20,16 @@ export const shouldRunCompactCoverageBackfill = ({
   hasMoreCachedBack,
   batchesUsed,
 }: CompactCoverageBackfillDecisionInput): boolean => {
-  if (!enabled) return false;
-  if (batchesUsed >= COMPACT_COVERAGE_MAX_BATCHES) return false;
+  if (!enabled || batchesUsed >= COMPACT_COVERAGE_MAX_BATCHES) return false;
   if (loadedEventCount >= COMPACT_COVERAGE_TARGET_EVENTS && hasZeroReplyRootCoverage) return false;
   return canPaginateBack || hasMoreCachedBack;
 };
 
+/**
+ * Compact rooms have no scroll paginator. Drive the existing cache-first
+ * room paginator until loaded history includes useful zero-reply coverage,
+ * with a hard per-mount request budget.
+ */
 export const useCompactCoverageBackfillController = ({
   enabled,
   loadedEventCount,
@@ -51,70 +37,27 @@ export const useCompactCoverageBackfillController = ({
   canPaginateBack,
   hasMoreCachedBack,
   paginateBack,
-  room,
-  coverageEpoch = 0,
 }: {
-  /**
-   * Room view with the compact overview requested, after the initial cache
-   * hydration settled (`!threadId && !eventId && compactViewRequested &&
-   * roomInitialCacheHydrated`). Waiting for hydration avoids racing the
-   * open-time cache page with a redundant network fetch.
-   */
   enabled: boolean;
-  /** Raw event count across the currently linked main-timeline chain. */
   loadedEventCount: number;
-  /** Whether loaded history proves at least one standalone zero-reply root. */
   hasZeroReplyRootCoverage: boolean;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
-  /**
-   * The room pagination command (`handleRoomTimelinePagination`). Read via
-   * a latest-ref so this controller always drives the instance bound to the
-   * current timeline state — its identity changes every render.
-   */
   paginateBack: (backwards: boolean) => Promise<void>;
-  room: Room;
-  /**
-   * Bumped by the timeline-reset relink after it installs a fresh (shallow)
-   * live chain. Without this, a gappy sync AFTER the per-mount budget was
-   * spent would leave the view shallow forever — the relink drops
-   * `loadedEventCount` back below target, but `batchesUsedRef` still reads
-   * exhausted until a remount.
-   */
-  coverageEpoch?: number;
 }): void => {
   const paginateBackRef = useRef(paginateBack);
   paginateBackRef.current = paginateBack;
   const batchesUsedRef = useRef(0);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
-  // A settled batch may leave every reactive input unchanged (e.g. a page
-  // of fully-filtered events); the tick forces the effect to re-evaluate so
-  // the loop cannot stall before its budget or target is reached. It must
-  // survive dependency churn while a batch is in flight, so it is guarded
-  // by unmount alone — not by the reactive effect's cleanup.
   const [batchSettledTick, setBatchSettledTick] = useState(0);
 
   useEffect(() => {
-    // Set on the effect body, not at ref init, so a StrictMode
-    // mount→unmount→remount (which preserves refs) does not leave the
-    // guard permanently false and stall the settle tick.
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    batchesUsedRef.current = 0;
-    inFlightRef.current = false;
-  }, [room.roomId]);
-
-  // Epoch bump refreshes the budget only — a genuinely running batch must
-  // keep its single-flight guard until it settles.
-  useEffect(() => {
-    batchesUsedRef.current = 0;
-  }, [coverageEpoch]);
 
   useEffect(() => {
     if (inFlightRef.current) return;
@@ -147,8 +90,6 @@ export const useCompactCoverageBackfillController = ({
     hasZeroReplyRootCoverage,
     canPaginateBack,
     hasMoreCachedBack,
-    room.roomId,
     batchSettledTick,
-    coverageEpoch,
   ]);
 };
