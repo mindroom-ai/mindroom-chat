@@ -37,14 +37,14 @@
   marketing overrides remain authoritative. The regression reproduced `4.12.4` from package
   `4.12.3`, checked-in `4.12.10`, and build `1` before the fix, then resolves `4.12.11 (1)` after it.
 - Also updated the defensive shell error to list `CI_BUILD_NUMBER`, matching the resolver. Merged
-  current `origin/dev` through PRs #111 and #102 without rewriting history; the earlier Runbook
-  insertion conflict preserved both sections, and the later merge was clean.
+  current `origin/dev` through PRs #111, #102, and #112 without rewriting history; Runbook
+  insertion conflicts preserved all sections, and upstream code remains unchanged.
 - Independent follow-up review found no production issue and requested boundary coverage for a
   checked-in minor-version transition plus both marketing overrides through the Xcode Cloud path;
   those regressions were added and the re-review found no remaining issues.
 - Review-follow-up GREEN: focused version suite (14 tests), low-counter simulation, App Store
   preflight, shell syntax, typecheck, production build, full lint (0 errors, 19 existing warnings),
-  `git diff --check`, and full `npm test` (357 files, 2844 tests).
+  `git diff --check`, and full `npm test` (363 files, 2864 tests).
 - Final merge review confirmed all upstream code files match `origin/dev` and the iOS diff remains
   correct; its only finding was one dropped Runbook separator, restored before push.
 
