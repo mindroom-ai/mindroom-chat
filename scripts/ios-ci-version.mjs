@@ -46,6 +46,12 @@ export const assertMarketingVersionNotBehindPackage = (marketingVersion, package
   }
 };
 
+export const deriveAutomatedMarketingVersion = (packageVersion, buildNumber) => {
+  const { parts } = parseBaseVersion(packageVersion, 'package.json version');
+  assertBuildNumber(String(buildNumber), 'automated build counter');
+  return `${parts[0]}.${parts[1]}.${parts[2] + Number.parseInt(buildNumber, 10)}`;
+};
+
 const getEnvValue = (env, key) => {
   const value = env[key];
   return typeof value === 'string' ? value.trim() : '';
@@ -92,20 +98,46 @@ export const resolveIosCiVersionMetadata = ({
   headTags = [],
 }) => {
   const packageBaseVersion = parseBaseVersion(packageVersion, 'package.json version').version;
-  const marketingVersion =
-    getEnvValue(env, 'IOS_MARKETING_VERSION') ||
-    getEnvValue(env, 'APP_STORE_MARKETING_VERSION') ||
-    String(checkedInMarketingVersion ?? '').trim();
-
-  assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+  const explicitMarketingVersion = getEnvValue(env, 'IOS_MARKETING_VERSION');
+  const appStoreMarketingVersion = getEnvValue(env, 'APP_STORE_MARKETING_VERSION');
 
   const explicitBuildNumber = getEnvValue(env, 'IOS_BUILD_NUMBER');
   if (explicitBuildNumber) {
     assertBuildNumber(explicitBuildNumber, 'IOS_BUILD_NUMBER');
+    const marketingVersion =
+      explicitMarketingVersion ||
+      appStoreMarketingVersion ||
+      deriveAutomatedMarketingVersion(packageBaseVersion, explicitBuildNumber);
+    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
     return {
       marketingVersion,
+      marketingVersionSource: explicitMarketingVersion
+        ? 'IOS_MARKETING_VERSION'
+        : appStoreMarketingVersion
+        ? 'APP_STORE_MARKETING_VERSION'
+        : 'build-counter:IOS_BUILD_NUMBER',
       buildNumber: explicitBuildNumber,
       buildNumberSource: 'IOS_BUILD_NUMBER',
+    };
+  }
+
+  const ciBuildNumber = getEnvValue(env, 'CI_BUILD_NUMBER');
+  if (ciBuildNumber) {
+    assertBuildNumber(ciBuildNumber, 'CI_BUILD_NUMBER');
+    const marketingVersion =
+      explicitMarketingVersion ||
+      appStoreMarketingVersion ||
+      deriveAutomatedMarketingVersion(packageBaseVersion, ciBuildNumber);
+    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+    return {
+      marketingVersion,
+      marketingVersionSource: explicitMarketingVersion
+        ? 'IOS_MARKETING_VERSION'
+        : appStoreMarketingVersion
+        ? 'APP_STORE_MARKETING_VERSION'
+        : 'build-counter:CI_BUILD_NUMBER',
+      buildNumber: ciBuildNumber,
+      buildNumberSource: 'CI_BUILD_NUMBER',
     };
   }
 
@@ -119,8 +151,18 @@ export const resolveIosCiVersionMetadata = ({
     packageBaseVersion
   );
   if (envTag) {
+    const marketingVersion =
+      explicitMarketingVersion ||
+      appStoreMarketingVersion ||
+      deriveAutomatedMarketingVersion(packageBaseVersion, envTag.buildNumber);
+    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
     return {
       marketingVersion,
+      marketingVersionSource: explicitMarketingVersion
+        ? 'IOS_MARKETING_VERSION'
+        : appStoreMarketingVersion
+        ? 'APP_STORE_MARKETING_VERSION'
+        : `build-counter:env-tag:${envTag.tag}`,
       buildNumber: envTag.buildNumber,
       buildNumberSource: `env-tag:${envTag.tag}`,
     };
@@ -128,20 +170,20 @@ export const resolveIosCiVersionMetadata = ({
 
   const headTag = getBestReleaseTag(headTags, packageBaseVersion);
   if (headTag) {
+    const marketingVersion =
+      explicitMarketingVersion ||
+      appStoreMarketingVersion ||
+      deriveAutomatedMarketingVersion(packageBaseVersion, headTag.buildNumber);
+    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
     return {
       marketingVersion,
+      marketingVersionSource: explicitMarketingVersion
+        ? 'IOS_MARKETING_VERSION'
+        : appStoreMarketingVersion
+        ? 'APP_STORE_MARKETING_VERSION'
+        : `build-counter:head-tag:${headTag.tag}`,
       buildNumber: headTag.buildNumber,
       buildNumberSource: `head-tag:${headTag.tag}`,
-    };
-  }
-
-  const ciBuildNumber = getEnvValue(env, 'CI_BUILD_NUMBER');
-  if (ciBuildNumber) {
-    assertBuildNumber(ciBuildNumber, 'CI_BUILD_NUMBER');
-    return {
-      marketingVersion,
-      buildNumber: ciBuildNumber,
-      buildNumberSource: 'CI_BUILD_NUMBER',
     };
   }
 
@@ -152,9 +194,19 @@ export const resolveIosCiVersionMetadata = ({
     );
   }
   assertBuildNumber(fallbackBuildNumber, 'checked-in Xcode project');
+  const marketingVersion =
+    explicitMarketingVersion ||
+    appStoreMarketingVersion ||
+    String(checkedInMarketingVersion ?? '').trim();
+  assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
 
   return {
     marketingVersion,
+    marketingVersionSource: explicitMarketingVersion
+      ? 'IOS_MARKETING_VERSION'
+      : appStoreMarketingVersion
+      ? 'APP_STORE_MARKETING_VERSION'
+      : 'checked-in Xcode project',
     buildNumber: fallbackBuildNumber,
     buildNumberSource: 'checked-in Xcode project',
   };
@@ -198,6 +250,7 @@ const main = () => {
   });
 
   console.log(`marketing_version=${metadata.marketingVersion}`);
+  console.log(`marketing_version_source=${metadata.marketingVersionSource}`);
   console.log(`build_number=${metadata.buildNumber}`);
   console.log(`build_number_source=${metadata.buildNumberSource}`);
 };

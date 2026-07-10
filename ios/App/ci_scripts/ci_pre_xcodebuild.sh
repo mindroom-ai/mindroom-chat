@@ -33,6 +33,7 @@ get_metadata_value() {
 refresh_remote_tags
 VERSION_METADATA="$(node scripts/ios-ci-version.mjs)"
 APPLE_MARKETING_VERSION="$(get_metadata_value marketing_version)"
+APPLE_MARKETING_VERSION_SOURCE="$(get_metadata_value marketing_version_source)"
 CURRENT_PROJECT_VERSION="$(get_metadata_value build_number)"
 CURRENT_PROJECT_VERSION_SOURCE="$(get_metadata_value build_number_source)"
 
@@ -48,6 +49,7 @@ fi
 
 if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
   echo "Setting iOS MARKETING_VERSION=$APPLE_MARKETING_VERSION CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION"
+  echo "Resolved iOS marketing version from ${APPLE_MARKETING_VERSION_SOURCE:-unknown}"
   echo "Resolved iOS build number from ${CURRENT_PROJECT_VERSION_SOURCE:-unknown}"
   MARKETING_VERSION="$APPLE_MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" node --input-type=module <<'NODE'
     import fs from 'node:fs';
