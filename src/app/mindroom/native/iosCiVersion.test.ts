@@ -117,14 +117,14 @@ describe('resolveIosCiVersionMetadata', () => {
     'keeps an explicit %s override in the Xcode Cloud counter path',
     (marketingVersionKey) => {
       const metadata = resolveIosCiVersionMetadata({
-        env: { CI: 'TRUE', CI_BUILD_NUMBER: '1', [marketingVersionKey]: '5.0.0' },
+        env: { CI: 'TRUE', CI_BUILD_NUMBER: '1', [marketingVersionKey]: '4.12.4' },
         packageVersion: '4.12.3',
         checkedInMarketingVersion: '4.13.2',
         checkedInBuildNumber: '33',
         headTags: [],
       });
 
-      expect(metadata.marketingVersion).toBe('5.0.0');
+      expect(metadata.marketingVersion).toBe('4.12.4');
       expect(metadata.marketingVersionSource).toBe(marketingVersionKey);
       expect(metadata.buildNumber).toBe('1');
       expect(metadata.buildNumberSource).toBe('CI_BUILD_NUMBER');
