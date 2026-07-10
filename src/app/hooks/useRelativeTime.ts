@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toSupportedLanguageCode } from '../i18nLanguages';
 import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
 
 type RelativeTimeClockListener = () => void;
@@ -57,6 +59,7 @@ export const getRelativeTimeUpdateInterval = (ts: number, now = Date.now()): num
 };
 
 export const useRelativeTime = (ts: number | undefined): string => {
+  const { i18n } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -78,5 +81,8 @@ export const useRelativeTime = (ts: number | undefined): string => {
 
   if (ts === undefined) return '';
 
-  return formatRelativeTime(ts);
+  return formatRelativeTime(
+    ts,
+    toSupportedLanguageCode(i18n.resolvedLanguage ?? i18n.language)
+  );
 };

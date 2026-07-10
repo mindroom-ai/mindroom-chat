@@ -131,6 +131,7 @@ vi.mock('../../../hooks/useStateEvent', () => ({
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getHomeserverUrl: () => 'https://example.org',
     getSafeUserId: () => '@user:example.org',
   }),
 }));

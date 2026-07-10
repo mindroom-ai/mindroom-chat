@@ -10,18 +10,12 @@ import React, {
 } from 'react';
 import { KeySymbol } from '../../utils/key-symbol';
 import { isMacOS } from '../../utils/user-agent';
-import {
-  getCommandPaletteSectionOrder,
-  parseCommandPaletteQuery,
-} from './commandPaletteQuery';
+import { getCommandPaletteSectionOrder, parseCommandPaletteQuery } from './commandPaletteQuery';
 import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 import { CommandPaletteList, type CommandPaletteListSection } from './CommandPaletteList';
 import { COMMAND_PALETTE_PREFIX_HINTS } from './commandPaletteTypes';
-import type {
-  CommandPaletteParsedQuery,
-  CommandPaletteRoomItem,
-} from './commandPaletteTypes';
+import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
 
 type CommandPaletteProps = {
   requestClose: () => void;
@@ -64,28 +58,40 @@ const getSectionItems = ({
     case 'actions':
       return searchCommandPaletteSection({
         items: source.actions,
-        query: parsedQuery.mode === 'actions' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
+        query:
+          parsedQuery.mode === 'actions' || parsedQuery.mode === 'all'
+            ? parsedQuery.searchText
+            : '',
         config: commandPaletteSearchConfig.actions,
       });
     case 'threads':
       return searchCommandPaletteSection({
         items: source.threads,
-        query: parsedQuery.mode === 'threads' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
+        query:
+          parsedQuery.mode === 'threads' || parsedQuery.mode === 'all'
+            ? parsedQuery.searchText
+            : '',
         config: commandPaletteSearchConfig.threads,
       });
     case 'rooms':
       return searchCommandPaletteSection({
         items: parsedQuery.mode === 'spaces' ? spaceItems : source.rooms,
         query:
-          parsedQuery.mode === 'rooms' || parsedQuery.mode === 'spaces' || parsedQuery.mode === 'all'
+          parsedQuery.mode === 'rooms' ||
+          parsedQuery.mode === 'spaces' ||
+          parsedQuery.mode === 'all'
             ? parsedQuery.searchText
             : '',
         config: commandPaletteSearchConfig.rooms,
       });
     case 'users':
       return searchCommandPaletteSection({
-        items: source.users,
-        query: parsedQuery.mode === 'users' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
+        items: source.getUsers({
+          exhaustive: parsedQuery.searchText.trim().length > 0,
+          includeRelatedRooms: parsedQuery.mode === 'users' || parsedQuery.searchText.length > 0,
+        }),
+        query:
+          parsedQuery.mode === 'users' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
         config: commandPaletteSearchConfig.users,
       });
     default:
@@ -139,7 +145,7 @@ const PREFIX_LABEL_KEYS = {
   '@': 'commandPalette.prefixes.users',
   't:': 'commandPalette.prefixes.threads',
   '*': 'commandPalette.prefixes.spaces',
-} as const satisfies Record<(typeof COMMAND_PALETTE_PREFIX_HINTS)[number], string>;
+} as const satisfies Record<typeof COMMAND_PALETTE_PREFIX_HINTS[number], string>;
 
 export function CommandPalette({ requestClose, source, mobileSheet = false }: CommandPaletteProps) {
   const { t } = useTranslation();
@@ -283,7 +289,8 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             </React.Fragment>
           ))}
           {'. '}
-          {t('commandPalette.shortcut')} <b>{shortcutLabel}</b> {t('commandPalette.shortcutOpenSuffix')}
+          {t('commandPalette.shortcut')} <b>{shortcutLabel}</b>{' '}
+          {t('commandPalette.shortcutOpenSuffix')}
         </Text>
       </Box>
     </Box>

@@ -230,7 +230,8 @@
     "removing": "Verwijderen...",
     "removeFromDevice": "Verwijderen van apparaat",
     "addAccount": "Account toevoegen",
-    "close": "Sluiten"
+    "close": "Sluiten",
+    "actionError": "Dit account kon niet worden bijgewerkt. Probeer het opnieuw."
   },
   "recentThreads": {
     "title": "Recente threads",

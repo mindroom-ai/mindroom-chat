@@ -13,13 +13,7 @@ import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { useSelectedSpace } from '../../hooks/router/useSelectedSpace';
 import { copyToClipboard } from '../../utils/dom';
-import {
-  getCanonicalAliasOrRoomId,
-  getDMRoomFor,
-  getMxIdLocalPart,
-  guessDmRoomUserId,
-  isRoomAlias,
-} from '../../utils/matrix';
+import { getCanonicalAliasOrRoomId, getMxIdLocalPart, isRoomAlias } from '../../utils/matrix';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import { factoryRoomIdByActivity } from '../../utils/sort';
@@ -52,6 +46,11 @@ import type {
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
 } from './commandPaletteTypes';
+import {
+  buildCommandPaletteDmRoomMap,
+  collectCommandPaletteUserCandidates,
+  getCommandPaletteDmUserDetails,
+} from './commandPaletteUserCandidates';
 
 export type ExecutableCommandPaletteItem = CommandPaletteItem & {
   onSelect?: () => void;
@@ -61,7 +60,10 @@ export type CommandPaletteSource = {
   actions: readonly (CommandPaletteActionItem & { onSelect?: () => void })[];
   threads: readonly (CommandPaletteThreadItem & { onSelect?: () => void })[];
   rooms: readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
-  users: readonly (CommandPaletteUserItem & { onSelect?: () => void })[];
+  getUsers: (options: {
+    exhaustive: boolean;
+    includeRelatedRooms: boolean;
+  }) => readonly (CommandPaletteUserItem & { onSelect?: () => void })[];
   getMessages: (query: string) => (CommandPaletteMessageItem & { onSelect?: () => void })[];
 };
 
@@ -74,7 +76,7 @@ const getRoomTopic = (room: Room): string | undefined => {
   return typeof content?.topic === 'string' ? content.topic : undefined;
 };
 
-const fireAndForget = <T,>(promise: Promise<T>) => {
+const fireAndForget = <T>(promise: Promise<T>) => {
   promise.catch(() => undefined);
 };
 
@@ -135,29 +137,16 @@ export const useCommandPaletteSource = (
     () => [...directs].sort(factoryRoomIdByActivity(mx)),
     [directs, mx]
   );
-  const dmRoomByUserId = useMemo(() => {
-    const map = new Map<string, string>();
-
-    orderedDirectIds.forEach((roomId) => {
-      const room = getRoom(roomId);
-      if (!room) return;
-
-      const userId = guessDmRoomUserId(room, myUserId);
-      if (!userId || userId === myUserId || map.has(userId)) return;
-      map.set(userId, room.roomId);
-    });
-
-    directUsers.forEach((userId) => {
-      if (map.has(userId)) return;
-      const room = getDMRoomFor(mx, userId);
-      if (room) {
-        map.set(userId, room.roomId);
-      }
-    });
-
-    return map;
-  }, [directUsers, getRoom, mx, myUserId, orderedDirectIds]);
-
+  const knownDmRoomByUserId = useMemo(
+    () =>
+      buildCommandPaletteDmRoomMap({
+        directRoomIds: orderedDirectIds,
+        getRoom,
+        joinedRoomIds: allJoinedRoomIds,
+        myUserId,
+      }),
+    [allJoinedRoomIds, getRoom, myUserId, orderedDirectIds]
+  );
   const directActivityRank = useMemo(() => {
     const rank = new Map<string, number>();
     const size = orderedDirectIds.length;
@@ -171,42 +160,45 @@ export const useCommandPaletteSource = (
 
   const roomItems = useMemo(
     () =>
-      orderedRoomIds.reduce<(CommandPaletteRoomItem & { onSelect: () => void })[]>((items, roomId) => {
-        const room = getRoom(roomId);
-        if (!room) return items;
+      orderedRoomIds.reduce<(CommandPaletteRoomItem & { onSelect: () => void })[]>(
+        (items, roomId) => {
+          const room = getRoom(roomId);
+          if (!room) return items;
 
-        const parentNames = Array.from(getAllParents(roomToParents, room.roomId))
-          .map((parentId) => getRoom(parentId)?.name ?? parentId)
-          .sort((left, right) => left.localeCompare(right));
-        const unread = roomToUnread.get(room.roomId);
+          const parentNames = Array.from(getAllParents(roomToParents, room.roomId))
+            .map((parentId) => getRoom(parentId)?.name ?? parentId)
+            .sort((left, right) => left.localeCompare(right));
+          const unread = roomToUnread.get(room.roomId);
 
-        items.push({
-          id: room.roomId,
-          kind: room.isSpaceRoom() ? 'space' : 'room',
-          name: room.name,
-          canonicalAlias: room.getCanonicalAlias() ?? undefined,
-          topic: getRoomTopic(room),
-          parentNames,
-          unreadCount: unread?.total,
-          unreadHighlight: unread ? unread.highlight > 0 : undefined,
-          sortRank: roomActivityRank.get(room.roomId) ?? 0,
-          boost:
-            (room.roomId === selectedRoomId ? 30 : 0) +
-            (room.roomId === selectedSpaceId ? 15 : 0) +
-            ((unread?.total ?? 0) > 0 ? 15 : 0) +
-            ((unread?.highlight ?? 0) > 0 ? 10 : 0),
-          onSelect: () => {
-            if (room.isSpaceRoom()) {
-              navigateSpace(room.roomId);
-              return;
-            }
+          items.push({
+            id: room.roomId,
+            kind: room.isSpaceRoom() ? 'space' : 'room',
+            name: room.name,
+            canonicalAlias: room.getCanonicalAlias() ?? undefined,
+            topic: getRoomTopic(room),
+            parentNames,
+            unreadCount: unread?.total,
+            unreadHighlight: unread ? unread.highlight > 0 : undefined,
+            sortRank: roomActivityRank.get(room.roomId) ?? 0,
+            boost:
+              (room.roomId === selectedRoomId ? 30 : 0) +
+              (room.roomId === selectedSpaceId ? 15 : 0) +
+              ((unread?.total ?? 0) > 0 ? 15 : 0) +
+              ((unread?.highlight ?? 0) > 0 ? 10 : 0),
+            onSelect: () => {
+              if (room.isSpaceRoom()) {
+                navigateSpace(room.roomId);
+                return;
+              }
 
-            navigateRoom(room.roomId);
-          },
-        });
+              navigateRoom(room.roomId);
+            },
+          });
 
-        return items;
-      }, []),
+          return items;
+        },
+        []
+      ),
     [
       getRoom,
       navigateRoom,
@@ -220,100 +212,107 @@ export const useCommandPaletteSource = (
     ]
   );
 
-  const currentRoomMemberIds = useMemo(
-    () => new Set(selectedRoom?.getJoinedMembers().map((member) => member.userId) ?? []),
-    [selectedRoom]
-  );
+  const getUserItems = useMemo(() => {
+    const cache = new Map<string, readonly (CommandPaletteUserItem & { onSelect: () => void })[]>();
+    return ({
+      exhaustive,
+      includeRelatedRooms,
+    }: {
+      exhaustive: boolean;
+      includeRelatedRooms: boolean;
+    }) => {
+      const cacheKey = `${includeRelatedRooms}:${exhaustive}`;
+      const cachedItems = cache.get(cacheKey);
+      if (cachedItems) return cachedItems;
 
-  const userItems = useMemo(() => {
-    const items = new Map<string, CommandPaletteUserItem & { onSelect: () => void }>();
+      const items = new Map<string, CommandPaletteUserItem & { onSelect: () => void }>();
+      const { candidates, currentRoomMemberIds } = collectCommandPaletteUserCandidates({
+        directUsers,
+        exhaustive,
+        getRoom,
+        includeRelatedRooms,
+        myUserId,
+        orderedRoomIds,
+        selectedRoomId,
+      });
 
-    const upsertUser = (
-      userId: string,
-      displayName: string | undefined,
-      sourceRoomId?: string
-    ) => {
-      if (!userId || userId === myUserId) return;
+      const upsertUser = (
+        userId: string,
+        displayName: string | undefined,
+        sourceRoomId?: string
+      ) => {
+        if (!userId || userId === myUserId) return;
 
-      const existingDmRoomId = dmRoomByUserId.get(userId);
-      const dmRoomName = existingDmRoomId ? getRoom(existingDmRoomId)?.name : undefined;
-      const localpart = getMxIdLocalPart(userId) ?? userId;
-      const target = resolveCommandPaletteUserTarget(userId, existingDmRoomId);
-      const baseSortRank = sourceRoomId ? roomActivityRank.get(sourceRoomId) ?? 0 : 0;
-      const dmSortRank = existingDmRoomId ? directActivityRank.get(existingDmRoomId) ?? 0 : 0;
-      const boost =
-        (existingDmRoomId ? 25 : 0) + (currentRoomMemberIds.has(userId) ? 15 : 0);
-      const nextItem: CommandPaletteUserItem & { onSelect: () => void } = {
-        id: userId,
-        kind: 'user',
-        displayName: displayName ?? localpart,
-        userId,
-        localpart,
-        dmRoomName,
-        existingDmRoomId,
-        sortRank: Math.max(baseSortRank, dmSortRank),
-        boost,
-        onSelect: () => {
-          if (target.kind === 'room') {
-            navigateRoom(target.roomId);
-            return;
-          }
+        const existingDmRoomId = knownDmRoomByUserId.get(userId);
+        const dmRoom = existingDmRoomId ? getRoom(existingDmRoomId) : undefined;
+        const { roomName: dmRoomName, displayName: dmDisplayName } = getCommandPaletteDmUserDetails(
+          dmRoom,
+          userId
+        );
+        const localpart = getMxIdLocalPart(userId) ?? userId;
+        const target = resolveCommandPaletteUserTarget(userId, existingDmRoomId);
+        const baseSortRank = sourceRoomId ? roomActivityRank.get(sourceRoomId) ?? 0 : 0;
+        const dmSortRank = existingDmRoomId ? directActivityRank.get(existingDmRoomId) ?? 0 : 0;
+        const boost = (existingDmRoomId ? 25 : 0) + (currentRoomMemberIds.has(userId) ? 15 : 0);
+        const nextItem: CommandPaletteUserItem & { onSelect: () => void } = {
+          id: userId,
+          kind: 'user',
+          displayName: displayName ?? dmDisplayName ?? localpart,
+          userId,
+          localpart,
+          dmRoomName,
+          existingDmRoomId,
+          sortRank: Math.max(baseSortRank, dmSortRank),
+          boost,
+          onSelect: () => {
+            if (target.kind === 'room') {
+              navigateRoom(target.roomId);
+              return;
+            }
 
-          navigate(target.path);
-        },
+            navigate(target.path);
+          },
+        };
+
+        const existing = items.get(userId);
+        if (!existing) {
+          items.set(userId, nextItem);
+          return;
+        }
+
+        items.set(userId, {
+          ...existing,
+          displayName:
+            existing.displayName === existing.localpart &&
+            nextItem.displayName !== nextItem.localpart
+              ? nextItem.displayName
+              : existing.displayName,
+          dmRoomName: nextItem.dmRoomName ?? existing.dmRoomName,
+          existingDmRoomId: nextItem.existingDmRoomId ?? existing.existingDmRoomId,
+          sortRank: Math.max(existing.sortRank ?? 0, nextItem.sortRank ?? 0),
+          boost: Math.max(existing.boost ?? 0, nextItem.boost ?? 0),
+        });
       };
 
-      const existing = items.get(userId);
-      if (!existing) {
-        items.set(userId, nextItem);
-        return;
-      }
-
-      items.set(userId, {
-        ...existing,
-        displayName:
-          existing.displayName === existing.localpart && nextItem.displayName !== nextItem.localpart
-            ? nextItem.displayName
-            : existing.displayName,
-        dmRoomName: nextItem.dmRoomName ?? existing.dmRoomName,
-        existingDmRoomId: nextItem.existingDmRoomId ?? existing.existingDmRoomId,
-        sortRank: Math.max(existing.sortRank ?? 0, nextItem.sortRank ?? 0),
-        boost: Math.max(existing.boost ?? 0, nextItem.boost ?? 0),
+      candidates.forEach(({ userId, displayName, sourceRoomId }) => {
+        upsertUser(userId, displayName, sourceRoomId);
       });
+
+      const resolvedItems = Array.from(items.values());
+      cache.set(cacheKey, resolvedItems);
+      return resolvedItems;
     };
-
-    directUsers.forEach((userId) => {
-      upsertUser(userId, getMxIdLocalPart(userId) ?? userId);
-    });
-
-    [...allJoinedRoomIds]
-      .sort(factoryRoomIdByActivity(mx))
-      .forEach((roomId) => {
-        const room = getRoom(roomId);
-        if (!room) return;
-
-        room.getJoinedMembers().forEach((member) => {
-          upsertUser(
-            member.userId,
-            member.rawDisplayName !== member.userId ? member.rawDisplayName : undefined,
-            room.roomId
-          );
-        });
-      });
-
-    return Array.from(items.values());
   }, [
-    allJoinedRoomIds,
-    currentRoomMemberIds,
     directActivityRank,
     directUsers,
-    dmRoomByUserId,
     getRoom,
-    mx,
     myUserId,
     navigate,
     navigateRoom,
+    knownDmRoomByUserId,
+    orderedRoomIds,
     roomActivityRank,
+    selectedRoomId,
   ]);
 
   const { currentThreadRootId, currentThreadResolved, setCurrentThreadResolved, threadItems } =
@@ -360,7 +359,7 @@ export const useCommandPaletteSource = (
           themeId: nextThemeId,
         });
       },
-      'logout': () => {
+      logout: () => {
         onLogout?.();
       },
     }),
@@ -429,7 +428,7 @@ export const useCommandPaletteSource = (
     actions,
     threads: threadItems,
     rooms: roomItems,
-    users: userItems,
+    getUsers: getUserItems,
     getMessages,
   };
 };
