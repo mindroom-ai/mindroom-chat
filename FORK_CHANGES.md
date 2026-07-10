@@ -19,9 +19,15 @@
 - Independent review found and drove two parser hardening fixes: unknown valid IDs that extend a
   known ID are never partially replaced, and exact lookup happens before punctuation removal so
   valid IPv6-server IDs ending in `]` still resolve. Final re-review found no remaining issues.
+- PR review follow-up: accepted Gemini's punctuated-IPv6 report and regression request. Trailing
+  punctuation is now removed one character at a time with an exact member lookup after each step,
+  so `@ipv6:[::1].` resolves without confusing `]` for prose while port/subdomain prefix collisions
+  remain untouched. Also accepted its redundant sender-lookup cleanup while preserving cached
+  display-name fallback behavior. Independent follow-up review found no remaining issues.
 - Validation: focused compact-card tests (4 files / 12 tests), live Matrix Playwright, typecheck,
   production build, full `npm test` (356 files / 2831 tests), full lint (0 errors / 19 pre-existing
-  warnings), touched-file lint, Prettier, and `git diff --check` all pass.
+  warnings), touched-file lint, Prettier, and `git diff --check` all pass on the review-follow-up
+  tree.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 

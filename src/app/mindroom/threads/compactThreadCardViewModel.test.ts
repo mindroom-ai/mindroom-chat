@@ -139,16 +139,16 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
       readUpToTs: null,
       summaryInfo: {
         summaryText:
-          'Ask @alice:server and @ipv6:[::1] to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.',
+          'Ask @alice:server to review. Notify @ipv6:[::1]. Keep @unknown:elsewhere, @alice:server:8448, and @alice:server.example raw.',
         messageCount: 2,
       },
     });
 
     expect(model.titleText).toBe(
-      'Ask Alice Adams and Local User to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.'
+      'Ask Alice Adams to review. Notify Local User. Keep @unknown:elsewhere, @alice:server:8448, and @alice:server.example raw.'
     );
     expect(model.displayTitleText).toBe(
-      'Ask Alice Adams and Local User to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.'
+      'Ask Alice Adams to review. Notify Local User. Keep @unknown:elsewhere, @alice:server:8448, and @alice:server.example raw.'
     );
     expect(model.previewText).toBe('Review Agent: Waiting for Alice Adams.');
   });

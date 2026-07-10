@@ -33,11 +33,11 @@ export const replaceMatrixUserIdsWithDisplayNames = (room: Room, text: string): 
 
     const trailingPunctuation =
       candidate.match(MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP)?.[0] ?? '';
-    if (!trailingPunctuation) return candidate;
-
-    const userId = candidate.slice(0, candidate.length - trailingPunctuation.length);
-    const displayName = getMemberDisplayName(room, userId);
-    if (displayName) return `${displayName}${trailingPunctuation}`;
+    for (let length = 1; length <= trailingPunctuation.length; length += 1) {
+      const userId = candidate.slice(0, -length);
+      const displayName = getMemberDisplayName(room, userId);
+      if (displayName) return `${displayName}${candidate.slice(-length)}`;
+    }
 
     return candidate;
   });
@@ -139,7 +139,9 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   const lastSenderName =
     (lastSenderId ? getMemberDisplayName(room, lastSenderId) : undefined) ??
     (presentation.lastSenderDisplayName
-      ? replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
+      ? lastSenderId
+        ? presentation.lastSenderDisplayName
+        : replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
       : undefined) ??
     (lastSenderId ? getMxIdLocalPart(lastSenderId) ?? lastSenderId : undefined);
   const previewText = lastSenderName
