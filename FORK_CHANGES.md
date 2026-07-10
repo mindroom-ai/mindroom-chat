@@ -4,7 +4,7 @@
 
 ### Render collapsed long-text responses before expansion (2026-07-10)
 
-- Status: review fixes complete; final validation in progress.
+- Status: complete; PR pending.
 - Root cause: collapsed room and thread rows passed `hydrateLongText={false}`
   into `RenderMessageContent`. Long-text sidecars therefore showed only their
   raw preview body until `Show more` was pressed; rich Markdown and tool-trace
@@ -19,10 +19,10 @@
   full content; the real long-text, `RenderBody`, and tool-marker parser chain
   renders formatted Markdown plus a valid tool card without expansion; and
   both plain and decrypted timeline paths opt into the visible-row load.
-- Focused message/collapse/parser suites pass (5 files / 109 tests). TypeScript
-  typecheck passes. Full validation before the final integration-test
-  hardening passed: 356 files / 2833 tests, production build, and lint with 0
-  errors / 19 pre-existing warnings.
+- Focused message/collapse/parser suites pass (5 files / 109 tests). Final full
+  validation passes: 356 files / 2833 tests, TypeScript typecheck, production
+  build, and lint with 0 errors / 19 pre-existing warnings. Independent final
+  review reports no findings.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
