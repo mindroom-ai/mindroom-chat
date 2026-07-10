@@ -35,6 +35,10 @@
   room/thread memo dependencies because the sole production owner already
   keys `RoomTimeline` by both values, guaranteeing a fresh instance on
   navigation.
+- Review-follow-up validation on merged `origin/dev`: focused Vitest 57/57,
+  typecheck, production build, full `npm test` (356 files / 2830 tests), and
+  touched lint (0 errors / 1 pre-existing warning). Independent merge review
+  found only a missing Runbook section break, corrected below.
 
 ### Room sidebar avatars (2026-07-10)
 
@@ -72,6 +76,7 @@
 - Green on the merged tree: focused tests (4 files, 24 tests), TypeScript typecheck, production
   build, full ESLint (0 errors, 19 pre-existing warnings), Prettier on touched TypeScript files,
   `git diff --check`, and full `npm test` (356 files, 2825 tests).
+
 ### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
 
 - Status: complete; opened as PR #107.
