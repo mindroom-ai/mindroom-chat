@@ -85,10 +85,10 @@ export function ServerChip({ server }: { server: string }) {
                 fill="None"
                 size="300"
                 radii="300"
-                onClick={() => {
-                  copyToClipboard(server);
-                  setCopied();
+                onClick={async () => {
+                  const copyResult = copyToClipboard(server);
                   close();
+                  if (await copyResult) setCopied();
                 }}
               >
                 <Text size="B300">Copy Server</Text>
@@ -181,10 +181,10 @@ export function ShareChip({ userId }: { userId: string }) {
                 fill="None"
                 size="300"
                 radii="300"
-                onClick={() => {
-                  copyToClipboard(userId);
-                  setCopied();
+                onClick={async () => {
+                  const copyResult = copyToClipboard(userId);
                   close();
+                  if (await copyResult) setCopied();
                 }}
               >
                 <Text size="B300">Copy User ID</Text>
@@ -194,10 +194,10 @@ export function ShareChip({ userId }: { userId: string }) {
                 fill="None"
                 size="300"
                 radii="300"
-                onClick={() => {
-                  copyToClipboard(getMatrixToUser(userId));
-                  setCopied();
+                onClick={async () => {
+                  const copyResult = copyToClipboard(getMatrixToUser(userId));
                   close();
+                  if (await copyResult) setCopied();
                 }}
               >
                 <Text size="B300">Copy User Link</Text>
