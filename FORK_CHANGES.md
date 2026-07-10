@@ -31,6 +31,16 @@
   (0 errors, 19 existing warnings), `git diff --check`, and full `npm test` (356 files, 2834 tests).
 - Independent merge review confirmed all PR #108 code/test files match `origin/dev` and the iOS
   diff remains correct; its only finding was the missing section break below, now restored.
+- PR #109 review follow-up: accepted the requested invariant that an automatically derived Xcode
+  Cloud marketing version must be strictly greater than the checked-in `MARKETING_VERSION`. A low
+  or administratively reset counter now floors to the checked-in version's next patch; explicit
+  marketing overrides remain authoritative. The regression reproduced `4.12.4` from package
+  `4.12.3`, checked-in `4.12.10`, and build `1` before the fix, then resolves `4.12.11 (1)` after it.
+- Also updated the defensive shell error to list `CI_BUILD_NUMBER`, matching the resolver. Merged
+  current `origin/dev` through PR #111 without rewriting history; only the Runbook insertion point
+  conflicted, and both sections were preserved.
+- Review-follow-up GREEN so far: focused version suite (11 tests), low-counter simulation, shell
+  syntax, and `git diff --check`. Final full merged-tree validation is pending.
 
 ### Compact cards render member display names for raw Matrix IDs (2026-07-10)
 

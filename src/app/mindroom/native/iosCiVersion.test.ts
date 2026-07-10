@@ -87,6 +87,20 @@ describe('resolveIosCiVersionMetadata', () => {
     expect(next.marketingVersion).toBe('4.12.128');
   });
 
+  it('floors a low Xcode Cloud counter above the checked-in marketing version', () => {
+    const metadata = resolveIosCiVersionMetadata({
+      env: { CI: 'TRUE', CI_BUILD_NUMBER: '1' },
+      packageVersion: '4.12.3',
+      checkedInMarketingVersion: '4.12.10',
+      checkedInBuildNumber: '33',
+      headTags: ['v4.12.3-mindroom.36'],
+    });
+
+    expect(metadata.marketingVersion).toBe('4.12.11');
+    expect(metadata.marketingVersionSource).toBe('build-counter:CI_BUILD_NUMBER');
+    expect(metadata.buildNumber).toBe('1');
+  });
+
   it('does not reuse a reset release iteration as an automatic marketing counter', () => {
     const metadata = resolveIosCiVersionMetadata({
       env: {},

@@ -46,10 +46,26 @@ export const assertMarketingVersionNotBehindPackage = (marketingVersion, package
   }
 };
 
-export const deriveAutomatedMarketingVersion = (packageVersion, buildNumber) => {
+export const deriveAutomatedMarketingVersion = (
+  packageVersion,
+  buildNumber,
+  checkedInMarketingVersion
+) => {
   const { parts } = parseBaseVersion(packageVersion, 'package.json version');
   assertBuildNumber(String(buildNumber), 'automated build counter');
-  return `${parts[0]}.${parts[1]}.${parts[2] + Number.parseInt(buildNumber, 10)}`;
+  const derivedVersion = `${parts[0]}.${parts[1]}.${parts[2] + Number.parseInt(buildNumber, 10)}`;
+  const checkedInVersion = parseBaseVersion(
+    checkedInMarketingVersion,
+    'checked-in iOS MARKETING_VERSION'
+  );
+
+  if (compareBaseVersions(derivedVersion, checkedInVersion.version) > 0) {
+    return derivedVersion;
+  }
+
+  return `${checkedInVersion.parts[0]}.${checkedInVersion.parts[1]}.${
+    checkedInVersion.parts[2] + 1
+  }`;
 };
 
 const getEnvValue = (env, key) => {
@@ -128,7 +144,7 @@ export const resolveIosCiVersionMetadata = ({
     const marketingVersion =
       explicitMarketingVersion ||
       appStoreMarketingVersion ||
-      deriveAutomatedMarketingVersion(packageBaseVersion, ciBuildNumber);
+      deriveAutomatedMarketingVersion(packageBaseVersion, ciBuildNumber, checkedInMarketingVersion);
     assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
     return {
       marketingVersion,

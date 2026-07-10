@@ -65,7 +65,7 @@ if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
     fs.writeFileSync(projectPath, updated);
 NODE
 elif [[ -n "${CI:-}" || -n "${CI_BUILD_NUMBER:-}" || -n "${CI_XCODEBUILD_ACTION:-}" ]]; then
-  echo "Error: Could not determine iOS build number from IOS_BUILD_NUMBER, release tag, or the checked-in Xcode project." >&2
+  echo "Error: Could not determine iOS build number from IOS_BUILD_NUMBER, CI_BUILD_NUMBER, release tag, or the checked-in Xcode project." >&2
   exit 1
 fi
 
