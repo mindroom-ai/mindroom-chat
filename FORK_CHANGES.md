@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
+
+- Status: complete; ready for PR.
+- The Welcome-page key-backup nudge should stay hidden when room encryption is
+  explicitly unavailable by policy: both `createRoom.showEncryptionOption` and
+  `createRoom.defaultEncryption` are `false`.
+- A hidden encryption switch does not by itself disable encryption. When
+  `defaultEncryption` is `true`, rooms are still created encrypted and the
+  backup reminder remains relevant.
+- Baseline: the focused `KeyBackupNudge` suite passes (4 tests) before changes.
+- RED: the new disabled-policy regression rendered the nudge before the gate
+  was added (1 failed, 5 passed).
+- GREEN: the focused suite passes (6 tests), including disabled false/false and
+  forced-encryption false/true policy cases.
+- Full validation passes: typecheck, production build, lint (0 errors, 19
+  pre-existing warnings), and `npm test` (354 files, 2817 tests).
+- Independent review found no issues in the policy semantics, hook ordering,
+  regression coverage, or scope.
+
 ### iOS App Store 4.12.4 release execution (2026-07-09)
 
 - Status: release hardening and version bump validated locally; pending final PR
