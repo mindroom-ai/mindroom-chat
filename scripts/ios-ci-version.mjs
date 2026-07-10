@@ -100,22 +100,23 @@ export const resolveIosCiVersionMetadata = ({
   const packageBaseVersion = parseBaseVersion(packageVersion, 'package.json version').version;
   const explicitMarketingVersion = getEnvValue(env, 'IOS_MARKETING_VERSION');
   const appStoreMarketingVersion = getEnvValue(env, 'APP_STORE_MARKETING_VERSION');
+  const defaultMarketingVersion =
+    explicitMarketingVersion ||
+    appStoreMarketingVersion ||
+    String(checkedInMarketingVersion ?? '').trim();
+  const defaultMarketingVersionSource = explicitMarketingVersion
+    ? 'IOS_MARKETING_VERSION'
+    : appStoreMarketingVersion
+    ? 'APP_STORE_MARKETING_VERSION'
+    : 'checked-in Xcode project';
 
   const explicitBuildNumber = getEnvValue(env, 'IOS_BUILD_NUMBER');
   if (explicitBuildNumber) {
     assertBuildNumber(explicitBuildNumber, 'IOS_BUILD_NUMBER');
-    const marketingVersion =
-      explicitMarketingVersion ||
-      appStoreMarketingVersion ||
-      deriveAutomatedMarketingVersion(packageBaseVersion, explicitBuildNumber);
-    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+    assertMarketingVersionNotBehindPackage(defaultMarketingVersion, packageBaseVersion);
     return {
-      marketingVersion,
-      marketingVersionSource: explicitMarketingVersion
-        ? 'IOS_MARKETING_VERSION'
-        : appStoreMarketingVersion
-        ? 'APP_STORE_MARKETING_VERSION'
-        : 'build-counter:IOS_BUILD_NUMBER',
+      marketingVersion: defaultMarketingVersion,
+      marketingVersionSource: defaultMarketingVersionSource,
       buildNumber: explicitBuildNumber,
       buildNumberSource: 'IOS_BUILD_NUMBER',
     };
@@ -151,18 +152,10 @@ export const resolveIosCiVersionMetadata = ({
     packageBaseVersion
   );
   if (envTag) {
-    const marketingVersion =
-      explicitMarketingVersion ||
-      appStoreMarketingVersion ||
-      deriveAutomatedMarketingVersion(packageBaseVersion, envTag.buildNumber);
-    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+    assertMarketingVersionNotBehindPackage(defaultMarketingVersion, packageBaseVersion);
     return {
-      marketingVersion,
-      marketingVersionSource: explicitMarketingVersion
-        ? 'IOS_MARKETING_VERSION'
-        : appStoreMarketingVersion
-        ? 'APP_STORE_MARKETING_VERSION'
-        : `build-counter:env-tag:${envTag.tag}`,
+      marketingVersion: defaultMarketingVersion,
+      marketingVersionSource: defaultMarketingVersionSource,
       buildNumber: envTag.buildNumber,
       buildNumberSource: `env-tag:${envTag.tag}`,
     };
@@ -170,18 +163,10 @@ export const resolveIosCiVersionMetadata = ({
 
   const headTag = getBestReleaseTag(headTags, packageBaseVersion);
   if (headTag) {
-    const marketingVersion =
-      explicitMarketingVersion ||
-      appStoreMarketingVersion ||
-      deriveAutomatedMarketingVersion(packageBaseVersion, headTag.buildNumber);
-    assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+    assertMarketingVersionNotBehindPackage(defaultMarketingVersion, packageBaseVersion);
     return {
-      marketingVersion,
-      marketingVersionSource: explicitMarketingVersion
-        ? 'IOS_MARKETING_VERSION'
-        : appStoreMarketingVersion
-        ? 'APP_STORE_MARKETING_VERSION'
-        : `build-counter:head-tag:${headTag.tag}`,
+      marketingVersion: defaultMarketingVersion,
+      marketingVersionSource: defaultMarketingVersionSource,
       buildNumber: headTag.buildNumber,
       buildNumberSource: `head-tag:${headTag.tag}`,
     };
@@ -194,19 +179,11 @@ export const resolveIosCiVersionMetadata = ({
     );
   }
   assertBuildNumber(fallbackBuildNumber, 'checked-in Xcode project');
-  const marketingVersion =
-    explicitMarketingVersion ||
-    appStoreMarketingVersion ||
-    String(checkedInMarketingVersion ?? '').trim();
-  assertMarketingVersionNotBehindPackage(marketingVersion, packageBaseVersion);
+  assertMarketingVersionNotBehindPackage(defaultMarketingVersion, packageBaseVersion);
 
   return {
-    marketingVersion,
-    marketingVersionSource: explicitMarketingVersion
-      ? 'IOS_MARKETING_VERSION'
-      : appStoreMarketingVersion
-      ? 'APP_STORE_MARKETING_VERSION'
-      : 'checked-in Xcode project',
+    marketingVersion: defaultMarketingVersion,
+    marketingVersionSource: defaultMarketingVersionSource,
     buildNumber: fallbackBuildNumber,
     buildNumberSource: 'checked-in Xcode project',
   };

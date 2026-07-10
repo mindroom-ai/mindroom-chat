@@ -4,7 +4,7 @@
 
 ### Automatic Xcode Cloud App Store versioning (2026-07-10)
 
-- Status: implementation complete locally; validation and independent review in progress.
+- Status: implementation complete locally; post-review validation in progress.
 - Recent `dev` evidence: Xcode Cloud App Store preparation failed for the three merges after
   the manual `4.12.4 (33)` bump, while GitHub release, Android, Docker, and Netlify jobs stayed
   green. The manual version-bump merge itself was the only recent Xcode archive to succeed.
@@ -18,12 +18,17 @@
   patch. For package `4.12.3` and Xcode build `64`, the archive becomes `4.12.67 (64)`.
 - Explicit `IOS_MARKETING_VERSION`, `APP_STORE_MARKETING_VERSION`, and `IOS_BUILD_NUMBER` overrides
   remain available for deliberate manual releases. Non-CI local builds without a tag keep the
-  checked-in Xcode metadata. Tag-driven automation outside Xcode Cloud uses the release iteration
-  as the same deterministic counter.
+  checked-in Xcode marketing version; release tags can still provide their build number but never
+  drive Apple's marketing version because their iteration resets when `package.json` changes.
 - RED: focused version tests failed six cases before implementation: marketing versions stayed
   fixed, release tags beat `CI_BUILD_NUMBER`, and source metadata was absent.
-- GREEN so far: focused version suite (8 tests), Xcode Cloud metadata simulation, shell syntax,
-  and App Store preflight.
+- Independent review found that the first implementation also derived non-Xcode marketing versions
+  from resettable release iterations, which could regress across package releases or after an Xcode
+  Cloud build. Automatic marketing derivation is now restricted to Xcode Cloud's global counter;
+  package-transition and reset-tag regression tests cover the boundary.
+- GREEN so far: focused version suite (10 tests), Xcode Cloud metadata simulation, shell syntax,
+  App Store preflight, typecheck, production build, full lint (0 errors, 19 existing warnings), and
+  pre-review full `npm test` (356 files, 2827 tests). Final post-review full suite is pending.
 
 ### Room sidebar avatars (2026-07-10)
 

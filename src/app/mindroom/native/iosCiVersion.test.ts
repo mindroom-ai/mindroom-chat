@@ -6,7 +6,7 @@ import {
 } from '../../../../scripts/ios-ci-version.mjs';
 
 describe('resolveIosCiVersionMetadata', () => {
-  it('derives a fresh marketing version from the MindRoom release tag outside Xcode Cloud', () => {
+  it('keeps the checked-in marketing version for release-tag builds outside Xcode Cloud', () => {
     const metadata = resolveIosCiVersionMetadata({
       env: {},
       packageVersion: '4.12.2',
@@ -16,8 +16,8 @@ describe('resolveIosCiVersionMetadata', () => {
     });
 
     expect(metadata).toEqual({
-      marketingVersion: '4.12.20',
-      marketingVersionSource: 'build-counter:head-tag:v4.12.2-mindroom.18',
+      marketingVersion: '4.12.2',
+      marketingVersionSource: 'checked-in Xcode project',
       buildNumber: '18',
       buildNumberSource: 'head-tag:v4.12.2-mindroom.18',
     });
@@ -34,8 +34,8 @@ describe('resolveIosCiVersionMetadata', () => {
 
     expect(metadata.buildNumber).toBe('123');
     expect(metadata.buildNumberSource).toBe('IOS_BUILD_NUMBER');
-    expect(metadata.marketingVersion).toBe('4.12.125');
-    expect(metadata.marketingVersionSource).toBe('build-counter:IOS_BUILD_NUMBER');
+    expect(metadata.marketingVersion).toBe('4.12.2');
+    expect(metadata.marketingVersionSource).toBe('checked-in Xcode project');
   });
 
   it('uses CI release tag variables before tags fetched at HEAD', () => {
@@ -49,7 +49,7 @@ describe('resolveIosCiVersionMetadata', () => {
 
     expect(metadata.buildNumber).toBe('19');
     expect(metadata.buildNumberSource).toBe('env-tag:v4.12.2-mindroom.19');
-    expect(metadata.marketingVersion).toBe('4.12.21');
+    expect(metadata.marketingVersion).toBe('4.12.2');
   });
 
   it('uses the auto-incrementing Xcode Cloud build number ahead of release tags', () => {
@@ -65,6 +65,40 @@ describe('resolveIosCiVersionMetadata', () => {
     expect(metadata.buildNumberSource).toBe('CI_BUILD_NUMBER');
     expect(metadata.marketingVersion).toBe('4.12.126');
     expect(metadata.marketingVersionSource).toBe('build-counter:CI_BUILD_NUMBER');
+  });
+
+  it('keeps Xcode Cloud marketing versions monotonic across package patch releases', () => {
+    const previous = resolveIosCiVersionMetadata({
+      env: { CI: 'TRUE', CI_BUILD_NUMBER: '124' },
+      packageVersion: '4.12.2',
+      checkedInMarketingVersion: '4.12.3',
+      checkedInBuildNumber: '80',
+      headTags: ['v4.12.2-mindroom.26'],
+    });
+    const next = resolveIosCiVersionMetadata({
+      env: { CI: 'TRUE', CI_BUILD_NUMBER: '125' },
+      packageVersion: '4.12.3',
+      checkedInMarketingVersion: '4.12.4',
+      checkedInBuildNumber: '33',
+      headTags: ['v4.12.3-mindroom.1'],
+    });
+
+    expect(previous.marketingVersion).toBe('4.12.126');
+    expect(next.marketingVersion).toBe('4.12.128');
+  });
+
+  it('does not reuse a reset release iteration as an automatic marketing counter', () => {
+    const metadata = resolveIosCiVersionMetadata({
+      env: {},
+      packageVersion: '4.12.3',
+      checkedInMarketingVersion: '4.12.4',
+      checkedInBuildNumber: '33',
+      headTags: ['v4.12.3-mindroom.1'],
+    });
+
+    expect(metadata.marketingVersion).toBe('4.12.4');
+    expect(metadata.marketingVersionSource).toBe('checked-in Xcode project');
+    expect(metadata.buildNumber).toBe('1');
   });
 
   it('keeps explicit marketing and build overrides for manual releases', () => {
