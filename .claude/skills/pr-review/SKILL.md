@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Zero-tolerance pull request review. Every issue is a blocker. Use when reviewing PRs for merge readiness.
+description: Zero-tolerance pull request review for the MindRoom Cinny fork. Every issue is a blocker. Use when reviewing PRs for merge readiness.
 ---
 
 Review the pull request with a **zero-tolerance standard**. Every issue you find is a blocker — there is no such thing as a "minor issue" or "non-blocking suggestion". Either the PR is flawless and ready to merge, or it has problems that MUST be fixed before merging. Do not approve a PR with caveats like "ready to merge but consider..." or "minor nit:". If you would mention it, it must be fixed.
@@ -31,17 +31,27 @@ Do not require refactors of untouched code unless they have clear immediate ROI.
 - **Code reuse**: Are there parts that should be reused from other places?
 - **Organization**: Is everything in the right place?
 - **Consistency**: Is it in the same style as other parts of the codebase?
-- **Simplicity**: Is it not over-engineered? Remember KISS and YAGNI. No dead code paths and NO defensive programming. No unnecessary try-excepts.
+- **Simplicity**: Is it not over-engineered? Remember KISS and YAGNI. No dead code paths, speculative abstractions, or fallback branches that hide broken invariants. No unnecessary catches.
 - **No pointless wrappers**: Identify functions/methods that just call another function and return its result. Callers should call the underlying function directly instead of going through unnecessary indirection.
-- **Functional style**: Does it prefer functions over classes where appropriate? Are dataclasses used instead of raw dicts?
-- **Imports**: Are all imports at the top of the file (not inside functions, unless avoiding circular imports)?
+- **TypeScript and React style**: Does it preserve useful types, use functions and hooks where appropriate, and avoid unsafe casts, duplicated derived state, and effects that should be event-driven or computed?
+- **Imports**: Are imports at the top of the file and free of avoidable circular dependencies?
+- **Matrix correctness**: Do event relations, rapid edits/streaming, thread routes and summaries, compact/expanded timelines, and cached-to-live upgrades remain correct on every affected surface?
+- **Isolation and persistence**: Are authentication, account-scoped state, service-worker messages, media, and caches isolated by the correct user/session identity and durable across reloads without leaking stale state?
+- **Fork maintainability**: Does the change keep the upstream delta focused, use existing Cinny abstractions where sensible, and document fork-specific architecture or rebase-sensitive decisions in `FORK_CHANGES.md`?
 - **User experience**: Does it provide a good user experience?
 - **PR**: Is the PR description and title clear and informative?
 - **Docs**: Are docs updated anywhere the change affects users, operators, developers, configuration, tooling, workflows, or behavior that someone would need to learn later? Missing required docs is a blocker.
-- **Tests**: Are there tests, and do they cover the changes adequately? Are they testing something meaningful or are they just trivial? On NixOS, run them inside `nix-shell shell.nix` (or use `nix-shell shell.nix --run 'uv run pytest -x -n 0 --no-cov -v'`). If `<nixpkgs>` is unresolved, retry with `nix-shell -I nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos shell.nix`.
-- **Live tests**: If feasible, test the changes with a local Matrix stack (`just local-matrix-up`) and the Matty CLI to verify agent behavior end-to-end.
-- **Rules**: Does the code follow the project's coding standards and guidelines as laid out in @CLAUDE.md?
+- **Tests**: Are there meaningful behavioral and regression tests for the changes? Run focused Vitest files while reviewing and require the normal project gates before merge: `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
+- **Live tests**: If feasible for user-visible room or thread behavior, run the client and exercise the affected flow against a Matrix homeserver. Check both room overview and thread banner surfaces when summaries, deep links, or room view modes change.
+- **Rules**: Does the code follow `AGENTS.md` and the Runbook in `FORK_CHANGES.md`?
 
 ## How to review
 
-Look at `git diff origin/main..HEAD` for the changes made in this pull request.
+Determine the real PR base instead of assuming `main`:
+
+```bash
+BASE=$(gh pr view --json baseRefName --jq .baseRefName)
+git --no-pager diff "origin/$BASE...HEAD"
+```
+
+Use the merge-base (`...`) diff so the review matches the pull request. If there is no GitHub PR for the branch, identify the intended upstream base from the branch or user context and state that assumption.

@@ -615,6 +615,111 @@
   `npm run build`, `npm run lint` (0 errors, 19 pre-existing warnings), and
   `npm test` (354 files, 2812 tests).
 
+### Native PR review loop follow-up and reduction (2026-07-10, in progress)
+
+Adapted copies of MindRoom PR-review skills live under `.claude/skills/`.
+The main thread owns changes and independent agents review the same tree.
+
+The first review pass found real cache, streaming-edit, account-isolation, and
+session-lifecycle defects, but repeated concurrency remediation expanded the PR
+to 26,697 added lines (about 19,700 net), including about 8,100 net production
+lines. That was too large for a maintainable upstream fork.
+
+A reduction audit compared this fork with `cinnyapp/cinny` `upstream/dev` at
+`5e00d517e`. Upstream uses a simple localStorage session, direct SDK cleanup,
+and a service-worker credential map scoped by browser client. It does not
+implement durable refresh leases, a cleanup consensus protocol, peer
+heartbeats, cleanup generations, or media epochs. The MindRoom fork needs its
+existing account-scoped stores because it supports multiple accounts, but the
+cross-tab distributed-systems layer was not justified by the product risk.
+
+The branch now returns session, authentication, cleanup, and service-worker
+behavior to the last small SDK-centered implementation from this PR, before
+cross-tab coordination began. It retains the original fork account isolation,
+selective per-account store cleanup, SDK token refresh persistence, token-free
+browser media URLs, per-client service-worker credentials, and visible startup retry.
+It removes the custom refresh coordinator, cleanup fence and peer protocol,
+authentication-generation store, runtime credential convergence state machine,
+media epoch broker, cleanup recovery UI framework, and their specialized tests.
+Blocked localStorage cleanup is again best effort, matching the simpler failure
+model used by upstream.
+
+The cache and timeline portions remain because upstream has no equivalent
+MindRoom thread archive and the focused tests reproduce product-visible failures:
+rapid edit/redaction revisions must be monotonic, bounded reconciliation must
+resume, failed gap markers must remain retryable, and the iOS scroll ledger must
+reset before callback refs attach. Historical repository-layout policing and
+adapter whitelists were removed or narrowed because they froze implementation
+shape rather than behavior. Account-settings writes now use one promise tail
+per Matrix client instead of a coalescing queue state machine.
+
+A post-reduction functionality audit separated ordinary same-tab safeguards from
+the rejected coordination layer. Small direct fixes now retain per-session React
+Query caches, provider-aware prefetch settings, latest stored credentials on
+startup retry, cleanup identity derived from the live Matrix client, sync-engine
+shutdown before destructive cache work, disposal after partial SDK startup, and
+enumeration of old-device Rust crypto databases. These use a session-keyed query
+provider, one engine WeakMap, and local cleanup helpers; no leases, generations,
+heartbeats, cleanup consensus, or media epochs returned.
+
+The final same-tree audit also fixed ordinary-path regressions without restoring
+the coordination layer: continuation recovery can no longer prune reactions
+after a failed fresh-head restart; deferred gap fill retains its original overlap
+boundary; retained scroll callbacks read the latest thread events; account
+removal evicts only that session's in-memory thread summaries; the command
+palette remains bounded when empty but searches all rooms for an explicit query
+and still recognizes encrypted two-member DMs missing `m.direct`; settings-avatar
+media continues to select legacy versus authenticated endpoints correctly; and
+service-worker session lookup no longer waits three seconds when a cached client
+binding exists. Room-view-mode migration is now a small session-keyed best-effort
+store rather than an owner/tombstone protocol.
+
+The rebased review pass found seven more ordinary-path defects, all fixed with
+small local ownership rules rather than new coordination machinery. Redacted
+authoritative `/relations` snapshots are pruned before IndexedDB persistence;
+capped gap fills remain resumable in the same runtime; long-text plaintext is
+cached by Matrix client and complete source identity; secret-storage keys are
+cleared when the account/device root unmounts; removing one of two sessions for
+the same MXID preserves the remaining session's user-keyed UI state; and normal
+writes cannot downgrade a newer MindRoom settings-store version. Profile
+fallback now tracks avatar and display-name resolution independently, so an
+offline SDK placeholder MXID cannot overwrite a friendly cached account name.
+The review request to preserve legacy extension fields across a later,
+partially successful quota-failure sequence was intentionally declined: that
+is the same blocked-storage recovery guarantee removed by the reduction, while
+the migration attempt itself remains lossless.
+
+Two independent line-by-line audits found no broad normal-path feature removal.
+About 99 percent of the net shrink from the pre-reduction checkpoint is the
+discarded session/auth/cleanup/service-worker coordination layer and its tests;
+the rest of the product and focused tests are approximately net-neutral. The
+intentional losses are explicit: concurrent tabs do not serialize token refresh
+or reach cleanup consensus, cleanup is not crash-resumable, media credentials
+have no runtime epoch, blocked storage is best effort without dedicated recovery
+screens, and the unshipped intermediate split-session schema is not migrated.
+The shipped v1 session format and normal multi-account flows remain compatible.
+
+The branch is directly based on `origin/dev` at `bd863b664` (through merged PR
+#108); a fresh remote audit found no newer `dev` commit or overlapping pending
+change, so no merge commit is needed. The current merge-base diff is about
+5.4k net lines: roughly 2.2k production lines, 3.0k test lines, and 0.2k
+documentation/skill lines. This remains about 73 percent smaller than the
+pre-reduction tree. Green on the current same-tree snapshot: all 380 Vitest
+files / 2,929 tests, 141 focused lifecycle/cache/profile/isolation tests,
+TypeScript typecheck, production and PWA/service-worker builds, Prettier and
+diff checks, and ESLint with zero errors (17 existing warnings). Logical
+history cleanup, push, and fresh exact-pushed-head review remain required.
+
+### Fork hardening review remediation (2026-07-09, superseded)
+
+The initial review was developed in parallel session/security, cache/engine,
+UI/state, timeline, settings, and test-architecture streams. Its broad
+session-lifecycle design was later removed by the reduction pass above. The
+retained work is limited to reproduced streaming-edit, thread-cache, scroll,
+account-isolation, storage-scope, settings, palette, locale, and startup issues.
+See the current reduction entry rather than this historical checkpoint for the
+merge contract and validation status.
+
 ### i18n PR #101 bot-review response (2026-07-09)
 
 Triage of the sourcery/gemini/greptile reviews on PR #101 (commit
