@@ -57,6 +57,13 @@
 - Independent merge-resolution review found no issues and confirmed all three upstream code/test
   files are byte-identical to `origin/dev`, both Runbook sections are intact, and no unmerged entries
   remain.
+- PR #112 review follow-up: accepted Gemini's `document.body === null` crash report after a focused
+  RED test reproduced the uncaught `TypeError`; the legacy fallback now returns `false` before
+  creating an input when no body exists. Accepted Greptile's missing-path coverage report and added
+  native-plugin rejection to browser success plus missing-browser-API to failed-legacy-result cases.
+  Expanded clipboard coverage passes (7 files / 40 tests), along with typecheck and touched lint;
+  independent review found no issues. Fresh full validation passes: production build, full ESLint
+  (0 errors / 19 pre-existing warnings), and `npm test` (362 files / 2851 tests).
 
 ### Compact cards render member display names for raw Matrix IDs (2026-07-10)
 

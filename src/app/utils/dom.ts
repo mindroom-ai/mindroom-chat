@@ -239,7 +239,7 @@ export const scrollToBottom = (scrollEl: HTMLElement, behavior?: 'auto' | 'insta
 };
 
 const copyWithExecCommand = (text: string): boolean => {
-  if (typeof document === 'undefined') return false;
+  if (typeof document === 'undefined' || !document.body) return false;
 
   const copyInput = document.createElement('input');
   copyInput.dataset.clipboardFallback = 'true';
