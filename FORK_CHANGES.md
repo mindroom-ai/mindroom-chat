@@ -26,9 +26,11 @@
   from resettable release iterations, which could regress across package releases or after an Xcode
   Cloud build. Automatic marketing derivation is now restricted to Xcode Cloud's global counter;
   package-transition and reset-tag regression tests cover the boundary.
-- Final GREEN: focused version suite (10 tests), Xcode Cloud metadata simulation, shell syntax,
-  App Store preflight, typecheck, production build, full lint (0 errors, 19 existing warnings),
-  `git diff --check`, and full `npm test` (356 files, 2829 tests).
+- Final GREEN after merging current `origin/dev`: focused version suite (10 tests), Xcode Cloud
+  metadata simulation, shell syntax, App Store preflight, typecheck, production build, full lint
+  (0 errors, 19 existing warnings), `git diff --check`, and full `npm test` (356 files, 2834 tests).
+- Independent merge review confirmed all PR #108 code/test files match `origin/dev` and the iOS
+  diff remains correct; its only finding was the missing section break below, now restored.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
@@ -67,6 +69,7 @@
   typecheck, production build, full `npm test` (356 files / 2830 tests), and
   touched lint (0 errors / 1 pre-existing warning). Independent merge review
   found only a missing Runbook section break, corrected below.
+
 ### Room sidebar avatars (2026-07-10)
 
 - Status: PR #105 review follow-up complete; fixes are green and independent post-fix review
