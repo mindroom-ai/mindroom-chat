@@ -5,12 +5,20 @@ import {
   getFocusedRoomEventIndex,
   getLatestTimelineRange,
   getVisibleTimelineRange,
+  recalibrateTimelinePagination,
+  type Timeline,
 } from './timelinePagination';
 
 const makeEvent = (eventId: string) =>
   ({
     getId: () => eventId,
   }) as never;
+
+const makeTimeline = () =>
+  ({
+    getEvents: () => [],
+    getNeighbouringTimeline: () => null,
+  } as never);
 
 describe('timeline pagination helpers', () => {
   it('selects the latest range for fresh room timelines', () => {
@@ -59,5 +67,26 @@ describe('timeline pagination helpers', () => {
       linkedTimelines: [],
       range: { start: 0, end: 0 },
     });
+  });
+
+  it('does not replace a newer linked chain with a stale pagination result', () => {
+    const staleTimeline = makeTimeline();
+    const focusedTimeline = makeTimeline();
+    const focusedState: Timeline = {
+      linkedTimelines: [focusedTimeline],
+      range: { start: 4, end: 8 },
+    };
+    let currentState = focusedState;
+
+    recalibrateTimelinePagination(
+      (update) => {
+        currentState = typeof update === 'function' ? update(currentState) : update;
+      },
+      [staleTimeline],
+      [0],
+      true
+    );
+
+    expect(currentState).toBe(focusedState);
   });
 });
