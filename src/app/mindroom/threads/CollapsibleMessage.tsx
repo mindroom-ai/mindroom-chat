@@ -179,6 +179,7 @@ type CollapsibleMessageProps = {
 
 export type CollapsibleMessageRenderState = {
   expanded: boolean;
+  loadFullContent: boolean;
 };
 
 export function CollapsibleMessage({
@@ -235,6 +236,12 @@ export function CollapsibleMessage({
     }
     return collapseMode !== 'default';
   });
+  const hasRenderFunctionChildren = typeof children === 'function';
+  const effectiveExpanded = isExempt || expanded;
+  const [loadFullContent, setLoadFullContent] = useState(
+    () =>
+      !hasRenderFunctionChildren || effectiveExpanded || typeof IntersectionObserver === 'undefined'
+  );
 
   initialExpandConsumedRef.current = onInitialExpandConsumed;
 
@@ -263,6 +270,32 @@ export function CollapsibleMessage({
     }
     previousCollapseModeRef.current = collapseMode;
   }, [collapseMode]);
+
+  // Full long-text sidecars should load before the user expands a visible
+  // row, but not for virtualizer overscan rows that never enter the viewport.
+  // Once enabled, keep the full content mounted across collapse/expand cycles.
+  useEffect(() => {
+    if (!hasRenderFunctionChildren || loadFullContent) return undefined;
+    if (effectiveExpanded) {
+      setLoadFullContent(true);
+      return undefined;
+    }
+
+    const el = contentRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setLoadFullContent(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setLoadFullContent(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [effectiveExpanded, hasRenderFunctionChildren, loadFullContent]);
 
   // Re-measure when the collapse state or the semantic message identity changes.
   useLayoutEffect(checkOverflow, [checkOverflow, measurementKey]);
@@ -375,9 +408,11 @@ export function CollapsibleMessage({
 
   const showCloseButton = !isExempt && expanded && overflowing;
   const showGradient = !isExempt && !expanded && overflowing;
-  const effectiveExpanded = isExempt || expanded;
+  const shouldLoadFullContent = effectiveExpanded || loadFullContent;
   const renderedChildren =
-    typeof children === 'function' ? children({ expanded: effectiveExpanded }) : children;
+    typeof children === 'function'
+      ? children({ expanded: effectiveExpanded, loadFullContent: shouldLoadFullContent })
+      : children;
 
   return (
     <div>

@@ -2407,7 +2407,7 @@ export function RoomTimeline({
               }
               const msgType = mEvent.getContent().msgtype;
               const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
-              const content = (
+              const renderContent = (loadFullContent = true) => (
                 <RenderMessageContent
                   displayName={senderDisplayName}
                   eventType={mEvent.getType()}
@@ -2422,8 +2422,10 @@ export function RoomTimeline({
                   htmlReactParserOptions={htmlReactParserOptions}
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
+                  hydrateLongText={loadFullContent}
                 />
               );
+              const content = renderContent();
               const measurementKey = getCollapsibleMessageMeasurementKey(
                 mEvent,
                 collapseMode,
@@ -2438,7 +2440,7 @@ export function RoomTimeline({
                   measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
                 >
-                  {content}
+                  {({ loadFullContent }) => renderContent(loadFullContent)}
                 </CollapsibleMessage>
               );
             })()}
@@ -2731,7 +2733,7 @@ export function RoomTimeline({
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
                     getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-                  const messageContent = (
+                  const renderMessageContent = (loadFullContent = true) => (
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       eventType={mEvent.getType()}
@@ -2746,8 +2748,10 @@ export function RoomTimeline({
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
+                      hydrateLongText={loadFullContent}
                     />
                   );
+                  const messageContent = renderMessageContent();
 
                   const encMsgType = mEvent.getContent().msgtype;
                   const isEncVisualMedia =
@@ -2761,7 +2765,7 @@ export function RoomTimeline({
                       measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
                     >
-                      {messageContent}
+                      {({ loadFullContent }) => renderMessageContent(loadFullContent)}
                     </CollapsibleMessage>
                   );
                 }

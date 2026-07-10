@@ -453,6 +453,56 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('renders hydrated rich content and tool trace inside a still-collapsed parent', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    const toolTrace = {
+      version: 2,
+      events: [{ type: 'tool_result', id: 'tool-1', name: 'search' }],
+    };
+    let renderer!: ReactTestRenderer;
+
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Hydrated **response**',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Hydrated <strong>response</strong></p>',
+      msgtype: 'm.text',
+      'io.mindroom.tool_trace': toolTrace,
+    });
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          'div',
+          { 'aria-expanded': false },
+          React.createElement(MindroomLongTextText, {
+            kind: MindroomLongTextKind.Text,
+            content,
+            longTextSource: createLongTextSource({ previewContent: content }),
+            renderBody: (resolvedContent) =>
+              React.createElement('rich-message-probe', {
+                formattedBody: resolvedContent.formatted_body,
+                toolTrace: resolvedContent['io.mindroom.tool_trace'],
+              }),
+          })
+        )
+      );
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByType('div').props['aria-expanded']).toBe(false);
+    expect(renderer.root.findByType('rich-message-probe').props).toEqual(
+      expect.objectContaining({
+        formattedBody: '<p>Hydrated <strong>response</strong></p>',
+        toolTrace,
+      })
+    );
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
     const { renderer, update } = await renderMindroomLongTextText(content);

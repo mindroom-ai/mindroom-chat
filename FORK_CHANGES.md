@@ -4,17 +4,23 @@
 
 ### Render collapsed long-text responses before expansion (2026-07-10)
 
-- Status: implementation complete; final validation and independent review in
-  progress.
+- Status: review fixes complete; final validation in progress.
 - Root cause: collapsed room and thread rows passed `hydrateLongText={false}`
   into `RenderMessageContent`. Long-text sidecars therefore showed only their
   raw preview body until `Show more` was pressed; rich Markdown and tool-trace
   rendering arrived only after expansion triggered hydration.
-- Plan: hydrate sidecar content while preserving the existing collapsed row
-  and forced `Show more` affordance. Cover both plain and decrypted message
-  render paths, then run focused and full validation plus independent review.
-- Focused message/collapse suites pass (4 files / 87 tests), including new
-  plain and decrypted collapsed-row regressions. TypeScript typecheck passes.
+- Visible collapsed rows now hydrate sidecar content while preserving the
+  collapsed state and forced `Show more` affordance. Virtualizer overscan rows
+  keep the cheap preview until they enter the viewport, preserving the prior
+  large-room performance guard; expansion also enables hydration immediately.
+- Independent review caught the initial eager-hydration performance regression
+  and weak mocked-only assertion. The viewport gate fixes the former. Coverage
+  now proves the real collapsible stays `aria-expanded=false` when it enables
+  full content, hydrated `formatted_body` and tool-trace metadata render inside
+  a collapsed parent, and both plain and decrypted timeline paths opt into the
+  visible-row load.
+- Focused message/collapse suites pass (4 files / 89 tests). TypeScript
+  typecheck passes.
 
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 

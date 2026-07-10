@@ -191,6 +191,43 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('loads full content after entering the viewport while staying collapsed', () => {
+    const states: Array<{ expanded: boolean; loadFullContent: boolean }> = [];
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'default', forceOverflowing: true },
+      { clientHeight: 72, scrollHeight: 160 },
+      { focus: vi.fn() },
+      (state: { expanded: boolean; loadFullContent: boolean }) => {
+        states.push(state);
+        return React.createElement('span', undefined, 'message');
+      }
+    );
+
+    expect(states[states.length - 1]).toEqual({
+      expanded: false,
+      loadFullContent: false,
+    });
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+    expect(intersectionObserverConstructed).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      lastIntersectionCallback!(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+    });
+
+    expect(states[states.length - 1]).toEqual({
+      expanded: false,
+      loadFullContent: true,
+    });
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it('can force the overflow affordance for lazily hydrated collapsed content', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default', forceOverflowing: true },

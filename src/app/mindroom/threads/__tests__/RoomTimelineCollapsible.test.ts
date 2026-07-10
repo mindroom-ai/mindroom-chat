@@ -560,7 +560,9 @@ vi.mock('../CollapsibleMessage', async () => {
       forceOverflowing,
       onInitialExpandConsumed,
     }: {
-      children: React.ReactNode | ((state: { expanded: boolean }) => React.ReactNode);
+      children:
+        | React.ReactNode
+        | ((state: { expanded: boolean; loadFullContent: boolean }) => React.ReactNode);
       collapseMode?: string;
       expansionKey?: string;
       forceOverflowing?: boolean;
@@ -568,7 +570,8 @@ vi.mock('../CollapsibleMessage', async () => {
     }) => {
       const previousCollapseModeRef = ReactImport.useRef<string | undefined>(undefined);
       const expanded = collapseMode !== 'default';
-      const renderedChildren = typeof children === 'function' ? children({ expanded }) : children;
+      const renderedChildren =
+        typeof children === 'function' ? children({ expanded, loadFullContent: true }) : children;
 
       ReactImport.useEffect(() => {
         if (
@@ -1241,9 +1244,9 @@ describe('RoomTimeline collapsible wiring', () => {
 
     expect(findCollapseModeForEvent(renderer, '$long-text')).toBe('default');
     expect(findCollapsibleForEvent(renderer, '$long-text').props.forceOverflowing).toBe(true);
-    expect(
-      findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText
-    ).toBeUndefined();
+    expect(findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText).toBe(
+      true
+    );
   });
 
   it('hydrates rich long-text content in a collapsed decrypted message row', async () => {
@@ -1280,7 +1283,7 @@ describe('RoomTimeline collapsible wiring', () => {
     );
     expect(
       findRenderMessageContentPropsForEvent(renderer, '$encrypted-long-text').hydrateLongText
-    ).toBeUndefined();
+    ).toBe(true);
   });
 
   it('forces overflow for very long plain text without measuring the collapsed row', async () => {
