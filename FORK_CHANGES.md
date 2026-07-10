@@ -21,7 +21,7 @@
   guard that proves the expanded event leaves the DOM before returning
   expanded with `Show less` visible.
 - Validation: focused Vitest 49/49, typecheck, production build, full `npm
-  test` (354 files / 2820 tests), full lint (0 errors / 19 pre-existing
+  test` (354 files / 2822 tests), full lint (0 errors / 19 pre-existing
   warnings), and focused docker-Matrix Playwright. The live guard passed once
   in the implementation pass plus 4/4 consecutive independent-review runs.
 - Two independent review agents found no actionable issues; the test reviewer
