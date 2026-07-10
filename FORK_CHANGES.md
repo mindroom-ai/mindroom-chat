@@ -39,8 +39,12 @@
 - Also updated the defensive shell error to list `CI_BUILD_NUMBER`, matching the resolver. Merged
   current `origin/dev` through PR #111 without rewriting history; only the Runbook insertion point
   conflicted, and both sections were preserved.
-- Review-follow-up GREEN so far: focused version suite (11 tests), low-counter simulation, shell
-  syntax, and `git diff --check`. Final full merged-tree validation is pending.
+- Independent follow-up review found no production issue and requested boundary coverage for a
+  checked-in minor-version transition plus both marketing overrides through the Xcode Cloud path;
+  those regressions were added and the re-review found no remaining issues.
+- Review-follow-up GREEN: focused version suite (14 tests), low-counter simulation, App Store
+  preflight, shell syntax, typecheck, production build, full lint (0 errors, 19 existing warnings),
+  `git diff --check`, and full `npm test` (356 files, 2836 tests).
 
 ### Compact cards render member display names for raw Matrix IDs (2026-07-10)
 
