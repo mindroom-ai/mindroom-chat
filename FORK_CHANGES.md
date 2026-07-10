@@ -2,6 +2,43 @@
 
 ## Runbook
 
+### Room sidebar avatars (2026-07-10)
+
+- Status: PR #105 review follow-up complete; fixes are green and independent post-fix review
+  reported no findings.
+- Room navigation rows now subscribe to `m.room.avatar` state and render the room image when
+  available in Home and space room lists.
+- Rooms without a usable image keep the existing room-type/privacy icon, including the
+  hash-with-globe and hash-with-lock variants. Direct-message rows keep their existing initials
+  fallback.
+- The image is keyed by its resolved URL so a failed old avatar does not leave the row stuck on
+  fallback after the room receives a valid replacement avatar.
+- PR #105 review follow-up: accepted Gemini/Greptile's duplicate-conversion observation and now
+  resolves the room-level direct-message fallback only when the member has no avatar; the focused
+  test reproduced the old extra media conversion before the fix. Added the requested explanation
+  for the URL key's sticky-error reset.
+- Refuted Sourcery's claim that direct-message resolution changed: `useRoomAvatar(room, true)`
+  selects the fallback member MXC first, and `getRoomAvatarUrl` supplies the room-level fallback
+  only when that member MXC is absent, exactly matching `getDirectRoomAvatarUrl` precedence and
+  conversion-failure behavior.
+- Expanded focused coverage verifies image rendering, missing/invalid/broken-image fallbacks,
+  direct-message member and room-level fallback avatars, broken direct-image initials, lazy member
+  precedence, URL replacement recovery, and real Matrix avatar-state add/change/removal events.
+- Independent post-fix review confirmed the lazy helper preserves the prior direct-message contract,
+  the URL-key explanation matches `RoomAvatar` state behavior, and the new mocks/tests cover the
+  requested paths without TypeScript or React issues.
+- All four inline PR threads received evidence-backed replies and are resolved; the review-level
+  direct-message resolution explanation and complete validation result were posted on PR #105.
+- `origin/dev` advanced through PRs #106 and #107 during the review loop. Merged the new base without
+  rewriting history; the only conflict was the Runbook insertion point. Both this section and the
+  key-backup section were preserved, while all upstream code/test blobs remain identical to
+  `origin/dev`. Independent merge-resolution review reported no findings.
+- Independent review found one missing real-event subscription test; that test was added and the
+  follow-up review reported no remaining findings.
+- Green on the merged tree: focused tests (4 files, 24 tests), TypeScript typecheck, production
+  build, full ESLint (0 errors, 19 pre-existing warnings), Prettier on touched TypeScript files,
+  `git diff --check`, and full `npm test` (356 files, 2825 tests).
+
 ### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
 
 - Status: complete; opened as PR #107.
