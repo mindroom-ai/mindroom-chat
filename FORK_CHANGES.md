@@ -4,7 +4,7 @@
 
 ### Key-backup nudge respects disabled room-encryption policy (2026-07-10)
 
-- Status: complete; ready for PR.
+- Status: complete; opened as PR #107.
 - The Welcome-page key-backup nudge should stay hidden when room encryption is
   explicitly unavailable by policy: both `createRoom.showEncryptionOption` and
   `createRoom.defaultEncryption` are `false`.
