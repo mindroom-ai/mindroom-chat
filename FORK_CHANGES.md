@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Compact cards render member display names for raw Matrix IDs (2026-07-10)
+
+- Status: complete; ready for PR.
+- Compact room cards previously resolved only the latest sender label. Raw Matrix user IDs embedded
+  in an AI summary, root preview, or latest-reply preview remained visible in the title and preview.
+- The compact-card view-model boundary now replaces IDs belonging to known room members with their
+  current room display names before title/preview truncation. Unknown IDs remain unchanged rather
+  than inventing an identity, and the canonical thread record/cache data remains untouched.
+- Coverage: focused view-model regression exercises summary text, latest-reply text, sender display
+  name, prose punctuation, unknown-user prefix collisions, and IPv6 homeserver IDs. A live Matrix
+  Playwright fixture seeds a room member display name plus raw IDs in both summary and reply text.
+- Screenshots: `docs/screenshots/compact-card-display-names-before.png` and
+  `docs/screenshots/compact-card-display-names-after.png`, captured from the same fixed local Matrix
+  account and fixture.
+- Independent review found and drove two parser hardening fixes: unknown valid IDs that extend a
+  known ID are never partially replaced, and exact lookup happens before punctuation removal so
+  valid IPv6-server IDs ending in `]` still resolve. Final re-review found no remaining issues.
+- Validation: focused compact-card tests (4 files / 12 tests), live Matrix Playwright, typecheck,
+  production build, full `npm test` (356 files / 2831 tests), full lint (0 errors / 19 pre-existing
+  warnings), touched-file lint, Prettier, and `git diff --check` all pass.
+
 ### Preserve manual message expansion across virtualized remounts (2026-07-10)
 
 - Status: complete; opened as PR #108. Before the fix, a failing

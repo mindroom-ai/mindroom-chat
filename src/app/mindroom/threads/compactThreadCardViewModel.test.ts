@@ -93,6 +93,66 @@ const buildModel = (
 };
 
 describe('buildCompactThreadCardViewModelFromRecord', () => {
+  it('renders room member display names instead of raw Matrix IDs in card text', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Ask @alice:server to review with @unknown:elsewhere.',
+      ts: 1000,
+    });
+    const reply = makeEvent({
+      eventId: '$reply',
+      threadRootId: '$root',
+      sender: '@agent:server',
+      body: 'Waiting for @alice:server.',
+      ts: 2000,
+    });
+    const thread = {
+      id: '$root',
+      rootEvent,
+      events: [reply],
+      timeline: [reply],
+      lastReply: () => reply,
+      replyToEvent: undefined,
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({
+          getEvents: () => [rootEvent, reply],
+          getNeighbouringTimeline: () => undefined,
+        }),
+        relations: {
+          getChildEventsForEvent: () => undefined,
+        },
+      }),
+    } as unknown as ReturnType<Room['getThread']>;
+    const room = makeRoom({
+      rootEvent,
+      thread,
+      memberNames: {
+        '@alice:server': 'Alice Adams',
+        '@agent:server': 'Review Agent',
+        '@ipv6:[::1]': 'Local User',
+      },
+    });
+
+    const model = buildModel(room, {
+      threadRootEvent: rootEvent,
+      readUpToTs: null,
+      summaryInfo: {
+        summaryText:
+          'Ask @alice:server and @ipv6:[::1] to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.',
+        messageCount: 2,
+      },
+    });
+
+    expect(model.titleText).toBe(
+      'Ask Alice Adams and Local User to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.'
+    );
+    expect(model.displayTitleText).toBe(
+      'Ask Alice Adams and Local User to review with @unknown:elsewhere, @alice:server:8448, and @alice:server.example.'
+    );
+    expect(model.previewText).toBe('Review Agent: Waiting for Alice Adams.');
+  });
+
   it('builds one compact model from summary, tags, scheduled state, and visible replies', () => {
     const rootEvent = makeEvent({
       eventId: '$root',
