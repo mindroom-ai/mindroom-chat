@@ -101,6 +101,36 @@ describe('resolveIosCiVersionMetadata', () => {
     expect(metadata.buildNumber).toBe('1');
   });
 
+  it('floors across a checked-in minor-version transition', () => {
+    const metadata = resolveIosCiVersionMetadata({
+      env: { CI: 'TRUE', CI_BUILD_NUMBER: '1' },
+      packageVersion: '4.12.3',
+      checkedInMarketingVersion: '4.13.2',
+      checkedInBuildNumber: '33',
+      headTags: [],
+    });
+
+    expect(metadata.marketingVersion).toBe('4.13.3');
+  });
+
+  it.each(['IOS_MARKETING_VERSION', 'APP_STORE_MARKETING_VERSION'])(
+    'keeps an explicit %s override in the Xcode Cloud counter path',
+    (marketingVersionKey) => {
+      const metadata = resolveIosCiVersionMetadata({
+        env: { CI: 'TRUE', CI_BUILD_NUMBER: '1', [marketingVersionKey]: '5.0.0' },
+        packageVersion: '4.12.3',
+        checkedInMarketingVersion: '4.13.2',
+        checkedInBuildNumber: '33',
+        headTags: [],
+      });
+
+      expect(metadata.marketingVersion).toBe('5.0.0');
+      expect(metadata.marketingVersionSource).toBe(marketingVersionKey);
+      expect(metadata.buildNumber).toBe('1');
+      expect(metadata.buildNumberSource).toBe('CI_BUILD_NUMBER');
+    }
+  );
+
   it('does not reuse a reset release iteration as an automatic marketing counter', () => {
     const metadata = resolveIosCiVersionMetadata({
       env: {},
