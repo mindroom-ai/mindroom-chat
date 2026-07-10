@@ -13,9 +13,8 @@
 - Coverage: focused view-model regression exercises summary text, latest-reply text, sender display
   name, prose punctuation, unknown-user prefix collisions, and IPv6 homeserver IDs. A live Matrix
   Playwright fixture seeds a room member display name plus raw IDs in both summary and reply text.
-- Screenshots: `docs/screenshots/compact-card-display-names-before.png` and
-  `docs/screenshots/compact-card-display-names-after.png`, captured from the same fixed local Matrix
-  account and fixture.
+- Before/after screenshots were captured from the same fixed local Matrix account and fixture under
+  the gitignored `ui-audit/` artifact directory; screenshot binaries are not version-controlled.
 - Independent review found and drove two parser hardening fixes: unknown valid IDs that extend a
   known ID are never partially replaced, and exact lookup happens before punctuation removal so
   valid IPv6-server IDs ending in `]` still resolve. Final re-review found no remaining issues.
