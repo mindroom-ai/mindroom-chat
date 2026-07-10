@@ -16,8 +16,8 @@ const avatarEvent = (url?: string): MatrixEvent =>
     getType: () => StateEvent.RoomAvatar,
   } as unknown as MatrixEvent);
 
-function AvatarHarness({ room }: { room: Room }) {
-  return <span>{useRoomAvatar(room) ?? 'none'}</span>;
+function AvatarHarness({ room, dm }: { room: Room; dm?: boolean }) {
+  return <span>{useRoomAvatar(room, dm) ?? 'none'}</span>;
 }
 
 describe('useRoomAvatar', () => {
@@ -64,6 +64,40 @@ describe('useRoomAvatar', () => {
 
     emitAvatarState(avatarEvent());
     expect(renderedAvatar()).toBe('none');
+
+    act(() => {
+      renderer.unmount();
+    });
+    expect(client.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
+  });
+
+  it('returns the direct member avatar while keeping the state-event subscription', () => {
+    const client = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    };
+    const room = {
+      client,
+      roomId: ROOM_ID,
+      getAvatarFallbackMember: () => ({
+        getMxcAvatarUrl: () => 'mxc://example.org/direct-member',
+      }),
+      getLiveTimeline: () => ({
+        getState: () => ({
+          getStateEvents: () => avatarEvent('mxc://example.org/room'),
+        }),
+      }),
+    } as unknown as Room;
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<AvatarHarness room={room} dm />);
+    });
+
+    expect(renderer.root.findByType('span').children.join('')).toBe(
+      'mxc://example.org/direct-member'
+    );
+    expect(client.on).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
 
     act(() => {
       renderer.unmount();

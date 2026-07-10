@@ -7,6 +7,13 @@ import { RoomNotificationMode } from '../../hooks/useRoomsNotificationPreference
 
 const testState = vi.hoisted(() => ({
   avatarMxc: undefined as string | undefined,
+  directAvatarMxc: undefined as string | undefined,
+  roomAvatarMxc: undefined as string | undefined,
+  matrixMxcUrlToHttp: vi.fn((mxc: string) =>
+    mxc.startsWith('mxc://example.org/')
+      ? `https://media.example.org/${mxc.slice('mxc://example.org/'.length)}`
+      : null
+  ),
 }));
 
 vi.mock('folds', async () => {
@@ -143,7 +150,9 @@ vi.mock('../../components/room-avatar', async () => {
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getHomeserverUrl: () => 'https://media.example.org',
     getUserId: () => '@me:example.org',
+    mxcUrlToHttp: testState.matrixMxcUrlToHttp,
   }),
 }));
 
@@ -152,7 +161,8 @@ vi.mock('../../hooks/useMediaAuthentication', () => ({
 }));
 
 vi.mock('../../hooks/useRoomMeta', () => ({
-  useRoomAvatar: () => testState.avatarMxc,
+  useRoomAvatar: (_room: Room, direct?: boolean) =>
+    direct ? testState.directAvatarMxc : testState.avatarMxc,
   useRoomName: () => 'Agent Room',
 }));
 
@@ -194,7 +204,7 @@ vi.mock('../../utils/matrix', () => ({
 const room = {
   roomId: '!room:example.org',
   getJoinRule: () => JoinRule.Public,
-  getMxcAvatarUrl: () => undefined,
+  getMxcAvatarUrl: () => testState.roomAvatarMxc,
   getType: () => undefined,
   isCallRoom: () => false,
 } as unknown as Room;
@@ -216,6 +226,9 @@ const findByTestId = (renderer: ReactTestRenderer, testId: string) =>
 describe('RoomNavItem avatar', () => {
   afterEach(() => {
     testState.avatarMxc = undefined;
+    testState.directAvatarMxc = undefined;
+    testState.roomAvatarMxc = undefined;
+    testState.matrixMxcUrlToHttp.mockClear();
   });
 
   it('upgrades the privacy icon to the room avatar when avatar state appears', () => {
@@ -304,6 +317,39 @@ describe('RoomNavItem avatar', () => {
 
     expect(renderer.root.findAllByType('span').some((node) => node.children.includes('A'))).toBe(
       true
+    );
+    expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
+  });
+
+  it('lazily prefers the direct member avatar and keeps initials on image failure', () => {
+    testState.directAvatarMxc = 'mxc://example.org/avatar';
+    testState.roomAvatarMxc = 'mxc://example.org/room-avatar';
+
+    const renderer = renderRoomNavItem({ direct: true, showAvatar: true });
+
+    expect(testState.matrixMxcUrlToHttp).not.toHaveBeenCalled();
+    expect(findByTestId(renderer, 'room-avatar-image')[0].props.src).toBe(
+      'https://media.example.org/avatar'
+    );
+
+    act(() => {
+      findByTestId(renderer, 'room-avatar-image')[0].props.onError();
+    });
+
+    expect(renderer.root.findAllByType('span').some((node) => node.children.includes('A'))).toBe(
+      true
+    );
+    expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
+  });
+
+  it('uses the room avatar when a direct member has no avatar', () => {
+    testState.roomAvatarMxc = 'mxc://example.org/room-avatar';
+
+    const renderer = renderRoomNavItem({ direct: true, showAvatar: true });
+
+    expect(testState.matrixMxcUrlToHttp).toHaveBeenCalledTimes(1);
+    expect(findByTestId(renderer, 'room-avatar-image')[0].props.src).toBe(
+      'https://media.example.org/room-avatar'
     );
     expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
   });

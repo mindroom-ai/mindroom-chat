@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
-import { Room } from 'matrix-js-sdk';
+import { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Box,
@@ -226,6 +226,20 @@ type RoomNavItemProps = {
   showAvatar?: boolean;
   direct?: boolean;
 };
+
+const getRoomNavAvatarUrl = (
+  mx: MatrixClient,
+  room: Room,
+  avatarMxc: string | undefined,
+  direct: boolean | undefined,
+  useAuthentication: boolean
+): string | undefined => {
+  if (avatarMxc) {
+    return mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined;
+  }
+  return direct ? getRoomAvatarUrl(mx, room, 96, useAuthentication) : undefined;
+};
+
 export function RoomNavItem({
   room,
   selected,
@@ -247,12 +261,7 @@ export function RoomNavItem({
 
   const roomName = useRoomName(room);
   const roomAvatarMxc = useRoomAvatar(room, direct);
-  const directRoomAvatarFallbackUrl = direct
-    ? getRoomAvatarUrl(mx, room, 96, useAuthentication)
-    : undefined;
-  const roomAvatarUrl = roomAvatarMxc
-    ? mxcUrlToHttp(mx, roomAvatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
-    : directRoomAvatarFallbackUrl;
+  const roomAvatarUrl = getRoomNavAvatarUrl(mx, room, roomAvatarMxc, direct, useAuthentication);
 
   const handleContextMenu: MouseEventHandler<HTMLElement> = (evt) => {
     evt.preventDefault();
@@ -314,6 +323,27 @@ export function RoomNavItem({
       roomType={room.getType()}
     />
   );
+  // RoomAvatar keeps image errors in local state; remount it when a replacement URL arrives.
+  const roomAvatar =
+    roomAvatarUrl || showAvatar ? (
+      <RoomAvatar
+        key={roomAvatarUrl}
+        roomId={room.roomId}
+        src={roomAvatarUrl}
+        alt={roomName}
+        renderFallback={() =>
+          showAvatar ? (
+            <Text as="span" size="H6">
+              {nameInitials(roomName)}
+            </Text>
+          ) : (
+            roomIcon
+          )
+        }
+      />
+    ) : (
+      roomIcon
+    );
 
   return (
     <NavItem
@@ -330,25 +360,7 @@ export function RoomNavItem({
         <NavItemContent>
           <Box as="span" grow="Yes" alignItems="Center" gap="200">
             <Avatar size="200" radii="400">
-              {roomAvatarUrl || showAvatar ? (
-                <RoomAvatar
-                  key={roomAvatarUrl}
-                  roomId={room.roomId}
-                  src={roomAvatarUrl}
-                  alt={roomName}
-                  renderFallback={() =>
-                    showAvatar ? (
-                      <Text as="span" size="H6">
-                        {nameInitials(roomName)}
-                      </Text>
-                    ) : (
-                      roomIcon
-                    )
-                  }
-                />
-              ) : (
-                roomIcon
-              )}
+              {roomAvatar}
             </Avatar>
             <Box as="span" grow="Yes">
               <Text priority={unread ? '500' : '300'} as="span" size="Inherit" truncate>
