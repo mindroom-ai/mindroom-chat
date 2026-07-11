@@ -51,11 +51,7 @@ type RunThreadOpenCacheFirstOptions = {
    * engine boundary stays clean (engine has no knowledge of
    * `setSupplementalThreadEvents`).
    */
-  setSupplementalThreadEvents: (
-    expectedThreadId: string,
-    events: MatrixEvent[],
-    removedEventIds?: readonly string[]
-  ) => void;
+  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
   setThreadInitialCacheHydrated: Dispatch<SetStateAction<boolean>>;
   setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
@@ -143,7 +139,7 @@ export const runThreadOpenCacheFirst = async ({
     threadId,
     cachedPage: hydratedCachedPage,
     reason: 'open-thread-choke-point',
-    onRepaired: (repairedEvents, removedEventIds = []) => {
+    onRepaired: (repairedEvents) => {
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the
       // component-side onRepaired callback so a docker probe snapshot
@@ -160,10 +156,7 @@ export const runThreadOpenCacheFirst = async ({
         countCacheProbe('onRepairedGuardBailed');
         return;
       }
-      if (removedEventIds.length > 0) {
-        setSupplementalThreadEvents(threadId, [...repairedEvents], removedEventIds);
-        countCacheProbe('supplementalEventsExecuted');
-      } else if (repairedEvents.length > 0) {
+      if (repairedEvents.length > 0) {
         setSupplementalThreadEvents(threadId, [...repairedEvents]);
         countCacheProbe('supplementalEventsExecuted');
       } else {

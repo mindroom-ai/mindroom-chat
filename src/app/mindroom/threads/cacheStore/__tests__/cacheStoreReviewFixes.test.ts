@@ -366,12 +366,12 @@ describe('CINNY-207 P2 review: duplicate eventIds do not underflow the ledger', 
     );
 
     await expect(
-      cacheStore.deleteThreadEventsFromCacheCommitted(SESSION_ID, ROOM_ID_A, THREAD_ID, [
+      cacheStore.deleteThreadEventsFromCache(SESSION_ID, ROOM_ID_A, THREAD_ID, [
         '$rA',
         '$rA',
         '$rA',
       ])
-    ).resolves.toBe(true);
+    ).resolves.toBeUndefined();
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID_A);

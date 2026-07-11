@@ -114,11 +114,7 @@ export const useThreadRenderState = ({
   threadEventIndexMap: Map<string, number>;
   threadEvents: MatrixEvent[];
   threadInitialRenderMode: ThreadInitialRenderMode;
-  setSupplementalThreadEvents: (
-    expectedThreadId: string,
-    events: MatrixEvent[],
-    removedEventIds?: readonly string[]
-  ) => void;
+  setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
 } => {
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
@@ -140,15 +136,9 @@ export const useThreadRenderState = ({
   }, []);
 
   const setSupplementalThreadEvents = useCallback(
-    (expectedThreadId: string, events: MatrixEvent[], removedEventIds: readonly string[] = []) => {
+    (expectedThreadId: string, events: MatrixEvent[]) => {
       const fallbackState = fallbackThreadEventsRef.current;
-      const removedEventIdSet = new Set(removedEventIds);
-      const currentEvents = (
-        fallbackState.threadId === expectedThreadId ? fallbackState.events : []
-      ).filter((mEvent) => {
-        const eventId = mEvent.getId();
-        return !eventId || !removedEventIdSet.has(eventId);
-      });
+      const currentEvents = fallbackState.threadId === expectedThreadId ? fallbackState.events : [];
       const resolveConfirmedId = buildResolveConfirmedEventId(room, [...currentEvents, ...events]);
       const mergedEvents = mergeThreadRenderEvents(currentEvents, events, resolveConfirmedId);
 
@@ -162,7 +152,6 @@ export const useThreadRenderState = ({
         relationState.threadId = expectedThreadId;
         relationState.relationEventIds = new Set();
       }
-      removedEventIds.forEach((eventId) => relationState.relationEventIds.delete(eventId));
       aggregateCachedRelationEvents(
         events,
         [threadTimelineSet, roomTimelineSet],
@@ -182,7 +171,6 @@ export const useThreadRenderState = ({
             .filter((mEvent) => mEvent.isRedaction())
             .map((mEvent) => mEvent.getAssociatedId())
             .filter((eventId): eventId is string => !!eventId),
-          ...removedEventIds,
         ])
       );
       if (redactionTargetIds.length > 0) {

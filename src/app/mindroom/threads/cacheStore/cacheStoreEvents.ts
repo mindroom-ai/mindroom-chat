@@ -1199,12 +1199,6 @@ export const deleteThreadEventsFromCache = async (
 };
 
 /**
- * Durable variant used by convergence paths that must distinguish a committed
- * delete from the legacy best-effort API above.
- */
-export const deleteThreadEventsFromCacheCommitted = deleteThreadEvents;
-
-/**
  * Stamp `lastOpenedTs` on the meta row for a scope. Used by the eviction
  * guard "never evict recently opened threads" (D9). Upserts the meta
  * row without disturbing any other field: if the row is absent (thread

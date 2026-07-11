@@ -5,8 +5,7 @@
  * P4.1 `BackfillScheduler`. Coverage decides what to PAINT (D7); the
  * reconciler decides what to REPAIR. When cache and server agree the
  * pass is a cheap no-op (fetch, diff, empty). When they diverge (a
- * missed edit, a missed redaction, a reaction that was removed while
- * the client was closed) the pass applies the repair in place using
+ * missed edit, redaction, or relation) the pass applies the repair in place using
  * the P1.2 machinery (`hydrateCachedEvents` → `applyCachedRedactions`,
  * `applyCachedReplaceRelations`, `reconcileRelationEventsWithAggregation`)
  * and fires a single `onRepaired` tick so the render layer picks up
@@ -57,7 +56,6 @@ import {
   collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
-  type RedactedRelationTarget,
 } from '../threads/eventCacheEditUtils';
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
@@ -68,7 +66,6 @@ import {
   beginThreadReconcileContinuation,
   checkpointThreadReconcileContinuation,
   clearThreadReconcileContinuation,
-  deleteThreadEventsFromCacheCommitted,
   loadThreadReconcileContinuation,
   restartThreadReconcileContinuationFromHead,
   type ThreadReconcileContinuation,
@@ -94,7 +91,6 @@ const RECONCILE_BATCH_SIZE = 200;
  * still converges without unbounded network use.
  */
 const MAX_RECONCILE_ITERATIONS = 25;
-const REQUIRED_REACTION_RECURSION_DEPTH = 2;
 
 type ReconcileScanExit = 'overlap' | 'end' | 'fetch-failed' | 'page-cap' | 'token-loop';
 
@@ -172,10 +168,7 @@ export type ScheduleReconcileArgs = {
    * The intent remains a single batched render tick — the caller does
    * not need to distinguish which repair changed what.
    */
-  readonly onRepaired?: (
-    repairedEvents: readonly MatrixEvent[],
-    removedEventIds: readonly string[]
-  ) => void;
+  readonly onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void;
   /**
    * Optional debug trace id. When present, reconciler observability
    * events (`reconcile-scheduled`, `reconcile-complete`) attach it so
@@ -184,8 +177,6 @@ export type ScheduleReconcileArgs = {
   readonly debugTraceId?: string;
   /** Test seam for observing or failing the durable repair write. */
   readonly persistRepair?: typeof persistThreadEventCacheSnapshotCommitted;
-  /** Test seam for authoritative removal of cached reactions omitted by the server. */
-  readonly deleteAbsentRelations?: typeof deleteThreadEventsFromCacheCommitted;
   /** Test seam for the durable bounded-scan cursor. */
   readonly continuationStore?: ThreadReconcileContinuationStore;
 };
@@ -201,8 +192,6 @@ export type ReconcileResult = {
   readonly aborted: boolean;
   /** Canonical repaired view delivered independently to every observer. */
   readonly repairedEvents?: readonly MatrixEvent[];
-  /** Cached relation events removed from the canonical repaired view. */
-  readonly removedEventIds?: readonly string[];
   /** Defined for repaired passes: whether the repaired cache transaction committed. */
   readonly durable?: boolean;
 };
@@ -316,55 +305,6 @@ const buildCachedRevisionMap = (
   return revisions;
 };
 
-const collectAbsentCachedReactions = (
-  cachedPage: HydratedThreadCachePage | undefined,
-  fetched: Partial<IEvent>[],
-  scanExit: ReconcileScanExit | undefined,
-  recursionDepthProven: boolean
-): RedactedRelationTarget[] => {
-  // Only an end-of-history response is authoritative for absence. An overlap,
-  // page cap, or failed fetch says nothing about cached events outside the
-  // scanned window.
-  if (!cachedPage || scanExit !== 'end' || !recursionDepthProven) return [];
-
-  const fetchedEventIds = new Set(
-    fetched
-      .map((rawEvent) => rawEvent.event_id)
-      .filter((eventId): eventId is string => typeof eventId === 'string' && eventId.length > 0)
-  );
-
-  return cachedPage.events.reduce<RedactedRelationTarget[]>((missing, rawEvent) => {
-    const eventId = rawEvent.event_id;
-    if (
-      rawEvent.type !== 'm.reaction' ||
-      typeof eventId !== 'string' ||
-      eventId.length === 0 ||
-      fetchedEventIds.has(eventId)
-    ) {
-      return missing;
-    }
-
-    const relation = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-      | { event_id?: unknown; rel_type?: unknown }
-      | undefined;
-    if (
-      typeof relation?.event_id !== 'string' ||
-      relation.event_id.length === 0 ||
-      relation.rel_type !== 'm.annotation'
-    ) {
-      return missing;
-    }
-
-    missing.push({
-      eventId,
-      eventType: 'm.reaction',
-      parentEventId: relation.event_id,
-      relationType: relation.rel_type,
-    });
-    return missing;
-  }, []);
-};
-
 /**
  * True when the diff between the fetched page and the cache introduces
  * an in-place change: a new event id, a redaction whose target was in
@@ -421,9 +361,7 @@ const fetchThreadRelationPage = async (
   roomId: string,
   threadId: string,
   fromToken: string | undefined
-): Promise<
-  { events: Partial<IEvent>[]; nextToken?: string; recursionDepth?: number } | undefined
-> => {
+): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | undefined> => {
   const [err, relData] = await to(
     mx.fetchRelations(roomId, threadId, null, null, {
       dir: Direction.Backward,
@@ -433,15 +371,9 @@ const fetchThreadRelationPage = async (
     })
   );
   if (err || !relData) return undefined;
-  const rawRecursionDepth = (relData as typeof relData & { recursion_depth?: unknown })
-    .recursion_depth;
   return {
     events: (relData.chunk ?? []) as Partial<IEvent>[],
     nextToken: relData.next_batch ?? undefined,
-    recursionDepth:
-      typeof rawRecursionDepth === 'number' && Number.isFinite(rawRecursionDepth)
-        ? rawRecursionDepth
-        : undefined,
   };
 };
 
@@ -467,7 +399,6 @@ const runThreadReconcilePass = async ({
   reason,
   debugTraceId,
   persistRepair,
-  deleteAbsentRelations,
   continuationStore,
 }: {
   mx: MatrixClient;
@@ -480,7 +411,6 @@ const runThreadReconcilePass = async ({
   reason: ReconcileReason;
   debugTraceId: string | undefined;
   persistRepair: typeof persistThreadEventCacheSnapshotCommitted;
-  deleteAbsentRelations: typeof deleteThreadEventsFromCacheCommitted;
   continuationStore: ThreadReconcileContinuationStore;
 }): Promise<ReconcileResult> => {
   const cachedRevisions = cachedPage
@@ -520,7 +450,6 @@ const runThreadReconcilePass = async ({
   const allMapped: MatrixEvent[] = [];
   const allRaw: Partial<IEvent>[] = [];
   let scanExit: ReconcileScanExit | undefined;
-  let recursionDepthProven = true;
 
   // Set by the fetch loop when it observed a fetch failure that
   // produced no usable page (SDK threw / returned undefined). Used
@@ -581,13 +510,6 @@ const runThreadReconcilePass = async ({
         break;
       }
       phaseFetchedPage = true;
-      if (
-        page.recursionDepth === undefined ||
-        page.recursionDepth < REQUIRED_REACTION_RECURSION_DEPTH
-      ) {
-        recursionDepthProven = false;
-      }
-
       // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
       // per-page chunk-triple log. Signature (A) from the last docker run
       // (reconcilesScheduled=1, reconcilesRepaired=0, detectDivergence
@@ -734,20 +656,12 @@ const runThreadReconcilePass = async ({
     allMapped.sort((a, b) => a.getTs() - b.getTs());
   }
 
-  const absentCachedReactions = collectAbsentCachedReactions(
-    cachedPage,
-    allRaw,
-    scanExit,
-    recursionDepthProven
-  );
-  const removedEventIds = absentCachedReactions.map(({ eventId }) => eventId);
-  const removedEventIdSet = new Set(removedEventIds);
   const scanComplete = scanExit === 'overlap' || scanExit === 'end';
 
   // Zero-fetch fast path — the D7 cheap no-op. When the server returned
   // no events (or all fetches failed) there is nothing to reconcile and
   // no tick to fire.
-  if (allMapped.length === 0 && absentCachedReactions.length === 0) {
+  if (allMapped.length === 0) {
     if ((scanExit === 'overlap' || scanExit === 'end') && continuation?.validatingHead === true) {
       await continuationStore
         .clear(sessionId, roomId, threadId, continuation.generation)
@@ -789,9 +703,7 @@ const runThreadReconcilePass = async ({
   // negative here proves the applier would be a no-op — skip both the
   // hydrate call and the onRepaired tick to keep the "cached was right"
   // path zero-cost.
-  const diverged =
-    absentCachedReactions.length > 0 ||
-    detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
+  const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
 
   if (!diverged) {
     if ((scanExit === 'overlap' || scanExit === 'end') && continuation?.validatingHead === true) {
@@ -894,23 +806,18 @@ const runThreadReconcilePass = async ({
   // that skip hydratedEvents, but on
   // complete-coverage today, `hydratedEvents` is always populated by
   // `hydrateThreadFromCache`.
-  const cachedSnapshotEvents = (
-    cachedPage
-      ? resolveCachedSnapshotEventsForRepair({
-          cachedPage,
-          preferLive,
-          room,
-        })
-      : []
-  ).filter((mEvent) => {
-    const eventId = mEvent.getId();
-    return !eventId || !removedEventIdSet.has(eventId);
-  });
+  const cachedSnapshotEvents = cachedPage
+    ? resolveCachedSnapshotEventsForRepair({
+        cachedPage,
+        preferLive,
+        room,
+      })
+    : [];
   const mergedForHydrate = mergeThreadRenderEvents(cachedSnapshotEvents, allMapped);
-  const redactedRelationTargets = [
-    ...collectRedactedRelationTargetsFromLookup(allMapped, cachedSnapshotEvents),
-    ...absentCachedReactions,
-  ];
+  const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
+    allMapped,
+    cachedSnapshotEvents
+  );
   hydrateCachedEvents({
     room,
     events: mergedForHydrate,
@@ -927,8 +834,6 @@ const runThreadReconcilePass = async ({
       redactedRelationTargets
     );
   }
-  removedEventIds.forEach((eventId) => liveThreadTimelineSet?.removeEvent(eventId));
-
   countCacheProbe('reconcilesRepaired');
 
   // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
@@ -986,12 +891,9 @@ const runThreadReconcilePass = async ({
       relationSnapshotMode: 'authoritative',
       authoritativeRawEvents: allRaw,
     });
-    const [writeCommitted, deleteCommitted] = await Promise.all([
-      repairSnapshot.write.catch(() => false),
-      deleteAbsentRelations(sessionId, roomId, threadId, removedEventIds).catch(() => false),
-    ]);
+    const writeCommitted = await repairSnapshot.write.catch(() => false);
     countCacheProbe('reconcilerPersists');
-    if (writeCommitted === true && deleteCommitted === true) {
+    if (writeCommitted === true) {
       if (scanComplete && continuation?.validatingHead === true) {
         durable = await continuationStore
           .clear(sessionId, roomId, threadId, continuation.generation)
@@ -1051,7 +953,6 @@ const runThreadReconcilePass = async ({
     iterations,
     aborted: false,
     repairedEvents: mergedForHydrate,
-    removedEventIds,
     durable,
   };
 };
@@ -1081,7 +982,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     onRepaired,
     debugTraceId,
     persistRepair = persistThreadEventCacheSnapshotCommitted,
-    deleteAbsentRelations = deleteThreadEventsFromCacheCommitted,
     continuationStore = DEFAULT_CONTINUATION_STORE,
   } = args;
 
@@ -1128,7 +1028,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
         reason,
         debugTraceId,
         persistRepair,
-        deleteAbsentRelations,
         continuationStore,
       });
     },
@@ -1142,7 +1041,7 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
   // repaired batch even if the old callback's mount guard declines it.
   return reconcilePromise.then((result) => {
     if (result.repaired && result.repairedEvents) {
-      onRepaired(result.repairedEvents, result.removedEventIds ?? []);
+      onRepaired(result.repairedEvents);
       countCacheProbe('reconcilesOnRepairedFired');
     }
     return result;

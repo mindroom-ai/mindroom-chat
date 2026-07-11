@@ -38,10 +38,8 @@ import { isKeyHotkey } from 'is-hotkey';
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useTranslation } from 'react-i18next';
 import { eventWithShortcode, factoryEventSentBy, getMxIdLocalPart } from '../../utils/matrix';
-import {
-  getActiveAnnotationsByKey,
-  getActiveEventsForAnnotationKey,
-} from '../../utils/reactionAnnotations';
+import { getActiveEventsForAnnotationKey } from '../../utils/reactionAnnotations';
+import { getRenderableAnnotationsByKey } from '../messages/stopReaction';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
@@ -1945,7 +1943,7 @@ export function RoomTimeline({
     {
       [MessageEvent.RoomMessage]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
+        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
@@ -2037,6 +2035,7 @@ export function RoomTimeline({
                       room={room}
                       relations={reactionRelations}
                       mEventId={mEventId}
+                      targetEvent={mEvent}
                       canSendReaction={canSendReaction}
                       onReactionToggle={handleReactionToggle}
                     />
@@ -2103,7 +2102,7 @@ export function RoomTimeline({
       ...getMindroomRoomTimelineMessageRenderers(
         (mEventId, mEvent, item, timelineSet, collapse) => {
           const reactionRelations = getEventReactions(timelineSet, mEventId);
-          const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
+          const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
           const { replyEventId, threadRootId } = mEvent;
           const highlighted = focusItem?.index === item && focusItem.highlight;
           const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
@@ -2182,6 +2181,7 @@ export function RoomTimeline({
                         room={room}
                         relations={reactionRelations}
                         mEventId={mEventId}
+                        targetEvent={mEvent}
                         canSendReaction={canSendReaction}
                         onReactionToggle={handleReactionToggle}
                       />
@@ -2226,7 +2226,7 @@ export function RoomTimeline({
       ),
       [MessageEvent.RoomMessageEncrypted]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
+        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
@@ -2300,6 +2300,7 @@ export function RoomTimeline({
                       room={room}
                       relations={reactionRelations}
                       mEventId={mEventId}
+                      targetEvent={mEvent}
                       canSendReaction={canSendReaction}
                       onReactionToggle={handleReactionToggle}
                     />
@@ -2442,7 +2443,7 @@ export function RoomTimeline({
       },
       [MessageEvent.Sticker]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
+        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         return (
@@ -2472,6 +2473,7 @@ export function RoomTimeline({
                   room={room}
                   relations={reactionRelations}
                   mEventId={mEventId}
+                  targetEvent={mEvent}
                   canSendReaction={canSendReaction}
                   onReactionToggle={handleReactionToggle}
                 />

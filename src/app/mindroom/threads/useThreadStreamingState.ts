@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { getMindroomAiRunInfo } from '../messages/aiRun';
-import {
-  getSerializedReplacementEvent,
-  isSameSenderEditEvent,
-} from '../../utils/editEvent';
+import { STOP_REACTION_KEYS } from '../messages/stopReaction';
+import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
@@ -21,8 +19,8 @@ const TERMINAL_STREAM_STATES = new Set([
   'failed',
   'stopped',
   'cancelled',
+  'interrupted',
 ]);
-const STOP_REACTION_KEYS = new Set(['⏹', '⏹️']);
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;

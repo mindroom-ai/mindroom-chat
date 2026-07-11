@@ -190,16 +190,9 @@ describe('runThreadOpenCacheFirst', () => {
     // Capture the onRepaired callback that the caller wires into
     // scheduleReconcile so we can simulate the reconciler's repair path
     // firing it with a repaired-events batch.
-    let capturedOnRepaired:
-      | ((repairedEvents: readonly MatrixEvent[], removedEventIds?: readonly string[]) => void)
-      | undefined;
+    let capturedOnRepaired: ((repairedEvents: readonly MatrixEvent[]) => void) | undefined;
     opts.scheduleReconcile.mockImplementation(
-      async (args: {
-        onRepaired?: (
-          repairedEvents: readonly MatrixEvent[],
-          removedEventIds?: readonly string[]
-        ) => void;
-      }) => {
+      async (args: { onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void }) => {
         capturedOnRepaired = args.onRepaired;
         return {
           reason: 'open-thread-choke-point' as const,
@@ -237,53 +230,6 @@ describe('runThreadOpenCacheFirst', () => {
     // supplemental state (setSupplementalThreadEvents itself updates
     // state, but the additional tick preserves parity with the pre-v3
     // callback and keeps the "one tick per repair" invariant).
-    expect(opts.setThreadTimelineTick).toHaveBeenCalled();
-  });
-
-  it('routes authoritative reaction removals through the supplemental sink', async () => {
-    const opts = makeDefaultOptions();
-    opts.hydrateThreadFromCache.mockResolvedValue({
-      cacheCoverage: buildThreadCacheCoverage({
-        eventCount: 1,
-        backwardToken: null,
-        hasMoreBackward: false,
-        relationSnapshotComplete: true,
-        snapshotComplete: true,
-        tailLoaded: true,
-      }),
-      events: [{ event_id: '$reaction', origin_server_ts: 2 }],
-      hasMoreBefore: false,
-      relationSnapshotComplete: true,
-      rootEvent: { event_id: '$root', origin_server_ts: 1 },
-      snapshotComplete: true,
-      tailLoaded: true,
-    });
-
-    let capturedOnRepaired:
-      | ((repairedEvents: readonly MatrixEvent[], removedEventIds?: readonly string[]) => void)
-      | undefined;
-    opts.scheduleReconcile.mockImplementation(
-      async (args: {
-        onRepaired?: (
-          repairedEvents: readonly MatrixEvent[],
-          removedEventIds?: readonly string[]
-        ) => void;
-      }) => {
-        capturedOnRepaired = args.onRepaired;
-        return {
-          reason: 'open-thread-choke-point' as const,
-          repaired: true,
-          fetchedCount: 0,
-          iterations: 1,
-          aborted: false,
-        };
-      }
-    );
-
-    await runThreadOpenCacheFirst(opts as never);
-    capturedOnRepaired?.([], ['$reaction']);
-
-    expect(opts.setSupplementalThreadEvents).toHaveBeenLastCalledWith('$root', [], ['$reaction']);
     expect(opts.setThreadTimelineTick).toHaveBeenCalled();
   });
 

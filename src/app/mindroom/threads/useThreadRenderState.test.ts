@@ -49,22 +49,6 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
-const makeReactionEvent = (eventId: string, ts: number, targetEventId: string) =>
-  new MatrixEvent({
-    content: {
-      'm.relates_to': {
-        event_id: targetEventId,
-        key: '👍',
-        rel_type: 'm.annotation',
-      },
-    },
-    event_id: eventId,
-    origin_server_ts: ts,
-    room_id: '!room:example.org',
-    sender: '@alice:example.org',
-    type: 'm.reaction',
-  });
-
 const attachSerializedReplacement = (
   targetEvent: MatrixEvent,
   replacementEventId: string,
@@ -228,40 +212,6 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
     expect(getSnapshot().threadEvents).toEqual([replyEvent]);
     expect(getSnapshot().threadEventIndexMapRef.current.get('$reply')).toBe(0);
-
-    renderer.unmount();
-  });
-
-  it('removes authoritative missing reactions from the fallback view', () => {
-    const rootEvent = makeMessageEvent('$root', 1);
-    const replyEvent = makeMessageEvent('$reply', 2);
-    const reactionEvent = makeReactionEvent('$reaction', 3, '$reply');
-    const room = makeRoom(rootEvent);
-    const roomTimelineSet = makeTimelineSet();
-    const threadTimelineSet = makeTimelineSet();
-
-    const { getSnapshot, renderer } = renderHookHarness({
-      room,
-      roomTimelineSet,
-      threadTimelineSet,
-      threadId: '$root',
-      thread: null,
-      threadInitialCacheHydrated: true,
-    });
-
-    act(() => {
-      getSnapshot().setSupplementalThreadEvents('$root', [replyEvent, reactionEvent]);
-    });
-    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-      '$reaction',
-    ]);
-
-    act(() => {
-      getSnapshot().setSupplementalThreadEvents('$root', [], ['$reaction']);
-    });
-    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
 
     renderer.unmount();
   });

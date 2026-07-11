@@ -58,7 +58,6 @@ export {
   deleteRoomEventsFromCache,
   deleteThreadEventFromCacheByEventId,
   deleteThreadEventsFromCache,
-  deleteThreadEventsFromCacheCommitted,
   loadCachedRoomEvent,
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,

@@ -145,6 +145,7 @@ const TERMINAL_STREAM_STATUSES = new Set([
   'failed',
   'stopped',
   'cancelled',
+  'interrupted',
 ]);
 
 const getStreamStatusFromContent = (content: Record<string, unknown>): string | undefined => {
@@ -154,6 +155,21 @@ const getStreamStatusFromContent = (content: Record<string, unknown>): string | 
 
   const raw = newContent?.[STREAM_STATUS_KEY] ?? content[STREAM_STATUS_KEY];
   return typeof raw === 'string' && raw.length > 0 ? raw.toLowerCase() : undefined;
+};
+
+/**
+ * True only when the content itself proves the stream reached a terminal
+ * state. Absent or unrecognized metadata returns false — callers must not
+ * treat "not terminal" as "still streaming".
+ */
+export const hasTerminalMindroomStreamMetadata = (content: Record<string, unknown>): boolean => {
+  const metadata = getMindroomAiRunMetadata(content);
+  const aiRunStatus =
+    typeof metadata?.status === 'string' ? metadata.status.toLowerCase() : undefined;
+  if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return true;
+
+  const streamStatus = getStreamStatusFromContent(content);
+  return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
 export const isMindroomAiRunStreaming = (content: Record<string, unknown>): boolean => {

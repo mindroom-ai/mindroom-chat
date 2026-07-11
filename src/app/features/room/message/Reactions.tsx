@@ -12,12 +12,12 @@ import {
   toRem,
 } from 'folds';
 import classNames from 'classnames';
-import { Room } from 'matrix-js-sdk';
+import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import FocusTrap from 'focus-trap-react';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
-import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
+import { getRenderableAnnotationsByKey } from '../../../mindroom/messages/stopReaction';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -28,6 +28,8 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 export type ReactionsProps = {
   room: Room;
   mEventId: string;
+  /** Reaction target, for suppressing stale MindRoom stop chips. Falls back to a room lookup. */
+  targetEvent?: MatrixEvent;
   canSendReaction?: boolean;
   relations: Relations;
   onReactionToggle: (
@@ -38,14 +40,29 @@ export type ReactionsProps = {
   ) => void;
 };
 export const Reactions = as<'div', ReactionsProps>(
-  ({ className, room, relations, mEventId, canSendReaction, onReactionToggle, ...props }, ref) => {
+  (
+    {
+      className,
+      room,
+      relations,
+      mEventId,
+      targetEvent,
+      canSendReaction,
+      onReactionToggle,
+      ...props
+    },
+    ref
+  ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const [viewer, setViewer] = useState<boolean | string>(false);
     const myUserId = mx.getUserId();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
+      useCallback(
+        (rel) => getRenderableAnnotationsByKey(rel, targetEvent ?? room.findEventById?.(mEventId)),
+        [targetEvent, room, mEventId]
+      )
     );
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -92,7 +109,9 @@ export const Reactions = as<'div', ReactionsProps>(
                   reaction={key}
                   count={events.size}
                   onClick={
-                    canSendReaction ? () => onReactionToggle(mEventId, key, undefined, relations) : undefined
+                    canSendReaction
+                      ? () => onReactionToggle(mEventId, key, undefined, relations)
+                      : undefined
                   }
                   onContextMenu={handleViewReaction}
                   aria-disabled={!canSendReaction}

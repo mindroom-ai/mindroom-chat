@@ -257,6 +257,30 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it("recognizes the backend's current 🛑 stop key as a streaming signal", () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200);
+    const stopReaction = makeMessageEvent('$reaction', 210, {
+      'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
+    });
+    const relations = makeRelations();
+    relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(true);
+
+    renderer.unmount();
+  });
+
   it('ignores a redacted stop reaction shell after reload', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
