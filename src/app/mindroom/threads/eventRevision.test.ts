@@ -84,6 +84,20 @@ describe('event aggregation revisions', () => {
     ).toBe(true);
   });
 
+  it('still detects authoritative aggregation decreases and removals', () => {
+    const current = describeRawEventRevision(
+      baseEvent({ 'm.relations': { 'm.thread': { count: 5 } } })
+    );
+    const lowerCount = describeRawEventRevision(
+      baseEvent({ 'm.relations': { 'm.thread': { count: 3 } } })
+    );
+    const removedBundle = describeRawEventRevision(baseEvent({}));
+
+    expect(hasEventRevisionUpgrade(lowerCount, current)).toBe(false);
+    expect(hasEventRevisionUpgrade(lowerCount, current, 'authoritative')).toBe(true);
+    expect(hasEventRevisionUpgrade(removedBundle, current, 'authoritative')).toBe(true);
+  });
+
   it('moves partial thread latest_event forward while keeping the maximum observed count', () => {
     const withThread = (count: number, latestId: string, latestTs: number) =>
       baseEvent({

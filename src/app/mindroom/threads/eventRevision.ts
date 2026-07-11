@@ -509,7 +509,8 @@ export const mergeEventRevisionDescriptors = (
 
 export const hasEventRevisionUpgrade = (
   candidate: EventRevisionDescriptor,
-  current: EventRevisionDescriptor
+  current: EventRevisionDescriptor,
+  relationSnapshotMode: RelationSnapshotMode = 'partial'
 ): boolean => {
   const redactionUpgrade = candidate.redacted && !current.redacted;
   const replacementUpgrade =
@@ -518,7 +519,8 @@ export const hasEventRevisionUpgrade = (
     compareReplacementRevision(candidate.replacement, current.replacement) > 0;
   const mergedAggregations = mergeNonReplacementRelations(
     current.aggregations,
-    candidate.aggregations
+    candidate.aggregations,
+    relationSnapshotMode
   );
   return (
     redactionUpgrade ||

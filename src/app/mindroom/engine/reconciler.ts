@@ -287,7 +287,9 @@ const detectDivergence = (
     const cachedRevision = cachedRevisions.get(id);
     if (!cachedRevision) return true;
 
-    if (hasEventRevisionUpgrade(describeRawEventRevision(rawEvent), cachedRevision)) {
+    if (
+      hasEventRevisionUpgrade(describeRawEventRevision(rawEvent), cachedRevision, 'authoritative')
+    ) {
       return true;
     }
   }
