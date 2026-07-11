@@ -137,6 +137,20 @@ describe('resolveIOSPushConfig', () => {
     expect(config?.profileTag?.length).toBeGreaterThan(0);
   });
 
+  it('uses event-id-only as the privacy-preserving fallback when format is omitted', () => {
+    const config = resolveIOSPushConfig({
+      push: {
+        ios: {
+          enabled: true,
+          appId: 'com.mindroom-ios',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        },
+      },
+    });
+
+    expect(config?.format).toBe('event_id_only');
+  });
+
   it('keeps push tokens and enabled state separate per session', async () => {
     const storage = new Map<string, string>();
     const localStorageMock = {
