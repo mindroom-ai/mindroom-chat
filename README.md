@@ -127,7 +127,7 @@ registration). To turn it on for a deployment:
       "appDisplayName": "MindRoom iOS",
       "deviceDisplayName": "MindRoom iOS",
       "append": true,
-      "format": "event_id_only"
+      "format": "full"
     }
   }
 }
@@ -138,6 +138,11 @@ registration). To turn it on for a deployment:
 4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications`
    inside MindRoom.
 5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
+
+`format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and
+message preview for unencrypted rooms. Omitting it uses the privacy-preserving `event_id_only`
+fallback. Encrypted rooms use a generic notification because the homeserver cannot read their
+message content.
 
 ## Local Development
 

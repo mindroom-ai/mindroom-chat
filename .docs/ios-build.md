@@ -67,7 +67,7 @@ This project includes native iOS push registration via Capacitor and Matrix push
       "appDisplayName": "MindRoom iOS",
       "deviceDisplayName": "MindRoom iOS",
       "append": true,
-      "format": "event_id_only"
+      "format": "full"
     }
   }
 }
@@ -80,6 +80,10 @@ This project includes native iOS push registration via Capacitor and Matrix push
 
 Server-side requirement: your Matrix push gateway (for example Sygnal-compatible) must be configured
 to map this app/bundle/APNs environment and forward notifications to APNs.
+
+Full payloads are an explicit opt-in and provide sender and message previews for unencrypted rooms;
+omitting `format` uses the privacy-preserving `event_id_only` fallback. Encrypted-room pushes stay
+generic because the homeserver and push gateway cannot decrypt their message content.
 
 ## Archive for TestFlight / App Store
 

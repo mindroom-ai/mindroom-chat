@@ -18,6 +18,14 @@ const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'pro
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
 const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
 const appDelegatePath = path.join(repoRoot, 'ios', 'App', 'App', 'AppDelegate.swift');
+const localizableStringsPath = path.join(
+  repoRoot,
+  'ios',
+  'App',
+  'App',
+  'en.lproj',
+  'Localizable.strings'
+);
 const appIconDir = path.join(
   repoRoot,
   'ios',
@@ -31,6 +39,19 @@ const appIconContentsPath = path.join(appIconDir, 'Contents.json');
 const failures = [];
 
 const readText = (filePath) => fs.readFileSync(filePath, 'utf8');
+
+const readStringsText = (filePath) => {
+  const contents = fs.readFileSync(filePath);
+  if (contents[0] === 0xff && contents[1] === 0xfe) {
+    return contents.subarray(2).toString('utf16le');
+  }
+  if (contents[0] === 0xfe && contents[1] === 0xff) {
+    const littleEndianContents = Buffer.from(contents.subarray(2));
+    littleEndianContents.swap16();
+    return littleEndianContents.toString('utf16le');
+  }
+  return contents.toString('utf8');
+};
 
 const check = (condition, message) => {
   if (!condition) failures.push(message);
@@ -182,6 +203,42 @@ if (iosPushConfig.enabled === true) {
     appDelegate.includes('didFailToRegisterForRemoteNotificationsWithError'),
     'AppDelegate.swift: missing APNs didFailToRegisterForRemoteNotifications callback.'
   );
+
+  if (iosPushConfig.format === 'full') {
+    check(
+      fs.existsSync(localizableStringsPath),
+      'iOS: full push payloads require en.lproj/Localizable.strings.'
+    );
+    check(
+      xcodeProject.includes('Localizable.strings in Resources'),
+      'Xcode project: Localizable.strings must be included in the App resources phase.'
+    );
+
+    if (fs.existsSync(localizableStringsPath)) {
+      const localizableStrings = readStringsText(localizableStringsPath);
+      const requiredSygnalLocalizations = {
+        MSG_FROM_USER_WITH_CONTENT: '%1$@: %2$@',
+        MSG_FROM_USER_IN_ROOM_WITH_CONTENT: '%1$@ in %2$@: %3$@',
+        MSG_FROM_USER: 'Message from %1$@',
+        MSG_FROM_USER_IN_ROOM: '%1$@ in %2$@',
+        ACTION_FROM_USER: '%1$@ %2$@',
+        ACTION_FROM_USER_IN_ROOM: '%2$@ %3$@ in %1$@',
+        IMAGE_FROM_USER: '%1$@ sent an image: %2$@',
+        IMAGE_FROM_USER_IN_ROOM: '%1$@ sent an image in %3$@: %2$@',
+        VOICE_CALL_FROM_USER: 'Voice call from %1$@',
+        VIDEO_CALL_FROM_USER: 'Video call from %1$@',
+        USER_INVITE_TO_NAMED_ROOM: '%1$@ invited you to %2$@',
+        USER_INVITE_TO_CHAT: '%1$@ invited you to a chat',
+      };
+
+      Object.entries(requiredSygnalLocalizations).forEach(([key, value]) => {
+        check(
+          localizableStrings.includes(`"${key}" = "${value}";`),
+          `Localizable.strings: missing or invalid Sygnal notification template ${key}.`
+        );
+      });
+    }
+  }
 }
 
 const requiredPlistKeys = [
