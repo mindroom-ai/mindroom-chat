@@ -113,7 +113,8 @@
 
 - Status: PR #116 merged the sampled-quiescence fix into `dev`; the v2 boundary follow-up has native
   acceptance for both failure modes and is replayed onto current `origin/dev` at `5d66af4f2`.
-  Publication is pending. No production deploy was performed by this task.
+  Draft PR #119 is open from `caveman/fix-ios-boundary-momentum-loss-v2`. No production deploy was
+  performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
