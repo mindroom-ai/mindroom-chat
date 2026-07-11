@@ -117,6 +117,7 @@ type MeasurementScrollCorrectionOpts = {
   // block's size delta (device report 2026-07-06).
   itemFullyAboveViewport: boolean;
   isIOSWebKitDevice: boolean;
+  isScrollingBackward: boolean;
 };
 
 // Decides virtual-core's shouldAdjustScrollPositionOnItemSizeChange for the
@@ -129,20 +130,27 @@ type MeasurementScrollCorrectionOpts = {
 // the prepend one-paint e2e photographed), under-applying silently, and
 // per-call clamp prediction is impossible from the hook (the instance's
 // scrollOffset is stale during a burst). The ledger settles in one
-// exactly-cancelling write at true rest. Off iOS, corrections apply
-// immediately, exactly like the pre-3.17 default.
+// exactly-cancelling write at true rest.
+//
+// Desktop backward scrolling uses the same ledger. A remembered expanded
+// message can remount thousands of pixels taller than its collapsed cached
+// size; applying that correction directly reverses the upward ride, moves the
+// measured row back out of the window, and lets the following shrink clamp the
+// reader to the bottom. Forward/quiet desktop corrections stay immediate.
 export const shouldApplyMeasurementScrollCorrection = ({
   itemFullyAboveViewport,
   isIOSWebKitDevice: isIOS,
-}: MeasurementScrollCorrectionOpts): boolean => itemFullyAboveViewport && !isIOS;
+  isScrollingBackward,
+}: MeasurementScrollCorrectionOpts): boolean =>
+  itemFullyAboveViewport && !isIOS && !isScrollingBackward;
 
 type MeasurementScrollCorrectionHookDeps = {
   // Read lazily per correction: iOS detection is cached module state.
   isIOSWebKitDevice: () => boolean;
-  // Fired for every fully-above correction that is DROPPED. The delta is
-  // what virtual-core would have added to scrollTop; the caller folds it
-  // into the offset ledger so estimate error never shifts content under
-  // the reader.
+  // Fired for every fully-above correction that is DEFERRED TO THE
+  // LEDGER. The delta is what virtual-core would have added to
+  // scrollTop; the caller folds it into the offset ledger so estimate
+  // error never shifts content under the reader.
   onDroppedCorrection: (deltaPx: number) => void;
 };
 
@@ -156,16 +164,20 @@ export const buildMeasurementScrollCorrectionHook =
   (
     item: { end: number },
     delta: number,
-    instance: { scrollOffset: number | null; isScrolling: boolean }
+    instance: {
+      scrollOffset: number | null;
+      scrollDirection: 'forward' | 'backward' | null;
+    }
   ): boolean => {
     const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
     const apply = shouldApplyMeasurementScrollCorrection({
       itemFullyAboveViewport,
       isIOSWebKitDevice: isIOSWebKitDevice(),
+      isScrollingBackward: instance.scrollDirection === 'backward',
     });
     // Only fully-above drops are ledgered: a visible (straddling) row's
-    // resize is SUPPOSED to reflow in place, and non-iOS corrections are
-    // applied by virtual-core itself.
+    // resize is SUPPOSED to reflow in place. Desktop forward/quiet
+    // corrections are still applied by virtual-core itself.
     if (!apply && itemFullyAboveViewport) {
       onDroppedCorrection(delta);
     }

@@ -23,7 +23,12 @@ type Seeded = { roomId: string; rootId: string; replyIds: string[] };
 const seedThread = async (
   homeserver: string,
   accessToken: string,
-  opts: { longBodies?: boolean; quoteTargetIndex?: number; replyCount?: number } = {}
+  opts: {
+    longBodies?: boolean;
+    longBodyLines?: number;
+    quoteTargetIndex?: number;
+    replyCount?: number;
+  } = {}
 ): Promise<Seeded> => {
   const roomId = await createPrivateRoom(homeserver, accessToken, {
     name: `Virtualization behaviors ${Date.now()}`,
@@ -36,9 +41,10 @@ const seedThread = async (
   const replyCount = opts.replyCount ?? REPLY_COUNT;
   for (let i = 1; i <= replyCount; i += 1) {
     const longSuffix = opts.longBodies
-      ? `\n${Array.from({ length: 12 }, (_v, l) => `long collapsible line ${l} of reply ${i}`).join(
-          '\n'
-        )}`
+      ? `\n${Array.from(
+          { length: opts.longBodyLines ?? 12 },
+          (_v, l) => `long collapsible line ${l} of reply ${i}`
+        ).join('\n')}`
       : '';
     const relatesTo: Record<string, unknown> = {
       rel_type: 'm.thread',
@@ -373,5 +379,229 @@ test.describe('virtualized thread behaviors', () => {
     await expect(target).toBeVisible({ timeout: 15_000 });
     await expect(target.locator('[aria-expanded="true"]')).toBeVisible();
     await expect(target.getByRole('button', { name: 'Show less' })).toBeVisible();
+  });
+
+  test('an above-viewport expansion cannot reverse an upward desktop ride', async ({ page }) => {
+    const DRIFT_TOLERANCE_PX = 48;
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const seeded = await seedThread(homeserver, session.accessToken, {
+      longBodies: true,
+      longBodyLines: 100,
+      replyCount: 80,
+    });
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await openThread(page, seeded);
+
+    const timeline = page.locator('[data-message-item]').first();
+    await timeline.hover();
+    await page.mouse.wheel(0, -500);
+
+    let aboveViewportId: string | undefined;
+    await expect
+      .poll(async () => {
+        aboveViewportId = await page.evaluate(() => {
+          const row = document.querySelector<HTMLElement>('[data-message-item]');
+          let scroller: HTMLElement | null = row?.parentElement ?? null;
+          while (scroller) {
+            const { overflowY } = window.getComputedStyle(scroller);
+            if (
+              (overflowY === 'auto' || overflowY === 'scroll') &&
+              scroller.scrollHeight > scroller.clientHeight
+            ) {
+              break;
+            }
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return undefined;
+          const viewportTop = scroller.getBoundingClientRect().top;
+          return (
+            Array.from(document.querySelectorAll<HTMLElement>('[data-message-item]'))
+              .filter(
+                (candidate) =>
+                  candidate.getBoundingClientRect().bottom <= viewportTop - 120 &&
+                  candidate.querySelector('[aria-label="Show more"]')
+              )
+              .at(0)
+              ?.getAttribute('data-message-id') ?? undefined
+          );
+        });
+        return aboveViewportId;
+      })
+      .toBeTruthy();
+    const targetId = aboveViewportId as string;
+    const target = page.locator(`[data-message-id="${targetId}"]`);
+    const targetHeightBefore = await target.evaluate(
+      (element: HTMLElement) => element.getBoundingClientRect().height
+    );
+
+    // Wait until a fully visible anchor is available without putting a time
+    // limit on the later backward-scroll state that this test must exercise.
+    await expect
+      .poll(() =>
+        page.evaluate((expandedTargetId) => {
+          const row = document.querySelector<HTMLElement>('[data-message-item]');
+          let scroller: HTMLElement | null = row?.parentElement ?? null;
+          while (scroller) {
+            const { overflowY } = window.getComputedStyle(scroller);
+            if (
+              (overflowY === 'auto' || overflowY === 'scroll') &&
+              scroller.scrollHeight > scroller.clientHeight
+            ) {
+              break;
+            }
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return undefined;
+          const viewport = scroller.getBoundingClientRect();
+          const anchor = Array.from(
+            document.querySelectorAll<HTMLElement>('[data-message-item]')
+          ).find((candidate) => {
+            const rect = candidate.getBoundingClientRect();
+            return (
+              candidate.getAttribute('data-message-id') !== expandedTargetId &&
+              rect.top >= viewport.top + 8 &&
+              rect.bottom <= viewport.bottom - 8
+            );
+          });
+          const anchorId = anchor?.getAttribute('data-message-id');
+          return anchor && anchorId ? anchorId : undefined;
+        }, targetId)
+      )
+      .toBeTruthy();
+
+    // Capture the baseline from the next real upward scroll event and start
+    // the keepalive inside that event. This leaves no protocol round-trip in
+    // which virtual-core's 150ms backward direction could expire on slow CI.
+    await page.evaluate((expandedTargetId) => {
+      type RideBaseline = {
+        anchorId: string;
+        anchorTop: number;
+        scrollTop: number;
+        keepaliveIntervalId: number;
+      };
+      const rideWindow = window as typeof window & {
+        __mindroomRideBaseline?: Promise<RideBaseline | undefined>;
+      };
+      const row = document.querySelector<HTMLElement>('[data-message-item]');
+      let scroller: HTMLElement | null = row?.parentElement ?? null;
+      while (scroller) {
+        const { overflowY } = window.getComputedStyle(scroller);
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          scroller.scrollHeight > scroller.clientHeight
+        ) {
+          break;
+        }
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) throw new Error('thread scroller not found');
+
+      rideWindow.__mindroomRideBaseline = new Promise((resolve) => {
+        let timeoutId = 0;
+        const capture = () => {
+          window.clearTimeout(timeoutId);
+          const viewport = scroller.getBoundingClientRect();
+          const anchor = Array.from(
+            document.querySelectorAll<HTMLElement>('[data-message-item]')
+          ).find((candidate) => {
+            const rect = candidate.getBoundingClientRect();
+            return (
+              candidate.getAttribute('data-message-id') !== expandedTargetId &&
+              rect.top >= viewport.top + 8 &&
+              rect.bottom <= viewport.bottom - 8
+            );
+          });
+          const anchorId = anchor?.getAttribute('data-message-id');
+          if (!anchor || !anchorId) {
+            resolve(undefined);
+            return;
+          }
+          const keepaliveIntervalId = window.setInterval(
+            () => scroller.dispatchEvent(new Event('scroll')),
+            30
+          );
+          resolve({
+            anchorId,
+            anchorTop: anchor.getBoundingClientRect().top,
+            scrollTop: scroller.scrollTop,
+            keepaliveIntervalId,
+          });
+        };
+        timeoutId = window.setTimeout(() => {
+          scroller.removeEventListener('scroll', capture);
+          resolve(undefined);
+        }, 5_000);
+        scroller.addEventListener('scroll', capture, { once: true });
+      });
+    }, targetId);
+
+    await page.mouse.wheel(0, -80);
+    const before = await page.evaluate(async () => {
+      type RideBaseline = {
+        anchorId: string;
+        anchorTop: number;
+        scrollTop: number;
+        keepaliveIntervalId: number;
+      };
+      const rideWindow = window as typeof window & {
+        __mindroomRideBaseline?: Promise<RideBaseline | undefined>;
+      };
+      const baseline = await rideWindow.__mindroomRideBaseline;
+      delete rideWindow.__mindroomRideBaseline;
+      return baseline;
+    });
+    expect(before).toBeTruthy();
+    if (!before) throw new Error('upward ride baseline was not captured');
+    const rideKeepalive = before.keepaliveIntervalId;
+
+    const readAnchorTop = () =>
+      page.evaluate((anchorId) => {
+        const anchor = document.querySelector<HTMLElement>(
+          `[data-message-id="${CSS.escape(anchorId)}"]`
+        );
+        return anchor?.getBoundingClientRect().top;
+      }, before.anchorId);
+    const readLedgerMargin = () =>
+      page
+        .locator('[data-thread-count]')
+        .evaluate((inner: HTMLElement) => Number.parseFloat(inner.style.marginTop) || 0);
+    let measuredAnchorTop: number | undefined;
+
+    try {
+      await target
+        .locator('[aria-label="Show more"]')
+        .evaluate((button: HTMLElement) => button.click());
+      await expect(target.locator('[aria-expanded="true"]')).toBeAttached();
+      await expect
+        .poll(() =>
+          target.evaluate((element: HTMLElement) => element.getBoundingClientRect().height)
+        )
+        .toBeGreaterThan(targetHeightBefore + 500);
+      // The DOM expansion precedes ResizeObserver delivery. Wait until the
+      // real measurement has entered the ledger before sampling a frame.
+      await expect.poll(readLedgerMargin).toBeLessThan(-500);
+
+      const duringRide = await getScrollState(page);
+      const duringRideAnchorTop = await readAnchorTop();
+      // The upward input may continue decreasing scrollTop. It must never be
+      // replaced mid-ride by the expanding row's large positive correction.
+      expect(duringRide.scrollTop).toBeLessThanOrEqual(before.scrollTop + DRIFT_TOLERANCE_PX);
+      const scrollDelta = duringRide.scrollTop - before.scrollTop;
+      const visualDrift = (duringRideAnchorTop ?? Infinity) - before.anchorTop + scrollDelta;
+      expect(Math.abs(visualDrift)).toBeLessThanOrEqual(DRIFT_TOLERANCE_PX);
+      measuredAnchorTop = duringRideAnchorTop;
+    } finally {
+      await page.evaluate((intervalId) => window.clearInterval(intervalId), rideKeepalive);
+    }
+
+    // At true rest the healthy ledger intentionally changes scrollTop while
+    // atomically removing its margin. The user-visible anchor must not move.
+    await expect.poll(readLedgerMargin).toBe(0);
+    await expect
+      .poll(async () => Math.abs(((await readAnchorTop()) ?? Infinity) - (measuredAnchorTop ?? 0)))
+      .toBeLessThanOrEqual(DRIFT_TOLERANCE_PX);
   });
 });
