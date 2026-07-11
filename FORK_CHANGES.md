@@ -2,6 +2,74 @@
 
 ## Runbook
 
+### Thread missing-middle: reconciler shortfall drain (2026-07-10)
+
+- Status: implemented on branch `caveman/fix-thread-missing-middle` off `dev` at `706f011c`
+  (post-#116). Device validation pending: reopen the affected long thread and confirm the middle
+  backfills within about a second of open (choke-point reconcile) and that
+  `reconcileShortfallPagesPastOverlap` is nonzero in the probe snapshot on the healing open.
+- Symptom (device trace `ride-trace-1783737737705.json`, iOS, ~130-reply thread): after opening the
+  thread and scrolling to top, only the thread root plus the last ~20 replies rendered, with no
+  Load-Older affordance and no gap indicator — the timeline painted as complete. The trace shows one
+  paginate-back network commit (+2325px prepend at t=4.32s), one reconcile-repair prepend (+779px at
+  t=6.07s), then zero content growth for the final 10s while the user sat at `scrollTop=0` through
+  eight fresh touch gestures.
+- Root cause chain: (1) the reconciler's fetch loop treated ANY overlap between the fetched page and
+  the cached window as convergence proof. The cache always holds the live-synced tail, so page 1 of
+  the backward drain overlaps immediately and the pass stops — a hole BEHIND the tail (between the
+  thread's earliest events and its tail) is structurally invisible. (2) The pagination command
+  controller cleared `threadHasMoreCachedBack` unconditionally on cache miss BEFORE the network leg,
+  so any bail after that point (no thread model, network error) left the SDK token as the only thing
+  keeping the Load-Older gate alive; once that token nulled (the SDK bootstrap paginates from the
+  thread ROOT's context via `getThreadTimeline(timelineSet, threadId)`, so its backward token
+  legitimately exhausts after one page near the thread start), `showThreadLoadOlderMessages` latched
+  false and no affordance remained. The render layer has no gap markers: root always sorts to index
+  0 (`useThreadRenderState.buildThreadEvents` adds it unconditionally; the cache path folds it into
+  every page), so `[root, …tail]` reads as seamless.
+- Fix 1 (reconciler, `runThreadReconcilePass`): the drain now pages PAST an overlap while the union
+  of known reply ids (cached raw replies + fetched `m.thread`-relation replies) falls short of the
+  authoritative expected reply count — the MAX of the live root's bundled `m.thread` count, the
+  cached root's bundled count, and the recorded coverage count (max, not first-non-undefined,
+  because the SDK never updates the root's bundled count as live replies arrive, so the live bundle
+  can be stale-LOW while the recorded count is fresh; matches the store's monotonic merge policy —
+  independent-review finding on the first cut). A uniformly stale-LOW count degrades to the
+  previous one-page behavior; a stale-HIGH count costs one drain bounded by `next_batch` exhaustion
+  and `MAX_RECONCILE_ITERATIONS` per open — a deliberate correctness-over-cost trade, observable
+  via the new probe counter `reconcileShortfallPagesPastOverlap` (bumped only for pages actually
+  fetched past an overlap).
+- Fix 2 (reconciler persist leg): when the drain observed `next_batch` exhaustion with no fetch
+  failures, the server confirmed nothing exists before the batch's earliest event — the pass
+  persists `beforeTokenForEarliest: null` (server-confirmed start), so the next open's count-proof
+  can take the legitimate complete-coverage paint. `relationSnapshotComplete` is deliberately NOT
+  claimed: the PR #84 contract (pinned twice in `RoomTimeline.cache.test.ts`) reserves that proof
+  for the background prewarm; the first cut violated it and two pinned tests caught it. The marker
+  is also persisted on the no-divergence path when the pass was a shortfall-driven multi-page
+  drain (ordinary single-page "cached was right" opens keep their zero-persist D7 guarantee).
+- Fix 3 (`threadPaginationCommandController.handleThreadPaginateBack`): the cache-miss branch no
+  longer pre-clears `threadHasMoreCachedBack`; the flag is decided by the post-commit
+  `reconcileThreadBackwardPagination` on the network path, or cleared explicitly only in the
+  no-cache/no-token terminal bail (the one case where clearing is honest).
+- Validation: new suite `engine/__tests__/reconciler.shortfall.test.ts` (6 tests — shortfall drain
+  heals the middle past a tail overlap; no-shortfall keeps the D7 single-page cheap open; count
+  derives from the live root's bundled count; start marker persisted on true exhaustion, not on
+  overlap-stop with pages remaining, and also on a shortfall-driven no-divergence drain). Full
+  `npm test` (364 files / 2883 tests), typecheck, touched-files lint, and production build all
+  pass. The first cut's `relationSnapshotComplete` upgrade was caught by the two PR #84 pinned
+  tests in `RoomTimeline.cache.test.ts` and removed. An independent adversarial review pass then
+  found: the runbook/code mismatch on that flag (fixed), the stale-LOW-live-root-count stop-early
+  shape (fixed via max-of-sources), a probe overcount at the iteration cap (fixed), a stale
+  cost-contract comment in `threadOpenCacheFirst.ts` (fixed), and unrelated lockfile churn
+  (dropped from the commit).
+- Known residuals (accepted): Fix 3 has no dedicated hook-level test (the reviewer's audit of all
+  `threadHasMoreCachedBack` consumers found no regression path); the `!thread` bail can leave the
+  Load-Older affordance visible-but-inert for the rest of an open on the complete-coverage
+  cache-first path (strictly better than the old hole-masking; reset on reopen); a phantom-high
+  reply count re-drains once per open, bounded, by design.
+- Not addressed here (tracked separately): the `lb` boundary-settle momentum kill confirmed by the
+  same trace — that is the preallocated-runway architecture promotion signal from the #116 runbook
+  entry, a separate work item. No render-layer gap indicator was added; the reconciler heal makes
+  the hole transient rather than representable.
+
 ### Automatic Xcode Cloud App Store versioning (2026-07-10)
 
 - Status: complete locally; independent post-fix review found no remaining issues.
