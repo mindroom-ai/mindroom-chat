@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
-  SESSION_STORE_KEY,
   SessionStoreWriteError,
   clearLegacySessionStorage,
-  clearSessionStore,
   createSessionId,
   getActiveSession,
   getSessionIndexedDbStoreName,
@@ -16,7 +14,6 @@ import {
   hasStoredSessions,
   listSessions,
   putSession,
-  removeActiveSession,
   removeSession,
   setActiveSession,
   updateSessionProfile,
@@ -125,7 +122,9 @@ describe('sessions', () => {
     );
 
     expect(updated.sessionId).toBe(initial.sessionId);
-    expect(getSessionRustCryptoStorePrefix(updated)).not.toBe(getSessionRustCryptoStorePrefix(initial));
+    expect(getSessionRustCryptoStorePrefix(updated)).not.toBe(
+      getSessionRustCryptoStorePrefix(initial)
+    );
     expect(getLegacySessionRustCryptoStorePrefix(updated)).toBe(
       getLegacySessionRustCryptoStorePrefix(initial)
     );
@@ -190,7 +189,7 @@ describe('sessions', () => {
     );
     setActiveSession(alice.sessionId, storage);
 
-    const nextStore = removeActiveSession(storage);
+    const nextStore = removeSession(alice.sessionId, storage);
 
     expect(nextStore.activeSessionId).toBe(bob.sessionId);
     expect(getActiveSession(storage)?.sessionId).toBe(bob.sessionId);
@@ -282,7 +281,6 @@ describe('sessions', () => {
         refreshToken: 'refresh-b',
         expiresInMs: 60_000,
       },
-      { expectedRefreshToken: 'refresh-a' },
       storage
     );
 
@@ -295,31 +293,6 @@ describe('sessions', () => {
         lastUsedAt: session.lastUsedAt,
       })
     );
-  });
-
-  it('rejects a stale refresh-token rotation', () => {
-    const storage = createStorage();
-    const session = putSession(
-      {
-        baseUrl: 'https://example.com',
-        userId: '@alice:example.com',
-        deviceId: 'DEVICE_A',
-        accessToken: 'token-a',
-        refreshToken: 'refresh-current',
-      },
-      undefined,
-      storage
-    );
-
-    expect(
-      updateSessionCredentials(
-        session.sessionId,
-        { accessToken: 'stale-token', refreshToken: 'stale-refresh' },
-        { expectedRefreshToken: 'refresh-old' },
-        storage
-      )
-    ).toBeUndefined();
-    expect(getActiveSession(storage)?.accessToken).toBe('token-a');
   });
 
   it('allows cached profile metadata to be explicitly cleared', () => {
@@ -362,29 +335,6 @@ describe('sessions', () => {
         lastKnownAvatarDataUrl: undefined,
       })
     );
-  });
-
-  it('clears the whole session registry', () => {
-    const legacyStorageEntries = Object.fromEntries(
-      LEGACY_SESSION_STORAGE_KEYS.map((key) => [key, `legacy-${key}`])
-    );
-    const storage = createStorage({
-      [SESSION_STORE_KEY]: JSON.stringify({
-        version: 1,
-        activeSessionId: 'session',
-        sessions: [],
-      }),
-      ...legacyStorageEntries,
-    });
-
-    clearSessionStore(storage);
-
-    expect(storage.removeItem).toHaveBeenCalledWith(SESSION_STORE_KEY);
-    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-      expect(storage.removeItem).toHaveBeenCalledWith(key);
-      expect(storage.getItem(key)).toBeNull();
-    });
-    expect(getSessionStore(storage).sessions).toEqual([]);
   });
 
   it('isolates blocked session-storage operations', () => {

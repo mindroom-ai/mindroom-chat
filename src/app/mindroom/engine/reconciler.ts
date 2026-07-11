@@ -74,6 +74,8 @@ import {
   type ThreadReconcileContinuation,
 } from '../threads/cacheStore';
 import {
+  collectEmbeddedRelationEventIds,
+  collectExplicitRedactedEventIds,
   describeRawEventRevision,
   hasEventRevisionUpgrade,
   mergeEventRevisionDescriptors,
@@ -372,8 +374,14 @@ const collectAbsentCachedReactions = (
  */
 const detectDivergence = (
   fetched: Partial<IEvent>[],
-  cachedRevisions: Map<string, EventRevisionDescriptor>
+  cachedRevisions: Map<string, EventRevisionDescriptor>,
+  cachedEmbeddedRelationEventIds: ReadonlySet<string>
 ): boolean => {
+  const fetchedRedactedEventIds = collectExplicitRedactedEventIds(fetched);
+  for (const eventId of fetchedRedactedEventIds) {
+    if (cachedEmbeddedRelationEventIds.has(eventId)) return true;
+  }
+
   for (const rawEvent of fetched) {
     const id = rawEvent.event_id;
     if (typeof id !== 'string' || id.length === 0) continue;
@@ -478,6 +486,11 @@ const runThreadReconcilePass = async ({
   const cachedRevisions = cachedPage
     ? buildCachedRevisionMap(cachedPage)
     : new Map<string, EventRevisionDescriptor>();
+  const cachedEmbeddedRelationEventIds = collectEmbeddedRelationEventIds(
+    cachedPage
+      ? [...(cachedPage.rootEvent ? [cachedPage.rootEvent] : []), ...cachedPage.events]
+      : []
+  );
   const mapper = mx.getEventMapper();
   const preferLive = createPreferLiveEventMapper(room, mapper);
 
@@ -654,11 +667,7 @@ const runThreadReconcilePass = async ({
     if (!scanExit) scanExit = 'page-cap';
 
     const scanComplete = scanExit === 'overlap' || scanExit === 'end';
-    if (
-      scanComplete &&
-      continuation &&
-      (continuation.validatingHead !== true || phaseStartToken !== undefined)
-    ) {
+    if (scanComplete && continuation && continuation.validatingHead !== true) {
       // The older cursor reached its original boundary. Re-scan from the
       // current head before clearing so events that arrived between passes
       // are included in this same reconcile result.
@@ -780,7 +789,9 @@ const runThreadReconcilePass = async ({
   // negative here proves the applier would be a no-op — skip both the
   // hydrate call and the onRepaired tick to keep the "cached was right"
   // path zero-cost.
-  const diverged = absentCachedReactions.length > 0 || detectDivergence(allRaw, cachedRevisions);
+  const diverged =
+    absentCachedReactions.length > 0 ||
+    detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
 
   if (!diverged) {
     if ((scanExit === 'overlap' || scanExit === 'end') && continuation?.validatingHead === true) {

@@ -1,7 +1,13 @@
 import type { IEvent } from 'matrix-js-sdk';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
-import { mergeRawEventRevisions, type RelationSnapshotMode } from '../eventRevision';
+import {
+  collectEmbeddedRelationEventIds,
+  collectExplicitRedactedEventIds,
+  mergeRawEventRevisions,
+  stripRedactedRelationsFromRawEvent,
+  type RelationSnapshotMode,
+} from '../eventRevision';
 import { getCachedPaginationToken, mergeCachedPaginationTokens } from '../eventCacheTokenUtils';
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import { openCacheStore } from './cacheStoreDb';
@@ -42,6 +48,23 @@ import {
 const isRawLocalEchoEventId = (eventId: unknown): boolean =>
   typeof eventId === 'string' && eventId.startsWith('~');
 
+// One marker row per redacted id gives later stale relation pages an O(batch)
+// lookup without replaying an ever-growing room-wide registry. Whole-room
+// eviction removes these rows with the rest of the room's meta records.
+const REDACTED_RELATION_META_PREFIX = '__redactedRelation:';
+
+const getRedactedRelationMetaScope = (eventId: string): string =>
+  `${REDACTED_RELATION_META_PREFIX}${encodeURIComponent(eventId)}`;
+
+const getRedactedRelationMetaKey = (roomId: string, eventId: string): string =>
+  buildMetaKey(roomId, getRedactedRelationMetaScope(eventId));
+
+const stripRedactedRawEvents = <T extends Partial<IEvent>>(
+  rawEvents: readonly T[],
+  redactedEventIds: ReadonlySet<string>
+): T[] =>
+  rawEvents.map((rawEvent) => stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds) as T);
+
 const buildMergedEventRecord = (
   roomId: string,
   scope: string,
@@ -63,6 +86,180 @@ const buildMergedEventRecord = (
     approxBytes: estimateRawEventBytes(rawEvent),
   };
 };
+
+const isRawReplacementEvent = (rawEvent: Partial<IEvent>): boolean => {
+  const relation = rawEvent.content?.['m.relates_to'];
+  return (
+    typeof relation === 'object' &&
+    relation !== null &&
+    !Array.isArray(relation) &&
+    (relation as { rel_type?: unknown }).rel_type === 'm.replace'
+  );
+};
+
+const prepareRedactedRelationEvents = <T extends Partial<IEvent>>(
+  rawEvents: readonly T[],
+  redactedEventIds: ReadonlySet<string>
+): T[] =>
+  stripRedactedRawEvents(rawEvents, redactedEventIds).filter(
+    (rawEvent) =>
+      !rawEvent.event_id ||
+      !redactedEventIds.has(rawEvent.event_id) ||
+      !!rawEvent.unsigned?.redacted_because ||
+      !isRawReplacementEvent(rawEvent)
+  );
+
+const collectRelationEventIds = (rawEvents: readonly Partial<IEvent>[]): Set<string> => {
+  const eventIds = collectEmbeddedRelationEventIds(rawEvents);
+  rawEvents.forEach((rawEvent) => {
+    if (isRawReplacementEvent(rawEvent) && typeof rawEvent.event_id === 'string') {
+      eventIds.add(rawEvent.event_id);
+    }
+  });
+  return eventIds;
+};
+
+const loadKnownRedactedRelationEventIds = (
+  metaStore: IDBObjectStore,
+  roomId: string,
+  candidates: ReadonlySet<string>,
+  current: ReadonlySet<string>,
+  onReady: (eventIds: Set<string>) => void,
+  onError: (error: DOMException | null) => void
+): void => {
+  if (candidates.size === 0) {
+    onReady(new Set(current));
+    return;
+  }
+  const knownEventIds = new Set(current);
+  const unresolvedEventIds = Array.from(candidates).filter(
+    (eventId) => !knownEventIds.has(eventId)
+  );
+  if (unresolvedEventIds.length === 0) {
+    onReady(knownEventIds);
+    return;
+  }
+
+  let pending = unresolvedEventIds.length;
+  let failed = false;
+  unresolvedEventIds.forEach((eventId) => {
+    const request = metaStore.get(getRedactedRelationMetaKey(roomId, eventId));
+    request.onsuccess = () => {
+      if (failed) return;
+      if (request.result) knownEventIds.add(eventId);
+      pending -= 1;
+      if (pending === 0) onReady(knownEventIds);
+    };
+    request.onerror = () => {
+      if (failed) return;
+      failed = true;
+      onError(request.error);
+    };
+  });
+};
+
+const collectRedactedTombstones = (
+  rawEvents: readonly Partial<IEvent>[]
+): Map<string, Partial<IEvent>> => {
+  const tombstones = new Map<string, Partial<IEvent>>();
+  rawEvents.forEach((rawEvent) => {
+    if (typeof rawEvent.event_id === 'string' && rawEvent.unsigned?.redacted_because) {
+      tombstones.set(rawEvent.event_id, rawEvent);
+    }
+  });
+  return tombstones;
+};
+
+const runScrubRedactedRelationsTxn = async (
+  db: IDBDatabase,
+  roomId: string,
+  redactedEventIds: ReadonlySet<string>,
+  tombstones: ReadonlyMap<string, Partial<IEvent>>
+): Promise<void> =>
+  new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
+    const eventStore = transaction.objectStore(EVENTS_STORE);
+    const metaStore = transaction.objectStore(META_STORE);
+    const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+    const ledger = createLedgerTracker(roomId);
+
+    redactedEventIds.forEach((eventId) => {
+      const scope = getRedactedRelationMetaScope(eventId);
+      metaStore.put({
+        metaKey: buildMetaKey(roomId, scope),
+        roomId,
+        scope,
+        updatedAt: Date.now(),
+      } satisfies CachedMetaRecord);
+    });
+
+    const repairRawEvent = (rawEvent: Partial<IEvent>, eventId?: string): Partial<IEvent> => {
+      const tombstone = eventId ? tombstones.get(eventId) : undefined;
+      const merged = tombstone ? mergeRawEventRevisions(rawEvent, tombstone) : rawEvent;
+      return stripRedactedRelationsFromRawEvent(merged, redactedEventIds);
+    };
+
+    ledger.readBaseline(ledgerStore, eventStore, () => {
+      const eventRange = IDBKeyRange.bound(
+        [roomId, ROOM_SCOPE, 0, ''],
+        [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
+      );
+      const cursorRequest = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX).openCursor(eventRange);
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) {
+          ledger.finalize(ledgerStore);
+          return;
+        }
+
+        const previous = cursor.value as CachedEventRecord;
+        if (
+          redactedEventIds.has(previous.eventId) &&
+          !tombstones.has(previous.eventId) &&
+          isRawReplacementEvent(previous.rawEvent)
+        ) {
+          ledger.noteDelete(previous);
+          cursor.delete();
+          cursor.continue();
+          return;
+        }
+
+        const rawEvent = repairRawEvent(previous.rawEvent, previous.eventId);
+        if (rawEvent !== previous.rawEvent) {
+          const nextRecord: CachedEventRecord = {
+            ...previous,
+            rawEvent,
+            approxBytes: estimateRawEventBytes(rawEvent),
+          };
+          ledger.notePut(nextRecord, previous);
+          cursor.update(nextRecord);
+        }
+        cursor.continue();
+      };
+      cursorRequest.onerror = () => reject(cursorRequest.error);
+    });
+
+    const metaCursorRequest = metaStore.openCursor(
+      IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
+    );
+    metaCursorRequest.onsuccess = () => {
+      const cursor = metaCursorRequest.result;
+      if (!cursor) return;
+      const currentMeta = cursor.value as CachedMetaRecord;
+      if (currentMeta.rootEvent) {
+        const rootEvent = repairRawEvent(currentMeta.rootEvent, currentMeta.rootEvent.event_id);
+        if (rootEvent !== currentMeta.rootEvent) {
+          cursor.update({ ...currentMeta, rootEvent, updatedAt: Date.now() });
+        }
+      }
+      cursor.continue();
+    };
+    metaCursorRequest.onerror = () => reject(metaCursorRequest.error);
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 
 export type CachedRoomEventPage = {
   events: CachedRoomEvent[];
@@ -294,7 +491,12 @@ export const saveRoomEventsToCacheCommitted = async (
     const db = await openCacheStore(sessionId);
     if (!db) return false;
 
+    const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
+    const redactedTombstones = collectRedactedTombstones(rawEvents);
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
+    if (redactedEventIds.size > 0) {
+      await runScrubRedactedRelationsTxn(db, roomId, redactedEventIds, redactedTombstones);
+    }
     if (normalizedEvents.length === 0) return true;
 
     countCacheProbe('roomSaveCalls');
@@ -308,7 +510,8 @@ export const saveRoomEventsToCacheCommitted = async (
       roomId,
       normalizedEvents,
       beforeTokenForEarliest,
-      relationSnapshotMode
+      relationSnapshotMode,
+      redactedEventIds
     );
   } catch (error) {
     reportCacheWriteError('roomEventCache.save', error);
@@ -332,50 +535,20 @@ const runSaveRoomEventsTxn = async (
   roomId: string,
   normalizedEvents: CachedRoomEvent[],
   beforeTokenForEarliest: string | null | undefined,
-  relationSnapshotMode: RelationSnapshotMode
+  relationSnapshotMode: RelationSnapshotMode,
+  redactedEventIds: ReadonlySet<string>
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
-    const earliestEventId = normalizedEvents[0]?.event_id;
     const ledger = createLedgerTracker(roomId);
 
-    // Capture the ledger baseline (existing row or bootstrap sum-scan)
-    // BEFORE any event puts land — the sum-scan must reflect the
-    // pre-write state to avoid double-counting the current puts.
-    ledger.readBaseline(ledgerStore, eventStore, () => {
-      let pendingPuts = normalizedEvents.length;
-      const maybeFinalizeLedger = (): void => {
-        pendingPuts -= 1;
-        if (pendingPuts === 0) {
-          ledger.finalize(ledgerStore);
-        }
-      };
-      normalizedEvents.forEach((rawEvent) => {
-        const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, rawEvent.event_id);
-        const previousRequest = eventStore.get(cacheKey);
-        previousRequest.onsuccess = () => {
-          const previous = previousRequest.result as CachedEventRecord | undefined;
-          const eventRecord = buildMergedEventRecord(
-            roomId,
-            ROOM_SCOPE,
-            rawEvent,
-            previous,
-            relationSnapshotMode
-          );
-          ledger.notePut(eventRecord, previous);
-          eventStore.put(eventRecord);
-          maybeFinalizeLedger();
-        };
-        previousRequest.onerror = () => reject(previousRequest.error);
-      });
-    });
-
-    // Legacy-faithful asymmetry: room meta is written ONLY when a token
-    // was supplied. Thread meta is written unconditionally (see below).
-    if (beforeTokenForEarliest !== undefined && earliestEventId) {
+    const scheduleMetaPut = (earliestEventId: string | undefined): void => {
+      // Legacy-faithful asymmetry: room meta is written ONLY when a token
+      // was supplied. Thread meta is written unconditionally (see below).
+      if (beforeTokenForEarliest === undefined || !earliestEventId) return;
       const metaKey = buildMetaKey(roomId, ROOM_SCOPE);
       const metaRequest = metaStore.get(metaKey);
       metaRequest.onsuccess = () => {
@@ -410,7 +583,51 @@ const runSaveRoomEventsTxn = async (
         metaStore.put(nextMeta);
       };
       metaRequest.onerror = () => reject(metaRequest.error);
-    }
+    };
+
+    loadKnownRedactedRelationEventIds(
+      metaStore,
+      roomId,
+      collectRelationEventIds(normalizedEvents),
+      redactedEventIds,
+      (knownRedactedEventIds) => {
+        const eventsToSave = prepareRedactedRelationEvents(normalizedEvents, knownRedactedEventIds);
+
+        // Capture the ledger baseline before any event puts land so a
+        // bootstrap sum reflects only the pre-write state.
+        ledger.readBaseline(ledgerStore, eventStore, () => {
+          let pendingPuts = eventsToSave.length;
+          if (pendingPuts === 0) {
+            ledger.finalize(ledgerStore);
+            return;
+          }
+          const maybeFinalizeLedger = (): void => {
+            pendingPuts -= 1;
+            if (pendingPuts === 0) ledger.finalize(ledgerStore);
+          };
+          eventsToSave.forEach((rawEvent) => {
+            const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, rawEvent.event_id);
+            const previousRequest = eventStore.get(cacheKey);
+            previousRequest.onsuccess = () => {
+              const previous = previousRequest.result as CachedEventRecord | undefined;
+              const eventRecord = buildMergedEventRecord(
+                roomId,
+                ROOM_SCOPE,
+                rawEvent,
+                previous,
+                relationSnapshotMode
+              );
+              ledger.notePut(eventRecord, previous);
+              eventStore.put(eventRecord);
+              maybeFinalizeLedger();
+            };
+            previousRequest.onerror = () => reject(previousRequest.error);
+          });
+        });
+        scheduleMetaPut(eventsToSave[0]?.event_id);
+      },
+      reject
+    );
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
@@ -698,10 +915,16 @@ export const saveThreadEventsToCacheCommitted = async (
     const db = await openCacheStore(sessionId);
     if (!db) return false;
 
+    const redactionEvidence = rootEvent ? [...rawEvents, rootEvent] : rawEvents;
+    const redactedEventIds = collectExplicitRedactedEventIds(redactionEvidence);
+    const redactedTombstones = collectRedactedTombstones(redactionEvidence);
     const normalizedEvents = filterPageableCachedThreadEvents(
       normalizeCachedThreadEvents(rawEvents),
       threadId
     );
+    if (redactedEventIds.size > 0) {
+      await runScrubRedactedRelationsTxn(db, roomId, redactedEventIds, redactedTombstones);
+    }
     if (normalizedEvents.length === 0 && !rootEvent) return true;
 
     countCacheProbe('threadSaveCalls');
@@ -719,7 +942,8 @@ export const saveThreadEventsToCacheCommitted = async (
       snapshotComplete,
       expectedReplyCount,
       relationSnapshotComplete,
-      relationSnapshotMode
+      relationSnapshotMode,
+      redactedEventIds
     );
   } catch (error) {
     reportCacheWriteError('threadEventCache.save', error);
@@ -748,7 +972,8 @@ const runSaveThreadEventsTxn = async (
   snapshotComplete: boolean | undefined,
   expectedReplyCount: number | undefined,
   relationSnapshotComplete: boolean | undefined,
-  relationSnapshotMode: RelationSnapshotMode
+  relationSnapshotMode: RelationSnapshotMode,
+  redactedEventIds: ReadonlySet<string>
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
@@ -763,19 +988,22 @@ const runSaveThreadEventsTxn = async (
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = hasEventPuts ? transaction.objectStore(ROOM_LEDGER_STORE) : undefined;
     const metaKey = buildMetaKey(roomId, threadId);
-    const earliestEventId = normalizedEvents[0]?.event_id;
     const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
 
-    const scheduleEventPuts = (): void => {
-      let pendingPuts = normalizedEvents.length;
+    const scheduleEventPuts = (eventsToSave: CachedThreadEvent[]): void => {
+      let pendingPuts = eventsToSave.length;
+      if (pendingPuts === 0) {
+        if (ledger && ledgerStore) ledger.finalize(ledgerStore);
+        return;
+      }
       const maybeFinalizeLedger = (): void => {
         pendingPuts -= 1;
         if (pendingPuts === 0 && ledger && ledgerStore) {
           ledger.finalize(ledgerStore);
         }
       };
-      normalizedEvents.forEach((rawEvent) => {
+      eventsToSave.forEach((rawEvent) => {
         const cacheKey = buildEventCacheKey(roomId, threadId, rawEvent.event_id);
         const previousRequest = eventStore.get(cacheKey);
         previousRequest.onsuccess = () => {
@@ -795,50 +1023,68 @@ const runSaveThreadEventsTxn = async (
       });
     };
 
-    if (ledger && ledgerStore) {
-      ledger.readBaseline(ledgerStore, eventStore, scheduleEventPuts);
-    } else {
-      // Meta-only (rootEvent-only) path — no ledger interaction; still
-      // need to run the (empty) put loop so downstream request chains
-      // schedule normally.
-      scheduleEventPuts();
-    }
+    loadKnownRedactedRelationEventIds(
+      metaStore,
+      roomId,
+      collectRelationEventIds(rootEvent ? [...normalizedEvents, rootEvent] : normalizedEvents),
+      redactedEventIds,
+      (knownRedactedEventIds) => {
+        const eventsToSave = prepareRedactedRelationEvents(normalizedEvents, knownRedactedEventIds);
+        const incomingRootEvent = rootEvent
+          ? stripRedactedRawEvents([rootEvent], knownRedactedEventIds)[0]
+          : undefined;
 
-    // Thread meta is always written (legacy asymmetry preserved).
-    const metaRequest = metaStore.get(metaKey);
-    metaRequest.onsuccess = () => {
-      const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
-      const incomingRootEvent =
-        rootEvent && !isRawLocalEchoEventPublic(rootEvent) ? rootEvent : undefined;
-      const nextMeta: CachedMetaRecord = {
-        metaKey,
-        roomId,
-        scope: threadId,
-        beforeTokens: mergeCachedPaginationTokens(
-          currentMeta?.beforeTokens,
-          earliestEventId,
-          beforeTokenForEarliest
-        ),
-        rootEvent: incomingRootEvent
-          ? mergeRawEventRevisions(currentMeta?.rootEvent, incomingRootEvent, relationSnapshotMode)
-          : currentMeta?.rootEvent,
-        expectedReplyCount: mergeThreadExpectedReplyCount(
-          currentMeta?.expectedReplyCount,
-          normalizedExpectedReplyCount,
-          snapshotComplete
-        ),
-        snapshotComplete: mergeThreadCacheFlag(currentMeta?.snapshotComplete, snapshotComplete),
-        relationSnapshotComplete: mergeThreadCacheFlag(
-          currentMeta?.relationSnapshotComplete,
-          relationSnapshotComplete
-        ),
-        tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
-        threadReconcileContinuation: currentMeta?.threadReconcileContinuation,
-        updatedAt: Date.now(),
-      };
-      metaStore.put(nextMeta);
-    };
-    metaRequest.onerror = () => reject(metaRequest.error);
+        if (ledger && ledgerStore) {
+          ledger.readBaseline(ledgerStore, eventStore, () => scheduleEventPuts(eventsToSave));
+        } else {
+          scheduleEventPuts(eventsToSave);
+        }
+
+        // Thread meta is always written (legacy asymmetry preserved).
+        const metaRequest = metaStore.get(metaKey);
+        metaRequest.onsuccess = () => {
+          const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
+          const cacheableRootEvent =
+            incomingRootEvent && !isRawLocalEchoEventPublic(incomingRootEvent)
+              ? incomingRootEvent
+              : undefined;
+          const nextMeta: CachedMetaRecord = {
+            metaKey,
+            roomId,
+            scope: threadId,
+            beforeTokens: mergeCachedPaginationTokens(
+              currentMeta?.beforeTokens,
+              eventsToSave[0]?.event_id,
+              beforeTokenForEarliest
+            ),
+            rootEvent: cacheableRootEvent
+              ? mergeRawEventRevisions(
+                  currentMeta?.rootEvent,
+                  cacheableRootEvent,
+                  relationSnapshotMode
+                )
+              : currentMeta?.rootEvent,
+            expectedReplyCount: mergeThreadExpectedReplyCount(
+              currentMeta?.expectedReplyCount,
+              normalizedExpectedReplyCount,
+              snapshotComplete
+            ),
+            snapshotComplete: mergeThreadCacheFlag(currentMeta?.snapshotComplete, snapshotComplete),
+            relationSnapshotComplete: mergeThreadCacheFlag(
+              currentMeta?.relationSnapshotComplete,
+              relationSnapshotComplete
+            ),
+            tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
+            threadReconcileContinuation: currentMeta?.threadReconcileContinuation,
+            updatedAt: Date.now(),
+            lastOpenedTs: currentMeta?.lastOpenedTs,
+          };
+          metaStore.put(nextMeta);
+        };
+        metaRequest.onerror = () => reject(metaRequest.error);
+      },
+      reject
+    );
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);

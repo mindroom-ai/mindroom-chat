@@ -9,6 +9,10 @@ import {
   deleteCacheStoreDb,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
+  loadCachedRoomPaginationToken,
+  loadCachedThreadPaginationToken,
+  openCacheStore,
+  readLedgerSnapshot,
   resetCacheStoreForTesting,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
@@ -138,6 +142,139 @@ describe('cache storage same-ID revision merge', () => {
 
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     expectRedacted(page.events[0]);
+  });
+
+  it('scrubs a redacted edit from every room scope and the thread root ledger-safely', async () => {
+    const secretEdit = edit('$secret-edit', '$message', 'edited secret', 300);
+    const target = {
+      ...message('$message', 'original', 100),
+      unsigned: {
+        'm.relations': {
+          'm.annotation': { chunk: [{ type: 'm.reaction', key: '👍', count: 1 }] },
+          'm.replace': secretEdit,
+          'm.thread': {
+            count: 1,
+            latest_event: {
+              ...message('$reply', 'reply', 200),
+              unsigned: { 'm.relations': { 'm.replace': secretEdit } },
+            },
+          },
+        },
+      },
+    } satisfies Partial<IEvent>;
+    const root = {
+      ...message(THREAD_ID, 'root', 50),
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 1,
+            latest_event: {
+              ...message('$reply', 'reply', 200),
+              unsigned: { 'm.relations': { 'm.replace': secretEdit } },
+            },
+          },
+        },
+      },
+    } satisfies Partial<IEvent>;
+
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [target, secretEdit]);
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [target, secretEdit], root);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      {
+        event_id: '$redaction-secret-edit',
+        origin_server_ts: 400,
+        sender: SENDER,
+        type: 'm.room.redaction',
+        redacts: '$secret-edit',
+        content: {},
+      },
+    ]);
+    // A later stale page must not reintroduce either the bundled plaintext
+    // or the standalone edit after the redaction batch is gone.
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [target, secretEdit]);
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [target, secretEdit],
+      root,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'authoritative'
+    );
+
+    const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 20);
+    const threadPage = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 20);
+    const storedEvents = [...roomPage.events, ...threadPage.events];
+    expect(storedEvents.some((event) => event.event_id === '$secret-edit')).toBe(false);
+    expect(JSON.stringify({ roomPage, threadPage })).not.toContain('edited secret');
+    expect(
+      (
+        roomPage.events.find((event) => event.event_id === '$message')?.unsigned?.[
+          'm.relations'
+        ] as Record<string, unknown>
+      )?.['m.annotation']
+    ).toEqual({ chunk: [{ type: 'm.reaction', key: '👍', count: 1 }] });
+    expect(
+      (
+        threadPage.rootEvent?.unsigned?.['m.relations']?.['m.thread'] as
+          | { count?: number; latest_event?: Partial<IEvent> }
+          | undefined
+      )?.count
+    ).toBe(1);
+
+    const db = await openCacheStore(SESSION_ID);
+    expect(db).toBeDefined();
+    const ledger = (await readLedgerSnapshot(db!)).find((row) => row.roomId === ROOM_ID);
+    expect(ledger).toMatchObject({
+      eventCount: storedEvents.length,
+      approxBytes: storedEvents.reduce((sum, event) => sum + JSON.stringify(event).length, 0),
+    });
+  });
+
+  it('anchors pagination tokens to the first event that survives redaction filtering', async () => {
+    const staleEdit = edit('$redacted-edit', '$target', 'stale secret', 100);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      {
+        event_id: '$redaction-edit',
+        origin_server_ts: 90,
+        sender: SENDER,
+        type: 'm.room.redaction',
+        redacts: '$redacted-edit',
+        content: {},
+      },
+    ]);
+
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [staleEdit, message('$room-valid', 'valid', 200)],
+      'room-token'
+    );
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [staleEdit, message('$thread-valid', 'valid', 200)],
+      undefined,
+      'thread-token'
+    );
+
+    expect(await loadCachedRoomPaginationToken(SESSION_ID, ROOM_ID, '$room-valid')).toBe(
+      'room-token'
+    );
+    expect(
+      await loadCachedThreadPaginationToken(SESSION_ID, ROOM_ID, THREAD_ID, '$thread-valid')
+    ).toBe('thread-token');
+    expect(JSON.stringify(await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 20))).not.toContain(
+      'stale secret'
+    );
+    expect(
+      JSON.stringify(await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 20))
+    ).not.toContain('stale secret');
   });
 
   it('keeps the newest room edit and existing partial aggregations', async () => {

@@ -137,6 +137,10 @@ export const useCommandPaletteSource = (
     () => [...directs].sort(factoryRoomIdByActivity(mx)),
     [directs, mx]
   );
+  const orderedUserRoomIds = useMemo(
+    () => [...rooms, ...directs].sort(factoryRoomIdByActivity(mx)),
+    [directs, mx, rooms]
+  );
   const knownDmRoomByUserId = useMemo(
     () =>
       buildCommandPaletteDmRoomMap({
@@ -232,7 +236,7 @@ export const useCommandPaletteSource = (
         getRoom,
         includeRelatedRooms,
         myUserId,
-        orderedRoomIds,
+        orderedRoomIds: orderedUserRoomIds,
         selectedRoomId,
       });
 
@@ -310,7 +314,7 @@ export const useCommandPaletteSource = (
     navigate,
     navigateRoom,
     knownDmRoomByUserId,
-    orderedRoomIds,
+    orderedUserRoomIds,
     roomActivityRank,
     selectedRoomId,
   ]);

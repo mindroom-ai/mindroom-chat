@@ -372,18 +372,11 @@ export const setActiveSession = (
 export const updateSessionCredentials = (
   sessionId: string,
   credentials: SessionCredentialUpdate,
-  options: { expectedRefreshToken?: string } = {},
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
 ): StoredSession | undefined => {
   const store = getSessionStore(storage);
   const session = store.sessions.find((item) => item.sessionId === sessionId);
   if (!session) return undefined;
-  if (
-    options.expectedRefreshToken !== undefined &&
-    session.refreshToken !== options.expectedRefreshToken
-  ) {
-    return undefined;
-  }
 
   const nextSession: StoredSession = {
     ...session,
@@ -392,7 +385,7 @@ export const updateSessionCredentials = (
     expiresInMs: credentials.expiresInMs,
   };
 
-  writeSessionStoreOrThrow(
+  writeSessionStore(
     {
       ...store,
       sessions: upsertSession(store.sessions, nextSession),
@@ -493,23 +486,6 @@ export const removeSession = (
 
   writeSessionStoreOrThrow(nextStore, storage);
   return nextStore;
-};
-
-export const removeActiveSession = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): SessionStore => {
-  const activeSession = getActiveSession(storage);
-  if (!activeSession) return getSessionStore(storage);
-  return removeSession(activeSession.sessionId, storage);
-};
-
-export const clearSessionStore = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): void => {
-  if (!storage) throw new SessionStoreWriteError();
-  clearLegacySessionStorage(storage);
-  if (!removeStorageItemSafe(storage, SESSION_STORE_KEY)) throw new SessionStoreWriteError();
-  dispatchSessionStoreEvent();
 };
 
 export const subscribeToSessionStore = (listener: SessionStoreListener): (() => void) => {

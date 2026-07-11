@@ -27,6 +27,7 @@ import { Direction } from 'matrix-js-sdk';
 import { countCacheProbe } from '../threads/cacheProbe';
 import {
   getTailDiscontinuityGeneration,
+  loadLatestCachedRoomEvents,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
 } from '../threads/cacheStore';
@@ -104,6 +105,8 @@ export type EngineGapTrackerOptions = {
   markDiscontinuity?: typeof markRoomTailDiscontinuity;
   /** Test hook: swap the durable marker reader. */
   loadDiscontinuity?: typeof loadRoomTailDiscontinuity;
+  /** Test hook: control the pre-reset cache boundary snapshot. */
+  loadCachedTail?: typeof loadLatestCachedRoomEvents;
   /** Test hook: override the wall-clock time. */
   now?: () => number;
   /** Report a durable marker failure while the tracker retains it for retry. */
@@ -121,8 +124,9 @@ export type EngineGapTracker = {
   stop(): void;
 };
 
-export const GAP_MARK_RETRY_BASE_MS = 1_000;
-export const GAP_MARK_RETRY_MAX_MS = 30_000;
+const GAP_MARK_RETRY_BASE_MS = 1_000;
+const GAP_MARK_RETRY_MAX_MS = 30_000;
+export const GAP_FILL_OVERLAP_TAIL_LIMIT = 200;
 
 type PendingGapMark = {
   job: GapFillJob;
@@ -131,7 +135,9 @@ type PendingGapMark = {
     prevBatch?: string | null;
     generation: string;
     nextToken?: string | null;
+    overlapEventIds?: string[];
   };
+  overlapEventIds: Promise<string[]>;
   failureCount: number;
   reported: boolean;
   retryTimer?: ReturnType<typeof globalThis.setTimeout>;
@@ -141,6 +147,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
   const scheduler = options?.scheduler ?? createInMemoryGapFillScheduler();
   const markDiscontinuity = options?.markDiscontinuity ?? markRoomTailDiscontinuity;
   const loadDiscontinuity = options?.loadDiscontinuity ?? loadRoomTailDiscontinuity;
+  const loadCachedTail = options?.loadCachedTail ?? loadLatestCachedRoomEvents;
   const now = options?.now ?? (() => Date.now());
   const pendingMarks = new Map<string, PendingGapMark>();
   const inFlightMarks = new Set<string>();
@@ -169,9 +176,16 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
     if (!pending) return;
     inFlightMarks.add(roomId);
 
-    void markDiscontinuity(options?.sessionId ?? '', roomId, pending.marker)
+    void pending.overlapEventIds
+      .then((overlapEventIds) => {
+        if (stopped || pendingMarks.get(roomId) !== pending) return undefined;
+        return markDiscontinuity(options?.sessionId ?? '', roomId, {
+          ...pending.marker,
+          overlapEventIds,
+        });
+      })
       .then((durableMarker) => {
-        if (stopped || pendingMarks.get(roomId) !== pending) return;
+        if (!durableMarker || stopped || pendingMarks.get(roomId) !== pending) return;
         pendingMarks.delete(roomId);
         scheduler.enqueueGapFill({
           roomId,
@@ -230,6 +244,19 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
     if (options?.sessionId) {
       const previous = pendingMarks.get(room.roomId);
       if (previous?.retryTimer) globalThis.clearTimeout(previous.retryTimer);
+      const overlapEventIds =
+        previous?.overlapEventIds ??
+        loadCachedTail(options.sessionId, room.roomId, GAP_FILL_OVERLAP_TAIL_LIMIT)
+          .then((cachedTail) => [
+            ...new Set(
+              cachedTail.events.flatMap((cachedEvent) =>
+                typeof cachedEvent.event_id === 'string' && cachedEvent.event_id.length > 0
+                  ? [cachedEvent.event_id]
+                  : []
+              )
+            ),
+          ])
+          .catch(() => []);
       pendingMarks.set(room.roomId, {
         job,
         marker: {
@@ -237,6 +264,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
           generation,
           nextToken: prevBatch,
         },
+        overlapEventIds,
         failureCount: 0,
         reported: false,
       });

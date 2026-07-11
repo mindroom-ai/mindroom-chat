@@ -149,6 +149,29 @@ describe('service worker session handshake', () => {
     });
   });
 
+  it('keeps a later waiter attached after an earlier waiter times out', async () => {
+    const { client, dispatchFetch, dispatchMessage } = await loadServiceWorker();
+    const first = dispatchFetch();
+    await flushMicrotasks();
+
+    await vi.advanceTimersByTimeAsync(2900);
+    const second = dispatchFetch();
+    await flushMicrotasks();
+    expect(client.postMessage).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(100);
+    await first;
+    expect(fetchMock.mock.calls[0]).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(100);
+    dispatchMessage({ type: 'setSession', accessToken: 'token-a', baseUrl: HOMESERVER });
+    await second;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const authenticatedInit = fetchMock.mock.calls[1][1] as RequestInit;
+    expect(new Headers(authenticatedInit.headers).get('Authorization')).toBe('Bearer token-a');
+  });
+
   it('allows a fresh request after a pending session request times out', async () => {
     const { client, dispatchFetch, dispatchMessage } = await loadServiceWorker();
     const first = dispatchFetch();

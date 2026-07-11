@@ -488,18 +488,39 @@ describe('initClient', () => {
         })
       );
 
-      refreshToken.mockResolvedValueOnce({ access_token: 'access-c' });
-      const tokensWithoutRotation = await clientOptions?.tokenRefreshFunction?.('refresh-b');
+      vi.mocked(storage.setItem).mockImplementationOnce(() => {
+        throw new Error('blocked storage');
+      });
+      refreshToken.mockResolvedValueOnce({
+        access_token: 'access-c',
+        refresh_token: 'refresh-c',
+      });
+      const tokensWhileStorageBlocked = await clientOptions?.tokenRefreshFunction?.('refresh-b');
 
-      expect(tokensWithoutRotation).toEqual({
+      expect(tokensWhileStorageBlocked).toEqual({
         accessToken: 'access-c',
-        refreshToken: 'refresh-b',
+        refreshToken: 'refresh-c',
         expiry: undefined,
       });
       expect(getSessionStore(storage).sessions[0]).toEqual(
         expect.objectContaining({
-          accessToken: 'access-c',
+          accessToken: 'access-b',
           refreshToken: 'refresh-b',
+        })
+      );
+
+      refreshToken.mockResolvedValueOnce({ access_token: 'access-d' });
+      const tokensAfterStorageRecovery = await clientOptions?.tokenRefreshFunction?.('refresh-c');
+
+      expect(tokensAfterStorageRecovery).toEqual({
+        accessToken: 'access-d',
+        refreshToken: 'refresh-c',
+        expiry: undefined,
+      });
+      expect(getSessionStore(storage).sessions[0]).toEqual(
+        expect.objectContaining({
+          accessToken: 'access-d',
+          refreshToken: 'refresh-c',
           expiresInMs: undefined,
         })
       );

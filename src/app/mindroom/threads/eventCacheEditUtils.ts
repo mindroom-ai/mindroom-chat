@@ -7,6 +7,11 @@ import {
 } from '../../utils/editEvent';
 import { getLatestEdit, isEventOrderedAfter } from '../../utils/room';
 import { countCacheProbe } from './cacheProbe';
+import {
+  collectEmbeddedRelationEventIds,
+  collectExplicitRedactedEventIds,
+  stripRedactedRelationsFromRawEvent,
+} from './eventRevision';
 
 export type RedactedRelationTarget = {
   eventId: string;
@@ -36,7 +41,8 @@ const setSerializedReplacement = (
   };
 };
 
-const getTargetEventId = (mEvent: MatrixEvent): string | undefined => mEvent.getRelation()?.event_id;
+const getTargetEventId = (mEvent: MatrixEvent): string | undefined =>
+  mEvent.getRelation()?.event_id;
 
 const getLatestEvent = (events: MatrixEvent[]): MatrixEvent | undefined =>
   events.reduce<MatrixEvent | undefined>((latest, mEvent) => {
@@ -91,7 +97,10 @@ export const collectRedactedRelationTargetsFromLookup = (
   }, []);
 };
 
-export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): RedactedRelationTarget[] => {
+export const applyCachedRedactions = (
+  room: Room,
+  events: MatrixEvent[]
+): RedactedRelationTarget[] => {
   const redactionEventsByTarget = new Map<string, MatrixEvent[]>();
   const eventById = new Map<string, MatrixEvent>();
   const redactedRelationTargets: RedactedRelationTarget[] = [];
@@ -144,7 +153,14 @@ export const applyCachedRedactions = (room: Room, events: MatrixEvent[]): Redact
   return redactedRelationTargets;
 };
 
-export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
+type IsKnownRedactedEvent = (event: MatrixEvent) => boolean;
+
+const isRedactedEvent: IsKnownRedactedEvent = (event) => event.isRedacted();
+
+export const applyCachedReplaceRelations = (
+  events: MatrixEvent[],
+  isKnownRedacted: IsKnownRedactedEvent = isRedactedEvent
+): void => {
   const editEventsByTarget = new Map<string, MatrixEvent[]>();
   const eventById = new Map<string, MatrixEvent>();
 
@@ -167,8 +183,13 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
     const targetEvent = eventById.get(targetEventId);
     if (!targetEvent) return;
 
-    const replacingEvent = targetEvent.replacingEvent();
-    const candidateEvents = replacingEvent ? [replacingEvent, ...editEvents] : editEvents;
+    let replacingEvent = targetEvent.replacingEvent();
+    if (replacingEvent && isKnownRedacted(replacingEvent)) {
+      targetEvent.makeReplaced();
+      replacingEvent = null;
+    }
+    const validEditEvents = editEvents.filter((editEvent) => !isKnownRedacted(editEvent));
+    const candidateEvents = replacingEvent ? [replacingEvent, ...validEditEvents] : validEditEvents;
     const latestEdit = getLatestEdit(targetEvent, candidateEvents);
 
     if (!latestEdit || latestEdit === replacingEvent) {
@@ -191,15 +212,25 @@ export const applyCachedReplaceRelations = (events: MatrixEvent[]): void => {
   });
 };
 
-export const applySerializedCachedReplaceRelations = (events: MatrixEvent[]): void => {
+export const applySerializedCachedReplaceRelations = (
+  events: MatrixEvent[],
+  isKnownRedacted: IsKnownRedactedEvent = isRedactedEvent
+): void => {
   events.forEach((targetEvent) => {
-    const serializedReplacementCandidate = getSerializedRelationEvent(targetEvent, RelationType.Replace);
+    const serializedReplacementCandidate = getSerializedRelationEvent(
+      targetEvent,
+      RelationType.Replace
+    );
     const serializedReplacement = isSameSenderEditEvent(targetEvent, serializedReplacementCandidate)
       ? serializedReplacementCandidate
       : undefined;
-    if (!serializedReplacement) return;
+    let existingReplacement = targetEvent.replacingEvent() ?? undefined;
+    if (existingReplacement && isKnownRedacted(existingReplacement)) {
+      targetEvent.makeReplaced();
+      existingReplacement = undefined;
+    }
+    if (!serializedReplacement || isKnownRedacted(serializedReplacement)) return;
 
-    const existingReplacement = targetEvent.replacingEvent() ?? undefined;
     const latestEdit = getLatestEdit(
       targetEvent,
       [existingReplacement, serializedReplacement].filter(
@@ -245,7 +276,9 @@ const removeMatchingAggregatedRelationEvent = (
 ): void => {
   if (!relations || !eventId) return;
 
-  const existingEvent = relations.getRelations().find((relationEvent) => relationEvent.getId() === eventId);
+  const existingEvent = relations
+    .getRelations()
+    .find((relationEvent) => relationEvent.getId() === eventId);
   if (!existingEvent) return;
 
   void relations.removeEvent(existingEvent);
@@ -280,7 +313,11 @@ export const reconcileRelationEventsWithAggregation = (
     if (mEvent.isRedacted()) {
       targets.forEach(({ relations }) => {
         removeMatchingAggregatedRelationEvent(
-          relations.getChildEventsForEvent(relation.event_id!, relation.rel_type!, mEvent.getType()),
+          relations.getChildEventsForEvent(
+            relation.event_id!,
+            relation.rel_type!,
+            mEvent.getType()
+          ),
           eventId
         );
       });
@@ -314,10 +351,40 @@ export const hydrateCachedEvents = ({
   seenRelationEventIds?: Set<string>;
 }): RedactedRelationTarget[] => {
   const redactedRelationTargets = applyCachedRedactions(room, events);
-  applyCachedReplaceRelations(events);
-  applySerializedCachedReplaceRelations(events);
+  const rawEvents = events.map((event) => event.event as Partial<IEvent>);
+  const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
+  events.forEach((event) => {
+    const eventId = event.getId();
+    if (eventId && event.isRedacted()) redactedEventIds.add(eventId);
+    const associatedId = event.isRedaction() ? event.getAssociatedId() : undefined;
+    if (associatedId) redactedEventIds.add(associatedId);
+  });
+  collectEmbeddedRelationEventIds(rawEvents).forEach((eventId) => {
+    if (room.findEventById(eventId)?.isRedacted()) redactedEventIds.add(eventId);
+  });
+
+  events.forEach((event) => {
+    const rawEvent = event.event as Partial<IEvent>;
+    const prunedRawEvent = stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds);
+    if (prunedRawEvent !== rawEvent) event.setUnsigned(prunedRawEvent.unsigned ?? {});
+  });
+  const isKnownRedacted = (event: MatrixEvent): boolean => {
+    if (event.isRedacted()) return true;
+    const eventId = event.getId();
+    return (
+      !!eventId &&
+      (redactedEventIds.has(eventId) || room.findEventById(eventId)?.isRedacted() === true)
+    );
+  };
+  applyCachedReplaceRelations(events, isKnownRedacted);
+  applySerializedCachedReplaceRelations(events, isKnownRedacted);
   if (timelineSets) {
-    aggregateCachedRelationEvents(events, timelineSets, seenRelationEventIds, redactedRelationTargets);
+    aggregateCachedRelationEvents(
+      events,
+      timelineSets,
+      seenRelationEventIds,
+      redactedRelationTargets
+    );
   }
   return redactedRelationTargets;
 };

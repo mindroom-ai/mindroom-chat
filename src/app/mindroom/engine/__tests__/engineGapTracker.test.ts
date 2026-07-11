@@ -84,11 +84,14 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     marker: { markedAt: number; prevBatch?: string | null; generation?: string }
   ) => marker;
   const markDiscontinuity = vi.fn(defaultMarkDiscontinuity);
+  const loadCachedTail = vi.fn(async () => ({ events: [], hasMoreBefore: false }));
 
   beforeEach(() => {
     resetCacheProbe();
     markDiscontinuity.mockReset();
     markDiscontinuity.mockImplementation(defaultMarkDiscontinuity);
+    loadCachedTail.mockReset();
+    loadCachedTail.mockResolvedValue({ events: [], hasMoreBefore: false });
   });
 
   afterEach(() => {
@@ -99,15 +102,21 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
   it('marks the room and enqueues a limited-sync job on TimelineReset for the unfiltered timelineSet', async () => {
     const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    loadCachedTail.mockResolvedValueOnce({
+      events: [{ event_id: '$pre-gap-tail', origin_server_ts: 1 }],
+      hasMoreBefore: false,
+    });
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      loadCachedTail,
       now: () => 1000,
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
+    await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
     await markDiscontinuity.mock.results[0].value;
     await Promise.resolve();
 
@@ -116,6 +125,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       prevBatch: 'batch-1',
       generation: '1000:batch-1',
       nextToken: 'batch-1',
+      overlapEventIds: ['$pre-gap-tail'],
     });
     expect(scheduler.pendingJobs()).toEqual([
       {
@@ -220,6 +230,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      loadCachedTail,
       loadDiscontinuity: async () => ({
         markedAt: 2000,
         prevBatch: 'old-batch',
@@ -229,6 +240,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
     await tracker.handleSyncPrepared();
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
+    await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
     await markDiscontinuity.mock.results[0].value;
     await Promise.resolve();
 
@@ -264,15 +276,14 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      loadCachedTail,
       onPersistenceError,
       now: () => 1000,
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(onPersistenceError).toHaveBeenCalledTimes(1));
     expect(scheduler.pendingJobs()).toEqual([]);
-    expect(onPersistenceError).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(scheduler.pendingJobs()).toEqual([
@@ -291,18 +302,19 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     vi.useFakeTimers();
     const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    const onPersistenceError = vi.fn();
     markDiscontinuity.mockRejectedValue(new Error('blocked cache'));
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
-      onPersistenceError: vi.fn(),
+      loadCachedTail,
+      onPersistenceError,
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(onPersistenceError).toHaveBeenCalledTimes(1));
     tracker.stop();
     await vi.advanceTimersByTimeAsync(60_000);
 
@@ -331,10 +343,12 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       sessionId: 'session',
       scheduler,
       markDiscontinuity,
+      loadCachedTail,
       now,
     });
 
     tracker.handleTimelineReset(firstRoom, firstRoom.getUnfilteredTimelineSet());
+    await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
     tracker.handleTimelineReset(secondRoom, secondRoom.getUnfilteredTimelineSet());
     resolveFirst?.({ markedAt: 1000, prevBatch: 'batch-1' });
     await vi.waitFor(() => {
@@ -348,6 +362,63 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
         },
       ]);
     });
+    tracker.stop();
+  });
+
+  it('shares the pre-gap boundary when a newer reset supersedes a pending mark', async () => {
+    const scheduler = createInMemoryGapFillScheduler();
+    const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
+    let resolveBoundary:
+      | ((page: {
+          events: { event_id: string; origin_server_ts: number }[];
+          hasMoreBefore: boolean;
+        }) => void)
+      | undefined;
+    loadCachedTail.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveBoundary = resolve;
+        })
+    );
+    const now = vi.fn().mockReturnValueOnce(1000).mockReturnValueOnce(2000);
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'session',
+      scheduler,
+      markDiscontinuity,
+      loadCachedTail,
+      now,
+    });
+
+    tracker.handleTimelineReset(firstRoom, firstRoom.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(secondRoom, secondRoom.getUnfilteredTimelineSet());
+
+    expect(loadCachedTail).toHaveBeenCalledTimes(1);
+    resolveBoundary?.({
+      events: [{ event_id: '$pre-gap-tail', origin_server_ts: 1 }],
+      hasMoreBefore: false,
+    });
+
+    await vi.waitFor(() => {
+      expect(markDiscontinuity).toHaveBeenCalledTimes(1);
+      expect(markDiscontinuity).toHaveBeenCalledWith('session', '!a', {
+        markedAt: 2000,
+        prevBatch: 'batch-2',
+        generation: '2000:batch-2',
+        nextToken: 'batch-2',
+        overlapEventIds: ['$pre-gap-tail'],
+      });
+    });
+    expect(scheduler.pendingJobs()).toEqual([
+      {
+        roomId: '!a',
+        reason: 'limited-sync',
+        markedAt: 2000,
+        prevBatch: 'batch-2',
+        generation: '2000:batch-2',
+      },
+    ]);
     tracker.stop();
   });
 });

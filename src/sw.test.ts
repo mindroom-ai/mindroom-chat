@@ -59,17 +59,4 @@ describe('service worker app shell caching', () => {
     expect(denylistEntry.test('/home/some-room')).toBe(false);
     expect(denylistEntry.test('/')).toBe(false);
   });
-
-  it('recovers a bound session after a worker restart without requesting a bare token', () => {
-    const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
-    const appSource = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
-
-    expect(swSource).not.toContain('askForAccessToken');
-    expect(swSource).not.toContain("type: 'token'");
-    expect(appSource).not.toContain("event.data?.type === 'token'");
-    expect(swSource).toContain("type: 'requestSession'");
-    expect(appSource).toContain("event.data?.type === 'requestSession'");
-    expect(appSource).toContain('pushSessionToSW(session?.baseUrl, session?.accessToken)');
-    expect(swSource).toContain('validMediaRequest(url, session.baseUrl)');
-  });
 });

@@ -685,6 +685,59 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(getCacheProbeSnapshot().reconcilesNoDivergence).toBe(1);
   });
 
+  it('repairs a cached replacement when its already-cached redaction is fetched again', async () => {
+    const room = makeFakeRoom();
+    const targetWithEdit: Partial<IEvent> = {
+      event_id: '$target',
+      sender: '@bob:example',
+      origin_server_ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            event_id: '$edit-v2',
+            sender: '@bob:example',
+            origin_server_ts: 200,
+          },
+        },
+      },
+    };
+    const redaction: Partial<IEvent> = {
+      event_id: '$redaction',
+      sender: '@moderator:example',
+      origin_server_ts: 300,
+      type: 'm.room.redaction',
+      redacts: '$edit-v2',
+      content: {},
+    };
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [redaction] }),
+    });
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [targetWithEdit, redaction] as never;
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+      reason: 'open-thread-choke-point',
+      persistRepair,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+  });
+
   it('repairs when a fetched same-id target newly carries redaction state', async () => {
     const room = makeFakeRoom();
     const fetchedTarget: Partial<IEvent> = {
@@ -1151,14 +1204,13 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(persistRepair).not.toHaveBeenCalled();
   });
 
-  it('revalidates from head after a capped head-validation phase resumes', async () => {
+  it('completes a capped head-validation phase from its saved cursor', async () => {
     const room = makeFakeRoom();
     const continuationStore = createContinuationStore();
     await continuationStore.begin('session', '!room:example', '$thread', {
       generation: 'validation-a',
       startedAt: 1,
       nextToken: 'older-cursor',
-      validatingHead: true,
       overlapEventIds: ['$known'],
     });
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
@@ -1202,11 +1254,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       nextToken: 'head-26',
     });
 
-    const secondFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) =>
-      options.from
-        ? { chunk: [{ event_id: '$known' }, { event_id: '$validation-tail' }] }
-        : { chunk: [{ event_id: '$new-head-between-passes' }, { event_id: '$known' }] }
-    );
+    const secondFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, _options) => ({
+      chunk: [{ event_id: '$known' }, { event_id: '$validation-tail' }],
+    }));
     const secondClient = {
       getRoom: () => room,
       getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
@@ -1226,12 +1276,12 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       continuationStore,
     });
 
+    expect(secondFetch).toHaveBeenCalledTimes(1);
     expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'head-26' });
-    expect(secondFetch.mock.calls[1][4]).not.toHaveProperty('from');
     expect(result).toMatchObject({ repaired: true, durable: true });
     expect(continuationStore.getMarker()).toBeUndefined();
     const persistedIds = persistRepair.mock.calls.at(-1)?.[0].events.map((event) => event.getId());
-    expect(persistedIds).toContain('$new-head-between-passes');
+    expect(persistedIds).toContain('$validation-tail');
   });
 
   it('upgrades an empty saved overlap boundary from the current cache', async () => {

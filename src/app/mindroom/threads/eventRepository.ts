@@ -37,11 +37,14 @@ import {
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
 import {
+  collectEmbeddedRelationEventIds,
+  collectExplicitRedactedEventIds,
   compareEventRevisions,
   describeMatrixEventRevision,
   describeRawEventRevision,
   mergeRawEventRevisions,
   mergeSameIdEventRevision,
+  stripRedactedRelationsFromRawEvent,
   type RelationSnapshotMode,
 } from './eventRevision';
 
@@ -815,6 +818,7 @@ export type PersistThreadEventCacheSnapshotArgs = {
 };
 
 const sanitizeAuthoritativeRawEvents = (
+  room: Room,
   events: MatrixEvent[],
   authoritativeRawEvents: Partial<IEvent>[]
 ): Partial<IEvent>[] => {
@@ -823,20 +827,26 @@ const sanitizeAuthoritativeRawEvents = (
     const eventId = mEvent.getId();
     if (eventId && mEvent.isRedacted()) redactedEventById.set(eventId, mEvent);
   });
+  const redactedEventIds = collectExplicitRedactedEventIds(authoritativeRawEvents);
+  redactedEventById.forEach((_event, eventId) => redactedEventIds.add(eventId));
+  collectEmbeddedRelationEventIds(authoritativeRawEvents).forEach((eventId) => {
+    if (room.findEventById(eventId)?.isRedacted()) redactedEventIds.add(eventId);
+  });
 
   return authoritativeRawEvents.map((rawEvent) => {
     const eventId = rawEvent.event_id;
     const redactedEvent = eventId ? redactedEventById.get(eventId) : undefined;
-    if (!redactedEvent) return rawEvent;
+    if (!redactedEvent) {
+      return stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds);
+    }
 
     // The prefer-live mapper has already applied makeRedacted(room), so this
     // base carries the SDK's pruned content. Merge the server observation only
     // for its authoritative non-replacement relation bundles; never let its
     // temporarily stale plaintext become the persisted base again.
-    return mergeRawEventRevisions(
-      redactedEvent.event as Partial<IEvent>,
-      rawEvent,
-      'authoritative'
+    return stripRedactedRelationsFromRawEvent(
+      mergeRawEventRevisions(redactedEvent.event as Partial<IEvent>, rawEvent, 'authoritative'),
+      redactedEventIds
     );
   });
 };
@@ -865,7 +875,7 @@ export const persistThreadEventCacheSnapshot = ({
       ? loadedReplyCount
       : undefined);
   const rawEvents = authoritativeRawEvents
-    ? sanitizeAuthoritativeRawEvents(events, authoritativeRawEvents)
+    ? sanitizeAuthoritativeRawEvents(room, events, authoritativeRawEvents)
     : serializeThreadCacheEvents(room, events, resolvedRootEvent);
   const rawRootEvent = resolvedRootEvent
     ? rawEvents.find((rawEvent) => rawEvent.event_id === resolvedRootEvent.getId())

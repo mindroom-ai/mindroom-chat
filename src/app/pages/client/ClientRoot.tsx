@@ -333,11 +333,6 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
     let disposed = false;
     let nextClient: ClientMatrixClient | undefined;
 
-    if (!clientBootstrapSession) {
-      setClientState({ status: 'idle' });
-      return () => undefined;
-    }
-
     setClientState({
       status: 'loading',
       session: clientBootstrapSession,

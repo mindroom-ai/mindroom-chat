@@ -38,7 +38,11 @@ import {
 } from '../threads/cacheStore';
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
-import type { GapFillJob, GapFillScheduler } from './engineGapTracker';
+import {
+  GAP_FILL_OVERLAP_TAIL_LIMIT,
+  type GapFillJob,
+  type GapFillScheduler,
+} from './engineGapTracker';
 import {
   DEFAULT_PREFETCH_SCOPE,
   isRoomEligibleForBackgroundPrefetch,
@@ -47,10 +51,12 @@ import {
   type PrefetchConfig,
 } from './prefetchPolicy';
 
+export { GAP_FILL_OVERLAP_TAIL_LIMIT } from './engineGapTracker';
+
 // Batch size for the /messages page — matches the app's other backfill
 // batches so the scheduler's cooperative abort granularity is
 // consistent across job kinds.
-const GAP_FILL_BATCH_SIZE = 200;
+const GAP_FILL_BATCH_SIZE = GAP_FILL_OVERLAP_TAIL_LIMIT;
 
 // The startup/ongoing sync filter is capped at 20 timeline events
 // (STARTUP_SYNC_TIMELINE_LIMIT in client/initMatrix.ts). Keeping ten
@@ -60,8 +66,6 @@ const GAP_FILL_BATCH_SIZE = 200;
 // engine depend on client startup code. The ids are persisted on the
 // marker before any /messages page is written, so later capped runs
 // cannot displace this original boundary.
-export const GAP_FILL_OVERLAP_TAIL_LIMIT = GAP_FILL_BATCH_SIZE;
-
 // Cap on iterations per gap-fill job. Guards against pathological
 // homeservers that stream tokens forever. In practice a gap-fill
 // terminates when the SDK returns `end === undefined` (no more

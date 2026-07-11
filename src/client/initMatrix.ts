@@ -93,15 +93,11 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
         const nextRefreshToken = response.refresh_token ?? refreshToken;
         const expiresInMs =
           typeof response.expires_in_ms === 'number' ? response.expires_in_ms : undefined;
-        updateSessionCredentials(
-          session.sessionId,
-          {
-            accessToken: response.access_token,
-            refreshToken: nextRefreshToken,
-            expiresInMs,
-          },
-          { expectedRefreshToken: refreshToken }
-        );
+        updateSessionCredentials(session.sessionId, {
+          accessToken: response.access_token,
+          refreshToken: nextRefreshToken,
+          expiresInMs,
+        });
         return {
           accessToken: response.access_token,
           refreshToken: nextRefreshToken,

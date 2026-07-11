@@ -93,6 +93,67 @@ describe('eventRepository same-id revision merge', () => {
     expect(merged.getContent()).toMatchObject({ body: 'v3' });
   });
 
+  it('does not re-persist a stale authoritative bundle for a known-redacted edit', () => {
+    const edit = makeRawEdit('$edit-v2', '$target', 'secret');
+    const targetRaw = makeRawMessage('$target', 'original', { replacement: edit });
+    const redactedEdit = mapRawEvent(edit);
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$edit-v2' ? redactedEdit : undefined),
+    };
+    redactedEdit.makeRedacted(
+      mapRawEvent({
+        event_id: '$redaction',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        origin_server_ts: 300,
+        redacts: '$edit-v2',
+        content: {},
+      }),
+      room as never
+    );
+
+    const snapshot = persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [mapRawEvent(targetRaw)],
+      authoritativeRawEvents: [targetRaw],
+      save: vi.fn().mockResolvedValue(true),
+    });
+
+    expect(snapshot.rawEvents[0]?.unsigned?.['m.relations']?.['m.replace']).toBeUndefined();
+    expect(JSON.stringify(snapshot.rawEvents)).not.toContain('secret');
+  });
+
+  it('clears a known-redacted live replacement even when the incoming target has no bundle', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'original'));
+    const edit = mapRawEvent(makeRawEdit('$edit-v2', '$target', 'secret'));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) =>
+        eventId === '$target' ? live : eventId === '$edit-v2' ? edit : undefined,
+    };
+    live.makeReplaced(edit);
+    edit.makeRedacted(
+      mapRawEvent({
+        event_id: '$redaction',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        origin_server_ts: 300,
+        redacts: '$edit-v2',
+        content: {},
+      }),
+      room as never
+    );
+
+    createPreferLiveEventMapper(room as never, mapRawEvent)(makeRawMessage('$target', 'original'));
+
+    expect(live.replacingEvent()).toBeNull();
+  });
+
   it('does not apply a cross-sender cached replacement', () => {
     const live = mapRawEvent(makeRawMessage('$target', 'v1'));
     const edit = makeRawEdit('$evil-edit', '$target', 'evil', {

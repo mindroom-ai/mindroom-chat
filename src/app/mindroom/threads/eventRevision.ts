@@ -58,6 +58,108 @@ const withoutRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> => {
   return { ...rawEvent, unsigned: nextUnsigned };
 };
 
+const withoutMatchingRawReplacement = (
+  rawEvent: Partial<IEvent>,
+  redactedEventIds: ReadonlySet<string>
+): Partial<IEvent> => {
+  const replacement = getRawReplacement(rawEvent);
+  const replacementId = replacement?.event_id;
+  return typeof replacementId === 'string' && redactedEventIds.has(replacementId)
+    ? withoutRawReplacement(rawEvent)
+    : rawEvent;
+};
+
+/** Remove cached relation bundles that still reference redacted events. */
+export const stripRedactedRelationsFromRawEvent = (
+  rawEvent: Partial<IEvent>,
+  redactedEventIds: ReadonlySet<string>
+): Partial<IEvent> => {
+  if (redactedEventIds.size === 0) return rawEvent;
+
+  let nextEvent = withoutMatchingRawReplacement(rawEvent, redactedEventIds);
+  const relations = nextEvent.unsigned?.['m.relations'];
+  if (!isRecord(relations)) return nextEvent;
+
+  const thread = relations[RelationType.Thread];
+  if (!isRecord(thread) || !isRecord(thread.latest_event)) return nextEvent;
+
+  const latestEvent = thread.latest_event as Partial<IEvent>;
+  const latestEventId = latestEvent.event_id;
+  const nextLatestEvent =
+    typeof latestEventId === 'string' && redactedEventIds.has(latestEventId)
+      ? undefined
+      : stripRedactedRelationsFromRawEvent(latestEvent, redactedEventIds);
+  if (nextLatestEvent === latestEvent) return nextEvent;
+
+  const nextThread = { ...thread };
+  if (nextLatestEvent) {
+    nextThread.latest_event = nextLatestEvent;
+  } else {
+    delete nextThread.latest_event;
+  }
+  const nextRelations = { ...relations, [RelationType.Thread]: nextThread };
+  nextEvent = {
+    ...nextEvent,
+    unsigned: {
+      ...nextEvent.unsigned,
+      'm.relations': nextRelations,
+    },
+  };
+  return nextEvent;
+};
+
+export const collectExplicitRedactedEventIds = (
+  rawEvents: readonly Partial<IEvent>[]
+): Set<string> => {
+  const redactedEventIds = new Set<string>();
+  const collect = (rawEvent: Partial<IEvent>): void => {
+    if (rawEvent.unsigned?.redacted_because && typeof rawEvent.event_id === 'string') {
+      redactedEventIds.add(rawEvent.event_id);
+    }
+    if (rawEvent.type === 'm.room.redaction') {
+      const contentRedacts = isRecord(rawEvent.content) ? rawEvent.content.redacts : undefined;
+      const redactedEventId =
+        typeof rawEvent.redacts === 'string'
+          ? rawEvent.redacts
+          : typeof contentRedacts === 'string'
+          ? contentRedacts
+          : undefined;
+      if (redactedEventId) redactedEventIds.add(redactedEventId);
+    }
+
+    const replacement = getRawReplacement(rawEvent);
+    if (replacement) collect(replacement);
+    const relations = rawEvent.unsigned?.['m.relations'];
+    if (!isRecord(relations)) return;
+    const thread = relations[RelationType.Thread];
+    if (isRecord(thread) && isRecord(thread.latest_event)) {
+      collect(thread.latest_event as Partial<IEvent>);
+    }
+  };
+  rawEvents.forEach(collect);
+  return redactedEventIds;
+};
+
+export const collectEmbeddedRelationEventIds = (
+  rawEvents: readonly Partial<IEvent>[]
+): Set<string> => {
+  const eventIds = new Set<string>();
+  const collect = (rawEvent: Partial<IEvent>): void => {
+    const replacementId = getRawReplacement(rawEvent)?.event_id;
+    if (typeof replacementId === 'string') eventIds.add(replacementId);
+
+    const relations = rawEvent.unsigned?.['m.relations'];
+    if (!isRecord(relations)) return;
+    const thread = relations[RelationType.Thread];
+    if (!isRecord(thread) || !isRecord(thread.latest_event)) return;
+    const latestEvent = thread.latest_event as Partial<IEvent>;
+    if (typeof latestEvent.event_id === 'string') eventIds.add(latestEvent.event_id);
+    collect(latestEvent);
+  };
+  rawEvents.forEach(collect);
+  return eventIds;
+};
+
 const getNonReplacementRelations = (rawEvent: Partial<IEvent>): Record<string, unknown> => {
   const relations = rawEvent.unsigned?.['m.relations'];
   if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return {};
@@ -319,16 +421,41 @@ export const mergeSameIdEventRevision = ({
 
   const incomingEvent = mapEvent(rawEvent);
   const incomingReplacement = getSerializedReplacementEvent(incomingEvent);
-  if (!isSameSenderEditEvent(liveEvent, incomingReplacement)) return liveEvent;
+  const isKnownRedacted = (replacement: MatrixEvent | undefined): boolean => {
+    const replacementId = replacement?.getId();
+    return (
+      !!replacement?.isRedacted() ||
+      (replacementId ? room.findEventById(replacementId)?.isRedacted() === true : false)
+    );
+  };
+  const removeSerializedReference = (replacement: MatrixEvent | undefined): void => {
+    const replacementId = replacement?.getId();
+    if (!replacementId) return;
+    const rawLiveEvent = liveEvent.event as Partial<IEvent>;
+    const prunedLiveEvent = stripRedactedRelationsFromRawEvent(
+      rawLiveEvent,
+      new Set([replacementId])
+    );
+    if (prunedLiveEvent !== rawLiveEvent) liveEvent.setUnsigned(prunedLiveEvent.unsigned ?? {});
+  };
 
-  const currentReplacement = liveEvent.replacingEvent() ?? undefined;
+  let currentReplacement = liveEvent.replacingEvent() ?? undefined;
+  if (isKnownRedacted(currentReplacement)) {
+    removeSerializedReference(currentReplacement);
+    liveEvent.makeReplaced();
+    currentReplacement = undefined;
+  }
+  if (!isSameSenderEditEvent(liveEvent, incomingReplacement)) return liveEvent;
+  if (isKnownRedacted(incomingReplacement)) {
+    removeSerializedReference(incomingReplacement);
+    return liveEvent;
+  }
   const serializedLiveReplacementCandidate = getSerializedReplacementEvent(liveEvent);
-  const serializedLiveReplacement = isSameSenderEditEvent(
-    liveEvent,
-    serializedLiveReplacementCandidate
-  )
-    ? serializedLiveReplacementCandidate
-    : undefined;
+  const serializedLiveReplacement =
+    isSameSenderEditEvent(liveEvent, serializedLiveReplacementCandidate) &&
+    !isKnownRedacted(serializedLiveReplacementCandidate)
+      ? serializedLiveReplacementCandidate
+      : undefined;
   const latestReplacement = getLatestEdit(
     liveEvent,
     [currentReplacement, serializedLiveReplacement, incomingReplacement].filter(

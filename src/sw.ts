@@ -59,7 +59,11 @@ type SessionInfo = {
 const sessions = new Map<string, SessionInfo>();
 const pendingSessionRequests = new Map<
   string,
-  { promise: Promise<SessionInfo | undefined>; resolve: (session?: SessionInfo) => void }
+  {
+    promise: Promise<SessionInfo | undefined>;
+    resolve: (session?: SessionInfo) => void;
+    waiters: number;
+  }
 >();
 
 async function cleanupDeadClients() {
@@ -116,18 +120,20 @@ const requestSession = async (
     const promise = new Promise<SessionInfo | undefined>((nextResolve) => {
       resolve = nextResolve;
     });
-    pending = { promise, resolve };
+    pending = { promise, resolve, waiters: 0 };
     pendingSessionRequests.set(clientId, pending);
     client.postMessage({ type: 'requestSession' });
   }
 
+  pending.waiters += 1;
   const session = await Promise.race([
     pending.promise,
     new Promise<undefined>((resolve) => {
       setTimeout(resolve, timeoutMs);
     }),
   ]);
-  if (!session && pendingSessionRequests.get(clientId) === pending) {
+  pending.waiters -= 1;
+  if (!session && pending.waiters === 0 && pendingSessionRequests.get(clientId) === pending) {
     pendingSessionRequests.delete(clientId);
   }
   return session;

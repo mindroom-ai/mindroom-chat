@@ -27,7 +27,9 @@ export const buildCommandPaletteDmRoomMap = ({
   const addRoom = (roomId: string, requireDmShape: boolean) => {
     const room = getRoom(roomId);
     if (!room) return;
-    if (requireDmShape && (!room.hasEncryptionStateEvent() || room.getMembers().length > 2)) return;
+    if (requireDmShape && (!room.hasEncryptionStateEvent() || room.getJoinedMemberCount() !== 2)) {
+      return;
+    }
 
     const userId = guessDmRoomUserId(room, myUserId);
     if (!userId || userId === myUserId || roomByUserId.has(userId)) return;

@@ -222,16 +222,26 @@ describe('getCommandPaletteDmUserDetails', () => {
 });
 
 describe('buildCommandPaletteDmRoomMap', () => {
-  const makeDmRoom = (roomId: string, userId: string, encrypted = true) => {
-    const members = [
+  const makeDmRoom = (
+    roomId: string,
+    userId: string,
+    encrypted = true,
+    historicalUserIds: string[] = []
+  ) => {
+    const joinedMembers = [
       { userId: '@me:example.org', events: {} },
       { userId, events: {} },
+    ];
+    const members = [
+      ...joinedMembers,
+      ...historicalUserIds.map((historicalUserId) => ({ userId: historicalUserId, events: {} })),
     ];
     return {
       roomId,
       getMember: (candidateId: string) => members.find((member) => member.userId === candidateId),
       getMembers: () => members,
-      getJoinedMembers: () => members,
+      getJoinedMemberCount: () => joinedMembers.length,
+      getJoinedMembers: () => joinedMembers,
       hasEncryptionStateEvent: () => encrypted,
     } as unknown as Room;
   };
@@ -260,5 +270,20 @@ describe('buildCommandPaletteDmRoomMap', () => {
         myUserId: '@me:example.org',
       })
     ).toEqual(new Map());
+  });
+
+  it('ignores departed members when inferring an encrypted two-person DM', () => {
+    const room = makeDmRoom('!room:example.org', '@bob:example.org', true, [
+      '@departed:example.org',
+    ]);
+
+    expect(
+      buildCommandPaletteDmRoomMap({
+        directRoomIds: [],
+        getRoom: () => room,
+        joinedRoomIds: [room.roomId],
+        myUserId: '@me:example.org',
+      }).get('@bob:example.org')
+    ).toBe(room.roomId);
   });
 });
