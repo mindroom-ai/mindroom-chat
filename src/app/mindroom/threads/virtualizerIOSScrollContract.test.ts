@@ -28,6 +28,8 @@ const FLICKS = 3;
 const STEPS_PER_FLICK = 10;
 const MEASURED_ROWS = FLICKS * STEPS_PER_FLICK;
 const BANKED_ERROR = MEASURED_ROWS * (ROW_ACTUAL - ROW_ESTIMATE);
+const COLLAPSED_ROW_SIZE = 60;
+const EXPANDED_ROW_DELTA = 4149;
 
 // virtual-core caches its iOS detection at module scope; jsdom's userAgent
 // lives on the prototype, so an own property shadows it (same pattern as
@@ -250,17 +252,50 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     });
   });
 
-  it('keeps mid-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
+  it('ledgers a giant desktop correction while scrolling backward instead of snapping down', () => {
     const scrollToFn = vi.fn();
     const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+    const droppedDeltas: number[] = [];
+
+    // Reproduce the trace's cached-collapsed path: this row was measured
+    // before it left the virtual window, then remounts expanded during the
+    // upward ride. virtual-core's default predicate suppresses this exact
+    // backward remeasurement; the production hook must preserve that guard.
+    virtualizer.resizeItem(10, COLLAPSED_ROW_SIZE);
+    expect(virtualizer.itemSizeCache.get(10)).toBe(COLLAPSED_ROW_SIZE);
+    scrollToFn.mockClear();
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
       isIOSWebKitDevice: () => false,
-      onDroppedCorrection: () => {},
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
     });
 
     scroll(START_OFFSET - 40, true);
+    virtualizer.resizeItem(10, COLLAPSED_ROW_SIZE + EXPANDED_ROW_DELTA);
+
+    expect(scrollToFn).not.toHaveBeenCalled();
+    expect(droppedDeltas).toEqual([EXPANDED_ROW_DELTA]);
+  });
+
+  it.each([
+    { motion: 'forward', offset: START_OFFSET + 40, isScrolling: true },
+    { motion: 'quiet', offset: START_OFFSET, isScrolling: false },
+  ])('keeps immediate desktop correction while $motion', ({ offset, isScrolling }) => {
+    const scrollToFn = vi.fn();
+    const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+    const droppedDeltas: number[] = [];
+
+    virtualizer.resizeItem(10, COLLAPSED_ROW_SIZE);
+    scrollToFn.mockClear();
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+    });
+
+    scroll(offset, isScrolling);
     virtualizer.resizeItem(10, ROW_ACTUAL);
+
     expect(scrollToFn).toHaveBeenCalledTimes(1);
+    expect(droppedDeltas).toEqual([]);
   });
 
   // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the

@@ -464,6 +464,7 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
   const base = {
     itemFullyAboveViewport: true,
     isIOSWebKitDevice: true,
+    isScrollingBackward: false,
   };
 
   it('never applies on iOS — corrections are ledgered, not written', () => {
@@ -473,10 +474,20 @@ describe('shouldApplyMeasurementScrollCorrection', () => {
     expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
   });
 
-  it('keeps live-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
+  it('keeps immediate desktop anchoring while quiet or moving forward', () => {
     expect(shouldApplyMeasurementScrollCorrection({ ...base, isIOSWebKitDevice: false })).toBe(
       true
     );
+  });
+
+  it('ledgers desktop corrections while scrolling backward', () => {
+    expect(
+      shouldApplyMeasurementScrollCorrection({
+        ...base,
+        isIOSWebKitDevice: false,
+        isScrollingBackward: true,
+      })
+    ).toBe(false);
   });
 
   it('never adjusts for visible (straddling) or below-viewport items', () => {

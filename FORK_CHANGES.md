@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### Preserve upward scrolling when expanded rows remeasure (2026-07-10)
+
+- Status: complete; independent review found no remaining behavioral issues.
+- A production ride trace and a controlled local reproduction showed the same failure chain in a
+  long thread: one upward page moved `scrollTop` by -629px, an expanded row then grew the virtual
+  canvas by 4,149px, and the desktop measurement hook immediately wrote a +3,334px correction.
+  A following -2,772px canvas correction clamped the viewport to the new bottom, visibly jumping
+  from June 29-July 1 back to July 7. Thread count stayed constant, the offset ledger stayed zero,
+  and frame time stayed healthy, ruling out pagination, missing rows, or a main-thread stall.
+- Root cause: remembered `Show more` state can outlive the collapsed height cached for the same
+  event. When that row remounts above the viewport during backward scrolling, the custom desktop
+  hook overrides virtual-core's backward-scroll safeguard and applies the entire estimate-to-real
+  delta directly to `scrollTop`.
+- Desktop backward-scroll corrections now enter the existing coherent offset ledger, the same
+  no-write mechanism used on iOS. Quiet and forward desktop corrections remain immediate, and
+  visible/straddling rows still reflow in place without compensation.
+- RED: the real virtual-core contract reproduced the captured 4,149px cached-collapse delta and
+  observed one adjustment write on `origin/dev`. GREEN: the same contract observes zero writes
+  plus the exact ledger delta, while forward and quiet desktop corrections remain immediate. The
+  focused correction and component-ledger suites pass (3 files / 88 tests).
+- The live Docker-Matrix guard expands a measured overscan row fully above the viewport during a
+  backward desktop ride, proves the height and ledger changes landed, and checks both mid-ride and
+  post-settle visual anchors. The strengthened guard passed 3/3 consecutive runs.
+- PR #114 review follow-up removed the guard's fixed 50ms/render-frame assumptions: Playwright now
+  polls for both the above-viewport target and a fully visible anchor, then re-arms a real upward
+  wheel and captures the baseline/starts the keepalive in that exact scroll event so a slow poll
+  cannot outlive virtual-core's backward direction. The shared 48px drift allowance is named once
+  for explicit future tuning.
+- The observed already-expanded replies map to the existing live-expand-once policy: genuinely
+  live replies and edits initially expand so streaming content stays visible; historical/backfill
+  replies remain collapsed. This fix does not broaden or remove that separate UX policy, but it
+  safely handles its above-viewport remeasurements.
+- A second user trace reversed to the exact bottom with completely fixed geometry. Runtime probing
+  found an active composer-resize `scrollToBottom` caller, but the saved trace did not record input
+  events or call sources, so that separate reversal is not included in this focused fix without a
+  conclusive causal link.
+- Validation: typecheck, production build, full `npm test` (363 files / 2,859 tests), full lint
+  (0 errors / 19 pre-existing warnings), focused Vitest, live Playwright (including 3/3 repeated
+  passes after the review timing hardening), and `git diff --check`.
+
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
 - Status: complete; independent review found no actionable issues.
