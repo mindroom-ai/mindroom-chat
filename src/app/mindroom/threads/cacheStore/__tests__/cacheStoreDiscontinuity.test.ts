@@ -183,13 +183,14 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
     expect(marker?.prevBatch).toBeUndefined();
   });
 
-  it('rejects marker writes and clears when IndexedDB is unavailable', async () => {
+  it('rejects marker reads, writes, and clears when IndexedDB is unavailable', async () => {
     await resetCacheStoreForTesting();
     vi.stubGlobal('indexedDB', undefined);
 
     await expect(
       markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, { markedAt: 1000 })
     ).rejects.toThrow('unavailable');
+    await expect(loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
     await expect(clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
   });
 });

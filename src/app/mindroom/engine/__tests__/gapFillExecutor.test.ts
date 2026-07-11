@@ -522,6 +522,53 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(snapshot.schedulerCompleted).toBe(1);
   });
 
+  it('defers without fetching or clearing when the durable marker read fails', async () => {
+    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
+    mx.__rooms.set(
+      '!room:mindroom.chat',
+      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
+    );
+    await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
+      markedAt: 1000,
+      prevBatch: 'tok-0',
+      generation: 'read-failure',
+      nextToken: 'tok-20',
+      overlapEventIds: ['$original-boundary'],
+    });
+    const loadDiscontinuity = vi
+      .fn<typeof loadRoomTailDiscontinuity>()
+      .mockRejectedValueOnce(new Error('read failed'))
+      .mockImplementation(loadRoomTailDiscontinuity);
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: 1000,
+      prevBatch: 'tok-0',
+      generation: 'read-failure',
+    });
+
+    const executor = createGapFillExecutor(
+      { mx, sessionId: SESSION_ID, scheduler, loadDiscontinuity },
+      gapFillScheduler
+    );
+    await waitForCompleted();
+
+    expect(mx.__messages).toHaveLength(0);
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toMatchObject({
+      generation: 'read-failure',
+      nextToken: 'tok-20',
+      overlapEventIds: ['$original-boundary'],
+    });
+
+    executor.recheckDeferred('!room:mindroom.chat');
+    await waitForCompleted(2);
+
+    expect(mx.__messages[0]?.fromToken).toBe('tok-20');
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
+  });
+
   it('does not advance or clear the durable cursor when a cache write fails', async () => {
     const mx = createMockClient('mindroom.chat', () => ({
       end: 'tok-1',

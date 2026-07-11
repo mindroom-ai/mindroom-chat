@@ -100,6 +100,8 @@ export type GapFillExecutorOptions = {
   readonly persistChunk?: typeof persistRoomChunkWithPreferLive;
   /** Test hook for controlling the pre-gap cached-tail snapshot. */
   readonly loadCachedTail?: typeof loadLatestCachedRoomEvents;
+  /** Test hook for failing or controlling the durable marker read. */
+  readonly loadDiscontinuity?: typeof loadRoomTailDiscontinuity;
 };
 
 /**
@@ -127,6 +129,7 @@ export const createGapFillExecutor = (
   const getFocusedRoomId = options.getFocusedRoomId ?? (() => undefined);
   const persistChunk = options.persistChunk ?? persistRoomChunkWithPreferLive;
   const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
+  const loadDiscontinuity = options.loadDiscontinuity ?? loadRoomTailDiscontinuity;
   let stopped = false;
   const latestJobs = new Map<string, GapFillJob>();
   const deferredJobs = new Map<string, GapFillJob>();
@@ -138,7 +141,20 @@ export const createGapFillExecutor = (
   ): Promise<'policy-deferred' | 'continuation-deferred' | undefined> => {
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
-    const durableMarker = await loadRoomTailDiscontinuity(sessionId, job.roomId);
+    let durableMarker;
+    try {
+      durableMarker = await loadDiscontinuity(sessionId, job.roomId);
+    } catch {
+      return 'continuation-deferred';
+    }
+    if (
+      job.generation &&
+      (!durableMarker || getTailDiscontinuityGeneration(durableMarker) !== job.generation)
+    ) {
+      // Generation-bearing jobs are projections of a durable marker. If that
+      // marker is genuinely gone or superseded, the queued work is stale.
+      return;
+    }
     const generation =
       job.generation ??
       getTailDiscontinuityGeneration(

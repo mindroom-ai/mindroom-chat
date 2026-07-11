@@ -185,7 +185,7 @@ export const loadRoomTailDiscontinuity = async (
   roomId: string
 ): Promise<TailDiscontinuityMarker | undefined> => {
   const db = await openCacheStore(sessionId);
-  if (!db) return undefined;
+  if (!db) throw new Error('Tail-discontinuity storage is unavailable.');
   const metaKey = buildMetaKey(roomId, ROOM_SCOPE);
 
   return new Promise<TailDiscontinuityMarker | undefined>((resolve, reject) => {
@@ -197,5 +197,5 @@ export const loadRoomTailDiscontinuity = async (
       resolve(existing?.tailDiscontinuity);
     };
     request.onerror = () => reject(request.error);
-  }).catch(() => undefined);
+  });
 };
