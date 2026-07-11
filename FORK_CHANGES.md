@@ -203,6 +203,43 @@
   attributes a stall to quiescence, while `lb` attributes it to the retained boundary tradeoff. If
   no stall remains or only `lq` stalls disappear, ship this focused fix; a renewed `lb` stall is the
   promotion signal for the separately designed preallocated-runway architecture.
+- v3 device acceptance (2026-07-11): `ride-trace-1783779812509.json` captured the same 655-row
+  thread for 45.5s on an iPhone 17 Pro simulator (402x714). Pagination and row count were stable.
+  The strengthened quiescence path preserved two long coast tails down to the final -1px frame and
+  settled only 229-238ms later (`lq` increased, `lb` stayed fixed), validating the sampled-offset
+  fix. One remaining stall was attributed exactly to `lb`: native upward momentum was still moving
+  -18px/frame with `scrollTop=34313`, `scrollHeight=35475`, and positive ledger 34px; the next frame
+  reset a newly accumulated 72px ledger, wrote `scrollTop +72px` (net frame reversal +37px),
+  increased `lb`, and stopped all motion for 5.16s until the next touch.
+- Boundary root cause: that event was not top-runway exhaustion. The positive-ledger _bottom_ edge
+  was within the conservative two-viewport guard while the fling was moving upward, away from it.
+  The old predicate was direction-blind, so it paid safe debt for an edge that was receding and
+  needlessly killed Safari momentum. The minimal fix gates the top boundary to backward/upward
+  travel and the bottom boundary to forward/downward travel; stationary and away-from-edge debt is
+  left coherent until true quiescence. The proven top blank/unreachable-prefix and bottom-clamp
+  protections remain active whenever a ride actually approaches their edge.
+- RED/GREEN provenance: focused predicate tests first proved both symmetric away-from-edge cases
+  failed. Component lifecycle coverage reproduces the exact trace geometry and arithmetic: it
+  updates the direction baseline through a sub-48px ledger frame, accumulates 34+38=72px, and
+  verifies the 34313 -> 34278 upward frame performs no app write; reversing toward the endangered
+  bottom still performs exactly one 34313+72=34385 safety settle. Additional no-echo cases pin the
+  direction baseline to the actual clamped `scrollTop` immediately after both boundary and
+  quiescence writes, because iOS may coalesce their synthetic scroll events. The focused files pass
+  (83 tests). Full/live/device validation and independent review remain pending.
+- Direction-gate validation: full Vitest passes (363 files / 2,880 tests), as do typecheck,
+  production build, full lint (0 errors / 19 pre-existing warnings), the focused real-virtualizer
+  battery (7 files / 195 tests), `git diff --check`, and the Docker-Matrix boundary ride. The live
+  ride reached `scrollTop=0` with 1,003 frames, 1,188px maximum ledger, zero coverage gaps/jumps,
+  and one retained toward-top boundary settle. Independent review found no defect in the
+  edge/direction mapping or its first-event, subfloor, stationary, and coalesced-write coverage.
+- Native follow-up (2026-07-11): Appium/XCUITest 11.17.4 drove 33 real `swipeDown(velocity:)`
+  gestures through a local 320-reply fixture in iPhone 17 Pro Safari. The direction fix removed the
+  original false bottom-edge stop, but v3 `ride-trace-1783784177182.json` caught a remaining
+  toward-top guard stop: `scrollTop` 1391 -> 1325 -> 1261 -> 1139 -> 1081 while ledger was +89px,
+  then `lb` increased, the ledger reset, and the sampled frame reversed to 1114 before becoming
+  stationary. The inferred native step was still about -56px. This is the retained two-viewport
+  safety write firing roughly 1.5 viewports before the real top, so device acceptance is not yet
+  complete; per the prior promotion rule, a preallocated write-free top runway is now in progress.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 

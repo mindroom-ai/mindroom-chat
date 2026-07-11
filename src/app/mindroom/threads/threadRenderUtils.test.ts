@@ -383,6 +383,7 @@ describe('shouldSettleLedgerAtBoundary', () => {
     scrollTop: 0,
     scrollBottom: 600,
     clientHeight: 600,
+    scrollDirection: 'backward' as const,
   };
 
   it('ignores small debts (ordinary rests settle them invisibly)', () => {
@@ -415,6 +416,7 @@ describe('shouldSettleLedgerAtBoundary', () => {
     expect(
       shouldSettleLedgerAtBoundary({
         ...base,
+        scrollDirection: 'forward',
         ledgerPx: 5000,
         innerTop: -60000,
         innerBottom: 1500,
@@ -423,9 +425,40 @@ describe('shouldSettleLedgerAtBoundary', () => {
     expect(
       shouldSettleLedgerAtBoundary({
         ...base,
+        scrollDirection: 'forward',
         ledgerPx: 5000,
         innerTop: -60000,
         innerBottom: 20000,
+      })
+    ).toBe(false);
+  });
+
+  it('does not settle the bottom edge while an upward fling is moving away from it', () => {
+    // iPhone trace ride-trace-1783779812509: a positive ledger put the
+    // bottom edge inside the old two-viewport guard while native momentum
+    // was still moving backward (scrollTop -18px on the preceding frame).
+    // The direction-blind guard wrote +72px, reversed the frame by +37px,
+    // and stopped the fling. The endangered edge is receding here, so the
+    // ledger remains coherent without a boundary rebase.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollDirection: 'backward',
+        ledgerPx: 72,
+        innerTop: -34000,
+        innerBottom: 1500,
+      })
+    ).toBe(false);
+  });
+
+  it('does not settle the top edge while a downward ride is moving away from it', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollDirection: 'forward',
+        ledgerPx: -5000,
+        innerTop: 800,
+        innerBottom: 60000,
       })
     ).toBe(false);
   });

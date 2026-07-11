@@ -1191,6 +1191,11 @@ export function RoomTimeline({
   const scrollCompensationPxRef = useRef(0);
   const virtualInnerRef = useRef<HTMLDivElement | null>(null);
   const compensationSettleArmedRef = useRef(false);
+  // Last native/programmatic offset observed by the direction-aware ledger
+  // boundary guard. Settlement writes update this synchronously because iOS
+  // may coalesce their echoing scroll event; a stale pre-write baseline can
+  // invert the direction of the next native momentum frame.
+  const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
   // Bumped by the room/thread render-time reset: an armed quiescence wait
   // from a previous view resolves early when its scroll element
   // disconnects, and must not settle (or block re-arming for) the next
@@ -1208,6 +1213,7 @@ export function RoomTimeline({
     scrollCompensationPxRef.current = 0;
     ledgerGenerationRef.current += 1;
     compensationSettleArmedRef.current = false;
+    ledgerBoundaryScrollTopRef.current = undefined;
     if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
   }
   const [, setLedgerCommitTick] = useState(0);
@@ -1432,6 +1438,10 @@ export function RoomTimeline({
       // which must see the (margin 0, shifted scrollTop) pair — the other
       // order lets that render compute the window with the old offset.
       scrollElement.scrollTop += px;
+      // Read back the browser-clamped value instead of assuming old+px.
+      // Safari can suppress/coalesce the setter's scroll event, so waiting
+      // for that event would leave the boundary direction baseline stale.
+      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
       const virtualizer = roomTimelineVirtualizerRef.current;
       virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
@@ -1444,17 +1454,32 @@ export function RoomTimeline({
   // continuous ride can carry the reader into it before any rest repays
   // it (device trace ride-trace-1783391256452: 3.0s blank at px=-9356;
   // pinned by the ledger-boundary e2e). Approaching an edge settles
-  // immediately: one momentum interruption at the extreme of the loaded
-  // window — where scrolling hard-stopped anyway — instead of visible
-  // blank space. The settle pair is visually exact, so the only cost is
-  // momentum, and only at the boundary.
+  // immediately while the ride is travelling TOWARD that edge: one
+  // momentum interruption at the extreme of the loaded window — where
+  // scrolling hard-stopped anyway — instead of visible blank space. Edge
+  // direction is essential: the v3 iPhone trace caught the old positive-
+  // ledger bottom guard firing during an upward fling AWAY from the bottom;
+  // its +72px write reversed one frame and killed the remaining momentum.
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
+    ledgerBoundaryScrollTopRef.current = scrollEl.scrollTop;
     const onLedgerBoundaryScroll = () => {
+      const currentScrollTop = scrollEl.scrollTop;
+      const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
+      const scrollDirection =
+        currentScrollTop > previousScrollTop
+          ? 'forward'
+          : currentScrollTop < previousScrollTop
+          ? 'backward'
+          : null;
+      // Keep the baseline current even while the ledger is zero or below
+      // its arming floor. Otherwise the first correction-bearing event can
+      // compare against an arbitrarily old offset.
+      ledgerBoundaryScrollTopRef.current = currentScrollTop;
       const px = scrollCompensationPxRef.current;
-      // Cheap early exit on the hot path (the predicate re-checks, but
-      // without rect reads the common px=0 case costs nothing).
+      // Cheap early exit on the hot path (direction tracking above is just
+      // scrollTop arithmetic; the common px=0 case still avoids rect reads).
       if (px > -48 && px < 48) return;
       const inner = virtualInnerRef.current;
       if (!inner) return;
@@ -1468,6 +1493,7 @@ export function RoomTimeline({
           scrollTop: scrollRect.top,
           scrollBottom: scrollRect.bottom,
           clientHeight: scrollEl.clientHeight,
+          scrollDirection,
         })
       ) {
         settleScrollCompensation('boundary');

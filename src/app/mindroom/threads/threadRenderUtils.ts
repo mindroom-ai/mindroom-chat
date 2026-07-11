@@ -195,6 +195,10 @@ type LedgerBoundaryOpts = {
   scrollTop: number;
   scrollBottom: number;
   clientHeight: number;
+  // TanStack convention: forward increases scrollTop (toward the bottom),
+  // backward decreases it (toward the top). A stationary scroll event is
+  // left unknown and ordinary quiescence owns the eventual settlement.
+  scrollDirection: 'forward' | 'backward' | null;
 };
 
 // Ledger boundary predicate: the ledger's exact-cancel contract holds
@@ -203,10 +207,12 @@ type LedgerBoundaryOpts = {
 // ride can carry the reader into it before any rest repays it (device
 // trace ride-trace-1783391256452: 3.0s blank at px=-9356; e2e measured
 // 367px blank bands and a 4968px clamp flash without the guard, 0/0
-// with it). Within two viewports of the debt edge, settle immediately:
-// one momentum interruption at the extreme of the loaded window instead
-// of visible blank space. Small debts settle at ordinary rests and are
-// invisible even if reached.
+// with it). Within two viewports of the debt edge, settle immediately,
+// but only while travelling TOWARD that edge. Settling for an edge behind
+// the ride is unnecessary and kills iOS momentum (device trace
+// ride-trace-1783779812509: upward momentum was still moving -18px/frame
+// when the positive-ledger bottom guard wrote +72px and stopped it).
+// Small debts and stationary/away-from-edge rides settle at ordinary rests.
 export const shouldSettleLedgerAtBoundary = ({
   ledgerPx,
   innerTop,
@@ -214,6 +220,7 @@ export const shouldSettleLedgerAtBoundary = ({
   scrollTop,
   scrollBottom,
   clientHeight,
+  scrollDirection,
 }: LedgerBoundaryOpts): boolean => {
   if (ledgerPx > -48 && ledgerPx < 48) return false;
   const guardPx = clientHeight * 2;
@@ -225,10 +232,12 @@ export const shouldSettleLedgerAtBoundary = ({
   // positive branch only watched the bottom, so an upward ride hit the
   // hard stop and the new rows appeared only after a rest).
   const reachableContentTop = innerTop + Math.max(ledgerPx, 0);
-  if (reachableContentTop > scrollTop - guardPx) return true;
+  if (scrollDirection === 'backward' && reachableContentTop > scrollTop - guardPx) return true;
   // Bottom stop, grow-debt only: the negative margin shrinks the scroll
   // range from the bottom, where the browser clamp bites at rest.
-  if (ledgerPx > 0) return innerBottom < scrollBottom + guardPx;
+  if (ledgerPx > 0 && scrollDirection === 'forward') {
+    return innerBottom < scrollBottom + guardPx;
+  }
   return false;
 };
 
