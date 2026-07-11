@@ -689,6 +689,20 @@ partially successful quota-failure sequence was intentionally declined: that
 is the same blocked-storage recovery guarantee removed by the reduction, while
 the migration attempt itself remains lossless.
 
+An additional adversarial pass closed ordinary-path issues without
+reintroducing distributed coordination. Cache redaction now follows both
+top-level replacement bundles and nested thread latest-event bundles, prunes
+already-applied replacements during hydration, and uses per-relation durable
+markers plus a room-wide rare scrub so stale standalone or paginated events
+cannot resurrect redacted plaintext. Marker lookup remains proportional to the
+current batch rather than room history. Gap tracking preserves the pre-reset
+overlap boundary across stacked resets; reconciliation resumes from a valid
+continuation cursor; thread saves retain `lastOpenedTs`; successful token
+refresh always updates the running client even when persistence fails;
+service-worker request waiters are reference-counted; and command-palette user
+search includes direct rooms while implicit DMs require exactly two joined
+members. Focused behavioral tests cover each contract.
+
 Two independent line-by-line audits found no broad normal-path feature removal.
 About 99 percent of the net shrink from the pre-reduction checkpoint is the
 discarded session/auth/cleanup/service-worker coordination layer and its tests;
@@ -699,16 +713,28 @@ have no runtime epoch, blocked storage is best effort without dedicated recovery
 screens, and the unshipped intermediate split-session schema is not migrated.
 The shipped v1 session format and normal multi-account flows remain compatible.
 
-The branch is directly based on `origin/dev` at `bd863b664` (through merged PR
-#108); a fresh remote audit found no newer `dev` commit or overlapping pending
-change, so no merge commit is needed. The current merge-base diff is about
-5.4k net lines: roughly 2.2k production lines, 3.0k test lines, and 0.2k
-documentation/skill lines. This remains about 73 percent smaller than the
-pre-reduction tree. Green on the current same-tree snapshot: all 380 Vitest
-files / 2,929 tests, 141 focused lifecycle/cache/profile/isolation tests,
-TypeScript typecheck, production and PWA/service-worker builds, Prettier and
-diff checks, and ESLint with zero errors (17 existing warnings). Logical
-history cleanup, push, and fresh exact-pushed-head review remain required.
+After a conflict-free rebase, the branch is directly based on `origin/dev` at
+`79690aca7` (through merged PR #112, including #111 and #102). A second forced
+remote refresh and `git rebase origin/dev` confirmed that this remains the live
+tip, with no conflict entries. The exact merge-base diff is 190 files, 12,967
+insertions, and 6,513 deletions: 2,629 net production lines, 3,558 net test
+lines, and 267 net documentation/skill/config lines. No generated artifacts are
+included. At 6,454 net lines overall, this is roughly 67 percent smaller than
+the approximately 19,700-net-line pre-reduction checkpoint; the largest single
+churn item is deletion of the former 2,518-line monolithic
+`RoomTimeline.architecture.test.ts`.
+
+Green on the current same-tree snapshot: all 387 Vitest files / 2,966 tests,
+the 13-file / 226-test focused cache, gap, redaction, session, service-worker,
+and command-palette review set, TypeScript typecheck, production and
+PWA/service-worker builds, Prettier and diff checks, and full ESLint with zero
+errors (17 existing warnings). The first post-rebase full run also exposed a
+timing-dependent test setup added by this branch: it reactivated an account,
+which intentionally refreshed `lastUsedAt`, but compared against the stale
+pre-reactivation object. The setup now creates the other account as inactive
+directly; independent review confirmed that no production change was needed.
+The history is reduced to five logical commits. A guarded rewritten-history
+push and fresh exact-pushed-head native/Fable reviews remain required.
 
 ### Fork hardening review remediation (2026-07-09, superseded)
 

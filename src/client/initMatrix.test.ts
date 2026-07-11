@@ -1968,13 +1968,15 @@ describe('removeStoredSession', () => {
       deviceId: 'DEVICE_A',
       accessToken: 'token-a',
     });
-    const oldProxySession = putSession({
-      baseUrl: 'https://proxy.example.com',
-      userId: '@alice:example.com',
-      deviceId: 'DEVICE_B',
-      accessToken: 'token-b',
-    });
-    setActiveSession(activeSession.sessionId);
+    const oldProxySession = putSession(
+      {
+        baseUrl: 'https://proxy.example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-b',
+      },
+      { setActive: false }
+    );
 
     await removeStoredSession(oldProxySession);
 
@@ -1984,6 +1986,7 @@ describe('removeStoredSession', () => {
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).not.toHaveBeenCalled();
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).not.toHaveBeenCalled();
     expect(getSessionStore().sessions).toEqual([activeSession]);
+    expect(getSessionStore().activeSessionId).toBe(activeSession.sessionId);
     expect(reload).not.toHaveBeenCalled();
   });
 });
