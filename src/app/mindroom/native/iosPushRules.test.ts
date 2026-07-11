@@ -14,15 +14,36 @@ describe('ensureMindroomStreamingPushRules', () => {
   it('suppresses active stream events and notifies on terminal edits', async () => {
     const addPushRule = vi.fn().mockResolvedValue({});
 
-    await ensureMindroomStreamingPushRules({ addPushRule });
+    const pushRuleClient = {
+      addPushRule,
+      getSafeUserId: () => '@viewer:example.org',
+    };
+
+    await ensureMindroomStreamingPushRules(pushRuleClient);
 
     const expectedRules = [
       ['io.mindroom.suppress_stream_pending', 'pending', []],
       ['io.mindroom.suppress_stream_streaming', 'streaming', []],
-      ['io.mindroom.notify_stream_completed', 'completed', [PushRuleActionName.Notify]],
-      ['io.mindroom.notify_stream_cancelled', 'cancelled', [PushRuleActionName.Notify]],
-      ['io.mindroom.notify_stream_interrupted', 'interrupted', [PushRuleActionName.Notify]],
-      ['io.mindroom.notify_stream_error', 'error', [PushRuleActionName.Notify]],
+      [
+        'io.mindroom.notify_stream_completed',
+        'completed',
+        [PushRuleActionName.Notify, { set_tweak: 'sound', value: 'default' }],
+      ],
+      [
+        'io.mindroom.notify_stream_cancelled',
+        'cancelled',
+        [PushRuleActionName.Notify, { set_tweak: 'sound', value: 'default' }],
+      ],
+      [
+        'io.mindroom.notify_stream_interrupted',
+        'interrupted',
+        [PushRuleActionName.Notify, { set_tweak: 'sound', value: 'default' }],
+      ],
+      [
+        'io.mindroom.notify_stream_error',
+        'error',
+        [PushRuleActionName.Notify, { set_tweak: 'sound', value: 'default' }],
+      ],
     ] as const;
 
     expect(addPushRule).toHaveBeenCalledTimes(expectedRules.length);
@@ -41,6 +62,11 @@ describe('ensureMindroomStreamingPushRules', () => {
             },
             {
               kind: ConditionKind.EventMatch,
+              key: 'sender',
+              pattern: '@mindroom_*:example.org',
+            },
+            {
+              kind: ConditionKind.EventMatch,
               key: 'content.io\\.mindroom\\.stream_status',
               pattern: status,
             },
@@ -53,11 +79,11 @@ describe('ensureMindroomStreamingPushRules', () => {
     const processor = new PushProcessor({
       supportsIntentionalMentions: () => false,
     } as MatrixClient);
-    const eventForStatus = (status: string) =>
+    const eventForStatus = (status: string, sender = '@mindroom_agent:example.org') =>
       new MatrixEvent({
         event_id: `$${status}`,
         room_id: '!room:example.org',
-        sender: '@agent:example.org',
+        sender,
         origin_server_ts: 1,
         type: 'm.room.message',
         content: {
@@ -78,6 +104,15 @@ describe('ensureMindroomStreamingPushRules', () => {
     expect(processor.ruleMatchesEvent(pendingRule, eventForStatus('completed'))).toBe(false);
     expect(processor.ruleMatchesEvent(completedRule, eventForStatus('completed'))).toBe(true);
     expect(processor.ruleMatchesEvent(completedRule, eventForStatus('streaming'))).toBe(false);
+    expect(
+      processor.ruleMatchesEvent(pendingRule, eventForStatus('pending', '@mallory:example.org'))
+    ).toBe(false);
+    expect(
+      processor.ruleMatchesEvent(
+        completedRule,
+        eventForStatus('completed', '@mindroom_forged:evil.example')
+      )
+    ).toBe(false);
 
     const installedRules: IPushRule[] = expectedRules.map(([ruleId], index) => ({
       ...addPushRule.mock.calls[index][3],
@@ -112,9 +147,12 @@ describe('ensureMindroomStreamingPushRules', () => {
       rule: { rule_id: 'io.mindroom.suppress_stream_pending' },
     });
     expect(priorityProcessor.actionsAndRuleForEvent(eventForStatus('completed'))).toMatchObject({
-      actions: { notify: true },
+      actions: { notify: true, tweaks: { sound: 'default' } },
       rule: { rule_id: 'io.mindroom.notify_stream_completed' },
     });
+
+    await ensureMindroomStreamingPushRules(pushRuleClient);
+    expect(addPushRule).toHaveBeenCalledTimes(6);
   });
 
   it('fails fast when a rule cannot be installed', async () => {
@@ -123,9 +161,12 @@ describe('ensureMindroomStreamingPushRules', () => {
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error('push rules unavailable'));
 
-    await expect(ensureMindroomStreamingPushRules({ addPushRule })).rejects.toThrow(
-      'push rules unavailable'
-    );
+    await expect(
+      ensureMindroomStreamingPushRules({
+        addPushRule,
+        getSafeUserId: () => '@viewer:example.org',
+      })
+    ).rejects.toThrow('push rules unavailable');
     expect(addPushRule).toHaveBeenCalledTimes(6);
   });
 });

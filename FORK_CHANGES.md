@@ -14,6 +14,10 @@
   `.m.rule.suppress_edits`. Cinny will install higher-priority account override rules that suppress
   active statuses and notify on terminal statuses, leaving events without MindRoom stream metadata
   unchanged.
+- Rules additionally require a `mindroom_*` sender on the viewer's own homeserver, matching the
+  fork's existing agent-identity trust boundary, and terminal rules request the default sound.
+  Successful installation is cached per live Matrix client so effect reruns do not repeat the six
+  idempotent homeserver writes.
 - Validation: focused push-rule tests, typecheck, App Store preflight, production build, full lint
   (0 errors / 19 existing warnings), touched-file Prettier, and full `npm test` (364 files / 2,882
   tests) pass. The behavior test uses the SDK push processor with a real `m.replace` event to prove
@@ -21,7 +25,8 @@
 - Risks: rule installation is not atomic, although a failure disables the current iOS pusher;
   successfully written rules persist server-side. Homeserver matching requires visible
   `io.mindroom.stream_status` metadata, so encrypted events cannot use this behavior. Installed
-  rules also remain when native push is disabled or the app is uninstalled.
+  rules also remain when native push is disabled or the app is uninstalled. Same-server agent
+  matching relies on the homeserver reserving the `mindroom_` namespace, as production does.
 - Next steps: merge after review approval, monitor terminal-status push delivery, and consider
   explicit rule cleanup when native push is disabled.
 
