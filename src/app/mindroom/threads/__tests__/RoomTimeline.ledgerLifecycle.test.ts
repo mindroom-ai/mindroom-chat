@@ -524,19 +524,19 @@ describe('RoomTimeline ledger lifecycle', () => {
       await act(async () => {
         // A row fully above the viewport grew by 64px mid-scroll on iOS:
         // the correction must be DROPPED (return false) and ledgered.
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         // Desktop backward remeasurements take the same component-level
         // ledger path, while forward/quiet desktop corrections stay owned
         // by virtual-core.
         mockIsIOSWebKit = false;
-        expect(
-          hook!({ end: 100 }, 32, { scrollOffset: 5000, scrollDirection: 'backward' })
-        ).toBe(false);
-        expect(
-          hook!({ end: 100 }, 16, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(true);
+        expect(hook!({ end: 100 }, 32, { scrollOffset: 5000, scrollDirection: 'backward' })).toBe(
+          false
+        );
+        expect(hook!({ end: 100 }, 16, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          true
+        );
         await flushAsyncWork(3);
       });
       // The tick-forced commit synced the margin — with no scroll event,
@@ -590,9 +590,9 @@ describe('RoomTimeline ledger lifecycle', () => {
           ) => boolean)
         | undefined;
       await act(async () => {
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
       });
       expect(innerElement.style.marginTop).toBe('-64px');
@@ -663,9 +663,9 @@ describe('RoomTimeline ledger lifecycle', () => {
           ) => boolean)
         | undefined;
       await act(async () => {
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
       });
       expect(innerElement.style.marginTop).toBe('-64px');
