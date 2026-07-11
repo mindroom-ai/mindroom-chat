@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Momentum runway: the open-phase false edge (2026-07-11)
+
+- Status: reconnaissance on `fix/momentum-runway`; implementation next.
+- Reframed by the #124 validation trace (`ride-trace-1783811896380`): the
+  "fling momentum gets eaten" residual is now confined to the OPEN PHASE.
+  `data-thread-count` shows the cache-first fast paint renders a ~31-event
+  slice, and the FULL cached thread (624 events) lands in ONE commit ~1.5s
+  later (frame 137: tc 31→624, sh +33k, one 125ms frame). Until that lands,
+  the scroller's range is ~2.7 viewports: a fling hits the false edge and
+  rubber-bands. After it lands, the whole history is virtualized and
+  momentum rides 33k→0 cleanly (the same trace proves it).
+- Two candidate fixes, smallest first: (1) make the full-hydration commit
+  land under a touch/momentum guard with the settle deferred (the 98px
+  frame-137 slip happened because the 33k rebase landed mid-touch at the
+  top edge); (2) shrink the exposure by feeding the virtualizer the full
+  cached event list immediately (paint cost was the reason for the slice —
+  re-measure whether the collapsed-row estimator makes that affordable now).
+- The corpus has the instrument: open-phase frames of any new trace show
+  the false-edge episode via gap>0 at tc≈31.
+
 ### Settle-cascade jump after rest: diagnosis and plan (2026-07-11)
 
 - Status: VALIDATED on device (iPad trace `ride-trace-1783811896380`, same
