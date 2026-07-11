@@ -182,8 +182,8 @@
 - Status: PR #116 merged the sampled-quiescence fix and PR #119 merged the direction-aware boundary
   fix into `dev`. A focused follow-up on `caveman/harden-ios-ledger-direction` resets #119's
   delivered-event direction baseline when a new touch begins after silent compositor travel;
-  independent review and full validation are complete, with final rebase/publishing pending. No
-  production deploy was performed by this task.
+  independent review, full validation, and the final `origin/dev` rebase are complete, with
+  publishing pending. No production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -381,6 +381,9 @@
   maximum ledger, zero coverage gaps/blank frames/anchor jumps, and exactly one quiescence plus one
   boundary settle. Chromium cannot reproduce Safari's event-suppression timing; the trace-shaped
   component RED/GREEN is the behavioral oracle for this gesture-epoch case.
+- Final rebase: fetched `origin/dev` immediately before publishing; it remained at `886a8599e`, so
+  commit `af0cf8748` was already directly based on the current default branch and the rebase was a
+  no-op.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
