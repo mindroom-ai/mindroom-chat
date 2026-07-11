@@ -99,13 +99,12 @@ export const getCompactThreadRootPreviewInfo = (
 ): CompactThreadRootPreviewInfo | undefined => {
   if (!event) return undefined;
 
-  const candidateEdit =
+  const editedEvent =
     options?.editedEvent ??
     event.replacingEvent() ??
     (options?.eventId && options.room
       ? getEditedEvent(options.eventId, event, options.room.getUnfilteredTimelineSet())
       : undefined);
-  const editedEvent = candidateEdit?.getSender() === event.getSender() ? candidateEdit : undefined;
   const content = getLatestMessageContent(event, editedEvent) as
     | Record<string, unknown>
     | null
