@@ -1,5 +1,4 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
-import { useAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -71,7 +70,8 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
-import { roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
+import { useRoomViewMode } from './useRoomViewMode';
 
 type RoomMenuProps = {
   room: Room;
@@ -87,7 +87,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const notificationMode = getRoomNotificationMode(notificationPreferences, room.roomId);
   const { navigateRoom } = useRoomNavigate();
-  const [viewMode, setViewMode] = useAtom(roomViewModeAtomFamily(room.roomId));
+  const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
   const simpleMode = useSimpleMode();
 
   const [invitePrompt, setInvitePrompt] = useState(false);

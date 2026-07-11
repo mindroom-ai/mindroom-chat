@@ -63,7 +63,7 @@ describe('applyThreadOverviewCachedMetadataUpdates', () => {
 });
 
 describe('mergeCompactThreadRootBodyMaps', () => {
-  it('lets cached previews fill or replace compact root body text', () => {
+  it('lets cached previews fill gaps without replacing newer live text', () => {
     expect(
       mergeCompactThreadRootBodyMaps(
         new Map([
@@ -78,7 +78,7 @@ describe('mergeCompactThreadRootBodyMaps', () => {
     ).toEqual(
       new Map([
         ['$a', 'live a'],
-        ['$b', 'cached b'],
+        ['$b', 'live b'],
         ['$c', 'cached c'],
       ])
     );

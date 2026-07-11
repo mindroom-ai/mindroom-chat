@@ -201,20 +201,30 @@ export const createBackfillScheduler = (
   const maxConcurrent = options.maxConcurrent ?? MAX_CONCURRENT_BACKFILL_JOBS;
   const mx = options.mx;
 
-  // ONE map for both queued and running — AC8 requires dedup to hit
-  // whether the same-key job is waiting for a slot or already
-  // executing. Split states are represented by presence in `running`.
+  // Active jobs normally remain in byKey for queued/running dedup. An
+  // explicitly aborted running job is detached from byKey immediately,
+  // allowing one replacement to queue while `running` still accounts
+  // for the non-cancellable SDK request.
   const byKey = new Map<string, QueueEntry>();
   const queue: QueueEntry[] = [];
   const running = new Map<string, RunningEntry>();
 
   const pickNextIndex = (): number => {
     if (queue.length === 0) return -1;
-    let bestIndex = 0;
-    let bestPriority = queue[0].priority;
-    let bestActivity = resolveRoomActivityTs(mx, queue[0].args.roomId);
-    for (let i = 1; i < queue.length; i += 1) {
+    let bestIndex = -1;
+    let bestPriority: BackfillJobPriority | undefined;
+    let bestActivity = 0;
+    for (let i = 0; i < queue.length; i += 1) {
       const entry = queue[i];
+      // A replacement for an aborting/running request must not overlap the
+      // SDK request it supersedes. It becomes eligible in finally.
+      if (running.has(entry.key)) continue;
+      if (bestPriority === undefined) {
+        bestIndex = i;
+        bestPriority = entry.priority;
+        bestActivity = resolveRoomActivityTs(mx, entry.args.roomId);
+        continue;
+      }
       if (entry.priority < bestPriority) {
         bestIndex = i;
         bestPriority = entry.priority;
@@ -236,13 +246,9 @@ export const createBackfillScheduler = (
       const index = pickNextIndex();
       if (index < 0) return;
       const entry = queue.splice(index, 1)[0];
-      if (entry.controller.signal.aborted) {
-        // Consumer aborted before we picked it up — settle and continue.
-        countCacheProbe('schedulerAborted');
-        entry.reject(entry.controller.signal.reason ?? new Error('backfill aborted'));
-        byKey.delete(entry.key);
-        continue;
-      }
+      // Queued aborts (`abort()`/`abortAll()`) settle the caller promise and
+      // splice the entry out of `queue` synchronously, so an aborted entry
+      // can never reach this point via a supported code path.
 
       // CINNY-207 P5 review (gemini PR #70 critical): register the
       // running entry BEFORE invoking the executor. An async IIFE that
@@ -283,7 +289,9 @@ export const createBackfillScheduler = (
           }
         } finally {
           running.delete(entry.key);
-          byKey.delete(entry.key);
+          if (byKey.get(entry.key) === entry) {
+            byKey.delete(entry.key);
+          }
           // Recurse via macrotask so a synchronous resolve doesn't
           // grow the stack when many jobs settle in a burst.
           Promise.resolve().then(drain);
@@ -292,6 +300,25 @@ export const createBackfillScheduler = (
 
       runningEntry.runPromise = runPromise;
     }
+  };
+
+  const makeEntry = <T>(args: EnqueueJobArgs<T>, key: string): QueueEntry<T> => {
+    const controller = new AbortController();
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return {
+      args,
+      key,
+      priority: args.priority,
+      controller,
+      resolve,
+      reject,
+      promise,
+    };
   };
 
   const enqueue = <T>(args: EnqueueJobArgs<T>): Promise<T> => {
@@ -315,45 +342,37 @@ export const createBackfillScheduler = (
       return existing.promise as Promise<T>;
     }
 
-    const controller = new AbortController();
-    let resolve!: (value: T) => void;
-    let reject!: (reason: unknown) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    const entry: QueueEntry<T> = {
-      args,
-      key,
-      priority: args.priority,
-      controller,
-      resolve,
-      reject,
-      promise,
-    };
+    const entry = makeEntry(args, key);
     byKey.set(key, entry as QueueEntry);
     queue.push(entry as QueueEntry);
     countCacheProbe('schedulerEnqueued');
     // Kick the drain on a microtask so callers can await the promise
     // without racing sync errors from the executor.
     Promise.resolve().then(drain);
-    return promise;
+    return entry.promise;
   };
 
-  const abort = (
-    roomId: string,
-    threadId: string | undefined,
-    kind: BackfillJobKind
-  ): boolean => {
+  const abort = (roomId: string, threadId: string | undefined, kind: BackfillJobKind): boolean => {
     const key = buildBackfillJobKey(roomId, threadId, kind);
     const entry = byKey.get(key);
     if (!entry) return false;
     if (!entry.controller.signal.aborted) {
       entry.controller.abort(new Error('backfill aborted'));
     }
-    // Running entries are cleaned up by the drain finally-block once
-    // the executor observes the abort; queued entries are cleaned up
-    // by the next drain pass (see the aborted-before-pickup branch).
+    const runningEntry = running.get(key);
+    if (runningEntry?.controller === entry.controller) {
+      // Detach immediately so a replacement enqueue gets a fresh
+      // promise. pickNextIndex keeps that replacement behind this
+      // still-running SDK request until its executor settles.
+      if (byKey.get(key) === entry) byKey.delete(key);
+      return true;
+    }
+
+    const queueIndex = queue.indexOf(entry);
+    if (queueIndex >= 0) queue.splice(queueIndex, 1);
+    entry.reject(entry.controller.signal.reason ?? new Error('backfill aborted'));
+    if (byKey.get(key) === entry) byKey.delete(key);
+    countCacheProbe('schedulerAborted');
     return true;
   };
 
@@ -375,25 +394,23 @@ export const createBackfillScheduler = (
     // DON'T remain in `running` until they eventually settle, but no
     // longer block queued work from being cleared and no longer
     // trap same-key follow-up enqueues.
-    // Snapshot first — abort() mutates queue/running via reject paths.
-    const runningKeys = new Set(running.keys());
-    const keys = Array.from(byKey.keys());
-    keys.forEach((key) => {
-      const entry = byKey.get(key);
-      if (!entry) return;
+    const queuedEntries = [...queue];
+    queue.length = 0;
+    queuedEntries.forEach((entry) => {
       if (!entry.controller.signal.aborted) {
         entry.controller.abort(new Error('backfill scheduler stopped'));
       }
-      // Running entries are cleaned by the drain finally-block on
-      // executor completion; only clean queued ones here.
-      if (runningKeys.has(key)) return;
-      // Remove from the queue array so a later drain doesn't
-      // double-process it.
-      const queueIndex = queue.indexOf(entry);
-      if (queueIndex >= 0) queue.splice(queueIndex, 1);
       countCacheProbe('schedulerAborted');
       entry.reject(entry.controller.signal.reason ?? new Error('backfill scheduler stopped'));
-      byKey.delete(key);
+      if (byKey.get(entry.key) === entry) byKey.delete(entry.key);
+    });
+    running.forEach((entry, key) => {
+      if (!entry.controller.signal.aborted) {
+        entry.controller.abort(new Error('backfill scheduler stopped'));
+      }
+      // `running` holds a reporting copy of the queue entry, so compare
+      // the shared controller rather than object identity.
+      if (byKey.get(key)?.controller === entry.controller) byKey.delete(key);
     });
   };
 

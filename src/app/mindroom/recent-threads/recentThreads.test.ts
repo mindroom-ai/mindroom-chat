@@ -199,7 +199,7 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     providerStore.set(recentThreadsAtom, {
       type: 'BUMP',
@@ -226,7 +226,7 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     bumpRecentThread('!room:example.org', '$thread', 200, 'Preview text');
 
@@ -248,7 +248,7 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     providerStore.set(recentThreadsAtom, {
       type: 'BUMP',

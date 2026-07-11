@@ -59,7 +59,7 @@ describe('room avatar urls', () => {
                     baseUrl: 'https://mindroom.chat',
                     userId: '@user:mindroom.chat',
                     deviceId: 'DEVICE',
-                    accessToken: 'secret-token',
+                    accessToken: 'wrong-global-token',
                     lastUsedAt: 1,
                   },
                 ],
@@ -74,6 +74,8 @@ describe('room avatar urls', () => {
     });
 
     const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
       mxcUrlToHttp: () =>
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/room-avatar?width=96&height=96',
     } as any;
@@ -82,7 +84,7 @@ describe('room avatar urls', () => {
     } as any;
 
     expect(getRoomAvatarUrl(mx, room, 96, true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/room-avatar?width=96&height=96&access_token=secret-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/room-avatar?width=96&height=96&access_token=client-token'
     );
   });
 
@@ -109,7 +111,7 @@ describe('room avatar urls', () => {
                     baseUrl: 'https://mindroom.chat',
                     userId: '@user:mindroom.chat',
                     deviceId: 'DEVICE',
-                    accessToken: 'secret-token',
+                    accessToken: 'wrong-global-token',
                     lastUsedAt: 1,
                   },
                 ],
@@ -124,6 +126,8 @@ describe('room avatar urls', () => {
     });
 
     const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'client-token',
       mxcUrlToHttp: () =>
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/direct-avatar?width=96&height=96',
     } as any;
@@ -135,7 +139,7 @@ describe('room avatar urls', () => {
     } as any;
 
     expect(getDirectRoomAvatarUrl(mx, room, 96, true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/direct-avatar?width=96&height=96&access_token=secret-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/direct-avatar?width=96&height=96&access_token=client-token'
     );
   });
 });

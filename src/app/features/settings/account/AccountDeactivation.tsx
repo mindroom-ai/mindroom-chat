@@ -65,7 +65,7 @@ export function AccountDeactivation() {
       (state: AsyncState<unknown, MatrixError>) => {
         setDeactivateState(state);
         if (state.status === AsyncStatus.Success) {
-          void logoutClient(mx);
+          void logoutClient(mx).catch(() => window.location.reload());
         }
       },
       [mx]

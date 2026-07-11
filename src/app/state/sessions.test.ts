@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
-  SESSION_STORE_KEY,
-  clearSessionStore,
+  SessionStoreWriteError,
+  clearLegacySessionStorage,
   createSessionId,
   getActiveSession,
   getSessionIndexedDbStoreName,
@@ -14,10 +14,10 @@ import {
   hasStoredSessions,
   listSessions,
   putSession,
-  removeActiveSession,
   removeSession,
   setActiveSession,
   updateSessionProfile,
+  updateSessionCredentials,
 } from './sessions';
 
 const createStorage = (seed: Record<string, string> = {}) => {
@@ -122,7 +122,9 @@ describe('sessions', () => {
     );
 
     expect(updated.sessionId).toBe(initial.sessionId);
-    expect(getSessionRustCryptoStorePrefix(updated)).not.toBe(getSessionRustCryptoStorePrefix(initial));
+    expect(getSessionRustCryptoStorePrefix(updated)).not.toBe(
+      getSessionRustCryptoStorePrefix(initial)
+    );
     expect(getLegacySessionRustCryptoStorePrefix(updated)).toBe(
       getLegacySessionRustCryptoStorePrefix(initial)
     );
@@ -187,7 +189,7 @@ describe('sessions', () => {
     );
     setActiveSession(alice.sessionId, storage);
 
-    const nextStore = removeActiveSession(storage);
+    const nextStore = removeSession(alice.sessionId, storage);
 
     expect(nextStore.activeSessionId).toBe(bob.sessionId);
     expect(getActiveSession(storage)?.sessionId).toBe(bob.sessionId);
@@ -257,6 +259,42 @@ describe('sessions', () => {
     );
   });
 
+  it('persists a refresh-token rotation without changing account metadata', () => {
+    const storage = createStorage();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+        refreshToken: 'refresh-a',
+        lastKnownDisplayName: 'Alice',
+      },
+      undefined,
+      storage
+    );
+
+    const updated = updateSessionCredentials(
+      session.sessionId,
+      {
+        accessToken: 'token-b',
+        refreshToken: 'refresh-b',
+        expiresInMs: 60_000,
+      },
+      storage
+    );
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        accessToken: 'token-b',
+        refreshToken: 'refresh-b',
+        expiresInMs: 60_000,
+        lastKnownDisplayName: 'Alice',
+        lastUsedAt: session.lastUsedAt,
+      })
+    );
+  });
+
   it('allows cached profile metadata to be explicitly cleared', () => {
     const storage = createStorage();
 
@@ -299,27 +337,33 @@ describe('sessions', () => {
     );
   });
 
-  it('clears the whole session registry', () => {
-    const legacyStorageEntries = Object.fromEntries(
-      LEGACY_SESSION_STORAGE_KEYS.map((key) => [key, `legacy-${key}`])
-    );
-    const storage = createStorage({
-      [SESSION_STORE_KEY]: JSON.stringify({
-        version: 1,
-        activeSessionId: 'session',
-        sessions: [],
-      }),
-      ...legacyStorageEntries,
+  it('isolates blocked session-storage operations', () => {
+    const storage = createStorage();
+    storage.setItem.mockImplementation(() => {
+      throw new Error('blocked write');
     });
 
-    clearSessionStore(storage);
+    expect(() =>
+      putSession(
+        {
+          baseUrl: 'https://example.com',
+          userId: '@alice:example.com',
+          deviceId: 'DEVICE_A',
+          accessToken: 'token-a',
+        },
+        undefined,
+        storage
+      )
+    ).toThrow(SessionStoreWriteError);
 
-    expect(storage.removeItem).toHaveBeenCalledWith(SESSION_STORE_KEY);
-    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-      expect(storage.removeItem).toHaveBeenCalledWith(key);
-      expect(storage.getItem(key)).toBeNull();
+    const removed: string[] = [];
+    storage.removeItem.mockImplementation((key: string) => {
+      if (key === LEGACY_SESSION_STORAGE_KEYS[0]) throw new Error('blocked remove');
+      removed.push(key);
     });
-    expect(getSessionStore(storage).sessions).toEqual([]);
+
+    expect(() => clearLegacySessionStorage(storage)).not.toThrow();
+    expect(removed).toEqual(LEGACY_SESSION_STORAGE_KEYS.slice(1));
   });
 
   it('returns session-scoped store names and storage keys', () => {

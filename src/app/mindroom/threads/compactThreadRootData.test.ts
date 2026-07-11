@@ -481,10 +481,7 @@ describe('buildCompactThreadRootData', () => {
       mapper: (rawEvent) => new MatrixEvent(rawEvent),
     });
 
-    expect(preview).toEqual({
-      previewText: 'Edited root',
-      sourceTs: 2,
-    });
+    expect(preview).toBe('Edited root');
   });
 
   it('hydrates latest activity timestamps from cached thread pages', () => {

@@ -100,6 +100,7 @@ describe('RoomTimeline approval rendering', () => {
     expect(threadBadge?.props.model.id.threadRootId).toBe('$approval');
     expect(threadBadge?.props.model.replyCount).toBe(1);
     expect(threadBadge?.props.model.participantIds).toEqual(['@bob:example.org']);
+    expect(threadBadge?.props.includeRecentSummaryData).toBe(true);
   });
 
   it('renders a zero-reply thread badge for approval roots with empty thread metadata', async () => {
@@ -175,8 +176,41 @@ describe('RoomTimeline approval rendering', () => {
         requested_at: '2026-04-10T12:00:00Z',
         expires_at: '2026-04-17T12:00:00Z',
       },
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 1,
+          },
+        },
+      },
     });
-    const room = makeRoom({ liveEvents: [encryptedApprovalEvent] });
+    const encryptedApprovalReply = makeEvent('$encrypted-approval-reply', {
+      sender: '@bob:example.org',
+      threadRootId: '$encrypted-approval',
+      relation: { rel_type: 'm.thread', event_id: '$encrypted-approval' },
+    });
+    const room = makeRoom({
+      liveEvents: [encryptedApprovalEvent, encryptedApprovalReply],
+      threads: [
+        {
+          id: '$encrypted-approval',
+          rootEvent: encryptedApprovalEvent,
+          events: [encryptedApprovalReply],
+          timeline: [encryptedApprovalReply],
+          length: 1,
+        },
+      ] as never[],
+    });
+    const summaryMap = new Map([
+      [
+        '$encrypted-approval',
+        {
+          summaryText: 'Encrypted approval summary',
+          generatedTs: 10,
+          messageCount: 1,
+        },
+      ],
+    ]);
 
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -184,6 +218,7 @@ describe('RoomTimeline approval rendering', () => {
       renderer = create(
         React.createElement(ControlledRoomTimeline, {
           room,
+          summaryMap,
         })
       );
       await flushAsyncWork(1);
@@ -200,5 +235,14 @@ describe('RoomTimeline approval rendering', () => {
       tool_name: 'web_search',
       status: 'pending',
     });
+    const { ThreadBadgeRenderer } = await import('../ThreadBadgeRenderer');
+    const threadBadge = findElementInNode(
+      approvalMessage?.props.reactions,
+      (element) => element.type === ThreadBadgeRenderer
+    );
+    expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe(
+      'Encrypted approval summary'
+    );
+    expect(threadBadge?.props.includeRecentSummaryData).toBe(true);
   });
 });

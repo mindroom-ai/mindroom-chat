@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -34,16 +35,13 @@ import {
   updateThreadFilterKey,
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
-import { DEFAULT_ROOM_VIEW_MODE, roomViewModeAtomFamily, type RoomViewMode } from './roomViewMode';
+import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-  serializeThreadFilterQuery,
-} from './threadFilterDsl';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { useRoomViewMode } from './useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
@@ -86,8 +84,7 @@ export const useRoomViewThreadState = ({
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
 
-  const roomViewModeAtom = roomViewModeAtomFamily(roomId);
-  const [viewMode, setViewMode] = useAtom(roomViewModeAtom);
+  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
@@ -102,11 +99,6 @@ export const useRoomViewThreadState = ({
     () => (simpleMode ? simplifyThreadFilterState(threadFilterState) : threadFilterState),
     [simpleMode, threadFilterState]
   );
-  // The view-mode toggles are hidden in simple mode, so everything tied to
-  // the view mode (send-opens-thread, edge swipes, recent-thread bumps, and
-  // the value handed to the view) must follow the forced default too — not
-  // the persisted choice.
-  const effectiveViewMode = simpleMode ? DEFAULT_ROOM_VIEW_MODE : viewMode;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
@@ -176,27 +168,54 @@ export const useRoomViewThreadState = ({
     effectiveViewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
   );
 
-  const updateFromEffectiveQueryState = useCallback(
-    (updater: (state: ThreadFilterState) => ThreadFilterState) => {
-      const next = updater(
-        applyParsedThreadFilterQuery(
-          threadFilterState,
-          parseThreadFilterQuery(threadFilterState.searchQuery ?? '')
-        )
-      );
-      const searchQuery = serializeThreadFilterQuery(next);
-      setThreadFilterState(
-        searchQuery === threadFilterState.searchQuery ? next : { ...next, searchQuery }
-      );
+  // Typed queries apply on a pause, not per keystroke: structured tokens
+  // (tag:/is:) parsed mid-word would otherwise refilter the overview with
+  // transient one-letter filters ("u", "ur", …) and churn the sort-freeze
+  // signature. The search input renders its own draft, so typing stays
+  // responsive. Instant filter mutations (chips, presets, tags, sort) FLUSH
+  // the pending query first and compose on top of it — the trailing timer
+  // would otherwise clobber a click made inside the debounce window, since
+  // applyParsedThreadFilterQuery rebuilds every DSL-owned dimension.
+  const searchQueryDebounceRef = useRef<ReturnType<typeof globalThis.setTimeout>>();
+  const pendingSearchQueryRef = useRef<string>();
+  const threadFilterStateRef = useRef(threadFilterState);
+  threadFilterStateRef.current = threadFilterState;
+  useEffect(() => () => globalThis.clearTimeout(searchQueryDebounceRef.current), []);
+
+  const flushPendingSearchQuery = useCallback((): ThreadFilterState => {
+    if (searchQueryDebounceRef.current !== undefined) {
+      globalThis.clearTimeout(searchQueryDebounceRef.current);
+      searchQueryDebounceRef.current = undefined;
+    }
+    const pendingQuery = pendingSearchQueryRef.current;
+    pendingSearchQueryRef.current = undefined;
+    if (pendingQuery === undefined) return threadFilterStateRef.current;
+    const applied = applyParsedThreadFilterQuery(
+      threadFilterStateRef.current,
+      parseThreadFilterQuery(pendingQuery)
+    );
+    threadFilterStateRef.current = applied;
+    setThreadFilterState(applied);
+    return applied;
+  }, [setThreadFilterState]);
+
+  const handleSearchQueryChange = useCallback(
+    (query: string) => {
+      globalThis.clearTimeout(searchQueryDebounceRef.current);
+      pendingSearchQueryRef.current = query;
+      searchQueryDebounceRef.current = globalThis.setTimeout(() => {
+        searchQueryDebounceRef.current = undefined;
+        flushPendingSearchQuery();
+      }, 300);
     },
-    [setThreadFilterState, threadFilterState]
+    [flushPendingSearchQuery]
   );
 
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
-      updateFromEffectiveQueryState((state) => updateThreadFilterKey(state, key));
+      setThreadFilterState(updateThreadFilterKey(flushPendingSearchQuery(), key));
     },
-    [updateFromEffectiveQueryState]
+    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   // Simple mode's single binary control: unresolved-only on/off. Flips only
@@ -204,18 +223,20 @@ export const useRoomViewThreadState = ({
   // storage. ('exclude' is the one resolved value the simple-mode projection
   // keeps, so flipping the raw value matches what the user sees.)
   const handleToggleUnresolvedOnly = useCallback(() => {
-    updateFromEffectiveQueryState((state) => ({
-      ...state,
-      resolved: state.resolved === 'exclude' ? 'any' : 'exclude',
-    }));
-  }, [updateFromEffectiveQueryState]);
+    const base = flushPendingSearchQuery();
+    setThreadFilterState({
+      ...base,
+      resolved: base.resolved === 'exclude' ? 'any' : 'exclude',
+    });
+  }, [flushPendingSearchQuery, setThreadFilterState]);
 
   const handleSortDirectionChange = useCallback(() => {
+    const base = flushPendingSearchQuery();
     setThreadFilterState({
-      ...threadFilterState,
-      ...cycleSortMode(threadFilterState),
+      ...base,
+      ...cycleSortMode(base),
     });
-  }, [setThreadFilterState, threadFilterState]);
+  }, [flushPendingSearchQuery, setThreadFilterState]);
 
   const handleToggleThreadSortFreeze = useCallback(() => {
     setThreadSortFreezeState((currentState) =>
@@ -229,45 +250,40 @@ export const useRoomViewThreadState = ({
   }, []);
 
   const handleReset = useCallback(() => {
+    // Reset discards a pending typed query outright — flushing it first
+    // would resurrect the filters the user is clearing.
+    globalThis.clearTimeout(searchQueryDebounceRef.current);
+    searchQueryDebounceRef.current = undefined;
+    pendingSearchQueryRef.current = undefined;
     setThreadFilterState(resetThreadFilterState());
   }, [setThreadFilterState]);
 
   const handleCycleTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => cycleTagFilter(state, tag));
+      setThreadFilterState(cycleTagFilter(flushPendingSearchQuery(), tag));
     },
-    [updateFromEffectiveQueryState]
+    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   const handleAddTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => addTagFilter(state, tag));
+      setThreadFilterState(addTagFilter(flushPendingSearchQuery(), tag));
     },
-    [updateFromEffectiveQueryState]
+    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => removeTagFilter(state, tag));
+      setThreadFilterState(removeTagFilter(flushPendingSearchQuery(), tag));
     },
-    [updateFromEffectiveQueryState]
+    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      updateFromEffectiveQueryState((state) => applyPreset(state, preset));
+      setThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
     },
-    [updateFromEffectiveQueryState]
-  );
-
-  const handleSearchQueryChange = useCallback(
-    (query: string) => {
-      setThreadFilterState({
-        ...threadFilterState,
-        searchQuery: query,
-      });
-    },
-    [setThreadFilterState, threadFilterState]
+    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   const handleViewModeChange = useCallback(

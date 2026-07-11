@@ -21,10 +21,8 @@ vi.mock('folds', async (importOriginal) => {
     OverlayCenter: passthrough,
     Text: passthrough,
     Tooltip: passthrough,
-    TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) =>
-      children(null),
-    as:
-      <T extends React.ElementType, P>(component: React.ForwardRefRenderFunction<any, P>) =>
+    TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) => children(null),
+    as: <T extends React.ElementType, P>(component: React.ForwardRefRenderFunction<any, P>) =>
       React.forwardRef(component) as unknown as T,
     toRem: (value: number) => `${value / 16}rem`,
   };
@@ -117,6 +115,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle,
@@ -155,6 +154,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle: vi.fn(),
@@ -166,6 +166,83 @@ describe('Reactions', () => {
         reaction: '🛑',
         count: 1,
       })
+    );
+  });
+
+  it('hides a stale stop chip once the target message proves a terminal stream', () => {
+    const relations = new MockRelations([
+      [
+        '🛑',
+        new Set([
+          {
+            getSender: () => '@agent:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+      [
+        '👍',
+        new Set([
+          {
+            getSender: () => '@bas:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+    const targetEvent = {
+      getContent: () => ({ 'io.mindroom.stream_status': 'completed' }),
+    } as MatrixEvent;
+
+    create(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$event',
+        targetEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle: vi.fn(),
+      })
+    );
+
+    expect(reactionRenderSpy).not.toHaveBeenCalledWith(expect.objectContaining({ reaction: '🛑' }));
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ reaction: '👍', count: 1 })
+    );
+  });
+
+  it('keeps the stop chip while the target message is still streaming', () => {
+    const relations = new MockRelations([
+      [
+        '🛑',
+        new Set([
+          {
+            getSender: () => '@agent:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+    const targetEvent = {
+      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
+    } as MatrixEvent;
+
+    create(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$event',
+        targetEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle: vi.fn(),
+      })
+    );
+
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ reaction: '🛑', count: 1 })
     );
   });
 });

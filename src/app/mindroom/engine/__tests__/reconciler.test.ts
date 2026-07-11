@@ -4,7 +4,7 @@
  * Two guarantees under test:
  *
  *   AC9 — coverage gates PAINT, never REVALIDATE. A reconcile
- *         scheduled with `reason: 'open-thread-choke-point'` still
+ *         scheduled from the thread-open choke point still
  *         performs the network verify (mocked fetchRelations invoked).
  *
  *   D7 no-op — when the fetched page's event ids are entirely already
@@ -46,6 +46,7 @@ type FakeEventInit = {
    * scanning for edit events targeting an existing event.
    */
   replaceTargetId?: string;
+  reactionTargetId?: string;
   ts?: number;
   sender?: string;
 };
@@ -55,17 +56,31 @@ const makeFakeEvent = ({
   redaction,
   bundledReplaceId,
   replaceTargetId,
+  reactionTargetId,
   ts = 0,
   sender = '@bob:example',
 }: FakeEventInit): MatrixEvent => {
   const raw: Partial<IEvent> = {
     event_id: id,
-    type: redaction ? 'm.room.redaction' : 'm.room.message',
+    sender,
+    type: redaction ? 'm.room.redaction' : reactionTargetId ? 'm.reaction' : 'm.room.message',
     origin_server_ts: ts,
     unsigned: bundledReplaceId
-      ? { 'm.relations': { 'm.replace': { event_id: bundledReplaceId } } as never }
+      ? {
+          'm.relations': {
+            'm.replace': { event_id: bundledReplaceId, sender, origin_server_ts: ts + 1 },
+          } as never,
+        }
       : undefined,
-    content: replaceTargetId
+    content: reactionTargetId
+      ? ({
+          'm.relates_to': {
+            rel_type: 'm.annotation',
+            event_id: reactionTargetId,
+            key: '👍',
+          },
+        } as never)
+      : replaceTargetId
       ? ({
           'm.new_content': { body: 'new body', msgtype: 'm.text' },
           'm.relates_to': { rel_type: 'm.replace', event_id: replaceTargetId },
@@ -76,12 +91,20 @@ const makeFakeEvent = ({
     getId: () => id,
     getType: () => raw.type,
     getTs: () => ts,
+    isSending: () => false,
     isRedaction: () => !!redaction,
     isRedacted: () => false,
     getAssociatedId: () => redaction?.targetId,
     getRelation: () =>
-      replaceTargetId ? { rel_type: 'm.replace', event_id: replaceTargetId } : null,
+      reactionTargetId
+        ? { rel_type: 'm.annotation', event_id: reactionTargetId, key: '👍' }
+        : replaceTargetId
+        ? { rel_type: 'm.replace', event_id: replaceTargetId }
+        : null,
     getUnsigned: () => raw.unsigned ?? {},
+    setUnsigned: (unsigned: IEvent['unsigned']) => {
+      raw.unsigned = unsigned;
+    },
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
@@ -115,11 +138,21 @@ const makeMockClient = ({
   fetchRelations: (call: FetchRelationsCall) => {
     chunk: Array<Partial<IEvent>>;
     next_batch?: string;
+    recursion_depth?: number;
   };
   room: Room;
 }): MatrixClient => {
   const identity = (rawEvent: Partial<IEvent>): MatrixEvent =>
-    makeFakeEvent({ id: (rawEvent.event_id as string) ?? '', ...(rawEvent.type === 'm.room.redaction' ? { redaction: { targetId: (rawEvent.content as Record<string, string> | undefined)?.redacts ?? '' } } : {}) });
+    makeFakeEvent({
+      id: (rawEvent.event_id as string) ?? '',
+      ...(rawEvent.type === 'm.room.redaction'
+        ? {
+            redaction: {
+              targetId: (rawEvent.content as Record<string, string> | undefined)?.redacts ?? '',
+            },
+          }
+        : {}),
+    });
   return {
     getRoom: () => room,
     // Test mapper: returns a MatrixEvent-shaped stub. The prefer-live
@@ -145,6 +178,46 @@ const flushMicrotasks = async (): Promise<void> => {
     // eslint-disable-next-line no-await-in-loop
     await Promise.resolve();
   }
+};
+
+const createContinuationStore = () => {
+  let marker:
+    | {
+        generation: string;
+        startedAt: number;
+        nextToken?: string;
+        validatingHead?: boolean;
+        overlapEventIds: string[];
+      }
+    | undefined;
+  return {
+    load: vi.fn(async () => marker),
+    begin: vi.fn(async (_sessionId, _roomId, _threadId, candidate) => {
+      marker ??= candidate;
+      return marker;
+    }),
+    checkpoint: vi.fn(async (_sessionId, _roomId, _threadId, expectedGeneration, nextToken) => {
+      if (marker?.generation !== expectedGeneration) return undefined;
+      marker = { ...marker, nextToken };
+      return true;
+    }),
+    clear: vi.fn(async (_sessionId, _roomId, _threadId, expectedGeneration) => {
+      if (marker?.generation !== expectedGeneration) return false;
+      marker = undefined;
+      return true;
+    }),
+    restartFromHead: vi.fn(
+      async (_sessionId, _roomId, _threadId, expectedGeneration, nextGeneration) => {
+        if (marker?.generation !== expectedGeneration) return false;
+        const { nextToken: _drop, ...current } = marker;
+        marker = { ...current, generation: nextGeneration, validatingHead: true };
+        return marker;
+      }
+    ),
+    getMarker: () => marker,
+  } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']> & {
+    getMarker: () => typeof marker;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -174,7 +247,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
 
     // Snapshot the pending queue before it drains — the pending job's
@@ -214,10 +286,61 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(1);
+  });
+
+  it('repairs aggregation-only divergence for a same-ID event', async () => {
+    const room = makeFakeRoom();
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [
+      {
+        event_id: '$root',
+        unsigned: {
+          'm.relations': {
+            'm.thread': {
+              count: 1,
+              latest_event: { event_id: '$old', origin_server_ts: 100 },
+            },
+          },
+        },
+      },
+    ];
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({
+        chunk: [
+          {
+            event_id: '$root',
+            unsigned: {
+              'm.relations': {
+                'm.thread': {
+                  count: 2,
+                  latest_event: { event_id: '$new', origin_server_ts: 200 },
+                },
+              },
+            },
+          },
+        ],
+      }),
+    });
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(() => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }));
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+      persistRepair,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(persistRepair).toHaveBeenCalledTimes(1);
   });
 
   it('deduplicates: a second schedule for the same key while the first is in-flight returns the in-flight promise identity', async () => {
@@ -247,7 +370,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
     await flushMicrotasks();
 
@@ -258,7 +380,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'resume',
     });
     expect(second).toBe(first);
 
@@ -269,6 +390,59 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
 
     resolveFetch({ chunk: [] });
     await first;
+  });
+
+  it('delivers a shared in-flight repair to every caller callback', async () => {
+    const room = makeFakeRoom();
+    let resolveFetch!: (value: { chunk: Array<Partial<IEvent>> }) => void;
+    const fetchRelations = vi.fn(
+      () =>
+        new Promise<{ chunk: Array<Partial<IEvent>> }>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const scheduler = createBackfillScheduler({ mx });
+    const staleViewCallback = vi.fn();
+    const currentViewCallback = vi.fn();
+
+    const first = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      onRepaired: staleViewCallback,
+    });
+    await flushMicrotasks();
+    const reopened = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler,
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      onRepaired: currentViewCallback,
+    });
+
+    resolveFetch({ chunk: [{ event_id: '$new' }, { event_id: '$known' }] });
+    await Promise.all([first, reopened]);
+
+    expect(fetchRelations).toHaveBeenCalledTimes(1);
+    expect(staleViewCallback).toHaveBeenCalledTimes(1);
+    expect(currentViewCallback).toHaveBeenCalledTimes(1);
+    expect(currentViewCallback.mock.calls[0][0].map((event) => event.getId())).toContain('$new');
+    const probe = getCacheProbeSnapshot();
+    expect(probe.reconcilesRepaired).toBe(1);
+    expect(probe.reconcilesOnRepairedFired).toBe(2);
   });
 
   it('empty diff is a no-op (D7): no onRepaired tick when fetched page overlaps cache', async () => {
@@ -297,7 +471,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -305,6 +478,132 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(onRepaired).not.toHaveBeenCalled();
     expect(result.repaired).toBe(false);
     expect(result.fetchedCount).toBe(2);
+  });
+
+  it('does not report divergence for an identical bundled replacement revision', async () => {
+    const room = makeFakeRoom();
+    const targetWithEdit: Partial<IEvent> = {
+      event_id: '$target',
+      sender: '@bob:example',
+      origin_server_ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            event_id: '$edit-v2',
+            sender: '@bob:example',
+            origin_server_ts: 200,
+          },
+        },
+      },
+    };
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [targetWithEdit] }),
+    });
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [targetWithEdit] as never;
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+    });
+
+    expect(result.repaired).toBe(false);
+    expect(getCacheProbeSnapshot().reconcilesNoDivergence).toBe(1);
+  });
+
+  it('repairs a cached replacement when its already-cached redaction is fetched again', async () => {
+    const room = makeFakeRoom();
+    const targetWithEdit: Partial<IEvent> = {
+      event_id: '$target',
+      sender: '@bob:example',
+      origin_server_ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            event_id: '$edit-v2',
+            sender: '@bob:example',
+            origin_server_ts: 200,
+          },
+        },
+      },
+    };
+    const redaction: Partial<IEvent> = {
+      event_id: '$redaction',
+      sender: '@moderator:example',
+      origin_server_ts: 300,
+      type: 'm.room.redaction',
+      redacts: '$edit-v2',
+      content: {},
+    };
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [redaction] }),
+    });
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [targetWithEdit, redaction] as never;
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+      persistRepair,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+  });
+
+  it('repairs when a fetched same-id target newly carries redaction state', async () => {
+    const room = makeFakeRoom();
+    const fetchedTarget: Partial<IEvent> = {
+      event_id: '$target',
+      sender: '@bob:example',
+      origin_server_ts: 100,
+      unsigned: {
+        redacted_because: {
+          event_id: '$redaction',
+          type: 'm.room.redaction',
+          sender: '@moderator:example',
+          origin_server_ts: 200,
+        },
+      },
+    };
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [fetchedTarget] }),
+    });
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [
+      { event_id: '$target', sender: '@bob:example', origin_server_ts: 100 },
+    ] as never;
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+    });
+
+    expect(result.repaired).toBe(true);
   });
 
   it('detects a new event id (missed message) and fires onRepaired exactly once', async () => {
@@ -329,7 +628,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -337,128 +635,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // One tick per pass, regardless of how many things needed
     // repairing. Batching is the D7 promise.
     expect(onRepaired).toHaveBeenCalledTimes(1);
-  });
-
-  it('room-scope pass (no threadId) enters the scheduler with kind "reconcile" and does not fetch', async () => {
-    // CINNY-207 P5.1 Commit 3: room-open reconcile.
-    //
-    // Room-open catchup is owned by the gap-fill executor (P4.2). The
-    // reconciler's room-scope pass is a schedule tripwire only —
-    // proves the "every open schedules a reconcile" invariant holds
-    // at both scopes and gives probe captures the same observability
-    // handle. The executor is deliberately a no-op; no /messages, no
-    // /relations, no onRepaired tick.
-    const room = makeFakeRoom();
-    const fetchRelations = vi.fn(async () => ({ chunk: [], next_batch: undefined }));
-    const mx = {
-      getRoom: () => room,
-      getEventMapper: () => (raw: Partial<IEvent>) =>
-        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
-      fetchRelations,
-    } as unknown as MatrixClient;
-    const scheduler = createBackfillScheduler({ mx });
-    const onRepaired = vi.fn();
-
-    const promise = scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      reason: 'room-open',
-      onRepaired,
-    });
-
-    // Snapshot before drain: the pending job carries `threadId:
-    // undefined`, kind `'reconcile'`, band 0. That's what makes it
-    // dedup independently of a thread-scope reconcile on the same
-    // room (kind participates in the dedup key alongside room+thread).
-    const jobs = scheduler.pendingJobs();
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({
-      roomId: '!room:example',
-      threadId: undefined,
-      kind: 'reconcile',
-      priority: 0,
-    });
-
-    const result = await promise;
-    expect(fetchRelations).not.toHaveBeenCalled();
-    expect(onRepaired).not.toHaveBeenCalled();
-    expect(result.reason).toBe('room-open');
-    expect(result.repaired).toBe(false);
-  });
-
-  it('room-scope pass dedups against another room-scope schedule for the same room', async () => {
-    // The dedup key includes kind + roomId + threadId, so a second
-    // `noteRoomFocused`-driven reconcile while the first is in flight
-    // must return the same promise identity. The executor is
-    // synchronous-fast so this test uses a paused scheduler
-    // (maxConcurrent: 0) to hold the first job in the queue.
-    const room = makeFakeRoom();
-    const mx = {
-      getRoom: () => room,
-      getEventMapper: () => (raw: Partial<IEvent>) =>
-        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
-      fetchRelations: vi.fn(),
-    } as unknown as MatrixClient;
-    const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
-
-    const first = scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      reason: 'room-open',
-    });
-    const second = scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      reason: 'room-open',
-    });
-    expect(second).toBe(first);
-    const probe = getCacheProbeSnapshot();
-    expect(probe.schedulerEnqueued).toBe(1);
-    expect(probe.schedulerDeduped).toBe(1);
-  });
-
-  it('room-scope and thread-scope reconciles on the same room coexist (different dedup domains)', async () => {
-    // AC8 dedup includes kind AND threadId, so a room-scope reconcile
-    // (threadId=undefined) and a thread-scope reconcile
-    // (threadId=$thread) on the same room map to different keys and
-    // both enter the scheduler.
-    const room = makeFakeRoom();
-    const mx = {
-      getRoom: () => room,
-      getEventMapper: () => (raw: Partial<IEvent>) =>
-        makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
-      fetchRelations: vi.fn(async () => ({ chunk: [], next_batch: undefined })),
-    } as unknown as MatrixClient;
-    const scheduler = createBackfillScheduler({ mx, maxConcurrent: 0 });
-
-    scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      reason: 'room-open',
-    });
-    scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      threadId: '$thread',
-      cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
-    });
-
-    const jobs = scheduler.pendingJobs();
-    expect(jobs).toHaveLength(2);
-    const kinds = jobs.map((j) => ({ threadId: j.threadId, kind: j.kind }));
-    expect(kinds).toContainEqual({ threadId: undefined, kind: 'reconcile' });
-    expect(kinds).toContainEqual({ threadId: '$thread', kind: 'reconcile' });
   });
 
   it('applier hardens against prepends: repairs only swap or delete existing ids + append at the tail (AC10)', async () => {
@@ -483,8 +659,24 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // introduce new ids into the rendered set.
     const fetchRelations = vi.fn(async () => ({
       chunk: [
-        { event_id: '$edit-target', unsigned: { 'm.relations': { 'm.replace': { event_id: '$edit-v2' } } } },
-        { event_id: '$redaction', type: 'm.room.redaction', content: { redacts: '$redact-target' } },
+        {
+          event_id: '$edit-target',
+          sender: '@bob:example',
+          unsigned: {
+            'm.relations': {
+              'm.replace': {
+                event_id: '$edit-v2',
+                sender: '@bob:example',
+                origin_server_ts: 2,
+              },
+            },
+          },
+        },
+        {
+          event_id: '$redaction',
+          type: 'm.room.redaction',
+          content: { redacts: '$redact-target' },
+        },
       ] as Partial<IEvent>[],
       next_batch: undefined,
     }));
@@ -500,9 +692,13 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         }
         return makeFakeEvent({
           id: (raw.event_id as string) ?? '',
-          bundledReplaceId: (raw.unsigned as {
-            'm.relations'?: { 'm.replace'?: { event_id?: string } };
-          } | undefined)?.['m.relations']?.['m.replace']?.event_id,
+          bundledReplaceId: (
+            raw.unsigned as
+              | {
+                  'm.relations'?: { 'm.replace'?: { event_id?: string } };
+                }
+              | undefined
+          )?.['m.relations']?.['m.replace']?.event_id,
         });
       },
       fetchRelations,
@@ -517,7 +713,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$edit-target', '$redact-target']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -563,7 +758,10 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // fired.
     const liveInstances = new Map<
       string,
-      MatrixEvent & { isRedacted: () => boolean; makeRedacted: (redaction: MatrixEvent, room: Room) => void }
+      MatrixEvent & {
+        isRedacted: () => boolean;
+        makeRedacted: (redaction: MatrixEvent, room: Room) => void;
+      }
     >();
     liveInstances.set('$reaction', {
       ...makeFakeEvent({ id: '$reaction' }),
@@ -607,7 +805,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
       room: staleRoom,
     });
 
@@ -630,7 +827,11 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       iteration += 1;
       if (iteration === 1) {
         return {
-          chunk: [{ event_id: '$far-3' }, { event_id: '$far-2' }, { event_id: '$far-1' }] as Partial<IEvent>[],
+          chunk: [
+            { event_id: '$far-3' },
+            { event_id: '$far-2' },
+            { event_id: '$far-1' },
+          ] as Partial<IEvent>[],
           next_batch: 'page-2',
         };
       }
@@ -655,12 +856,426 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(2);
     expect(result.iterations).toBe(2);
     expect(result.fetchedCount).toBe(5);
+  });
+
+  it('resumes after a later-page failure without treating the persisted prefix as overlap', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+    const firstFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ chunk: [{ event_id: '$new-1' }], next_batch: 'page-2' })
+      .mockRejectedValueOnce(new Error('page two failed'));
+    const firstClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: firstFetch,
+    } as unknown as MatrixClient;
+
+    const firstResult = await scheduleReconcile({
+      mx: firstClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: firstClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(firstResult).toMatchObject({ repaired: true, durable: true, iterations: 2 });
+    expect(continuationStore.getMarker()?.nextToken).toBe('page-2');
+
+    const secondFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => ({
+      chunk: options.from
+        ? [{ event_id: '$known' }, { event_id: '$new-2' }]
+        : [{ event_id: '$new-head' }, { event_id: '$known' }],
+      next_batch: undefined,
+    }));
+    const secondClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: secondFetch,
+    } as unknown as MatrixClient;
+    const secondResult = await scheduleReconcile({
+      mx: secondClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: secondClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'page-2' });
+    expect(secondFetch.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(secondResult).toMatchObject({ repaired: true, durable: true, iterations: 2 });
+    expect(continuationStore.getMarker()).toBeUndefined();
+    expect(persistRepair).toHaveBeenCalledTimes(2);
+    const secondPersistedIds = persistRepair.mock.calls[1][0].events.map((event) => event.getId());
+    expect(secondPersistedIds).toContain('$new-head');
+  });
+
+  it('checkpoints the page cap and resumes from page 26 on the next pass', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+    const firstFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => {
+      const page = firstFetch.mock.calls.length;
+      return {
+        chunk: [{ event_id: `$page-${page}` }],
+        next_batch: `page-${page + 1}`,
+        options,
+      };
+    });
+    const firstClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: firstFetch,
+    } as unknown as MatrixClient;
+
+    const firstResult = await scheduleReconcile({
+      mx: firstClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: firstClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(firstResult).toMatchObject({ repaired: true, durable: true, iterations: 25 });
+    expect(firstFetch).toHaveBeenCalledTimes(25);
+    expect(continuationStore.getMarker()?.nextToken).toBe('page-26');
+
+    const secondFetch = vi.fn(async () => ({
+      chunk: [{ event_id: '$known' }, { event_id: '$after-cap' }],
+      next_batch: undefined,
+    }));
+    const secondClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: secondFetch,
+    } as unknown as MatrixClient;
+    await scheduleReconcile({
+      mx: secondClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: secondClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'page-26' });
+    expect(continuationStore.getMarker()).toBeUndefined();
+    expect(persistRepair).toHaveBeenCalledTimes(2);
+  });
+
+  it('checkpoints advancing empty pages instead of repeating them after the cap', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    const persistRepair = vi.fn();
+    const fetchRelations = vi.fn(async () => {
+      const page = fetchRelations.mock.calls.length;
+      return { chunk: [], next_batch: `page-${page + 1}` };
+    });
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair: persistRepair as never,
+      continuationStore,
+    });
+
+    expect(result).toMatchObject({ repaired: false, iterations: 25 });
+    expect(continuationStore.getMarker()?.nextToken).toBe('page-26');
+    expect(persistRepair).not.toHaveBeenCalled();
+  });
+
+  it('completes a capped head-validation phase from its saved cursor', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    await continuationStore.begin('session', '!room:example', '$thread', {
+      generation: 'validation-a',
+      startedAt: 1,
+      nextToken: 'older-cursor',
+      overlapEventIds: ['$known'],
+    });
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+    let headPage = 0;
+    const firstFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => {
+      if (options.from === 'older-cursor') {
+        return { chunk: [{ event_id: '$known' }, { event_id: '$older' }] };
+      }
+      headPage += 1;
+      return {
+        chunk: [{ event_id: `$head-page-${headPage}` }],
+        next_batch: `head-${headPage + 1}`,
+      };
+    });
+    const firstClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: firstFetch,
+    } as unknown as MatrixClient;
+
+    await scheduleReconcile({
+      mx: firstClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: firstClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(continuationStore.getMarker()).toMatchObject({
+      validatingHead: true,
+      nextToken: 'head-26',
+    });
+
+    const secondFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, _options) => ({
+      chunk: [{ event_id: '$known' }, { event_id: '$validation-tail' }],
+    }));
+    const secondClient = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations: secondFetch,
+    } as unknown as MatrixClient;
+
+    const result = await scheduleReconcile({
+      mx: secondClient,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: secondClient }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      persistRepair,
+      continuationStore,
+    });
+
+    expect(secondFetch).toHaveBeenCalledTimes(1);
+    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'head-26' });
+    expect(result).toMatchObject({ repaired: true, durable: true });
+    expect(continuationStore.getMarker()).toBeUndefined();
+    const persistedIds = persistRepair.mock.calls.at(-1)?.[0].events.map((event) => event.getId());
+    expect(persistedIds).toContain('$validation-tail');
+  });
+
+  it('upgrades an empty saved overlap boundary from the current cache', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    await continuationStore.begin('session', '!room:example', '$thread', {
+      generation: 'empty-boundary',
+      startedAt: 1,
+      nextToken: 'older-cursor',
+      overlapEventIds: [],
+    });
+    const fetchRelations = vi
+      .fn()
+      .mockResolvedValueOnce({ chunk: [{ event_id: '$older' }], next_batch: undefined })
+      .mockResolvedValueOnce({
+        chunk: [{ event_id: '$persisted-from-earlier-pass' }],
+        next_batch: 'head-page-2',
+      });
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$persisted-from-earlier-pass']),
+      persistRepair: vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      })),
+      continuationStore,
+    });
+
+    expect(fetchRelations).toHaveBeenCalledTimes(2);
+    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'older-cursor' });
+    expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(continuationStore.getMarker()).toBeUndefined();
+  });
+
+  it.each(['repeated', 'rejected'] as const)(
+    'recovers a %s saved token by validating again from the head',
+    async (failureMode) => {
+      const room = makeFakeRoom();
+      const continuationStore = createContinuationStore();
+      await continuationStore.begin('session', '!room:example', '$thread', {
+        generation: 'saved-generation',
+        startedAt: 1,
+        nextToken: 'stale-token',
+        overlapEventIds: ['$known'],
+      });
+      const fetchRelations = vi.fn();
+      if (failureMode === 'rejected') {
+        // A definitive server verdict (M_UNKNOWN_TOKEN) discards the cursor
+        // without the network-blip retry.
+        fetchRelations.mockRejectedValueOnce(
+          Object.assign(new Error('invalid token'), { errcode: 'M_UNKNOWN_TOKEN' })
+        );
+      } else {
+        fetchRelations.mockResolvedValueOnce({ chunk: [], next_batch: 'stale-token' });
+      }
+      fetchRelations.mockResolvedValueOnce({ chunk: [], next_batch: undefined });
+      const mx = {
+        getRoom: () => room,
+        getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+        fetchRelations,
+      } as unknown as MatrixClient;
+
+      await scheduleReconcile({
+        mx,
+        sessionId: 'session',
+        scheduler: createBackfillScheduler({ mx }),
+        roomId: '!room:example',
+        room,
+        threadId: '$thread',
+        cachedPage: makeCachedPage(['$known']),
+        continuationStore,
+      });
+
+      expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'stale-token' });
+      expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+      expect(continuationStore.restartFromHead).toHaveBeenCalledTimes(1);
+      expect(continuationStore.getMarker()).toBeUndefined();
+    }
+  );
+
+  it('preserves the saved cursor when fetching it fails at the network level', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    await continuationStore.begin('session', '!room:example', '$thread', {
+      generation: 'saved-generation',
+      startedAt: 1,
+      nextToken: 'saved-token',
+      overlapEventIds: ['$known'],
+    });
+    const fetchRelations = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      continuationStore,
+    });
+
+    // One retry of the same cursor, then give up WITHOUT discarding durable
+    // scan progress — the next online open resumes from the saved token.
+    expect(fetchRelations).toHaveBeenCalledTimes(2);
+    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'saved-token' });
+    expect(fetchRelations.mock.calls[1][4]).toMatchObject({ from: 'saved-token' });
+    expect(continuationStore.restartFromHead).not.toHaveBeenCalled();
+    expect(continuationStore.getMarker()).toMatchObject({ nextToken: 'saved-token' });
+  });
+
+  it('does not turn an empty saved boundary into an early overlap after token recovery', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    await continuationStore.begin('session', room.roomId, '$thread', {
+      generation: 'empty-saved-boundary',
+      startedAt: 1,
+      nextToken: 'expired-token',
+      overlapEventIds: [],
+    });
+    const fetchRelations = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error('expired token'), { errcode: 'M_UNKNOWN_TOKEN' })
+      )
+      .mockResolvedValueOnce({ chunk: [{ event_id: '$persisted-page' }], next_batch: 'head-2' })
+      .mockResolvedValueOnce({ chunk: [{ event_id: '$older' }], next_batch: undefined });
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(({ events }) => ({
+        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        loadedReplyCount: 0,
+        write: Promise.resolve(true),
+      }));
+
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$persisted-page']),
+      continuationStore,
+      persistRepair,
+    });
+
+    expect(fetchRelations).toHaveBeenCalledTimes(3);
+    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'expired-token' });
+    expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(fetchRelations.mock.calls[2][4]).toMatchObject({ from: 'head-2' });
+    expect(continuationStore.getMarker()).toBeUndefined();
   });
 
   it('sorts multi-page fetches chronologically before injection (greptile P1: paged batch order reverses)', async () => {
@@ -729,7 +1344,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
       onRepaired: (batch) => {
         onRepairedBatch = batch;
@@ -754,7 +1368,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
   // CINNY-207 P5-GATE-FIX (AC2): observability + SDK injection.
   // ---------------------------------------------------------------------
 
-  it('bumps reconcilesScheduled on every scheduleReconcile (thread-scope and room-scope) — P5-GATE-FIX observability', async () => {
+  it('bumps reconcilesScheduled on every thread reconcile', async () => {
     // Team-lead directive: same lesson as schedulerFailed. Without a
     // "was it even scheduled?" counter, trace analysis can't
     // distinguish "the open path never asked" from "the reconciler
@@ -774,21 +1388,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
-    // Room-scope pass (kind participates in dedup, so this is a
-    // different key even on the same room).
-    await scheduleReconcile({
-      mx,
-      sessionId: 'session',
-      scheduler,
-      roomId: '!room:example',
-      reason: 'room-open',
-    });
-
     const probe = getCacheProbeSnapshot();
-    expect(probe.reconcilesScheduled).toBe(2);
-    // No repair happened either time (empty chunk, no divergence).
+    expect(probe.reconcilesScheduled).toBe(1);
     expect(probe.reconcilesRepaired).toBe(0);
   });
 
@@ -814,7 +1416,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     const probe = getCacheProbeSnapshot();
@@ -871,7 +1472,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
     });
 
@@ -967,9 +1567,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       // clone is what gets mutated. The assertion below
       // (renderTargetMakeReplaced called) fails, exposing the race.
       getEventMapper: () => (raw: Partial<IEvent>) => {
-        const relatesTo = (raw.content as
-          | { 'm.relates_to'?: { rel_type?: string; event_id?: string } }
-          | undefined)?.['m.relates_to'];
+        const relatesTo = (
+          raw.content as { 'm.relates_to'?: { rel_type?: string; event_id?: string } } | undefined
+        )?.['m.relates_to'];
         const isReplace = relatesTo?.rel_type === 'm.replace';
         return makeFakeEvent({
           id: (raw.event_id as string) ?? '',
@@ -999,7 +1599,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
       room,
     });
 
@@ -1065,7 +1664,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -1148,7 +1746,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomThreadNull,
       onRepaired,
     });
@@ -1215,7 +1812,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
     });
 
@@ -1228,7 +1824,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // `onRepaired(allMapped)` is invoked, so the counter alone cannot
     // prove the widened component-side callback (the render-fallback
     // sink into `setSupplementalThreadEvents`) actually ran end-to-end.
-    // A guard-skipped or throwing callback would leave
+    // A throwing callback would leave
     // reconcilesRepaired at N and reconcilesOnRepairedFired at 0 — that
     // gap is the diagnostic. This test asserts both counters bump
     // together on the happy path AND that the counter fires strictly
@@ -1251,8 +1847,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const scheduler = createBackfillScheduler({ mx });
     let observedCounterBeforeCallbackReturned = -1;
     const onRepaired = vi.fn(() => {
-      observedCounterBeforeCallbackReturned = getCacheProbeSnapshot()
-        .reconcilesOnRepairedFired;
+      observedCounterBeforeCallbackReturned = getCacheProbeSnapshot().reconcilesOnRepairedFired;
     });
 
     await scheduleReconcile({
@@ -1262,7 +1857,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -1323,7 +1917,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(true);
@@ -1332,6 +1925,78 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     // pass, one persist call. Under the pre-v4 code this counter would
     // stay at 0 (persist path was never invoked from the reconciler).
     expect(probe.reconcilerPersists).toBe(1);
+  });
+
+  it('does not settle a repaired pass until its cache transaction commits', async () => {
+    const room = makeFakeRoom();
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [{ event_id: '$new' }, { event_id: '$known' }] }),
+    });
+    let resolveWrite!: (committed: boolean) => void;
+    const write = new Promise<boolean>((resolve) => {
+      resolveWrite = resolve;
+    });
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(() => ({ rawEvents: [], loadedReplyCount: 0, write }));
+    const onRepaired = vi.fn();
+    let settled = false;
+
+    const reconcile = scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      onRepaired,
+      persistRepair,
+    }).finally(() => {
+      settled = true;
+    });
+    await flushMicrotasks();
+
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+    expect(onRepaired).not.toHaveBeenCalled();
+
+    resolveWrite(true);
+    const result = await reconcile;
+
+    expect(result).toMatchObject({ repaired: true, durable: true });
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+  });
+
+  it('delivers the in-memory repair while exposing a failed durable write', async () => {
+    const room = makeFakeRoom();
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({ chunk: [{ event_id: '$new' }, { event_id: '$known' }] }),
+    });
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(() => ({
+        rawEvents: [],
+        loadedReplyCount: 0,
+        write: Promise.resolve(false),
+      }));
+    const onRepaired = vi.fn();
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      onRepaired,
+      persistRepair,
+    });
+
+    expect(result).toMatchObject({ repaired: true, durable: false });
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+    expect(onRepaired.mock.calls[0][0].map((event) => event.getId())).toContain('$new');
   });
 
   it('detects SDK-vs-cache timing race and STILL persists + injects — P5-GATE-FIX v4 final: cache is what next open paints', async () => {
@@ -1365,8 +2030,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const roomSdkAhead = {
       roomId: '!room:example',
       findEventById: () => null,
-      getThread: (id: string) =>
-        id === '$thread' ? sdkAlreadyHasV2Thread : undefined,
+      getThread: (id: string) => (id === '$thread' ? sdkAlreadyHasV2Thread : undefined),
     } as unknown as Room;
     // Fetched page carries the same-id cached event ($edit-target) but
     // with a bundled `m.replace` — that is the cache-vs-server
@@ -1379,8 +2043,15 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         {
           event_id: '$edit-target',
           type: 'm.room.message',
+          sender: '@bob:example',
           unsigned: {
-            'm.relations': { 'm.replace': { event_id: '$edit-v2' } },
+            'm.relations': {
+              'm.replace': {
+                event_id: '$edit-v2',
+                sender: '@bob:example',
+                origin_server_ts: 2,
+              },
+            },
           },
         },
         { event_id: '$reply-1' },
@@ -1392,9 +2063,13 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       getEventMapper: () => (raw: Partial<IEvent>) =>
         makeFakeEvent({
           id: (raw.event_id as string) ?? '',
-          bundledReplaceId: (raw.unsigned as {
-            'm.relations'?: { 'm.replace'?: { event_id?: string } };
-          } | undefined)?.['m.relations']?.['m.replace']?.event_id,
+          bundledReplaceId: (
+            raw.unsigned as
+              | {
+                  'm.relations'?: { 'm.replace'?: { event_id?: string } };
+                }
+              | undefined
+          )?.['m.relations']?.['m.replace']?.event_id,
         }),
       fetchRelations,
     } as unknown as MatrixClient;
@@ -1410,7 +2085,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$edit-target', '$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomSdkAhead,
       onRepaired,
     });
@@ -1465,7 +2139,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(false);
@@ -1537,7 +2210,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         debugTraceId: 'test-trace-1',
       });
 
@@ -1621,7 +2293,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         // debugTraceId intentionally omitted.
       });
 
@@ -1644,21 +2315,18 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
   //   reconcilesScheduled ==
   //     reconcilesSignalAborted +
   //     reconcilesFetchFailed + reconcilesNoDivergence +
-  //     reconcilesNoRoom + reconcilesRoomScopeNoop +
+  //     reconcilesNoRoom +
   //     reconcilesRepaired
   // observable from a probe snapshot. This suite drives every
   // reachable outcome and asserts the sum stays balanced — that way a
   // future regression that introduces a new silent exit path breaks
   // the invariant instead of being invisible in a docker trace.
   describe('exit-path outcome counters (AC2 STEP 1 invariant)', () => {
-    const sumOutcomes = (
-      probe: ReturnType<typeof getCacheProbeSnapshot>
-    ): number =>
+    const sumOutcomes = (probe: ReturnType<typeof getCacheProbeSnapshot>): number =>
       probe.reconcilesSignalAborted +
       probe.reconcilesFetchFailed +
       probe.reconcilesNoDivergence +
       probe.reconcilesNoRoom +
-      probe.reconcilesRoomScopeNoop +
       probe.reconcilesRepaired;
 
     it('reconcile pass runs to completion and fires onRepaired regardless of component state (I2: engine-owned, decoupled from mount)', async () => {
@@ -1693,7 +2361,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
         onRepaired,
       });
 
@@ -1722,11 +2389,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       let capturedAbort: (() => void) | undefined;
       const fetchRelations = vi.fn(
         () =>
-          new Promise<{ chunk: Array<Partial<IEvent>>; next_batch?: string }>(
-            (resolve) => {
-              capturedAbort = () => resolve({ chunk: [], next_batch: undefined });
-            }
-          )
+          new Promise<{ chunk: Array<Partial<IEvent>>; next_batch?: string }>((resolve) => {
+            capturedAbort = () => resolve({ chunk: [], next_batch: undefined });
+          })
       );
       const mx = {
         getRoom: () => room,
@@ -1743,7 +2408,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
       await flushMicrotasks();
 
@@ -1783,7 +2447,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -1813,7 +2476,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -1843,7 +2505,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -1869,38 +2530,11 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
       expect(probe.reconcilesScheduled).toBe(1);
       expect(probe.reconcilesNoRoom).toBe(1);
-      expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
-    });
-
-    it('reconcilesRoomScopeNoop bumps for a room-scope reconcile (no threadId)', async () => {
-      const room = makeFakeRoom();
-      const fetchRelations = vi.fn();
-      const mx = {
-        getRoom: () => room,
-        getEventMapper: () => (raw: Partial<IEvent>) =>
-          makeFakeEvent({ id: (raw.event_id as string) ?? '' }),
-        fetchRelations,
-      } as unknown as MatrixClient;
-      const scheduler = createBackfillScheduler({ mx });
-
-      await scheduleReconcile({
-        mx,
-        sessionId: 'session',
-        scheduler,
-        roomId: '!room:example',
-        reason: 'room-open',
-      });
-
-      expect(fetchRelations).not.toHaveBeenCalled();
-      const probe = getCacheProbeSnapshot();
-      expect(probe.reconcilesScheduled).toBe(1);
-      expect(probe.reconcilesRoomScopeNoop).toBe(1);
       expect(sumOutcomes(probe)).toBe(probe.reconcilesScheduled);
     });
 
@@ -1925,7 +2559,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         onRepaired: () => undefined,
       });
 

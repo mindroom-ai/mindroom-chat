@@ -27,11 +27,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from '../test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from '../threadCacheCoverage';
 import { runThreadOpenCacheFirst } from '../threadOpenCacheFirst';
-import {
-  getCacheProbeSnapshot,
-  resetCacheProbe,
-  type CacheProbeCounters,
-} from '../cacheProbe';
+import { getCacheProbeSnapshot, resetCacheProbe, type CacheProbeCounters } from '../cacheProbe';
 
 const CHOKE_POINT_OUTCOME_KEYS = [
   'threadOpenScheduledCacheFirst',
@@ -82,7 +78,6 @@ const makeRunOptions = () => {
     isCurrentThreadOpen: vi.fn(() => true),
     pinThreadToBottomOnOpen: vi.fn(),
     scheduleReconcile: vi.fn(async () => ({
-      reason: 'open-thread-choke-point' as const,
       repaired: false,
       fetchedCount: 0,
       iterations: 1,

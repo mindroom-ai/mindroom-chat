@@ -10,7 +10,8 @@ const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterS
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
   ...overrides,
 });
@@ -26,7 +27,7 @@ describe('roomThreadOverviewModel', () => {
 
       const state = createDefaultThreadFilterState();
       expect(serializeThreadFilterState(state)).toEqual({
-        v: 1,
+        v: 2,
         resolved: 'any',
         streaming: 'any',
         scheduled: 'any',
@@ -35,7 +36,8 @@ describe('roomThreadOverviewModel', () => {
         sortBy: 'lastReply',
         sortDirection: 'desc',
         tags: {},
-        searchQuery: '',
+        freeText: '',
+        unsupportedQuery: '',
         statusMode: 'and',
       });
       expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
@@ -53,7 +55,7 @@ describe('roomThreadOverviewModel', () => {
         idle: 'include',
         sortBy: 'lastReply',
         sortDirection: 'asc',
-        searchQuery: 'hello',
+        freeText: 'hello',
         statusMode: 'or',
         tags: new Map([
           ['blocked', 'exclude'],
@@ -98,7 +100,8 @@ describe('roomThreadOverviewModel', () => {
           ['blocked', 'exclude'],
           ['priority', 'include'],
         ]),
-        searchQuery: '',
+        freeText: '',
+        unsupportedQuery: '',
         statusMode: 'and',
       });
     });
@@ -242,6 +245,7 @@ describe('roomThreadOverviewModel', () => {
   describe('filter presets', () => {
     it('materializes the working preset as streaming OR scheduled and serializes it', async () => {
       const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
+      const { serializeThreadFilterQuery } = await import('./threadFilterDsl');
       const workingPreset = FILTER_PRESETS.find((preset) => preset.id === 'working');
       if (!workingPreset) throw new Error('working preset missing');
 
@@ -251,8 +255,8 @@ describe('roomThreadOverviewModel', () => {
         streaming: 'include',
         scheduled: 'include',
         statusMode: 'or',
-        searchQuery: 'is:streaming OR is:scheduled',
       });
+      expect(serializeThreadFilterQuery(state)).toBe('is:streaming OR is:scheduled');
     });
 
     it('resets all filters for the all preset', async () => {
@@ -264,13 +268,15 @@ describe('roomThreadOverviewModel', () => {
         makeDefaultState({
           resolved: 'include',
           tags: new Map([['priority', 'include']]),
-          searchQuery: 'tag:priority',
+          freeText: 'needle',
+          unsupportedQuery: 'tag:a OR tag:b',
         }),
         allPreset
       );
 
       expect(state.tags.size).toBe(0);
-      expect(state.searchQuery).toBe('');
+      expect(state.freeText).toBe('');
+      expect(state.unsupportedQuery).toBe('');
       expect(state.resolved).toBe('any');
     });
   });
@@ -287,14 +293,14 @@ describe('roomThreadOverviewModel', () => {
         unread: 'exclude',
         sortBy: 'natural',
         statusMode: 'or',
-        searchQuery: 'is:unread tag:priority',
+        freeText: 'needle',
+        unsupportedQuery: 'tag:a OR tag:b',
         tags: new Map([['priority', 'include']]),
       });
 
       expect(simplifyThreadFilterState(advanced)).toEqual({
         ...createDefaultThreadFilterState(),
         resolved: 'exclude',
-        searchQuery: '-is:resolved',
       });
     });
 
@@ -311,32 +317,17 @@ describe('roomThreadOverviewModel', () => {
       );
     });
 
-    it('survives the DSL round trip the thread index applies to the live state', async () => {
-      // Regression: the search DSL is authoritative downstream — the index
-      // recomputes the live state as applyParsedThreadFilterQuery(state,
-      // parse(state.searchQuery)), which resets every status key the query
-      // does not mention. A projection with a blank query therefore silently
-      // erased the unresolved filter and the simple-mode toggle did nothing.
+    it('keeps the unresolved projection canonical without a DSL round trip', async () => {
       const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
-      const { applyParsedThreadFilterQuery, parseThreadFilterQuery } = await import(
-        './threadFilterDsl'
-      );
+      const { serializeThreadFilterQuery } = await import('./threadFilterDsl');
 
       const projected = simplifyThreadFilterState(makeDefaultState({ resolved: 'exclude' }));
-      const live = applyParsedThreadFilterQuery(
-        projected,
-        parseThreadFilterQuery(projected.searchQuery ?? '')
-      );
-
-      expect(live.resolved).toBe('exclude');
+      expect(projected.resolved).toBe('exclude');
+      expect(serializeThreadFilterQuery(projected)).toBe('-is:resolved');
 
       const projectedOff = simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }));
-      const liveOff = applyParsedThreadFilterQuery(
-        projectedOff,
-        parseThreadFilterQuery(projectedOff.searchQuery ?? '')
-      );
-
-      expect(liveOff.resolved).toBe('any');
+      expect(projectedOff.resolved).toBe('any');
+      expect(serializeThreadFilterQuery(projectedOff)).toBe('');
     });
   });
 });

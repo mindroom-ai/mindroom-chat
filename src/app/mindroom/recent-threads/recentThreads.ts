@@ -7,6 +7,7 @@ import {
 import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
 import { getImperativeJotaiStore } from '../../state/jotaiStore';
+import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 const RECENT_THREADS = 'recentThreads';
@@ -70,7 +71,11 @@ const trimRecentThreads = (entries: RecentThreadItem[]): RecentThreadItem[] =>
   sortRecentThreads(entries).slice(0, MAX_RECENT_THREADS);
 
 const sanitizeRecentThreads = (value: unknown): RecentThreadItem[] => {
-  if (!isRecord(value) || value.v !== RECENT_THREADS_STORE_VERSION || !Array.isArray(value.entries)) {
+  if (
+    !isRecord(value) ||
+    value.v !== RECENT_THREADS_STORE_VERSION ||
+    !Array.isArray(value.entries)
+  ) {
     return [];
   }
 
@@ -93,13 +98,7 @@ const serializeRecentThreads = (entries: RecentThreadItem[]): RecentThreadsStore
 
 const getStoreKey = (userId: string): string => `${RECENT_THREADS}:${userId}`;
 
-let activeRecentThreadsAtom: RecentThreadsAtom | undefined;
-const recentThreadsAtoms = new Map<string, RecentThreadsAtom>();
-
-export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
-  const existingAtom = recentThreadsAtoms.get(userId);
-  if (existingAtom) return existingAtom;
-
+const createRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
   const storeKey = getStoreKey(userId);
 
   const baseRecentThreadsAtom = atomWithLocalStorage<RecentThreadItem[]>(
@@ -158,7 +157,9 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
       if (!action.roomId || !isConfirmedMatrixEventId(action.threadId)) return;
 
       const openedAt =
-        typeof action.openedAt === 'number' && Number.isFinite(action.openedAt) && action.openedAt > 0
+        typeof action.openedAt === 'number' &&
+        Number.isFinite(action.openedAt) &&
+        action.openedAt > 0
           ? action.openedAt
           : Date.now();
       const existingEntry = current.find(
@@ -181,25 +182,21 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
     }
   );
 
-  recentThreadsAtoms.set(userId, recentThreadsAtom);
   return recentThreadsAtom;
 };
 
-export const registerRecentThreadsAtom = (recentThreadsAtom: RecentThreadsAtom) => {
-  activeRecentThreadsAtom = recentThreadsAtom;
+const recentThreadsRegistry = createUserScopedAtomRegistry<RecentThreadsAtom>({
+  create: createRecentThreadsAtom,
+  getStorageKey: getStoreKey,
+});
 
-  return () => {
-    if (activeRecentThreadsAtom === recentThreadsAtom) {
-      activeRecentThreadsAtom = undefined;
-    }
-  };
-};
+export const makeRecentThreadsAtom = recentThreadsRegistry.getOrCreate;
+
+export const registerRecentThreadsAtom = recentThreadsRegistry.registerActive;
 
 const getResolvedRecentThreadsAtom = (): RecentThreadsAtom | undefined => {
-  if (activeRecentThreadsAtom) return activeRecentThreadsAtom;
-
   const userId = getActiveSession()?.userId;
-  return userId ? makeRecentThreadsAtom(userId) : undefined;
+  return recentThreadsRegistry.resolveActiveOrCreate(userId);
 };
 
 export const bumpRecentThread = (
@@ -244,11 +241,5 @@ export const rekeyRecentThread = (roomId: string, threadId: string, nextThreadId
 };
 
 export const clearRecentThreadsStore = (userId: string) => {
-  const recentThreadsAtom = recentThreadsAtoms.get(userId);
-  if (activeRecentThreadsAtom === recentThreadsAtom) {
-    activeRecentThreadsAtom = undefined;
-  }
-
-  recentThreadsAtoms.delete(userId);
-  localStorage.removeItem(getStoreKey(userId));
+  recentThreadsRegistry.clear(userId);
 };

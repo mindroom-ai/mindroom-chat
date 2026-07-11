@@ -208,7 +208,7 @@ export function PasswordRegisterForm({
   const registerError =
     registerState.status === AsyncStatus.Error ? registerState.error : undefined;
 
-  useRegisterComplete(customRegisterResp, addAccount);
+  const sessionStoreError = useRegisterComplete(customRegisterResp, addAccount);
 
   const handleSubmit: ChangeEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
@@ -390,6 +390,9 @@ export function PasswordRegisterForm({
         )}
         {registerError?.errcode === RegisterError.Unknown && (
           <FieldError message={registerError.data.error ?? 'Failed to register. Unknown Reason.'} />
+        )}
+        {sessionStoreError && (
+          <FieldError message="Registration succeeded, but this browser could not save the account. Check storage permissions and try logging in." />
         )}
         <span data-spacing-node />
         <Button variant="Primary" size="500" type="submit">

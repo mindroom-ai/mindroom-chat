@@ -6,7 +6,7 @@ import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
 } from './compactThreadRootData';
-import { type CachedThreadEventPage, loadLatestCachedThreadEvents } from './eventRepository';
+import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
@@ -262,16 +262,15 @@ export const resolveCachedOverviewUpdate = ({
       cachedPage,
       mapper,
     });
-    if (cachedPreview) {
-      const currentPreview = compactThreadRootBodyMap.get(rootId);
-      const currentSourceTs =
-        currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
-      if (
-        cachedPreview.previewText !== currentPreview &&
-        (!currentPreview || cachedPreview.sourceTs > currentSourceTs)
-      ) {
-        nextPreview = cachedPreview.previewText;
-      }
+    // Fill-only for healthy previews: live SDK state is authoritative once
+    // present (the merge in mergeCompactThreadRootBodyMaps lets live win),
+    // and a live root temporarily behind the cache is healed by the same-id
+    // revision merge during room cache hydration. The one preview the cache
+    // may replace is a truncated streaming placeholder ("Thinking…") — the
+    // merge yields to cache for those, matching the retry allowance below.
+    const livePreview = compactThreadRootBodyMap.get(rootId);
+    if (cachedPreview && (!livePreview || hasLikelyIncompleteStreamingBody(livePreview))) {
+      nextPreview = cachedPreview;
     }
   }
 
@@ -358,9 +357,24 @@ export const useThreadOverviewCacheHydration = ({
     const mapper = mx.getEventMapper();
 
     const loadCachedThreadOverviewRecords = async () => {
-      const updates = await Promise.all(
-        threadRootIdsToLoad.map(async (rootId) => {
-          const cachedPage = await loadLatestCachedThreadEvents(sessionId, room.roomId, rootId, 32);
+      let cachedPages: Map<string, CachedThreadEventPage>;
+      try {
+        cachedPages = await loadLatestCachedThreadEventsBatch(
+          sessionId,
+          room.roomId,
+          threadRootIdsToLoad,
+          32
+        );
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+
+      const nextUpdates: CachedOverviewUpdate[] = [];
+      threadRootIdsToLoad.forEach((rootId) => {
+        const cachedPage = cachedPages.get(rootId);
+        if (!cachedPage) return;
+        try {
           const currentRecord = (
             showCompactRoomView ? compactThreadRecordMap : threadRecordMap
           ).get(rootId);
@@ -369,7 +383,7 @@ export const useThreadOverviewCacheHydration = ({
             room.getThread(rootId)?.rootEvent ??
             roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
 
-          return resolveCachedOverviewUpdate({
+          const update = resolveCachedOverviewUpdate({
             rootId,
             room,
             mapper,
@@ -380,15 +394,12 @@ export const useThreadOverviewCacheHydration = ({
             compactCachedThreadRootBodyMap,
             compactThreadRootBodyMap,
           });
-        })
-      );
-
-      if (cancelled) return;
-
-      const nextUpdates: CachedOverviewUpdate[] = [];
-      updates.forEach((entry) => {
-        if (entry !== null) nextUpdates.push(entry);
+          if (update) nextUpdates.push(update);
+        } catch {
+          // A single unreadable cached page must not block the others.
+        }
       });
+
       if (nextUpdates.length === 0) return;
 
       applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
@@ -399,7 +410,7 @@ export const useThreadOverviewCacheHydration = ({
       });
     };
 
-    loadCachedThreadOverviewRecords();
+    void loadCachedThreadOverviewRecords();
 
     return () => {
       cancelled = true;
@@ -454,9 +465,9 @@ export const useThreadOverviewRelationUpdates = ({
       if (threadId) return;
 
       const rootId = options.rootId;
-      const currentRecord = (showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap).get(
-        rootId
-      );
+      const currentRecord = (
+        showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap
+      ).get(rootId);
       const rootEvent =
         options.rootEvent ??
         room.findEventById(rootId) ??

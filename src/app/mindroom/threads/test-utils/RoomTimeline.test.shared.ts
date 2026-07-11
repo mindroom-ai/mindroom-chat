@@ -11,11 +11,6 @@ import {
   updateThreadFilterKey,
 } from '../roomThreadOverviewModel';
 import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-  serializeThreadFilterQuery,
-} from '../threadFilterDsl';
-import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
@@ -578,7 +573,7 @@ vi.mock('../../../utils/matrix', () => ({
 vi.mock('../../../utils/room', () => ({
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
-  getEditedEvent: () => undefined,
+  getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEventReactions: () => undefined,
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
@@ -1085,7 +1080,10 @@ vi.mock('../../messages/threadSummary', async (importOriginal) => {
 });
 
 vi.mock('../useThreadRenderState', () => ({
-  useThreadRenderState: () => threadRenderStateMock,
+  useThreadRenderState: () => ({
+    ...threadRenderStateMock,
+    threadEventIndexMap: threadRenderStateMock.threadEventIndexMapRef.current,
+  }),
 }));
 
 // CINNY-207 P2.3: eventRepository imports thread APIs directly from
@@ -1094,6 +1092,9 @@ vi.mock('../useThreadRenderState', () => ({
 // code and is no longer exported.
 vi.mock('../cacheStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../cacheStore')>();
+  const saveThreadEventsToCache = vi.fn(
+    async (..._args: Parameters<typeof actual.saveThreadEventsToCache>) => undefined
+  );
   return {
     ...actual,
     getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
@@ -1106,8 +1107,18 @@ vi.mock('../cacheStore', async (importOriginal) => {
     ),
     loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
     loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEventsBatch: vi.fn(
+      async (_sessionId, _roomId, threadIds: string[]) =>
+        new Map(threadIds.map((threadId) => [threadId, { events: [], hasMoreBefore: false }]))
+    ),
     normalizeCachedThreadEvents: (events: unknown[]) => events,
-    saveThreadEventsToCache: vi.fn(async () => undefined),
+    saveThreadEventsToCache,
+    saveThreadEventsToCacheCommitted: vi.fn(
+      async (...args: Parameters<typeof actual.saveThreadEventsToCacheCommitted>) => {
+        await saveThreadEventsToCache(...args);
+        return true;
+      }
+    ),
     loadCachedThreadSummaries: loadCachedThreadSummariesMock,
     saveCachedThreadSummary: saveCachedThreadSummaryMock,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
@@ -1286,31 +1297,37 @@ const makeEvent = (
     isSending?: boolean;
     txnId?: string;
   } = {}
-) => ({
-  __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
-  event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
-  isThreadRoot: opts.isThreadRoot ?? false,
-  threadRootId: opts.threadRootId,
-  getAssociatedId: () => opts.associatedId,
-  getContent: () => opts.content ?? { body: eventId },
-  getId: () => eventId,
-  getRelation: () => opts.relation,
-  getRedactionEvent: () => undefined,
-  getRoomId: () => '!room:example.org',
-  getSender: () => opts.sender ?? '@alice:example.org',
-  getServerAggregatedRelation: () => undefined,
-  getStateKey: () => opts.stateKey,
-  getTs: () => opts.ts ?? 0,
-  getTxnId: () => opts.txnId,
-  getType: () => opts.type ?? 'm.room.message',
-  getUnsigned: () => opts.unsigned ?? {},
-  isSending: () => opts.isSending ?? false,
-  isRedacted: () => opts.isRedacted ?? false,
-  isRedaction: () => opts.isRedaction ?? false,
-  makeRedacted: vi.fn(),
-  makeReplaced: vi.fn(),
-  replacingEvent: () => undefined,
-});
+) => {
+  let unsigned: Record<string, unknown> = opts.unsigned ?? {};
+  return {
+    __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
+    event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
+    isThreadRoot: opts.isThreadRoot ?? false,
+    threadRootId: opts.threadRootId,
+    getAssociatedId: () => opts.associatedId,
+    getContent: () => opts.content ?? { body: eventId },
+    getId: () => eventId,
+    getRelation: () => opts.relation,
+    getRedactionEvent: () => undefined,
+    getRoomId: () => '!room:example.org',
+    getSender: () => opts.sender ?? '@alice:example.org',
+    getServerAggregatedRelation: () => undefined,
+    getStateKey: () => opts.stateKey,
+    getTs: () => opts.ts ?? 0,
+    getTxnId: () => opts.txnId,
+    getType: () => opts.type ?? 'm.room.message',
+    getUnsigned: () => unsigned,
+    setUnsigned: (next: Record<string, unknown>) => {
+      unsigned = next;
+    },
+    isSending: () => opts.isSending ?? false,
+    isRedacted: () => opts.isRedacted ?? false,
+    isRedaction: () => opts.isRedaction ?? false,
+    makeRedacted: vi.fn(),
+    makeReplaced: vi.fn(),
+    replacingEvent: () => undefined,
+  };
+};
 
 const makeCachedRoomEvent = (eventId: string, ts = 0) => ({
   event_id: eventId,
@@ -1580,53 +1597,33 @@ const TEST_DEFAULT_THREAD_FILTER_STATE = {
   tags: new Map(),
 };
 
-const canonicalizeThreadFilterState = (
-  state: import('../roomThreadOverviewModel').ThreadFilterState
-): import('../roomThreadOverviewModel').ThreadFilterState => {
-  const searchQuery = serializeThreadFilterQuery(state);
-  return searchQuery === state.searchQuery ? state : { ...state, searchQuery };
-};
-
-const syncQueryState = (
-  state: import('../roomThreadOverviewModel').ThreadFilterState,
-  updater: (
-    nextState: import('../roomThreadOverviewModel').ThreadFilterState
-  ) => import('../roomThreadOverviewModel').ThreadFilterState
-): import('../roomThreadOverviewModel').ThreadFilterState => {
-  const next = updater(
-    applyParsedThreadFilterQuery(state, parseThreadFilterQuery(state.searchQuery ?? ''))
-  );
-  const searchQuery = serializeThreadFilterQuery(next);
-  return searchQuery === state.searchQuery ? next : { ...next, searchQuery };
-};
-
 const threadFilterStateFromLegacy = (
   filter?: 'all' | 'resolved' | 'unresolved' | 'unread'
 ): import('../roomThreadOverviewModel').ThreadFilterState => {
   switch (filter) {
     case 'resolved':
-      return canonicalizeThreadFilterState({
+      return {
         ...TEST_DEFAULT_THREAD_FILTER_STATE,
         resolved: 'include' as const,
         tags: new Map(),
-      });
+      };
     case 'unresolved':
-      return canonicalizeThreadFilterState({
+      return {
         ...TEST_DEFAULT_THREAD_FILTER_STATE,
         resolved: 'exclude' as const,
         tags: new Map(),
-      });
+      };
     case 'unread':
-      return canonicalizeThreadFilterState({
+      return {
         ...TEST_DEFAULT_THREAD_FILTER_STATE,
         unread: 'include' as const,
         tags: new Map(),
-      });
+      };
     default:
-      return canonicalizeThreadFilterState({
+      return {
         ...TEST_DEFAULT_THREAD_FILTER_STATE,
         tags: new Map(),
-      });
+      };
   }
 };
 
@@ -1696,11 +1693,7 @@ const createControlledRoomTimelineHarness = (
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../roomThreadOverviewModel').ThreadFilterState
-    >(
-      canonicalizeThreadFilterState(
-        initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
-      )
-    );
+    >(initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter));
     const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(
       initialViewMode
     );
@@ -1717,9 +1710,7 @@ const createControlledRoomTimelineHarness = (
 
     const onToggle = React.useCallback(
       (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
-        setThreadFilterState((prev) =>
-          syncQueryState(prev, (state) => updateThreadFilterKey(state, key))
-        );
+        setThreadFilterState((prev) => updateThreadFilterKey(prev, key));
       },
       []
     );

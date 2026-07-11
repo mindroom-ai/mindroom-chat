@@ -1,4 +1,4 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateCachedRelationEvents,
@@ -81,7 +81,7 @@ const makeReactionEvent = (eventId: string, ts: number, targetEventId: string, k
     type: 'm.reaction',
   });
 
-const room = { roomId: '!room:example.org' } as any;
+const room = { roomId: '!room:example.org', findEventById: () => undefined } as any;
 
 describe('applyCachedReplaceRelations', () => {
   it('applies the latest cached replacement event to the target message', () => {
@@ -288,6 +288,38 @@ describe('hydrateCachedEvents', () => {
 
     expect(targetEvent.replacingEvent()).toBeNull();
   });
+
+  it('removes a bundled replacement when its edit has been redacted', () => {
+    const editEvent = makeEditEvent('$edit-1', 2000, '$target', '@alice:example.org', 'secret');
+    const targetEvent = makeMessageEvent('$target', 1000);
+    targetEvent.setUnsigned({
+      'm.relations': {
+        'm.replace': editEvent.event,
+      },
+    });
+    targetEvent.makeReplaced(editEvent);
+    const redactionEvent = makeRedactionEvent('$redact', 3000, '$edit-1');
+
+    hydrateCachedEvents({ room, events: [targetEvent, redactionEvent] });
+
+    expect(targetEvent.replacingEvent()).toBeNull();
+    expect(targetEvent.getUnsigned()['m.relations']?.['m.replace']).toBeUndefined();
+    expect(JSON.stringify(targetEvent.event)).not.toContain('secret');
+  });
+
+  it('removes redaction state embedded inside a serialized replacement', () => {
+    const editEvent = makeEditEvent('$edit-1', 2000, '$target', '@alice:example.org', 'secret');
+    editEvent.setUnsigned({ redacted_because: { event_id: '$redact' } as IEvent });
+    const targetEvent = makeMessageEvent('$target', 1000);
+    targetEvent.setUnsigned({ 'm.relations': { 'm.replace': editEvent.event } });
+    targetEvent.makeReplaced(editEvent);
+
+    hydrateCachedEvents({ room, events: [targetEvent] });
+
+    expect(targetEvent.replacingEvent()).toBeNull();
+    expect(targetEvent.getUnsigned()['m.relations']?.['m.replace']).toBeUndefined();
+    expect(JSON.stringify(targetEvent.event)).not.toContain('secret');
+  });
 });
 
 describe('applyCachedRedactions', () => {
@@ -395,7 +427,9 @@ describe('collectRedactedRelationTargetsFromLookup', () => {
       },
     });
 
-    expect(collectRedactedRelationTargetsFromLookup([redactedReactionShell], [staleReaction])).toEqual([
+    expect(
+      collectRedactedRelationTargetsFromLookup([redactedReactionShell], [staleReaction])
+    ).toEqual([
       {
         eventId: '$reaction',
         eventType: 'm.reaction',

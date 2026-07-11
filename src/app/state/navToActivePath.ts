@@ -6,6 +6,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from './utils/atomWithLocalStorage';
+import { getSafeLocalStorage, removeStorageItemSafe } from '../utils/safeLocalStorage';
 
 const NAV_TO_ACTIVE_PATH = 'navToActivePath';
 
@@ -77,5 +78,5 @@ export const getStoredNavToActivePath = (userId: string): NavToActivePath => {
 };
 
 export const clearNavToActivePathStore = (userId: string) => {
-  localStorage.removeItem(getStoreKey(userId));
+  removeStorageItemSafe(getSafeLocalStorage(), getStoreKey(userId));
 };

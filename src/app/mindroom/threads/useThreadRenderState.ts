@@ -1,4 +1,12 @@
-import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  MutableRefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import { removeAggregatedReactionByEventId } from '../engine/redactionCacheLifecycle';
@@ -81,11 +89,6 @@ const buildThreadEvents = ({
   const resolveConfirmedId = buildResolveConfirmedEventId(room, collectedEvents);
   const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
 
-  hydrateCachedEvents({
-    room,
-    events: sortedEvents,
-  });
-
   const indexMap = new Map<string, number>();
   sortedEvents.forEach((mEvent, index) => {
     const eventId = mEvent.getId();
@@ -108,6 +111,7 @@ export const useThreadRenderState = ({
   debugTraceId,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadEventIndexMap: Map<string, number>;
   threadEvents: MatrixEvent[];
   threadInitialRenderMode: ThreadInitialRenderMode;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
@@ -126,10 +130,8 @@ export const useThreadRenderState = ({
     threadId: undefined,
     events: [],
   });
-  const hydratingThreadEventsRef = useRef(false);
   const [threadEventRefreshTick, setThreadEventRefreshTick] = useState(0);
   const refreshThreadEvents = useCallback(() => {
-    if (hydratingThreadEventsRef.current) return;
     setThreadEventRefreshTick((tick) => tick + 1);
   }, []);
 
@@ -164,12 +166,12 @@ export const useThreadRenderState = ({
       // aggregations by event id for every target our merged set knows is
       // redacted — instance-agnostic, so both SDK copies and cache clones go.
       const redactionTargetIds = Array.from(
-        new Set(
-          mergedEvents
+        new Set([
+          ...mergedEvents
             .filter((mEvent) => mEvent.isRedaction())
             .map((mEvent) => mEvent.getAssociatedId())
-            .filter((eventId): eventId is string => !!eventId)
-        )
+            .filter((eventId): eventId is string => !!eventId),
+        ])
       );
       if (redactionTargetIds.length > 0) {
         const candidateParentIds = mergedEvents
@@ -215,30 +217,25 @@ export const useThreadRenderState = ({
     return fallbackThreadEventsState.events;
   }, [fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]);
 
-  const threadEvents = useMemo(() => {
+  const threadEventState = useMemo(() => {
     void threadEventRefreshTick;
 
     if (!threadId) {
-      threadEventIndexMapRef.current = new Map();
-      return [];
+      return { events: EMPTY_THREAD_EVENTS, indexMap: new Map<string, number>() };
     }
 
-    hydratingThreadEventsRef.current = true;
-    let nextState: ReturnType<typeof buildThreadEvents>;
-    try {
-      nextState = buildThreadEvents({
-        room,
-        threadId,
-        thread,
-        fallbackEvents,
-        threadInitialCacheHydrated,
-      });
-    } finally {
-      hydratingThreadEventsRef.current = false;
-    }
-    threadEventIndexMapRef.current = nextState.indexMap;
-    return nextState.events;
+    return buildThreadEvents({
+      room,
+      threadId,
+      thread,
+      fallbackEvents,
+      threadInitialCacheHydrated,
+    });
   }, [fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]);
+  const { events: threadEvents, indexMap: threadEventIndexMap } = threadEventState;
+  useLayoutEffect(() => {
+    threadEventIndexMapRef.current = threadEventIndexMap;
+  }, [threadEventIndexMap]);
 
   const handleThreadNewReply = useCallback(
     (mEvent: MatrixEvent) => {
@@ -283,6 +280,7 @@ export const useThreadRenderState = ({
 
   return {
     threadEventIndexMapRef,
+    threadEventIndexMap,
     threadEvents,
     threadInitialRenderMode,
     setSupplementalThreadEvents,

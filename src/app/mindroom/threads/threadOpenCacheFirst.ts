@@ -3,10 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
-import {
-  hasUsableThreadCacheSnapshot,
-  isCompleteThreadCacheCoverage,
-} from './threadCacheCoverage';
+import { hasUsableThreadCacheSnapshot, isCompleteThreadCacheCoverage } from './threadCacheCoverage';
 import type { HydratedThreadCachePage } from './types';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
@@ -21,10 +18,7 @@ type ThreadOpenSeedSession = {
  * reach into the engine directly (keeps arch-guard boundaries clean).
  */
 export type ScheduleReconcileFn = (
-  args: Pick<
-    ScheduleReconcileArgs,
-    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired'
-  >
+  args: Pick<ScheduleReconcileArgs, 'roomId' | 'room' | 'threadId' | 'cachedPage' | 'onRepaired'>
 ) => Promise<ReconcileResult>;
 
 type RunThreadOpenCacheFirstOptions = {
@@ -141,7 +135,6 @@ export const runThreadOpenCacheFirst = async ({
     room,
     threadId,
     cachedPage: hydratedCachedPage,
-    reason: 'open-thread-choke-point',
     onRepaired: (repairedEvents) => {
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the
@@ -153,8 +146,8 @@ export const runThreadOpenCacheFirst = async ({
       //     onRepairedGuardBailed +
       //     supplementalEventsExecuted +
       //     supplementalEventsSkippedEmpty
-      // (reconcilesOnRepairedFired is bumped in reconciler.ts BEFORE
-      // this callback is invoked.)
+      // (reconcilesOnRepairedFired is bumped in reconciler.ts AFTER
+      // this callback returns normally.)
       if (!isCurrentThreadOpen()) {
         countCacheProbe('onRepairedGuardBailed');
         return;
