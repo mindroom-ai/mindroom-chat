@@ -37,7 +37,7 @@ import {
 import {
   buildCompactThreadRootData,
   buildCompactZeroReplyRootData,
-  getCompactThreadRootBodyPreviewText,
+  getCompactThreadRootPreviewInfo,
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
 import { useStateEvents } from './useStateEvents';
@@ -379,20 +379,24 @@ export const useMindroomThreadIndex = ({
     const ids: string[] = [];
     const indexMap = new Map<string, number>();
     const bodyMap = new Map<string, string>();
+    const sourceTsMap = new Map<string, number>();
     roomSurfaceEventEntries.forEach(({ event, absoluteIndex }) => {
       const evtId = event.getId();
       if (!evtId) return;
       if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
         ids.push(evtId);
         indexMap.set(evtId, absoluteIndex);
-        const body = getCompactThreadRootBodyPreviewText(event, {
+        const previewInfo = getCompactThreadRootPreviewInfo(event, {
           eventId: evtId,
           room,
         });
-        if (body) bodyMap.set(evtId, body);
+        if (previewInfo) {
+          bodyMap.set(evtId, previewInfo.previewText);
+          sourceTsMap.set(evtId, previewInfo.sourceTs);
+        }
       }
     });
-    return { ids, indexMap, bodyMap };
+    return { ids, indexMap, bodyMap, sourceTsMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
   const {
     threads: roomThreadListThreads,
@@ -414,6 +418,7 @@ export const useMindroomThreadIndex = ({
       visibleIds: visibleThreadRootData.ids,
       visibleIndexMap: visibleThreadRootData.indexMap,
       visibleBodyMap: visibleThreadRootData.bodyMap,
+      visibleSourceTsMap: visibleThreadRootData.sourceTsMap,
       threads: roomThreadListThreads,
     });
     const knownRealThreadRootIds = new Set(
@@ -470,9 +475,16 @@ export const useMindroomThreadIndex = ({
   const compactThreadRootBodyMap = useMemo(() => {
     return mergeCompactThreadRootBodyMaps(
       compactThreadRootData.bodyMap,
-      cachedMetadata.compactRootBodyMap
+      cachedMetadata.compactRootBodyMap,
+      compactThreadRootData.sourceTsMap,
+      cachedMetadata.compactRootSourceTsMap
     );
-  }, [compactThreadRootData.bodyMap, cachedMetadata.compactRootBodyMap]);
+  }, [
+    compactThreadRootData.bodyMap,
+    compactThreadRootData.sourceTsMap,
+    cachedMetadata.compactRootBodyMap,
+    cachedMetadata.compactRootSourceTsMap,
+  ]);
 
   // Typed-input debouncing (free text AND structured tokens) happens at the
   // source in useRoomViewThreadState.handleSearchQueryChange — by the time a
