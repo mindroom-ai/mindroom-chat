@@ -2,13 +2,40 @@
 
 ## Runbook
 
+### Ride-trace replay corpus + the remaining settle-cascade defect (2026-07-11)
+
+Why the suite kept missing these bugs: unit tests can only assert our model
+of iOS scrolling, and the failures were model errors (rubber-band offsets,
+compositor momentum) that exist in no CI-runnable environment. The new
+harness (`rideTraceReplay.ts` + `rideTraceReplay.test.ts`) closes part of
+that gap by replaying real device traces — checked into
+`__tests__/traces/`, four rides so far — through the CURRENT boundary
+predicate and by extracting per-settle observations (out-of-bounds firing,
+anchor slip, extra content growth) for triage. Flagship pins: the recorded
+mid-bounce settle (iPad frame 192) is detected in the trace AND deferred by
+the current predicate while its in-bounds landing still fires; the
+post-fix iPhone ride's single boundary settle is held to a ≤2px slip.
+
+OPEN DEFECT pinned by the corpus (the still-reported "momentum stops, then
+it jumps"): quiescence settles on thread ff7965e2 grow scrollHeight by up
+to 1,531px MORE than the ledger fold in a single 100-240ms frame right
+after rest — the settle's synchronous window remount/remeasure cascade.
+The recorder's anchor is unmounted in exactly those frames (blind), which
+is why they previously read as slip-0. Both the pre- and post-#122 builds
+show it (same thread, both 2026-07-11 traces), so it is not caused by the
+long-text prewarm. Next step: dissect settleScrollCompensation's
+setOptions→render→measure chain so the fold lands without a same-frame
+remeasure burst; then capture a fresh trace and replace the cascade
+goldens with thresholds.
+
 ### Defer ledger boundary settles during rubber-band overscroll (2026-07-11)
 
 iPad trace `ride-trace-1783802452438` (analyzed against the two prior iPhone
 traces) showed the felt "momentum stops, then it jumps": a fling into the
 bottom edge rubber-bands while the window is still filling, and the ledger
 boundary settle then rewrites scrollTop mid-bounce — frame 192 slipped a
-visible 87px while the offset was 64px past `scrollHeight - clientHeight`.
+visible 87px while the offset was 87px past `scrollHeight - clientHeight`
+(the trace's true clientHeight is 469, recovered from settle-write clamps).
 Quiescence settles in the same trace rebased up to 5,106px with zero slip, so
 the fix is to wait: `shouldSettleLedgerAtBoundary` now takes `scrollHeight`
 and defers (returns false) while the offset is outside the physical range

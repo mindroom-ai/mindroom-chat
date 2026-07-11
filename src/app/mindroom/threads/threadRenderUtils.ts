@@ -230,7 +230,7 @@ export const shouldSettleLedgerAtBoundary = ({
   if (ledgerPx > -48 && ledgerPx < 48) return false;
   // Rubber-band deferral: outside the physical range (iOS overscroll) a
   // settle rewrites scrollTop mid-bounce and lands as a visible snap
-  // (ride-trace-1783802452438 frame 192: an 87px slip written 64px past
+  // (ride-trace-1783802452438 frame 192: an 87px slip written 87px past
   // the bottom edge during bounce-back). The bounce background hides the
   // ledger blank either way, and the bounce's landing event re-enters
   // bounds — where this guard resumes — while a true rest is settled with
