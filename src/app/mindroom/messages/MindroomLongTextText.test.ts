@@ -478,6 +478,9 @@ describe('shouldResetResolvedContentToPreview', () => {
 describe('MindroomLongTextText hydration identity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // A warm real cache now short-circuits the mocked hydrate entirely, so
+    // every test starts cold unless it warms the cache itself.
+    clearMindroomLongTextHydrationCache();
     longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
       body: 'Resolved response',
       msgtype: 'm.text',
@@ -521,6 +524,44 @@ describe('MindroomLongTextText hydration identity', () => {
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
     expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
       'Hydrated response'
+    );
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    const source = createLongTextSource({ previewContent: content });
+    // Warm the REAL cache the way the prewarm pool does.
+    const actualLongText = await vi.importActual<typeof import('./longText')>('./longText');
+    await actualLongText.hydrateMindroomLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
+      mockMx
+    );
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+
+    // No act(): this inspects the FIRST render, before any effect runs.
+    const renderer = create(
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content,
+        longTextSource: source,
+        renderBody: (_content, props) => props.body,
+      })
+    );
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
+    );
+
+    // Effects settle without a re-download: the warm cache short-circuits.
+    await act(async () => {});
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
     );
 
     await act(async () => {

@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### External PR #122 review: verified findings fixed, one declined (2026-07-11)
+
+An external AI review of PR #122 raised three findings; each was verified
+against the code rather than assumed. Confirmed and fixed: (1) concurrent
+hydrations of the same sidecar duplicated downloads — the prewarm effect
+restarts on every threadEvents update while fetches are in flight —
+`hydrateMindroomLongTextSource` now coalesces per (owner, identity) with
+entries removed on settle so failures stay retryable; (2) prewarmed rows
+still flashed the plain preview for one paint because resolved content
+initialized from the preview and upgraded post-effect — the component now
+reads the cache synchronously at mount and in the hydrate effect, gated on
+`hydrate` so PR #110's overscan cheapness guard holds; (3) the branch
+carried ~580 lines of unrelated runbook reflow (residue of the 2026-07-08
+prettier mangle) — the file is rebuilt as dev's version plus only this
+branch's sections. Declined: bounding prewarm to a newest-first window —
+the product decision is to pre-download the whole open thread; retention is
+session-scoped per client. Also rebased onto dev at #123 (runbook-only
+conflict). Upstream PR #121 (direction-baseline reset between gestures) is
+complementary and still needs its own port onto the extracted controller.
+
 ### Ride-trace replay corpus + the remaining settle-cascade defect (2026-07-11)
 
 Why the suite kept missing these bugs: unit tests can only assert our model
@@ -639,7 +659,7 @@ now hydrate rich content early), and the expanded-plain-preview window
   guard that proves the expanded event leaves the DOM before returning
   expanded with `Show less` visible.
 - Validation: focused Vitest 49/49, typecheck, production build, full `npm
-test` (354 files / 2822 tests), full lint (0 errors / 19 pre-existing
+  test` (354 files / 2822 tests), full lint (0 errors / 19 pre-existing
   warnings), and focused docker-Matrix Playwright. The live guard passed once
   in the implementation pass plus 4/4 consecutive independent-review runs.
 - Two independent review agents found no actionable issues; the test reviewer
@@ -1265,8 +1285,8 @@ palette", "Type a command or search...". Split into focused commits:
   at throw time into the pending-draft atom, so a mid-session language
   switch redisplays a stale-language error until the draft is discarded.
 - Validation: `npx vitest run src/app/i18n.test.ts
-src/app/mindroom/room-input/__tests__/RoomInput.test.ts
-src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` — 58
+  src/app/mindroom/room-input/__tests__/RoomInput.test.ts
+  src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` — 58
   tests green (parity tests enforce the new keys in all three locales);
   `npm run typecheck` clean; `npm run build` passes; `npx eslint` clean on
   touched files. Live-verified against the :28008 docker Tuwunel via the
@@ -1326,7 +1346,6 @@ sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an
 optimistic pending value and hands back to the store when the write settles.
 
 SURFACES HIDDEN WHEN ON:
-
 - Sidebar: `SpaceTabs`, the global Threads tab (user-requested 2026-07-09),
   Explore, Create, Local MindRoom tab. Home FLATTENS every joined room into
   one list (`useHomeRooms` switches orphan→all selector; home search
@@ -1428,13 +1447,13 @@ assertions) not yet written.
     `ThreadIndicator` chip incl. the reply-count plural
     (`thread.replyCount_one/_other`), `CompactThreadCard` aria fragments, the
     `RoomThreadOverview` tri-state filter chips/tooltips/aria + status labels
-    - stats popover (label maps became `*_LABEL_KEYS` key maps; the tooltip
-      helpers take a `TFunction`), and the whole cross-room threads `FilterBar`
-    - mobile sheet. Tests that assert visible copy (`ThreadContextBanner`,
-      `RoomThreadOverview`, `__tests__/FilterBar`, `__tests__/Threads`) mock
-      react-i18next with `translateFromEn`. E2E specs keying on
-      `getByText('Thread View')` are safe: the e2e browser has no cached
-      language, so English stays the detector default.
+    + stats popover (label maps became `*_LABEL_KEYS` key maps; the tooltip
+    helpers take a `TFunction`), and the whole cross-room threads `FilterBar`
+    + mobile sheet. Tests that assert visible copy (`ThreadContextBanner`,
+    `RoomThreadOverview`, `__tests__/FilterBar`, `__tests__/Threads`) mock
+    react-i18next with `translateFromEn`. E2E specs keying on
+    `getByText('Thread View')` are safe: the e2e browser has no cached
+    language, so English stays the detector default.
   - Rest of the app is still hardcoded English and migrates
     surface-by-surface. Still English near this slice: `RoomThreadOverview`'s
     view-mode/sort/preset controls and its own search toggle
@@ -1668,7 +1687,7 @@ this message — the encryption key isn't available" instead of the terse
 in-room notice, which must work for users on any client. The friendlier tone
 is preserved without promising a key that may never arrive: the component
 renders for every `m.bad.encrypted` event, including permanent failures
-(MEGOLM_KEY_WITHHELD\*, historical-no-backup) where waiting would be
+(MEGOLM_KEY_WITHHELD*, historical-no-backup) where waiting would be
 misleading — no failure-code branching is added (out of scope for this
 pass). Copy-only; the string is not asserted by any test.
 
@@ -1947,12 +1966,11 @@ red-test-first session each: room-timeline (non-thread) ledger port;
 prepend-seam grouping reflow (latency-ride budget exception retained
 even though this round measured 0/0 — tighten to 40/120 when fixed);
 IDB measured-height persistence (virtual-core initialMeasurementsCache
-
-- width/font invalidation); fix `mindroom-publish-cinny` host script to
-  prefer origin-qualified refs. (3) Accepted-unpinned: mutant #5 (alive
-  guard) — test-renderer nulls refs on unmount, settle early-returns
-  regardless; revisit only if the settle grows side effects beyond the
-  scroll write.
++ width/font invalidation); fix `mindroom-publish-cinny` host script to
+prefer origin-qualified refs. (3) Accepted-unpinned: mutant #5 (alive
+guard) — test-renderer nulls refs on unmount, settle early-returns
+regardless; revisit only if the settle grows side effects beyond the
+scroll write.
 
 ### PR #88 adversarial review round: two majors fixed, fold pinned (2026-07-07)
 
@@ -2003,7 +2021,7 @@ here against pristine 3.17.3 tarball bytes):
   delete the patch, run the patch-guard test — green means the fix
   shipped, red means regenerate.
 - TANSTACK ISSUE FILED: TanStack/virtual#1221 — public API to cancel/
-  retarget the scrollTo\* reconcile loop (the reason two sites bypass
+  retarget the scrollTo* reconcile loop (the reason two sites bypass
   the virtualizer with direct scrolls).
 
 ### Follow-ups PR #88: greptile triage, dead-code sweep, scoping calls (2026-07-07)
@@ -2093,7 +2111,6 @@ settle write at rest. Full battery 8/8; vitest 345 files / 2717.
 
 Engine (every step falsified or confirmed by instrumentation — write-
 probe stacks, per-frame ledger traces, tile photographs):
-
 - Ledger = real container marginTop + options.scrollMargin in lockstep
   (contract-pinned against unmocked virtual-core). VirtualTile paints
   content-relative (start + px ref) — start includes scrollMargin and
@@ -2106,11 +2123,11 @@ probe stacks, per-frame ledger traces, tile photographs):
   tick — react-virtual SKIPS rerenders when the range is unchanged,
   which round 8's layout-effect premise missed (paired ±140 flashes).
 - Settle: ONE synchronous block (margin '' + setOptions scrollMargin 0
-  - scrollTop += px; commit-based settle measured 20x worse), armed
-    only at TRUE rest — waitForScrollQuiescence now supports
-    maxWaitMs: Infinity (MAX_SAFE_INTEGER overflowed setTimeout's int32
-    and fired the cap IMMEDIATELY: per-frame settle bursts; regression
-    unit test).
+  + scrollTop += px; commit-based settle measured 20x worse), armed
+  only at TRUE rest — waitForScrollQuiescence now supports
+  maxWaitMs: Infinity (MAX_SAFE_INTEGER overflowed setTimeout's int32
+  and fired the cap IMMEDIATELY: per-frame settle bursts; regression
+  unit test).
 - PREPEND COMMITS ARE PURE LEDGER ARITHMETIC: at render time the
   inserted rows' height (exact: inserted keys are unmeasured, so
   virtual-core prices them with the same estimator) folds into px; no
@@ -2185,7 +2202,6 @@ scenario because all three mechanisms below are device-conditional.
    1/2, and the same class as any big jump into unmounted territory).
 
 Consequences:
-
 - Production ROLLED BACK to 3964b870 again (the instrumented round-9
   build was live only for the capture session). Round 8 carries
   mechanisms 2 and 3 too — its reported "tiny jumps" are mechanism 2
@@ -2271,19 +2287,19 @@ branch, undeployed, pending in-harness reproduction.
   window touch tracker and the hook's touch leg now exercise) +
   `startScreencast`/`analyzeBlankBands` (pixel-level blank-band metric
   over the timeline region, canvas-analyzed in-page, no Node image dep)
-  - `startRideSampling`/`stopRideSampling` (concurrent per-frame
-    sampler with a rect-vs-scrollTop consistency jump metric that needs
-    no driver knowledge). Third spec test: compositor flicks with mixed
-    sub-/super-quiescence pauses over a partial window, 1.5s page
-    latency, 4x CPU. RESULT: STILL PASSES against the round-9 build
-    (prepend committed mid-ride 101→131; blankFrames 0, maxBlankPct 3,
-    DOM jumps/gaps 0). The regression remains reproducible ONLY on the
-    physical device. Remaining levers, in order: capture a trace FROM
-    the phone (the recorder + probe counters are injectable behind a
-    debug flag; or Safari remote debugging), raster starvation beyond
-    what setCPUThrottlingRate reaches (it throttles the main thread, not
-    the raster threads), real-content fixtures (late-hydrating images /
-    markdown) and thousand-event depth.
+  + `startRideSampling`/`stopRideSampling` (concurrent per-frame
+  sampler with a rect-vs-scrollTop consistency jump metric that needs
+  no driver knowledge). Third spec test: compositor flicks with mixed
+  sub-/super-quiescence pauses over a partial window, 1.5s page
+  latency, 4x CPU. RESULT: STILL PASSES against the round-9 build
+  (prepend committed mid-ride 101→131; blankFrames 0, maxBlankPct 3,
+  DOM jumps/gaps 0). The regression remains reproducible ONLY on the
+  physical device. Remaining levers, in order: capture a trace FROM
+  the phone (the recorder + probe counters are injectable behind a
+  debug flag; or Safari remote debugging), raster starvation beyond
+  what setCPUThrottlingRate reaches (it throttles the main thread, not
+  the raster threads), real-content fixtures (late-hydrating images /
+  markdown) and thousand-event depth.
 
 ### Prepend commit lands in ONE paint; barren root-only cache-hit fixed (2026-07-06, device round 9)
 
@@ -2335,10 +2351,10 @@ stream.
      scroller has a DYNAMIC block above the container (chip/padding —
      the virtualizer is configured without `scrollMargin`); converted
      with the container's live offset (a constant 72px in the fixture).
-     With all three terms the commit paints at the final position and the
-     rAF fine-correction chain degenerates to a ≤1px no-write verifier
-     (appWrites show settle + one exact `scrollTo` in the same tick, no
-     correction after).
+  With all three terms the commit paints at the final position and the
+  rAF fine-correction chain degenerates to a ≤1px no-write verifier
+  (appWrites show settle + one exact `scrollTo` in the same tick, no
+  correction after).
 - Known separate surface (NOT this flow, seen while stabilizing the
   driver): landing mid-row in never-measured territory (teleport /
   jump-to-message class) lets a STRADDLING row correct its estimate on
@@ -2393,7 +2409,6 @@ mechanism that turns estimate error into visible motion.
 Report: momentum fine, but scrolling up from the latest message still
 shows small jumps opposite to the scroll direction. Question asked and
 answered: WHY didn't the tests catch it?
-
 1. No per-frame visual-stability assertion existed — the momentum spec
    checked writes/gaps/end-drift, never mid-stream anchor residuals.
 2. The fixture had no always-expanded rows (agent tool-trace/extras
@@ -2566,10 +2581,10 @@ bit on iOS snaps the view back down.
      quiescence (lurch guard); passes against the real rendered app;
   2. the snap-back repro — leave the bottom by 640px, stream in new
      replies, view must stay put; failed before the fix, passes after.
-     Run: `E2E_HOMESERVER=http://127.0.0.1:28008` + an account from
-     `scripts/ensure-e2e-account.sh`, then
-     `npx playwright test e2e/live/ios-momentum-invariants.spec.ts`
-     (docker e2e Tuwunel from `e2e/docker-compose.matrix.yaml`).
+  Run: `E2E_HOMESERVER=http://127.0.0.1:28008` + an account from
+  `scripts/ensure-e2e-account.sh`, then
+  `npx playwright test e2e/live/ios-momentum-invariants.spec.ts`
+  (docker e2e Tuwunel from `e2e/docker-compose.matrix.yaml`).
 - Validation: typecheck ✅, build ✅, eslint ✅, threads suite 116 files /
   1132 tests ✅, both e2e tests ✅ (2 passed, 40s).
 
@@ -2682,13 +2697,13 @@ audit (and the first also flagged by greptile on PR #83):
   DOM-rect fine correction, which the loop reverts:
   - room prepend-anchor restore (`scrollToOffset` + rAF `scrollBy`), and
   - thread prepend coarse re-anchor (`scrollToIndex` + retrying restore).
-    Both now compute the coarse offset (`getOffsetForIndex` for the index
-    case) and write `scrollElement.scrollTo` directly — no scrollState, no
-    fight. The remaining `scrollToIndex` sites (scroll-to-bottom, focus
-    jump) are left on the virtualizer deliberately: there the reconcile
-    loop re-targets per frame as rows measure, which _improves_ landing
-    accuracy and nothing follows it up with a manual write. Upstream ask
-    (issue to file): a `stopScroll()`/cancel API.
+  Both now compute the coarse offset (`getOffsetForIndex` for the index
+  case) and write `scrollElement.scrollTo` directly — no scrollState, no
+  fight. The remaining `scrollToIndex` sites (scroll-to-bottom, focus
+  jump) are left on the virtualizer deliberately: there the reconcile
+  loop re-targets per frame as rows measure, which *improves* landing
+  accuracy and nothing follows it up with a manual write. Upstream ask
+  (issue to file): a `stopScroll()`/cancel API.
 - Tests: the two prepend-anchor tests updated to the direct-write
   mechanism; shared virtualizer mock gained `getOffsetForIndex`.
 - Validation: typecheck ✅, build ✅, eslint touched files ✅, threads
@@ -2817,7 +2832,7 @@ were visible mid-scroll shrink slightly at that moment. Worst on folded
   churn #73, prepend-commit timing #75, collapse two-pass #77) are fixed and
   the blanket defer is redundant. **Must be re-tested on a real iOS device**
   after deploy: (a) white areas gone, (b) flick momentum still smooth. If
-  momentum regresses, the follow-up is a _targeted_ fix (suppress only the
+  momentum regresses, the follow-up is a *targeted* fix (suppress only the
   above-viewport scroll adjustment, or better per-row estimates) — not
   reinstating the defer.
 - Validation: `npm run typecheck` ✅, `npm run build` ✅, eslint on touched
@@ -2825,7 +2840,6 @@ were visible mid-scroll shrink slightly at that moment. Worst on folded
   1122 tests ✅. Independent review pass on the diff.
 - Next: deploy to chat.mindroom.chat and device-test on iOS (white areas +
   momentum); then continue the #79/#94 bandage sweep.
-
 ### iOS release prep with fastlane screenshot procedure (2026-07-05)
 
 - Status:
@@ -2885,12 +2899,12 @@ were visible mid-scroll shrink slightly at that moment. Worst on folded
     with the expected dimensions: iPhone 6.9" `1320x2868`; iPad 13"
     `2064x2752`.
   - PR review follow-up validation: `node --test
-scripts/appstore-fixture.test.mjs`, `node --check
-scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/seed-appstore-screenshot-room.mjs`, Prettier check on touched
     review files, and `npm run appstore:screenshots`.
   - Latest review follow-up validation: `node --test
-scripts/appstore-fixture.test.mjs`, `node --check
-scripts/appstore-fixture.mjs`, `bash -n scripts/appstore-fixture-up.sh`,
+    scripts/appstore-fixture.test.mjs`, `node --check
+    scripts/appstore-fixture.mjs`, `bash -n scripts/appstore-fixture-up.sh`,
     Prettier check on touched review files, `npm run appstore:screenshots`,
     `npm run appstore:preflight`, `npm run typecheck`, `npm run lint`
     (existing 18 warnings, 0 errors), `npm run build`, `npm test`, and
@@ -3012,7 +3026,7 @@ history in the background ("all threads show in the compact view"), yet
 opening a thread STILL downloads its entire message history (observed on a
 282-msg thread spanning a month). Product direction (user, this session —
 **supersedes** the "lean thread open" task queued in HANDOFF.md §3, which
-had the intent BACKWARDS): threads should be downloaded _before_ they are
+had the intent BACKWARDS): threads should be downloaded *before* they are
 opened — background prefetch owns the network cost (full content, visible
 threads first, then the rest); opening is instant from cache.
 
@@ -3045,7 +3059,7 @@ threads first, then the rest); opening is instant from cache.
 - Also this session: reverted an initial (wrong-direction) cap of
   `refreshLatestThreadSlice` to one page; instead its drain-to-exhaustion
   behavior is now pinned by regression tests
-  (`threadOpenCacheController.test.ts`) as the _fallback_ downloader for
+  (`threadOpenCacheController.test.ts`) as the *fallback* downloader for
   threads the background prefetch has not covered yet.
 - Validation: typecheck ✓, eslint (touched files) ✓, vitest engine+threads
   full sweep 130 files / 1296 tests ✓, new red-first regression tests in
@@ -3056,7 +3070,7 @@ threads first, then the rest); opening is instant from cache.
   downloads content over the network. New shared module
   `threadContentPrefetch.ts` (`fetchAndPersistThreadContent`) extracted
   verbatim from `threadOverviewResumeController.
-refreshOverviewThreadCacheFromRelations` (resume controller rewired onto
+  refreshOverviewThreadCacheFromRelations` (resume controller rewired onto
   it, behavior preserved — priority 2, same staleness guards via
   `shouldContinue`/`shouldApply`). The prewarm drain loop
   (`threadSeedPrewarmController`), after each priority target's IDB seed
@@ -3173,8 +3187,8 @@ standalone library. Verdict: not yet — only one real client consumes it
 (the element fork is being retired), it is still churning (six scroll/edit
 PRs this week), and it is a fork we rebase onto upstream Cinny. But the
 property a library would guarantee — the engine is framework-agnostic
-domain logic over matrix-js-sdk — is _already true_ (only
-`engine/engineContext.tsx` touches React) and was _unenforced_. This
+domain logic over matrix-js-sdk — is *already true* (only
+`engine/engineContext.tsx` touches React) and was *unenforced*. This
 change pins it so a future `useEffect` in `reconciler.ts`, or a sideways
 import into the render layer, fails CI instead of silently coupling the
 engine to the UI. Makes an eventual `git subtree split` an afternoon's
@@ -3194,10 +3208,10 @@ work rather than an archaeology project.
   `describe('engine framework-agnostic boundary …')` holding three
   guards: (1) no `engine/**` module imports `react` except the
   allowlisted seam `engineContext.tsx`; (2) equality check that
-  `engineContext.tsx` is the _only_ react seam (keeps the allowlist
+  `engineContext.tsx` is the *only* react seam (keeps the allowlist
   honest); (3) no `engine/**` module imports a `threads/` React adapter
   (a `*Controller*` hook or a `.tsx` component). The engine may still
-  reach _down_ to pure primitives/types under `threads/` (cacheStore,
+  reach *down* to pure primitives/types under `threads/` (cacheStore,
   cacheProbe, eventRepository, eventCacheEditUtils, timelineDebug,
   preloadSettings, types) — those are the cache layer, not the render
   layer.
@@ -3248,7 +3262,6 @@ of scroll positions the view rapidly oscillates between two positions
 - Red-verified regression tests: remount initializes from the cached
   verdict in both directions, proven by giving the remount zero layout
   so only the initial state can decide.
-
 ### Task #129 — thread edit-backfill race (mid-thread "Thinking…" placeholder band) (2026-07-05, team lead)
 
 Prod report: a contiguous band of mid-thread messages stuck on the
@@ -3375,7 +3388,7 @@ regions is smooth.
   must not read as "scrolled to top").
 - e2e: new spec in thread-virtualization-behaviors.spec.ts, made
   TRIGGER-SPECIFIC in the PR #74 review rounds: 460-reply thread,
-  route-level /\_matrix latency (band backfill otherwise loads the
+  route-level /_matrix latency (band backfill otherwise loads the
   whole thread during open-settle on the unthrottled docker network —
   gate-log verified), real wheel input, no chip tap, and the
   threadAutoPaginateBackFired probe counter asserted >= 1 (verified
@@ -3455,7 +3468,7 @@ the remaining checklist was finished in-session).
   conflict, no-replacement baseline) and asserts the tripwire
   stays 0.
 - **Fix-B load-bearing check (EXTRA-1)**: throwaway branch, `git
-revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
+  revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
   AC2 run: **PASSED without fix B** (/tmp/ac2-fixb-revert-check.log,
   counters identical shape). Verdict: fix B is a correctness
   improvement (the reconciler hands its repaired view, not raw fetch
@@ -3468,9 +3481,9 @@ revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
   "18" figures in earlier agent reports were an agent-environment
   quirk; the comparable pair settles the bar.
 - **FINAL gate (/tmp/ac2-final-gate.log)**: AC2 + stop-emoji-redaction
-  - streamed-edit-cache, one docker run, **3/3 passed** (30.3s / 60s /
-    39.2s). Counters: reconcilesScheduled=2, reconcilesRepaired=1,
-    applierNoLatestEdit=0, eventMapCanonicalizedDisplacements=3.
+  + streamed-edit-cache, one docker run, **3/3 passed** (30.3s / 60s /
+  39.2s). Counters: reconcilesScheduled=2, reconcilesRepaired=1,
+  applierNoLatestEdit=0, eventMapCanonicalizedDisplacements=3.
 - Validation bar: tsc clean; vitest full suite (see commit); lint
   26/0 == dev baseline; build clean.
 - Follow-ups on record: #94 (bandage sweep of merged cache work, incl.
@@ -3611,7 +3624,7 @@ revert --no-commit 52af9eed`, clean revert, tsc clean, one docker
   existing effective-replacement block. The block above still
   runs the D12-style ts→event_id ordering when both sides have
   an effective replacement (preserving the `prefers an incoming
-event with a newer bundled replacement over a stale live edit`
+  event with a newer bundled replacement over a stale live edit`
   test — which fails with a raw-first check because the pre-
   existing "prefers newer bundle" semantics need the effective
   block to fire first). The new asymmetric check only fires when
@@ -3702,7 +3715,7 @@ event with a newer bundled replacement over a stale live edit`
      in the DOM (react-virtual only renders a window; pin-to-
      bottom lands at the filler tail so the anchor is virtual-
      ised out on reopen). Then `scrollIntoView({block:
-'center'})` and settle across two rAFs.
+     'center'})` and settle across two rAFs.
   3. Assert convergence in the anchored viewport: edit-target
      v2 visible, v1 gone (count 0), redact-target gone (count
      0). Cache-level edit-bundled-v2 assertion is polled
@@ -3764,7 +3777,7 @@ event with a newer bundled replacement over a stale live edit`
   every other tick".
 - RG4a instrumentation: per-eventId classifier in
   `cacheProbe.recordRenderTargetSeen(eventId, mEvent,
-hasReplacement)` called from `utils/room.ts getEditedEvent`.
+  hasReplacement)` called from `utils/room.ts getEditedEvent`.
   Classifies each lack-replacement call as
   `renderTargetRegressedNever` (id never had a replacement yet),
   `renderTargetRegressedSameInstance` (candidate i: the retained
@@ -3775,7 +3788,7 @@ hasReplacement)` called from `utils/room.ts getEditedEvent`.
 - RG4a diagnostic docker run (AC2 spec, `--trace on`, matrix
   Tuwunel), t~30s snapshot:
   - `reconcilesRepaired: 1, reconcilesOnRepairedFired: 1,
-supplementalEventsExecuted: 1` (repair fired end-to-end)
+    supplementalEventsExecuted: 1` (repair fired end-to-end)
   - `renderTargetHadReplacement: 5` (flat from t=4s)
   - `renderTargetLackedReplacement: 384` (grows ~4/2s)
   - **`renderTargetRegressedNever: 384`** (ALL lack-replacement calls)
@@ -3793,11 +3806,11 @@ supplementalEventsExecuted: 1` (repair fired end-to-end)
   - Before programmatic scroll: `allDataMessageIdCount=19` (only
     fillers #7–#25 attached — the visible viewport window),
     `document.body.textContent` contains neither `edit-target v2
-converged` nor `edit-target v1`.
+    converged` nor `edit-target v1`.
   - After programmatic `scrollTop=0` on the virtualizer's scroll
     container: still 19 attached, but body now contains
     **`edit-target v2 converged`**, does NOT contain `edit-target
-v1`, does NOT contain `redact-target`. `data-message-id` for
+    v1`, does NOT contain `redact-target`. `data-message-id` for
     edit-target is now present.
   - Container geometry: `scrollHeight=1523, clientHeight=500`
     (~3 viewport-heights of content).
@@ -3815,18 +3828,18 @@ v1`, does NOT contain `redact-target`. `data-message-id` for
   in DOM.
 - Candidates from R9's diagnosis surface:
   - (a) `mergeThreadRenderEvents` dedup dropping the repair —
-    DISPROVEN (`mergeSawEditRelationNoTargetChange: 0`,
-    `hydrateApplierMutated*Instance: 0`).
+        DISPROVEN (`mergeSawEditRelationNoTargetChange: 0`,
+        `hydrateApplierMutated*Instance: 0`).
   - (b) React batching / memo swallowing tick — DISPROVEN
-    (`renderTargetHadReplacement: 5` proves the tick reaches
-    `getEditedEvent`).
+        (`renderTargetHadReplacement: 5` proves the tick reaches
+        `getEditedEvent`).
   - (c) SDK inject leg no-op — irrelevant to the visible
-    failure; the sink-side leg converges correctly on its
-    own.
+        failure; the sink-side leg converges correctly on its
+        own.
   - (i) same-instance-replacement-cleared — DISPROVEN
-    (`renderTargetRegressedSameInstance: 0`).
+        (`renderTargetRegressedSameInstance: 0`).
   - (iii) instance-swap — DISPROVEN
-    (`renderTargetRegressedDifferentInstance: 0`).
+        (`renderTargetRegressedDifferentInstance: 0`).
 - All instrumentation (RG1 sink counters, RG2 merge counter,
   RG3 render-seam counters, RG4a per-eventId classifier) stays
   merged as always-on observability — the classifier is exactly
@@ -3838,17 +3851,17 @@ v1`, does NOT contain `redact-target`. `data-message-id` for
 - Handoff to team-lead (awaiting direction): three options
   identified —
   (A) scroll-anchor restoration fix (address the real UX
-  failure: viewport should land at the captured anchor after
-  reopen, not at the bottom);
+      failure: viewport should land at the captured anchor after
+      reopen, not at the bottom);
   (B) reframe AC2's visibility assertion (scroll to anchor
-  first, then assert v2 is visible near anchor);
+      first, then assert v2 is visible near anchor);
   (C) both.
   My recommendation: (A) or (C) per "make the design correct".
   The AC10 anchor-invariant (`displacement <= 8px`) currently
   cannot even run because the anchor element is virtualized off
   before the assertion reaches line 401-410.
 - Commits: `feat(observability): AC2 render-gap RG4a per-eventId
-regression classifier (CINNY-207 AC2 render-gap RG4a)` at
+  regression classifier (CINNY-207 AC2 render-gap RG4a)` at
   `bc581d63`. RG5 (live gate + regressions) deferred pending
   team-lead direction on (A)/(B)/(C).
 
@@ -3881,21 +3894,21 @@ regression classifier (CINNY-207 AC2 render-gap RG4a)` at
   server truth is independent of component navigation).
 - Skip counters collapsed to the three-bucket invariant:
   `threadOpens == threadOpenScheduledCacheFirst +
-threadOpenSkipCacheFirstHydrateGuard +
-threadOpenSkipCacheFirstPostHydrateGuard`. The pre-revision
+  threadOpenSkipCacheFirstHydrateGuard +
+  threadOpenSkipCacheFirstPostHydrateGuard`. The pre-revision
   counter set had twelve additional skip counters (SDK-bootstrap
   early-returns + mid-flow cache-first paths) that guarded
   now-impossible skip shapes; those were pruned with the
   machinery.
 - Live gate (docker Tuwunel matrix, trace on) — AC2 spec:
   - Probe (t2s snapshot): `threadOpens=2,
-threadOpenScheduledCacheFirst=1,
-threadOpenSkipCacheFirstPostHydrateGuard=1` — invariant sum
+    threadOpenScheduledCacheFirst=1,
+    threadOpenSkipCacheFirstPostHydrateGuard=1` — invariant sum
     holds cleanly (first-open cleanup skipped legitimately, the
     return-nav open scheduled the reconcile).
   - Engine: `reconcilesScheduled=2, reconcilesRepaired=1,
-reconcilerPersists=1, reconcilesOnRepairedFired=1,
-reconcilesThreadNull=0` — the reconciler ran, detected
+    reconcilerPersists=1, reconcilesOnRepairedFired=1,
+    reconcilesThreadNull=0` — the reconciler ran, detected
     divergence, repaired, persisted the converged snapshot, and
     invoked the widened `onRepaired` sink.
   - Visible assertion outcome: `edit-target v2 converged` still
@@ -3907,7 +3920,7 @@ reconcilesThreadNull=0` — the reconciler ran, detected
   `cinny207-stop-emoji-redaction.spec.ts` both pass green under
   the revision. stop-emoji's probe shows the same invariant
   holding: `threadOpens=2 == threadOpenScheduledCacheFirst=1 +
-threadOpenSkipCacheFirstPostHydrateGuard=1` with
+  threadOpenSkipCacheFirstPostHydrateGuard=1` with
   `reconcilesRepaired=1, reconcilerPersists=1`.
 - Validation bar: tsc clean; vitest 2644/2644 green (2650
   baseline minus 6 tests deleted with the pruned SDK-bootstrap
@@ -3918,17 +3931,17 @@ threadOpenSkipCacheFirstPostHydrateGuard=1` with
   but `edit-target v2 converged` never becomes visible. Same
   three candidates the STEP e outcome named:
   - (a) `mergeThreadRenderEvents` dedups by event id keeping the
-    first instance seen; if the cached `edit-target-v1` is
-    already in fallback events and the incoming batch contains
-    only the m.replace edit-relation event (not the target),
-    the render only shows v2 if `hydrateCachedEvents`
-    mutates the kept instance's bundled body in place.
+        first instance seen; if the cached `edit-target-v1` is
+        already in fallback events and the incoming batch contains
+        only the m.replace edit-relation event (not the target),
+        the render only shows v2 if `hydrateCachedEvents`
+        mutates the kept instance's bundled body in place.
   - (b) React batching / memo selector might swallow the tick
-    bumped inside the `onRepaired` callback.
+        bumped inside the `onRepaired` callback.
   - (c) SDK inject leg (`liveThread.addEvents`) runs against the
-    live thread but SDK bootstrap was skipped by the
-    backfill-completed path — inherited from the pre-existing
-    complete-coverage schedule seam.
+        live thread but SDK bootstrap was skipped by the
+        backfill-completed path — inherited from the pre-existing
+        complete-coverage schedule seam.
 - Next iteration: add sink-side counters (`onRepaired-guard-bailed`
   vs `setSupplementalThreadEvents-executed`, plus "merge saw
   edit-relation but no bundled-body change" inside
@@ -3953,23 +3966,23 @@ threadOpenSkipCacheFirstPostHydrateGuard=1` with
 ### CINNY-207 AC2 STEP 4 iter 2 STEP e — live-gate outcome: STEP d ships neutral-to-positive, new render-side diagnosis surface (2026-07-04)
 
 - Live gate: `E2E_ENABLE_DEPLOYED_FIXTURE=0 bash
-scripts/test-e2e-docker-matrix.sh
-e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`
+  scripts/test-e2e-docker-matrix.sh
+  e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`
   against the docker Tuwunel matrix, STEP d tip.
 - Outcome: the AC2 spec's visible convergence assertion still
   times out — `test.fail()` remains on the spec. But the STEP d
   fix advanced the state materially and both probe invariants
   (STEP a and STEP 1) hold cleanly.
 - Post-fix probe snapshot vs pre-fix:
-  - `threadOpenScheduledCacheFirst` : 0 → 1 ← NEW schedule fires
+  - `threadOpenScheduledCacheFirst`      : 0 → 1   ← NEW schedule fires
   - `threadOpenSkipCacheFirstBackfillCompleted`: 1 → 0 ← skip closed
-  - `reconcilesScheduled` : 1 → 2 ← thread-scope schedule added
-  - `reconcilesRepaired` : 0 → 1 ← reconciler REPAIRED
-  - `reconcilerPersists` : 0 → 1 ← cache PERSISTED
-  - `reconcilesOnRepairedFired` : 0 → 1 ← render sink invoked
+  - `reconcilesScheduled`               : 1 → 2   ← thread-scope schedule added
+  - `reconcilesRepaired`                : 0 → 1   ← reconciler REPAIRED
+  - `reconcilerPersists`                : 0 → 1   ← cache PERSISTED
+  - `reconcilesOnRepairedFired`         : 0 → 1   ← render sink invoked
   - Invariants: `threadOpens (2) == scheduled (1) + skips (1)` ✓;
-    `reconcilesScheduled (2) == reconcilesRoomScopeNoop (1)
-             + reconcilesRepaired (1)` ✓.
+                `reconcilesScheduled (2) == reconcilesRoomScopeNoop (1)
+                 + reconcilesRepaired (1)` ✓.
 - What STEP d fixed: the D7-violating skip is closed — the
   thread-scope reconcile now fires on the AC2 return-nav open,
   detects divergence, repairs, persists, and invokes the widened
@@ -3982,17 +3995,17 @@ e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`
   `fallbackThreadEventsState.events` and `thread.events`.
 - New diagnosis surface (documented in the spec header):
   (a) `mergeThreadRenderEvents` dedups by event id keeping the
-  first instance seen; if the cached `edit-target-v1` instance
-  is kept and the incoming batch contains only the m.replace
-  edit-relation event (not the target itself), the render
-  only shows v2 if `hydrateCachedEvents` mutates the kept
-  instance's bundled body in place;
+      first instance seen; if the cached `edit-target-v1` instance
+      is kept and the incoming batch contains only the m.replace
+      edit-relation event (not the target itself), the render
+      only shows v2 if `hydrateCachedEvents` mutates the kept
+      instance's bundled body in place;
   (b) React batching / memo selector might swallow the tick
-  bumped inside the `onRepaired` callback;
+      bumped inside the `onRepaired` callback;
   (c) SDK inject leg (`liveThread.addEvents`) runs against the
-  live thread but SDK bootstrap was skipped by the backfill-
-  completed path — STEP d inherits this seam from the pre-
-  existing complete-coverage schedule.
+      live thread but SDK bootstrap was skipped by the backfill-
+      completed path — STEP d inherits this seam from the pre-
+      existing complete-coverage schedule.
 - STEP d STAYS SHIPPED: closes a real, D7-violating skip that any
   future open on the AC2 shape would otherwise silently freeze the
   cache. The unit-level guarantee is proven (2650 vitest tests
@@ -4003,7 +4016,7 @@ e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`
   redaction (`✓ 56.8s`) both pass green against the STEP d tip.
   Their probe traces show the invariant hold too: streamed-edit's
   `threadOpens=2 == threadOpenScheduledLifecycle=1 +
-threadOpenSkipCacheFirstPostHydrateGuard=1`.
+  threadOpenSkipCacheFirstPostHydrateGuard=1`.
 - Spec header rewritten with the STEP e probe snapshot,
   interpretation, and the three render-side candidates for the
   next iteration.
@@ -4061,18 +4074,18 @@ threadOpenSkipCacheFirstPostHydrateGuard=1`.
 
 - STEP b: one docker run of the AC2 spec against the Tuwunel matrix
   fixture (`E2E_ENABLE_DEPLOYED_FIXTURE=0 bash
-scripts/test-e2e-docker-matrix.sh
-e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`).
+  scripts/test-e2e-docker-matrix.sh
+  e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`).
 - Probe snapshot (playwright trace, `[cinny-207] ac2-probe t30s`
   line, invariant `threadOpens == sum(scheduled + skip)` holds:
   `2 == 0 + 0 + 1 + 1`):
   - `threadOpens = 2`
-  - `threadOpenSkipCacheFirstBackfillCompleted = 1` ← the return-nav open
-  - `threadOpenSkipCacheFirstPostHydrateGuard   = 1` ← the first-open cleanup
+  - `threadOpenSkipCacheFirstBackfillCompleted = 1`  ← the return-nav open
+  - `threadOpenSkipCacheFirstPostHydrateGuard   = 1`  ← the first-open cleanup
   - `threadOpenScheduledCacheFirst = 0`
   - `threadOpenScheduledLifecycle  = 0`
-  - `reconcilesScheduled = 1` (all from `noteRoomFocused`, the
-    room-scope tripwire)
+  - `reconcilesScheduled = 1`   (all from `noteRoomFocused`, the
+                                room-scope tripwire)
   - `reconcilesRoomScopeNoop = 1`
 - Mechanism named: after
   `backfillThreadRelationsIntoCache` returns `{completed: true}`,
@@ -4094,7 +4107,7 @@ e2e/live/cinny207-stale-cache-divergence.spec.ts --trace on`).
   reason `open-backfill-completed`); once STEP d lands the fix,
   the `it.fails` marker is removed and the assertion turns green.
 - Validation: `npx tsc --noEmit` clean; `npx vitest run
-src/app/mindroom/threads/__tests__/threadOpenBackfillCompletedSkip.test.ts`
+  src/app/mindroom/threads/__tests__/threadOpenBackfillCompletedSkip.test.ts`
   2/2; probe extraction script logged in commit body.
 - Next: STEP d — implement the D7-preserving fix (call
   `scheduleReconcile` before the `shouldContinue: false` return on
@@ -4173,17 +4186,17 @@ src/app/mindroom/threads/__tests__/threadOpenBackfillCompletedSkip.test.ts`
   of the schedule call, in the thread-open lifecycle path.
 - Suspected upstream skip points (next iteration to instrument):
   (a) `runThreadOpenSdkBootstrap` returns false before the
-  lifecycle controller reaches the partial-coverage schedule
-  (return false paths at threadOpenSdkBootstrap.ts:82, 100,
-  115, 136, 106, 127, 175, 198).
+      lifecycle controller reaches the partial-coverage schedule
+      (return false paths at threadOpenSdkBootstrap.ts:82, 100,
+      115, 136, 106, 127, 175, 198).
   (b) `hasCompleteCachedThreadSnapshot` is false because the SDK
-  sync landed the 25 fillers and updated expected reply count
-  → cache-first path does NOT fire its complete-coverage
-  schedule, AND SDK bootstrap also short-circuits (see (a)).
+      sync landed the 25 fillers and updated expected reply count
+      → cache-first path does NOT fire its complete-coverage
+      schedule, AND SDK bootstrap also short-circuits (see (a)).
   (c) The effect deps change identity between mount and schedule,
-  triggering effect cleanup that aborts loadThreadTimeline
-  before the schedule call fires — but room-focus reconcile
-  still fires because the room-focus hook is upstream.
+      triggering effect cleanup that aborts loadThreadTimeline
+      before the schedule call fires — but room-focus reconcile
+      still fires because the room-focus hook is upstream.
 - Header updated on the live spec with the full trace snapshot,
   interpretation, and the load-bearing rule-out reasoning; kept
   `test.fail()` because the assertion legitimately fails and the
@@ -4462,10 +4475,11 @@ src/app/mindroom/threads/__tests__/threadOpenBackfillCompletedSkip.test.ts`
   - Critical self-found fix: the marker regex matched `🔨` (hammer), but
     MindRoom serializes tool markers with `🔧` (wrench) — verified against
     upstream `mindroom/src/mindroom/tool_system/events.py`
-    (`_TOOL_REF_ICON = "🔧"`, marker line `🔧 \`name\` [n](⏳)?`) and this
-fork's own `MINDROOM_TOOL_REF_TEXT_REG`in`src/app/mindroom/messages/blocks.ts`. With the hammer, the collapse
-feature never fired on real messages. Regex now uses `🔧`and also
-consumes the optional trailing`⏳` pending suffix so running tool calls
+    (`_TOOL_REF_ICON = "🔧"`, marker line `🔧 \`name\` [n]( ⏳)?`) and this
+    fork's own `MINDROOM_TOOL_REF_TEXT_REG` in
+    `src/app/mindroom/messages/blocks.ts`. With the hammer, the collapse
+    feature never fired on real messages. Regex now uses `🔧` and also
+    consumes the optional trailing `⏳` pending suffix so running tool calls
     don't leave a stray hourglass in the prose.
   - Greptile (both rounds): link/image destinations with balanced parens
     (`[docs](https://example.com/a(b)c)`) no longer leave `c)` fragments;
@@ -4489,7 +4503,7 @@ consumes the optional trailing`⏳` pending suffix so running tool calls
     clean.
 - Second independent review round (2026-07-07, adversarial subagent with
   measured repros):
-  - Blocker fixed: the link/image _label_ scans (`[^\]]*`) were quadratic —
+  - Blocker fixed: the link/image *label* scans (`[^\]]*`) were quadratic —
     a single in-limit body of 60k `[` chars stalled `stripPreviewMarkdown`
     for ~2.5 s, and previews recompute in `useMemo` on every timeline
     update. Fix: markers are counted/removed on the full body (line-anchored,
@@ -4500,7 +4514,7 @@ consumes the optional trailing`⏳` pending suffix so running tool calls
     100k unterminated link → 0.1 ms. Perf smoke test added (<500 ms bound).
   - Should-fix fixed: the marker regex was looser than the canonical
     serialization (unanchored, optional index), so ordinary prose like
-    `` tighten it with a 🔧 `M5 bolt` works well `` gained a bogus
+    ``tighten it with a 🔧 `M5 bolt` works well`` gained a bogus
     `🔧 1 tool ·` badge. Now whole-line anchored with a required `[n]`,
     mirroring `MINDROOM_TOOL_REF_TEXT_REG` (blocks.ts) — the badge only
     collapses what the timeline renders as a tool ref. Streamed markers
@@ -4727,9 +4741,8 @@ strategy doc and UI copy claimed the setting worked when the delivery
 never wired it.
 
 - `prefetchPolicy.ts`: new `isRoomEligibleForBackgroundPrefetch({ mx,
-room, scope, focusedRoomId })` — the scope-aware gate. Semantics
+  room, scope, focusedRoomId })` — the scope-aware gate. Semantics
   match the UI selector copy:
-
   - `my-server`: own tier only (historical behavior).
   - `all-rooms`: own + federated + background; encrypted still blocked
     (unusable ciphertext).
@@ -4823,8 +4836,8 @@ values are dropped" invariant never converged in practice.
   hold.
 
 - Verified red-first: stashing bootstrap side-effect + belt-and-braces
-  - index.tsx changes reproduces `2 failed` in the two suites;
-    restoring returns `13 passed`.
+  + index.tsx changes reproduces `2 failed` in the two suites;
+  restoring returns `13 passed`.
 
 ### CINNY-207 P7.2 audit remediation — gap-fill / deep-history prefer-live persist (2026-07-04)
 
@@ -4850,7 +4863,7 @@ rest (invariant I2).
 - `engine/gapFillExecutor.ts`: swapped the awaited
   `saveRoomEventsToCache(sessionId, roomId, chunk, response.end ?? null)`
   for `persistRoomChunkWithPreferLive({ mx, sessionId, room, chunk,
-beforeTokenForEarliest })`. The write is fire-and-forget matching
+  beforeTokenForEarliest })`. The write is fire-and-forget matching
   the write-through and reconciler (persistRoomEventCacheSnapshot uses
   `void save(...)` internally by design).
 
@@ -4944,14 +4957,14 @@ awaiter has no rejection handler.
 - Phase 6.1 commits:
 
   1. `feat: prefetch settings resolvers and transitional fields
-(CINNY-207 P6.1)` — `engine/prefetchPolicy.ts` grows
+     (CINNY-207 P6.1)` — `engine/prefetchPolicy.ts` grows
      `PrefetchScope` (literal type + `DEFAULT_PREFETCH_SCOPE`),
      `sanitizePrefetchScope` (whitelist coerce, silent fallback),
      `sanitizePrefetchDepth` (clamp [`ROOM_TAIL_PREFETCH_DEPTH`,
      `CURRENT_ROOM_DEEP_HISTORY_TARGET`], integer, silent fallback —
      same shape as the P1.6 sanitizer it replaces), and pure
      `resolvePrefetchConfig(settings)` returning `{scope,
-currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
+     currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
      `mindroomSettings.ts` grows `prefetchScope` and `prefetchDepth`
      ALONGSIDE the legacy `paginationLimit` so the tree stays green
      while consumers migrate. 17 new sanitizer/resolver tests.
@@ -4999,7 +5012,7 @@ currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
      batch size parameter.
 
   4. `refactor: remove the legacy preload setting; drop stored values
-(CINNY-207 P6.1/D4)` — DELETE
+     (CINNY-207 P6.1/D4)` — DELETE
      `MindroomMessagePreloadLimitSetting.tsx` + test,
      `preloadSettings.test.ts`. From `preloadSettings.ts`: remove
      `DEFAULT_PAGINATION_LIMIT` / `MIN_PAGINATION_LIMIT` /
@@ -5101,7 +5114,6 @@ currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
   4; full-repo `npx vitest run` and `npm run build` + `npm run lint`
   land with this docs commit. Docker e2e gate on the branch tip is
   the team-lead's / orchestrator's to run.
-
 ### CINNY-207 review-fix batch - PRs #69/#70/#71 bot comments addressed (2026-07-04)
 
 - Status: review-fix pass over all outstanding top-level bot comments
@@ -5125,7 +5137,7 @@ currentRoomDepth, roomTailDepth, threadInventoryLimit}`.
     `tailDiscontinuity` through meta writes;
     `clearRoomTailDiscontinuity` remains the sole removal path.
     Red test: `preserves the durable marker when max iterations
-exhaust without reaching the server-tail end`.
+    exhaust without reaching the server-tail end`.
   - Greptile P1 queued aborts stay pending: `abortAll` only aborted
     signals and relied on a later `drain` (which never fires if all
     running executors ignore the signal), leaving queued entries in
@@ -5133,8 +5145,8 @@ exhaust without reaching the server-tail end`.
     dangling promises. Fix: reject and delete queued entries
     synchronously in `abortAll`; running entries still cooperate
     via signal+finally. Red test: `abortAll() rejects queued jobs
-synchronously even when running executors never observe the
-signal`.
+    synchronously even when running executors never observe the
+    signal`.
   - Gemini critical sync-throw slot leak: an executor throwing
     synchronously ran the IIFE's finally block synchronously during
     its initial evaluation — `running.delete(key)` fired BEFORE the
@@ -5142,7 +5154,7 @@ signal`.
     stuck in `running` forever. Fix: `running.set` before invoking
     the IIFE with a placeholder promise, then patch in the real
     `runPromise`. Red test: `a synchronously-thrown non-async
-executor does not leak a running slot`.
+    executor does not leak a running slot`.
   - Gemini high missing useEffect cleanup: room-deep-history job
     (up to 10,000 events) was never aborted on room switch. Fix:
     useEffect returns cleanup calling
@@ -5215,7 +5227,7 @@ executor does not leak a running slot`.
     mapper runs, emit one `reconcile-chunk` timeline-debug entry per
     iteration with: `iteration`, `chunkSize`, `nextToken` ("present" /
     "absent"), and per-event `triples: [{event_id, type, rel_type,
-bundled_relations}]`. `rel_type` is read off
+    bundled_relations}]`. `rel_type` is read off
     `content['m.relates_to'].rel_type`; `bundled_relations` is
     `Object.keys(unsigned['m.relations'])` when present — exposes both
     the "standalone m.replace" and the "target with bundled m.replace"
@@ -5227,19 +5239,19 @@ bundled_relations}]`. `rel_type` is read off
   for the record):
   1. Cache-based detector: `buildCachedEventIdSet` derives `cachedIds`
      from `cachedPage.rootEvent.event_id` + `cachedPage.events[]
-.event_id` (raw JSON) only. SDK state does not enter the diff.
+     .event_id` (raw JSON) only. SDK state does not enter the diff.
   2. Engine persist leg: `persistThreadEventCacheSnapshot` call sits
      after `hydrateCachedEvents` and before `onRepaired`, guarded by
      the `diverged` early-return so no-op paths never persist. Same
      entry point the engine's write-through uses; contract preserved.
   3. Timing-race unit test: `'detects SDK-vs-cache timing race and
-STILL persists + injects'` exercises SDK-has-v2/cache-has-v1
+     STILL persists + injects'` exercises SDK-has-v2/cache-has-v1
      with the fetched raw carrying bundled `m.replace` — cache-truth
      divergence detected, persist + inject both fire.
 - Unit tests (reconciler.test.ts now 24 tests, +2 red-first for the
   chunk-triple log):
   - `'logs per-page (event_id, type, rel_type, bundled_relations)
-triples when debug is enabled — P5-GATE-FIX v4-follow-through'` —
+    triples when debug is enabled — P5-GATE-FIX v4-follow-through'` —
     stubs `mindroom.debug.timeline='1'` in localStorage, spies
     `console.log`, seeds a fetched chunk with (a) a standalone
     m.replace edit (`rel_type: 'm.replace'`), (b) an edit target
@@ -5247,7 +5259,7 @@ triples when debug is enabled — P5-GATE-FIX v4-follow-through'` —
     reply. Asserts one `reconcile-chunk` log with the exact triples
     for all three shapes.
   - `'does NOT log reconcile-chunk when debugTraceId is absent —
-cheap-in-prod invariant'` — same setup but no `debugTraceId`;
+    cheap-in-prod invariant'` — same setup but no `debugTraceId`;
     asserts zero `reconcile-chunk` lines even with the flag on.
 - Validation:
   - `npm run typecheck` — clean.
@@ -5407,7 +5419,7 @@ cheap-in-prod invariant'` — same setup but no `debugTraceId`;
     fetch-failure (`to()` swallow), zero-divergence, and the
     `shouldContinue` guard abort — the network evidence points at the
     guard abort during reopen mount churn (`repaired: false,
-aborted: true` is not probed).
+    aborted: true` is not probed).
 - Decision needed (recorded in plan §8 Deviations): re-schedule once on
   guard-abort or drop the guard for band-0 reconciles; and resolve the
   deeper seam — on token-resume reopen, thread-scope divergence reaches
@@ -5460,17 +5472,17 @@ aborted: true` is not probed).
   - v3 (widen `onRepaired` to carry `repairedEvents`; both call
     sites route through
     `setSupplementalThreadEvents(threadId, [...repairedEvents])`
-    - tick): THIS is the load-bearing fix. The spread creates a
-      new outer array; the sink builds `mergedEvents` via
-      `mergeThreadRenderEvents` (which returns a fresh array via
-      `Array.from(new Set(eventMap.values()))`); the state setter
-      delivers a new `.events` reference; the `fallbackEvents` memo
-      (deps `[fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]`)
-      re-runs; the `threadEvents` memo (deps `[fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]`)
-      re-runs; `buildThreadEvents` re-invokes `hydrateCachedEvents`
-      which re-applies edits/redactions on the merged set. That's
-      the invalidation chain the pre-P5 refresh had for free by
-      virtue of always delivering a new array.
+    + tick): THIS is the load-bearing fix. The spread creates a
+    new outer array; the sink builds `mergedEvents` via
+    `mergeThreadRenderEvents` (which returns a fresh array via
+    `Array.from(new Set(eventMap.values()))`); the state setter
+    delivers a new `.events` reference; the `fallbackEvents` memo
+    (deps `[fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]`)
+    re-runs; the `threadEvents` memo (deps `[fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]`)
+    re-runs; `buildThreadEvents` re-invokes `hydrateCachedEvents`
+    which re-applies edits/redactions on the merged set. That's
+    the invalidation chain the pre-P5 refresh had for free by
+    virtue of always delivering a new array.
 - Memo-key audit (documenting what would break in-place-only fixes,
   per team-lead request):
   - `useThreadRenderState.ts:211` `fallbackEvents` memo — deps
@@ -5515,7 +5527,7 @@ aborted: true` is not probed).
     the earlier "still failing" runs may have been picking up
     an older SHA or a caching artifact.
   - If still failing with `reconcilesRepaired ≥ 1,
-reconcilesThreadNull = 1`: the fallback-array delivery
+    reconcilesThreadNull = 1`: the fallback-array delivery
     happened but the render still didn't converge. That points
     at (a) the cell-level virtualization cache (the row renderer
     holds a stale rendered fragment keyed on event id, not on
@@ -5635,15 +5647,16 @@ reconcilesThreadNull = 1`: the fallback-array delivery
   ($edit-v2) whose event id is NEW; the applier consumes both the
   cache instances AND the fetched batch (`mergedForHydrate`
   passed to `hydrateCachedEvents`), and calls `makeReplaced` on
-  whichever `$edit-target`instance is in its id-to-event map.
-v2 is enough IF the SDK does not also hold a separate clone
-that the render reads. On complete-coverage cache-first the
-SDK bootstrap is skipped by design, so the only sources of
-render events are (a)`thread?.events`(SDK-populated — empty
-in this path) and (b)`fallbackThreadEventsState.events`(populated via`setSupplementalThreadEvents`). v2 mutated (b),
-but the SDK's own timeline set was never told about the fetched
-m.replace event — so if the render or downstream SDK
-listeners ever re-read `thread.replacingEvent` or the
+  whichever `$edit-target` instance is in its id-to-event map.
+  v2 is enough IF the SDK does not also hold a separate clone
+  that the render reads. On complete-coverage cache-first the
+  SDK bootstrap is skipped by design, so the only sources of
+  render events are (a) `thread?.events` (SDK-populated — empty
+  in this path) and (b) `fallbackThreadEventsState.events`
+  (populated via `setSupplementalThreadEvents`). v2 mutated (b),
+  but the SDK's own timeline set was never told about the fetched
+  m.replace event — so if the render or downstream SDK
+  listeners ever re-read `thread.replacingEvent` or the
   relations aggregator via the SDK path, they would still see
   v1.
 - Team-lead prescription (implemented): DO BOTH injections. The
@@ -5746,7 +5759,7 @@ listeners ever re-read `thread.replacingEvent` or the
   re-run.
 
 - What the v1 fix (4aa3c194) still missed: `thread.addEvents(fetched,
-false)` DID land the fetched m.replace in the SDK thread model,
+  false)` DID land the fetched m.replace in the SDK thread model,
   but on the complete-coverage cache-first path the render layer
   does NOT read the SDK thread's mutated target instance — it reads
   the MatrixEvent clones that `hydrateThreadFromCache` handed to
@@ -5758,7 +5771,7 @@ false)` DID land the fetched m.replace in the SDK thread model,
 
 - Hypothesis #1 (RECURSE) tested and REFUTED with server evidence.
   Team-lead curled the live docker Tuwunel: `GET
-/v1/rooms/.../relations/{root}?dir=b&limit=200&recurse=true`
+  /v1/rooms/.../relations/{root}?dir=b&limit=200&recurse=true`
   returns BOTH the m.thread reply and the m.replace edit
   (`recursion_depth: 1`); without recurse only the reply. So the
   reconciler's fetch already receives the edit. Confirms the bug
@@ -5786,7 +5799,6 @@ false)` DID land the fetched m.replace in the SDK thread model,
   it end-to-end.
 
 - Fix mechanics (files touched):
-
   - `src/app/mindroom/threads/threadOpenCacheController.ts`
     - Extended `HydratedThreadCachePage` with two new optional
       fields: `hydratedEvents?: MatrixEvent[]` and
@@ -5847,7 +5859,6 @@ false)` DID land the fetched m.replace in the SDK thread model,
   land" — the latter would be a genuinely new bug).
 
 - Red-first evidence (with fix stashed):
-
   - `git stash push -- src/app/mindroom/engine/reconciler.ts`
   - `npx vitest run src/app/mindroom/engine/__tests__/reconciler.test.ts`
     → 15 passed, 1 FAILED (the new instance-race test:
@@ -5862,7 +5873,6 @@ false)` DID land the fetched m.replace in the SDK thread model,
     receives the render's own instances.
 
 - Full validation:
-
   - `npm run typecheck`: clean.
   - `npx vitest run`: 337/337 files, 2573/2573 tests. First run
     showed one intermittent failure in
@@ -5965,7 +5975,7 @@ false)` DID land the fetched m.replace in the SDK thread model,
     bumps + updated comments.
   - `src/app/mindroom/threads/cacheProbe.ts`: added
     `reconcilesScheduled`/`reconcilesRepaired` to `CacheProbeCounters`
-    - `createEmptyCounters`.
+    + `createEmptyCounters`.
   - `src/app/mindroom/engine/__tests__/reconciler.test.ts` (+3 tests):
     - `bumps reconcilesScheduled on every scheduleReconcile (thread-scope and room-scope)`
     - `bumps reconcilesRepaired only when divergence was detected and the repair pipeline actually ran`
@@ -6004,17 +6014,17 @@ false)` DID land the fetched m.replace in the SDK thread model,
   `cache-overhaul/11-p4-scheduler`).
 - Commits:
   - `727ce26e` P5.1 Commit 1 `feat: engine reconciler — every open
-schedules convergence`.
+    schedules convergence`.
   - `05594b54` P5.1 Commit 2 `refactor: thread backfill into the
-engine; delete post-bootstrap refresh`.
+    engine; delete post-bootstrap refresh`.
   - `7a30e7f8` P5.1 Commit 3 `feat: room-open reconcile with
-discontinuity awareness`.
+    discontinuity awareness`.
   - `5724ef8f` P5.2 Commit 4 `fix+test: repair applier hardening;
-AC2 green; correction-path anchor unit`.
+    AC2 green; correction-path anchor unit`.
 - P5.1 Commit 1 - engine reconciler + D7 rewire:
   - `src/app/mindroom/engine/reconciler.ts` (new): `scheduleReconcile(
-{mx, sessionId, scheduler, roomId, room?, threadId?, cachedPage?,
-reason, onRepaired?, shouldContinue?, debugTraceId?})` producer
+    {mx, sessionId, scheduler, roomId, room?, threadId?, cachedPage?,
+    reason, onRepaired?, shouldContinue?, debugTraceId?})` producer
     for a new `'reconcile'` scheduler kind (band 0, own dedup
     domain — kind is part of the AC8 dedup key so a reconcile
     coexists with a `'thread-backfill'` on the same thread).
@@ -6044,7 +6054,7 @@ reason, onRepaired?, shouldContinue?, debugTraceId?})` producer
   - `src/app/mindroom/threads/threadOpenCacheFirst.ts`: D7 fix site
     at `:114` — the complete-coverage branch now schedules
     `scheduleReconcile({reason: 'open-complete-coverage', cachedPage,
-onRepaired: forceTimelineUpdate + tick})` instead of firing
+    onRepaired: forceTimelineUpdate + tick})` instead of firing
     `refreshLatestThreadRelationsTail`. Introduces
     `ScheduleReconcileFn` prop type (pre-bound to the caller's
     `mx` / `sessionId` / `scheduler`).
@@ -6121,7 +6131,7 @@ onRepaired: forceTimelineUpdate + tick})` instead of firing
     the fetcher end-to-end via the facade).
   - `src/app/mindroom/engine/threadBackfillJob.ts` (new): thin
     producer `enqueueThreadBackfillJob({mx, scheduler, room,
-threadId, priority?, shouldContinue?})` — routes the fetch
+    threadId, priority?, shouldContinue?})` — routes the fetch
     through the scheduler under the existing `'thread-backfill'`
     kind (P4.4's overview-resume dedup domain — one round-trip when
     both a user-triggered open and a background resume fire on the
@@ -6145,7 +6155,7 @@ threadId, priority?, shouldContinue?})` — routes the fetch
   - DELETED `threads/threadOpenPostBootstrapRefresh.ts` (115 lines).
     Its two behaviors move inline into
     `threadOpenLifecycleController.ts`: (a) `shouldScrollToLatestOnOpen
-=== true` → `await refreshLatestThreadSlice(threadId)` (unchanged
+    === true` → `await refreshLatestThreadSlice(threadId)` (unchanged
     full-pagination jump-to-latest); (b) `false` branch — its
     limit-200 fetchRelations is REPLACED by the P5 reconcile
     scheduled above; the forward-gap check +
@@ -6157,12 +6167,12 @@ threadId, priority?, shouldContinue?})` — routes the fetch
   - Two new arch guards in
     `engine/__tests__/engine.architecture.test.ts`:
     (a) `fetchAllThreadRelations is defined in engine/, and imported
-only within engine/**` — allowlist is
+    only within engine/**` — allowlist is
     `threads/threadOverviewResumeController.ts` (via engine barrel);
     `threads/threadBootstrap.ts` is recognized as a re-export facade
     (imports from `../engine/threadRelationsFetcher`).
     (b) `mx.fetchRelations in threads/ is limited to
-threadOpenSdkBootstrap.ts with exactly 2 occurrences` — the two
+    threadOpenSdkBootstrap.ts with exactly 2 occurrences` — the two
     limit-50 fallback SDK bootstraps stay; a third call trips the
     guard. `notifications/readReceipts.ts` uses `mx.fetchRelations`
     with `RelationType.Thread limit:1` — receipts-domain, out of
@@ -6187,7 +6197,7 @@ threadOpenSdkBootstrap.ts with exactly 2 occurrences` — the two
     (undefined threadId) is now a real scheduler enqueue rather
     than the pre-Commit-3 immediate-resolve stub. Executor is a
     fast no-op that logs `reconcile-complete` with `note:
-'room-scope reconcile — tail catchup owned by gap-fill executor'`.
+    'room-scope reconcile — tail catchup owned by gap-fill executor'`.
     Rationale: room-open tail catchup is already end-to-end owned by
     two engine-owned producers (P3.2 `RoomEvent.TimelineReset`
     marker + `Sync -> PREPARED` startup jobs → P4.2
@@ -6210,7 +6220,7 @@ threadOpenSdkBootstrap.ts with exactly 2 occurrences` — the two
   anchor unit:
   - `src/app/mindroom/engine/__tests__/reconciler.test.ts` (+2):
     (a) `applier hardens against prepends: repairs only swap or
-delete existing ids + append at the tail (AC10)` — fixture
+    delete existing ids + append at the tail (AC10)` — fixture
     carries a bundled edit AND a redaction on cached ids; asserts
     the reconciler treats both as divergence, fires `onRepaired`
     exactly once, mutates instances via `hydrateCachedEvents` (SDK
@@ -6220,8 +6230,8 @@ delete existing ids + append at the tail (AC10)` — fixture
     the AC10 guarantee: no prepends, no length changes, no anchor
     drift.
     (b) `Tuwunel stale-copy re-apply: a fetched page carrying
-unsigned.redacted_because for a cached target reapplies the
-redaction via prefer-live mapper` — fixture:
+    unsigned.redacted_because for a cached target reapplies the
+    redaction via prefer-live mapper` — fixture:
     `mx.getRoom(...).findEventById($reaction)` returns a live
     SDK-managed instance with a tracked `makeRedacted` spy; fetch
     returns the reaction with `unsigned.redacted_because` (the exact
@@ -6254,7 +6264,7 @@ redaction via prefer-live mapper` — fixture:
     (fetchAllThreadRelations engine-only) while preserving the D2
     write-through boundary.
   - Plan said "`fetchAllThreadRelations` moves into engine/; guard:
-    'defined and imported only within engine/\*\*'". Landed as-designed
+    'defined and imported only within engine/**'". Landed as-designed
     at the definition site, but the guard's non-engine importer
     allowlist has one entry:
     `threads/threadOverviewResumeController.ts` — the P4.4
@@ -6341,7 +6351,7 @@ redaction via prefer-live mapper` — fixture:
     `schedulerAborted` and NOT `schedulerFailed`.
   - `engine/__tests__/gapFillExecutor.test.ts` (+1): AC13 mechanism
     test — a startup job for an own-server room with `prevBatch =
-undefined` (the cold-reload shape from `handleSyncPrepared`)
+    undefined` (the cold-reload shape from `handleSyncPrepared`)
     still enters the scheduler and completes (`schedulerEnqueued=1`,
     `schedulerCompleted=1`, `schedulerFailed=0`), with the SDK
     call landing on `fromToken=null`. Also updated the federated-
@@ -6369,12 +6379,12 @@ undefined` (the cold-reload shape from `handleSyncPrepared`)
   and runs after PR open.
 - Commits:
   - `4f74dafa` P4.1 `feat: BackfillScheduler with priority queue,
-dedup, and abort`.
+    dedup, and abort`.
   - `0bc82add` P4.2 `feat: prefetch policy with homeserver detection`.
   - `549e891a` P4.3 `refactor: delete the eager-preload loop; deep
-history as scheduler job`.
+    history as scheduler job`.
   - `2fa4334a` P4.4 `refactor: absorb thread seed prewarm and
-overview resume into the scheduler`.
+    overview resume into the scheduler`.
 - P4.1 - BackfillScheduler:
   - `src/app/mindroom/engine/backfillScheduler.ts` (new): the
     single client-scoped queue that serializes every backfill-shaped
@@ -6447,7 +6457,7 @@ overview resume into the scheduler`.
     stall-guard state machine are gone.
   - `src/app/mindroom/engine/deepHistoryJob.ts` (new):
     `enqueueRoomDeepHistoryJob({mx, sessionId, scheduler, roomId,
-targetEventCount?})` submits a band-4 job that fetches
+    targetEventCount?})` submits a band-4 job that fetches
     `/messages` via `mx.createMessagesRequest` (Direction.Backward,
     200/batch) up to CURRENT_ROOM_DEEP_HISTORY_TARGET (10000) and
     persists through `saveRoomEventsToCache`. The SDK live timeline
@@ -6481,7 +6491,7 @@ targetEventCount?})` submits a band-4 job that fetches
   - `threadSeedPrewarmController.ts`: `ensureThreadSeedPrewarm`
     now wraps its cache-first seed load in
     `syncEngine.scheduler.enqueue({kind: 'thread-seed', priority:
-3})`. Client-scoped dedup replaces the controller-local
+    3})`. Client-scoped dedup replaces the controller-local
     `prewarmingThreadSeedPromisesRef` map as the F9 dedup point;
     the ref is still populated so downstream consumers
     (threadOpenSeedController) don't change.
@@ -6489,7 +6499,7 @@ targetEventCount?})` submits a band-4 job that fetches
     `refreshOverviewThreadCacheFromRelations` now wraps its
     `fetchAllThreadRelations` + persist call in
     `syncEngine.scheduler.enqueue({kind: 'thread-backfill',
-priority: 2})`. The two in-flight/pending refs are gone; the
+    priority: 2})`. The two in-flight/pending refs are gone; the
     1s rate-limit on the outer trigger stays. Priority 2 sits
     between gap-fill (0-1) and prewarm (3).
   - The two controller files keep their outer React shape — this
@@ -6507,11 +6517,11 @@ priority: 2})`. The two in-flight/pending refs are gone; the
   - `npm run lint` 18 warnings / 0 errors — matches P3 baseline
     exactly (zero delta).
 - Docker gate: not run by this agent; team-lead runs the AC13 flip
-  - regression trio. The AC13 spec is now green-shaped (single-page
-    fixture, ~25 REST messages, probe + cache assertions) and is
-    expected to pass when Tuwunel declares `limited=true` on the
-    post-reload sync (or when the scheduler drains the fallback
-    `startup` job).
+  + regression trio. The AC13 spec is now green-shaped (single-page
+  fixture, ~25 REST messages, probe + cache assertions) and is
+  expected to pass when Tuwunel declares `limited=true` on the
+  post-reload sync (or when the scheduler drains the fallback
+  `startup` job).
 - Followups recorded as Deviations §8 entries in this commit:
   - Cooperative abort v1 (executors check between batches; SDK
     fetchers don't take a signal — migration to
@@ -6588,9 +6598,9 @@ priority: 2})`. The two in-flight/pending refs are gone; the
     accepts and forwards the third arg from `RoomEvent.Redaction`.
   - `engine/redactionCacheLifecycle.ts` (+13 / -3): `sdkThreadIdHint`
     added to the plan; hint chain is `sdkThreadIdHint →
-getThreadCacheTargetId → target.threadRootId →
-redactionEvent.threadRootId → sdkDerivedThreadTargetId →
-fallbackThreadId`. Header comment for the derivation helper
+    getThreadCacheTargetId → target.threadRootId →
+    redactionEvent.threadRootId → sdkDerivedThreadTargetId →
+    fallbackThreadId`. Header comment for the derivation helper
     updated to name it as a harmless leftover for the still-threaded
     case.
   - `engine/engineWriteThrough.ts` (+43 / -19): `handleRedactionLive`
@@ -6604,10 +6614,10 @@ fallbackThreadId`. Header comment for the derivation helper
     thread timelineSet at fire time. Covers (1) layer-1 stop-emoji
     with `sdkThreadId` absent + walker returns `['$thread-root']`;
     (2) layer-2 thread-message redaction with `sdkThreadId` present
-    - no walker call; (3) both layers empty → room-scope persist
-      only; (4) walker returns multiple scopes → tombstone persisted
-      to each; (5) plan-hint happy path uses keyed thread delete, not
-      walker.
+    + no walker call; (3) both layers empty → room-scope persist
+    only; (4) walker returns multiple scopes → tombstone persisted
+    to each; (5) plan-hint happy path uses keyed thread delete, not
+    walker.
   - `redactionCacheLifecycle.test.ts` (+30): new test asserting
     `sdkThreadIdHint` sits above every other signal in the hint
     chain. Round-1 plan-level tests kept (they cover a real
@@ -6636,7 +6646,7 @@ fallbackThreadId`. Header comment for the derivation helper
   - `npm run lint` → 18 warnings, 0 errors — baseline, zero delta.
 - Docker gate findings (docker gate re-run on `9a6b15b4`, round-1 tip):
   - AC6 background-freshness: PASSED on the P3.3 tip (client-level
-    listeners fixed F1); on the re-run it hit a documented ERR\_
+    listeners fixed F1); on the re-run it hit a documented ERR_
     NETWORK_CHANGED host flake (203 resets), so the earlier green
     stands.
   - Streamed-edit: PASSED on the re-run (was a host flake on the
@@ -6685,7 +6695,7 @@ fallbackThreadId`. Header comment for the derivation helper
   - `cacheStoreNormalize.thread.test.ts`: expanded the two existing
     cases to cover the full 3×3 matrix — `(true, undefined) → true`,
     `(false, undefined) → false` (the fix), `(undefined, undefined) →
-undefined`, plus explicit-next-value replacements in both
+    undefined`, plus explicit-next-value replacements in both
     directions.
 - Validation: focused vitest on the file (21 tests), spot-run of
   `cacheStore/` + `engine/` (142 tests), full mindroom vitest
@@ -6720,7 +6730,7 @@ undefined`, plus explicit-next-value replacements in both
     was zero. Focused vitest post-merge: 139/139 across
     `cacheStore/` + `engine/`.
   - `bfda7af6` — `refactor: strip component persistence; render-only
-live controller (CINNY-207 P3.3)`. Twenty-three files (+1161
+    live controller (CINNY-207 P3.3)`. Twenty-three files (+1161
     insertions, -2476 deletions).
     - DELETE `roomCacheLifecycleController.ts`. Read-only second
       effect (loadRoomCachedBackStateSnapshot → hasCachedBack UI
@@ -6870,18 +6880,18 @@ live controller (CINNY-207 P3.3)`. Twenty-three files (+1161
     `saveXxxToCache` (mocked) — same chain, one more indirection.
 - Validation:
   - Merge commit: `npx vitest run src/app/mindroom/threads/cacheStore/
-src/app/mindroom/engine/` → 139/139 green.
+    src/app/mindroom/engine/` → 139/139 green.
   - Post-strip: `npm run typecheck` clean; `npx vitest run
-src/app/mindroom/` → 225 files / 1944 tests green; full
+    src/app/mindroom/` → 225 files / 1944 tests green; full
     `npx vitest run` → 331 files / 2505 tests green; `npm run
-build` clean; `npm run lint` back to the 18-warning baseline
+    build` clean; `npm run lint` back to the 18-warning baseline
     (verified zero delta by diffing warning lists pre/post).
   - Deleted tests: 2 (P1.1 sweep) + 6 (sweep-derived room→thread
     persist) + 1 (sweep-derived seed warming) + 13 (component
     compaction) = 22 tests removed. Added 3 (engine architecture)
-    - 1 (useRoomCachedBackState is covered via existing
-      RoomTimeline.cache.test.ts on the harness path). Net delta on
-      the mindroom suite: -19 tests, same architectural coverage.
+    + 1 (useRoomCachedBackState is covered via existing
+    RoomTimeline.cache.test.ts on the harness path). Net delta on
+    the mindroom suite: -19 tests, same architectural coverage.
 - Docker gate findings (P3.3 tip and round-1 tip, 2026-07-03):
   - `background-room-freshness` (AC6): PASSED on the P3.3 tip.
     Client-level listener coverage from the engine confirmed — F1
@@ -6920,7 +6930,7 @@ build` clean; `npm run lint` back to the 18-warning baseline
     entry for closing detail. Interim dual-write window is CLOSED.
 - Commits (in order, all green typecheck + focused vitest):
   - `6eb4b1a1` — `feat: MindroomSyncEngine skeleton with lifecycle
-and live-mode gating (CINNY-207 P3.1)`. New
+    and live-mode gating (CINNY-207 P3.1)`. New
     `src/app/mindroom/engine/`: `types.ts`,
     `mindroomSyncEngine.ts` (create/start/stop, idempotent,
     liveMode flips on Prepared/Syncing/Catchup, never flips back on
@@ -6941,7 +6951,7 @@ and live-mode gating (CINNY-207 P3.1)`. New
     ignore rules, redaction dispatch, gap-tracker wiring, flush
     contract). 12/12 pre-existing ClientRoot tests still green.
   - `8dd59f10` — `refactor: move compaction scheduler and redaction
-lifecycle into the engine (CINNY-207 P3.1)`. Pure moves + import
+    lifecycle into the engine (CINNY-207 P3.1)`. Pure moves + import
     updates only. Git-tracked renames (100%/98%):
     `threads/editCompactionScheduler.{ts,test.ts}` and
     `threads/redactionCacheLifecycle.{ts,test.ts}` → `engine/`.
@@ -6951,7 +6961,7 @@ lifecycle into the engine (CINNY-207 P3.1)`. Pure moves + import
     (`eventRepository` still in `threads/`). No behavior change.
     31 relocated + consumer tests green (7 + 11 + 13); 96/96 arch.
   - `8a39be9c` — `feat: global Tier-1 write-through with compaction
-and redaction lifecycle (CINNY-207 P3.1)`. Full
+    and redaction lifecycle (CINNY-207 P3.1)`. Full
     `engineWriteThrough` implementation. Owns its own scheduler +
     `pendingCompactionReplace` map. `scheduleReplaceCompaction`
     preserves verbatim: arm-time cross-sender direct persist,
@@ -6983,7 +6993,7 @@ and redaction lifecycle (CINNY-207 P3.1)`. Full
     to the component contract. 207/207 across ClientRoot + cache +
     arch + render-state + compaction.
   - `65fce38b` — `feat: limited-sync gap detection with gap-fill
-queue stub (CINNY-207 P3.2)`.
+    queue stub (CINNY-207 P3.2)`.
     `cacheStoreSchema.CachedMetaRecord` gains optional additive
     `tailDiscontinuity: { markedAt, prevBatch? }` (no schema bump;
     older readers ignore unknown fields).
@@ -7033,7 +7043,7 @@ queue stub (CINNY-207 P3.2)`.
     and the startClient effect (347) — React commits effects
     top-down). Do not reorder without re-verifying.
   - `sessionId = createSessionId(mx.getHomeserverUrl(),
-mx.getSafeUserId())` matches the id used everywhere else
+    mx.getSafeUserId())` matches the id used everywhere else
     (`MindroomRoomTimeline.tsx:297`, six other sites) — engine
     writes and everyone else's reads agree on DB name.
   - Live-mode gate deliberately does NOT flip false on
@@ -7091,7 +7101,7 @@ mx.getSafeUserId())` matches the id used everywhere else
     re-verify there on a stable network window.
 - Summary:
   - Commit 1 (`refactor: import cacheStore directly and move the
-health gate into the store`) — direct-flip callers off the three
+    health gate into the store`) — direct-flip callers off the three
     pure-shim modules onto `./cacheStore`. Deleted
     `roomEventCache.ts`, `threadEventCache.ts`, `threadSummaryCache.ts`
     and `cacheDbMigrationUtils.{ts,test.ts}` (the copy-migration
@@ -7133,13 +7143,13 @@ health gate into the store`) — direct-flip callers off the three
     (this test and the pre-existing `RoomTimeline.architecture.test.ts`
     are the only excluded files — they encode the same guards for
     other purposes), (c) render components (`MindroomRoomTimeline.tsx`
-    - everything under `mindroom/messages/**`) must not contain
-      `from './cacheStore'` or a `/cacheStore` import, (c') the only
-      modules that may import `cacheStore` are the allowlisted seams:
-      `eventRepository.ts`, `threadSummaryStore.ts`,
-      `threadSummaryState.ts`, and `sessionCleanup.ts` (encoded as an
-      exact allowlist). The P1.4 write-boundary guard in the older
-      architecture suite stays green (96/96 tests).
+    + everything under `mindroom/messages/**`) must not contain
+    `from './cacheStore'` or a `/cacheStore` import, (c') the only
+    modules that may import `cacheStore` are the allowlisted seams:
+    `eventRepository.ts`, `threadSummaryStore.ts`,
+    `threadSummaryState.ts`, and `sessionCleanup.ts` (encoded as an
+    exact allowlist). The P1.4 write-boundary guard in the older
+    architecture suite stays green (96/96 tests).
 - Decisions:
   - Shims deleted outright (not just deprecated) so future consumers
     physically cannot re-import them. `roomEventCache.ts`,
@@ -7180,7 +7190,7 @@ health gate into the store`) — direct-flip callers off the three
     cacheStore).
 - Summary:
   - Commit 1 (`feat: maintain the room byte/activity ledger on cache
-writes`) — `cacheStoreLedger.ts` maintains a per-room
+    writes`) — `cacheStoreLedger.ts` maintains a per-room
     `{approxBytes, eventCount, lastActivityTs, federated?}` row in the
     `room_ledger` store transactionally with event puts/deletes. Every
     save/delete in `cacheStoreEvents.ts` opens the ledger store in the
@@ -7402,7 +7412,7 @@ writes`) — `cacheStoreLedger.ts` maintains a per-room
     flips in Phase 3).
 - Flake log (plan section 7 policy):
   - The stop-emoji spec failed 3 times before passing, each at a
-    _different_ stage (login form, post-reload paint), with 24-73
+    *different* stage (login form, post-reload paint), with 24-73
     `net::ERR_NETWORK_CHANGED` console errors per failed run — host
     network-interface flapping starving Chromium, not app behavior. No
     uncaught app exceptions in any trace. Treat further failures with
@@ -7474,7 +7484,7 @@ writes`) — `cacheStoreLedger.ts` maintains a per-room
     quota test fails (save still called after degradation) — confirmed red,
     then green with the gate restored.
   - Unit (AC11): `npx vitest run src/app/mindroom/threads/cacheHealth.test.ts
-src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
+    src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
     flips health to read-only, skips subsequent room+thread saves; non-quota
     failures keep saving; first-per-scope logging asserted.
   - `npx vitest run src/app/mindroom/threads/ src/app/utils/room.test.ts`,
@@ -7529,7 +7539,7 @@ src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
     (`collectLegacyStandaloneReplaceIds` + `deleteThreadEventsFromCache`).
     Full purge arrives with the Phase 2 D8 wipe; this handles what shows up
     on next open. Deleter is resolved lazily inside the `if
-(legacyReplaceIds.length > 0)` block so the storage import identifier
+    (legacyReplaceIds.length > 0)` block so the storage import identifier
     is not evaluated in vitest environments whose partial mocks reject
     unlisted exports.
   - `cacheProbe`: new `editCompactions` counter (incremented once per fired
@@ -7541,8 +7551,8 @@ src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
     for the streamed reply (target + optional root only)". Body-visible
     reload assertion unchanged.
 - Decisions:
-  - The scheduler is stateful only about _what upsert to fire_, not _what
-    to persist_. Each edit passes a fresh closure that reads the target
+  - The scheduler is stateful only about *what upsert to fire*, not *what
+    to persist*. Each edit passes a fresh closure that reads the target
     from the SDK at fire time. This keeps the write correct even if the
     SDK aggregates additional edits between the arming and firing calls.
   - Cross-sender replaces are still emitted as their own records
@@ -7618,7 +7628,7 @@ src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
     offline-reload harness (Phase 3), noted in the spec header.
 - Independent review pass (delivery-process step 4):
   - Finding (fixed): the lazy cleanup deleted legacy standalone replace
-    records whenever the target record was merely _present_ in the batch —
+    records whenever the target record was merely *present* in the batch —
     but pre-compaction target records do not carry the bundled edit, so
     the deletion could lose the newest edit from cache until a later
     re-persist (stale paint on next open). `collectLegacyStandaloneReplaceIds`
@@ -7660,7 +7670,7 @@ src/app/mindroom/threads/eventRepository.test.ts` — injected quota error
 - Summary:
   - Finding F8 / decision D12: same-millisecond edit (and redaction)
     selection was iteration-order dependent — `getLatestEdit` resolved
-    timestamp ties to the _later candidate_, and cached-load order differs
+    timestamp ties to the *later candidate*, and cached-load order differs
     from live order, so the rendered edit could flip across reloads at
     streaming rates.
   - New shared comparator `isEventOrderedAfter` in `src/app/utils/room.ts`:

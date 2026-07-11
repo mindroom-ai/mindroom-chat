@@ -183,7 +183,14 @@ export function MindroomLongTextText({
   });
   const [loading, setLoading] = useState(false);
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
-  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(content);
+  // Prewarmed rows must render hydrated on their FIRST paint: initialize
+  // from the cache synchronously instead of flashing the preview until the
+  // post-paint hydration effect runs. Gated on `hydrate` so overscan rows
+  // keep the cheap preview (PR #110's guard) even when their sidecar is
+  // already warm.
+  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(
+    () => (hydrate ? getCachedMindroomLongTextContent(longTextSource, mx) : undefined) ?? content
+  );
 
   hydrationInputRef.current = {
     content,
@@ -201,6 +208,25 @@ export function MindroomLongTextText({
         isV2ContentJson: currentIsV2ContentJson,
         mxcUri: currentMxcUri,
       } = hydrationInputRef.current;
+
+      if (hydrate) {
+        // Warm cache: resolve synchronously — no preview reset, no async
+        // round-trip, no loading state.
+        const cachedContent = getCachedMindroomLongTextContent(
+          {
+            previewContent: currentContent,
+            encryptedFile: currentEncryptedFile,
+            isV2ContentJson: currentIsV2ContentJson,
+            mxcUri: currentMxcUri,
+          },
+          mx
+        );
+        if (cachedContent) {
+          setResolvedContent(cachedContent);
+          setLoading(false);
+          return;
+        }
+      }
 
       setResolvedContent((currentResolvedContent) =>
         !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
