@@ -713,10 +713,12 @@ have no runtime epoch, blocked storage is best effort without dedicated recovery
 screens, and the unshipped intermediate split-session schema is not migrated.
 The shipped v1 session format and normal multi-account flows remain compatible.
 
-After a conflict-free rebase, the branch is directly based on `origin/dev` at
-`79690aca7` (through merged PR #112, including #111 and #102). A second forced
-remote refresh and `git rebase origin/dev` confirmed that this remains the live
-tip, with no conflict entries. The exact merge-base diff is 190 files, 13,248
+After a final conflict-free rebase, the branch is directly based on `origin/dev`
+at `88b071e61` (through merged PR #114, including #112, #111, and #102). The
+upstream expanded-row scroll/render changes applied without conflict; their
+touched suites pass together with the fork cache/session tests (6 files / 169
+tests). A forced remote refresh confirmed that this remains the live tip. The
+exact merge-base diff is 190 files, 13,248
 insertions, and 6,524 deletions: 2,700 net production lines, 3,722 net test
 lines, and 302 net documentation/skill/config lines. No generated artifacts are
 included. At 6,724 net lines overall, this is roughly 66 percent smaller than
@@ -765,9 +767,10 @@ redaction. Independent focused re-review approved both fixes. The post-fix tree
 is green on 25 cache/timeline files / 301 tests, 24 session-lifecycle tests,
 TypeScript typecheck, touched lint and formatting, full ESLint with zero errors
 (17 existing warnings), production plus PWA/service-worker builds, and all 387
-Vitest files / 2,969 tests. The history is organized as six logical commits,
-with this final commit containing exact-head review remediation. A new push and
-fresh native/Fable reviews of that exact pushed head remain required.
+Vitest files / 2,972 tests. The history is organized as seven logical commits,
+with the last two containing exact-head remediation and final rebase validation.
+A new push and fresh native/Fable reviews of that exact pushed head remain
+required.
 
 ### Fork hardening review remediation (2026-07-09, superseded)
 
