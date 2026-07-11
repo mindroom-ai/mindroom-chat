@@ -772,6 +772,54 @@ with the last two containing exact-head remediation and final rebase validation.
 A new push and fresh native/Fable reviews of that exact pushed head remain
 required.
 
+The fresh review round against pushed head `d060bbbee` produced four remediation
+clusters, left uncommitted by an interrupted native session and completed here.
+Three are direct fixes. The gap-fill durable-marker read now throws on
+unavailable storage instead of silently reporting "no marker"; the executor
+defers the job for retry and drops generation-bearing jobs whose durable marker
+is gone or superseded, so a transient IndexedDB failure can no longer fetch
+from a wrong boundary or clear a marker it never read. The legacy device-wide
+iOS push preference is migrated out of the old `settings` blob at bootstrap,
+before the first generic settings write rewrites that blob and silently drops
+a user's "push off" choice; scoped reads now fall back through the migrated
+global key. The same-id revision merger builds its SDK-mapper input with merged
+relation bundles, so a stale incoming bundle can no longer clobber newer live
+thread or annotation aggregations while disjoint incoming bundles still land.
+
+The fourth cluster removed the reconciler's absence-based reaction pruning
+(`collectAbsentCachedReactions`, recursion-depth gating, `removedEventIds`
+plumbing, and the committed-delete cache API). Product context the removing
+review lacked: that machinery was the P1.2/F6 delegated path for redacted stop
+reactions the client never saw (closed at stream completion; gappy sync does
+not redeliver the redaction and the pruned reaction drops out of `/relations`
+entirely). Keeping the removal as-is would silently regress the lingering
+stop-emoji chip. Instead of restoring omission-inference, the replacement reads
+the signal the backend already stamps: `io.mindroom.stream_status` (and
+terminal `io.mindroom.ai_run` metadata) on the streamed message itself. A new
+`stopReaction.ts` hides stop-key chips (🛑 current, ⏹️/⏹ legacy — matching the
+backend's own stale-stream cleanup set) whenever the target's edit-converged
+content proves a terminal stream. `Reactions` takes an optional `targetEvent`
+(falling back to a room lookup), all four `MindroomRoomTimeline` render sites
+pass the rendered event, and the `hasReactions` gates use the same filter so a
+lone stale stop chip cannot leave an empty reactions container. This works
+fully offline from cache, needs no authoritative rescan, and also covers the
+empirically observed ~10-second window where Tuwunel still serves a redacted
+reaction un-pruned (which omission-inference inherently cannot). Deliberate
+residual: missed redactions of ordinary human reactions are no longer repaired
+(rare, cosmetic count drift), and suppression requires stream metadata, so
+pre-metadata historical messages keep today's behavior. The stop-key set is
+shared with `useThreadStreamingState` (fixing its miss of the current 🛑 key);
+that hook's terminal set and `aiRun`'s remain separate copies, both now
+including the backend's `interrupted` status.
+
+Validation on the combined tree: TypeScript typecheck; full suite 388 Vitest
+files / 2,986 tests; focused engine + cacheStore directories (29 files / 316
+tests) plus the new stop-reaction, Reactions, and streaming-state suites; full
+ESLint zero errors (17 baseline warnings — the pruning removal's leftover
+unused test helper was cleaned up); Prettier on touched files; production and
+PWA/service-worker builds. An independent review pass over the working tree
+preceded the commits.
+
 ### Fork hardening review remediation (2026-07-09, superseded)
 
 The initial review was developed in parallel session/security, cache/engine,
