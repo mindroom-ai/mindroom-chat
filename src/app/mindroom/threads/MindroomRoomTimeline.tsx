@@ -2026,10 +2026,10 @@ export function RoomTimeline({
               )
             }
             reactions={
-              (threadSummary || reactionRelations) && (
+              (threadSummary || hasReactions) && (
                 <>
                   {threadSummary}
-                  {reactionRelations && (
+                  {hasReactions && reactionRelations && (
                     <Reactions
                       style={{ marginTop: config.space.S200 }}
                       room={room}
@@ -2172,10 +2172,10 @@ export function RoomTimeline({
                 )
               }
               reactions={
-                (threadSummary || reactionRelations) && (
+                (threadSummary || hasReactions) && (
                   <>
                     {threadSummary}
-                    {reactionRelations && (
+                    {hasReactions && reactionRelations && (
                       <Reactions
                         style={{ marginTop: config.space.S200 }}
                         room={room}
@@ -2291,10 +2291,10 @@ export function RoomTimeline({
               )
             }
             reactions={
-              (threadSummary || reactionRelations) && (
+              (threadSummary || hasReactions) && (
                 <>
                   {threadSummary}
-                  {reactionRelations && (
+                  {hasReactions && reactionRelations && (
                     <Reactions
                       style={{ marginTop: config.space.S200 }}
                       room={room}
@@ -2467,6 +2467,7 @@ export function RoomTimeline({
             onReplyClick={handleReplyClick}
             onReactionToggle={handleReactionToggle}
             reactions={
+              hasReactions &&
               reactionRelations && (
                 <Reactions
                   style={{ marginTop: config.space.S200 }}

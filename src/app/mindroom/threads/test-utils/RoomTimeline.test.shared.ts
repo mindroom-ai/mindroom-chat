@@ -33,6 +33,7 @@ const {
   directRoomState,
   aliveFn,
   reactionOrEditEventMock,
+  getEventReactionsMock,
   inSameDayMock,
   timeDayMonthYearMock,
   isMembershipChangedMock,
@@ -70,6 +71,7 @@ const {
   directRoomState: { value: false },
   aliveFn: () => true,
   reactionOrEditEventMock: vi.fn(() => false),
+  getEventReactionsMock: vi.fn<(...args: unknown[]) => unknown>(() => undefined),
   inSameDayMock: vi.fn(() => true),
   timeDayMonthYearMock: vi.fn(() => 'time'),
   isMembershipChangedMock: vi.fn(() => false),
@@ -574,7 +576,7 @@ vi.mock('../../../utils/room', () => ({
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
-  getEventReactions: () => undefined,
+  getEventReactions: (...args: unknown[]) => getEventReactionsMock(...args),
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
     editedEvent?: { getContent?: () => Record<string, unknown> | undefined }
@@ -1507,6 +1509,8 @@ beforeEach(() => {
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
   isTimelineAtLiveEndMock.mockReturnValue(true);
   reactionOrEditEventMock.mockImplementation(() => false);
+  getEventReactionsMock.mockReset();
+  getEventReactionsMock.mockReturnValue(undefined);
   isMembershipChangedMock.mockImplementation(() => false);
   matrixClientMock.fetchRelations.mockResolvedValue({
     chunk: [],
@@ -1791,6 +1795,7 @@ export {
   flushAsyncWork,
   getClickableByText,
   getRenderedEventIds,
+  getEventReactionsMock,
   getThreadOpenSeedSnapshot,
   ignoredUsersMock,
   isMembershipChangedMock,

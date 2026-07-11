@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useCallback, useState } from 'react';
+import React, { MouseEventHandler, useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Modal,
@@ -12,12 +12,14 @@ import {
   toRem,
 } from 'folds';
 import classNames from 'classnames';
-import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent, Room } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import FocusTrap from 'focus-trap-react';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useForceUpdate } from '../../../hooks/useForceUpdate';
 import { factoryEventSentBy } from '../../../utils/matrix';
-import { getRenderableAnnotationsByKey } from '../../../mindroom/messages/stopReaction';
+import { isStaleStopReactionKey } from '../../../mindroom/messages/stopReaction';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import { Reaction, ReactionTooltipMsg } from '../../../components/message';
 import { useRelations } from '../../../hooks/useRelations';
 import * as css from './styles.css';
@@ -56,11 +58,25 @@ export const Reactions = as<'div', ReactionsProps>(
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const [viewer, setViewer] = useState<boolean | string>(false);
+    const [, refreshTargetEvent] = useForceUpdate();
     const myUserId = mx.getUserId();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => getRenderableAnnotationsByKey(rel, targetEvent), [targetEvent])
-    );
+      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
+    ).filter(([key]) => !isStaleStopReactionKey(key, targetEvent));
+
+    // Matrix edits mutate the SDK-owned target event in place. Relations do
+    // not change when only the stream metadata changes, so refresh this small
+    // subtree from the event's replacement signal instead of repainting the
+    // room timeline.
+    useEffect(() => {
+      targetEvent.on(MatrixEventEvent.Replaced, refreshTargetEvent);
+      return () => {
+        targetEvent.removeListener(MatrixEventEvent.Replaced, refreshTargetEvent);
+      };
+    }, [refreshTargetEvent, targetEvent]);
+
+    if (reactions.length === 0) return null;
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {
       evt.stopPropagation();

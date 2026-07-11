@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { Reactions } from './Reactions';
 
 const { reactionRenderSpy } = vi.hoisted(() => ({
@@ -102,6 +102,57 @@ class MockRelations {
   }
 }
 
+const makeTargetEvent = (content: Record<string, unknown>): MatrixEvent =>
+  new MatrixEvent({
+    event_id: '$event',
+    room_id: '!room:mindroom.chat',
+    sender: '@agent:mindroom.chat',
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content,
+  });
+
+const replaceTargetEventContent = (
+  targetEvent: MatrixEvent,
+  content: Record<string, unknown>
+): void => {
+  targetEvent.makeReplaced(
+    new MatrixEvent({
+      event_id: '$edit',
+      room_id: '!room:mindroom.chat',
+      sender: '@agent:mindroom.chat',
+      type: 'm.room.message',
+      origin_server_ts: 2,
+      content: {
+        'm.new_content': content,
+        'm.relates_to': {
+          rel_type: 'm.replace',
+          event_id: targetEvent.getId(),
+        },
+      },
+    })
+  );
+};
+
+const makeReactionEvent = (sender = '@agent:mindroom.chat', isRedacted = false): MatrixEvent =>
+  ({
+    getSender: () => sender,
+    getRelation: () => ({ rel_type: 'm.annotation' }),
+    isRedacted: () => isRedacted,
+  } as MatrixEvent);
+
+const renderReactions = (relations: MockRelations, targetEvent: MatrixEvent) =>
+  create(
+    React.createElement(Reactions, {
+      room: {} as never,
+      mEventId: '$event',
+      targetEvent,
+      canSendReaction: true,
+      relations: relations as never,
+      onReactionToggle: vi.fn(),
+    })
+  );
+
 describe('Reactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -115,7 +166,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        targetEvent: makeTargetEvent({}),
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle,
@@ -136,16 +187,8 @@ describe('Reactions', () => {
       [
         '🛑',
         new Set([
-          {
-            getSender: () => '@bas:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => true,
-          } as MatrixEvent,
-          {
-            getSender: () => '@someone:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
+          makeReactionEvent('@bas:mindroom.chat', true),
+          makeReactionEvent('@someone:mindroom.chat'),
         ]),
       ],
     ]);
@@ -154,7 +197,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        targetEvent: makeTargetEvent({}),
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle: vi.fn(),
@@ -171,30 +214,10 @@ describe('Reactions', () => {
 
   it('hides a stale stop chip once the target message proves a terminal stream', () => {
     const relations = new MockRelations([
-      [
-        '🛑',
-        new Set([
-          {
-            getSender: () => '@agent:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
-      [
-        '👍',
-        new Set([
-          {
-            getSender: () => '@bas:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
+      ['🛑', new Set([makeReactionEvent()])],
+      ['👍', new Set([makeReactionEvent('@bas:mindroom.chat')])],
     ]);
-    const targetEvent = {
-      getContent: () => ({ 'io.mindroom.stream_status': 'completed' }),
-    } as MatrixEvent;
+    const targetEvent = makeTargetEvent({ 'io.mindroom.stream_status': 'completed' });
 
     create(
       React.createElement(Reactions, {
@@ -214,21 +237,8 @@ describe('Reactions', () => {
   });
 
   it('keeps the stop chip while the target message is still streaming', () => {
-    const relations = new MockRelations([
-      [
-        '🛑',
-        new Set([
-          {
-            getSender: () => '@agent:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
-    ]);
-    const targetEvent = {
-      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
-    } as MatrixEvent;
+    const relations = new MockRelations([['🛑', new Set([makeReactionEvent()])]]);
+    const targetEvent = makeTargetEvent({ 'io.mindroom.stream_status': 'streaming' });
 
     create(
       React.createElement(Reactions, {
@@ -243,6 +253,62 @@ describe('Reactions', () => {
 
     expect(reactionRenderSpy).toHaveBeenCalledWith(
       expect.objectContaining({ reaction: '🛑', count: 1 })
+    );
+  });
+
+  it('recomputes a stale-only chip when the same target event becomes terminal', () => {
+    const relations = new MockRelations([['🛑', new Set([makeReactionEvent()])]]);
+    const targetEvent = makeTargetEvent({ 'io.mindroom.stream_status': 'streaming' });
+    let renderer: ReturnType<typeof create>;
+
+    act(() => {
+      renderer = renderReactions(relations, targetEvent);
+    });
+    expect(renderer!.root.findAllByType('button')).toHaveLength(1);
+
+    act(() => {
+      replaceTargetEventContent(targetEvent, { 'io.mindroom.stream_status': 'completed' });
+    });
+
+    expect(renderer!.toJSON()).toBeNull();
+  });
+
+  it('removes only the stale stop chip from mixed reactions after an in-place edit', () => {
+    const relations = new MockRelations([
+      ['🛑', new Set([makeReactionEvent()])],
+      ['👍', new Set([makeReactionEvent('@bas:mindroom.chat')])],
+    ]);
+    const targetEvent = makeTargetEvent({ 'io.mindroom.stream_status': 'streaming' });
+    let renderer: ReturnType<typeof create>;
+
+    act(() => {
+      renderer = renderReactions(relations, targetEvent);
+    });
+    expect(
+      renderer!.root.findAllByType('button').map((button) => button.children.join(''))
+    ).toEqual(['🛑 1', '👍 1']);
+
+    act(() => {
+      replaceTargetEventContent(targetEvent, { 'io.mindroom.stream_status': 'completed' });
+    });
+
+    expect(
+      renderer!.root.findAllByType('button').map((button) => button.children.join(''))
+    ).toEqual(['👍 1']);
+  });
+
+  it('keeps ordinary reactions on a terminal target', () => {
+    const relations = new MockRelations([
+      ['👍', new Set([makeReactionEvent('@bas:mindroom.chat')])],
+    ]);
+
+    const renderer = renderReactions(
+      relations,
+      makeTargetEvent({ 'io.mindroom.stream_status': 'completed' })
+    );
+
+    expect(renderer.root.findAllByType('button').map((button) => button.children.join(''))).toEqual(
+      ['👍 1']
     );
   });
 });
