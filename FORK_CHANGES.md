@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### PR #104 focused reliability and maintainability follow-up (2026-07-11, in progress)
+
+- Status: active on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`.
+- Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
+  root preview freshness, monotonic-but-upgradable bundled relations, terminal stop-reaction updates
+  after in-place Matrix edits, transient refresh-error classification, and separation of the
+  reconciler's network scan from its repair/persist phase.
+- The follow-up also repairs the concatenated `.prettierignore` entry and makes pull-request CI run
+  typecheck, ESLint, and Prettier in addition to tests and the production build.
+- Explicitly out of scope: new cross-tab refresh coordination, crash-resumable cleanup protocols,
+  legacy service-worker compatibility redesign, and upstream/inherited edge cases without a normal
+  fork-specific reproduction. The goal is a smaller, easier-to-reason-about patch rather than a new
+  coordination subsystem.
+- Required gate: focused regressions for each behavior, full Vitest, typecheck, ESLint, Prettier,
+  production/PWA build, and independent review of every logical change before the draft PR opens.
+
 ### Thread missing-middle: reconciler shortfall drain (2026-07-10)
 
 - Status: implemented on branch `caveman/fix-thread-missing-middle` off `dev` at `706f011c`
