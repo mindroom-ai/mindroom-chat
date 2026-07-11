@@ -246,13 +246,9 @@ export const createBackfillScheduler = (
       const index = pickNextIndex();
       if (index < 0) return;
       const entry = queue.splice(index, 1)[0];
-      if (entry.controller.signal.aborted) {
-        // Consumer aborted before we picked it up — settle and continue.
-        countCacheProbe('schedulerAborted');
-        entry.reject(entry.controller.signal.reason ?? new Error('backfill aborted'));
-        if (byKey.get(entry.key) === entry) byKey.delete(entry.key);
-        continue;
-      }
+      // Queued aborts (`abort()`/`abortAll()`) settle the caller promise and
+      // splice the entry out of `queue` synchronously, so an aborted entry
+      // can never reach this point via a supported code path.
 
       // CINNY-207 P5 review (gemini PR #70 critical): register the
       // running entry BEFORE invoking the executor. An async IIFE that
@@ -356,11 +352,7 @@ export const createBackfillScheduler = (
     return entry.promise;
   };
 
-  const abort = (
-    roomId: string,
-    threadId: string | undefined,
-    kind: BackfillJobKind
-  ): boolean => {
+  const abort = (roomId: string, threadId: string | undefined, kind: BackfillJobKind): boolean => {
     const key = buildBackfillJobKey(roomId, threadId, kind);
     const entry = byKey.get(key);
     if (!entry) return false;

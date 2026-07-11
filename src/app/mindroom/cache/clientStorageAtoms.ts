@@ -1,18 +1,14 @@
 import { useLayoutEffect, useMemo } from 'react';
 import { makeRecentThreadsAtom, registerRecentThreadsAtom } from '../recent-threads/recentThreads';
-import {
-  makeRecentThreadsPanelHeightAtom,
-  registerRecentThreadsPanelHeightAtom,
-} from '../recent-threads/recentThreadsPanelHeight';
-import {
-  makeRecentThreadsPanelMobileExpandedAtom,
-  registerRecentThreadsPanelMobileExpandedAtom,
-} from '../recent-threads/recentThreadsPanelMobileExpanded';
+import { makeRecentThreadsPanelHeightAtom } from '../recent-threads/recentThreadsPanelHeight';
+import { makeRecentThreadsPanelMobileExpandedAtom } from '../recent-threads/recentThreadsPanelMobileExpanded';
 
-// The cross-room thread filters atom is NOT registered here: its registry has
-// no imperative writers (nothing resolves an "active" atom for it), so
-// consumers create it directly via `makeCrossRoomThreadFiltersAtom` and
-// session cleanup clears the registry without needing a registration.
+// The panel-height, panel-mobile-expanded, and cross-room thread filters
+// atoms are NOT registered here: nothing outside their React hooks writes to
+// them, so the registry only needs to hand out the stable per-user atom and
+// clear it on logout. `bumpRecentThread` (imperative write from
+// `noteThreadOpened`) is the only remaining writer that resolves the active
+// atom, so recentThreadsAtom still registers below.
 
 export type MindroomClientStorageAtoms = {
   userId: string;
@@ -31,23 +27,8 @@ export const makeMindroomClientStorageAtoms = (userId: string): MindroomClientSt
 export const registerMindroomClientStorageAtoms = ({
   userId,
   recentThreadsAtom,
-  recentThreadsPanelHeightAtom,
-  recentThreadsPanelMobileExpandedAtom,
-}: MindroomClientStorageAtoms): (() => void) => {
-  const unregisterRecentThreadsAtom = registerRecentThreadsAtom(userId, recentThreadsAtom);
-  const unregisterRecentThreadsPanelHeightAtom = registerRecentThreadsPanelHeightAtom(
-    userId,
-    recentThreadsPanelHeightAtom
-  );
-  const unregisterRecentThreadsPanelMobileExpandedAtom =
-    registerRecentThreadsPanelMobileExpandedAtom(userId, recentThreadsPanelMobileExpandedAtom);
-
-  return () => {
-    unregisterRecentThreadsPanelMobileExpandedAtom();
-    unregisterRecentThreadsPanelHeightAtom();
-    unregisterRecentThreadsAtom();
-  };
-};
+}: MindroomClientStorageAtoms): (() => void) =>
+  registerRecentThreadsAtom(userId, recentThreadsAtom);
 
 export const useMindroomClientStorageAtoms = (userId: string): void => {
   const storageAtoms = useMemo(() => makeMindroomClientStorageAtoms(userId), [userId]);

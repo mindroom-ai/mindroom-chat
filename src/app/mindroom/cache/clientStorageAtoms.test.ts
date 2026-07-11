@@ -4,14 +4,8 @@ import {
   makeMindroomClientStorageAtoms,
   registerMindroomClientStorageAtoms,
 } from './clientStorageAtoms';
-import {
-  clearRecentThreadsPanelHeightStore,
-  setRecentThreadsPanelHeight,
-} from '../recent-threads/recentThreadsPanelHeight';
-import {
-  clearRecentThreadsPanelMobileExpandedStore,
-  setRecentThreadsPanelMobileExpanded,
-} from '../recent-threads/recentThreadsPanelMobileExpanded';
+import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
+import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { bumpRecentThread, clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import {
   DEFAULT_CROSS_ROOM_THREAD_FILTERS,
@@ -49,14 +43,15 @@ afterEach(() => {
 });
 
 describe('MindRoom client storage atom registration', () => {
-  it('registers all imperative client UI storage atoms for the active user', () => {
+  it('persists imperative client UI storage atoms for the active user', () => {
     const atoms = makeMindroomClientStorageAtoms(USER_ID);
     const unregister = registerMindroomClientStorageAtoms(atoms);
+    const store = getDefaultStore();
 
     bumpRecentThread('!room:example.org', '$thread-root', 200, 'Preview text');
-    setRecentThreadsPanelHeight(320);
-    setRecentThreadsPanelMobileExpanded(true);
-    getDefaultStore().set(makeCrossRoomThreadFiltersAtom(USER_ID), {
+    store.set(atoms.recentThreadsPanelHeightAtom, 320);
+    store.set(atoms.recentThreadsPanelMobileExpandedAtom, true);
+    store.set(makeCrossRoomThreadFiltersAtom(USER_ID), {
       ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
       query: 'agent',
     });
@@ -68,18 +63,16 @@ describe('MindRoom client storage atom registration', () => {
     expect(storage.get(`recentThreadsPanelMobileExpanded:${USER_ID}`)).toBe(
       '{"expanded":true,"v":1}'
     );
-    expect(getDefaultStore().get(makeCrossRoomThreadFiltersAtom(USER_ID)).query).toBe('agent');
+    expect(store.get(makeCrossRoomThreadFiltersAtom(USER_ID)).query).toBe('agent');
     expect(storage.get(`crossRoomThreadFilters:${USER_ID}`)).not.toContain('"query"');
 
     unregister();
 
+    // After unregister, recentThreads' imperative writer no longer resolves
+    // the registered atom, so bumpRecentThread stops persisting.
     bumpRecentThread('!room:example.org', '$after-unregister', 300);
-    setRecentThreadsPanelHeight(120);
-    setRecentThreadsPanelMobileExpanded(false);
-
-    expect(storage.get(`recentThreadsPanelHeight:${USER_ID}`)).toBe('{"v":1,"height":320}');
-    expect(storage.get(`recentThreadsPanelMobileExpanded:${USER_ID}`)).toBe(
-      '{"expanded":true,"v":1}'
+    expect(storage.get(`recentThreads:${USER_ID}`)).toBe(
+      '{"v":1,"entries":[{"roomId":"!room:example.org","threadId":"$thread-root","openedAt":200,"summaryText":"Preview text"}]}'
     );
   });
 });

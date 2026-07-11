@@ -64,12 +64,13 @@ import {
   MindroomInterfaceSettings,
 } from '../../../mindroom/settings/settingsExtensions';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
-import { APP_LANGUAGES, AppLanguage, toSupportedLanguageCode } from '../../../i18nLanguages';
+import { APP_LANGUAGES, AppLanguage } from '../../../i18nLanguages';
+import { useAppLanguageCode } from '../../../hooks/useAppLanguageCode';
 
 function SelectLanguage() {
   const { i18n } = useTranslation();
   const [menuCords, setMenuCords] = useState<RectCords>();
-  const selectedCode = toSupportedLanguageCode(i18n.resolvedLanguage ?? i18n.language);
+  const selectedCode = useAppLanguageCode();
   const selectedLanguage =
     APP_LANGUAGES.find((language) => language.code === selectedCode) ?? APP_LANGUAGES[0];
 

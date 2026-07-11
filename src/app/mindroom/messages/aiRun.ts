@@ -130,9 +130,6 @@ export const getMindroomAiRunInfo = (
   return hasAnyInfo ? info : undefined;
 };
 
-export const hasMindroomAiRunMetadata = (content: Record<string, unknown>): boolean =>
-  !!getMindroomAiRunMetadata(content);
-
 const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
 
 export const STREAM_STATUS_KEY = 'io.mindroom.stream_status';

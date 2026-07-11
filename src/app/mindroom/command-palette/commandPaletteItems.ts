@@ -241,10 +241,10 @@ export const useCommandPaletteSource = (
       });
 
       // collectCommandPaletteUserCandidates dedupes by userId, so each candidate
-      // maps to a unique item; no merge with an existing entry is needed.
+      // maps to a unique item; no merge with an existing entry is needed. The
+      // collector's addCandidate already rejects empty/self userIds, so no
+      // extra guard is required here.
       candidates.forEach(({ userId, displayName, sourceRoomId }) => {
-        if (!userId || userId === myUserId) return;
-
         const existingDmRoomId = knownDmRoomByUserId.get(userId);
         const dmRoom = existingDmRoomId ? getRoom(existingDmRoomId) : undefined;
         const { roomName: dmRoomName, displayName: dmDisplayName } = getCommandPaletteDmUserDetails(

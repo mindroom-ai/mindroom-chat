@@ -4,9 +4,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from '../../state/utils/atomWithLocalStorage';
-import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
-import { getImperativeJotaiStore } from '../../state/jotaiStore';
 import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 
 const RECENT_THREADS_PANEL_HEIGHT = 'recentThreadsPanelHeight';
@@ -73,20 +71,6 @@ const recentThreadsPanelHeightRegistry = createUserScopedAtomRegistry<RecentThre
 );
 
 export const makeRecentThreadsPanelHeightAtom = recentThreadsPanelHeightRegistry.getOrCreate;
-
-export const registerRecentThreadsPanelHeightAtom = recentThreadsPanelHeightRegistry.registerActive;
-
-const getResolvedRecentThreadsPanelHeightAtom = (): RecentThreadsPanelHeightAtom | undefined => {
-  const userId = getActiveSession()?.userId;
-  return recentThreadsPanelHeightRegistry.resolveActiveOrCreate(userId);
-};
-
-export const setRecentThreadsPanelHeight = (height: number) => {
-  const recentThreadsPanelHeightAtom = getResolvedRecentThreadsPanelHeightAtom();
-  if (!recentThreadsPanelHeightAtom) return;
-
-  getImperativeJotaiStore().set(recentThreadsPanelHeightAtom, height);
-};
 
 export const clearRecentThreadsPanelHeightStore = (userId: string) => {
   recentThreadsPanelHeightRegistry.clear(userId);

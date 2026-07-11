@@ -1,12 +1,11 @@
 import { useAtomValue } from 'jotai';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import type { MatrixClient } from 'matrix-js-sdk';
 import InviteSound from '../../../../public/sound/invite.ogg';
-import { toSupportedLanguageCode } from '../../i18nLanguages';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -177,8 +176,7 @@ export function MindroomInviteNotifications() {
 
 function MindroomNativeIOSPushFeature() {
   const mx = useMatrixClient();
-  const { i18n } = useTranslation();
-  const language = toSupportedLanguageCode(i18n.resolvedLanguage ?? i18n.language);
+  const language = useAppLanguageCode();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const sessionId = activeSession?.sessionId;

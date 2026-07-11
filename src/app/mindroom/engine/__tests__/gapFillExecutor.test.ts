@@ -911,12 +911,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
         mx,
         sessionId: SESSION_ID,
         scheduler,
-        getPrefetchConfig: () => ({
-          scope: 'all-rooms',
-          currentRoomDepth: 10_000,
-          roomTailDepth: 200,
-          threadInventoryLimit: 50,
-        }),
+        getPrefetchConfig: () => ({ scope: 'all-rooms' }),
       },
       gapFillScheduler
     );
@@ -958,12 +953,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
         mx,
         sessionId: SESSION_ID,
         scheduler,
-        getPrefetchConfig: () => ({
-          scope: 'current-room-only',
-          currentRoomDepth: 10_000,
-          roomTailDepth: 200,
-          threadInventoryLimit: 50,
-        }),
+        getPrefetchConfig: () => ({ scope: 'current-room-only' }),
         // The user is looking at a DIFFERENT room; this eligible
         // my-server room should be suppressed.
         getFocusedRoomId: () => '!focused:mindroom.chat',
@@ -1110,12 +1100,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
         mx,
         sessionId: SESSION_ID,
         scheduler,
-        getPrefetchConfig: () => ({
-          scope: 'current-room-only',
-          currentRoomDepth: 10_000,
-          roomTailDepth: 200,
-          threadInventoryLimit: 50,
-        }),
+        getPrefetchConfig: () => ({ scope: 'current-room-only' }),
         getFocusedRoomId: () => '!focused:mindroom.chat',
       },
       gapFillScheduler

@@ -11,7 +11,7 @@ import {
 import { getCachedPaginationToken, mergeCachedPaginationTokens } from '../eventCacheTokenUtils';
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import { openCacheStore } from './cacheStoreDb';
-import { createLedgerTracker } from './cacheStoreLedger';
+import { createLedgerTracker, type LedgerTracker } from './cacheStoreLedger';
 import {
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_STORE,
@@ -167,6 +167,11 @@ const collectRedactedTombstones = (
  * on the room's meta store. Callers use this to gate the room-wide
  * scrub cursor: once an id is marked, every historical repair for it
  * has been applied and re-scrubbing on later saves is pure work.
+ *
+ * Thin wrapper over `loadKnownRedactedRelationEventIds`: the shared
+ * helper already does the exact per-id `metaStore.get` fan-in with
+ * first-error-wins reject semantics; we just resolve with the set
+ * complement (redactedEventIds minus the marked set).
  */
 const collectRedactedIdsWithoutMarker = async (
   db: IDBDatabase,
@@ -177,29 +182,22 @@ const collectRedactedIdsWithoutMarker = async (
   return new Promise<Set<string>>((resolve, reject) => {
     const transaction = db.transaction(META_STORE, 'readonly');
     const metaStore = transaction.objectStore(META_STORE);
-    const unmarkedIds = new Set(redactedEventIds);
-    let failed = false;
-    redactedEventIds.forEach((eventId) => {
-      const request = metaStore.get(getRedactedRelationMetaKey(roomId, eventId));
-      request.onsuccess = () => {
-        if (failed) return;
-        if (request.result) unmarkedIds.delete(eventId);
-      };
-      request.onerror = () => {
-        if (failed) return;
-        failed = true;
-        reject(request.error);
-      };
-    });
-    transaction.oncomplete = () => {
-      if (!failed) resolve(unmarkedIds);
-    };
-    transaction.onerror = () => {
-      if (!failed) reject(transaction.error);
-    };
-    transaction.onabort = () => {
-      if (!failed) reject(transaction.error);
-    };
+    loadKnownRedactedRelationEventIds(
+      metaStore,
+      roomId,
+      redactedEventIds,
+      new Set<string>(),
+      (markedEventIds) => {
+        const unmarkedIds = new Set<string>();
+        redactedEventIds.forEach((eventId) => {
+          if (!markedEventIds.has(eventId)) unmarkedIds.add(eventId);
+        });
+        resolve(unmarkedIds);
+      },
+      reject
+    );
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
 };
 
@@ -577,6 +575,84 @@ export const saveRoomEventsToCache = async (
   await saveRoomEventsToCacheCommitted(...args);
 };
 
+/**
+ * Schedule per-event puts inside an already-open readwrite transaction.
+ * Extracted so the room-save and thread-save txns share the exact
+ * accounting semantics: persisted-id ordering (indexed by input order),
+ * ledger byte/count accounting via `notePut`, and the pendingPuts===0
+ * early path. The room-save always has a ledger; the thread-save may
+ * skip it entirely for meta-only writes, so both are optional here
+ * (and finalize is guarded).
+ */
+type SchedulePutsOptions = {
+  eventStore: IDBObjectStore;
+  ledger: LedgerTracker | undefined;
+  ledgerStore: IDBObjectStore | undefined;
+  roomId: string;
+  scope: string;
+  eventsToConsider: readonly (CachedRoomEvent | CachedThreadEvent)[];
+  knownRedactedEventIds: ReadonlySet<string>;
+  relationSnapshotMode: RelationSnapshotMode;
+  probeKey: 'roomEventPuts' | 'threadEventPuts';
+  reject: (reason?: unknown) => void;
+  onComplete: (earliestPersistedEventId: string | undefined) => void;
+};
+
+const scheduleEventPutsWithLedger = ({
+  eventStore,
+  ledger,
+  ledgerStore,
+  roomId,
+  scope,
+  eventsToConsider,
+  knownRedactedEventIds,
+  relationSnapshotMode,
+  probeKey,
+  reject,
+  onComplete,
+}: SchedulePutsOptions): void => {
+  const persistedEventIds: Array<string | undefined> = new Array(eventsToConsider.length);
+  let pendingPuts = eventsToConsider.length;
+  const finalizeLedger = (): void => {
+    if (ledger && ledgerStore) ledger.finalize(ledgerStore);
+  };
+  if (pendingPuts === 0) {
+    finalizeLedger();
+    onComplete(undefined);
+    return;
+  }
+  const maybeFinalizeLedger = (): void => {
+    pendingPuts -= 1;
+    if (pendingPuts !== 0) return;
+    finalizeLedger();
+    onComplete(persistedEventIds.find((eventId) => eventId !== undefined));
+  };
+  eventsToConsider.forEach((rawEvent, index) => {
+    const cacheKey = buildEventCacheKey(roomId, scope, rawEvent.event_id);
+    const previousRequest = eventStore.get(cacheKey);
+    previousRequest.onsuccess = () => {
+      const previous = previousRequest.result as CachedEventRecord | undefined;
+      if (!canPersistMarkedEvent(rawEvent, previous?.rawEvent, knownRedactedEventIds)) {
+        maybeFinalizeLedger();
+        return;
+      }
+      const eventRecord = buildMergedEventRecord(
+        roomId,
+        scope,
+        rawEvent,
+        previous,
+        relationSnapshotMode
+      );
+      countCacheProbe(probeKey);
+      if (ledger) ledger.notePut(eventRecord, previous);
+      eventStore.put(eventRecord);
+      persistedEventIds[index] = rawEvent.event_id;
+      maybeFinalizeLedger();
+    };
+    previousRequest.onerror = () => reject(previousRequest.error);
+  });
+};
+
 const runSaveRoomEventsTxn = async (
   db: IDBDatabase,
   roomId: string,
@@ -646,42 +722,18 @@ const runSaveRoomEventsTxn = async (
         // Capture the ledger baseline before any event puts land so a
         // bootstrap sum reflects only the pre-write state.
         ledger.readBaseline(ledgerStore, eventStore, () => {
-          const persistedEventIds: Array<string | undefined> = new Array(eventsToConsider.length);
-          let pendingPuts = eventsToConsider.length;
-          if (pendingPuts === 0) {
-            ledger.finalize(ledgerStore);
-            scheduleMetaPut(undefined);
-            return;
-          }
-          const maybeFinalizeLedger = (): void => {
-            pendingPuts -= 1;
-            if (pendingPuts !== 0) return;
-            ledger.finalize(ledgerStore);
-            scheduleMetaPut(persistedEventIds.find((eventId) => eventId !== undefined));
-          };
-          eventsToConsider.forEach((rawEvent, index) => {
-            const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, rawEvent.event_id);
-            const previousRequest = eventStore.get(cacheKey);
-            previousRequest.onsuccess = () => {
-              const previous = previousRequest.result as CachedEventRecord | undefined;
-              if (!canPersistMarkedEvent(rawEvent, previous?.rawEvent, knownRedactedEventIds)) {
-                maybeFinalizeLedger();
-                return;
-              }
-              const eventRecord = buildMergedEventRecord(
-                roomId,
-                ROOM_SCOPE,
-                rawEvent,
-                previous,
-                relationSnapshotMode
-              );
-              countCacheProbe('roomEventPuts');
-              ledger.notePut(eventRecord, previous);
-              eventStore.put(eventRecord);
-              persistedEventIds[index] = rawEvent.event_id;
-              maybeFinalizeLedger();
-            };
-            previousRequest.onerror = () => reject(previousRequest.error);
+          scheduleEventPutsWithLedger({
+            eventStore,
+            ledger,
+            ledgerStore,
+            roomId,
+            scope: ROOM_SCOPE,
+            eventsToConsider,
+            knownRedactedEventIds,
+            relationSnapshotMode,
+            probeKey: 'roomEventPuts',
+            reject,
+            onComplete: scheduleMetaPut,
           });
         });
       },
@@ -693,23 +745,31 @@ const runSaveRoomEventsTxn = async (
     transaction.onabort = () => reject(transaction.error);
   });
 
-export const deleteRoomEventsFromCache = async (
+/**
+ * Shared implementation for the room-scope and thread-scope delete APIs.
+ * Same empty-check + dedupe + open-inside-try + ledger baseline +
+ * read-before-delete loop + best-effort catch — only the scope arg
+ * differs (ROOM_SCOPE for the room timeline, threadId for a thread).
+ *
+ * CINNY-207 P2 review notes preserved from the original wrappers:
+ *   - Dedupe at the entry point so ledger `noteDelete` decrements the
+ *     bytes/count exactly once per real record (duplicate ids would
+ *     otherwise underflow via a second `noteDelete` call).
+ *   - Deletes stay UNGATED (they only shrink storage) but must not
+ *     produce unhandled rejections — callers invoke us via `void del(...)`
+ *     in redaction paths, so we swallow open/txn failures rather than
+ *     escaping. No `reportCacheWriteError` — deletes failing does not
+ *     indicate a full-store condition.
+ */
+const deleteScopedEventsFromCache = async (
   sessionId: string,
   roomId: string,
+  scope: string,
   eventIds: string[]
 ): Promise<void> => {
   if (eventIds.length === 0) return;
-  // CINNY-207 P2 review: duplicate event ids would double-decrement the
-  // ledger (bytes underflow via `noteDelete`) because the deletion
-  // schedules read+delete once per id. Dedupe at the entry point so
-  // the ledger accounting stays exact regardless of the caller.
   const uniqueEventIds = Array.from(new Set(eventIds));
 
-  // CINNY-207 P2 review: deletes stay UNGATED (they only shrink
-  // storage) but must not produce unhandled rejections. Callers use
-  // `void del(...)` in redaction paths; swallow any open/txn failure
-  // rather than escaping. No `reportCacheWriteError` — deletes
-  // failing does not indicate a full-store condition.
   try {
     const db = await openCacheStore(sessionId);
     if (!db) return;
@@ -728,7 +788,7 @@ export const deleteRoomEventsFromCache = async (
           if (pendingReads === 0) ledger.finalize(ledgerStore);
         };
         uniqueEventIds.forEach((eventId) => {
-          const cacheKey = buildEventCacheKey(roomId, ROOM_SCOPE, eventId);
+          const cacheKey = buildEventCacheKey(roomId, scope, eventId);
           // Read-before-delete so the ledger decrements exactly (only if
           // the record actually existed).
           const previousRequest = eventStore.get(cacheKey);
@@ -750,6 +810,12 @@ export const deleteRoomEventsFromCache = async (
     // Best-effort — see rationale above. Callers do not consume errors.
   }
 };
+
+export const deleteRoomEventsFromCache = (
+  sessionId: string,
+  roomId: string,
+  eventIds: string[]
+): Promise<void> => deleteScopedEventsFromCache(sessionId, roomId, ROOM_SCOPE, eventIds);
 
 // --- Thread API ---
 
@@ -1022,50 +1088,6 @@ const runSaveThreadEventsTxn = async (
     const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
 
-    const scheduleEventPuts = (
-      eventsToConsider: CachedThreadEvent[],
-      knownRedactedEventIds: ReadonlySet<string>,
-      onComplete: (earliestPersistedEventId: string | undefined) => void
-    ): void => {
-      const persistedEventIds: Array<string | undefined> = new Array(eventsToConsider.length);
-      let pendingPuts = eventsToConsider.length;
-      if (pendingPuts === 0) {
-        if (ledger && ledgerStore) ledger.finalize(ledgerStore);
-        onComplete(undefined);
-        return;
-      }
-      const maybeFinalizeLedger = (): void => {
-        pendingPuts -= 1;
-        if (pendingPuts !== 0) return;
-        if (ledger && ledgerStore) ledger.finalize(ledgerStore);
-        onComplete(persistedEventIds.find((eventId) => eventId !== undefined));
-      };
-      eventsToConsider.forEach((rawEvent, index) => {
-        const cacheKey = buildEventCacheKey(roomId, threadId, rawEvent.event_id);
-        const previousRequest = eventStore.get(cacheKey);
-        previousRequest.onsuccess = () => {
-          const previous = previousRequest.result as CachedEventRecord | undefined;
-          if (!canPersistMarkedEvent(rawEvent, previous?.rawEvent, knownRedactedEventIds)) {
-            maybeFinalizeLedger();
-            return;
-          }
-          const eventRecord = buildMergedEventRecord(
-            roomId,
-            threadId,
-            rawEvent,
-            previous,
-            relationSnapshotMode
-          );
-          countCacheProbe('threadEventPuts');
-          if (ledger) ledger.notePut(eventRecord, previous);
-          eventStore.put(eventRecord);
-          persistedEventIds[index] = rawEvent.event_id;
-          maybeFinalizeLedger();
-        };
-        previousRequest.onerror = () => reject(previousRequest.error);
-      });
-    };
-
     loadKnownRedactedRelationEventIds(
       metaStore,
       roomId,
@@ -1137,7 +1159,19 @@ const runSaveThreadEventsTxn = async (
         };
 
         const scheduleWrites = (): void =>
-          scheduleEventPuts(eventsToConsider, knownRedactedEventIds, scheduleMetaPut);
+          scheduleEventPutsWithLedger({
+            eventStore,
+            ledger,
+            ledgerStore,
+            roomId,
+            scope: threadId,
+            eventsToConsider,
+            knownRedactedEventIds,
+            relationSnapshotMode,
+            probeKey: 'threadEventPuts',
+            reject,
+            onComplete: scheduleMetaPut,
+          });
         if (ledger && ledgerStore) {
           ledger.readBaseline(ledgerStore, eventStore, scheduleWrites);
         } else {
@@ -1153,55 +1187,12 @@ const runSaveThreadEventsTxn = async (
   });
 
 /** Best-effort compatibility API used by fire-and-forget cleanup paths. */
-export const deleteThreadEventsFromCache = async (
+export const deleteThreadEventsFromCache = (
   sessionId: string,
   roomId: string,
   threadId: string,
   eventIds: string[]
-): Promise<void> => {
-  if (eventIds.length === 0) return;
-  // CINNY-207 P2 review: dedupe (same rationale as
-  // deleteRoomEventsFromCache — avoid double-decrementing the ledger).
-  const uniqueEventIds = Array.from(new Set(eventIds));
-
-  try {
-    const db = await openCacheStore(sessionId);
-    if (!db) return;
-
-    countCacheProbe('eventDeletes', uniqueEventIds.length);
-
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
-      const eventStore = transaction.objectStore(EVENTS_STORE);
-      const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
-      const ledger = createLedgerTracker(roomId);
-      ledger.readBaseline(ledgerStore, eventStore, () => {
-        let pendingReads = uniqueEventIds.length;
-        const maybeFinalizeLedger = (): void => {
-          pendingReads -= 1;
-          if (pendingReads === 0) ledger.finalize(ledgerStore);
-        };
-        uniqueEventIds.forEach((eventId) => {
-          const cacheKey = buildEventCacheKey(roomId, threadId, eventId);
-          const previousRequest = eventStore.get(cacheKey);
-          previousRequest.onsuccess = () => {
-            const previous = previousRequest.result as CachedEventRecord | undefined;
-            ledger.noteDelete(previous);
-            eventStore.delete(cacheKey);
-            maybeFinalizeLedger();
-          };
-          previousRequest.onerror = () => reject(previousRequest.error);
-        });
-      });
-
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      transaction.onabort = () => reject(transaction.error);
-    });
-  } catch {
-    // Best-effort — see rationale on deleteRoomEventsFromCache.
-  }
-};
+): Promise<void> => deleteScopedEventsFromCache(sessionId, roomId, threadId, eventIds);
 
 /**
  * Stamp `lastOpenedTs` on the meta row for a scope. Used by the eviction

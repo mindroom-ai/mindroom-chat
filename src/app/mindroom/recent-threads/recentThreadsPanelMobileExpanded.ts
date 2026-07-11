@@ -4,9 +4,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from '../../state/utils/atomWithLocalStorage';
-import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
-import { getImperativeJotaiStore } from '../../state/jotaiStore';
 import { createUserScopedAtomRegistry } from '../cache/userScopedAtomRegistry';
 
 const RECENT_THREADS_PANEL_MOBILE_EXPANDED = 'recentThreadsPanelMobileExpanded';
@@ -68,23 +66,6 @@ const recentThreadsPanelMobileExpandedRegistry =
 
 export const makeRecentThreadsPanelMobileExpandedAtom =
   recentThreadsPanelMobileExpandedRegistry.getOrCreate;
-
-export const registerRecentThreadsPanelMobileExpandedAtom =
-  recentThreadsPanelMobileExpandedRegistry.registerActive;
-
-const getResolvedRecentThreadsPanelMobileExpandedAtom = ():
-  | RecentThreadsPanelMobileExpandedAtom
-  | undefined => {
-  const userId = getActiveSession()?.userId;
-  return recentThreadsPanelMobileExpandedRegistry.resolveActiveOrCreate(userId);
-};
-
-export const setRecentThreadsPanelMobileExpanded = (expanded: boolean) => {
-  const recentThreadsPanelMobileExpandedAtom = getResolvedRecentThreadsPanelMobileExpandedAtom();
-  if (!recentThreadsPanelMobileExpandedAtom) return;
-
-  getImperativeJotaiStore().set(recentThreadsPanelMobileExpandedAtom, expanded);
-};
 
 export const clearRecentThreadsPanelMobileExpandedStore = (userId: string) => {
   recentThreadsPanelMobileExpandedRegistry.clear(userId);
