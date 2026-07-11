@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Settle-cascade jump after rest: diagnosis and plan (2026-07-11)
+
+- Status: in progress on `fix/settle-cascade-remeasure`. The defect is pinned
+  by the merged ride-trace corpus (`rideTraceReplay.test.ts`, test "detects
+  the OPEN settle-cascade defect") and documented on PR #122.
+- Symptom (both 2026-07-11 traces of thread ff7965e2, pre- and post-#122
+  builds): ~150ms after a fling rests, the quiescence settle executes fold +
+  scrollTop rewrite + `setOptions(scrollMargin: 0)` in one synchronous block;
+  the same 100-240ms frame remounts/remeasures window rows, growing
+  scrollHeight up to 1,531px beyond the fold with no matching scroll shift —
+  a visible content jump. The trace recorder's anchor row unmounts in exactly
+  those frames, which is why they long masqueraded as slip-0 settles.
+- Working hypothesis: the settle's synchronous `setOptions` notify recomputes
+  the window before virtual-core's cached scrollOffset has absorbed the
+  scrollTop write (the echoing scroll event is async/coalesced on iOS), so
+  the window shifts by the fold px for one recompute, mounting a band of
+  never-measured rows whose estimate error lands as the extra growth.
+- Plan: (1) instrument/verify the stale-offset recompute in a lifecycle test
+  driving the real virtualizer; (2) make the settle atomic from the window's
+  point of view — either sync the virtualizer's cached offset in the same
+  block or suppress the intermediate recompute; (3) hold the corpus goldens:
+  capture a fresh device trace after the fix and replace the OPEN-defect
+  pins with post-fix thresholds (settle extraGrowth ≤ tens of px).
+- Explicitly out of scope: mounting the window ahead of momentum (the eaten
+  fling itself) — separate, larger change.
+
 ### External PR #122 review: verified findings fixed, one declined (2026-07-11)
 
 An external AI review of PR #122 raised three findings; each was verified
