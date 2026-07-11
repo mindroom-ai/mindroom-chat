@@ -25,7 +25,6 @@ import {
 } from '../app/mindroom/cache/sessionCleanup';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
-  SESSION_STORE_KEY,
   StoredSession,
   clearLegacySessionStorage,
   createSessionId,
@@ -494,7 +493,7 @@ const clearMatrixClientStores = async (
   ]);
 };
 
-export const deleteSessionLocalData = async (
+const deleteSessionLocalData = async (
   session: SessionCleanupContext,
   mx?: MatrixClient,
   clearUserScopedState = true
@@ -516,6 +515,27 @@ export const deleteSessionLocalData = async (
   clearSessionScopedNativeState(session.sessionId);
 };
 
+// Removes the session from the registry then runs local-data teardown,
+// wrapped in the legacy-storage finalizer the SDK expects after any
+// credential-store mutation. Deriving `clearUserScopedState` from the
+// post-removal registry keeps shared-MXID sessions (e.g. same account on a
+// different base URL) from losing per-user UI state.
+const removeSessionRecordAndLocalData = async (
+  session: SessionCleanupContext,
+  mx?: MatrixClient
+): Promise<void> => {
+  const nextStore = removeSession(session.sessionId);
+  try {
+    await deleteSessionLocalData(
+      session,
+      mx,
+      !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
+    );
+  } finally {
+    clearLegacySessionStorage();
+  }
+};
+
 export const removeSessionAndReload = async (
   session: SessionCleanupContext,
   mx?: MatrixClient
@@ -528,16 +548,7 @@ export const removeSessionAndReload = async (
   // Keep a recoverable account until its registry update succeeds. Orphaned
   // cache data is safe to clean up later; deleting crypto for an account that
   // remains selectable is not.
-  const nextStore = removeSession(session.sessionId);
-  try {
-    await deleteSessionLocalData(
-      session,
-      undefined,
-      !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
-    );
-  } finally {
-    clearLegacySessionStorage();
-  }
+  await removeSessionRecordAndLocalData(session);
   window.location.reload();
 };
 
@@ -546,21 +557,25 @@ export const removeCurrentClientSessionAndReload = async (
   candidate?: SessionCleanupContext
 ): Promise<void> => {
   const session = getMatrixClientSessionCleanupContext(mx, candidate);
-  const identity = getMatrixClientSessionIdentity(mx);
   stopClientRuntime(mx);
 
-  const removedIdentity = session ?? identity;
-  const nextStore = removeSession(removedIdentity.sessionId);
+  if (session) {
+    await removeSessionRecordAndLocalData(session, mx);
+    window.location.reload();
+    return;
+  }
+
+  // Fallback when the client has no deviceId and no candidate matches: fall
+  // back to the identity derived from the live client and skip the per-
+  // session cache/native teardown that requires a full SessionCleanupContext.
+  const identity = getMatrixClientSessionIdentity(mx);
+  const nextStore = removeSession(identity.sessionId);
   const clearUserScopedState = !nextStore.sessions.some(
-    (storedSession) => storedSession.userId === removedIdentity.userId
+    (storedSession) => storedSession.userId === identity.userId
   );
   try {
-    if (session) {
-      await deleteSessionLocalData(session, mx, clearUserScopedState);
-    } else {
-      await clearMatrixClientStores(mx);
-      clearSessionScopedUiState(identity, clearUserScopedState);
-    }
+    await clearMatrixClientStores(mx);
+    clearSessionScopedUiState(identity, clearUserScopedState);
   } finally {
     clearLegacySessionStorage();
   }
@@ -574,28 +589,7 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
     return;
   }
 
-  const nextStore = removeSession(session.sessionId);
-  try {
-    await deleteSessionLocalData(
-      session,
-      undefined,
-      !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
-    );
-  } finally {
-    clearLegacySessionStorage();
-  }
-};
-
-export const clearCacheAndReload = async (mx: MatrixClient) => {
-  stopClientRuntime(mx);
-  const identity = getMatrixClientSessionIdentity(mx);
-  const session = getMatrixClientSessionCleanupContext(mx, getActiveSession());
-  clearSessionScopedUiState(identity);
-  await Promise.all([
-    clearMatrixClientStores(mx, session),
-    deleteMindroomSessionCaches(identity.sessionId),
-  ]);
-  window.location.reload();
+  await removeSessionRecordAndLocalData(session);
 };
 
 export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
@@ -645,7 +639,7 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   }
 
   try {
-    clearAppOwnedCacheLocalStorage(new Set([SESSION_STORE_KEY]));
+    clearAppOwnedCacheLocalStorage();
   } catch {
     // ignore localStorage cleanup errors
   }
@@ -657,24 +651,6 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   }
 
   window.location.replace(getCacheBustedAppReloadTarget(appBasePath));
-};
-
-export const clearBrowserCacheAndReload = async () => {
-  const appBasePath = getAppBasePath();
-
-  try {
-    await clearAppScopedServiceWorkers(appBasePath);
-  } catch {
-    // ignore browser service worker cleanup errors
-  }
-
-  try {
-    await clearAppScopedCacheStorage(appBasePath);
-  } catch {
-    // ignore browser cache storage cleanup errors
-  }
-
-  window.location.reload();
 };
 
 export const logoutClient = async (mx: MatrixClient) => {

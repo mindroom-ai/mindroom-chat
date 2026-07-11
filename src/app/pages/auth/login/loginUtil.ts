@@ -1,16 +1,10 @@
 import to from 'await-to-js';
 import { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 import { ClientConfig, clientAllowedServer } from '../../../hooks/useClientConfig';
 import { autoDiscovery, specVersions } from '../../../cs-api';
 import { ErrorCode } from '../../../cs-errorcode';
-import {
-  deleteAfterLoginRedirectPath,
-  getAfterLoginRedirectPath,
-} from '../../afterLoginRedirectPath';
-import { getHomePath } from '../../pathUtils';
-import { putSession } from '../../../state/sessions';
+import { useSessionCompletion } from '../sessionCompletion';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 
 export enum GetBaseUrlError {
@@ -112,37 +106,18 @@ export const login = async (
 };
 
 export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false) => {
-  const navigate = useNavigate();
-  const [sessionStoreError, setSessionStoreError] = useState(false);
+  const session = useMemo(() => {
+    if (!data) return undefined;
+    const { response, baseUrl } = data;
+    return {
+      accessToken: response.access_token,
+      deviceId: response.device_id,
+      userId: response.user_id,
+      baseUrl,
+      expiresInMs: response.expires_in_ms,
+      refreshToken: response.refresh_token,
+    };
+  }, [data]);
 
-  useEffect(() => {
-    if (data) {
-      const { response: loginRes, baseUrl: loginBaseUrl } = data;
-      setSessionStoreError(false);
-      try {
-        putSession({
-          accessToken: loginRes.access_token,
-          deviceId: loginRes.device_id,
-          userId: loginRes.user_id,
-          baseUrl: loginBaseUrl,
-          expiresInMs: loginRes.expires_in_ms,
-          refreshToken: loginRes.refresh_token,
-        });
-      } catch {
-        setSessionStoreError(true);
-        return;
-      }
-
-      if (addAccount) {
-        navigate(getHomePath(), { replace: true });
-        return;
-      }
-
-      const afterLoginRedirectUrl = getAfterLoginRedirectPath();
-      deleteAfterLoginRedirectPath();
-      navigate(afterLoginRedirectUrl ?? getHomePath(), { replace: true });
-    }
-  }, [addAccount, data, navigate]);
-
-  return sessionStoreError;
+  return useSessionCompletion(session, addAccount);
 };

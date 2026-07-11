@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  clearAppOwnedCacheLocalStorage,
-  isCacheOwnedLocalStorageKey,
-} from './appOwnedStorage';
+import { clearAppOwnedCacheLocalStorage, isCacheOwnedLocalStorageKey } from './appOwnedStorage';
 
 const createStorage = (entries: Record<string, string>) => {
   const state = new Map(Object.entries(entries));
@@ -41,7 +38,7 @@ describe('app-owned localStorage', () => {
       third_party_key: 'keep',
     });
 
-    clearAppOwnedCacheLocalStorage(new Set(['mindroom_multi_account_store']), storage);
+    clearAppOwnedCacheLocalStorage(storage);
 
     expect(state).toEqual(
       new Map([
@@ -67,7 +64,7 @@ describe('app-owned localStorage', () => {
       state.delete(key);
     });
 
-    clearAppOwnedCacheLocalStorage(new Set(), storage);
+    clearAppOwnedCacheLocalStorage(storage);
 
     expect(state.has('mx_pending_events_!one:example.org')).toBe(true);
     expect(state.has('mx_pending_events_!two:example.org')).toBe(false);

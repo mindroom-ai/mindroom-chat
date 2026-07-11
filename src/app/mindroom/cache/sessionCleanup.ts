@@ -1,6 +1,5 @@
-import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
-import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/iosPush';
+import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
@@ -34,9 +33,6 @@ export const MINDROOM_SINGLETON_INDEXED_DB_NAMES = [
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
   MINDROOM_CACHE_DB_BASE_NAME,
 ] as const;
-
-export const MINDROOM_OWNED_LOCAL_STORAGE_KEYS = [MINDROOM_EDIT_DEBUG_STORAGE_KEY] as const;
-export const MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES = [IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX] as const;
 
 export const getMindroomSessionIndexedDbNames = (sessionId: string): string[] => [
   getLegacyThreadEventCacheDbName(sessionId),

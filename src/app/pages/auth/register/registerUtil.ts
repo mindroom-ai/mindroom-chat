@@ -6,17 +6,13 @@ import {
   RegisterRequest,
   RegisterResponse,
 } from 'matrix-js-sdk';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoginPathSearchParams } from '../../paths';
 import { ErrorCode } from '../../../cs-errorcode';
-import {
-  deleteAfterLoginRedirectPath,
-  getAfterLoginRedirectPath,
-} from '../../afterLoginRedirectPath';
-import { getHomePath, getLoginPath, withSearchParam } from '../../pathUtils';
+import { getLoginPath, withSearchParam } from '../../pathUtils';
 import { getMxIdLocalPart, getMxIdServer } from '../../../utils/matrix';
-import { putSession } from '../../../state/sessions';
+import { useSessionCompletion, type CompletedSession } from '../sessionCompletion';
 import { withAddAccountSearchIf } from '../addAccount';
 
 export enum RegisterError {
@@ -112,55 +108,38 @@ export const register = async (
 
 export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = false) => {
   const navigate = useNavigate();
-  const [sessionStoreError, setSessionStoreError] = useState(false);
+
+  const session = useMemo<CompletedSession | undefined>(() => {
+    if (!data) return undefined;
+    const { response, baseUrl } = data;
+    if (!response.access_token || !response.device_id) return undefined;
+    return {
+      accessToken: response.access_token,
+      deviceId: response.device_id,
+      userId: response.user_id,
+      baseUrl,
+      expiresInMs: response.expires_in_ms,
+      refreshToken: response.refresh_token,
+    };
+  }, [data]);
+
+  const sessionStoreError = useSessionCompletion(session, addAccount);
 
   useEffect(() => {
-    if (data) {
-      const { response, baseUrl } = data;
-
-      const userId = response.user_id;
-      const accessToken = response.access_token;
-      const deviceId = response.device_id;
-
-      if (accessToken && deviceId) {
-        setSessionStoreError(false);
-        try {
-          putSession({
-            accessToken,
-            deviceId,
-            userId,
-            baseUrl,
-            expiresInMs: response.expires_in_ms,
-            refreshToken: response.refresh_token,
-          });
-        } catch {
-          setSessionStoreError(true);
-          return;
+    if (!data || session) return;
+    const userId = data.response.user_id;
+    const username = getMxIdLocalPart(userId);
+    const userServer = getMxIdServer(userId);
+    navigate(
+      withSearchParam<LoginPathSearchParams>(
+        withAddAccountSearchIf(getLoginPath(userServer), addAccount),
+        {
+          username,
         }
-
-        if (addAccount) {
-          navigate(getHomePath(), { replace: true });
-          return;
-        }
-
-        const afterLoginRedirectPath = getAfterLoginRedirectPath();
-        deleteAfterLoginRedirectPath();
-        navigate(afterLoginRedirectPath ?? getHomePath(), { replace: true });
-      } else {
-        const username = getMxIdLocalPart(userId);
-        const userServer = getMxIdServer(userId);
-        navigate(
-          withSearchParam<LoginPathSearchParams>(
-            withAddAccountSearchIf(getLoginPath(userServer), addAccount),
-            {
-              username,
-            }
-          ),
-          { replace: true }
-        );
-      }
-    }
-  }, [addAccount, data, navigate]);
+      ),
+      { replace: true }
+    );
+  }, [addAccount, data, session, navigate]);
 
   return sessionStoreError;
 };

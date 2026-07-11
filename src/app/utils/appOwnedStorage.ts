@@ -11,11 +11,10 @@ export const isCacheOwnedLocalStorageKey = (key: string): boolean =>
   CACHE_OWNED_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
 
 export const clearAppOwnedCacheLocalStorage = (
-  preservedKeys: ReadonlySet<string> = new Set(),
   storage: Storage | undefined = getSafeLocalStorage()
 ): void => {
   getStorageKeysSafe(storage).forEach((key) => {
-    if (preservedKeys.has(key) || !isCacheOwnedLocalStorageKey(key)) return;
+    if (!isCacheOwnedLocalStorageKey(key)) return;
     removeStorageItemSafe(storage, key);
   });
 };

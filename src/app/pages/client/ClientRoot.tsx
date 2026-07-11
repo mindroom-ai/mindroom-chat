@@ -213,9 +213,6 @@ const useLogoutListener = (
 
 type ClientState =
   | {
-      status: 'idle';
-    }
-  | {
       status: 'loading' | 'starting';
       session: ClientBootstrapSession;
       mx?: ClientMatrixClient;
@@ -254,16 +251,19 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
   const [queryClient] = useState(() => new QueryClient());
-  const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
-  // Failed clients remain on the error state only for recovery cleanup. Do
-  // not leave them mounted in providers, listeners, or the sync engine.
-  const mx = clientState.status !== 'error' && 'mx' in clientState ? clientState.mx : undefined;
   // This component is keyed by account + device below. Capture the credentials
   // used to create that runtime once: SDK token rotation updates the session
   // store, but must not tear down the client that performed the rotation.
   const [clientBootstrapSession, setClientBootstrapSession] = useState<ClientBootstrapSession>(() =>
     toClientBootstrapSession(activeSession)
   );
+  const [clientState, setClientState] = useState<ClientState>(() => ({
+    status: 'loading',
+    session: clientBootstrapSession,
+  }));
+  // Failed clients remain on the error state only for recovery cleanup. Do
+  // not leave them mounted in providers, listeners, or the sync engine.
+  const mx = clientState.status !== 'error' && 'mx' in clientState ? clientState.mx : undefined;
 
   useEffect(
     () => () => {

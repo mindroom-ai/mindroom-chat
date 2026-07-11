@@ -2,7 +2,11 @@ import {
   MINDROOM_SESSION_STORE_EVENT,
   MINDROOM_SESSION_STORE_KEY,
 } from '../mindroom/cache/sessionStoreConfig';
-import { removeStorageItemSafe, setStorageItemSafe } from '../utils/safeLocalStorage';
+import {
+  getSafeLocalStorage,
+  removeStorageItemSafe,
+  setStorageItemSafe,
+} from '../utils/safeLocalStorage';
 
 export type StoredSession = {
   sessionId: string;
@@ -88,22 +92,13 @@ export class SessionStoreWriteError extends Error {
   }
 }
 
-const getLocalStorageSafe = (): LocalStorageLike | undefined => {
-  try {
-    if (typeof localStorage === 'undefined') return undefined;
-    return localStorage;
-  } catch {
-    return undefined;
-  }
-};
-
 const dispatchSessionStoreEvent = () => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new Event(SESSION_STORE_EVENT));
 };
 
 export const clearLegacySessionStorage = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): void => {
   if (!storage) return;
 
@@ -202,7 +197,7 @@ const sanitizeSessionStore = (value: unknown): SessionStore => {
 
 const writeSessionStore = (
   store: SessionStore,
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): boolean => {
   if (!storage) return false;
 
@@ -246,7 +241,7 @@ const createSessionStoreSnapshot = (
 };
 
 const getSessionStoreSnapshot = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): SessionStoreSnapshot => {
   if (!storage) {
     return EMPTY_SESSION_SNAPSHOT;
@@ -270,19 +265,19 @@ const getSessionStoreSnapshot = (
   }
 };
 
-export const getSessionStore = (storage: LocalStorageLike | undefined = getLocalStorageSafe()) =>
+export const getSessionStore = (storage: LocalStorageLike | undefined = getSafeLocalStorage()) =>
   getSessionStoreSnapshot(storage).store;
 
 export const listSessions = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession[] => getSessionStoreSnapshot(storage).sessions;
 
 export const hasStoredSessions = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): boolean => getSessionStore(storage).sessions.length > 0;
 
 export const getActiveSession = (
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession | undefined => getSessionStoreSnapshot(storage).activeSession;
 
 const upsertSession = (sessions: StoredSession[], nextSession: StoredSession): StoredSession[] => {
@@ -308,7 +303,7 @@ export const putSession = (
   options: {
     setActive?: boolean;
   } = {},
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession => {
   const baseUrl = normalizeSessionBaseUrl(input.baseUrl);
   const userId = normalizeUserId(input.userId);
@@ -346,7 +341,7 @@ export const putSession = (
 
 export const setActiveSession = (
   sessionId: string,
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession | undefined => {
   const store = getSessionStore(storage);
   const session = store.sessions.find((item) => item.sessionId === sessionId);
@@ -372,7 +367,7 @@ export const setActiveSession = (
 export const updateSessionCredentials = (
   sessionId: string,
   credentials: SessionCredentialUpdate,
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession | undefined => {
   const store = getSessionStore(storage);
   const session = store.sessions.find((item) => item.sessionId === sessionId);
@@ -402,7 +397,7 @@ export const updateSessionProfile = (
     lastKnownAvatarUrl?: string;
     lastKnownAvatarDataUrl?: string;
   },
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession | undefined => {
   const store = getSessionStore(storage);
   const session = store.sessions.find((item) => item.sessionId === sessionId);
@@ -445,7 +440,7 @@ export const updateSessionProfile = (
 export const updateSessionLastPath = (
   sessionId: string,
   lastKnownPath: string,
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): StoredSession | undefined => {
   const store = getSessionStore(storage);
   const session = store.sessions.find((item) => item.sessionId === sessionId);
@@ -470,7 +465,7 @@ export const updateSessionLastPath = (
 
 export const removeSession = (
   sessionId: string,
-  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
 ): SessionStore => {
   const store = getSessionStore(storage);
   const sessions = store.sessions.filter((session) => session.sessionId !== sessionId);

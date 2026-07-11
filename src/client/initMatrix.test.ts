@@ -4,8 +4,6 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
   clearAllCacheAndReload,
-  clearBrowserCacheAndReload,
-  clearCacheAndReload,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
@@ -28,7 +26,6 @@ import {
   getSessionRustCryptoStorePrefix,
   getSessionStore,
   putSession,
-  setActiveSession,
 } from '../app/state/sessions';
 // CINNY-207 P2.3: cache module APIs now come directly from `./cacheStore`.
 // The three legacy shim files are gone; the legacy per-session DB name
@@ -45,7 +42,6 @@ import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentTh
 import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
-import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -1105,169 +1101,6 @@ describe('clearAllCacheAndReload', () => {
   });
 });
 
-describe('clearCacheAndReload', () => {
-  const originalLocalStorage = globalThis.localStorage;
-  const originalWindow = globalThis.window;
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-
-    if (originalLocalStorage === undefined) {
-      Reflect.deleteProperty(globalThis, 'localStorage');
-    } else {
-      Object.defineProperty(globalThis, 'localStorage', {
-        value: originalLocalStorage,
-        configurable: true,
-      });
-    }
-
-    if (originalWindow === undefined) {
-      Reflect.deleteProperty(globalThis, 'window');
-    } else {
-      Object.defineProperty(globalThis, 'window', {
-        value: originalWindow,
-        configurable: true,
-      });
-    }
-  });
-
-  it('clears session-scoped rust crypto stores for the active session', async () => {
-    const storageState = new Map<string, string>();
-    const localStorageMock = {
-      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        storageState.set(key, value);
-      }),
-      removeItem: vi.fn((key: string) => {
-        storageState.delete(key);
-      }),
-    };
-    const reload = vi.fn();
-
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: localStorageMock,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        localStorage: localStorageMock,
-        dispatchEvent: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        location: {
-          reload,
-        },
-      },
-      configurable: true,
-    });
-
-    const session = putSession({
-      baseUrl: 'https://example.com',
-      userId: '@alice:example.com',
-      deviceId: 'DEVICE_A',
-      accessToken: 'token-a',
-    });
-    setActiveSession(session.sessionId);
-
-    const stopClient = vi.fn();
-    const clearStores = vi.fn().mockResolvedValue(undefined);
-    const getSafeUserId = vi.fn().mockReturnValue(session.userId);
-    vi.mocked(stopMindroomSyncEngineForClient).mockClear();
-
-    const mx = {
-      clearStores,
-      getDeviceId: vi.fn().mockReturnValue(session.deviceId),
-      getHomeserverUrl: vi.fn().mockReturnValue(session.baseUrl),
-      getSafeUserId,
-      stopClient,
-    };
-    await clearCacheAndReload(mx as never);
-
-    expect(stopMindroomSyncEngineForClient).toHaveBeenCalledWith(mx);
-    expect(vi.mocked(stopMindroomSyncEngineForClient).mock.invocationCallOrder[0]).toBeLessThan(
-      clearStores.mock.invocationCallOrder[0]
-    );
-    expect(stopClient).toHaveBeenCalledTimes(1);
-    expect(getSafeUserId).toHaveBeenCalled();
-    expect(clearStores).toHaveBeenCalledWith({
-      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
-    });
-    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
-    // to a single deleteCacheStoreDb call inside sessionCleanup; the
-    // legacy per-session DB names are also deleted via
-    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
-    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(session.sessionId);
-    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
-    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
-    expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
-      session.userId
-    );
-    expect(vi.mocked(clearRecentThreadViewModelSharedState)).not.toHaveBeenCalled();
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it('derives the session-scoped rust crypto prefix from the live client when session storage is unavailable', async () => {
-    const storageState = new Map<string, string>();
-    const localStorageMock = {
-      getItem: vi.fn((key: string) => storageState.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        storageState.set(key, value);
-      }),
-      removeItem: vi.fn((key: string) => {
-        storageState.delete(key);
-      }),
-    };
-    const reload = vi.fn();
-    const userId = '@alice:example.com';
-    const deviceId = 'DEVICE_A';
-    const sessionId = createSessionId('https://example.com', userId);
-
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: localStorageMock,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        localStorage: localStorageMock,
-        dispatchEvent: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        location: {
-          reload,
-        },
-      },
-      configurable: true,
-    });
-
-    const stopClient = vi.fn();
-    const clearStores = vi.fn().mockResolvedValue(undefined);
-    const getSafeUserId = vi.fn().mockReturnValue(userId);
-    const getHomeserverUrl = vi.fn().mockReturnValue('https://example.com');
-    const getDeviceId = vi.fn().mockReturnValue(deviceId);
-
-    await clearCacheAndReload({
-      clearStores,
-      getDeviceId,
-      getHomeserverUrl,
-      getSafeUserId,
-      stopClient,
-    } as never);
-
-    expect(clearStores).toHaveBeenCalledWith({
-      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix({
-        sessionId,
-        deviceId,
-      }),
-    });
-    // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
-    // to a single deleteCacheStoreDb call inside sessionCleanup; the
-    // legacy per-session DB names are also deleted via
-    // indexedDB.deleteDatabase directly (see the deleteDatabase mock).
-    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('logoutClient', () => {
   const originalLocalStorage = globalThis.localStorage;
   const originalIndexedDB = globalThis.indexedDB;
@@ -1628,115 +1461,6 @@ describe('logoutClient', () => {
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     expect(getSessionStore(localStorageMock).sessions).toHaveLength(0);
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('clearBrowserCacheAndReload', () => {
-  const originalWindow = globalThis.window;
-  const originalNavigator = globalThis.navigator;
-  const originalBasePath = (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__;
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = originalBasePath;
-
-    if (originalWindow === undefined) {
-      Reflect.deleteProperty(globalThis, 'window');
-    } else {
-      Object.defineProperty(globalThis, 'window', {
-        value: originalWindow,
-        configurable: true,
-      });
-    }
-
-    if (originalNavigator === undefined) {
-      Reflect.deleteProperty(globalThis, 'navigator');
-    } else {
-      Object.defineProperty(globalThis, 'navigator', {
-        value: originalNavigator,
-        configurable: true,
-      });
-    }
-  });
-
-  it('unregisters and clears only app-scoped browser cache resources', async () => {
-    (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = '/mindroom';
-
-    const unregisterApp = vi.fn().mockResolvedValue(true);
-    const unregisterOther = vi.fn().mockResolvedValue(true);
-    const appRegistration = {
-      scope: 'https://example.com/mindroom/',
-      active: { scriptURL: 'https://example.com/mindroom/sw.js' },
-      installing: null,
-      waiting: null,
-      unregister: unregisterApp,
-    } as unknown as ServiceWorkerRegistration;
-    const otherRegistration = {
-      scope: 'https://example.com/other/',
-      active: { scriptURL: 'https://example.com/other/sw.js' },
-      installing: null,
-      waiting: null,
-      unregister: unregisterOther,
-    } as unknown as ServiceWorkerRegistration;
-    const getRegistrations = vi.fn().mockResolvedValue([appRegistration, otherRegistration]);
-
-    const appRequest = { url: 'https://example.com/mindroom/assets/index.js' } as Request;
-    const otherRequest = { url: 'https://example.com/other/assets/index.js' } as Request;
-
-    const appCache = {
-      keys: vi
-        .fn()
-        .mockResolvedValueOnce([appRequest, otherRequest])
-        .mockResolvedValueOnce([otherRequest]),
-      delete: vi.fn().mockResolvedValue(true),
-    };
-    const otherCache = {
-      keys: vi.fn().mockResolvedValueOnce([otherRequest]).mockResolvedValueOnce([otherRequest]),
-      delete: vi.fn().mockResolvedValue(false),
-    };
-    const deleteCacheName = vi.fn().mockResolvedValue(true);
-
-    const cacheStorage = {
-      keys: vi.fn().mockResolvedValue(['cache-a', 'cache-b']),
-      open: vi.fn().mockImplementation((cacheName: string) => {
-        if (cacheName === 'cache-a') {
-          return Promise.resolve(appCache as unknown as Cache);
-        }
-        return Promise.resolve(otherCache as unknown as Cache);
-      }),
-      delete: deleteCacheName,
-    };
-
-    const reload = vi.fn();
-
-    Object.defineProperty(globalThis, 'navigator', {
-      value: {
-        serviceWorker: {
-          getRegistrations,
-        },
-      },
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        location: {
-          origin: 'https://example.com',
-          reload,
-        },
-        caches: cacheStorage,
-      },
-      configurable: true,
-    });
-
-    await clearBrowserCacheAndReload();
-
-    expect(unregisterApp).toHaveBeenCalledTimes(1);
-    expect(unregisterOther).not.toHaveBeenCalled();
-    expect(appCache.delete).toHaveBeenCalledTimes(1);
-    expect(appCache.delete).toHaveBeenCalledWith(appRequest);
-    expect(otherCache.delete).not.toHaveBeenCalled();
-    expect(deleteCacheName).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });

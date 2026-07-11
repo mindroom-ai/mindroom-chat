@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
-import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/iosPush';
+import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
@@ -18,8 +17,6 @@ import {
   getLegacyThreadSummaryCacheDbName,
 } from '../threads/cacheStore';
 import {
-  MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
-  MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
   MINDROOM_SINGLETON_INDEXED_DB_NAMES,
   clearMindroomInMemoryCaches,
   clearMindroomSessionNativeState,
@@ -124,8 +121,6 @@ describe('MindRoom session cleanup', () => {
       'mindroom-thread-event-cache',
       'mindroom-cache',
     ]);
-    expect(MINDROOM_OWNED_LOCAL_STORAGE_KEYS).toEqual([MINDROOM_EDIT_DEBUG_STORAGE_KEY]);
-    expect(MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES).toEqual([IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX]);
   });
 
   it('derives session-scoped MindRoom IndexedDB names', () => {
