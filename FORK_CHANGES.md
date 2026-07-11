@@ -37,7 +37,9 @@
   set; and partial monotonic relation comparison initially masked authoritative decreases/removals,
   so the comparison mode is now explicit and reconciler regressions cover both cases. Re-review
   approved both corrections. The first full test run also exposed an incomplete MatrixEvent edit
-  fixture; the fixture now carries the timestamp/sender contract used by production.
+  fixture; the fixture now carries the timestamp/sender contract used by production. Final
+  exact-range review also added the standard `--` option terminator to the changed-file Prettier
+  invocation; re-review approved the corrected command.
 - Final local gate is green: all 392 Vitest files / 3,040 tests, TypeScript typecheck, full ESLint
   with zero errors / 17 baseline warnings, changed-file Prettier, `git diff --check`, and the
   production plus PWA/service-worker build. Every logical change received independent review.
