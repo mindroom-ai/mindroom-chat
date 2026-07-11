@@ -382,6 +382,7 @@ describe('shouldSettleLedgerAtBoundary', () => {
   const base = {
     scrollTop: 0,
     scrollBottom: 600,
+    scrollOffset: 1000,
     clientHeight: 600,
     scrollDirection: 'backward' as const,
   };
@@ -457,39 +458,71 @@ describe('shouldSettleLedgerAtBoundary', () => {
         ...base,
         scrollDirection: 'forward',
         ledgerPx: -5000,
-        innerTop: 800,
+        innerTop: -800,
         innerBottom: 60000,
       })
     ).toBe(false);
   });
 
-  it('settles grow-debt when the reader approaches the top hard stop (unreachable prepend region)', () => {
-    // Full-surface adversarial review (2026-07-07), ledger finding L4:
-    // px>0 pulls the inner box up by px (negative margin), so the first
-    // px content pixels sit beyond scrollTop 0 — a freshly folded
-    // prepend (px ≈ +2600) is EXACTLY that region. The reachable
-    // content top is innerTop + px; the guard must fire within two
-    // viewports of it, or an upward ride hits the hard stop and the
-    // new rows pop in only after a rest.
-    // scrollTop(content) = 900 → innerTop = -900 - 3000; reachable top
-    // = -900, inside the 1200px guard band above viewport top 0.
+  it('lets positive-ledger rides use the remaining physical top runway', () => {
+    // Native trace ride-trace-1783784177182: ledger +89px, innerTop
+    // -1114px, and reachable content top -1025px. The old two-viewport
+    // guard paid that ledger while native momentum was still moving about
+    // -56px/frame, reversing the sampled frame and stopping the fling.
+    // Positive ledger pulls the content box upward but does not expose a
+    // blank margin, so this remaining physical scroll range is safe runway.
     expect(
       shouldSettleLedgerAtBoundary({
         ...base,
-        ledgerPx: 3000,
-        innerTop: -3900,
-        innerBottom: 60000,
-      })
-    ).toBe(true);
-    // Deep mid-content (scrollTop 10000): no settle, keep the momentum.
-    expect(
-      shouldSettleLedgerAtBoundary({
-        ...base,
-        ledgerPx: 3000,
-        innerTop: -13000,
+        ledgerPx: 89,
+        innerTop: -1114,
         innerBottom: 60000,
       })
     ).toBe(false);
+    // At physical exhaustion, settle immediately so the folded prefix
+    // becomes reachable without waiting for ordinary quiescence.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollOffset: 0,
+        ledgerPx: 3000,
+        innerTop: -3000,
+        innerBottom: 60000,
+      })
+    ).toBe(true);
+  });
+
+  it('does not mistake normal-flow top padding for physical exhaustion', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollOffset: 9,
+        ledgerPx: 89,
+        innerTop: -80,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+  });
+
+  it('settles already-crossed ledger edges even when the last delta points away', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollDirection: 'forward',
+        ledgerPx: -5000,
+        innerTop: 10,
+        innerBottom: 60000,
+      })
+    ).toBe(true);
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollDirection: 'backward',
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 590,
+      })
+    ).toBe(true);
   });
 });
 

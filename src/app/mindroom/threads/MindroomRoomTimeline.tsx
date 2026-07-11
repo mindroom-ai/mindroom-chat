@@ -1448,18 +1448,14 @@ export function RoomTimeline({
     },
     [getScrollElement]
   );
-  // Ledger boundary guard: the ledger's exact-cancel contract holds only
-  // while the viewport stays inside the content region — accumulated debt
-  // is real empty space at the container's edge (the margin), and a long
-  // continuous ride can carry the reader into it before any rest repays
-  // it (device trace ride-trace-1783391256452: 3.0s blank at px=-9356;
-  // pinned by the ledger-boundary e2e). Approaching an edge settles
-  // immediately while the ride is travelling TOWARD that edge: one
-  // momentum interruption at the extreme of the loaded window — where
-  // scrolling hard-stopped anyway — instead of visible blank space. Edge
-  // direction is essential: the v3 iPhone trace caught the old positive-
-  // ledger bottom guard firing during an upward fling AWAY from the bottom;
-  // its +72px write reversed one frame and killed the remaining momentum.
+  // Ledger boundary guard: negative ledger can expose a real top margin,
+  // while positive ledger can clamp the bottom, so those edges retain a
+  // direction-aware two-viewport guard. Positive ledger has no top blank;
+  // it may coast through the remaining physical range and settles only at
+  // actual top exhaustion. The distinction comes from two v3 iPhone
+  // traces: a +72px bottom settle while travelling away and a +89px top
+  // settle 1025px before the hard stop both reversed a live native frame
+  // and killed Safari momentum.
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
@@ -1492,6 +1488,7 @@ export function RoomTimeline({
           innerBottom: innerRect.bottom,
           scrollTop: scrollRect.top,
           scrollBottom: scrollRect.bottom,
+          scrollOffset: currentScrollTop,
           clientHeight: scrollEl.clientHeight,
           scrollDirection,
         })

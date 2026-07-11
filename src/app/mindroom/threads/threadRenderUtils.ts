@@ -194,6 +194,9 @@ type LedgerBoundaryOpts = {
   innerBottom: number;
   scrollTop: number;
   scrollBottom: number;
+  // Native element scroll offset, distinct from scrollTop above (the
+  // viewport rect's client coordinate).
+  scrollOffset: number;
   clientHeight: number;
   // TanStack convention: forward increases scrollTop (toward the bottom),
   // backward decreases it (toward the top). A stationary scroll event is
@@ -201,42 +204,39 @@ type LedgerBoundaryOpts = {
   scrollDirection: 'forward' | 'backward' | null;
 };
 
-// Ledger boundary predicate: the ledger's exact-cancel contract holds
-// only while the viewport stays inside the content region — accumulated
-// debt is real empty space at the container's edge, and a continuous
-// ride can carry the reader into it before any rest repays it (device
-// trace ride-trace-1783391256452: 3.0s blank at px=-9356; e2e measured
-// 367px blank bands and a 4968px clamp flash without the guard, 0/0
-// with it). Within two viewports of the debt edge, settle immediately,
-// but only while travelling TOWARD that edge. Settling for an edge behind
-// the ride is unnecessary and kills iOS momentum (device trace
-// ride-trace-1783779812509: upward momentum was still moving -18px/frame
-// when the positive-ledger bottom guard wrote +72px and stopped it).
-// Small debts and stationary/away-from-edge rides settle at ordinary rests.
+// Ledger boundary predicate. Negative ledger creates real blank space at
+// the top, so settle within two viewports while travelling toward it.
+// Positive ledger instead pulls the box upward: there is no top blank, and
+// the remaining physical scroll range is valid runway. Paying it early
+// kills iOS momentum (ride-trace-1783784177182 settled +89px while native
+// motion was still about -56px/frame), so wait for actual top exhaustion.
+// Positive ledger can still expose/clamp the bottom and keeps its proactive
+// toward-bottom guard. Once either edge is actually crossed, settle without
+// a direction gate; stationary/away proximity waits for ordinary rest.
 export const shouldSettleLedgerAtBoundary = ({
   ledgerPx,
   innerTop,
   innerBottom,
   scrollTop,
   scrollBottom,
+  scrollOffset,
   clientHeight,
   scrollDirection,
 }: LedgerBoundaryOpts): boolean => {
   if (ledgerPx > -48 && ledgerPx < 48) return false;
   const guardPx = clientHeight * 2;
-  // Top stop, both signs: shrink-debt (px<0) puts the margin itself as a
-  // blank band above the content box, so the unreadable region starts at
-  // the box top; grow-debt (px>0) pulls the box up by px, carrying the
-  // first px content pixels beyond scrollTop 0 — a freshly folded prepend
-  // IS that region (adversarial review 2026-07-07, finding L4: the old
-  // positive branch only watched the bottom, so an upward ride hit the
-  // hard stop and the new rows appeared only after a rest).
   const reachableContentTop = innerTop + Math.max(ledgerPx, 0);
-  if (scrollDirection === 'backward' && reachableContentTop > scrollTop - guardPx) return true;
-  // Bottom stop, grow-debt only: the negative margin shrinks the scroll
-  // range from the bottom, where the browser clamp bites at rest.
-  if (ledgerPx > 0 && scrollDirection === 'forward') {
-    return innerBottom < scrollBottom + guardPx;
+  if (ledgerPx < 0) {
+    if (reachableContentTop >= scrollTop) return true;
+    if (scrollDirection === 'backward' && reachableContentTop > scrollTop - guardPx) return true;
+  }
+  if (ledgerPx > 0) {
+    // Use the element's physical offset, not the inner rect: parent
+    // padding or loading controls can put reachableContentTop at/inside
+    // the viewport before Safari has exhausted its native runway.
+    if (scrollOffset <= 0) return true;
+    if (innerBottom <= scrollBottom) return true;
+    if (scrollDirection === 'forward') return innerBottom < scrollBottom + guardPx;
   }
   return false;
 };

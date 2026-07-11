@@ -373,6 +373,96 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
+  it('coasts through positive-ledger top runway and settles at physical exhaustion', async () => {
+    mockIsIOSWebKit = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$ledger-positive-top-runway';
+    const thread = buildThread(threadId, '$top-runway-', 5);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    const innerRect = { top: -1114, bottom: 60_000 };
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      1139,
+      innerRect
+    );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const waitsBefore = settleWaits.length;
+    const countsBefore = await readLedgerSettleCounts();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork();
+      });
+
+      const hook = roomTimelineVirtualizerState.lastInstance
+        ?.shouldAdjustScrollPositionOnItemSizeChange as
+        | ((
+            item: { end: number },
+            delta: number,
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
+          ) => boolean)
+        | undefined;
+      await act(async () => {
+        expect(
+          hook!({ end: 100 }, 89, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        // Exact v3 geometry: reachable top is -1114 + 89 = -1025px.
+        // Native motion is still backward, but this is valid runway rather
+        // than blank space and must not perform an app scrollTop write.
+        fireScroll(1081);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([]);
+      expect(innerElement.style.marginTop).toBe('-89px');
+      expect(await readLedgerSettleCounts()).toEqual(countsBefore);
+
+      await act(async () => {
+        // Once Safari reaches its physical minimum, reachable top is zero.
+        // Settle there immediately; momentum has already exhausted itself.
+        // The fixed normal-flow origin is 56px: -1114 + 89 + 1081.
+        // Moving scrollTop 1081 -> 0 therefore moves the rect by +1081,
+        // leaving innerTop=-33 rather than fabricating ledger-only motion.
+        innerRect.top += 1081;
+        innerRect.bottom += 1081;
+        fireScroll(0);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([89]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+
+      await act(async () => {
+        settleWaits[waitsBefore].resolve();
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([89]);
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+    } finally {
+      mockIsIOSWebKit = false;
+      renderer?.unmount();
+    }
+  });
+
   it('settles only toward a ledger boundary and survives a coalesced write event', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');

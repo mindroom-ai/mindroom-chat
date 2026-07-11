@@ -111,11 +111,9 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: complete locally; independent reviews found no remaining code/test issues, with v3 device
-  acceptance still pending. Isolated branch `caveman/fix-ios-long-thread-momentum-loss` is rebased
-  onto `origin/dev` at `740f8b746`. PR #114 merged into `dev` while this task was in progress, so its
-  desktop-focused scroll-jump fix is now part of the base; this iOS work remains four separate local
-  commits and was never added to PR #114 or its branch. No production deploy was performed.
+- Status: PR #116 merged the sampled-quiescence fix into `dev`; a local v2 follow-up now has native
+  acceptance for both boundary failure modes. Final replay onto current `origin/dev`, post-replay
+  validation, and publication are pending. No production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -238,8 +236,41 @@
   toward-top guard stop: `scrollTop` 1391 -> 1325 -> 1261 -> 1139 -> 1081 while ledger was +89px,
   then `lb` increased, the ledger reset, and the sampled frame reversed to 1114 before becoming
   stationary. The inferred native step was still about -56px. This is the retained two-viewport
-  safety write firing roughly 1.5 viewports before the real top, so device acceptance is not yet
-  complete; per the prior promotion rule, a preallocated write-free top runway is now in progress.
+  safety write firing roughly 1.5 viewports before the real top, so device acceptance was not yet
+  complete.
+- Positive-top geometry correction: re-auditing the sign algebra showed that the proposed
+  preallocated runway was unnecessary and would have expanded the coordinate surface for open,
+  focus, scrollbar/minimap, short-thread, and reserve-exhaustion behavior. For positive ledger
+  `innerTop + ledgerPx` cancels the compensating margin, so approaching the top does not expose a
+  blank band; it only leaves the newly folded prefix beyond the current physical origin. The
+  browser's remaining range is already a safe write-free runway. Negative ledger still creates a
+  real top margin, and positive ledger still risks a bottom clamp, so those proactive guards remain.
+- Exact-edge RED/GREEN: a trace-shaped predicate regression first failed because +89px ledger at
+  `innerTop=-1114` settled with 1025px of valid runway left. The positive-ledger top branch now waits
+  for actual native exhaustion (`scrollElement.scrollTop <= 0`) before paying debt; negative-top and
+  positive-bottom crossings still settle regardless of the last sampled direction, while their
+  proximity retains toward-edge direction gates. Independent review caught that the inner rect's
+  normal-flow padding can reach the viewport a few pixels before the browser hard stop, so a second
+  RED pins the physical scroll offset rather than inferring exhaustion from inner geometry. The
+  corrected component fixture moves its rect by the exact native scroll delta, performs no app write
+  during the traced upward frame, then performs one +89px settlement only at scrollTop 0; its pending
+  quiescence waiter becomes a no-op. Focused coverage passes (2 files / 86 tests).
+- Complete native acceptance (2026-07-11): the recorder's 2700-frame production cap was temporarily
+  enlarged only in the local `ridetrace=1` dev session so Appium's full 53,000px traversal fit in one
+  export; the diagnostic constant was reverted immediately afterward and is absent from the diff.
+  `ride-trace-1783786487574.json` contains 7,867 v3 frames across 131.7s, all 321 events, and
+  `scrollTop` 49,871 -> 0. Five `lq` transitions followed 133-150ms stationary windows and each had
+  inferred native delta exactly 0. The only `lb` transition occurred at physical exhaustion: sampled
+  `scrollTop` coasted 81 -> 68 -> 56 -> 44 -> 32 -> 21 -> 10 before the +1466px atomic settle; its
+  inferred final native step was -19px into `scrollTop <= 0`, with no coherent physical runway left.
+  There was no mid-ride boundary settlement. Stable-thread normalized gap was 0, frame-time p95/max
+  was 21/60ms, and the raw 1466px trace jump was exactly the coordinate-origin ledger reset rather
+  than a painted anchor displacement.
+- Live boundary acceptance: the Docker-Matrix iPhone-emulated/CPU-throttled ride passed with 1,002
+  frames, `scrollTop=0`, 1,226px maximum ledger, zero gaps, zero anchor jumps, and one retained
+  boundary settle. Full Vitest before the physical-offset review fix passed 363 files / 2,882 tests;
+  typecheck, production build, and full lint passed (0 errors / 19 pre-existing warnings). Final
+  full validation will be repeated after replay onto current `origin/dev`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
