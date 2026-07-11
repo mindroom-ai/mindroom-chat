@@ -111,9 +111,9 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: PR #116 merged the sampled-quiescence fix into `dev`; a local v2 follow-up now has native
-  acceptance for both boundary failure modes. Final replay onto current `origin/dev`, post-replay
-  validation, and publication are pending. No production deploy was performed by this task.
+- Status: PR #116 merged the sampled-quiescence fix into `dev`; the v2 boundary follow-up has native
+  acceptance for both failure modes and is replayed onto current `origin/dev` at `5d66af4f2`.
+  Publication is pending. No production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -270,7 +270,13 @@
   frames, `scrollTop=0`, 1,226px maximum ledger, zero gaps, zero anchor jumps, and one retained
   boundary settle. Full Vitest before the physical-offset review fix passed 363 files / 2,882 tests;
   typecheck, production build, and full lint passed (0 errors / 19 pre-existing warnings). Final
-  full validation will be repeated after replay onto current `origin/dev`.
+  gates on the physical-offset fix and current base are recorded below.
+- Final replay/validation: the two follow-up commits replayed conflict-free onto `origin/dev`
+  `5d66af4f2`; `git range-diff` reported both patches exactly equivalent, and independent review
+  confirmed a clean merge base, the expected five-file scope, no interaction with #115's disjoint
+  iOS-push patch, and no findings. Post-replay full Vitest passes (363 files / 2,885 tests), as do
+  typecheck, production build, full lint (0 errors / 19 pre-existing warnings), the focused ledger
+  suite (2 files / 86 tests), and `git diff --check`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
