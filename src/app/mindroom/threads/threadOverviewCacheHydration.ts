@@ -6,10 +6,7 @@ import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
 } from './compactThreadRootData';
-import {
-  type CachedThreadEventPage,
-  loadLatestCachedThreadEventsBatch,
-} from './eventRepository';
+import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
@@ -265,16 +262,12 @@ export const resolveCachedOverviewUpdate = ({
       cachedPage,
       mapper,
     });
-    if (cachedPreview) {
-      const currentPreview = compactThreadRootBodyMap.get(rootId);
-      const currentSourceTs =
-        currentRootEvent?.replacingEvent()?.getTs() ?? currentRootEvent?.getTs() ?? 0;
-      if (
-        cachedPreview.previewText !== currentPreview &&
-        (!currentPreview || cachedPreview.sourceTs > currentSourceTs)
-      ) {
-        nextPreview = cachedPreview.previewText;
-      }
+    // Fill-only: live SDK state is authoritative once present (the merge in
+    // mergeCompactThreadRootBodyMaps lets live win), and a live root that is
+    // temporarily behind the cache is healed by the same-id revision merge
+    // during room cache hydration rather than by preview replacement here.
+    if (cachedPreview && !compactThreadRootBodyMap.has(rootId)) {
+      nextPreview = cachedPreview;
     }
   }
 
@@ -374,9 +367,10 @@ export const useThreadOverviewCacheHydration = ({
       }
       if (cancelled) return;
 
-      const updates = threadRootIdsToLoad.map((rootId) => {
+      const nextUpdates: CachedOverviewUpdate[] = [];
+      threadRootIdsToLoad.forEach((rootId) => {
         const cachedPage = cachedPages.get(rootId);
-        if (!cachedPage) return null;
+        if (!cachedPage) return;
         try {
           const currentRecord = (
             showCompactRoomView ? compactThreadRecordMap : threadRecordMap
@@ -386,7 +380,7 @@ export const useThreadOverviewCacheHydration = ({
             room.getThread(rootId)?.rootEvent ??
             roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
 
-          return resolveCachedOverviewUpdate({
+          const update = resolveCachedOverviewUpdate({
             rootId,
             room,
             mapper,
@@ -397,17 +391,12 @@ export const useThreadOverviewCacheHydration = ({
             compactCachedThreadRootBodyMap,
             compactThreadRootBodyMap,
           });
+          if (update) nextUpdates.push(update);
         } catch {
-          return null;
+          // A single unreadable cached page must not block the others.
         }
       });
 
-      if (cancelled) return;
-
-      const nextUpdates: CachedOverviewUpdate[] = [];
-      updates.forEach((entry) => {
-        if (entry !== null) nextUpdates.push(entry);
-      });
       if (nextUpdates.length === 0) return;
 
       applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
@@ -473,9 +462,9 @@ export const useThreadOverviewRelationUpdates = ({
       if (threadId) return;
 
       const rootId = options.rootId;
-      const currentRecord = (showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap).get(
-        rootId
-      );
+      const currentRecord = (
+        showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap
+      ).get(rootId);
       const rootEvent =
         options.rootEvent ??
         room.findEventById(rootId) ??

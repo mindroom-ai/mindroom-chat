@@ -93,7 +93,29 @@ const bootstrap = async () => {
     }
 
     if (!navigator.serviceWorker.controller && getActiveSession()) {
-      await waitForServiceWorkerControl();
+      const controlled = await waitForServiceWorkerControl();
+      // A force-reload loads the page uncontrolled for its entire lifetime
+      // (re-registering an unchanged worker never fires controllerchange),
+      // which would leave authenticated media broken all session. One
+      // guarded reload restores control; the flag prevents a reload loop
+      // when no worker can take over.
+      try {
+        const RELOAD_FLAG = 'mindroom_sw_control_reloaded';
+        if (!controlled) {
+          const registration = await navigator.serviceWorker
+            .getRegistration()
+            .catch(() => undefined);
+          if (registration?.active && !window.sessionStorage.getItem(RELOAD_FLAG)) {
+            window.sessionStorage.setItem(RELOAD_FLAG, '1');
+            window.location.reload();
+            return;
+          }
+        } else {
+          window.sessionStorage.removeItem(RELOAD_FLAG);
+        }
+      } catch {
+        // Blocked sessionStorage degrades to the pre-fix behavior.
+      }
     }
 
     postCurrentSessionToSW();

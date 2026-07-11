@@ -1,9 +1,5 @@
 import { IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import {
-  getEditedEvent,
-  getLatestEdit,
-  getLatestMessageContent,
-} from '../../utils/room';
+import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -20,11 +16,6 @@ export type CompactThreadRootData = {
   bodyMap: Map<string, string>;
 };
 
-export type CompactThreadRootPreviewInfo = {
-  previewText: string;
-  sourceTs: number;
-};
-
 export type CompactThreadRootEntry = {
   event: MatrixEvent;
   absoluteIndex: number;
@@ -33,9 +24,7 @@ export type CompactThreadRootEntry = {
 const getEventActivityTs = (event: MatrixEvent): number => {
   const replacingEvent = event.replacingEvent();
   const replacingTs =
-    replacingEvent && replacingEvent.getSender() === event.getSender()
-      ? replacingEvent.getTs()
-      : 0;
+    replacingEvent && replacingEvent.getSender() === event.getSender() ? replacingEvent.getTs() : 0;
 
   return Math.max(getEffectiveThreadRootActivityTs(event), replacingTs);
 };
@@ -90,8 +79,8 @@ export const isZeroReplyStandaloneThreadRootEvent = (
 
 const hasCompactThreadActivity = (thread: Thread): boolean =>
   !!thread.replyToEvent ||
-  ((thread.events?.length ?? 0) > 0) ||
-  ((thread.timeline?.length ?? 0) > 0) ||
+  (thread.events?.length ?? 0) > 0 ||
+  (thread.timeline?.length ?? 0) > 0 ||
   (typeof thread.length === 'number' && thread.length > 0);
 
 export const getCompactThreadRootBodyPreviewText = (
@@ -125,10 +114,8 @@ export const getCompactCachedThreadRootPreviewInfo = ({
   threadId: string;
   cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
   mapper: (rawEvent: IEvent) => MatrixEvent;
-}): CompactThreadRootPreviewInfo | undefined => {
-  const mappedRootEvent = cachedPage.rootEvent
-    ? mapper(cachedPage.rootEvent as IEvent)
-    : undefined;
+}): string | undefined => {
+  const mappedRootEvent = cachedPage.rootEvent ? mapper(cachedPage.rootEvent as IEvent) : undefined;
   const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
   const allEvents = mappedRootEvent ? [mappedRootEvent, ...mappedEvents] : mappedEvents;
 
@@ -150,13 +137,7 @@ export const getCompactCachedThreadRootPreviewInfo = ({
     )
   );
 
-  const previewText = getCompactThreadRootBodyPreviewText(targetEvent, { editedEvent: latestEdit });
-  if (!previewText) return undefined;
-
-  return {
-    previewText,
-    sourceTs: latestEdit?.getTs() ?? targetEvent.getTs(),
-  };
+  return getCompactThreadRootBodyPreviewText(targetEvent, { editedEvent: latestEdit }) || undefined;
 };
 
 export const getCompactCachedThreadActivityTs = ({
@@ -168,9 +149,7 @@ export const getCompactCachedThreadActivityTs = ({
   cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
   mapper: (rawEvent: IEvent) => MatrixEvent;
 }): number | undefined => {
-  const mappedRootEvent = cachedPage.rootEvent
-    ? mapper(cachedPage.rootEvent as IEvent)
-    : undefined;
+  const mappedRootEvent = cachedPage.rootEvent ? mapper(cachedPage.rootEvent as IEvent) : undefined;
   const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
   const allEvents = mappedRootEvent ? [mappedRootEvent, ...mappedEvents] : mappedEvents;
 

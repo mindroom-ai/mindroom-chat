@@ -69,22 +69,38 @@ export function SettingsTab() {
   const lastKnownAvatarHttpUrl = lastKnownAvatarUrl
     ? mxcUrlToHttp(mx, lastKnownAvatarUrl, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
-  const activeAvatarSrc = lastKnownAvatarDataUrl;
 
   useEffect(() => {
     if (!activeSessionId) return;
 
-    const update: { lastKnownDisplayName?: string; lastKnownAvatarUrl?: string } = {};
+    const update: {
+      lastKnownDisplayName?: string;
+      lastKnownAvatarUrl?: string;
+      lastKnownAvatarDataUrl?: undefined;
+    } = {};
     if (profile.isDisplayNameResolved) {
       update.lastKnownDisplayName = displayName;
     }
     if (profile.avatarUrl !== undefined || profile.isAvatarResolved) {
       update.lastKnownAvatarUrl = profile.avatarUrl;
+      // A changed avatar must invalidate the cached thumbnail in the same
+      // write: this update re-renders and aborts the in-flight refetch, and
+      // a surviving stale dataUrl would then satisfy the fetch effect's
+      // cache guard forever.
+      if (
+        profile.isAvatarResolved &&
+        profile.avatarUrl !== lastKnownAvatarUrl &&
+        lastKnownAvatarDataUrl
+      ) {
+        update.lastKnownAvatarDataUrl = undefined;
+      }
     }
     if (Object.keys(update).length > 0) updateSessionProfile(activeSessionId, update);
   }, [
     activeSessionId,
     displayName,
+    lastKnownAvatarDataUrl,
+    lastKnownAvatarUrl,
     profile.avatarUrl,
     profile.displayName,
     profile.isAvatarResolved,
@@ -157,12 +173,10 @@ export function SettingsTab() {
           displayName: active
             ? displayName
             : session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId,
-          avatarUrl: active
-            ? activeAvatarSrc ?? session.lastKnownAvatarDataUrl
-            : session.lastKnownAvatarDataUrl,
+          avatarUrl: session.lastKnownAvatarDataUrl,
         };
       }),
-    [activeAvatarSrc, activeSession?.sessionId, displayName, sessions]
+    [activeSession?.sessionId, displayName, sessions]
   );
 
   const openAccountSwitcher = () => setAccountSwitcher(true);

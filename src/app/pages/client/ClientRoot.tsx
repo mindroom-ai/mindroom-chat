@@ -482,18 +482,19 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                       Retry
                     </Text>
                   </Button>
-                  {clientState.mx && (
-                    <Button
-                      fill="Soft"
-                      onClick={() => {
-                        clearAllCacheAndReload(clientState.mx).catch(() => undefined);
-                      }}
-                    >
-                      <Text as="span" size="B400">
-                        Clear Cache and Reload
-                      </Text>
-                    </Button>
-                  )}
+                  <Button
+                    fill="Soft"
+                    onClick={() => {
+                      // Works without a client (initClient itself failed —
+                      // the ordinary corrupted-store case): cleanup targets
+                      // come from the stored session registry.
+                      clearAllCacheAndReload(clientState.mx).catch(() => undefined);
+                    }}
+                  >
+                    <Text as="span" size="B400">
+                      Clear Cache and Reload
+                    </Text>
+                  </Button>
                   <Button
                     variant="Critical"
                     fill="Soft"
