@@ -42,6 +42,7 @@ import {
   describeMatrixEventRevision,
   describeRawEventRevision,
   mergeRawEventRevisions,
+  mapEventDetached,
   mergeSameIdEventRevision,
   stripRedactedRelationsFromRawEvent,
   type RelationSnapshotMode,
@@ -104,7 +105,10 @@ export const createPreferLiveEventMapper =
       const mappedEvent = mapEvent(rawEvent);
       const redactedBecause = rawEvent.unsigned?.redacted_because;
       if (redactedBecause) {
-        mappedEvent.makeRedacted(mapEvent(redactedBecause), room);
+        // The redaction event itself may be live in the room; mapping it
+        // through the SDK mapper would trip the reuse branch and poison the
+        // mapper's preventReEmit flag for the rest of the pass.
+        mappedEvent.makeRedacted(mapEventDetached(room, mapEvent, redactedBecause), room);
       }
       return mappedEvent;
     }

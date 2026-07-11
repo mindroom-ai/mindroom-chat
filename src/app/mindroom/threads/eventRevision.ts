@@ -452,6 +452,23 @@ export const mergeRawEventRevisions = (
   return withMergedRelations(incoming, current, incoming, replacement, relationSnapshotMode);
 };
 
+/**
+ * Map a raw event without ever triggering the SDK mapper's reuse branch:
+ * that branch permanently sets the mapper instance's `preventReEmit` flag,
+ * which would strip Decrypted/Replaced/BeforeRedaction re-emitters from
+ * every FRESH event the same mapper maps afterwards in the pass. Settled
+ * in-room instances are reused directly; only genuinely fresh raws go
+ * through the mapper (keeping its re-emitter registration).
+ */
+export const mapEventDetached = (
+  room: Room,
+  mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent,
+  raw: Partial<IEvent>
+): MatrixEvent => {
+  const existing = typeof raw.event_id === 'string' ? room.findEventById(raw.event_id) : undefined;
+  return existing && !existing.status ? existing : mapEvent(raw);
+};
+
 /** Merge a cached/fetched observation into the SDK-owned same-id instance. */
 export const mergeSameIdEventRevision = ({
   liveEvent,
@@ -464,15 +481,7 @@ export const mergeSameIdEventRevision = ({
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   room: Room;
 }): MatrixEvent => {
-  // Never route an event the room already owns through the SDK mapper: its
-  // reuse branch permanently sets the mapper instance's `preventReEmit` flag,
-  // which would strip Decrypted/Replaced/BeforeRedaction re-emitters from
-  // every FRESH event the same mapper maps afterwards in this pass.
-  const mapDetached = (raw: Partial<IEvent>): MatrixEvent => {
-    const existing =
-      typeof raw.event_id === 'string' ? room.findEventById(raw.event_id) : undefined;
-    return existing && !existing.status ? existing : mapEvent(raw);
-  };
+  const mapDetached = (raw: Partial<IEvent>): MatrixEvent => mapEventDetached(room, mapEvent, raw);
 
   const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
   if (rawRedactedBecause && !liveEvent.isRedacted()) {

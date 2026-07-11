@@ -262,11 +262,14 @@ export const resolveCachedOverviewUpdate = ({
       cachedPage,
       mapper,
     });
-    // Fill-only: live SDK state is authoritative once present (the merge in
-    // mergeCompactThreadRootBodyMaps lets live win), and a live root that is
-    // temporarily behind the cache is healed by the same-id revision merge
-    // during room cache hydration rather than by preview replacement here.
-    if (cachedPreview && !compactThreadRootBodyMap.has(rootId)) {
+    // Fill-only for healthy previews: live SDK state is authoritative once
+    // present (the merge in mergeCompactThreadRootBodyMaps lets live win),
+    // and a live root temporarily behind the cache is healed by the same-id
+    // revision merge during room cache hydration. The one preview the cache
+    // may replace is a truncated streaming placeholder ("Thinking…") — the
+    // merge yields to cache for those, matching the retry allowance below.
+    const livePreview = compactThreadRootBodyMap.get(rootId);
+    if (cachedPreview && (!livePreview || hasLikelyIncompleteStreamingBody(livePreview))) {
       nextPreview = cachedPreview;
     }
   }

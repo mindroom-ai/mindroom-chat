@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { ThreadCacheCoverage } from './types';
+import { pickPreferredThreadRootPreviewText } from './compactThreadRootData';
 
 export type ThreadOverviewCachedMetadataSnapshot = {
   compactRootBodyMap: Map<string, string>;
@@ -124,10 +125,19 @@ export const mergeCompactThreadRootBodyMaps = (
   cachedBodyMap: ReadonlyMap<string, string>
 ): Map<string, string> => {
   // Cached previews fill cold-start gaps, but live SDK state is authoritative
-  // once present. Applying cache last could mask a newer root edit forever.
+  // once present — applying cache last could mask a newer root edit forever.
+  // One exception: a live body that still looks like a truncated streaming
+  // placeholder ("Thinking…") yields to a complete cached body, so a stream
+  // killed mid-flight heals from the thread cache on reopen.
   const bodyMap = new Map(cachedBodyMap);
   liveBodyMap.forEach((value, key) => {
-    bodyMap.set(key, value);
+    bodyMap.set(
+      key,
+      pickPreferredThreadRootPreviewText({
+        preferredPreviewText: value,
+        fallbackPreviewText: bodyMap.get(key),
+      }) ?? value
+    );
   });
   return bodyMap;
 };

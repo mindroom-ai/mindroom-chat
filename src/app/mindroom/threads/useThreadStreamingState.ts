@@ -7,6 +7,7 @@ import {
   TERMINAL_STREAM_STATUSES,
   getMindroomAiRunInfo,
   getStreamStatusFromContent,
+  hasTerminalMindroomStreamMetadata,
 } from '../messages/aiRun';
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
@@ -95,8 +96,13 @@ const isEventStreaming = (
   }
 
   const streamStatus = getMindroomStreamStatus(content);
+  // hasTerminalMindroomStreamMetadata owns the ai_run terminal set (which
+  // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
+  // stream statuses; the local check only adds the record-form fallback.
+  // Diverging here wedges a permanent spinner while the stop chip (gated on
+  // the shared helper) is hidden.
   const terminalMetadata =
-    (aiRunStatus && TERMINAL_STREAM_STATUSES.has(aiRunStatus)) ||
+    hasTerminalMindroomStreamMetadata(content) ||
     (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus));
 
   if (hasStopReaction(relations) && !terminalMetadata) {

@@ -352,6 +352,36 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it("treats the 'cached' ai_run terminal status as ending the stream despite a stale 🛑", () => {
+    // 'cached' is terminal only in the ai_run status set — a divergence from
+    // TERMINAL_STREAM_STATUSES here would wedge a permanent spinner while
+    // the stop chip (gated on the shared helper) is hidden.
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      'io.mindroom.ai_run': { version: 1, status: 'cached' },
+    });
+    const stopReaction = makeMessageEvent('$reaction', 210, {
+      'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
+    });
+    const relations = makeRelations();
+    relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(false);
+
+    renderer.unmount();
+  });
+
   it('updates when the thread switches to a new streaming reply', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
