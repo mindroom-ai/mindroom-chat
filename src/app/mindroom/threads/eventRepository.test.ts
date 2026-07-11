@@ -57,6 +57,18 @@ const makeRawEdit = (
 
 const mapRawEvent = (rawEvent: Partial<IEvent>): MatrixEvent => new MatrixEvent(rawEvent as IEvent);
 
+const makeSdkStyleMapper = (live: MatrixEvent) =>
+  vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {
+    if (rawEvent.event_id !== live.getId()) return mapRawEvent(rawEvent);
+
+    live.setUnsigned({ ...live.getUnsigned(), ...rawEvent.unsigned });
+    const replacement = (
+      rawEvent.unsigned?.['m.relations'] as Record<string, Partial<IEvent>> | undefined
+    )?.[RelationType.Replace];
+    if (replacement) live.makeReplaced(mapRawEvent(replacement));
+    return live;
+  });
+
 describe('eventRepository same-id revision merge', () => {
   it('upgrades an SDK-owned event from a newer cached same-sender replacement', () => {
     const live = mapRawEvent(makeRawMessage('$target', 'v1'));
@@ -108,16 +120,7 @@ describe('eventRepository same-id revision merge', () => {
       roomId: '!room:example.org',
       findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
     };
-    const sdkStyleMap = vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {
-      if (rawEvent.event_id !== '$target') return mapRawEvent(rawEvent);
-
-      live.setUnsigned({ ...live.getUnsigned(), ...rawEvent.unsigned });
-      const replacement = (
-        rawEvent.unsigned?.['m.relations'] as Record<string, Partial<IEvent>> | undefined
-      )?.[RelationType.Replace];
-      if (replacement) live.makeReplaced(mapRawEvent(replacement));
-      return live;
-    });
+    const sdkStyleMap = makeSdkStyleMapper(live);
     const incoming = makeRawMessage('$target', 'v1', { replacement: cachedEdit });
     const incomingRelations = incoming.unsigned?.['m.relations'] as Record<string, unknown>;
     incomingRelations[RelationType.Thread] = { count: 7 };
@@ -133,6 +136,43 @@ describe('eventRepository same-id revision merge', () => {
     expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
     expect(merged.getContent()).toMatchObject({ body: 'v3' });
     expect(merged.getUnsigned()['m.relations']?.[RelationType.Thread]).toEqual({ count: 7 });
+  });
+
+  it('preserves newer live relation bundles while adding disjoint incoming bundles', () => {
+    const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
+    const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
+    live.setUnsigned({
+      'm.relations': {
+        [RelationType.Replace]: liveEdit,
+        [RelationType.Thread]: { count: 9 },
+        [RelationType.Annotation]: { chunk: [{ key: 'live' }] },
+      },
+    });
+    live.makeReplaced(mapRawEvent(liveEdit));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+    const sdkStyleMap = makeSdkStyleMapper(live);
+    const incoming = makeRawMessage('$target', 'v1', { replacement: cachedEdit });
+    incoming.unsigned = {
+      'm.relations': {
+        [RelationType.Replace]: cachedEdit,
+        [RelationType.Thread]: { count: 1 },
+        [RelationType.Reference]: { chunk: [{ event_id: '$incoming-reference' }] },
+      },
+    };
+
+    createPreferLiveEventMapper(room as never, sdkStyleMap)(incoming);
+
+    const relations = live.getUnsigned()['m.relations'];
+    expect(relations?.[RelationType.Thread]).toEqual({ count: 9 });
+    expect(relations?.[RelationType.Annotation]).toEqual({ chunk: [{ key: 'live' }] });
+    expect(relations?.[RelationType.Reference]).toEqual({
+      chunk: [{ event_id: '$incoming-reference' }],
+    });
+    expect(live.replacingEvent()?.getId()).toBe('$edit-v3');
   });
 
   it('clears a private replacement when the incoming same-id bundle proves it was redacted', () => {

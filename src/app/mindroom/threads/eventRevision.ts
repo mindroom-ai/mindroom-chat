@@ -467,11 +467,18 @@ export const mergeSameIdEventRevision = ({
   // shallow unsigned merge could still observe and eagerly apply the old
   // bundle that was already attached to the live event.
   const rawLiveEvent = liveEvent.event as Partial<IEvent>;
+  const mapperRawEvent = withMergedRelations(
+    rawEvent,
+    rawLiveEvent,
+    rawEvent,
+    undefined,
+    'partial'
+  );
   const liveWithoutReplacement = withoutRawReplacement(rawLiveEvent);
   if (liveWithoutReplacement !== rawLiveEvent) {
     liveEvent.setUnsigned(liveWithoutReplacement.unsigned ?? {});
   }
-  mapEvent(withoutRawReplacement(rawEvent));
+  mapEvent(mapperRawEvent);
 
   let resolvedReplacement = latestReplacement;
   if (latestReplacement && latestReplacement !== currentReplacement) {
