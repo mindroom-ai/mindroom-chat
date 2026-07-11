@@ -86,12 +86,10 @@ export function SettingsTab() {
       // A changed avatar must invalidate the cached thumbnail in the same
       // write: this update re-renders and aborts the in-flight refetch, and
       // a surviving stale dataUrl would then satisfy the fetch effect's
-      // cache guard forever.
-      if (
-        profile.isAvatarResolved &&
-        profile.avatarUrl !== lastKnownAvatarUrl &&
-        lastKnownAvatarDataUrl
-      ) {
+      // cache guard forever. This applies to UNRESOLVED urls too (the
+      // mx.getUser mount seed) — the persist above already recorded them,
+      // so skipping the invalidation here would pin the stale thumbnail.
+      if (profile.avatarUrl !== lastKnownAvatarUrl && lastKnownAvatarDataUrl) {
         update.lastKnownAvatarDataUrl = undefined;
       }
     }

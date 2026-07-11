@@ -92,16 +92,23 @@ const bootstrap = async () => {
       // Keep booting even if service worker registration fails.
     }
 
-    if (!navigator.serviceWorker.controller && getActiveSession()) {
-      const controlled = await waitForServiceWorkerControl();
-      // A force-reload loads the page uncontrolled for its entire lifetime
-      // (re-registering an unchanged worker never fires controllerchange),
-      // which would leave authenticated media broken all session. One
-      // guarded reload restores control; the flag prevents a reload loop
-      // when no worker can take over.
-      try {
-        const RELOAD_FLAG = 'mindroom_sw_control_reloaded';
-        if (!controlled) {
+    // A force-reload loads the page uncontrolled for its entire lifetime
+    // (re-registering an unchanged worker never fires controllerchange),
+    // which would leave authenticated media broken all session. One
+    // guarded reload restores control; the flag prevents a reload loop
+    // when no worker can take over. The flag is cleared on EVERY
+    // controlled boot — the reloaded page boots controlled and skips the
+    // guard below, so clearing only inside it would arm the guard once
+    // per tab lifetime.
+    const RELOAD_FLAG = 'mindroom_sw_control_reloaded';
+    try {
+      if (navigator.serviceWorker.controller) {
+        window.sessionStorage.removeItem(RELOAD_FLAG);
+      } else if (getActiveSession()) {
+        const controlled = await waitForServiceWorkerControl();
+        if (controlled) {
+          window.sessionStorage.removeItem(RELOAD_FLAG);
+        } else {
           const registration = await navigator.serviceWorker
             .getRegistration()
             .catch(() => undefined);
@@ -110,12 +117,10 @@ const bootstrap = async () => {
             window.location.reload();
             return;
           }
-        } else {
-          window.sessionStorage.removeItem(RELOAD_FLAG);
         }
-      } catch {
-        // Blocked sessionStorage degrades to the pre-fix behavior.
       }
+    } catch {
+      // Blocked sessionStorage degrades to the pre-fix behavior.
     }
 
     postCurrentSessionToSW();

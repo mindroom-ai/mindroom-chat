@@ -191,6 +191,35 @@ const fetchAuthenticatedMediaWithFallback = async (
   }
 };
 
+/**
+ * Legacy token request/response flow. Kept for one release cycle: after a
+ * deploy, skipWaiting + clients.claim puts this worker in control of tabs
+ * still running the previous client bundle, which answers `type: 'token'`
+ * but ignores `type: 'requestSession'` — without this fallback those tabs
+ * serve unauthenticated (404ing) media until reloaded. Delete once no
+ * pre-requestSession bundles remain in the wild.
+ */
+async function askForAccessToken(client: Client): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const responseKey = Math.random().toString(36);
+    let listener: (messageEvent: ExtendableMessageEvent) => void = () => undefined;
+    const timeoutId = setTimeout(() => {
+      self.removeEventListener('message', listener);
+      resolve(undefined);
+    }, 1500);
+
+    listener = (messageEvent: ExtendableMessageEvent) => {
+      if (messageEvent.data?.responseKey !== responseKey) return;
+      clearTimeout(timeoutId);
+      self.removeEventListener('message', listener);
+      resolve(typeof messageEvent.data?.token === 'string' ? messageEvent.data.token : undefined);
+    };
+
+    self.addEventListener('message', listener);
+    client.postMessage({ responseKey, type: 'token' });
+  });
+}
+
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
 
@@ -209,6 +238,16 @@ self.addEventListener('fetch', (event: FetchEvent) => {
           const requestedSession = await requestSession(event.clientId);
           if (requestedSession && validMediaRequest(url, requestedSession.baseUrl)) {
             return fetchAuthenticatedMediaWithFallback(event.request, requestedSession.accessToken);
+          }
+
+          // Pre-requestSession client bundle still in this tab (see
+          // askForAccessToken doc).
+          const client = await self.clients.get(event.clientId);
+          if (client) {
+            const token = await askForAccessToken(client);
+            if (token) {
+              return fetchAuthenticatedMediaWithFallback(event.request, token);
+            }
           }
         }
       }

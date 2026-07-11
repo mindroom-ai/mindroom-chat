@@ -25,7 +25,9 @@ const flushMicrotasks = async () => {
 
 const loadServiceWorker = async () => {
   vi.resetModules();
-  const listeners = new Map<string, CapturedListener>();
+  // Sets per type: the legacy token fallback registers (and removes) its own
+  // transient 'message' listener alongside the main handler.
+  const listeners = new Map<string, Set<CapturedListener>>();
   const client = {
     id: 'client-a',
     url: `${APP_ORIGIN}/rooms`,
@@ -41,7 +43,12 @@ const loadServiceWorker = async () => {
     location: { origin: APP_ORIGIN },
     clients,
     addEventListener: (type: string, listener: CapturedListener) => {
-      listeners.set(type, listener);
+      const typeListeners = listeners.get(type) ?? new Set();
+      typeListeners.add(listener);
+      listeners.set(type, typeListeners);
+    },
+    removeEventListener: (type: string, listener: CapturedListener) => {
+      listeners.get(type)?.delete(listener);
     },
     skipWaiting: vi.fn(),
   };
@@ -53,12 +60,12 @@ const loadServiceWorker = async () => {
     data: Record<string, unknown>,
     source: { id: string; url: string } = client
   ) => {
-    listeners.get('message')?.({ data, source });
+    [...(listeners.get('message') ?? [])].forEach((listener) => listener({ data, source }));
   };
   const dispatchFetch = (url = MEDIA_URL): Promise<Response> => {
     const request = new Request(url);
     let response: Promise<Response> | undefined;
-    listeners.get('fetch')?.({
+    [...(listeners.get('fetch') ?? [])][0]?.({
       clientId: client.id,
       request,
       respondWith: (value: Promise<Response>) => {
@@ -127,6 +134,9 @@ describe('service worker session handshake', () => {
     expect(client.postMessage).toHaveBeenCalledWith({ type: 'requestSession' });
 
     dispatchMessage({ type: 'setSession', accessToken: '', baseUrl: 'not-a-url' });
+    // The unresolved session engages the legacy token fallback (1.5s window)
+    // before falling through to the unauthenticated fetch.
+    await vi.advanceTimersByTimeAsync(1500);
     await pendingFetch;
     expect(fetchMock.mock.calls[0]).toHaveLength(1);
   });
@@ -160,6 +170,9 @@ describe('service worker session handshake', () => {
     expect(client.postMessage).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(100);
+    // First waiter timed out; it drains the legacy token fallback window
+    // before resolving unauthenticated.
+    await vi.advanceTimersByTimeAsync(1500);
     await first;
     expect(fetchMock.mock.calls[0]).toHaveLength(1);
 
@@ -179,13 +192,19 @@ describe('service worker session handshake', () => {
     expect(client.postMessage).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(1500);
     await first;
 
     const second = dispatchFetch();
     await flushMicrotasks();
-    expect(client.postMessage).toHaveBeenCalledTimes(2);
+    // Counting only session requests: the legacy token fallback interleaves
+    // its own {type: 'token'} post between the two.
+    expect(
+      client.postMessage.mock.calls.filter(([message]) => message?.type === 'requestSession')
+    ).toHaveLength(2);
 
     dispatchMessage({ type: 'setSession', accessToken: '', baseUrl: HOMESERVER });
+    await vi.advanceTimersByTimeAsync(1500);
     await second;
   });
 });
