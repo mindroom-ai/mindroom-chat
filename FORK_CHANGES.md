@@ -2,21 +2,45 @@
 
 ## Runbook
 
-### PR #104 focused reliability and maintainability follow-up (2026-07-11, in progress)
+### PR #104 focused reliability and maintainability follow-up (2026-07-11)
 
-- Status: active on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`.
+- Status: complete locally on `caveman/pr104-follow-up-hardening`, based on merged `dev` at
+  `adfa35962`; draft PR pending.
 - Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
   root preview freshness, monotonic-but-upgradable bundled relations, terminal stop-reaction updates
   after in-place Matrix edits, transient refresh-error classification, and separation of the
   reconciler's network scan from its repair/persist phase.
 - The follow-up also repairs the concatenated `.prettierignore` entry and makes pull-request CI run
   typecheck, ESLint, and Prettier in addition to tests and the production build.
+- Compact root previews now carry their source revision timestamp with their text. Complete text
+  beats a streaming placeholder; otherwise the newer source revision wins, so cached v2 repairs
+  stale SDK v1 and a later live v3 upgrades cleanly. Focused compact suites pass 42 tests.
+- Partial relation snapshots now merge only the two owned aggregate shapes: `m.thread` keeps maximum
+  count/participation and the newest `latest_event`; `m.annotation` unions keys with maximum counts.
+  Opaque existing bundles stay unchanged and authoritative snapshots retain replace/decrease
+  semantics. Focused revision/cache-store suites pass 33 tests.
+- `Reactions` listens directly for the SDK target event's in-place replacement signal, refilters the
+  small chip subtree, and returns `null` when only a stale stop chip remains. All four timeline
+  branches share the filtered gate. The focused component/timeline suites pass 26 tests.
+- Token refresh policy now lives in a pure boundary helper: definitive `M_UNKNOWN_TOKEN` failures
+  request logout, while rate limits, server failures, and network errors remain retryable. The
+  focused auth suites pass 25 tests.
+- Relation scanning/continuation handling moved to `reconcilerScan.ts`; repair and persistence remain
+  in `reconciler.ts`. Maximum function complexity fell from 77 to 25, combined production lines
+  decreased slightly, and the full engine plus cache-boundary suite passes 208 tests.
 - Explicitly out of scope: new cross-tab refresh coordination, crash-resumable cleanup protocols,
   legacy service-worker compatibility redesign, and upstream/inherited edge cases without a normal
   fork-specific reproduction. The goal is a smaller, easier-to-reason-about patch rather than a new
   coordination subsystem.
-- Required gate: focused regressions for each behavior, full Vitest, typecheck, ESLint, Prettier,
-  production/PWA build, and independent review of every logical change before the draft PR opens.
+- Independent review caught two integration defects before publication: a repository-wide Prettier
+  step would fail on 275 baseline files, so CI now checks only the PR's NUL-delimited changed-file
+  set; and partial monotonic relation comparison initially masked authoritative decreases/removals,
+  so the comparison mode is now explicit and reconciler regressions cover both cases. Re-review
+  approved both corrections. The first full test run also exposed an incomplete MatrixEvent edit
+  fixture; the fixture now carries the timestamp/sender contract used by production.
+- Final local gate is green: all 392 Vitest files / 3,040 tests, TypeScript typecheck, full ESLint
+  with zero errors / 17 baseline warnings, changed-file Prettier, `git diff --check`, and the
+  production plus PWA/service-worker build. Every logical change received independent review.
 
 ### Thread missing-middle: reconciler shortfall drain (2026-07-10)
 
