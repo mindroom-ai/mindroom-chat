@@ -109,6 +109,41 @@
   (0 errors / 19 pre-existing warnings), focused Vitest, live Playwright (including 3/3 repeated
   passes after the review timing hardening), and `git diff --check`.
 
+### iOS long-thread momentum loss during ledger settlement (2026-07-10)
+
+- Status: in progress on isolated branch `caveman/fix-ios-long-thread-momentum-loss`, based directly
+  on `origin/dev` at `79690aca`; this work is deliberately separate from PR #114 and its
+  desktop-focused scroll-jump branch. No production deploy is authorized.
+- Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
+  (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
+  momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
+  changed `scrollTop` by about +1720px while the ledger moved -1596px -> 0; the programmatic write
+  stopped native inertia even though the anchor did not visibly jump.
+- Primary hypothesis: `waitForScrollQuiescence` currently trusts a 150ms absence of JavaScript
+  `scroll` events. iOS can continue compositor momentum while delivery of those events pauses, so
+  an offset-ledger or prepend waiter can falsely declare rest and write `scrollTop` mid-fling.
+- Separate risk under investigation: `shouldSettleLedgerAtBoundary` intentionally settles during a
+  live ride near an unreachable ledger edge to prevent a blank region. That safety path may explain
+  the large trace rebase and must be distinguished from ordinary quiescence rather than weakened
+  blindly.
+- Baseline: the existing focused quiescence suite passes (11 tests). RED is now proven: three new
+  fake-timer cases advance `scrollTop` during the idle window without dispatching `scroll`, through
+  ordinary positive offsets, a negative iOS rubber-band offset, and fractional motion. All three
+  fail against the event-only waiter because it resolves at the first 100ms deadline instead of
+  requiring a fresh full idle window.
+- GREEN: each idle window now captures `scrollTop` and compares it at the deadline. A changed offset
+  re-arms the full window even when no event was delivered; exact comparison deliberately preserves
+  fractional motion and naturally supports negative rubber-band values. Scroll events still sample
+  and re-arm, touch blocking/detach cleanup are unchanged, finite waits retain their starvation cap,
+  and `Infinity` still creates no cap timer. A dedicated silent-progress test pins the finite cap as
+  an absolute deadline. The focused suite passes (15 tests); touched lint, typecheck, and production
+  build also pass.
+- Independent review found no remaining code or test issues after strengthening the real-event path
+  to mutate the sampled offset. It confirmed silent positive/negative/fractional progress, exact one
+  idle-window event re-arming, absolute finite caps, uncapped `Infinity`, touch/cancel/detach cleanup,
+  and timer-race idempotence.
+- Next: add per-frame settlement-cause trace tags and boundary-contract coverage, then use that
+  evidence to determine the smallest safe second behavior change.
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
 - Status: complete; independent review found no actionable issues.
