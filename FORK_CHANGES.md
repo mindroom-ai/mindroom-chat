@@ -13,8 +13,9 @@
   residuals (smaller, separate families): ~98px slip when the open-fill's
   single 33k rebase lands while touching the top edge; ~31px top-bounce
   boundary slip inside the event-vs-frame sampling gap. The
-  defect is pinned by the merged ride-trace corpus (`rideTraceReplay.test.ts`,
-  test "detects the OPEN settle-cascade defect") and documented on PR #122.
+  defect's pre-fix rides stay pinned in the corpus (`rideTraceReplay.test.ts`,
+  test "detects the settle-cascade defect in the pre-#124 rides"); the
+  original tracking note lives on PR #122, the fix on PR #124.
 - Root cause confirmed in virtual-core 3.17.3: `scrollMargin` is baked into
   every measurement's start and ranges are computed against the virtualizer's
   CACHED `scrollOffset`; the settle wrote `scrollElement.scrollTop` directly,
@@ -38,12 +39,11 @@
   scrollTop write (the echoing scroll event is async/coalesced on iOS), so
   the window shifts by the fold px for one recompute, mounting a band of
   never-measured rows whose estimate error lands as the extra growth.
-- Plan: (1) instrument/verify the stale-offset recompute in a lifecycle test
-  driving the real virtualizer; (2) make the settle atomic from the window's
-  point of view — either sync the virtualizer's cached offset in the same
-  block or suppress the intermediate recompute; (3) hold the corpus goldens:
-  capture a fresh device trace after the fix and replace the OPEN-defect
-  pins with post-fix thresholds (settle extraGrowth ≤ tens of px).
+- Executed plan (all done): (1) the stale-offset recompute is proven by the
+  real-core contract test's detector companion; (2) the settle is atomic —
+  `applyLedgerSettle` syncs the cached offset before `setOptions`; (3) the
+  corpus holds post-fix goldens from the validation trace (`ipadCascadeFixed`,
+  five tracked large rest settles at zero slip / zero extra growth).
 - Explicitly out of scope: mounting the window ahead of momentum (the eaten
   fling itself) — separate, larger change.
 

@@ -160,10 +160,13 @@ describe('ride trace corpus', () => {
       (settle) => settle.cause === 'quiescence' && Math.abs(settle.scrollShiftPx) > 400
     );
     expect(largeRest.length).toBe(6);
+    // Exactly ONE settle may be anchor-blind, and it is the documented
+    // frame-409 fill coincidence (+3,444px growth below the fold, 36ms
+    // frame, zero coverage gap — below-viewport window extension re-picks
+    // the recorder anchor). Any other blind large rebase is a regression.
+    const blind = largeRest.filter((settle) => settle.anchorSlipPx === undefined);
+    expect(blind.map((settle) => settle.frameIndex)).toEqual([409]);
     const tracked = largeRest.filter((settle) => settle.anchorSlipPx !== undefined);
-    // One settle coincides with below-viewport window extension (frame
-    // 409: +3,444px growth below the fold, 36ms frame, zero coverage gap)
-    // and re-picks the recorder anchor; the other five are fully tracked.
     expect(tracked.length).toBe(5);
     tracked.forEach((settle) => {
       expect(settle.anchorSlipPx).toBe(0);
