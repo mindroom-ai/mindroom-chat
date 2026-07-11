@@ -820,6 +820,63 @@ unused test helper was cleaned up); Prettier on touched files; production and
 PWA/service-worker builds. An independent review pass over the working tree
 preceded the commits.
 
+### Full-PR correctness and simplification sweep (2026-07-11)
+
+A 29-agent fan-out review of the entire merge-base diff (correctness and
+simplification lenses per subsystem, every finding adversarially verified and
+scope-filtered) produced 62 confirmed findings: 7 ordinary-path correctness
+bugs and 55 simplification wins. All were applied, with net deletion as the
+standing constraint.
+
+Correctness fixes. The same-id revision merger no longer routes in-room events
+through the SDK mapper: its reuse branch permanently flips the mapper
+instance's closure-scoped `preventReEmit` flag, which silently stripped
+Decrypted/Replaced/BeforeRedaction re-emitters from every fresh event mapped
+afterwards in the same pass (a real decryption-propagation hazard in encrypted
+rooms). A local `mapDetached` helper reuses settled in-room instances directly
+and maps only genuinely fresh raws. A failed pre-gap cached-tail read is no
+longer durably committed as the meaningful "no cached boundary existed" empty
+boundary (which licensed a crawl toward room genesis); the field stays unset so
+the executor's guarded snapshot resolves it. The reconciler now discards a
+saved continuation cursor only on a server token verdict (M_UNKNOWN_TOKEN/400);
+network-level failures preserve durable scan progress. The sidebar avatar
+invalidates its cached thumbnail in the same session-profile write that records
+a changed mxc, closing the aborted-refetch-then-guard loop that pinned the old
+avatar forever. A force-reloaded page (permanently uncontrolled by the service
+worker, so authenticated media 404s all session) now performs one
+sessionStorage-guarded reload to regain control. The startup-error dialog
+always offers Clear Cache and Reload — it works without a client, which is
+exactly the corrupted-store case it exists for. Compact thread previews are
+fill-only from cache: the sourceTs cache-newer branch could never render past
+the live-wins merge, and a temporarily stale live root is healed by the same-id
+revision merge during hydration instead.
+
+Simplification (~50 findings, net ≈ −1,700 lines against ≈ +900). Highlights:
+`clearCacheAndReload`/`clearBrowserCacheAndReload` (~200 lines of dead product
+code the PR had actively hardened) deleted along with their suites; the
+IndexedDB meta read-modify-write transaction now lives once in
+`cacheStoreMeta.ts` instead of six hand-wired copies; the room-wide redaction
+scrub is gated on marker rows so an already-handled tombstone in a save batch
+no longer cursors the entire cached room; the gap-fill scheduler collapsed to
+a pure dispatch seam (the queue, its dedup rule, `pendingJobs`, and `drainNow`
+were unreachable in production wiring); the single-member `ReconcileReason`
+union and its threading through six signatures removed; session teardown,
+login/register completion, stream-status sets, storage helpers, the portal
+predicate, and the thread page assembly each deduplicated to one copy; a
+dozen dead exports, test-only islands, vestigial seams, and write-only fields
+deleted (including the removed coordination layer's leftover wipe hooks and
+registry registrations). The `Intl.RelativeTimeFormat` per-second-per-card
+construction is now cached per language. Two latent alignment fixes rode
+along: the thread streaming hook now recognizes the backend's current 🛑 stop
+key and treats `pending` as active, matching `aiRun`'s shared sets.
+
+Validation: full suite 389 files / 2,983 tests, typecheck, ESLint zero errors
+(17 baseline warnings), Prettier, production + PWA builds. An independent
+adversarial reviewer walked the full diff hunk-by-hunk (with special attention
+to the meta-transaction contracts, scrub gate atomicity, scheduler wiring
+order, and the known-redacted set equivalence) and confirmed zero behavioral
+regressions; four benign observations were noted in the review record.
+
 ### Fork hardening review remediation (2026-07-09, superseded)
 
 The initial review was developed in parallel session/security, cache/engine,
