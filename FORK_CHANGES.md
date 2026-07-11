@@ -25,6 +25,11 @@
 - The live Docker-Matrix guard expands a measured overscan row fully above the viewport during a
   backward desktop ride, proves the height and ledger changes landed, and checks both mid-ride and
   post-settle visual anchors. The strengthened guard passed 3/3 consecutive runs.
+- PR #114 review follow-up removed the guard's fixed 50ms/render-frame assumptions: Playwright now
+  polls for both the above-viewport target and a fully visible anchor, then re-arms a real upward
+  wheel and captures the baseline/starts the keepalive in that exact scroll event so a slow poll
+  cannot outlive virtual-core's backward direction. The shared 48px drift allowance is named once
+  for explicit future tuning.
 - The observed already-expanded replies map to the existing live-expand-once policy: genuinely
   live replies and edits initially expand so streaming content stays visible; historical/backfill
   replies remain collapsed. This fix does not broaden or remove that separate UX policy, but it
@@ -34,7 +39,8 @@
   events or call sources, so that separate reversal is not included in this focused fix without a
   conclusive causal link.
 - Validation: typecheck, production build, full `npm test` (363 files / 2,859 tests), full lint
-  (0 errors / 19 pre-existing warnings), focused Vitest, live Playwright, and `git diff --check`.
+  (0 errors / 19 pre-existing warnings), focused Vitest, live Playwright (including 3/3 repeated
+  passes after the review timing hardening), and `git diff --check`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
