@@ -32,6 +32,22 @@ vi.mock('./longText', async () => {
     hydrateMindroomLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
   };
 });
+vi.mock('../../components/message/content', () => ({
+  MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
+}));
+vi.mock('../../components/message', async () => {
+  const { RenderBody } = await vi.importActual<
+    typeof import('../../components/message/RenderBody')
+  >('../../components/message/RenderBody');
+
+  return {
+    BrokenContent: () => React.createElement('span', { 'data-testid': 'broken-content' }),
+    MEmote: () => null,
+    MNotice: () => null,
+    MText: () => null,
+    RenderBody,
+  };
+});
 vi.mock('../../components/message/MsgTypeRenderers', () => ({
   MEmote: () => null,
   MNotice: () => null,
@@ -42,24 +58,83 @@ vi.mock('../../components/message/MsgTypeRenderers', () => ({
   }: {
     content: Record<string, unknown>;
     renderAfterBody?: React.ReactNode;
-    renderBody: (props: { body: string }) => React.ReactNode;
+    renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
   }) =>
     React.createElement(
       'div',
       { 'data-testid': 'long-text-body' },
-      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderBody({
+        body: typeof content.body === 'string' ? content.body : '',
+        customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
+      }),
       renderAfterBody
     ),
 }));
 vi.mock('folds', () => ({
-  Box: () => null,
-  Spinner: () => null,
-  Text: () => null,
+  Box: ({ children, ...props }: Record<string, unknown>) =>
+    React.createElement('div', props, children as React.ReactNode),
+  Icon: ({ children, ...props }: Record<string, unknown>) =>
+    React.createElement('span', props, children as React.ReactNode),
+  Icons: new Proxy(
+    {},
+    {
+      get: (_, prop) => String(prop),
+    }
+  ),
+  Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
+  Text: ({ as = 'div', children, ...props }: Record<string, unknown>) =>
+    React.createElement(typeof as === 'string' ? as : 'div', props, children as React.ReactNode),
   config: {
     space: {
       S100: '4px',
     },
   },
+}));
+vi.mock('../../styles/CustomHtml.css', () => ({
+  Paragraph: 'Paragraph',
+  MarginSpaced: 'MarginSpaced',
+}));
+vi.mock('../html/MatrixMath.css', () => ({
+  MathInline: 'MathInline',
+  MathBlock: 'MathBlock',
+}));
+vi.mock('./MindroomHtmlBlocks.css', () => ({
+  Block: 'MindroomBlock',
+  BlockBody: 'MindroomBlockBody',
+  BlockHeader: 'MindroomBlockHeader',
+  BlockHeaderMeta: 'MindroomBlockHeaderMeta',
+  BlockInlineResult: 'MindroomBlockInlineResult',
+  BlockResult: 'MindroomBlockResult',
+  ToolGroupItem: 'MindroomToolGroupItem',
+  ToolGroupList: 'MindroomToolGroupList',
+}));
+vi.mock('../threads/CollapsibleMessage.css', () => ({
+  CollapsibleContent: () => 'collapsible-content',
+  CollapsibleGradientOverlay: 'collapsible-gradient-overlay',
+  CollapsibleShowMore: 'collapsible-show-more',
+  CollapsibleStickyFooter: 'collapsible-sticky-footer',
+  CollapsiblePill: 'collapsible-pill',
+}));
+vi.mock('./MindroomMessageExtras', () => ({
+  MindroomMessageExtras: () => null,
+}));
+vi.mock('./MindroomPasteAttachmentContent', () => ({
+  MindroomPasteAttachmentContent: () => null,
+}));
+vi.mock('./MindroomThinkingPlaceholder', () => ({
+  MindroomThinkingPlaceholder: () => null,
+}));
+vi.mock('./MindroomThreadSummaryCard', () => ({
+  MindroomThreadSummaryCard: () => null,
+}));
+vi.mock('./MindroomToolApprovalCard', () => ({
+  MindroomToolApprovalCard: () => null,
+}));
+vi.mock('./StreamingIndicator', () => ({
+  renderMindroomStreamingIndicator: () => null,
+}));
+vi.mock('./messageStateSuffix', () => ({
+  getMindroomMessageStateSuffixRenderer: () => undefined,
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
@@ -69,9 +144,9 @@ vi.mock('../../hooks/useMediaAuthentication', () => ({
 }));
 
 const getDownloadMindroomLongTextSidecarText = async () =>
-  (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarText;
+  (await import('./longTextDownload')).downloadMindroomLongTextSidecarText;
 const getDownloadMindroomLongTextSidecarBlob = async () =>
-  (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarBlob;
+  (await import('./longTextDownload')).downloadMindroomLongTextSidecarBlob;
 const getMindroomLongTextTextModule = async () => import('./MindroomLongTextText');
 const getShouldResetResolvedContentToPreview = async () =>
   (await import('./MindroomLongTextText')).shouldResetResolvedContentToPreview;
@@ -403,6 +478,9 @@ describe('shouldResetResolvedContentToPreview', () => {
 describe('MindroomLongTextText hydration identity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // A warm real cache now short-circuits the mocked hydrate entirely, so
+    // every test starts cold unless it warms the cache itself.
+    clearMindroomLongTextHydrationCache();
     longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
       body: 'Resolved response',
       msgtype: 'm.text',
@@ -451,6 +529,192 @@ describe('MindroomLongTextText hydration identity', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    const source = createLongTextSource({ previewContent: content });
+    // Warm the REAL cache the way the prewarm pool does.
+    const actualLongText = await vi.importActual<typeof import('./longText')>('./longText');
+    await actualLongText.hydrateMindroomLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
+      mockMx
+    );
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+
+    // No act(): this inspects the FIRST render, before any effect runs.
+    const renderer = create(
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content,
+        longTextSource: source,
+        renderBody: (_content, props) => props.body,
+      })
+    );
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
+    );
+
+    // Effects settle without a re-download: the warm cache short-circuits.
+    await act(async () => {});
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
+    );
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('shows warm content on the render that enables hydration, before effects run', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    const source = createLongTextSource({ previewContent: content });
+    const actualLongText = await vi.importActual<typeof import('./longText')>('./longText');
+    await actualLongText.hydrateMindroomLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
+      mockMx
+    );
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+
+    const render = (hydrate: boolean) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        hydrate,
+        content,
+        longTextSource: source,
+        renderBody: (_content, props) => props.body,
+      });
+
+    // Overscan mount: cold render keeps the cheap preview despite the warm
+    // cache (PR #110's guard).
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Preview response'
+    );
+
+    // Viewport entry flips hydrate: the flip's OWN render (no act, effects
+    // not yet flushed) must already show the cached full content.
+    renderer.update(render(true));
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
+    );
+
+    // Effects settle without a re-download.
+    await act(async () => {});
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('renders hydrated Markdown and a tool card while the real message stays collapsed', async () => {
+    const { CollapsibleMessage } = await import('../threads/CollapsibleMessage');
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = createPreviewContent();
+    const toolTrace = {
+      version: 2,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'search_web',
+          result_preview: 'Found result',
+        },
+      ],
+    };
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    let renderer!: ReactTestRenderer;
+
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Hydrated **response**\n\n🔧 `search_web` [1]',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p>Hydrated <strong>response</strong></p><p>🔧 <code>search_web</code> [1]</p>',
+      msgtype: 'm.text',
+      'io.mindroom.tool_trace': toolTrace,
+    });
+
+    class MockIntersectionObserver {
+      public observe = vi.fn();
+
+      public disconnect = vi.fn();
+
+      public constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+    }
+
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            CollapsibleMessage,
+            { collapseMode: 'default', forceOverflowing: true },
+            ({ loadFullContent }) =>
+              renderMindroomMessageContent({
+                displayName: 'MindRoom',
+                msgType: 'm.text',
+                content,
+                hydrateLongText: loadFullContent,
+                htmlReactParserOptions: {},
+                linkifyOpts: {},
+              })
+          ),
+          {
+            createNodeMock: (element) => {
+              if (element.props.className === 'collapsible-content') {
+                return { clientHeight: 72, scrollHeight: 160 };
+              }
+              return null;
+            },
+          }
+        );
+      });
+
+      const getCollapsibleContent = () =>
+        renderer.root.find(
+          (node) =>
+            node.type === 'div' &&
+            node.props.className === 'collapsible-content' &&
+            node.props['aria-expanded'] === false
+        );
+
+      expect(getCollapsibleContent()).toBeDefined();
+      expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        intersectionCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+        await Promise.resolve();
+      });
+
+      expect(getCollapsibleContent()).toBeDefined();
+      expect(renderer.root.findByType('strong').children).toContain('response');
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('1 tool call');
+      expect(rendered).not.toContain('🔧');
+      expect(rendered).not.toContain('**response**');
+    } finally {
+      if (renderer) {
+        await act(async () => {
+          renderer.unmount();
+        });
+      }
+      vi.unstubAllGlobals();
+    }
   });
 
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {

@@ -123,6 +123,7 @@ import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { Event, Message } from '../messages/MindroomMessage';
 import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { useMindroomLongTextPrewarm } from '../messages/longTextPrewarm';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
 import {
   consumeLiveExpandOnceId,
@@ -716,6 +717,10 @@ export function RoomTimeline({
     threadInitialCacheHydrated,
     debugTraceId: threadDebugTraceId,
   });
+  // Pre-download every long-text sidecar of the open thread so replies render
+  // their full Markdown without waiting for viewport entry or expansion (the
+  // CollapsibleMessage IntersectionObserver gate still covers room-view rows).
+  useMindroomLongTextPrewarm(threadEvents, Boolean(threadId));
   const {
     activeTimelineRange,
     filteredLength,
@@ -2059,7 +2064,7 @@ export function RoomTimeline({
               }
               const msgType = mEvent.getContent().msgtype;
               const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
-              const renderContent = (hydrateLongText = true) => (
+              const renderContent = (loadFullContent = true) => (
                 <RenderMessageContent
                   displayName={senderDisplayName}
                   eventType={mEvent.getType()}
@@ -2074,7 +2079,7 @@ export function RoomTimeline({
                   htmlReactParserOptions={htmlReactParserOptions}
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
-                  hydrateLongText={hydrateLongText}
+                  hydrateLongText={loadFullContent}
                 />
               );
               const content = renderContent();
@@ -2092,7 +2097,7 @@ export function RoomTimeline({
                   measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
                 >
-                  {({ expanded }) => renderContent(expanded)}
+                  {({ loadFullContent }) => renderContent(loadFullContent)}
                 </CollapsibleMessage>
               );
             })()}
@@ -2389,7 +2394,7 @@ export function RoomTimeline({
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
                     getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-                  const renderMessageContent = (hydrateLongText = true) => (
+                  const renderMessageContent = (loadFullContent = true) => (
                     <RenderMessageContent
                       displayName={senderDisplayName}
                       eventType={mEvent.getType()}
@@ -2404,7 +2409,7 @@ export function RoomTimeline({
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
-                      hydrateLongText={hydrateLongText}
+                      hydrateLongText={loadFullContent}
                     />
                   );
                   const messageContent = renderMessageContent();
@@ -2421,7 +2426,7 @@ export function RoomTimeline({
                       measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
                     >
-                      {({ expanded }) => renderMessageContent(expanded)}
+                      {({ loadFullContent }) => renderMessageContent(loadFullContent)}
                     </CollapsibleMessage>
                   );
                 }

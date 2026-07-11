@@ -7,6 +7,13 @@ const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
 let mindroomLongTextHydrationCache = new WeakMap<object, Map<string, Record<string, unknown>>>();
+// In-flight downloads, coalesced per (owner, identity): the prewarm pool and
+// any number of concurrently mounting rows share ONE fetch per sidecar
+// instead of racing duplicates (the prewarm effect restarts on every
+// threadEvents update while prior fetches are still in flight). Entries are
+// removed on settle, so a failed fetch stays retryable — only completed
+// parses are cached.
+let mindroomLongTextInflight = new WeakMap<object, Map<string, Promise<Record<string, unknown>>>>();
 
 export type MindroomLongTextSource = {
   previewContent: Record<string, unknown>;
@@ -31,6 +38,17 @@ const getMindroomLongTextCache = (owner: object): Map<string, Record<string, unk
   const cache = new Map<string, Record<string, unknown>>();
   mindroomLongTextHydrationCache.set(owner, cache);
   return cache;
+};
+
+const getMindroomLongTextInflight = (
+  owner: object
+): Map<string, Promise<Record<string, unknown>>> => {
+  const existing = mindroomLongTextInflight.get(owner);
+  if (existing) return existing;
+
+  const inflight = new Map<string, Promise<Record<string, unknown>>>();
+  mindroomLongTextInflight.set(owner, inflight);
+  return inflight;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -165,6 +183,7 @@ export const withMindroomToolTraceFallback = (
 
 export const clearMindroomLongTextHydrationCache = () => {
   mindroomLongTextHydrationCache = new WeakMap();
+  mindroomLongTextInflight = new WeakMap();
 };
 
 export const parseMindroomLongTextJsonSidecar = (
@@ -256,17 +275,30 @@ export const hydrateMindroomLongTextSource = async (
   const cached = getCachedMindroomLongTextContent(source, cacheOwner);
   if (cached) return cached;
 
-  try {
-    const sidecarText = await loadSidecarText(source);
-    const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
-    if (!hydratedContent) return source.previewContent;
-    const normalizedHydratedContent = normalizeHydratedMindroomContent(hydratedContent);
-    getMindroomLongTextCache(cacheOwner).set(
-      getMindroomLongTextSourceIdentity(source),
-      normalizedHydratedContent
-    );
-    return normalizedHydratedContent;
-  } catch {
-    return source.previewContent;
-  }
+  const identity = getMindroomLongTextSourceIdentity(source);
+  const inflight = getMindroomLongTextInflight(cacheOwner);
+  const pending = inflight.get(identity);
+  if (pending) return pending;
+
+  const download = (async () => {
+    try {
+      // The loader must not run before the in-flight entry is registered:
+      // this async body executes synchronously up to its first await, so a
+      // SYNCHRONOUS loader throw would settle the promise — and run the
+      // finally-cleanup — before inflight.set below, pinning an
+      // already-resolved preview promise in the map forever.
+      const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
+      const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
+      if (!hydratedContent) return source.previewContent;
+      const normalizedHydratedContent = normalizeHydratedMindroomContent(hydratedContent);
+      getMindroomLongTextCache(cacheOwner).set(identity, normalizedHydratedContent);
+      return normalizedHydratedContent;
+    } catch {
+      return source.previewContent;
+    } finally {
+      inflight.delete(identity);
+    }
+  })();
+  inflight.set(identity, download);
+  return download;
 };

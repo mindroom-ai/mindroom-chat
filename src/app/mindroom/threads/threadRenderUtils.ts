@@ -198,6 +198,9 @@ type LedgerBoundaryOpts = {
   // viewport rect's client coordinate).
   scrollOffset: number;
   clientHeight: number;
+  // Scroller content height; with clientHeight it bounds the physical
+  // scroll range so rubber-band overscroll can be recognized.
+  scrollHeight: number;
   // TanStack convention: forward increases scrollTop (toward the bottom),
   // backward decreases it (toward the top). A stationary scroll event is
   // left unknown and ordinary quiescence owns the eventual settlement.
@@ -221,9 +224,20 @@ export const shouldSettleLedgerAtBoundary = ({
   scrollBottom,
   scrollOffset,
   clientHeight,
+  scrollHeight,
   scrollDirection,
 }: LedgerBoundaryOpts): boolean => {
   if (ledgerPx > -48 && ledgerPx < 48) return false;
+  // Rubber-band deferral: outside the physical range (iOS overscroll) a
+  // settle rewrites scrollTop mid-bounce and lands as a visible snap
+  // (ride-trace-1783802452438 frame 192: an 87px slip written 87px past
+  // the bottom edge during bounce-back). The bounce background hides the
+  // ledger blank either way, and the bounce's landing event re-enters
+  // bounds — where this guard resumes — while a true rest is settled with
+  // zero slip by the quiescence path. 1px slack absorbs fractional
+  // iOS offsets around the exact edges.
+  const maxScrollOffset = Math.max(0, scrollHeight - clientHeight);
+  if (scrollOffset < -1 || scrollOffset > maxScrollOffset + 1) return false;
   const guardPx = clientHeight * 2;
   const reachableContentTop = innerTop + Math.max(ledgerPx, 0);
   if (ledgerPx < 0) {

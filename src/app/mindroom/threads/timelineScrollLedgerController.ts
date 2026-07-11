@@ -282,6 +282,7 @@ export const useTimelineScrollLedgerController = ({
           scrollBottom: scrollRect.bottom,
           scrollOffset: currentScrollTop,
           clientHeight: scrollElement.clientHeight,
+          scrollHeight: scrollElement.scrollHeight,
           scrollDirection,
         })
       ) {

@@ -1,14 +1,8 @@
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
-import { MatrixClient } from 'matrix-js-sdk';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../utils/matrix';
+
 import { MEmote, MNotice, MText } from '../../components/message/MsgTypeRenderers';
 import {
   MindroomLongTextSource,
@@ -17,6 +11,7 @@ import {
   hydrateMindroomLongTextSource,
   withMindroomToolTraceFallback,
 } from './longText';
+import { downloadMindroomLongTextSidecarText } from './longTextDownload';
 
 export enum MindroomLongTextKind {
   Text = 'text',
@@ -66,44 +61,6 @@ export const shouldResetResolvedContentToPreview = (
     return true;
   }
   return !hasRenderableFormattedBody(currentResolvedContent);
-};
-
-const getLongTextMimeType = (content: Record<string, unknown>): string => {
-  const info = isRecord(content.info) ? content.info : undefined;
-  return typeof info?.mimetype === 'string' ? info.mimetype : 'application/json';
-};
-
-const downloadSidecarBlob = async (
-  source: MindroomLongTextSource,
-  textUrl: string
-): Promise<Blob> => {
-  const encryptedFile = source.encryptedFile;
-  if (!encryptedFile) return downloadMedia(textUrl);
-
-  const mimeType = getLongTextMimeType(source.previewContent);
-  return downloadEncryptedMedia(textUrl, (encBuf) => decryptFile(encBuf, mimeType, encryptedFile));
-};
-
-export const downloadMindroomLongTextSidecarBlob = async (
-  mx: MatrixClient,
-  source: MindroomLongTextSource,
-  useAuthentication: boolean
-): Promise<Blob> => {
-  const textUrl = mxcUrlToHttp(mx, source.mxcUri, useAuthentication);
-  if (!textUrl) {
-    throw new Error('Unable to resolve sidecar URL');
-  }
-
-  return downloadSidecarBlob(source, textUrl);
-};
-
-export const downloadMindroomLongTextSidecarText = async (
-  mx: MatrixClient,
-  source: MindroomLongTextSource,
-  useAuthentication: boolean
-): Promise<string> => {
-  const blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
-  return blob.text();
 };
 
 export const getMindroomLongTextHydrationIdentity = (
@@ -226,7 +183,14 @@ export function MindroomLongTextText({
   });
   const [loading, setLoading] = useState(false);
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
-  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(content);
+  // Prewarmed rows must render hydrated on their FIRST paint: initialize
+  // from the cache synchronously instead of flashing the preview until the
+  // post-paint hydration effect runs. Gated on `hydrate` so overscan rows
+  // keep the cheap preview (PR #110's guard) even when their sidecar is
+  // already warm.
+  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(
+    () => (hydrate ? getCachedMindroomLongTextContent(longTextSource, mx) : undefined) ?? content
+  );
 
   hydrationInputRef.current = {
     content,
@@ -244,6 +208,25 @@ export function MindroomLongTextText({
         isV2ContentJson: currentIsV2ContentJson,
         mxcUri: currentMxcUri,
       } = hydrationInputRef.current;
+
+      if (hydrate) {
+        // Warm cache: resolve synchronously — no preview reset, no async
+        // round-trip, no loading state.
+        const cachedContent = getCachedMindroomLongTextContent(
+          {
+            previewContent: currentContent,
+            encryptedFile: currentEncryptedFile,
+            isV2ContentJson: currentIsV2ContentJson,
+            mxcUri: currentMxcUri,
+          },
+          mx
+        );
+        if (cachedContent) {
+          setResolvedContent(cachedContent);
+          setLoading(false);
+          return;
+        }
+      }
 
       setResolvedContent((currentResolvedContent) =>
         !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
@@ -296,7 +279,18 @@ export function MindroomLongTextText({
     };
   }, [loading]);
 
-  const afterBody = renderAfterBody?.(content, resolvedContent);
+  // Render-time warm-cache read: a row that mounted cold (hydrate=false)
+  // and later flips to hydrate=true must show cached content on the flip's
+  // OWN render, not one effect-pass later (the mount initializer and the
+  // hydration effect only cover mount and post-paint). Pure read of the
+  // module cache for the current source; the effect converges state to the
+  // same value.
+  const warmResolvedContent = hydrate
+    ? getCachedMindroomLongTextContent(longTextSource, mx)
+    : undefined;
+  const displayContent = warmResolvedContent ?? resolvedContent;
+
+  const afterBody = renderAfterBody?.(content, displayContent);
 
   let textContent: ReactNode;
   if (kind === MindroomLongTextKind.Emote) {
@@ -305,8 +299,8 @@ export function MindroomLongTextText({
         displayName={displayName ?? ''}
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -316,8 +310,8 @@ export function MindroomLongTextText({
       <MNotice
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -327,8 +321,8 @@ export function MindroomLongTextText({
       <MText
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />

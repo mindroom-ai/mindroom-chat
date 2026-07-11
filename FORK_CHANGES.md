@@ -2,6 +2,137 @@
 
 ## Runbook
 
+### External PR #122 review: verified findings fixed, one declined (2026-07-11)
+
+An external AI review of PR #122 raised three findings; each was verified
+against the code rather than assumed. Confirmed and fixed: (1) concurrent
+hydrations of the same sidecar duplicated downloads — the prewarm effect
+restarts on every threadEvents update while fetches are in flight —
+`hydrateMindroomLongTextSource` now coalesces per (owner, identity) with
+entries removed on settle so failures stay retryable; (2) prewarmed rows
+still flashed the plain preview for one paint because resolved content
+initialized from the preview and upgraded post-effect — the component now
+reads the cache synchronously at mount and in the hydrate effect, gated on
+`hydrate` so PR #110's overscan cheapness guard holds; (3) the branch
+carried ~580 lines of unrelated runbook reflow (residue of the 2026-07-08
+prettier mangle) — the file is rebuilt as dev's version plus only this
+branch's sections. Declined: bounding prewarm to a newest-first window —
+the product decision is to pre-download the whole open thread; retention is
+session-scoped per client. Also rebased onto dev at #123 (runbook-only
+conflict). Upstream PR #121 (direction-baseline reset between gestures) is
+complementary and still needs its own port onto the extracted controller.
+
+Round 2 (codex + PR bots, same policy of verify-then-fix): a synchronous
+loader throw settled the in-flight promise — and ran its finally-cleanup —
+before registration, pinning a resolved preview promise forever (loader now
+deferred one microtask past `inflight.set`); a warm row flipping
+hydrate=false→true still painted the preview once (render now reads the
+cache directly via `displayContent`, converged by the effect); replay
+firings now use the production gate's ±2px instead of the 16px rAF slack;
+clientHeight derivation is bounded by the recorded window height so a ride
+that never rests at the bottom returns undefined instead of a mid-scroll
+plateau; merged a split import and repointed the prewarm test's stale mock.
+Declined as before: historical runbook entries keep their historical
+validation numbers, and pre-existing reflow damage in old dev sections
+stays out of this PR's scope.
+
+### Ride-trace replay corpus + the remaining settle-cascade defect (2026-07-11)
+
+Why the suite kept missing these bugs: unit tests can only assert our model
+of iOS scrolling, and the failures were model errors (rubber-band offsets,
+compositor momentum) that exist in no CI-runnable environment. The new
+harness (`rideTraceReplay.ts` + `rideTraceReplay.test.ts`) closes part of
+that gap by replaying real device traces — checked into
+`__tests__/traces/`, four rides so far — through the CURRENT boundary
+predicate and by extracting per-settle observations (out-of-bounds firing,
+anchor slip, extra content growth) for triage. Flagship pins: the recorded
+mid-bounce settle (iPad frame 192) is detected in the trace AND deferred by
+the current predicate while its in-bounds landing still fires; the
+post-fix iPhone ride's single boundary settle is held to a ≤2px slip.
+
+OPEN DEFECT pinned by the corpus (the still-reported "momentum stops, then
+it jumps"): quiescence settles on thread ff7965e2 grow scrollHeight by up
+to 1,531px MORE than the ledger fold in a single 100-240ms frame right
+after rest — the settle's synchronous window remount/remeasure cascade.
+The recorder's anchor is unmounted in exactly those frames (blind), which
+is why they previously read as slip-0. Both the pre- and post-#122 builds
+show it (same thread, both 2026-07-11 traces), so it is not caused by the
+long-text prewarm. Next step: dissect settleScrollCompensation's
+setOptions→render→measure chain so the fold lands without a same-frame
+remeasure burst; then capture a fresh trace and replace the cascade
+goldens with thresholds.
+
+### Defer ledger boundary settles during rubber-band overscroll (2026-07-11)
+
+iPad trace `ride-trace-1783802452438` (analyzed against the two prior iPhone
+traces) showed the felt "momentum stops, then it jumps": a fling into the
+bottom edge rubber-bands while the window is still filling, and the ledger
+boundary settle then rewrites scrollTop mid-bounce — frame 192 slipped a
+visible 87px while the offset was 87px past `scrollHeight - clientHeight`
+(the trace's true clientHeight is 469, recovered from settle-write clamps).
+Quiescence settles in the same trace rebased up to 5,106px with zero slip, so
+the fix is to wait: `shouldSettleLedgerAtBoundary` now takes `scrollHeight`
+and defers (returns false) while the offset is outside the physical range
+(1px slack for fractional iOS offsets). The bounce's landing event re-enters
+bounds and the guard resumes; a true rest is covered by the always-armed
+quiescence settle. Not a fork regression: the settle harness is a verbatim
+extraction of pre-merge dev's (#119-era) logic — the same signature appears
+in both Jul 10 iPhone traces — but cache-first opens make the fill window
+where it bites much easier to hit. The lifecycle test's fake scroller
+declared `scrollHeight: 4000` under trace-shaped ~34.4k offsets; it now
+declares a range that contains them.
+
+### Long-text hydration: port PR #110 onto merged dev + thread sidecar prewarm (2026-07-11)
+
+PR #110 (viewport-gated hydration of collapsed long-text rows) predated the
+fork-hardening merge and conflicted with the restructured timeline; its final
+diff applied cleanly onto current dev apart from the runbook insertion (all 68
+of its tests pass unchanged). On top, the open thread now pre-downloads every
+long-text sidecar (`useMindroomLongTextPrewarm` in the timeline, worker pool
+of 3, deduped by source identity, cache-owner = the Matrix client, cancelled
+on thread switch). Failures are never cached, so retries stay natural. This
+addresses the lab smoke-test reports: attachments loading only "on pause"
+(viewport gate + prewarm), Markdown appearing only after load (collapsed rows
+now hydrate rich content early), and the expanded-plain-preview window
+(hydration now typically completes before the user expands).
+
+### Render collapsed long-text responses before expansion (2026-07-10)
+
+- Status: complete; opened as PR #110.
+- Root cause: collapsed room and thread rows passed `hydrateLongText={false}`
+  into `RenderMessageContent`. Long-text sidecars therefore showed only their
+  raw preview body until `Show more` was pressed; rich Markdown and tool-trace
+  rendering arrived only after expansion triggered hydration.
+- Visible collapsed rows now hydrate sidecar content while preserving the
+  collapsed state and forced `Show more` affordance. Virtualizer overscan rows
+  keep the cheap preview until they enter the viewport, preserving the prior
+  large-room performance guard; expansion also enables hydration immediately.
+- Independent review caught the initial eager-hydration performance regression
+  and weak mocked-only assertion. The viewport gate fixes the former. Coverage
+  now proves the real collapsible stays `aria-expanded=false` when it enables
+  full content; the real long-text, `RenderBody`, and tool-marker parser chain
+  renders formatted Markdown plus a valid tool card without expansion; and
+  both plain and decrypted timeline paths opt into the visible-row load.
+- Focused message/collapse/parser suites pass (5 files / 109 tests). Final full
+  validation passes: 356 files / 2833 tests, TypeScript typecheck, production
+  build, and lint with 0 errors / 19 pre-existing warnings. Independent final
+  review reports no findings.
+- PR review follow-up: refuted Gemini's paired render-phase state-update
+  suggestions with a focused render-count probe. The current effect path
+  rendered the function child twice after expansion; moving the setter into
+  render increased that to three, so the proposed optimization made the cited
+  behavior worse. The existing `shouldLoadFullContent` bridge already supplies
+  `true` to children on the first expanded render, before the persistence
+  effect, so no raw-preview paint occurs.
+- Merged current `origin/dev` after PR #111 without rewriting history. The only
+  conflict was the Runbook insertion point; both feature sections were
+  preserved. Independent follow-up review found no issues in the triage,
+  feature diff, or merge resolution.
+- Review-follow-up validation on the merged tree passes: focused suites (6
+  files / 116 tests), full `npm test` (356 files / 2834 tests), typecheck,
+  production build, full lint (0 errors / 19 pre-existing warnings), and
+  `git diff --check`.
+
 ### PR #104 focused reliability and maintainability follow-up (2026-07-11)
 
 - Status: complete on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`;
