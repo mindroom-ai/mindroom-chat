@@ -64,11 +64,7 @@ type CacheContract = {
   name: string;
   resetSingletons: () => void;
   saveRoomEvents: (input: SaveRoomInput) => Promise<void>;
-  loadLatestRoom: (
-    sessionId: string,
-    roomId: string,
-    limit: number
-  ) => Promise<LoadRoomPage>;
+  loadLatestRoom: (sessionId: string, roomId: string, limit: number) => Promise<LoadRoomPage>;
   loadRoomBefore: (
     sessionId: string,
     roomId: string,
@@ -85,11 +81,7 @@ type CacheContract = {
     roomId: string,
     eventId: string
   ) => Promise<string | null | undefined>;
-  deleteRoomEvents: (
-    sessionId: string,
-    roomId: string,
-    eventIds: string[]
-  ) => Promise<void>;
+  deleteRoomEvents: (sessionId: string, roomId: string, eventIds: string[]) => Promise<void>;
 
   saveThreadEvents: (input: SaveThreadInput) => Promise<void>;
   loadLatestThread: (
@@ -111,12 +103,6 @@ type CacheContract = {
     threadId: string,
     eventId: string
   ) => Promise<RawEvent | undefined>;
-  loadThreadPaginationToken: (
-    sessionId: string,
-    roomId: string,
-    threadId: string,
-    eventId: string
-  ) => Promise<string | null | undefined>;
   deleteThreadEvents: (
     sessionId: string,
     roomId: string,
@@ -167,7 +153,6 @@ type ThreadLike = {
   loadLatestCachedThreadEvents: typeof import('../index')['loadLatestCachedThreadEvents'];
   loadCachedThreadEventsBefore: typeof import('../index')['loadCachedThreadEventsBefore'];
   loadCachedThreadEvent: typeof import('../index')['loadCachedThreadEvent'];
-  loadCachedThreadPaginationToken: typeof import('../index')['loadCachedThreadPaginationToken'];
   deleteThreadEventsFromCache: typeof import('../index')['deleteThreadEventsFromCache'];
   deleteThreadEventFromCacheByEventId: typeof import('../index')['deleteThreadEventFromCacheByEventId'];
 };
@@ -183,7 +168,6 @@ const buildContractFromModules = (
   threadModule: ThreadLike,
   summaryModule: SummaryLike
 ): CacheContract => {
-
   return {
     name,
     resetSingletons: () => {
@@ -233,8 +217,6 @@ const buildContractFromModules = (
       threadModule.loadCachedThreadEventsBefore(sessionId, roomId, threadId, before, limit),
     loadThreadEvent: (sessionId, roomId, threadId, eventId) =>
       threadModule.loadCachedThreadEvent(sessionId, roomId, threadId, eventId),
-    loadThreadPaginationToken: (sessionId, roomId, threadId, eventId) =>
-      threadModule.loadCachedThreadPaginationToken(sessionId, roomId, threadId, eventId),
     deleteThreadEvents: (sessionId, roomId, threadId, eventIds) =>
       threadModule.deleteThreadEventsFromCache(sessionId, roomId, threadId, eventIds),
     deleteThreadEventByEventId: (sessionId, roomId, eventId) =>
@@ -282,11 +264,7 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
     // --- Room ---
 
     it('round-trips room events and returns latest-first (reversed) up to limit', async () => {
-      const events = [
-        makeRawEvent('$a', 100),
-        makeRawEvent('$b', 200),
-        makeRawEvent('$c', 300),
-      ];
+      const events = [makeRawEvent('$a', 100), makeRawEvent('$b', 200), makeRawEvent('$c', 300)];
       await contract.saveRoomEvents({ sessionId: SESSION_ID, roomId: ROOM_ID, events });
 
       const page = await contract.loadLatestRoom(SESSION_ID, ROOM_ID, 10);
@@ -514,15 +492,10 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
       });
 
       const page = await contract.loadLatestThread(SESSION_ID, ROOM_ID, THREAD_ID, 10);
+      // beforeToken is anchored to the earliest normalized reply id,
+      // which is $r1 in this scenario.
+      expect(page.events[0]?.event_id).toBe('$r1');
       expect(page.beforeToken).toBe('thread-token');
-
-      const token = await contract.loadThreadPaginationToken(
-        SESSION_ID,
-        ROOM_ID,
-        THREAD_ID,
-        '$r1'
-      );
-      expect(token).toBe('thread-token');
     });
 
     it('merges thread meta flags via mergeThreadCacheFlag semantics', async () => {

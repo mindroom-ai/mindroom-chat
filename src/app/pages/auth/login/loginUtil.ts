@@ -1,16 +1,10 @@
 import to from 'await-to-js';
 import { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo } from 'react';
 import { ClientConfig, clientAllowedServer } from '../../../hooks/useClientConfig';
 import { autoDiscovery, specVersions } from '../../../cs-api';
 import { ErrorCode } from '../../../cs-errorcode';
-import {
-  deleteAfterLoginRedirectPath,
-  getAfterLoginRedirectPath,
-} from '../../afterLoginRedirectPath';
-import { getHomePath } from '../../pathUtils';
-import { putSession } from '../../../state/sessions';
+import { useSessionCompletion } from '../sessionCompletion';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 
 export enum GetBaseUrlError {
@@ -74,7 +68,9 @@ export const login = async (
   }
 
   const mx = createMatrixClient({ baseUrl: url });
-  const [err, res] = await to<LoginResponse, MatrixError>(mx.loginRequest(data));
+  const [err, res] = await to<LoginResponse, MatrixError>(
+    mx.loginRequest({ ...data, refresh_token: true })
+  );
 
   if (err) {
     if (err.httpStatus === 400) {
@@ -110,28 +106,18 @@ export const login = async (
 };
 
 export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false) => {
-  const navigate = useNavigate();
+  const session = useMemo(() => {
+    if (!data) return undefined;
+    const { response, baseUrl } = data;
+    return {
+      accessToken: response.access_token,
+      deviceId: response.device_id,
+      userId: response.user_id,
+      baseUrl,
+      expiresInMs: response.expires_in_ms,
+      refreshToken: response.refresh_token,
+    };
+  }, [data]);
 
-  useEffect(() => {
-    if (data) {
-      const { response: loginRes, baseUrl: loginBaseUrl } = data;
-      putSession({
-        accessToken: loginRes.access_token,
-        deviceId: loginRes.device_id,
-        userId: loginRes.user_id,
-        baseUrl: loginBaseUrl,
-        expiresInMs: loginRes.expires_in_ms,
-        refreshToken: loginRes.refresh_token,
-      });
-
-      if (addAccount) {
-        navigate(getHomePath(), { replace: true });
-        return;
-      }
-
-      const afterLoginRedirectUrl = getAfterLoginRedirectPath();
-      deleteAfterLoginRedirectPath();
-      navigate(afterLoginRedirectUrl ?? getHomePath(), { replace: true });
-    }
-  }, [addAccount, data, navigate]);
+  return useSessionCompletion(session, addAccount);
 };

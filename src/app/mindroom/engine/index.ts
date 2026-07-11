@@ -15,10 +15,7 @@ export {
 export type { MindroomSyncEngineProviderProps } from './engineContext';
 export { createEngineWriteThrough } from './engineWriteThrough';
 export type { EngineWriteThrough, EngineWriteThroughOptions } from './engineWriteThrough';
-export {
-  createEngineGapTracker,
-  createInMemoryGapFillScheduler,
-} from './engineGapTracker';
+export { createEngineGapTracker, createInMemoryGapFillScheduler } from './engineGapTracker';
 export type {
   EngineGapTracker,
   EngineGapTrackerOptions,
@@ -59,7 +56,6 @@ export {
   DEFAULT_PREFETCH_SCOPE,
   PREFETCH_SCOPE,
   ROOM_TAIL_PREFETCH_DEPTH,
-  THREAD_INVENTORY_PREFETCH_LIMIT,
   isRoomEligibleForBackgroundPrefetch,
   isRoomEligibleForRawFetch,
   resolvePrefetchConfig,
@@ -67,21 +63,13 @@ export {
   sanitizePrefetchDepth,
   sanitizePrefetchScope,
 } from './prefetchPolicy';
-export type {
-  PrefetchConfig,
-  PrefetchScope,
-  RoomPrefetchTier,
-} from './prefetchPolicy';
+export type { PrefetchConfig, PrefetchScope, RoomPrefetchTier } from './prefetchPolicy';
 export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
 export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
 export type { EnqueueDeepHistoryArgs } from './deepHistoryJob';
 export { scheduleReconcile } from './reconciler';
-export type {
-  ReconcileReason,
-  ReconcileResult,
-  ScheduleReconcileArgs,
-} from './reconciler';
+export type { ReconcileResult, ScheduleReconcileArgs } from './reconciler';
 export {
   fetchAllThreadRelations,
   MAX_THREAD_FETCH_EVENTS,
@@ -89,7 +77,4 @@ export {
 } from './threadRelationsFetcher';
 export type { ThreadRelationPageResult } from './threadRelationsFetcher';
 export { enqueueThreadBackfillJob } from './threadBackfillJob';
-export type {
-  EnqueueThreadBackfillArgs,
-  ThreadBackfillResult,
-} from './threadBackfillJob';
+export type { EnqueueThreadBackfillArgs, ThreadBackfillResult } from './threadBackfillJob';

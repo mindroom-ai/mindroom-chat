@@ -57,6 +57,20 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
+  it('hydrates only fields owned by the generic settings model', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = JSON.stringify({
+      pageZoom: 90,
+      forkExtension: 'not-owned-here',
+    });
+
+    const settings = getSettings() as Record<string, unknown>;
+    expect(settings.pageZoom).toBe(90);
+    expect(settings.forkExtension).toBeUndefined();
+
+    storageValue = null;
+  });
+
   it('falls back to defaults when localStorage lacks getItem', async () => {
     const originalLocalStorage = globalThis.localStorage;
     Object.defineProperty(globalThis, 'localStorage', {

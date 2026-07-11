@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
+import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { StoredSession } from '../../../state/sessions';
 import { UserAvatar } from '../../../components/user-avatar';
 import { nameInitials } from '../../../utils/common';
@@ -18,8 +18,9 @@ type AccountSwitcherProps = {
   onOpenSettings: () => void;
   onSwitchAccount: (session: StoredSession) => void;
   onRemoveAccount: (session: StoredSession) => void;
-  onAddAccount: () => void;
+  onAddAccount?: () => void;
   onClose: () => void;
+  error?: string;
 };
 
 export function AccountSwitcher({
@@ -30,6 +31,7 @@ export function AccountSwitcher({
   onRemoveAccount,
   onAddAccount,
   onClose,
+  error,
 }: AccountSwitcherProps) {
   const { t } = useTranslation();
   return (
@@ -37,6 +39,11 @@ export function AccountSwitcher({
       <Box direction="Column" gap="100">
         <Text size="H4">{t('accountSwitcher.title')}</Text>
         <Text size="T200">{t('accountSwitcher.description')}</Text>
+        {error && (
+          <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+            {error}
+          </Text>
+        )}
       </Box>
 
       <Box direction="Column" gap="200">
@@ -101,7 +108,9 @@ export function AccountSwitcher({
                       disabled={removing}
                     >
                       <Text size="B300">
-                        {removing ? t('accountSwitcher.removing') : t('accountSwitcher.removeFromDevice')}
+                        {removing
+                          ? t('accountSwitcher.removing')
+                          : t('accountSwitcher.removeFromDevice')}
                       </Text>
                     </Button>
                     {removing && <Spinner variant="Secondary" size="200" />}
@@ -114,9 +123,11 @@ export function AccountSwitcher({
       </Box>
 
       <Box gap="200" wrap="Wrap">
-        <Button size="300" radii="300" onClick={onAddAccount}>
-          <Text size="B300">{t('accountSwitcher.addAccount')}</Text>
-        </Button>
+        {onAddAccount && (
+          <Button size="300" radii="300" onClick={onAddAccount}>
+            <Text size="B300">{t('accountSwitcher.addAccount')}</Text>
+          </Button>
+        )}
         <Button size="300" radii="300" fill="None" onClick={onClose}>
           <Text size="B300">{t('accountSwitcher.close')}</Text>
         </Button>

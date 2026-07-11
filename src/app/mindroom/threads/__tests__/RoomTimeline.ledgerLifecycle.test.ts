@@ -1,6 +1,6 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Ledger lifecycle pins (mutant audit 2026-07-07):
 //  1. settle GENERATION guard — a ledger settle wait armed in a previous
@@ -8,7 +8,9 @@ import { describe, expect, it, vi } from 'vitest';
 //     render-time ledger reset must land ABOVE the useVirtualizer call so
 //     the FIRST post-switch render already reads scrollMargin 0 (mutants
 //     #7a/#7b — PR #88's stale-scrollMargin major).
-//  2. open-at-latest latch keying — the render-time key reset and the
+//  2. room prepend debt is consumed by exactly one commit and is discarded
+//     with its outstanding settle wait when the surface key changes.
+//  3. open-at-latest latch keying — the render-time key reset and the
 //     stale-pending guard (mutants #11a/#11b).
 //
 // The quiescence module is mocked with MANUALLY RESOLVED deferreds for the
@@ -22,9 +24,7 @@ vi.mock('../threadOpenCacheFirst', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../threadOpenCacheFirst')>();
   return {
     ...actual,
-    runThreadOpenCacheFirst: async (
-      opts: Parameters<typeof actual.runThreadOpenCacheFirst>[0]
-    ) => {
+    runThreadOpenCacheFirst: async (opts: Parameters<typeof actual.runThreadOpenCacheFirst>[0]) => {
       const gate = threadOpenGates.get(opts.threadId);
       if (gate) await gate;
       return actual.runThreadOpenCacheFirst(opts);
@@ -40,16 +40,14 @@ vi.mock('../scrollQuiescence', () => ({
   SCROLL_QUIESCENCE_IDLE_MS: 150,
   isIOSWebKitDevice: () => mockIsIOSWebKit,
   hasActiveWindowTouches: () => false,
-  waitForScrollQuiescence: vi.fn(
-    (_el: unknown, opts?: { maxWaitMs?: number }): Promise<void> => {
-      if (opts?.maxWaitMs === Infinity) {
-        return new Promise<void>((resolve) => {
-          settleWaits.push({ resolve });
-        });
-      }
-      return Promise.resolve();
+  waitForScrollQuiescence: vi.fn((_el: unknown, opts?: { maxWaitMs?: number }): Promise<void> => {
+    if (opts?.maxWaitMs === Infinity) {
+      return new Promise<void>((resolve) => {
+        settleWaits.push({ resolve });
+      });
     }
-  ),
+    return Promise.resolve();
+  }),
 }));
 
 import {
@@ -63,7 +61,9 @@ import {
   matrixClientMock,
   roomTimelineVirtualizerState,
   scrollType,
+  settingsState,
   threadRenderStateMock,
+  virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
 
 type MockEvent = ReturnType<typeof makeEvent>;
@@ -101,6 +101,9 @@ const setThreadEvents = (events: MockEvent[]) => {
   );
 };
 
+// Ported from upstream #116/#119 (settle-cause probes + direction-aware
+// boundary guard): scroll elements with an app-write log, native-motion
+// fireScroll, and the settle-cause probe reader.
 const makeLedgerSettleElements = (
   initialScrollTop = 0,
   innerRect = { top: -1000, bottom: 60_000 }
@@ -108,26 +111,12 @@ const makeLedgerSettleElements = (
   let scrollTopValue = initialScrollTop;
   const scrollWrites: number[] = [];
   const scrollListeners: EventListener[] = [];
-  const touchStartListeners: EventListener[] = [];
   const scrollElement = {
     isConnected: true,
-    addEventListener: vi.fn(
-      (
-        type: string,
-        listener: EventListener,
-        _options?: boolean | AddEventListenerOptions
-      ) => {
-        if (type === 'scroll') scrollListeners.push(listener);
-        if (type === 'touchstart') touchStartListeners.push(listener);
-      }
-    ),
-    removeEventListener: vi.fn(
-      (
-        _type: string,
-        _listener: EventListener,
-        _options?: boolean | EventListenerOptions
-      ) => undefined
-    ),
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (type === 'scroll') scrollListeners.push(listener);
+    }),
+    removeEventListener: vi.fn(),
     getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
     querySelector: vi.fn(() => undefined),
     querySelectorAll: vi.fn(() => []),
@@ -153,21 +142,7 @@ const makeLedgerSettleElements = (
     scrollTopValue = nextScrollTop;
     scrollListeners.forEach((listener) => listener(new Event('scroll')));
   };
-  const moveSilently = (nextScrollTop: number) => {
-    scrollTopValue = nextScrollTop;
-  };
-  const fireTouchStart = (nextScrollTop = scrollTopValue) => {
-    moveSilently(nextScrollTop);
-    touchStartListeners.forEach((listener) => listener(new Event('touchstart')));
-  };
-  return {
-    scrollElement,
-    innerElement,
-    scrollWrites,
-    fireScroll,
-    moveSilently,
-    fireTouchStart,
-  };
+  return { scrollElement, innerElement, scrollWrites, fireScroll };
 };
 
 const readLedgerSettleCounts = async () => {
@@ -179,7 +154,106 @@ const readLedgerSettleCounts = async () => {
   };
 };
 
+beforeEach(() => {
+  settleWaits.length = 0;
+});
+
 describe('RoomTimeline ledger lifecycle', () => {
+  it('consumes room prepend debt once and drops it when the surface changes', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$room-ledger-reset-thread';
+    const thread = buildThread(threadId, '$room-ledger-reset-', 0);
+    const roomEvents = Array.from({ length: 300 }, (_value, index) =>
+      makeEvent(`$room-ledger-${index}`, { ts: index })
+    );
+    const room = makeRoom({ liveEvents: roomEvents });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    settingsState.prefetchDepth = 200;
+    roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
+
+    const scrollElement = {
+      isConnected: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+      querySelector: vi.fn(() => undefined),
+      querySelectorAll: vi.fn(() => []),
+      scrollHeight: 30000,
+      clientHeight: 600,
+      scrollTop: 0,
+      scrollTo: vi.fn(),
+    };
+    const innerElement = { style: {} as Record<string, string> };
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const roomElement = () =>
+      React.createElement(ControlledRoomTimeline, {
+        room,
+        initialViewMode: 'classic',
+      });
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(roomElement(), {
+          createNodeMock: (element) => {
+            if (element.type === scrollType) return scrollElement;
+            const props = element.props as Record<string, unknown>;
+            return props['data-testid'] === 'room-virtual-inner' ||
+              props['data-thread-count'] !== undefined
+              ? innerElement
+              : null;
+          },
+        });
+        await flushAsyncWork();
+      });
+
+      expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+      const settleWaitIndex = settleWaits.length;
+      await act(async () => {
+        virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
+        await flushAsyncWork();
+      });
+      expect(innerElement.style.marginTop).toBe('-9600px');
+      expect(settleWaits.length).toBe(settleWaitIndex + 1);
+
+      // The range debt has moved from the pending bridge into the committed
+      // ledger. A normal follow-up render must reuse it, not consume it again.
+      await act(async () => {
+        renderer!.update(roomElement());
+        await flushAsyncWork();
+      });
+      expect(innerElement.style.marginTop).toBe('-9600px');
+      expect(roomTimelineVirtualizerState.lastOptions?.scrollMargin).toBe(-9600);
+
+      // Switching from the room surface to a thread renders a zero ledger in
+      // the first frame and invalidates the room's outstanding settle wait.
+      roomTimelineVirtualizerState.optionsHistory.length = 0;
+      setThreadEvents(thread.initialEvents);
+      await act(async () => {
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+            initialViewMode: 'classic',
+          })
+        );
+        await flushAsyncWork();
+      });
+      expect(innerElement.style.marginTop).toBe('');
+      expect(roomTimelineVirtualizerState.optionsHistory[0]?.scrollMargin).toBeCloseTo(0);
+      expect(scrollElement.scrollTop).toBe(0);
+
+      await act(async () => {
+        settleWaits[settleWaitIndex].resolve();
+        await flushAsyncWork(5);
+      });
+      expect(innerElement.style.marginTop).toBe('');
+      expect(scrollElement.scrollTop).toBe(0);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
   it('a settle wait armed in a previous thread never settles the next thread ledger', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const threadA = '$ledger-gen-a';
@@ -240,9 +314,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       await act(async () => {
         anchorMounted = false;
         setThreadEvents(a.prependedEvents);
-        renderer!.update(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadA })
-        );
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadA }));
         await flushAsyncWork(10);
       });
       expect(innerElement.style.marginTop).toBe('-2600px');
@@ -256,9 +328,7 @@ describe('RoomTimeline ledger lifecycle', () => {
         anchorId = '$gb-100';
         anchorMounted = true;
         setThreadEvents(b.initialEvents);
-        renderer!.update(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadB })
-        );
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
         await flushAsyncWork(10);
       });
       expect(innerElement.style.marginTop).toBe('');
@@ -282,9 +352,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       await act(async () => {
         anchorMounted = false;
         setThreadEvents(b.prependedEvents);
-        renderer!.update(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadB })
-        );
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
         await flushAsyncWork(10);
       });
       expect(innerElement.style.marginTop).toBe('-130px');
@@ -308,6 +376,93 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(innerElement.style.marginTop).toBe('');
       expect(scrollElement.scrollTop).toBe(130);
     } finally {
+      renderer?.unmount();
+    }
+  });
+
+  it('preserves a tile measurement correction emitted during a thread switch commit', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadA = '$ledger-switch-measure-a';
+    const threadB = '$ledger-switch-measure-b';
+    const a = buildThread(threadA, '$switch-a-', 0);
+    const b = buildThread(threadB, '$switch-b-', 0);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) =>
+      eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
+    setThreadEvents(a.initialEvents);
+    roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
+    const scrollElement = {
+      isConnected: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
+      querySelector: vi.fn(() => undefined),
+      querySelectorAll: vi.fn(() => []),
+      scrollHeight: 4000,
+      clientHeight: 600,
+      scrollTop: 0,
+      scrollTo: vi.fn(),
+    };
+    const innerElement = { style: {} as Record<string, string> };
+    const tileElement = {};
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, { room, threadId: threadA }),
+          {
+            createNodeMock: (element) => {
+              if (element.type === scrollType) return scrollElement;
+              const props = element.props as Record<string, unknown>;
+              if (props['data-thread-count'] !== undefined) return innerElement;
+              if (props['data-virtual-index'] !== undefined) return tileElement;
+              return null;
+            },
+          }
+        );
+        await flushAsyncWork();
+      });
+
+      const settleWaitIndex = settleWaits.length;
+      let injected = false;
+      mockIsIOSWebKit = true;
+      roomTimelineVirtualizerState.measureElementMock.mockImplementation((node) => {
+        if (!node || injected) return;
+        const hook = roomTimelineVirtualizerState.lastInstance
+          ?.shouldAdjustScrollPositionOnItemSizeChange as
+          | ((
+              item: { end: number },
+              delta: number,
+              instance: { scrollOffset: number | null; isScrolling: boolean }
+            ) => boolean)
+          | undefined;
+        if (!hook) return;
+        injected = true;
+        expect(hook({ end: 100 }, 64, { scrollOffset: 5000, isScrolling: false })).toBe(false);
+      });
+
+      await act(async () => {
+        setThreadEvents(b.initialEvents);
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
+        await flushAsyncWork(10);
+      });
+
+      expect(injected).toBe(true);
+      expect(innerElement.style.marginTop).toBe('-64px');
+      expect(scrollElement.scrollTop).toBe(0);
+      expect(settleWaits).toHaveLength(settleWaitIndex + 1);
+
+      await act(async () => {
+        settleWaits[settleWaitIndex].resolve();
+        await flushAsyncWork(5);
+      });
+      expect(innerElement.style.marginTop).toBe('');
+      expect(scrollElement.scrollTop).toBe(64);
+    } finally {
+      roomTimelineVirtualizerState.measureElementMock.mockReset();
+      mockIsIOSWebKit = false;
       renderer?.unmount();
     }
   });
@@ -375,19 +530,19 @@ describe('RoomTimeline ledger lifecycle', () => {
       await act(async () => {
         // A row fully above the viewport grew by 64px mid-scroll on iOS:
         // the correction must be DROPPED (return false) and ledgered.
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         // Desktop backward remeasurements take the same component-level
         // ledger path, while forward/quiet desktop corrections stay owned
         // by virtual-core.
         mockIsIOSWebKit = false;
-        expect(
-          hook!({ end: 100 }, 32, { scrollOffset: 5000, scrollDirection: 'backward' })
-        ).toBe(false);
-        expect(
-          hook!({ end: 100 }, 16, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(true);
+        expect(hook!({ end: 100 }, 32, { scrollOffset: 5000, scrollDirection: 'backward' })).toBe(
+          false
+        );
+        expect(hook!({ end: 100 }, 16, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          true
+        );
         await flushAsyncWork(3);
       });
       // The tick-forced commit synced the margin — with no scroll event,
@@ -444,9 +599,9 @@ describe('RoomTimeline ledger lifecycle', () => {
           ) => boolean)
         | undefined;
       await act(async () => {
-        expect(
-          hook!({ end: 100 }, 89, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 89, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         // Exact v3 geometry: reachable top is -1114 + 89 = -1025px.
         // Native motion is still backward, but this is valid runway rather
@@ -538,9 +693,9 @@ describe('RoomTimeline ledger lifecycle', () => {
         // Arm before the listener has seen any scroll event. Its mount-time
         // baseline must classify this very first native frame as forward
         // and preserve the toward-bottom safety guard.
-        expect(
-          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         fireScroll(34340);
         await flushAsyncWork(3);
@@ -554,9 +709,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
 
       await act(async () => {
-        expect(
-          hook!({ end: 100 }, 34, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 34, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         // Update the direction baseline while the ledger remains below the
         // 48px boundary floor. The next crossing oracle fails if this update
@@ -576,9 +731,9 @@ describe('RoomTimeline ledger lifecycle', () => {
         // reversal is forward from the correctly remembered 34250, but
         // still backward from the stale pre-subfloor 34412: only the correct
         // baseline recognizes travel toward the nearby bottom boundary.
-        expect(
-          hook!({ end: 100 }, 38, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 38, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         fireScroll(34290);
         await flushAsyncWork(3);
@@ -594,9 +749,9 @@ describe('RoomTimeline ledger lifecycle', () => {
         // Re-arm the exact traced +72px case. The mock settlement setter
         // above emitted no scroll event, so this also begins from its
         // synchronously read-back 34362 baseline.
-        expect(
-          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         fireScroll(34313);
         // A stationary event is not evidence of travel toward either edge.
@@ -632,9 +787,9 @@ describe('RoomTimeline ledger lifecycle', () => {
         // iOS-coalesced programmatic write. A fresh ledger plus a native
         // upward frame must compare against the read-back 34385 baseline,
         // not the stale pre-settle 34313 offset (which would look forward).
-        expect(
-          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
         await flushAsyncWork(3);
         fireScroll(34370);
         await flushAsyncWork(3);
@@ -667,208 +822,6 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(await readLedgerSettleCounts()).toEqual({
         quiescence: countsBefore.quiescence,
         boundary: countsBefore.boundary + 4,
-      });
-    } finally {
-      mockIsIOSWebKit = false;
-      renderer?.unmount();
-    }
-  });
-
-  it('starts a fresh boundary-direction epoch when a touch reverses silent compositor travel', async () => {
-    mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const threadId = '$ledger-touch-direction-epoch';
-    const thread = buildThread(threadId, '$touch-direction-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
-    setThreadEvents(thread.initialEvents);
-    const {
-      scrollElement,
-      innerElement,
-      scrollWrites,
-      fireScroll,
-      moveSilently,
-      fireTouchStart,
-    } = makeLedgerSettleElements(34_331, {
-      top: -34_000,
-      // Inside the positive-ledger bottom guard, but not crossed.
-      bottom: 1600,
-    });
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    const countsBefore = await readLedgerSettleCounts();
-    let renderer: ReturnType<typeof create> | undefined;
-
-    try {
-      await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
-        await flushAsyncWork();
-      });
-      const touchStartRegistration = scrollElement.addEventListener.mock.calls.find(
-        ([type], index) =>
-          type === 'touchstart' &&
-          scrollElement.addEventListener.mock.calls[index]?.[2] !== undefined
-      );
-      expect(touchStartRegistration?.[2]).toEqual({ capture: true, passive: true });
-      const touchStartListener = touchStartRegistration?.[1];
-      expect(touchStartListener).toEqual(expect.any(Function));
-
-      const hook = roomTimelineVirtualizerState.lastInstance
-        ?.shouldAdjustScrollPositionOnItemSizeChange as
-        | ((
-            item: { end: number },
-            delta: number,
-            instance: {
-              scrollOffset: number | null;
-              scrollDirection: 'forward' | 'backward' | null;
-            }
-          ) => boolean)
-        | undefined;
-      await act(async () => {
-        expect(
-          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
-        await flushAsyncWork(3);
-
-        // iOS can advance compositor scrollTop while withholding JavaScript
-        // scroll events. A new touch begins at the true 34431px offset and
-        // reverses upward to 34396px. Comparing 34396 with the stale 34331px
-        // delivered-event baseline falsely calls this forward motion. The
-        // resulting +72px write turns the native -35px frame into a +37px
-        // reversal and can kill the new gesture.
-        moveSilently(34_431);
-        fireTouchStart();
-        fireScroll(34_396);
-        await flushAsyncWork(3);
-      });
-      expect(scrollWrites).toEqual([]);
-      expect(innerElement.style.marginTop).toBe('-72px');
-      expect(await readLedgerSettleCounts()).toEqual(countsBefore);
-
-      await act(async () => {
-        // A later reversal really does head toward the guarded bottom and
-        // must retain #119's proactive clamp protection.
-        fireScroll(34_420);
-        await flushAsyncWork(3);
-      });
-      expect(scrollWrites).toEqual([34_492]);
-      expect(innerElement.style.marginTop).toBe('');
-      expect(await readLedgerSettleCounts()).toEqual({
-        quiescence: countsBefore.quiescence,
-        boundary: countsBefore.boundary + 1,
-      });
-
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork();
-      });
-      renderer = undefined;
-      expect(scrollElement.removeEventListener).toHaveBeenCalledWith(
-        'touchstart',
-        touchStartListener,
-        true
-      );
-    } finally {
-      mockIsIOSWebKit = false;
-      renderer?.unmount();
-    }
-  });
-
-  it('tags quiescence and refreshes the boundary baseline without a write event', async () => {
-    mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const threadId = '$ledger-quiescence-cause';
-    const thread = buildThread(threadId, '$quiescence-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
-    setThreadEvents(thread.initialEvents);
-    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
-      1000,
-      { top: -34000, bottom: 1500 }
-    );
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    const waitsBefore = settleWaits.length;
-    const countsBefore = await readLedgerSettleCounts();
-    let renderer: ReturnType<typeof create> | undefined;
-
-    try {
-      await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
-        await flushAsyncWork();
-      });
-
-      const hook = roomTimelineVirtualizerState.lastInstance
-        ?.shouldAdjustScrollPositionOnItemSizeChange as
-        | ((
-            item: { end: number },
-            delta: number,
-            instance: {
-              scrollOffset: number | null;
-              scrollDirection: 'forward' | 'backward' | null;
-            }
-          ) => boolean)
-        | undefined;
-      await act(async () => {
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
-        await flushAsyncWork(3);
-      });
-      expect(innerElement.style.marginTop).toBe('-64px');
-      expect(settleWaits).toHaveLength(waitsBefore + 1);
-
-      await act(async () => {
-        settleWaits[waitsBefore].resolve();
-        await flushAsyncWork(3);
-      });
-      expect(scrollWrites).toEqual([1064]);
-      expect(innerElement.style.marginTop).toBe('');
-      expect(await readLedgerSettleCounts()).toEqual({
-        quiescence: countsBefore.quiescence + 1,
-        boundary: countsBefore.boundary,
-      });
-
-      await act(async () => {
-        // The quiescence write emitted no mock scroll event. A fresh ledger
-        // followed by native upward motion must compare against the written
-        // 1064px offset, not the stale pre-settle 1000px value (which would
-        // misclassify this as forward and hit the nearby bottom guard).
-        expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
-        ).toBe(false);
-        await flushAsyncWork(3);
-        fireScroll(1050);
-        await flushAsyncWork(3);
-      });
-      expect(scrollWrites).toEqual([1064]);
-      expect(innerElement.style.marginTop).toBe('-64px');
-      expect(settleWaits).toHaveLength(waitsBefore + 2);
-      expect(await readLedgerSettleCounts()).toEqual({
-        quiescence: countsBefore.quiescence + 1,
-        boundary: countsBefore.boundary,
-      });
-
-      await act(async () => {
-        settleWaits[waitsBefore + 1].resolve();
-        await flushAsyncWork(3);
-      });
-      expect(scrollWrites).toEqual([1064, 1114]);
-      expect(await readLedgerSettleCounts()).toEqual({
-        quiescence: countsBefore.quiescence + 2,
-        boundary: countsBefore.boundary,
       });
     } finally {
       mockIsIOSWebKit = false;

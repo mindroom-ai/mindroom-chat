@@ -6,13 +6,10 @@
 export {
   MINDROOM_CACHE_DB_BASE_NAME,
   CACHE_STORE_DB_VERSION,
-  CACHE_BYTE_BUDGET_BYTES,
   MAX_CACHE_BEFORE_TOKENS,
-  getCacheStoreByteBudget,
   __setCacheStoreByteBudgetForTests,
   buildEventCacheKey,
   buildMetaKey,
-  buildSummaryCacheKey,
   estimateRawEventBytes,
   EVENTS_STORE,
   META_STORE,
@@ -20,13 +17,10 @@ export {
   THREAD_SUMMARIES_STORE,
   EVENTS_BY_SCOPE_TS_INDEX,
   THREAD_SUMMARIES_BY_ROOM_INDEX,
-  ROOM_SCOPE,
-  INTERNAL_META_ROOM_ID,
   LEGACY_WIPE_MARKER_META_KEY,
   type CachedEventRecord,
   type CachedMetaRecord,
   type CachedRoomLedgerRecord,
-  type CachedThreadSummaryRecord,
 } from './cacheStoreSchema';
 
 export {
@@ -34,9 +28,6 @@ export {
   deleteCacheStoreDb,
   openCacheStore,
   resetCacheStoreForTesting,
-  getOpenCacheStoreDbPromise,
-  setLegacyWipeHook,
-  __setLegacyWipeHookForTests,
 } from './cacheStoreDb';
 
 export {
@@ -47,10 +38,8 @@ export {
   mergeThreadCacheFlag,
   normalizeCachedRoomEvents,
   normalizeCachedThreadEvents,
-  normalizeExpectedReplyCount,
   type CachedRoomEvent,
   type CachedThreadEvent,
-  type CursorAnchor,
 } from './cacheStoreNormalize';
 
 export {
@@ -62,13 +51,15 @@ export {
   loadCachedRoomPaginationToken,
   loadCachedThreadEvent,
   loadCachedThreadEventsBefore,
-  loadCachedThreadPaginationToken,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
+  loadLatestCachedThreadEventsBatch,
   noteRoomOpened,
   noteThreadOpened,
   saveRoomEventsToCache,
+  saveRoomEventsToCacheCommitted,
   saveThreadEventsToCache,
+  saveThreadEventsToCacheCommitted,
   type CachedRoomEventPage,
   type CachedThreadEventPage,
 } from './cacheStoreEvents';
@@ -81,32 +72,33 @@ export {
   setEvictionProtectedRoomIds,
   getEvictionProtectedRoomIds,
   __resetEvictionForTests,
-  type EvictionResult,
 } from './cacheEviction';
 
-export {
-  EVICTION_TARGET_UTILIZATION,
-  EVICTION_RECENT_OPEN_WINDOW_MS,
-  EVICTION_CHECK_MIN_INTERVAL_MS,
-} from './cacheStoreSchema';
+export { EVICTION_TARGET_UTILIZATION, EVICTION_RECENT_OPEN_WINDOW_MS } from './cacheStoreSchema';
 
-export {
-  loadCachedThreadSummaries,
-  saveCachedThreadSummary,
-} from './cacheStoreSummaries';
+export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreSummaries';
 
 export {
   markRoomTailDiscontinuity,
+  checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
+  getTailDiscontinuityGeneration,
   loadRoomTailDiscontinuity,
-  type TailDiscontinuityMarker,
 } from './cacheStoreDiscontinuity';
+
+export {
+  beginThreadReconcileContinuation,
+  checkpointThreadReconcileContinuation,
+  clearThreadReconcileContinuation,
+  loadThreadReconcileContinuation,
+  restartThreadReconcileContinuationFromHead,
+  type ThreadReconcileContinuation,
+} from './cacheStoreReconcileContinuation';
 
 export {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_SUMMARY_CACHE_DB_NAME,
-  LEGACY_MINDROOM_SINGLETON_DB_NAMES,
   getLegacyRoomEventCacheDbName,
   getLegacyThreadEventCacheDbName,
   getLegacyThreadSummaryCacheDbName,

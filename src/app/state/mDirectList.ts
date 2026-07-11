@@ -22,12 +22,10 @@ export const useBindMDirectAtom = (mx: MatrixClient, mDirect: typeof mDirectAtom
 
   useEffect(() => {
     const mDirectEvent = getAccountData(mx, AccountDataEvent.Direct);
-    if (mDirectEvent) {
-      setMDirect({
-        type: 'INITIALIZE',
-        rooms: getMDirects(mDirectEvent),
-      });
-    }
+    setMDirect({
+      type: 'INITIALIZE',
+      rooms: mDirectEvent ? getMDirects(mDirectEvent) : new Set(),
+    });
 
     const handleAccountData = (event: MatrixEvent) => {
       if (event.getType() === AccountDataEvent.Direct) {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useAppLanguageCode } from './useAppLanguageCode';
 import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
 
 type RelativeTimeClockListener = () => void;
@@ -57,6 +58,7 @@ export const getRelativeTimeUpdateInterval = (ts: number, now = Date.now()): num
 };
 
 export const useRelativeTime = (ts: number | undefined): string => {
+  const language = useAppLanguageCode();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -78,5 +80,5 @@ export const useRelativeTime = (ts: number | undefined): string => {
 
   if (ts === undefined) return '';
 
-  return formatRelativeTime(ts);
+  return formatRelativeTime(ts, language);
 };

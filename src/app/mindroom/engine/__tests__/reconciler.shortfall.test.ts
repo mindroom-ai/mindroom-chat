@@ -36,20 +36,17 @@ import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { scheduleReconcile } from '../reconciler';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
-import { persistThreadEventCacheSnapshot } from '../../threads/eventRepository';
 import type { HydratedThreadCachePage } from '../../threads/types';
 
-// The persist leg is replaced with a spy so its arguments (the
-// completeness marker) can be asserted without stubbing the IDB layer.
-// Everything else in eventRepository stays real — the reconciler's
-// prefer-live mapper in particular.
-vi.mock('../../threads/eventRepository', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../threads/eventRepository')>();
-  return {
-    ...actual,
-    persistThreadEventCacheSnapshot: vi.fn(),
-  };
-});
+// The persist leg goes through scheduleReconcile's injectable persistRepair
+// seam (this branch's committed-write variant) so its arguments — the
+// completeness marker in particular — can be asserted without stubbing IDB.
+const makePersistRepairSpy = () =>
+  vi.fn(({ events }: { events: readonly { event: unknown }[] }) => ({
+    rawEvents: events.map((mEvent) => mEvent.event),
+    loadedReplyCount: 0,
+    write: Promise.resolve(true),
+  }));
 
 const THREAD_ID = '$thread';
 
@@ -60,10 +57,14 @@ const makeFakeEvent = (raw: Partial<IEvent>): MatrixEvent =>
     getTs: () => raw.origin_server_ts ?? 0,
     isRedaction: () => false,
     isRedacted: () => false,
+    isSending: () => false,
     getAssociatedId: () => undefined,
     getRelation: () =>
       (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] ?? null,
     getUnsigned: () => raw.unsigned ?? {},
+    setUnsigned: (unsigned: IEvent['unsigned']) => {
+      raw.unsigned = unsigned;
+    },
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
@@ -127,7 +128,6 @@ const makeMockClient = (
 describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
   beforeEach(() => {
     resetCacheProbe();
-    vi.mocked(persistThreadEventCacheSnapshot).mockClear();
   });
   afterEach(() => {
     resetCacheProbe();
@@ -155,7 +155,6 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       cachedPage: makeCachedPage([makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)], {
         expectedReplyCount: 5,
       }),
-      reason: 'open-thread-choke-point',
       room,
       onRepaired,
     });
@@ -193,7 +192,6 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       cachedPage: makeCachedPage([makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)], {
         expectedReplyCount: 2,
       }),
-      reason: 'open-thread-choke-point',
       room,
     });
 
@@ -226,7 +224,6 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       roomId: '!room:example',
       threadId: THREAD_ID,
       cachedPage: makeCachedPage([makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)]),
-      reason: 'open-thread-choke-point',
       room,
     });
 
@@ -241,6 +238,7 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       { chunk: [makeReplyRaw('$r3', 300), makeReplyRaw('$r2', 200), makeReplyRaw('$r1', 100)] },
     ]);
     const scheduler = createBackfillScheduler({ mx });
+    const persistRepair = makePersistRepairSpy();
 
     await scheduleReconcile({
       mx,
@@ -251,12 +249,12 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       cachedPage: makeCachedPage([makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)], {
         expectedReplyCount: 5,
       }),
-      reason: 'open-thread-choke-point',
       room,
+      persistRepair: persistRepair as never,
     });
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    const [persistArgs] = vi.mocked(persistThreadEventCacheSnapshot).mock.calls[0];
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+    const [persistArgs] = persistRepair.mock.calls[0] as [Record<string, unknown>];
     // Full drain observed next_batch exhaust from HEAD → the server
     // confirmed nothing exists before the batch's earliest event:
     // record the start so the next open's count-proof can take the
@@ -281,6 +279,7 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       { chunk: [makeReplyRaw('$r3', 300)] },
     ]);
     const scheduler = createBackfillScheduler({ mx });
+    const persistRepair = makePersistRepairSpy();
 
     const result = await scheduleReconcile({
       mx,
@@ -292,14 +291,14 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
         [makeReplyRaw('$r3', 300), makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)],
         { expectedReplyCount: 9 }
       ),
-      reason: 'open-thread-choke-point',
       room,
+      persistRepair: persistRepair as never,
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(2);
     expect(result.repaired).toBe(false);
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    const [persistArgs] = vi.mocked(persistThreadEventCacheSnapshot).mock.calls[0];
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+    const [persistArgs] = persistRepair.mock.calls[0] as [Record<string, unknown>];
     expect(persistArgs.beforeTokenForEarliest).toBeNull();
     expect(persistArgs.relationSnapshotComplete).toBeUndefined();
   });
@@ -315,6 +314,7 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       { chunk: [makeReplyRaw('$r1', 100)] },
     ]);
     const scheduler = createBackfillScheduler({ mx });
+    const persistRepair = makePersistRepairSpy();
 
     await scheduleReconcile({
       mx,
@@ -325,13 +325,13 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
       cachedPage: makeCachedPage([makeReplyRaw('$r4', 400), makeReplyRaw('$r5', 500)], {
         expectedReplyCount: 3,
       }),
-      reason: 'open-thread-choke-point',
       room,
+      persistRepair: persistRepair as never,
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    const [persistArgs] = vi.mocked(persistThreadEventCacheSnapshot).mock.calls[0];
+    expect(persistRepair).toHaveBeenCalledTimes(1);
+    const [persistArgs] = persistRepair.mock.calls[0] as [Record<string, unknown>];
     expect(persistArgs.relationSnapshotComplete).toBeUndefined();
     expect(persistArgs.beforeTokenForEarliest).toBeUndefined();
   });

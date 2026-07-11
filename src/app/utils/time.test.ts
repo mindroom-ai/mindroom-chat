@@ -49,4 +49,11 @@ describe('formatRelativeTime', () => {
   it('clamps future timestamps to now', () => {
     expect(formatRelativeTime(Date.now() + secondsToMs(30))).toBe('now');
   });
+
+  it('uses the selected app language for relative time', () => {
+    expect(formatRelativeTime(Date.now() - minutesToMs(1), 'de')).toBe('vor 1 m');
+    expect(formatRelativeTime(Date.now() - minutesToMs(1), 'nl')).toBe('1 min. geleden');
+    expect(formatRelativeTime(Date.now(), 'de')).toBe('jetzt');
+    expect(formatRelativeTime(Date.now(), 'nl')).toBe('nu');
+  });
 });

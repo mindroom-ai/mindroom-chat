@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import type { ThreadCacheCoverage } from './types';
+import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 
 export type ThreadOverviewCachedMetadataSnapshot = {
   compactRootBodyMap: Map<string, string>;
+  compactRootSourceTsMap: Map<string, number>;
   lastActivityTsMap: Map<string, number>;
   latestReplyPreviewMap: Map<string, string>;
   lastSenderIdMap: Map<string, string>;
@@ -14,6 +16,7 @@ export type ThreadOverviewCachedMetadataUpdate = {
   rootId: string;
   nextActivityTs?: number;
   nextPreview?: string;
+  nextPreviewSourceTs?: number;
   nextReplyPreviewText?: string;
   nextLastSenderId?: string;
   nextMessageCount?: number;
@@ -39,6 +42,7 @@ export type ThreadOverviewCachedMetadataController = ThreadOverviewCachedMetadat
 export const createEmptyThreadOverviewCachedMetadata =
   (): ThreadOverviewCachedMetadataSnapshot => ({
     compactRootBodyMap: new Map(),
+    compactRootSourceTsMap: new Map(),
     lastActivityTsMap: new Map(),
     latestReplyPreviewMap: new Map(),
     lastSenderIdMap: new Map(),
@@ -74,6 +78,15 @@ export const applyThreadOverviewCachedMetadataUpdates = (
         updates.map(({ rootId, nextPreview }) => ({ key: rootId, value: nextPreview }))
       )
     : previous.compactRootBodyMap;
+  const compactRootSourceTsMap = includeCompactRootBody
+    ? updateMap(
+        previous.compactRootSourceTsMap,
+        updates.map(({ rootId, nextPreviewSourceTs }) => ({
+          key: rootId,
+          value: nextPreviewSourceTs,
+        }))
+      )
+    : previous.compactRootSourceTsMap;
   const lastActivityTsMap = updateMap(
     previous.lastActivityTsMap,
     updates.map(({ rootId, nextActivityTs }) => ({ key: rootId, value: nextActivityTs }))
@@ -100,6 +113,7 @@ export const applyThreadOverviewCachedMetadataUpdates = (
 
   if (
     compactRootBodyMap === previous.compactRootBodyMap &&
+    compactRootSourceTsMap === previous.compactRootSourceTsMap &&
     lastActivityTsMap === previous.lastActivityTsMap &&
     latestReplyPreviewMap === previous.latestReplyPreviewMap &&
     lastSenderIdMap === previous.lastSenderIdMap &&
@@ -111,6 +125,7 @@ export const applyThreadOverviewCachedMetadataUpdates = (
 
   return {
     compactRootBodyMap,
+    compactRootSourceTsMap,
     lastActivityTsMap,
     latestReplyPreviewMap,
     lastSenderIdMap,
@@ -121,11 +136,36 @@ export const applyThreadOverviewCachedMetadataUpdates = (
 
 export const mergeCompactThreadRootBodyMaps = (
   liveBodyMap: ReadonlyMap<string, string>,
-  cachedBodyMap: ReadonlyMap<string, string>
+  cachedBodyMap: ReadonlyMap<string, string>,
+  liveSourceTsMap: ReadonlyMap<string, number> = new Map(),
+  cachedSourceTsMap: ReadonlyMap<string, number> = new Map()
 ): Map<string, string> => {
-  const bodyMap = new Map(liveBodyMap);
-  cachedBodyMap.forEach((value, key) => {
-    bodyMap.set(key, value);
+  // Prefer a complete preview over a truncated streaming placeholder. When
+  // both observations are complete, revision timestamps decide; unavailable
+  // timestamps retain the SDK-first fallback instead of guessing freshness.
+  const bodyMap = new Map(cachedBodyMap);
+  liveBodyMap.forEach((value, key) => {
+    const cachedValue = bodyMap.get(key);
+    if (!cachedValue) {
+      bodyMap.set(key, value);
+      return;
+    }
+
+    const liveIncomplete = hasLikelyIncompleteStreamingBody(value);
+    const cachedIncomplete = hasLikelyIncompleteStreamingBody(cachedValue);
+    if (liveIncomplete !== cachedIncomplete) {
+      bodyMap.set(key, liveIncomplete ? cachedValue : value);
+      return;
+    }
+
+    const liveSourceTs = liveSourceTsMap.get(key);
+    const cachedSourceTs = cachedSourceTsMap.get(key);
+    bodyMap.set(
+      key,
+      cachedSourceTs !== undefined && liveSourceTs !== undefined && cachedSourceTs > liveSourceTs
+        ? cachedValue
+        : value
+    );
   });
   return bodyMap;
 };

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
@@ -32,6 +32,11 @@ import {
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+  serializeThreadFilterQuery,
+} from './threadFilterDsl';
 
 export type { ThreadFilterState, ThreadFilterKey };
 
@@ -721,6 +726,18 @@ export function RoomThreadOverview({
   const simpleMode = useSimpleMode();
   const { t } = useTranslation();
   const filtersActive = hasActiveThreadFilters(state);
+  const canonicalSearchQuery = serializeThreadFilterQuery(state);
+  const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);
+  const pendingSearchCanonicalRef = useRef<string>();
+
+  useEffect(() => {
+    if (pendingSearchCanonicalRef.current === canonicalSearchQuery) {
+      pendingSearchCanonicalRef.current = undefined;
+      return;
+    }
+    pendingSearchCanonicalRef.current = undefined;
+    setSearchQueryDraft(canonicalSearchQuery);
+  }, [canonicalSearchQuery]);
   const sortLabel =
     state.sortBy === 'natural'
       ? 'Threads in timeline order'
@@ -752,9 +769,13 @@ export function RoomThreadOverview({
   const handleSearchWithPresetClear = useCallback(
     (query: string) => {
       setLastAppliedPreset(null);
+      setSearchQueryDraft(query);
+      pendingSearchCanonicalRef.current = serializeThreadFilterQuery(
+        applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
+      );
       onSearchQueryChange(query);
     },
-    [onSearchQueryChange]
+    [onSearchQueryChange, state]
   );
 
   const handleCycleTagWithPresetClear = useCallback(
@@ -957,7 +978,7 @@ export function RoomThreadOverview({
           totalThreadCount={totalThreadCount}
         />
         <ThreadSearchBar
-          searchQuery={state.searchQuery ?? ''}
+          searchQuery={searchQueryDraft}
           onSearchQueryChange={handleSearchWithPresetClear}
         />
 

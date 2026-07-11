@@ -5,6 +5,7 @@ import { initReactI18next } from 'react-i18next';
 import { appUrl } from './utils/basePath';
 import { APP_LANGUAGE_CODES } from './i18nLanguages';
 import en from './locales/en.json';
+import { syncDayjsLocale } from './appLocale';
 
 i18n
   // i18next-http-backend
@@ -48,9 +49,10 @@ i18n.on('failedLoading', (lng, ns, msg) => {
 });
 
 const syncDocumentLanguage = (language: string) => {
+  const languageCode = syncDayjsLocale(language);
   if (typeof document === 'undefined') return;
-  document.documentElement.setAttribute('lang', language);
-  document.documentElement.setAttribute('dir', i18n.dir(language));
+  document.documentElement.setAttribute('lang', languageCode);
+  document.documentElement.setAttribute('dir', i18n.dir(languageCode));
 };
 
 i18n.on('languageChanged', syncDocumentLanguage);

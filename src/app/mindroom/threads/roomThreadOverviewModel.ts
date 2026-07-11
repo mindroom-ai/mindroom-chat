@@ -1,5 +1,5 @@
 import type { RoomViewMode } from './roomViewMode';
-import { serializeThreadFilterQuery } from './threadFilterDsl';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -25,8 +25,10 @@ export interface ThreadFilterState {
   sortDirection: 'asc' | 'desc';
   // Tag filters
   tags: Map<string, TriState>;
-  // Search
-  searchQuery: string;
+  // Canonical search state. The visible DSL query is derived from the
+  // structured filters plus these text fragments.
+  freeText: string;
+  unsupportedQuery: string;
   // OR/AND mode for status include filters (presets can set 'or')
   statusMode: 'and' | 'or';
 }
@@ -45,12 +47,13 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   sortBy: 'lastReply',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
 });
 
 export interface SerializedThreadFilterState {
-  v: 1;
+  v: 2;
   resolved: TriState;
   streaming: TriState;
   scheduled: TriState;
@@ -59,7 +62,8 @@ export interface SerializedThreadFilterState {
   sortBy: ThreadFilterState['sortBy'];
   sortDirection: ThreadFilterState['sortDirection'];
   tags: Record<string, Exclude<TriState, 'any'>>;
-  searchQuery?: string;
+  freeText?: string;
+  unsupportedQuery?: string;
   statusMode?: ThreadFilterState['statusMode'];
 }
 
@@ -87,7 +91,9 @@ export const serializeThreadFilterState = (
   const sortBy = isSortBy(state.sortBy) ? state.sortBy : 'natural';
   const sortDirection =
     sortBy === 'natural' ? 'desc' : isSortDirection(state.sortDirection) ? state.sortDirection : 'desc';
-  const searchQuery = typeof state.searchQuery === 'string' ? state.searchQuery : '';
+  const freeText = typeof state.freeText === 'string' ? state.freeText : '';
+  const unsupportedQuery =
+    typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
   const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';
 
   const tags = Object.fromEntries(
@@ -97,7 +103,7 @@ export const serializeThreadFilterState = (
   );
 
   return {
-    v: 1,
+    v: 2,
     resolved: isTriState(state.resolved) ? state.resolved : 'any',
     streaming: isTriState(state.streaming) ? state.streaming : 'any',
     scheduled: isTriState(state.scheduled) ? state.scheduled : 'any',
@@ -106,7 +112,8 @@ export const serializeThreadFilterState = (
     sortBy,
     sortDirection,
     tags,
-    searchQuery,
+    freeText,
+    unsupportedQuery,
     statusMode,
   };
 };
@@ -118,7 +125,7 @@ const DEFAULT_SERIALIZED_THREAD_FILTER_STATE = JSON.stringify(
 export const deserializeThreadFilterState = (value: unknown): ThreadFilterState => {
   const defaultState = createDefaultThreadFilterState();
 
-  if (!isRecord(value) || value.v !== 1) {
+  if (!isRecord(value) || (value.v !== 1 && value.v !== 2)) {
     return defaultState;
   }
 
@@ -127,8 +134,11 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
     ? value.sortDirection
     : defaultState.sortDirection;
   const sortDirection = sortBy === 'natural' ? 'desc' : rawSortDirection;
-  const searchQuery =
-    typeof value.searchQuery === 'string' ? value.searchQuery : defaultState.searchQuery;
+  const freeText = typeof value.freeText === 'string' ? value.freeText : defaultState.freeText;
+  const unsupportedQuery =
+    typeof value.unsupportedQuery === 'string'
+      ? value.unsupportedQuery
+      : defaultState.unsupportedQuery;
   const statusMode = isStatusMode(value.statusMode) ? value.statusMode : defaultState.statusMode;
 
   const tags = new Map<string, TriState>();
@@ -142,7 +152,7 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
       });
   }
 
-  return {
+  const state: ThreadFilterState = {
     resolved: isTriState(value.resolved) ? value.resolved : defaultState.resolved,
     streaming: isTriState(value.streaming) ? value.streaming : defaultState.streaming,
     scheduled: isTriState(value.scheduled) ? value.scheduled : defaultState.scheduled,
@@ -151,9 +161,18 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
     sortBy,
     sortDirection,
     tags,
-    searchQuery,
+    freeText,
+    unsupportedQuery,
     statusMode,
   };
+
+  // v1 stored both structured fields and a DSL string. Runtime behavior made
+  // the DSL authoritative, so migrate it once at the persistence boundary and
+  // store only canonical structured filters + text from then on.
+  if (value.v === 1 && typeof value.searchQuery === 'string') {
+    return applyParsedThreadFilterQuery(state, parseThreadFilterQuery(value.searchQuery));
+  }
+  return state;
 };
 
 export type VisibleThreadRootData = {
@@ -193,7 +212,7 @@ export const isOrModeStatusChip = (
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
-  (state.searchQuery ?? '').length > 0;
+  (state.freeText ?? '').length > 0 || (state.unsupportedQuery ?? '').length > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
   JSON.stringify(serializeThreadFilterState(state)) === DEFAULT_SERIALIZED_THREAD_FILTER_STATE;
@@ -239,7 +258,7 @@ export const createThreadSortControlSignature = ({
     idle: state.idle,
     statusMode: state.statusMode,
     tags: [...state.tags.entries()].sort(([tagA], [tagB]) => tagA.localeCompare(tagB)),
-    searchQuery: searchQuery ?? state.searchQuery ?? '',
+    searchQuery: searchQuery ?? state.freeText ?? '',
     viewMode: viewMode ?? 'threaded',
   });
 
@@ -273,18 +292,14 @@ export const resetThreadFilterState = (): ThreadFilterState =>
  * influencing which threads are shown. The stored state itself is left
  * untouched — leaving simple mode restores the full setup.
  *
- * The projected searchQuery must serialize the projected state, not be
- * blanked: the search DSL is authoritative downstream
- * (applyParsedThreadFilterQuery resets every status key the query does not
- * mention), so an empty query would silently erase the surviving resolved
- * filter before it ever reached the thread index.
+ * The query shown by the UI is derived from this canonical projection, so no
+ * second DSL representation needs to be kept in sync.
  */
 export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilterState => {
-  const projected: ThreadFilterState = {
+  return {
     ...createDefaultThreadFilterState(),
     resolved: state.resolved === 'exclude' ? 'exclude' : 'any',
   };
-  return { ...projected, searchQuery: serializeThreadFilterQuery(projected) };
 };
 
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
@@ -400,10 +415,12 @@ export const applyPreset = (
     ...statusOverrides,
   };
   if (preset.id === 'all') {
-    return { ...nextState, tags: new Map(), searchQuery: '' };
+    return {
+      ...nextState,
+      tags: new Map(),
+      freeText: '',
+      unsupportedQuery: '',
+    };
   }
-  return {
-    ...nextState,
-    searchQuery: serializeThreadFilterQuery(nextState),
-  };
+  return nextState;
 };

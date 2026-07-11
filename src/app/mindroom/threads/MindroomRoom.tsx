@@ -18,7 +18,7 @@ import { MindroomCallChatView } from './MindroomCallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
-import { roomViewModeAtomFamily } from './roomViewMode';
+import { useRoomViewMode } from './useRoomViewMode';
 
 export function Room() {
   const { eventId } = useParams();
@@ -34,7 +34,7 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const chat = useAtomValue(callChatAtom);
-  const viewMode = useAtomValue(roomViewModeAtomFamily(room.roomId));
+  const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
   const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,

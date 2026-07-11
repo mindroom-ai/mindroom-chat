@@ -4,7 +4,22 @@ const MEDIA_REQUEST_PATHS = [
 ] as const;
 
 const isMediaPathname = (pathname: string): boolean =>
-  MEDIA_REQUEST_PATHS.some((path) => pathname.includes(path));
+  MEDIA_REQUEST_PATHS.some((path) => {
+    const pathStart = pathname.indexOf(path);
+    if (pathStart < 0) return false;
+    const nextCharacter = pathname[pathStart + path.length];
+    return nextCharacter === undefined || nextCharacter === '/';
+  });
+
+const isMediaPathnameForBase = (pathname: string, basePathname: string): boolean => {
+  const basePath = basePathname.replace(/\/+$/, '');
+  return MEDIA_REQUEST_PATHS.some((path) => {
+    const expectedPath = `${basePath}${path}`;
+    if (!pathname.startsWith(expectedPath)) return false;
+    const nextCharacter = pathname[expectedPath.length];
+    return nextCharacter === undefined || nextCharacter === '/';
+  });
+};
 
 const parseUrl = (url: string): URL | undefined => {
   try {
@@ -16,9 +31,7 @@ const parseUrl = (url: string): URL | undefined => {
 
 export const looksLikeMediaRequest = (url: string): boolean => {
   const parsedUrl = parseUrl(url);
-  if (parsedUrl) return isMediaPathname(parsedUrl.pathname);
-
-  return MEDIA_REQUEST_PATHS.some((path) => url.includes(path));
+  return parsedUrl ? isMediaPathname(parsedUrl.pathname) : false;
 };
 
 export const validMediaRequest = (url: string, baseUrl: string): boolean => {
@@ -28,5 +41,5 @@ export const validMediaRequest = (url: string, baseUrl: string): boolean => {
   if (!parsedRequestUrl || !parsedBaseUrl) return false;
   if (parsedRequestUrl.origin !== parsedBaseUrl.origin) return false;
 
-  return isMediaPathname(parsedRequestUrl.pathname);
+  return isMediaPathnameForBase(parsedRequestUrl.pathname, parsedBaseUrl.pathname);
 };

@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { daysToMs, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
 import { getRelativeTimeUpdateInterval, useRelativeTime } from './useRelativeTime';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ i18n: { language: 'en', resolvedLanguage: 'en' } }),
+}));
+
 type HarnessProps = {
   ts: number | undefined;
   onRender: (value: string) => void;

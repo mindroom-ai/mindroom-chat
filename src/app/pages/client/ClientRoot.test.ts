@@ -3,15 +3,18 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientEvent, SyncState } from 'matrix-js-sdk';
+import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { ClientRoot, hasCachedClientShell } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { StoredSession } from '../../state/sessions';
 import {
+  clearAllCacheAndReload,
   initClient,
   removeCurrentClientSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
+import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -57,13 +60,16 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 vi.mock('../../../client/initMatrix', () => ({
-  clearCacheAndReload: vi.fn(),
-  clearLoginData: vi.fn().mockResolvedValue(undefined),
+  clearAllCacheAndReload: vi.fn().mockResolvedValue(undefined),
   initClient: vi.fn(),
   logoutClient: vi.fn().mockResolvedValue(undefined),
   removeCurrentClientSessionAndReload: vi.fn().mockResolvedValue(undefined),
   removeSessionAndReload: vi.fn().mockResolvedValue(undefined),
   startClient: vi.fn(),
+}));
+
+vi.mock('../../../client/secretStorageKeys', () => ({
+  clearSecretStorageKeys: vi.fn(),
 }));
 
 vi.mock('../../components/splash-screen', () => ({
@@ -207,15 +213,17 @@ const toBootstrapSession = (session: {
   userId: string;
   deviceId: string;
   accessToken: string;
+  refreshToken?: string;
 }) => ({
   sessionId: session.sessionId,
   baseUrl: session.baseUrl,
   userId: session.userId,
   deviceId: session.deviceId,
   accessToken: session.accessToken,
+  refreshToken: session.refreshToken,
 });
 
-const renderClientRoot = () =>
+const renderClientRoot = (children: React.ReactNode = React.createElement('div', null, 'child')) =>
   React.createElement(
     MemoryRouter,
     {
@@ -230,7 +238,7 @@ const renderClientRoot = () =>
       }),
       React.createElement(Route, {
         path: '*',
-        element: React.createElement(ClientRoot, null, React.createElement('div', null, 'child')),
+        element: React.createElement(ClientRoot, null, children),
       })
     )
   );
@@ -251,6 +259,7 @@ describe('ClientRoot', () => {
   });
 
   it('switches clients when the active session changes', async () => {
+    vi.mocked(clearSecretStorageKeys).mockClear();
     const clientA = createMockClient();
     const clientB = createMockClient();
 
@@ -295,9 +304,125 @@ describe('ClientRoot', () => {
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(2);
     expect(clientA.stopClient).toHaveBeenCalledTimes(1);
     expect(clientB.stopClient).not.toHaveBeenCalled();
+    expect(vi.mocked(clearSecretStorageKeys)).toHaveBeenCalledTimes(1);
   });
 
-  it('does not restart the client when only session metadata changes', async () => {
+  it('unmounts the old account shell in the same render that switches sessions', async () => {
+    const clientA = createMockClient({ cachedRooms: 1 });
+    let resolveClientB: ((client: MockClient) => void) | undefined;
+    const clientBPromise = new Promise<MockClient>((resolve) => {
+      resolveClientB = resolve;
+    });
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockImplementation(async (session) =>
+      session.sessionId === 'session-a' ? (clientA as never) : (clientBPromise as never)
+    );
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+
+    currentSession = {
+      sessionId: 'session-b',
+      baseUrl: 'https://matrix.org',
+      userId: '@bob:matrix.org',
+      deviceId: 'DEVICE_B',
+      accessToken: 'token-b',
+      lastUsedAt: 2,
+    };
+
+    act(() => {
+      renderer?.update(renderClientRoot());
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(true);
+
+    resolveClientB?.(createMockClient());
+    await act(flushEffects);
+  });
+
+  it('uses a fresh authenticated query cache when the active account changes', async () => {
+    const clientA = createMockClient({ cachedRooms: 1 });
+    const clientB = createMockClient({ cachedRooms: 1 });
+    const observations: Array<{
+      sessionId: string;
+      queryClient: QueryClient;
+      cachedOwner: string | undefined;
+    }> = [];
+
+    const AccountQuery = () => {
+      const renderedSession = currentSession;
+      const accountQueryClient = useQueryClient();
+      React.useEffect(() => {
+        if (renderedSession?.sessionId === 'session-a') {
+          accountQueryClient.setQueryData(['shared-account-query'], renderedSession.userId);
+        }
+      }, [accountQueryClient, renderedSession]);
+      if (renderedSession) {
+        observations.push({
+          sessionId: renderedSession.sessionId,
+          queryClient: accountQueryClient,
+          cachedOwner: accountQueryClient.getQueryData(['shared-account-query']),
+        });
+      }
+      return null;
+    };
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockImplementation(async (session) =>
+      session.sessionId === 'session-a' ? (clientA as never) : (clientB as never)
+    );
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot(React.createElement(AccountQuery)));
+      await flushEffects();
+    });
+
+    currentSession = {
+      sessionId: 'session-b',
+      baseUrl: 'https://matrix.org',
+      userId: '@bob:matrix.org',
+      deviceId: 'DEVICE_B',
+      accessToken: 'token-b',
+      lastUsedAt: 2,
+    };
+
+    await act(async () => {
+      renderer?.update(renderClientRoot(React.createElement(AccountQuery)));
+      await flushEffects();
+    });
+
+    const accountAObservation = observations.find(({ sessionId }) => sessionId === 'session-a');
+    const accountBObservation = observations.find(({ sessionId }) => sessionId === 'session-b');
+    expect(accountAObservation).toBeDefined();
+    expect(accountBObservation).toBeDefined();
+    expect(accountBObservation?.queryClient).not.toBe(accountAObservation?.queryClient);
+    expect(accountBObservation?.cachedOwner).toBeUndefined();
+  });
+
+  it('does not restart the client when session metadata or rotated credentials change', async () => {
     const client = createMockClient();
 
     currentSession = {
@@ -319,12 +444,15 @@ describe('ClientRoot', () => {
       renderer = create(renderClientRoot());
       await flushEffects();
     });
+    vi.mocked(clearSecretStorageKeys).mockClear();
 
     currentSession = {
       ...currentSession,
       lastUsedAt: 2,
       lastKnownPath: '/home/create/',
       lastKnownDisplayName: 'Alice Updated',
+      accessToken: 'token-b',
+      refreshToken: 'refresh-b',
     };
 
     await act(async () => {
@@ -335,6 +463,7 @@ describe('ClientRoot', () => {
     expect(vi.mocked(initClient)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(1);
     expect(client.stopClient).not.toHaveBeenCalled();
+    expect(vi.mocked(clearSecretStorageKeys)).not.toHaveBeenCalled();
   });
 
   it('does not initialize a client when there is no active session', async () => {
@@ -348,6 +477,89 @@ describe('ClientRoot', () => {
     expect(vi.mocked(initClient)).not.toHaveBeenCalled();
     expect(vi.mocked(startClient)).not.toHaveBeenCalled();
     expect(renderer?.toJSON()).toEqual('login page');
+  });
+
+  it('offers cache recovery when a created client fails to start', async () => {
+    const client = createMockClient();
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockRejectedValue(new Error('startup failed'));
+    vi.mocked(clearAllCacheAndReload).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'Clear Cache and Reload')).toBe(true);
+    const recoveryButton = renderer?.root.findAll(
+      (node) =>
+        typeof node.props.onClick === 'function' &&
+        node.findAll((child) => child.children.includes('Clear Cache and Reload')).length > 0
+    )[0];
+    await act(async () => {
+      await recoveryButton?.props.onClick();
+    });
+
+    expect(vi.mocked(clearAllCacheAndReload)).toHaveBeenCalledWith(client);
+  });
+
+  it('retries startup with the latest rotated session credentials', async () => {
+    const firstClient = createMockClient();
+    const retryClient = createMockClient();
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      refreshToken: 'refresh-a',
+      lastUsedAt: 1,
+    };
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient)
+      .mockResolvedValueOnce(firstClient as never)
+      .mockResolvedValueOnce(retryClient as never);
+    vi.mocked(startClient)
+      .mockRejectedValueOnce(new Error('temporary startup failure'))
+      .mockResolvedValueOnce(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    currentSession = {
+      ...currentSession,
+      accessToken: 'token-b',
+      refreshToken: 'refresh-b',
+    };
+    await act(async () => {
+      renderer?.update(renderClientRoot());
+      await flushEffects();
+    });
+    expect(vi.mocked(initClient)).toHaveBeenCalledTimes(1);
+
+    const retryButton = renderer?.root.findAll(
+      (node) =>
+        typeof node.props.onClick === 'function' &&
+        node.findAll((child) => child.children.includes('Retry')).length > 0
+    )[0];
+    await act(async () => {
+      retryButton?.props.onClick();
+      await flushEffects();
+    });
+
+    expect(vi.mocked(initClient)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(toBootstrapSession(currentSession));
   });
 
   it('uses the session-aware cleanup helper when the server logs the client out', async () => {
@@ -459,6 +671,9 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
     expect(hasRenderedText(renderer, 'sync')).toBe(false);
+    expect(
+      renderer?.root.findAll((node) => node.props['aria-label'] === 'Startup recovery options')
+    ).toHaveLength(1);
 
     await act(async () => {
       resolveStartClient?.();
@@ -522,6 +737,9 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
     expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(false);
+    expect(
+      renderer?.root.findAll((node) => node.props['aria-label'] === 'Startup recovery options')
+    ).toHaveLength(0);
   });
 
   it('keeps the particle loading screen when only a saved sync token is restored', async () => {

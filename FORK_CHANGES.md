@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### PR #104 focused reliability and maintainability follow-up (2026-07-11)
+
+- Status: complete on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`;
+  PR #123 is open.
+- Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
+  root preview freshness, monotonic-but-upgradable bundled relations, transient refresh-error
+  classification, and separation of the reconciler's network scan from its repair/persist phase.
+- The follow-up also repairs the concatenated `.prettierignore` entry and makes pull-request CI run
+  typecheck, ESLint, and Prettier in addition to tests and the production build.
+- Compact root previews now carry their source revision timestamp with their text. Complete text
+  beats a streaming placeholder; otherwise the newer source revision wins, so cached v2 repairs
+  stale SDK v1 and a later live v3 upgrades cleanly. Focused compact suites pass 42 tests.
+- Partial relation snapshots now merge only the two owned aggregate shapes: `m.thread` keeps maximum
+  count/participation and the newest `latest_event`; `m.annotation` unions keys with maximum counts.
+  Opaque existing bundles stay unchanged and authoritative snapshots retain replace/decrease
+  semantics. Focused revision/cache-store suites pass 33 tests.
+- Token refresh policy now lives in a pure boundary helper: definitive `M_UNKNOWN_TOKEN` failures
+  request logout, while rate limits, server failures, and network errors remain retryable. The
+  focused auth suites pass 25 tests.
+- Relation scanning/continuation handling moved to `reconcilerScan.ts`; repair and persistence remain
+  in `reconciler.ts`. Maximum function complexity fell from 77 to 25, combined production lines
+  decreased slightly, and the full engine plus cache-boundary suite passes 208 tests.
+- Explicitly out of scope: new cross-tab refresh coordination, crash-resumable cleanup protocols,
+  legacy service-worker compatibility redesign, and upstream/inherited edge cases without a normal
+  fork-specific reproduction. The goal is a smaller, easier-to-reason-about patch rather than a new
+  coordination subsystem.
+- Independent review caught two integration defects before publication: a repository-wide Prettier
+  step would fail on 275 baseline files, so CI now checks only the PR's NUL-delimited changed-file
+  set; and partial monotonic relation comparison initially masked authoritative decreases/removals,
+  so the comparison mode is now explicit and reconciler regressions cover both cases. Re-review
+  approved both corrections. The first full test run also exposed an incomplete MatrixEvent edit
+  fixture; the fixture now carries the timestamp/sender contract used by production. Final
+  exact-range review also added the standard `--` option terminator to the changed-file Prettier
+  invocation; re-review approved the corrected command.
+- Final local gate is green: all 391 Vitest files / 3,034 tests, TypeScript typecheck, full ESLint
+  with zero errors / 17 baseline warnings, changed-file Prettier, `git diff --check`, and the
+  production plus PWA/service-worker build. Every logical change received independent review.
+
 ### Thread missing-middle: reconciler shortfall drain (2026-07-10)
 
 - Status: implemented on branch `caveman/fix-thread-missing-middle` off `dev` at `706f011c`
@@ -182,8 +220,8 @@
 - Status: PR #116 merged the sampled-quiescence fix and PR #119 merged the direction-aware boundary
   fix into `dev`. A focused follow-up on `caveman/harden-ios-ledger-direction` resets #119's
   delivered-event direction baseline when a new touch begins after silent compositor travel;
-  independent review, full validation, and the final `origin/dev` rebase are complete. Draft PR
-  #121 is open from that branch. No production deploy was performed by this task.
+  independent review and full validation are complete. PR #121 is open from that branch. No
+  production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -384,7 +422,16 @@
 - Final rebase: fetched `origin/dev` immediately before publishing; it remained at `886a8599e`, so
   commit `af0cf8748` was already directly based on the current default branch and the rebase was a
   no-op.
-- Publishing: pushed `caveman/harden-ios-ledger-direction` and opened draft PR #121 targeting `dev`.
+- Publishing: pushed `caveman/harden-ios-ledger-direction` and opened PR #121 targeting `dev`.
+- Merge-conflict repair after PR #123: merged current `origin/dev` at `bb3a2109f` without rewriting
+  history. `dev` had moved the complete ledger lifecycle into `timelineScrollLedgerController`, so
+  the obsolete component implementation and its large lifecycle-test conflict were not restored.
+  The touch-epoch reset now lives with the boundary guard in that controller, with a focused
+  controller regression covering silent compositor travel, reversal, genuine forward settlement,
+  passive capture registration, and matching cleanup. The focused momentum battery passes (4
+  files / 98 tests); the full suite passes (391 files / 3,035 tests), as do typecheck, production
+  plus PWA/service-worker builds, full lint (0 errors / 17 existing warnings), formatting, and
+  `git diff --check`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
@@ -653,6 +700,354 @@
 - Final release gate green: `npm run appstore:preflight`, `npm run typecheck`,
   `npm run build`, `npm run lint` (0 errors, 19 pre-existing warnings), and
   `npm test` (354 files, 2812 tests).
+
+### Native PR review loop follow-up and reduction (2026-07-10, in progress)
+
+Adapted copies of MindRoom PR-review skills live under `.claude/skills/`.
+The main thread owns changes and independent agents review the same tree.
+
+The first review pass found real cache, streaming-edit, account-isolation, and
+session-lifecycle defects, but repeated concurrency remediation expanded the PR
+to 26,697 added lines (about 19,700 net), including about 8,100 net production
+lines. That was too large for a maintainable upstream fork.
+
+A reduction audit compared this fork with `cinnyapp/cinny` `upstream/dev` at
+`5e00d517e`. Upstream uses a simple localStorage session, direct SDK cleanup,
+and a service-worker credential map scoped by browser client. It does not
+implement durable refresh leases, a cleanup consensus protocol, peer
+heartbeats, cleanup generations, or media epochs. The MindRoom fork needs its
+existing account-scoped stores because it supports multiple accounts, but the
+cross-tab distributed-systems layer was not justified by the product risk.
+
+The branch now returns session, authentication, cleanup, and service-worker
+behavior to the last small SDK-centered implementation from this PR, before
+cross-tab coordination began. It retains the original fork account isolation,
+selective per-account store cleanup, SDK token refresh persistence, token-free
+browser media URLs, per-client service-worker credentials, and visible startup retry.
+It removes the custom refresh coordinator, cleanup fence and peer protocol,
+authentication-generation store, runtime credential convergence state machine,
+media epoch broker, cleanup recovery UI framework, and their specialized tests.
+Blocked localStorage cleanup is again best effort, matching the simpler failure
+model used by upstream.
+
+The cache and timeline portions remain because upstream has no equivalent
+MindRoom thread archive and the focused tests reproduce product-visible failures:
+rapid edit/redaction revisions must be monotonic, bounded reconciliation must
+resume, failed gap markers must remain retryable, and the iOS scroll ledger must
+reset before callback refs attach. Historical repository-layout policing and
+adapter whitelists were removed or narrowed because they froze implementation
+shape rather than behavior. Account-settings writes now use one promise tail
+per Matrix client instead of a coalescing queue state machine.
+
+A post-reduction functionality audit separated ordinary same-tab safeguards from
+the rejected coordination layer. Small direct fixes now retain per-session React
+Query caches, provider-aware prefetch settings, latest stored credentials on
+startup retry, cleanup identity derived from the live Matrix client, sync-engine
+shutdown before destructive cache work, disposal after partial SDK startup, and
+enumeration of old-device Rust crypto databases. These use a session-keyed query
+provider, one engine WeakMap, and local cleanup helpers; no leases, generations,
+heartbeats, cleanup consensus, or media epochs returned.
+
+The final same-tree audit also fixed ordinary-path regressions without restoring
+the coordination layer: continuation recovery can no longer prune reactions
+after a failed fresh-head restart; deferred gap fill retains its original overlap
+boundary; retained scroll callbacks read the latest thread events; account
+removal evicts only that session's in-memory thread summaries; the command
+palette remains bounded when empty but searches all rooms for an explicit query
+and still recognizes encrypted two-member DMs missing `m.direct`; settings-avatar
+media continues to select legacy versus authenticated endpoints correctly; and
+service-worker session lookup no longer waits three seconds when a cached client
+binding exists. Room-view-mode migration is now a small session-keyed best-effort
+store rather than an owner/tombstone protocol.
+
+The rebased review pass found seven more ordinary-path defects, all fixed with
+small local ownership rules rather than new coordination machinery. Redacted
+authoritative `/relations` snapshots are pruned before IndexedDB persistence;
+capped gap fills remain resumable in the same runtime; long-text plaintext is
+cached by Matrix client and complete source identity; secret-storage keys are
+cleared when the account/device root unmounts; removing one of two sessions for
+the same MXID preserves the remaining session's user-keyed UI state; and normal
+writes cannot downgrade a newer MindRoom settings-store version. Profile
+fallback now tracks avatar and display-name resolution independently, so an
+offline SDK placeholder MXID cannot overwrite a friendly cached account name.
+The review request to preserve legacy extension fields across a later,
+partially successful quota-failure sequence was intentionally declined: that
+is the same blocked-storage recovery guarantee removed by the reduction, while
+the migration attempt itself remains lossless.
+
+An additional adversarial pass closed ordinary-path issues without
+reintroducing distributed coordination. Cache redaction now follows both
+top-level replacement bundles and nested thread latest-event bundles, prunes
+already-applied replacements during hydration, and uses per-relation durable
+markers plus a room-wide rare scrub so stale standalone or paginated events
+cannot resurrect redacted plaintext. Marker lookup remains proportional to the
+current batch rather than room history. Gap tracking preserves the pre-reset
+overlap boundary across stacked resets; reconciliation resumes from a valid
+continuation cursor; thread saves retain `lastOpenedTs`; successful token
+refresh always updates the running client even when persistence fails;
+service-worker request waiters are reference-counted; and command-palette user
+search includes direct rooms while implicit DMs require exactly two joined
+members. Focused behavioral tests cover each contract.
+
+Two independent line-by-line audits found no broad normal-path feature removal.
+About 99 percent of the net shrink from the pre-reduction checkpoint is the
+discarded session/auth/cleanup/service-worker coordination layer and its tests;
+the rest of the product and focused tests are approximately net-neutral. The
+intentional losses are explicit: concurrent tabs do not serialize token refresh
+or reach cleanup consensus, cleanup is not crash-resumable, media credentials
+have no runtime epoch, blocked storage is best effort without dedicated recovery
+screens, and the unshipped intermediate split-session schema is not migrated.
+The shipped v1 session format and normal multi-account flows remain compatible.
+
+After a final conflict-free rebase, the branch is directly based on `origin/dev`
+at `88b071e61` (through merged PR #114, including #112, #111, and #102). The
+upstream expanded-row scroll/render changes applied without conflict; their
+touched suites pass together with the fork cache/session tests (6 files / 169
+tests). A forced remote refresh confirmed that this remains the live tip. The
+exact merge-base diff is 190 files, 13,248
+insertions, and 6,524 deletions: 2,700 net production lines, 3,722 net test
+lines, and 302 net documentation/skill/config lines. No generated artifacts are
+included. At 6,724 net lines overall, this is roughly 66 percent smaller than
+the approximately 19,700-net-line pre-reduction checkpoint; the largest single
+churn item is deletion of the former 2,518-line monolithic
+`RoomTimeline.architecture.test.ts`.
+
+The rewritten five-commit checkpoint was pushed as `d464d126d`. Green at that
+checkpoint: all 387 Vitest files / 2,966 tests, the 13-file / 226-test focused
+cache, gap, redaction, session, service-worker, and command-palette review set,
+TypeScript typecheck, production and PWA/service-worker builds, Prettier and
+diff checks, and full ESLint with zero errors (17 existing warnings). The first
+post-rebase full run also exposed a timing-dependent test setup added by this
+branch: it reactivated an account, which intentionally refreshed `lastUsedAt`,
+but compared against the stale pre-reactivation object. Both affected setups
+now create the other account as inactive directly; no production change was
+needed.
+
+Fresh exact-pushed-head review then found two substantive fork-specific cache
+defects rather than speculative concurrency cases. First, a redaction-only
+batch durably marked its target but the scrub and later marker lookup covered
+only replacement events. A cached ordinary message, reaction, or thread root
+outside SDK memory could therefore retain plaintext or be resurrected by a
+later stale page. Marker lookup now includes every incoming event id, the rare
+room scrub removes marked unredacted records and roots across every scope, and
+later writes accept a marked id only when merging into a genuine redacted
+shell. Pagination tokens follow the first event actually persisted and probe/
+ledger counts follow actual writes. This remains one room-scoped marker per id
+with O(batch) ordinary lookups; it does not add locks or cross-tab coordination.
+
+Second, the same-id revision merger called the production SDK mapper before
+capturing the current replacement. The mapper reuses the live target and
+eagerly applies its bundled edit, so stale cached `v2` data could synchronously
+downgrade a live `v3` edit before comparison. The merger now snapshots private,
+serialized, and incoming candidates first; treats redaction as an event-id-wide
+invalidation; strips only `m.replace` from the live target and mapper input;
+and maps a selected non-current winner separately. Normal SDK unsigned, thread,
+and decryption hooks still run, while stale, cross-sender, or redacted edits are
+never applied even transiently. The private and serialized winner are restored
+to the same revision afterward.
+
+Regression coverage reproduces direct-target plaintext/reaction/root removal,
+stale replay rejection, token and ledger accuracy, production-style mapper
+mutation, preservation of non-edit relation updates, and same-id private-edit
+redaction. Independent focused re-review approved both fixes. The post-fix tree
+is green on 25 cache/timeline files / 301 tests, 24 session-lifecycle tests,
+TypeScript typecheck, touched lint and formatting, full ESLint with zero errors
+(17 existing warnings), production plus PWA/service-worker builds, and all 387
+Vitest files / 2,972 tests. The history is organized as seven logical commits,
+with the last two containing exact-head remediation and final rebase validation.
+A new push and fresh native/Fable reviews of that exact pushed head remain
+required.
+
+The fresh review round against pushed head `d060bbbee` produced four remediation
+clusters, left uncommitted by an interrupted native session and completed here.
+Three are direct fixes. The gap-fill durable-marker read now throws on
+unavailable storage instead of silently reporting "no marker"; the executor
+defers the job for retry and drops generation-bearing jobs whose durable marker
+is gone or superseded, so a transient IndexedDB failure can no longer fetch
+from a wrong boundary or clear a marker it never read. The legacy device-wide
+iOS push preference is migrated out of the old `settings` blob at bootstrap,
+before the first generic settings write rewrites that blob and silently drops
+a user's "push off" choice; scoped reads now fall back through the migrated
+global key. The same-id revision merger builds its SDK-mapper input with merged
+relation bundles, so a stale incoming bundle can no longer clobber newer live
+thread or annotation aggregations while disjoint incoming bundles still land.
+
+The fourth cluster removed the reconciler's absence-based reaction pruning
+(`collectAbsentCachedReactions`, recursion-depth gating, `removedEventIds`
+plumbing, and the committed-delete cache API). Product context the removing
+review lacked: that machinery was the P1.2/F6 delegated path for redacted stop
+reactions the client never saw (closed at stream completion; gappy sync does
+not redeliver the redaction and the pruned reaction drops out of `/relations`
+entirely). Keeping the removal as-is would silently regress the lingering
+stop-emoji chip. Instead of restoring omission-inference, the replacement reads
+the signal the backend already stamps: `io.mindroom.stream_status` (and
+terminal `io.mindroom.ai_run` metadata) on the streamed message itself. A new
+`stopReaction.ts` hides stop-key chips (🛑 current, ⏹️/⏹ legacy — matching the
+backend's own stale-stream cleanup set) whenever the target's edit-converged
+content proves a terminal stream. `Reactions` takes an optional `targetEvent`
+(falling back to a room lookup), all four `MindroomRoomTimeline` render sites
+pass the rendered event, and the `hasReactions` gates use the same filter so a
+lone stale stop chip cannot leave an empty reactions container. This works
+fully offline from cache, needs no authoritative rescan, and also covers the
+empirically observed ~10-second window where Tuwunel still serves a redacted
+reaction un-pruned (which omission-inference inherently cannot). Deliberate
+residual: missed redactions of ordinary human reactions are no longer repaired
+(rare, cosmetic count drift), and suppression requires stream metadata, so
+pre-metadata historical messages keep today's behavior. The stop-key set is
+shared with `useThreadStreamingState` (fixing its miss of the current 🛑 key);
+that hook's terminal set and `aiRun`'s remain separate copies, both now
+including the backend's `interrupted` status.
+
+Validation on the combined tree: TypeScript typecheck; full suite 388 Vitest
+files / 2,986 tests; focused engine + cacheStore directories (29 files / 316
+tests) plus the new stop-reaction, Reactions, and streaming-state suites; full
+ESLint zero errors (17 baseline warnings — the pruning removal's leftover
+unused test helper was cleaned up); Prettier on touched files; production and
+PWA/service-worker builds. An independent review pass over the working tree
+preceded the commits.
+
+Follow-up scope correction (2026-07-11): removed the later mounted-component
+replacement listener and its expanded stop-reaction tests. Current MindRoom
+`origin/main` writes terminal stream metadata and then explicitly redacts the
+stop reaction during normal response cleanup. The merged metadata-based
+suppression remains as the offline/gappy-sync fallback; adding a second live
+refresh path for the brief or failed-redaction window was disproportionate to
+that backend contract and the fork's maintainability goal.
+
+### Full-PR correctness and simplification sweep (2026-07-11)
+
+A 29-agent fan-out review of the entire merge-base diff (correctness and
+simplification lenses per subsystem, every finding adversarially verified and
+scope-filtered) produced 62 confirmed findings: 7 ordinary-path correctness
+bugs and 55 simplification wins. All were applied, with net deletion as the
+standing constraint.
+
+Correctness fixes. The same-id revision merger no longer routes in-room events
+through the SDK mapper: its reuse branch permanently flips the mapper
+instance's closure-scoped `preventReEmit` flag, which silently stripped
+Decrypted/Replaced/BeforeRedaction re-emitters from every fresh event mapped
+afterwards in the same pass (a real decryption-propagation hazard in encrypted
+rooms). A local `mapDetached` helper reuses settled in-room instances directly
+and maps only genuinely fresh raws. A failed pre-gap cached-tail read is no
+longer durably committed as the meaningful "no cached boundary existed" empty
+boundary (which licensed a crawl toward room genesis); the field stays unset so
+the executor's guarded snapshot resolves it. The reconciler now discards a
+saved continuation cursor only on a server token verdict (M_UNKNOWN_TOKEN/400);
+network-level failures preserve durable scan progress. The sidebar avatar
+invalidates its cached thumbnail in the same session-profile write that records
+a changed mxc, closing the aborted-refetch-then-guard loop that pinned the old
+avatar forever. A force-reloaded page (permanently uncontrolled by the service
+worker, so authenticated media 404s all session) now performs one
+sessionStorage-guarded reload to regain control. The startup-error dialog
+always offers Clear Cache and Reload — it works without a client, which is
+exactly the corrupted-store case it exists for. Compact thread previews are
+fill-only from cache: the sourceTs cache-newer branch could never render past
+the live-wins merge, and a temporarily stale live root is healed by the same-id
+revision merge during hydration instead.
+
+Simplification (~50 findings, net ≈ −1,700 lines against ≈ +900). Highlights:
+`clearCacheAndReload`/`clearBrowserCacheAndReload` (~200 lines of dead product
+code the PR had actively hardened) deleted along with their suites; the
+IndexedDB meta read-modify-write transaction now lives once in
+`cacheStoreMeta.ts` instead of six hand-wired copies; the room-wide redaction
+scrub is gated on marker rows so an already-handled tombstone in a save batch
+no longer cursors the entire cached room; the gap-fill scheduler collapsed to
+a pure dispatch seam (the queue, its dedup rule, `pendingJobs`, and `drainNow`
+were unreachable in production wiring); the single-member `ReconcileReason`
+union and its threading through six signatures removed; session teardown,
+login/register completion, stream-status sets, storage helpers, the portal
+predicate, and the thread page assembly each deduplicated to one copy; a
+dozen dead exports, test-only islands, vestigial seams, and write-only fields
+deleted (including the removed coordination layer's leftover wipe hooks and
+registry registrations). The `Intl.RelativeTimeFormat` per-second-per-card
+construction is now cached per language. Two latent alignment fixes rode
+along: the thread streaming hook now recognizes the backend's current 🛑 stop
+key and treats `pending` as active, matching `aiRun`'s shared sets.
+
+Validation: full suite 389 files / 2,983 tests, typecheck, ESLint zero errors
+(17 baseline warnings), Prettier, production + PWA builds. An independent
+adversarial reviewer walked the full diff hunk-by-hunk (with special attention
+to the meta-transaction contracts, scrub gate atomicity, scheduler wiring
+order, and the known-redacted set equivalence) and confirmed zero behavioral
+regressions; four benign observations were noted in the review record.
+
+### Second rebase: dev PRs #118/#119 ported onto the fork architecture (2026-07-11)
+
+`dev` advanced again with #118 (reconciler shortfall drain healing a missing
+thread middle) and #119 (direction-aware ledger boundary guard preserving iOS
+momentum), both written against pre-PR architecture. After the rebase (one
+conflict stop, resolutions kept the fork's extraction), both were ported
+semantically: the shortfall guard, max-of-sources expected reply count,
+`isRawThreadReply`, exhaustion-driven `beforeTokenForEarliest: null` persists
+(including the phantom-count no-divergence persist), and the
+`reconcileShortfallPagesPastOverlap` probe now live inside the fork's
+phase/continuation reconciler, with exhaustion claims gated to fresh-head
+phases; the six-test shortfall suite was adapted to the injectable
+`persistRepair` seam and reason-free API. The direction-aware boundary guard,
+settle-write baseline read-back, and view-reset baseline clear were ported
+into `timelineScrollLedgerController`, and upstream's three direction tests
+replaced the two earlier settle tests. #118's pagination flag-latch fix and
+#119's `shouldSettleLedgerAtBoundary` predicate merged cleanly. Validation:
+390 files / 3,014 tests, typecheck, lint at baseline, production + PWA builds.
+
+### Review round 2: sweep regressions and residual dead weight (2026-07-11)
+
+A second fan-out review against the post-sweep head (same harness: 29 finders,
+dual verification) confirmed 19 findings — 7 correctness, 12 simplification —
+notably four regressions or incomplete fixes from round 1 itself. All applied.
+
+Correctness. The thread streaming spinner's terminal check now uses the shared
+`hasTerminalMindroomStreamMetadata`, closing a set divergence where the ai_run
+status `cached` ended the stop chip but not the spinner (a permanent-spinner
+wedge that round 1's shared 🛑 key made reachable). The service worker restores
+the legacy `token` request/response flow as a time-boxed fallback so tabs still
+running pre-`requestSession` bundles keep authenticated media across the
+deploy. The SW control-reload flag is cleared on every controlled boot (it was
+one-shot per tab, disarming the guard exactly when users hard-refresh twice).
+The sidebar avatar thumbnail invalidation no longer requires a resolved
+profile, closing the unresolved-seed path that pinned a stale image. Typed
+thread-search queries — including structured `tag:`/`is:` tokens, which round
+1's DSL removal had left applying per keystroke — debounce at the input site
+(the downstream freeText-only debounce is deleted); instant chip/preset/tag/
+sort mutations flush the pending query first and compose on top, so a click
+inside the debounce window can neither be clobbered nor drop the typed query,
+and reset discards it outright. The "Thinking…" placeholder heal is restored:
+the compact-preview merge routes through `pickPreferredThreadRootPreviewText`
+(a live body that still looks stream-truncated yields to a complete cached
+body), making the hydration retry allowance satisfiable again. The
+`redacted_because` mapping on the fresh-event branch shares the exported
+`mapEventDetached`, closing the remaining SDK-mapper `preventReEmit` hazard.
+
+Simplification. cacheStoreEvents' scoped delete and per-event put loops are
+single parameterized helpers (the reviewer verified ledger accounting and
+persisted-id ordering byte-for-byte); the scrub gate's marker fan-in delegates
+to `loadKnownRedactedRelationEventIds`; an unreachable aborted-queued branch
+left from the abort hardening is gone from the backfill scheduler; the two
+panel atoms' write-only registrations and test-only imperative setters are
+deleted (only `bumpRecentThread` still registers an active atom); a shared
+`useAppLanguageCode` hook replaces four copies of the language derivation;
+plus the dead palette guard, the test-only `hasMindroomAiRunMetadata`, twelve
+unreferenced cacheStore barrel names, and three stale PrefetchConfig test
+stubs. Known accepted residuals: the restored legacy SW flow attaches the
+token by path-shape only (inherent to that protocol, time-boxed, and narrower
+than its pre-hardening placement), and the search-debounce flush is covered
+through the overview integration suites rather than a dedicated hook harness.
+
+Validation: full suite 389 files / 2,983 tests, typecheck, ESLint zero errors
+(17 baseline warnings), Prettier, production + PWA builds. The independent
+reviewer confirmed one defect in the first debounce implementation (the
+chip-clobber window); the flush-and-compose restructure addressing it was
+re-verified before commit.
+
+### Fork hardening review remediation (2026-07-09, superseded)
+
+The initial review was developed in parallel session/security, cache/engine,
+UI/state, timeline, settings, and test-architecture streams. Its broad
+session-lifecycle design was later removed by the reduction pass above. The
+retained work is limited to reproduced streaming-edit, thread-cache, scroll,
+account-isolation, storage-scope, settings, palette, locale, and startup issues.
+See the current reduction entry rather than this historical checkpoint for the
+merge contract and validation status.
 
 ### i18n PR #101 bot-review response (2026-07-09)
 

@@ -6,7 +6,7 @@ const TOOL_TRACE_TAG = 'io.mindroom.tool_trace';
 const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
-const mindroomLongTextHydrationCache = new Map<string, Record<string, unknown>>();
+let mindroomLongTextHydrationCache = new WeakMap<object, Map<string, Record<string, unknown>>>();
 
 export type MindroomLongTextSource = {
   previewContent: Record<string, unknown>;
@@ -16,6 +16,22 @@ export type MindroomLongTextSource = {
 };
 
 export type MindroomLongTextSidecarTextLoader = (source: MindroomLongTextSource) => Promise<string>;
+
+export const getMindroomLongTextSourceIdentity = (source: MindroomLongTextSource): string =>
+  JSON.stringify({
+    encryptedFile: source.encryptedFile,
+    isV2ContentJson: source.isV2ContentJson,
+    mxcUri: source.mxcUri,
+  });
+
+const getMindroomLongTextCache = (owner: object): Map<string, Record<string, unknown>> => {
+  const existing = mindroomLongTextHydrationCache.get(owner);
+  if (existing) return existing;
+
+  const cache = new Map<string, Record<string, unknown>>();
+  mindroomLongTextHydrationCache.set(owner, cache);
+  return cache;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -148,7 +164,7 @@ export const withMindroomToolTraceFallback = (
 };
 
 export const clearMindroomLongTextHydrationCache = () => {
-  mindroomLongTextHydrationCache.clear();
+  mindroomLongTextHydrationCache = new WeakMap();
 };
 
 export const parseMindroomLongTextJsonSidecar = (
@@ -227,14 +243,17 @@ export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): str
   getMindroomLongTextSource(content)?.mxcUri;
 
 export const getCachedMindroomLongTextContent = (
-  source: MindroomLongTextSource
-): Record<string, unknown> | undefined => mindroomLongTextHydrationCache.get(source.mxcUri);
+  source: MindroomLongTextSource,
+  cacheOwner: object
+): Record<string, unknown> | undefined =>
+  getMindroomLongTextCache(cacheOwner).get(getMindroomLongTextSourceIdentity(source));
 
 export const hydrateMindroomLongTextSource = async (
   source: MindroomLongTextSource,
-  loadSidecarText: MindroomLongTextSidecarTextLoader
+  loadSidecarText: MindroomLongTextSidecarTextLoader,
+  cacheOwner: object
 ): Promise<Record<string, unknown>> => {
-  const cached = getCachedMindroomLongTextContent(source);
+  const cached = getCachedMindroomLongTextContent(source, cacheOwner);
   if (cached) return cached;
 
   try {
@@ -242,18 +261,12 @@ export const hydrateMindroomLongTextSource = async (
     const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
     if (!hydratedContent) return source.previewContent;
     const normalizedHydratedContent = normalizeHydratedMindroomContent(hydratedContent);
-    mindroomLongTextHydrationCache.set(source.mxcUri, normalizedHydratedContent);
+    getMindroomLongTextCache(cacheOwner).set(
+      getMindroomLongTextSourceIdentity(source),
+      normalizedHydratedContent
+    );
     return normalizedHydratedContent;
   } catch {
     return source.previewContent;
   }
-};
-
-export const hydrateMindroomLongTextContent = async (
-  content: Record<string, unknown>,
-  loadSidecarText: MindroomLongTextSidecarTextLoader
-): Promise<Record<string, unknown>> => {
-  const source = getMindroomLongTextSource(content);
-  if (!source) return content;
-  return hydrateMindroomLongTextSource(source, loadSidecarText);
 };

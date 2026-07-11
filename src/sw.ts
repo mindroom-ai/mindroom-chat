@@ -57,9 +57,14 @@ type SessionInfo = {
  * Store session per client (tab)
  */
 const sessions = new Map<string, SessionInfo>();
-
-const clientToResolve = new Map<string, (value: SessionInfo | undefined) => void>();
-const clientToSessionPromise = new Map<string, Promise<SessionInfo | undefined>>();
+const pendingSessionRequests = new Map<
+  string,
+  {
+    promise: Promise<SessionInfo | undefined>;
+    resolve: (session?: SessionInfo) => void;
+    waiters: number;
+  }
+>();
 
 async function cleanupDeadClients() {
   const activeClients = await self.clients.matchAll();
@@ -68,58 +73,71 @@ async function cleanupDeadClients() {
   Array.from(sessions.keys()).forEach((id) => {
     if (!activeIds.has(id)) {
       sessions.delete(id);
-      clientToResolve.delete(id);
-      clientToSessionPromise.delete(id);
     }
+  });
+  Array.from(pendingSessionRequests.keys()).forEach((id) => {
+    if (!activeIds.has(id)) pendingSessionRequests.delete(id);
   });
 }
 
-function setSession(clientId: string, accessToken: any, baseUrl: any) {
-  if (typeof accessToken === 'string' && typeof baseUrl === 'string') {
-    sessions.set(clientId, { accessToken, baseUrl });
+function setSession(clientId: string, accessToken: unknown, baseUrl: unknown) {
+  let validBaseUrl: string | undefined;
+  if (typeof baseUrl === 'string') {
+    try {
+      const parsedBaseUrl = new URL(baseUrl);
+      if (parsedBaseUrl.protocol === 'https:' || parsedBaseUrl.protocol === 'http:') {
+        validBaseUrl = parsedBaseUrl.toString();
+      }
+    } catch {
+      // Invalid base URLs clear the client session below.
+    }
+  }
+
+  if (typeof accessToken === 'string' && accessToken.length > 0 && validBaseUrl) {
+    sessions.set(clientId, { accessToken, baseUrl: validBaseUrl });
   } else {
     // Logout or invalid session
     sessions.delete(clientId);
   }
 
-  const resolveSession = clientToResolve.get(clientId);
-  if (resolveSession) {
-    resolveSession(sessions.get(clientId));
-    clientToResolve.delete(clientId);
-    clientToSessionPromise.delete(clientId);
+  const pending = pendingSessionRequests.get(clientId);
+  if (pending) {
+    pending.resolve(sessions.get(clientId));
+    pendingSessionRequests.delete(clientId);
   }
 }
 
-function requestSession(client: Client): Promise<SessionInfo | undefined> {
-  const promise =
-    clientToSessionPromise.get(client.id) ??
-    new Promise((resolve) => {
-      clientToResolve.set(client.id, resolve);
-      client.postMessage({ type: 'requestSession' });
-    });
-
-  if (!clientToSessionPromise.has(client.id)) {
-    clientToSessionPromise.set(client.id, promise);
-  }
-
-  return promise;
-}
-
-async function requestSessionWithTimeout(
+const requestSession = async (
   clientId: string,
   timeoutMs = 3000
-): Promise<SessionInfo | undefined> {
+): Promise<SessionInfo | undefined> => {
   const client = await self.clients.get(clientId);
   if (!client) return undefined;
 
-  const sessionPromise = requestSession(client);
+  let pending = pendingSessionRequests.get(clientId);
+  if (!pending) {
+    let resolve: (session?: SessionInfo) => void = () => undefined;
+    const promise = new Promise<SessionInfo | undefined>((nextResolve) => {
+      resolve = nextResolve;
+    });
+    pending = { promise, resolve, waiters: 0 };
+    pendingSessionRequests.set(clientId, pending);
+    client.postMessage({ type: 'requestSession' });
+  }
 
-  const timeout = new Promise<undefined>((resolve) => {
-    setTimeout(() => resolve(undefined), timeoutMs);
-  });
-
-  return Promise.race([sessionPromise, timeout]);
-}
+  pending.waiters += 1;
+  const session = await Promise.race([
+    pending.promise,
+    new Promise<undefined>((resolve) => {
+      setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  pending.waiters -= 1;
+  if (!session && pending.waiters === 0 && pendingSessionRequests.get(clientId) === pending) {
+    pendingSessionRequests.delete(clientId);
+  }
+  return session;
+};
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -138,17 +156,49 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
  * Receive session updates from clients
  */
 self.addEventListener('message', (event: ExtendableMessageEvent) => {
-  const client = event.source as Client | null;
-  if (!client) return;
+  const source = event.source;
+  if (!source || !('id' in source) || !('url' in source)) return;
+  if (typeof source.id !== 'string' || typeof source.url !== 'string') return;
+
+  try {
+    if (new URL(source.url).origin !== self.location.origin) return;
+  } catch {
+    return;
+  }
 
   const { type, accessToken, baseUrl } = event.data || {};
 
   if (type === 'setSession') {
-    setSession(client.id, accessToken, baseUrl);
+    setSession(source.id, accessToken, baseUrl);
     cleanupDeadClients();
   }
 });
 
+const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
+  const init = buildAuthenticatedMediaRequestInit(request, token);
+  return request.mode === 'no-cors' ? fetch(request.url, init) : fetch(request, init);
+};
+
+const fetchAuthenticatedMediaWithFallback = async (
+  request: Request,
+  token: string
+): Promise<Response> => {
+  try {
+    return await fetchAuthenticatedMedia(request, token);
+  } catch {
+    // If authenticated fetch fails unexpectedly, fall back to the original request.
+    return fetch(request);
+  }
+};
+
+/**
+ * Legacy token request/response flow. Kept for one release cycle: after a
+ * deploy, skipWaiting + clients.claim puts this worker in control of tabs
+ * still running the previous client bundle, which answers `type: 'token'`
+ * but ignores `type: 'requestSession'` — without this fallback those tabs
+ * serve unauthenticated (404ing) media until reloaded. Delete once no
+ * pre-requestSession bundles remain in the wild.
+ */
 async function askForAccessToken(client: Client): Promise<string | undefined> {
   return new Promise((resolve) => {
     const responseKey = Math.random().toString(36);
@@ -170,23 +220,6 @@ async function askForAccessToken(client: Client): Promise<string | undefined> {
   });
 }
 
-const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
-  const init = buildAuthenticatedMediaRequestInit(request, token);
-  return request.mode === 'no-cors' ? fetch(request.url, init) : fetch(request, init);
-};
-
-const fetchAuthenticatedMediaWithFallback = async (
-  request: Request,
-  token: string
-): Promise<Response> => {
-  try {
-    return await fetchAuthenticatedMedia(request, token);
-  } catch {
-    // If authenticated fetch fails unexpectedly, fall back to the original request.
-    return fetch(request);
-  }
-};
-
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
 
@@ -201,12 +234,20 @@ self.addEventListener('fetch', (event: FetchEvent) => {
           return fetchAuthenticatedMediaWithFallback(event.request, session.accessToken);
         }
 
-        // Fallback for clients still on the older token request/response flow.
-        const client = await self.clients.get(event.clientId);
-        if (client) {
-          const token = await askForAccessToken(client);
-          if (token) {
-            return fetchAuthenticatedMediaWithFallback(event.request, token);
+        if (!session) {
+          const requestedSession = await requestSession(event.clientId);
+          if (requestedSession && validMediaRequest(url, requestedSession.baseUrl)) {
+            return fetchAuthenticatedMediaWithFallback(event.request, requestedSession.accessToken);
+          }
+
+          // Pre-requestSession client bundle still in this tab (see
+          // askForAccessToken doc).
+          const client = await self.clients.get(event.clientId);
+          if (client) {
+            const token = await askForAccessToken(client);
+            if (token) {
+              return fetchAuthenticatedMediaWithFallback(event.request, token);
+            }
           }
         }
       }

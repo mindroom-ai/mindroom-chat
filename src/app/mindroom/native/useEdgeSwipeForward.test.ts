@@ -62,9 +62,11 @@ function HookHarness({ enabled, onForward }: { enabled?: boolean; onForward: () 
 
 describe('useEdgeSwipeForward', () => {
   const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
 
   let renderer: ReactTestRenderer | undefined;
   let mockWindow: MockWindow;
+  let portalChildCount = 0;
 
   const renderHook = (onForward: () => void, enabled?: boolean, imageViewerOpen = false) => {
     const store = createStore();
@@ -111,6 +113,14 @@ describe('useEdgeSwipeForward', () => {
       configurable: true,
       value: mockWindow,
     });
+    portalChildCount = 0;
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        getElementById: (id: string) =>
+          id === 'portalContainer' ? { childElementCount: portalChildCount } : null,
+      },
+    });
   });
 
   afterEach(() => {
@@ -124,6 +134,10 @@ describe('useEdgeSwipeForward', () => {
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
       value: originalWindow,
+    });
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: originalDocument,
     });
 
     vi.restoreAllMocks();
@@ -187,13 +201,24 @@ describe('useEdgeSwipeForward', () => {
     expect(onForward).not.toHaveBeenCalled();
   });
 
+  it('does not navigate behind an open portal overlay', () => {
+    const onForward = vi.fn();
+    portalChildCount = 1;
+    renderHook(onForward);
+
+    const preventDefault = swipeFromRightEdge();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onForward).not.toHaveBeenCalled();
+  });
+
   it('ignores events already handled cooperatively', () => {
     const onForward = vi.fn();
     renderHook(onForward);
 
     act(() => {
       mockWindow.dispatch('touchstart', {
-        __mindroomEdgeSwipeForwardHandled: true,
+        __mindroomEdgeSwipeHandled: true,
         touches: createTouchList([{ clientX: 395, clientY: 100 }]),
       } as unknown as TouchEvent);
       mockWindow.dispatch('touchmove', {

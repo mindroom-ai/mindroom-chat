@@ -414,11 +414,13 @@ describe('buildCompactThreadRootData', () => {
           ['$sdk-thread', 12],
         ]),
         bodyMap: new Map([['$thread-root', 'Existing thread']]),
+        sourceTsMap: new Map([['$thread-root', 4]]),
       },
       {
         ids: ['$zero-reply'],
         indexMap: new Map([['$zero-reply', 8]]),
         bodyMap: new Map([['$zero-reply', 'New standalone message']]),
+        sourceTsMap: new Map([['$zero-reply', 8]]),
       }
     );
 
@@ -481,10 +483,7 @@ describe('buildCompactThreadRootData', () => {
       mapper: (rawEvent) => new MatrixEvent(rawEvent),
     });
 
-    expect(preview).toEqual({
-      previewText: 'Edited root',
-      sourceTs: 2,
-    });
+    expect(preview).toEqual({ previewText: 'Edited root', sourceTs: 2 });
   });
 
   it('hydrates latest activity timestamps from cached thread pages', () => {

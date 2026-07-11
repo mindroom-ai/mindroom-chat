@@ -1,4 +1,9 @@
 import { atom } from 'jotai';
+import {
+  getSafeLocalStorage,
+  getStorageItemSafe,
+  setStorageItemSafe,
+} from '../utils/safeLocalStorage';
 
 const STORAGE_KEY = 'settings';
 
@@ -94,38 +99,20 @@ const defaultSettings: Settings = {
 };
 
 export const getSettings = () => {
-  if (typeof localStorage === 'undefined') return defaultSettings;
-  if (typeof localStorage.getItem !== 'function') return defaultSettings;
-
-  const settings = localStorage.getItem(STORAGE_KEY);
+  const settings = getStorageItemSafe(getSafeLocalStorage(), STORAGE_KEY);
   if (settings === null) return defaultSettings;
-  let parsed: Partial<Settings> & { paginationLimit?: unknown } = {};
+  let parsed: Partial<Settings> = {};
   try {
     const value = JSON.parse(settings);
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      parsed = value as Partial<Settings>;
+      parsed = Object.fromEntries(
+        Object.keys(defaultSettings)
+          .filter((key) => Object.prototype.hasOwnProperty.call(value, key))
+          .map((key) => [key, (value as Record<string, unknown>)[key]])
+      ) as Partial<Settings>;
     }
   } catch {
     parsed = {};
-  }
-  // CINNY-207 P7.2 audit finding #4 (belt-and-braces): drop the legacy
-  // MindRoom "paginationLimit" key so the base settings atom can never
-  // initialize with a contaminated value, regardless of whether the
-  // `mindroomSettingsBootstrap` scrub has already run. Complements the
-  // `withMindroomSettings` sanitizer (which strips the field on the
-  // mindroom-aware read path) — this guards the plain `settingsAtom`
-  // write-back path in `setSettings`, which JSON-stringifies whatever
-  // the atom holds and would otherwise resurrect the key on every
-  // settings write.
-  //
-  // Deleted via `delete` rather than a destructure-alias — the
-  // `settings.ts` ownership arch test asserts the file does not
-  // contain the legacy key immediately followed by a colon (so
-  // MindRoom setting shapes stay out of the generic settings module).
-  // `delete` mutates our local `parsed` copy only; the stored JSON is
-  // not touched.
-  if (Object.prototype.hasOwnProperty.call(parsed, 'paginationLimit')) {
-    delete (parsed as Record<string, unknown>).paginationLimit;
   }
   const merged = {
     ...defaultSettings,
@@ -136,10 +123,7 @@ export const getSettings = () => {
 };
 
 export const setSettings = (settings: Settings) => {
-  if (typeof localStorage === 'undefined') return;
-  if (typeof localStorage.setItem !== 'function') return;
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  setStorageItemSafe(getSafeLocalStorage(), STORAGE_KEY, JSON.stringify(settings));
 };
 
 const baseSettings = atom<Settings>(getSettings());

@@ -4,14 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const {
   bumpRecentThreadMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   navigateRoomThreadDirectMock,
   rekeyRecentThreadMock,
+  roomViewModeState,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
+  navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   navigateRoomThreadDirectMock: vi.fn(),
   rekeyRecentThreadMock: vi.fn(),
+  roomViewModeState: { value: 'compact' },
 }));
 
 vi.mock('react-i18next', async () => {
@@ -27,9 +31,14 @@ vi.mock('folds', () => ({
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
+    navigateRoom: navigateRoomMock,
     navigateRoomThread: navigateRoomThreadMock,
     navigateRoomThreadDirect: navigateRoomThreadDirectMock,
   }),
+}));
+
+vi.mock('../threads/useRoomViewMode', () => ({
+  useRoomViewMode: () => ({ viewMode: roomViewModeState.value }),
 }));
 
 vi.mock('../../hooks/useRelativeTime', () => ({
@@ -80,6 +89,7 @@ describe('RecentThreadEntry', () => {
       });
     }
     renderer = undefined;
+    roomViewModeState.value = 'compact';
     vi.clearAllMocks();
   });
 
@@ -102,6 +112,26 @@ describe('RecentThreadEntry', () => {
 
     expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith('!room:example.org', '$resolved');
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+  });
+
+  it('uses room navigation when the effective view policy resolves classic mode', () => {
+    roomViewModeState.value = 'classic';
+    act(() => {
+      renderer = create(
+        React.createElement(RecentThreadEntry, {
+          room: { roomId: '!room:example.org', hasEncryptionStateEvent: () => false } as never,
+          threadId: '$thread',
+          openedAt: Date.now(),
+        })
+      );
+    });
+
+    act(() => {
+      renderer!.root.findByType('button').props.onClick();
+    });
+
+    expect(navigateRoomMock).toHaveBeenCalledWith('!room:example.org', '$resolved');
+    expect(navigateRoomThreadDirectMock).not.toHaveBeenCalled();
   });
 
   it('persists a resolved summary snapshot without waiting for room view state', () => {

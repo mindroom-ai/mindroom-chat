@@ -1,7 +1,12 @@
 import { atom } from 'jotai';
+import {
+  getSafeLocalStorage,
+  getStorageItemSafe,
+  setStorageItemSafe,
+} from '../../utils/safeLocalStorage';
 
 export const getLocalStorageItem = <T>(key: string, defaultValue: T): T => {
-  const item = localStorage.getItem(key);
+  const item = getStorageItemSafe(getSafeLocalStorage(), key);
   if (item === null) return defaultValue;
   if (item === 'undefined') return undefined as T;
   try {
@@ -12,7 +17,7 @@ export const getLocalStorageItem = <T>(key: string, defaultValue: T): T => {
 };
 
 export const setLocalStorageItem = <T>(key: string, value: T) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  return setStorageItemSafe(getSafeLocalStorage(), key, JSON.stringify(value));
 };
 
 export type GetLocalStorageItem<T> = (key: string) => T;

@@ -65,7 +65,7 @@ describe('resolveRoomTimelineViewState', () => {
   it('uses neutral filters and hides overview controls in classic mode', () => {
     const requested = {
       ...createDefaultThreadFilterState(),
-      searchQuery: 'status:unread',
+      freeText: 'needle',
     };
 
     expect(

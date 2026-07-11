@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, RoomEvent, SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { createMindroomSyncEngine } from '../mindroomSyncEngine';
+import { createMindroomSyncEngine, stopMindroomSyncEngineForClient } from '../mindroomSyncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
 import type { EngineGapTracker } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
@@ -63,7 +63,7 @@ const makeRoom = (roomId: string): Room =>
     getLiveTimeline: () => ({ getEvents: () => [] }),
     getUnfilteredTimelineSet: () => undefined,
     getThreads: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeEvent = (): MatrixEvent =>
   ({
@@ -74,7 +74,7 @@ const makeEvent = (): MatrixEvent =>
     isRedaction: () => false,
     getAssociatedId: () => undefined,
     threadRootId: undefined,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
   beforeEach(() => {
@@ -114,6 +114,41 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     expect(mx.__listeners.get(RoomEvent.Timeline)?.size ?? 0).toBe(0);
     expect(mx.__listeners.get(RoomEvent.Redaction)?.size ?? 0).toBe(0);
     expect(mx.__listeners.get(RoomEvent.TimelineReset)?.size ?? 0).toBe(0);
+  });
+
+  it('can stop the active engine from a destructive client cleanup path', () => {
+    const mx = createMockClient();
+    const writeThrough: EngineWriteThrough = {
+      handleLiveEvent: vi.fn(),
+      flush: vi.fn(),
+    };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    engine.start();
+
+    stopMindroomSyncEngineForClient(mx);
+    stopMindroomSyncEngineForClient(mx);
+
+    expect(writeThrough.flush).toHaveBeenCalledTimes(1);
+    expect(mx.__listeners.get(ClientEvent.Sync)?.size ?? 0).toBe(0);
+  });
+
+  it('finishes structural teardown when the final write flush throws', () => {
+    const mx = createMockClient(SyncState.Syncing);
+    const writeThrough: EngineWriteThrough = {
+      handleLiveEvent: vi.fn(),
+      flush: vi.fn(() => {
+        throw new Error('flush failed');
+      }),
+    };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    engine.start();
+
+    expect(() => engine.stop()).toThrow('flush failed');
+
+    expect(engine.isLiveMode()).toBe(false);
+    expect(mx.__listeners.get(ClientEvent.Sync)?.size ?? 0).toBe(0);
+    expect(mx.__listeners.get(RoomEvent.Timeline)?.size ?? 0).toBe(0);
+    expect(() => stopMindroomSyncEngineForClient(mx)).not.toThrow();
   });
 
   it('removes every listener it attached on stop() (full symmetry)', () => {
@@ -248,7 +283,7 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     const mx = createMockClient();
     const gapTracker: EngineGapTracker = {
       handleTimelineReset: vi.fn(),
-      handleSyncPrepared: vi.fn(),
+      handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn(),
     };
     const engine = createMindroomSyncEngine({ mx, gapTracker });
@@ -262,6 +297,24 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
 
     engine.stop();
     expect(gapTracker.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('contains a rejected sync-prepared task at the event boundary', async () => {
+    const mx = createMockClient();
+    const gapTracker: EngineGapTracker = {
+      handleTimelineReset: vi.fn(),
+      handleSyncPrepared: vi.fn().mockRejectedValue(new Error('blocked cache')),
+      stop: vi.fn(),
+    };
+    const engine = createMindroomSyncEngine({ mx, gapTracker });
+    engine.start();
+
+    expect(() => mx.__emit(ClientEvent.Sync, SyncState.Prepared, null)).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(gapTracker.handleSyncPrepared).toHaveBeenCalledTimes(1);
+
+    engine.stop();
   });
 
   it('flushes the write-through on stop() (drain-before-teardown contract)', () => {
