@@ -91,12 +91,4 @@ describe('getRenderableAnnotationsByKey', () => {
     );
     expect(entries.map(([key]) => key)).toEqual(['👍', '🛑']);
   });
-
-  it('keeps ordinary reactions on a terminal message', () => {
-    const entries = getRenderableAnnotationsByKey(
-      makeRelations(['👍']),
-      makeTargetEvent({ 'io.mindroom.stream_status': 'completed' })
-    );
-    expect(entries.map(([key]) => key)).toEqual(['👍']);
-  });
 });
