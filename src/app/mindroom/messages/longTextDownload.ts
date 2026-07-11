@@ -1,3 +1,10 @@
+import { MatrixClient } from 'matrix-js-sdk';
+import {
+  decryptFile,
+  downloadEncryptedMedia,
+  downloadMedia,
+  mxcUrlToHttp,
+} from '../../utils/matrix';
 import { MindroomLongTextSource } from './longText';
 
 const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
@@ -25,4 +32,42 @@ export const getMindroomLongTextDownloadName = (source: MindroomLongTextSource):
   const ext = source.isV2ContentJson ? '.json' : '.txt';
   if (FILENAME_EXT_REG.test(baseName)) return baseName;
   return `${baseName}${ext}`;
+};
+
+const getLongTextMimeType = (content: Record<string, unknown>): string => {
+  const info = isRecord(content.info) ? content.info : undefined;
+  return typeof info?.mimetype === 'string' ? info.mimetype : 'application/json';
+};
+
+const downloadSidecarBlob = async (
+  source: MindroomLongTextSource,
+  textUrl: string
+): Promise<Blob> => {
+  const encryptedFile = source.encryptedFile;
+  if (!encryptedFile) return downloadMedia(textUrl);
+
+  const mimeType = getLongTextMimeType(source.previewContent);
+  return downloadEncryptedMedia(textUrl, (encBuf) => decryptFile(encBuf, mimeType, encryptedFile));
+};
+
+export const downloadMindroomLongTextSidecarBlob = async (
+  mx: MatrixClient,
+  source: MindroomLongTextSource,
+  useAuthentication: boolean
+): Promise<Blob> => {
+  const textUrl = mxcUrlToHttp(mx, source.mxcUri, useAuthentication);
+  if (!textUrl) {
+    throw new Error('Unable to resolve sidecar URL');
+  }
+
+  return downloadSidecarBlob(source, textUrl);
+};
+
+export const downloadMindroomLongTextSidecarText = async (
+  mx: MatrixClient,
+  source: MindroomLongTextSource,
+  useAuthentication: boolean
+): Promise<string> => {
+  const blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
+  return blob.text();
 };

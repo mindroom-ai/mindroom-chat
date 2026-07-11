@@ -32,6 +32,22 @@ vi.mock('./longText', async () => {
     hydrateMindroomLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
   };
 });
+vi.mock('../../components/message/content', () => ({
+  MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
+}));
+vi.mock('../../components/message', async () => {
+  const { RenderBody } = await vi.importActual<
+    typeof import('../../components/message/RenderBody')
+  >('../../components/message/RenderBody');
+
+  return {
+    BrokenContent: () => React.createElement('span', { 'data-testid': 'broken-content' }),
+    MEmote: () => null,
+    MNotice: () => null,
+    MText: () => null,
+    RenderBody,
+  };
+});
 vi.mock('../../components/message/MsgTypeRenderers', () => ({
   MEmote: () => null,
   MNotice: () => null,
@@ -42,24 +58,83 @@ vi.mock('../../components/message/MsgTypeRenderers', () => ({
   }: {
     content: Record<string, unknown>;
     renderAfterBody?: React.ReactNode;
-    renderBody: (props: { body: string }) => React.ReactNode;
+    renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
   }) =>
     React.createElement(
       'div',
       { 'data-testid': 'long-text-body' },
-      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderBody({
+        body: typeof content.body === 'string' ? content.body : '',
+        customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
+      }),
       renderAfterBody
     ),
 }));
 vi.mock('folds', () => ({
-  Box: () => null,
-  Spinner: () => null,
-  Text: () => null,
+  Box: ({ children, ...props }: Record<string, unknown>) =>
+    React.createElement('div', props, children as React.ReactNode),
+  Icon: ({ children, ...props }: Record<string, unknown>) =>
+    React.createElement('span', props, children as React.ReactNode),
+  Icons: new Proxy(
+    {},
+    {
+      get: (_, prop) => String(prop),
+    }
+  ),
+  Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
+  Text: ({ as = 'div', children, ...props }: Record<string, unknown>) =>
+    React.createElement(typeof as === 'string' ? as : 'div', props, children as React.ReactNode),
   config: {
     space: {
       S100: '4px',
     },
   },
+}));
+vi.mock('../../styles/CustomHtml.css', () => ({
+  Paragraph: 'Paragraph',
+  MarginSpaced: 'MarginSpaced',
+}));
+vi.mock('../html/MatrixMath.css', () => ({
+  MathInline: 'MathInline',
+  MathBlock: 'MathBlock',
+}));
+vi.mock('./MindroomHtmlBlocks.css', () => ({
+  Block: 'MindroomBlock',
+  BlockBody: 'MindroomBlockBody',
+  BlockHeader: 'MindroomBlockHeader',
+  BlockHeaderMeta: 'MindroomBlockHeaderMeta',
+  BlockInlineResult: 'MindroomBlockInlineResult',
+  BlockResult: 'MindroomBlockResult',
+  ToolGroupItem: 'MindroomToolGroupItem',
+  ToolGroupList: 'MindroomToolGroupList',
+}));
+vi.mock('../threads/CollapsibleMessage.css', () => ({
+  CollapsibleContent: () => 'collapsible-content',
+  CollapsibleGradientOverlay: 'collapsible-gradient-overlay',
+  CollapsibleShowMore: 'collapsible-show-more',
+  CollapsibleStickyFooter: 'collapsible-sticky-footer',
+  CollapsiblePill: 'collapsible-pill',
+}));
+vi.mock('./MindroomMessageExtras', () => ({
+  MindroomMessageExtras: () => null,
+}));
+vi.mock('./MindroomPasteAttachmentContent', () => ({
+  MindroomPasteAttachmentContent: () => null,
+}));
+vi.mock('./MindroomThinkingPlaceholder', () => ({
+  MindroomThinkingPlaceholder: () => null,
+}));
+vi.mock('./MindroomThreadSummaryCard', () => ({
+  MindroomThreadSummaryCard: () => null,
+}));
+vi.mock('./MindroomToolApprovalCard', () => ({
+  MindroomToolApprovalCard: () => null,
+}));
+vi.mock('./StreamingIndicator', () => ({
+  renderMindroomStreamingIndicator: () => null,
+}));
+vi.mock('./messageStateSuffix', () => ({
+  getMindroomMessageStateSuffixRenderer: () => undefined,
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
@@ -69,9 +144,9 @@ vi.mock('../../hooks/useMediaAuthentication', () => ({
 }));
 
 const getDownloadMindroomLongTextSidecarText = async () =>
-  (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarText;
+  (await import('./longTextDownload')).downloadMindroomLongTextSidecarText;
 const getDownloadMindroomLongTextSidecarBlob = async () =>
-  (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarBlob;
+  (await import('./longTextDownload')).downloadMindroomLongTextSidecarBlob;
 const getMindroomLongTextTextModule = async () => import('./MindroomLongTextText');
 const getShouldResetResolvedContentToPreview = async () =>
   (await import('./MindroomLongTextText')).shouldResetResolvedContentToPreview;
@@ -451,6 +526,107 @@ describe('MindroomLongTextText hydration identity', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it('renders hydrated Markdown and a tool card while the real message stays collapsed', async () => {
+    const { CollapsibleMessage } = await import('../threads/CollapsibleMessage');
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = createPreviewContent();
+    const toolTrace = {
+      version: 2,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'search_web',
+          result_preview: 'Found result',
+        },
+      ],
+    };
+    let intersectionCallback: IntersectionObserverCallback | undefined;
+    let renderer!: ReactTestRenderer;
+
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Hydrated **response**\n\n🔧 `search_web` [1]',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p>Hydrated <strong>response</strong></p><p>🔧 <code>search_web</code> [1]</p>',
+      msgtype: 'm.text',
+      'io.mindroom.tool_trace': toolTrace,
+    });
+
+    class MockIntersectionObserver {
+      public observe = vi.fn();
+
+      public disconnect = vi.fn();
+
+      public constructor(callback: IntersectionObserverCallback) {
+        intersectionCallback = callback;
+      }
+    }
+
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+    vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            CollapsibleMessage,
+            { collapseMode: 'default', forceOverflowing: true },
+            ({ loadFullContent }) =>
+              renderMindroomMessageContent({
+                displayName: 'MindRoom',
+                msgType: 'm.text',
+                content,
+                hydrateLongText: loadFullContent,
+                htmlReactParserOptions: {},
+                linkifyOpts: {},
+              })
+          ),
+          {
+            createNodeMock: (element) => {
+              if (element.props.className === 'collapsible-content') {
+                return { clientHeight: 72, scrollHeight: 160 };
+              }
+              return null;
+            },
+          }
+        );
+      });
+
+      const getCollapsibleContent = () =>
+        renderer.root.find(
+          (node) =>
+            node.type === 'div' &&
+            node.props.className === 'collapsible-content' &&
+            node.props['aria-expanded'] === false
+        );
+
+      expect(getCollapsibleContent()).toBeDefined();
+      expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+
+      await act(async () => {
+        intersectionCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        );
+        await Promise.resolve();
+      });
+
+      expect(getCollapsibleContent()).toBeDefined();
+      expect(renderer.root.findByType('strong').children).toContain('response');
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('1 tool call');
+      expect(rendered).not.toContain('🔧');
+      expect(rendered).not.toContain('**response**');
+    } finally {
+      if (renderer) {
+        await act(async () => {
+          renderer.unmount();
+        });
+      }
+      vi.unstubAllGlobals();
+    }
   });
 
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
