@@ -204,18 +204,24 @@ export const useTimelineScrollLedgerController = ({
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
   // across paints. scrollTop must be written before setOptions because the
-  // latter may synchronously notify React.
-  const settleScrollCompensation = useCallback(() => {
-    const px = scrollCompensationPxRef.current;
-    const inner = virtualInnerRef.current;
-    const scrollElement = getScrollElement();
-    if (px === 0 || !inner || !scrollElement) return;
-    scrollCompensationPxRef.current = 0;
-    inner.style.marginTop = '';
-    scrollElement.scrollTop += px;
-    const currentVirtualizer = virtualizerRef.current;
-    currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
-  }, [getScrollElement]);
+  // latter may synchronously notify React. The cause probes (upstream #116)
+  // let a device trace distinguish a true-rest settle from the boundary
+  // guard interrupting momentum at the loaded window's edge.
+  const settleScrollCompensation = useCallback(
+    (cause: 'quiescence' | 'boundary') => {
+      const px = scrollCompensationPxRef.current;
+      const inner = virtualInnerRef.current;
+      const scrollElement = getScrollElement();
+      if (px === 0 || !inner || !scrollElement) return;
+      scrollCompensationPxRef.current = 0;
+      inner.style.marginTop = '';
+      scrollElement.scrollTop += px;
+      countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
+      const currentVirtualizer = virtualizerRef.current;
+      currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
+    },
+    [getScrollElement]
+  );
 
   // Accumulated debt is visible empty space only near a content boundary.
   // Settle there immediately instead of letting a continuous ride enter it.
@@ -239,7 +245,7 @@ export const useTimelineScrollLedgerController = ({
           clientHeight: scrollElement.clientHeight,
         })
       ) {
-        settleScrollCompensation();
+        settleScrollCompensation('boundary');
       }
     };
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
@@ -253,7 +259,7 @@ export const useTimelineScrollLedgerController = ({
     waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
       compensationSettleArmedRef.current = false;
       if (!alive() || ledgerGenerationRef.current !== generation) return;
-      settleScrollCompensation();
+      settleScrollCompensation('quiescence');
     });
   }, [alive, getScrollElement, settleScrollCompensation]);
 
