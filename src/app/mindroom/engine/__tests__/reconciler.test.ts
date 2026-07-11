@@ -1955,9 +1955,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     }).finally(() => {
       settled = true;
     });
-    await flushMicrotasks();
-
-    expect(persistRepair).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(persistRepair).toHaveBeenCalledTimes(1));
     expect(settled).toBe(false);
     expect(onRepaired).not.toHaveBeenCalled();
 

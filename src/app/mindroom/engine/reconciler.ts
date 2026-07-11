@@ -45,9 +45,7 @@
  * homeserver can otherwise stream tokens indefinitely.
  */
 
-import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import to from 'await-to-js';
 import {
   createPreferLiveEventMapper,
   persistThreadEventCacheSnapshotCommitted,
@@ -57,20 +55,11 @@ import {
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
 } from '../threads/eventCacheEditUtils';
-import { getKnownThreadReplyCount } from '../threads/threadRecord';
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
 import type { BackfillScheduler } from './backfillScheduler';
 import type { HydratedThreadCachePage } from '../threads/types';
-import {
-  beginThreadReconcileContinuation,
-  checkpointThreadReconcileContinuation,
-  clearThreadReconcileContinuation,
-  loadThreadReconcileContinuation,
-  restartThreadReconcileContinuationFromHead,
-  type ThreadReconcileContinuation,
-} from '../threads/cacheStore';
 import {
   collectEmbeddedRelationEventIds,
   collectExplicitRedactedEventIds,
@@ -79,56 +68,11 @@ import {
   mergeEventRevisionDescriptors,
   type EventRevisionDescriptor,
 } from '../threads/eventRevision';
-
-/** Batch size for each `/relations` page — matches THREAD_BATCH_SIZE. */
-const RECONCILE_BATCH_SIZE = 200;
-
-/**
- * Cap on `/relations` pages the reconciler will fetch per pass. The
- * pre-P5 tail refresh capped at 1 (single 200-event page — this is
- * finding F7). Setting the cap at 25 keeps the total per-pass fetch
- * budget the same as `fetchAllThreadRelations` and matches its
- * MAX_THREAD_FETCH_ITERATIONS constant so unusually deep divergence
- * still converges without unbounded network use.
- */
-const MAX_RECONCILE_ITERATIONS = 25;
-
-type ReconcileScanExit = 'overlap' | 'end' | 'fetch-failed' | 'page-cap' | 'token-loop';
-
-/**
- * 2026-07-10 missing-middle fix (upstream #118): raw-JSON check for a
- * first-class thread reply (rel_type `m.thread` pointing at this thread's
- * root). Used to build the union of known reply ids for the shortfall
- * guard. Deliberately strict — reactions and edits never count, and an
- * event that omits the relation is not counted either. Undercounting is
- * safe: it can only keep the fetch loop paging longer (bounded by
- * MAX_RECONCILE_ITERATIONS and `next_batch` exhaustion), never stop it
- * early.
- */
-const isRawThreadReply = (rawEvent: Partial<IEvent>, threadId: string): boolean => {
-  const eventId = rawEvent.event_id;
-  if (typeof eventId !== 'string' || eventId.length === 0 || eventId === threadId) return false;
-  const relatesTo = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
-  return relatesTo?.rel_type === 'm.thread' && relatesTo.event_id === threadId;
-};
-
-type ThreadReconcileContinuationStore = {
-  load: typeof loadThreadReconcileContinuation;
-  begin: typeof beginThreadReconcileContinuation;
-  checkpoint: typeof checkpointThreadReconcileContinuation;
-  clear: typeof clearThreadReconcileContinuation;
-  restartFromHead: typeof restartThreadReconcileContinuationFromHead;
-};
-
-const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
-  load: loadThreadReconcileContinuation,
-  begin: beginThreadReconcileContinuation,
-  checkpoint: checkpointThreadReconcileContinuation,
-  clear: clearThreadReconcileContinuation,
-  restartFromHead: restartThreadReconcileContinuationFromHead,
-};
+import {
+  DEFAULT_CONTINUATION_STORE,
+  scanThreadRelations,
+  type ThreadReconcileContinuationStore,
+} from './reconcilerScan';
 
 export type ScheduleReconcileArgs = {
   readonly mx: MatrixClient;
@@ -351,37 +295,6 @@ const detectDivergence = (
 };
 
 /**
- * Fetch a single page of thread relations. Kept separate so the abort
- * check between iterations lands in one place.
- */
-const fetchThreadRelationPage = async (
-  mx: MatrixClient,
-  roomId: string,
-  threadId: string,
-  fromToken: string | undefined
-): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | 'invalid-token' | undefined> => {
-  const [err, relData] = await to(
-    mx.fetchRelations(roomId, threadId, null, null, {
-      dir: Direction.Backward,
-      limit: RECONCILE_BATCH_SIZE,
-      recurse: true,
-      ...(fromToken ? { from: fromToken } : {}),
-    })
-  );
-  if (err) {
-    // Only a server verdict on the token itself may discard a saved cursor;
-    // a network-level failure must leave durable scan progress untouched.
-    const { errcode, httpStatus } = err as { errcode?: string; httpStatus?: number };
-    return errcode === 'M_UNKNOWN_TOKEN' || httpStatus === 400 ? 'invalid-token' : undefined;
-  }
-  if (!relData) return undefined;
-  return {
-    events: (relData.chunk ?? []) as Partial<IEvent>[],
-    nextToken: relData.next_batch ?? undefined,
-  };
-};
-
-/**
  * Executor for a thread reconcile pass. Fetches `/relations` pages
  * (bounded by MAX_RECONCILE_ITERATIONS) until either the fetched chunk
  * overlaps the cached window by event id (server-truth caught up with
@@ -426,324 +339,39 @@ const runThreadReconcilePass = async ({
   const mapper = mx.getEventMapper();
   const preferLive = createPreferLiveEventMapper(room, mapper);
 
-  let continuation = await continuationStore
-    .load(sessionId, roomId, threadId)
-    .catch(() => undefined);
-  const ensureContinuation = async (): Promise<ThreadReconcileContinuation | undefined> => {
-    if (continuation) return continuation;
-    const startedAt = Date.now();
-    const candidate: ThreadReconcileContinuation = {
-      generation: `${startedAt}:${Math.random().toString(36).slice(2)}`,
-      startedAt,
-      overlapEventIds: Array.from(cachedRevisions.keys()),
-    };
-    continuation = await continuationStore
-      .begin(sessionId, roomId, threadId, candidate)
-      .catch(() => undefined);
-    return continuation;
-  };
-  const originalOverlapEventIds = new Set(
-    continuation ? continuation.overlapEventIds : Array.from(cachedRevisions.keys())
-  );
-
-  let fetchedCount = 0;
-  let iterations = 0;
-  let fromToken = continuation?.nextToken;
-  const allMapped: MatrixEvent[] = [];
-  const allRaw: Partial<IEvent>[] = [];
-  let scanExit: ReconcileScanExit | undefined;
-
-  // 2026-07-10 missing-middle fix (upstream #118): overlap-with-cache alone
-  // is NOT a convergence proof. The cache always holds the live-synced
-  // tail, so page 1 of the backward drain overlaps immediately — and a
-  // hole BETWEEN the tail and older segments was structurally invisible.
-  // The shortfall guard keeps paging past an overlap while the union of
-  // known reply ids still falls short of the authoritative reply count.
-  // The count is the MAX of every available source — live root's bundled
-  // m.thread count, cached root's bundled count, and the recorded coverage
-  // count — matching the store's own monotonic merge policy (the live
-  // bundle can be stale-LOW while the recorded count is fresh). A count
-  // that is stale-HIGH costs one drain bounded by `next_batch` exhaustion
-  // and MAX_RECONCILE_ITERATIONS per open — observable via
-  // `reconcileShortfallPagesPastOverlap`.
-  const liveRootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
-  const expectedReplyCountCandidates = [
-    liveRootEvent ? getKnownThreadReplyCount(liveRootEvent) : undefined,
-    cachedPage?.hydratedRootEvent
-      ? getKnownThreadReplyCount(cachedPage.hydratedRootEvent)
-      : undefined,
-    cachedPage?.expectedReplyCount,
-    cachedPage?.cacheCoverage?.expectedReplyCount,
-  ].filter((count): count is number => typeof count === 'number');
-  const expectedReplyCount =
-    expectedReplyCountCandidates.length > 0 ? Math.max(...expectedReplyCountCandidates) : undefined;
-  const knownReplyIds = new Set<string>();
-  cachedPage?.events.forEach((rawEvent) => {
-    if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
+  const scan = await scanThreadRelations({
+    mx,
+    sessionId,
+    room,
+    roomId,
+    threadId,
+    cachedPage,
+    cachedEventIds: new Set(cachedRevisions.keys()),
+    signal,
+    debugTraceId,
+    preferLive,
+    continuationStore,
   });
-  // True when a fresh-head phase observed `next_batch` exhaustion — the
-  // pass has then seen the ENTIRE relations stream from HEAD to the thread
-  // start. (A resumed-cursor phase starting mid-stream cannot make this
-  // claim, hence the phaseStartToken gate at the assignment site.)
-  let drainedToExhaustion = false;
-  // True when the shortfall guard drove at least one page past a
-  // cached-window overlap — deep healing work rather than the ordinary
-  // single-page tail verify.
-  let pagedPastOverlapForShortfall = false;
+  const {
+    allMapped,
+    allRaw,
+    fetchedCount,
+    fetchFailed: fetchFailedOccurred,
+    iterations,
+    pagedPastOverlapForShortfall,
+    scanExit,
+    serverConfirmedStart,
+  } = scan;
 
-  // Set by the fetch loop when it observed a fetch failure that
-  // produced no usable page (SDK threw / returned undefined). Used
-  // AFTER the loop to distinguish "empty response" from "everything
-  // failed" — both surface as allMapped.length === 0.
-  let fetchFailedOccurred = false;
-  let recoveredInvalidToken = false;
-  const restartContinuationFromHead = async (): Promise<boolean> => {
-    if (!continuation) return false;
-    const restartedAt = Date.now();
-    const restarted = await continuationStore
-      .restartFromHead(
-        sessionId,
-        roomId,
-        threadId,
-        continuation.generation,
-        `${restartedAt}:${Math.random().toString(36).slice(2)}`
-      )
-      .catch(() => undefined);
-    if (!restarted) return false;
-    continuation = restarted;
-    fromToken = undefined;
-    return true;
-  };
-
-  // A resumed older scan is followed immediately by one fresh-head phase
-  // before its marker can clear. Each phase retains the 25-page budget.
-  let scanAnotherPhase = true;
-  while (scanAnotherPhase) {
-    scanAnotherPhase = false;
-    let phaseIterations = 0;
-    let phaseFetchedPage = false;
-    let retriedSavedCursorFetch = false;
-    let savedTokenRejected = false;
-    const phaseStartToken = fromToken;
-    scanExit = undefined;
-
-    while (phaseIterations < MAX_RECONCILE_ITERATIONS) {
-      if (signal.aborted) {
-        // Signal-abort — scheduler-driven teardown (engine.stop / abort()
-        // call). Reconciles are an engine responsibility (invariant I2,
-        // convergence to server truth); this is the only legitimate
-        // silent exit before the first fetch.
-        countCacheProbe('reconcilesSignalAborted');
-        return { repaired: false, fetchedCount, iterations, aborted: true };
-      }
-
-      phaseIterations += 1;
-      iterations += 1;
-      // eslint-disable-next-line no-await-in-loop
-      const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
-      if (page === 'invalid-token') {
-        savedTokenRejected = phaseStartToken !== undefined && !phaseFetchedPage;
-        fetchFailedOccurred = true;
-        scanExit = 'fetch-failed';
-        break;
-      }
-      if (!page) {
-        fetchFailedOccurred = true;
-        if (phaseStartToken !== undefined && !phaseFetchedPage && !retriedSavedCursorFetch) {
-          retriedSavedCursorFetch = true;
-          continue;
-        }
-        scanExit = 'fetch-failed';
-        break;
-      }
-      phaseFetchedPage = true;
-      // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
-      // per-page chunk-triple log. Signature (A) from the last docker run
-      // (reconcilesScheduled=1, reconcilesRepaired=0, detectDivergence
-      // returned FALSE) leaves two indistinguishable possibilities:
-      //   (i)  the fetched chunk does not carry $edit-v2 (fetch/pagination/
-      //        bundling issue — Tuwunel's `/relations recurse=true` may not
-      //        stream m.replace edits back on every schedule window), or
-      //   (ii) the chunk contains it but comparison returned false anyway.
-      // Emitting (event_id, type, rel_type) triples per page makes those
-      // two shapes readable at a glance in the next capture — no need for
-      // another gate-fix iteration to answer the question.
-      //
-      // Read directly off the raw event JSON (pre-mapper): the mapper
-      // returns MatrixEvent instances, and interrogating them for rel_type
-      // requires an accessor per event; the raw shape is what the server
-      // returned and is what would need to be persisted regardless. Cheap:
-      // `logTimelineDebug` is gated on both a present traceId AND the
-      // `mindroom.debug.timeline` localStorage flag — no work in prod.
-      if (debugTraceId) {
-        const triples = page.events.map((raw) => {
-          const relatesTo = (raw.content as Record<string, unknown> | undefined)?.[
-            'm.relates_to'
-          ] as { rel_type?: string } | undefined;
-          const bundled = (raw.unsigned as Record<string, unknown> | undefined)?.['m.relations'] as
-            | Record<string, unknown>
-            | undefined;
-          return {
-            event_id: raw.event_id,
-            type: raw.type,
-            rel_type: relatesTo?.rel_type,
-            bundled_relations: bundled ? Object.keys(bundled) : undefined,
-          };
-        });
-        logTimelineDebug(debugTraceId, 'reconcile-chunk', {
-          iteration: iterations,
-          chunkSize: page.events.length,
-          nextToken: page.nextToken ? 'present' : 'absent',
-          triples,
-        });
-      }
-
-      // Map each fetched raw event through the prefer-live mapper. This
-      // is the Tuwunel stale-copy heal path: if the raw event carries
-      // `unsigned.redacted_because` and the live SDK instance does not
-      // yet know it's redacted, `createPreferLiveEventMapper` applies
-      // `makeRedacted` immediately, which cascades into the SDK's
-      // relation aggregation cleanup. See P1.2 F6-B decision.
-      const pageRaw = page.events.slice().reverse();
-      const pageMapped = pageRaw.map(preferLive);
-      fetchedCount += pageMapped.length;
-      allRaw.push(...pageRaw);
-      allMapped.push(...pageMapped);
-      pageRaw.forEach((rawEvent) => {
-        if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
-      });
-
-      // Convergence check: any event id in the fetched page that we
-      // already have in cache means the server tail has caught up with
-      // (or overlaps) what the cache knows. Removes F7's 200-event
-      // ceiling — the reconciler pages further only when the divergence
-      // is deeper than the current batch. Overlap alone is not enough
-      // when the reply-count union still shows a shortfall (missing-
-      // middle fix above): the hole sits BEHIND the overlapping tail,
-      // so the drain continues until the count is satisfied or the
-      // stream exhausts.
-      const overlap = pageMapped.some((mEvent) => {
-        const id = mEvent.getId();
-        return typeof id === 'string' && originalOverlapEventIds.has(id);
-      });
-      if (!page.nextToken) {
-        if (phaseStartToken === undefined) drainedToExhaustion = true;
-        scanExit = 'end';
-        break;
-      }
-      const replyShortfall =
-        typeof expectedReplyCount === 'number' && knownReplyIds.size < expectedReplyCount;
-      if (overlap && !replyShortfall) {
-        scanExit = 'overlap';
-        break;
-      }
-      if (page.nextToken === fromToken) {
-        scanExit = 'token-loop';
-        break;
-      }
-      // Bump only when the next fetch will actually happen — at the
-      // MAX_RECONCILE_ITERATIONS boundary the while-condition exits before
-      // fetching, and counting that page would overstate the trace
-      // evidence.
-      if (overlap && phaseIterations < MAX_RECONCILE_ITERATIONS) {
-        pagedPastOverlapForShortfall = true;
-        countCacheProbe('reconcileShortfallPagesPastOverlap');
-      }
-      fromToken = page.nextToken;
-    }
-    if (!scanExit) scanExit = 'page-cap';
-
-    const scanComplete = scanExit === 'overlap' || scanExit === 'end';
-    if (scanComplete && continuation && continuation.validatingHead !== true) {
-      // The older cursor reached its original boundary. Re-scan from the
-      // current head before clearing so events that arrived between passes
-      // are included in this same reconcile result.
-      if (phaseStartToken !== undefined && originalOverlapEventIds.size === 0) {
-        // An empty boundary means the original cache was empty. Only after
-        // the resumed suffix completes can the pages durably persisted by an
-        // earlier phase become a safe bridge for fresh-head validation.
-        cachedRevisions.forEach((_revision, eventId) => originalOverlapEventIds.add(eventId));
-      }
-      // eslint-disable-next-line no-await-in-loop
-      if (await restartContinuationFromHead()) {
-        scanAnotherPhase = true;
-        continue;
-      }
-      // The fetched suffix is useful for repair, but it is not authoritative
-      // for absence and must not clear the continuation until a fresh-head
-      // phase has been durably established.
-      fetchFailedOccurred = true;
-      scanExit = 'fetch-failed';
-    }
-
-    const invalidSavedToken = scanExit === 'token-loop' || savedTokenRejected;
-    if (invalidSavedToken && continuation) {
-      // A saved token can expire or a server can repeat it. Reset the cursor
-      // generation-safely rather than retrying the same unusable token on
-      // every future open. Retry from head once in this invocation.
-      // eslint-disable-next-line no-await-in-loop
-      const restarted = await restartContinuationFromHead();
-      if (restarted && !recoveredInvalidToken) {
-        recoveredInvalidToken = true;
-        scanAnotherPhase = true;
-        continue;
-      }
-    }
-    break;
-  }
-
-  if (signal.aborted) {
-    // Post-loop signal-abort — same class as in-loop signal-abort.
-    countCacheProbe('reconcilesSignalAborted');
+  if (scan.aborted) {
     return { repaired: false, fetchedCount, iterations, aborted: true };
   }
-
-  // CINNY-207 P5 review (greptile P1: paged batch order reverses):
-  // when divergence spans multiple `/relations` pages, each backward
-  // page is reversed internally (older→newer within the page), but
-  // page 1's events are chronologically NEWER than page 2's. Naive
-  // concatenation produces [page1_older..page1_newer, page2_older..
-  // page2_newer] where all of page 2 < all of page 1 — a non-
-  // monotonic array. Downstream consumers benefit from a
-  // chronologically ordered batch: `thread.addEvents(events, false)`
-  // observes the tail in the correct order for SDK aggregation, the
-  // persistence writer builds a monotonic snapshot, and `onRepaired`
-  // hands the render layer a batch that matches the SDK's ordering
-  // invariants. Mirrors the gap-fill executor's post-flatten sort.
-  //
-  // Stable sort by origin_server_ts ascending; ties preserve fetch
-  // order (within a page the reverse already yields chronological
-  // order, so ties across identical timestamps stay in the SDK's
-  // wire order).
-  if (allMapped.length > 1) {
-    allMapped.sort((a, b) => a.getTs() - b.getTs());
-  }
-
-  const scanComplete = scanExit === 'overlap' || scanExit === 'end';
-
-  // Settle the durable cursor for a pass that applies no repair: a complete
-  // validating-head scan clears its marker; an incomplete scan with a usable
-  // next token checkpoints so the next open resumes instead of restarting.
-  const settleContinuationWithoutRepair = async (): Promise<void> => {
-    if (scanComplete && continuation?.validatingHead === true) {
-      await continuationStore
-        .clear(sessionId, roomId, threadId, continuation.generation)
-        .catch(() => false);
-    } else if (!scanComplete && fromToken && scanExit !== 'token-loop') {
-      const currentContinuation = await ensureContinuation();
-      if (currentContinuation) {
-        await continuationStore
-          .checkpoint(sessionId, roomId, threadId, currentContinuation.generation, fromToken)
-          .catch(() => false);
-      }
-    }
-  };
 
   // Zero-fetch fast path — the D7 cheap no-op. When the server returned
   // no events (or all fetches failed) there is nothing to reconcile and
   // no tick to fire.
   if (allMapped.length === 0) {
-    await settleContinuationWithoutRepair();
+    await scan.settleWithoutRepair();
     // CINNY-207 AC2 STEP 1 (2026-07-04): treat "fetch failed with no
     // usable pages" AND "server returned empty chunks" as the same
     // outcome bucket for probe purposes — both are silent exits with
@@ -774,14 +402,8 @@ const runThreadReconcilePass = async ({
   // path zero-cost.
   const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
 
-  // 2026-07-10 missing-middle fix: exhaustion in a fresh-head phase means
-  // the server confirmed nothing exists before the batch's earliest event.
-  // (`fetchFailedOccurred` is mutually exclusive with exhaustion — a failed
-  // page breaks the loop immediately — the guard is defensive redundancy.)
-  const serverConfirmedStart = drainedToExhaustion && !fetchFailedOccurred;
-
   if (!diverged) {
-    await settleContinuationWithoutRepair();
+    await scan.settleWithoutRepair();
     // 2026-07-10 missing-middle fix (upstream #118 review finding): a
     // shortfall-driven full drain that found no divergence still observed
     // the server-confirmed start. Without recording it, the phantom-high-
@@ -820,37 +442,15 @@ const runThreadReconcilePass = async ({
     return { repaired: false, fetchedCount, iterations, aborted: false };
   }
 
-  // P5-GATE-FIX (AC2): inject the fetched, mapped events into the SDK
-  // thread model BEFORE hydration. Without this step, `applyCached*`
-  // mutations either land on fresh clones (when the SDK doesn't yet
-  // know the fetched event id — e.g. a m.replace that happened while
-  // the client was closed) or land on the SDK's live instance but
-  // never surface to render because `useThreadRenderState` reads
-  // `thread.events`, which is populated by `thread.addEvents`, not by
-  // arbitrary MatrixEvent instances in scope.
-  //
-  // This mirrors the pre-P5 `runThreadOpenPostBootstrapRefresh` pattern
-  // (removed in commit 05594b54) which called
-  // `currentThread.addEvents(latestEvents, false)` after `preferLive`
-  // mapping. `thread.addEvents(events, toStartOfTimeline=false)` is
-  // idempotent per event id — the SDK dedupes on `event_id` so
-  // re-injecting a live event we already had is a no-op. The
-  // `toStartOfTimeline=false` argument is correct here: reconcile
-  // fetches the TAIL (dir: Backward starting from HEAD), and each
-  // batch of fetched events is chronologically the "newest end" of
-  // the thread relative to what the SDK currently holds.
+  // Inject the fetched tail before hydration so SDK thread indices and the
+  // cache-first render fallback converge on the same MatrixEvent instances.
+  // `addEvents(..., false)` is idempotent by event id.
   const liveThread = room.getThread(threadId);
   if (liveThread && allMapped.length > 0) {
     liveThread.addEvents(allMapped, false);
   } else if (!liveThread && allMapped.length > 0) {
-    // P5-GATE-FIX v4 (AC2 diagnosis): the complete-coverage cache-first
-    // reopen path deliberately skips SDK bootstrap, so `room.getThread`
-    // returns null here even though a repair is needed. The SDK
-    // injection above no-ops silently in that case — convergence must
-    // come entirely from the render-fallback leg (widened `onRepaired`
-    // → `setSupplementalThreadEvents`). Bump a probe counter and emit
-    // a debug log so a failing docker trace can distinguish this shape
-    // from "SDK thread present, injection ran but render still stale".
+    // Complete cache-first opens may intentionally have no SDK thread yet;
+    // the repaired batch still reaches the render fallback via `onRepaired`.
     countCacheProbe('reconcilesThreadNull');
     logTimelineDebug(debugTraceId, 'reconcile-thread-null', {
       roomId,
@@ -860,37 +460,13 @@ const runThreadReconcilePass = async ({
     });
   }
 
-  // Repair path: run the same hydration pipeline the persist layer uses
-  // (P1.2). `applyCachedRedactions` handles missed redactions (Tuwunel
-  // stale copies included via the prefer-live mapper above);
-  // `applyCachedReplaceRelations` + `applySerializedCachedReplaceRelations`
-  // apply missed edits under D12 ordering (idempotent — no change when
-  // cache already had the newest); `aggregateCachedRelationEvents`
-  // registers new relation events (and removes redacted ones) with the
-  // SDK's live indices so reaction chips update in place.
-  //
-  // After the SDK injection above, `liveThread?.getUnfilteredTimelineSet()`
-  // is re-read so any timeline set the SDK created on first addEvents
-  // is captured — otherwise hydration's aggregation step would run
-  // against a stale (empty) timelineSet reference.
+  // Hydrate the union through the same redaction/edit/aggregation pipeline
+  // as cache reads. Re-read the timeline set after `addEvents`, because the
+  // SDK may create it during injection.
   const liveThreadTimelineSet = liveThread?.getUnfilteredTimelineSet();
-  // P5-GATE-FIX v2 (AC2 instance-race): the render layer on the
-  // complete-coverage cache-first path holds the MatrixEvent instances
-  // that `hydrateThreadFromCache` handed to `setSupplementalThreadEvents`
-  // (SDK bootstrap is skipped by design when the cache is complete —
-  // see `threadOpenCacheFirst.ts`). Those instances are exposed on
-  // `cachedPage.hydratedEvents`; the P1.2 hydration pipeline builds
-  // `applyCachedReplaceRelations`'s event-id → target map from
-  // whatever we pass in, and calls `makeReplaced` on the matching
-  // entry. To make the repair visible in render, we MUST pass THOSE
-  // instances (or, where the SDK has a newer live copy, that live
-  // instance via `preferLive` — the P1.2 both-ways-heal spirit).
-  //
-  // Fallback (`hydratedEvents` absent): re-hydrate the raw JSON via
-  // `preferLive`. Kept for defense-in-depth against future callers
-  // that skip hydratedEvents, but on
-  // complete-coverage today, `hydratedEvents` is always populated by
-  // `hydrateThreadFromCache`.
+  // Preserve the cache-first render instances; prefer a matching SDK live
+  // instance only when one exists. This makes in-place edit/redaction repair
+  // visible regardless of whether SDK bootstrap ran.
   const cachedSnapshotEvents = cachedPage
     ? resolveCachedSnapshotEventsForRepair({
         cachedPage,
@@ -921,52 +497,14 @@ const runThreadReconcilePass = async ({
   }
   countCacheProbe('reconcilesRepaired');
 
-  // P5-GATE-FIX v4 (final iteration — team-lead directive 2026-07-04):
-  // persist the fetched thread events through the ENGINE PERSIST path.
-  //
-  // The pre-v4 chain (SDK inject + widened onRepaired supplemental sink)
-  // converged in MEMORY but never taught the CACHE about the fetched
-  // events. That created a design seam: convergence was timing-
-  // dependent (which of live-sync / reconciler / render tick won a
-  // given race decided whether v1 or v2 painted), and — crucially —
-  // the NEXT reopen from IDB rehit the same stale window because the
-  // gap-fill executor only writes room scope and the live-mode gates
-  // skip catch-up-sync bursts by design.
-  //
-  // Making the reconciler the deterministic owner: on divergence we
-  // write the fully-mapped, prefer-live batch to the thread cache
-  // scope via `persistThreadEventCacheSnapshot` (same entry point the
-  // engine's write-through uses). This gives us two invariants that
-  // hold regardless of sync timing:
-  //   (a) A cache-first reopen after this pass paints the fetched
-  //       state directly, without waiting for the reconciler to run
-  //       again.
-  //   (b) The `fallbackThreadEventsState.events` sink populated by
-  //       `setSupplementalThreadEvents` (fired via onRepaired below)
-  //       and the cache-hydrate-on-reopen path agree — no more
-  //       "renderPreference decides which stale side to paint".
-  //
-  // Contract details:
-  //   - Uses the SAME snapshot writer as the write-through so seed
-  //     snapshots / tokens / reply counts follow the shape the rest
-  //     of the system expects. `tailLoaded` is left undefined so the
-  //     no-downgrade merge in `saveThreadEventsToCache` preserves the
-  //     open path's asserted tail state.
-  //   - Root event is resolved through `room.getThread(threadId)?.rootEvent`
-  //     falling back to `room.findEventById(threadId)` — identical to
-  //     the persist logic in `engineWriteThrough.persistThreadEvents`.
-  //   - The pass does not claim durable convergence until the committed
-  //     writer resolves. A failed/disabled cache still returns the repaired
-  //     in-memory view so observers can update the current UI; `durable`
-  //     exposes that the next open must reconcile again.
+  // Persist through the engine's normal snapshot boundary so the current
+  // repaired view and the next cache-first reopen agree. A failed write still
+  // returns the in-memory repair, but does not claim durable convergence.
   const rootEvent =
     room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId) ?? undefined;
-  if (!scanComplete && fromToken && scanExit !== 'token-loop') {
-    await ensureContinuation();
-  }
-  const canCheckpoint = Boolean(continuation && fromToken && scanExit !== 'token-loop');
   let durable = false;
-  if (scanComplete || canCheckpoint) {
+  const canPersistRepair = scan.scanComplete || (await scan.prepareRepairPersistence());
+  if (canPersistRepair) {
     // 2026-07-10 missing-middle fix: when a fresh-head drain observed
     // `next_batch` exhaustion with no fetch failures, record the server-
     // confirmed start via `beforeTokenForEarliest: null` so the next open
@@ -986,49 +524,12 @@ const runThreadReconcilePass = async ({
     });
     const writeCommitted = await repairSnapshot.write.catch(() => false);
     countCacheProbe('reconcilerPersists');
-    if (writeCommitted === true) {
-      if (scanComplete && continuation?.validatingHead === true) {
-        durable = await continuationStore
-          .clear(sessionId, roomId, threadId, continuation.generation)
-          .catch(() => false);
-      } else if (scanComplete && !continuation) {
-        durable = true;
-      } else if (continuation && fromToken) {
-        durable = await continuationStore
-          .checkpoint(sessionId, roomId, threadId, continuation.generation, fromToken)
-          .catch(() => false);
-      }
-    }
+    durable = await scan.commitRepairPersistence(writeCommitted === true);
   }
 
-  // P5-GATE-FIX v3 (AC2 dual-injection, render leg): hand the
-  // fully-mapped, prefer-live batch to the caller. Component-side
-  // callback routes it through `setSupplementalThreadEvents(threadId,
-  // batch)` — the render's fallback-events sink. This keeps the
-  // engine free of any knowledge of `setSupplementalThreadEvents`
-  // (P3.3 render-only boundary invariant) while making both render
-  // paths converge on the same tick: SDK-populated `thread.events`
-  // (from `liveThread.addEvents(allMapped, false)` above) AND the
-  // component-owned `fallbackThreadEventsState.events`.
-  //
-  // CINNY-207 AC2 render-gap RG5-fix (2026-07-04): pass
-  // `mergedForHydrate` (cachedSnapshotEvents + allMapped) instead of
-  // just `allMapped`. RG4d diagnosis: when the fetched /relations page
-  // includes a target's m.replace child but not the target itself
-  // (e.g. the target sits in the pre-hydrated cache snapshot outside
-  // the fetched window), the applier's id→instance map picks the
-  // cached-snapshot copy for the makeReplaced target and mutates it in
-  // place. Passing only `allMapped` to onRepaired meant that mutated
-  // instance never reached the sink; the fallback registry then got a
-  // SYNC-delivered sibling (via ThreadEvent.NewReply → single-event
-  // sink call) that never had `.replacingEvent()` set, and the render
-  // preference picked the un-repaired sibling. Passing the full
-  // hydrated view makes the "persistent render source for a given
-  // thread-open" = the reconciler-repaired view, per team-lead's
-  // fourth-shape directive. Sink merge is a Map-by-key, so replaying
-  // cachedSnapshotEvents (already render-held) is idempotent modulo
-  // instance-identity — and identity is precisely what we want to
-  // propagate here.
+  // `mergedForHydrate` includes cache-held targets as well as fetched
+  // relation children, so the caller receives the exact instances mutated by
+  // hydration. The render-side sink deduplicates them by event id.
   logTimelineDebug(debugTraceId, 'reconcile-complete', {
     durable,
     fetchedCount,
