@@ -15,10 +15,15 @@ import {
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
-test.describe('live CINNY-001 last open thread restore', () => {
+// PR #98 deliberately removed last-thread auto-restore on room entry:
+// re-entering a room lands on the room view. (Startup root-path restore is a
+// different behavior, covered by cinny001b.) This spec now pins the removal.
+test.describe('live CINNY-001 room re-entry does not auto-restore the last thread', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('re-entering a room restores its last open thread', async ({ page }) => {
+  test('re-entering a room stays on the room view instead of the last open thread', async ({
+    page,
+  }) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
@@ -82,15 +87,12 @@ test.describe('live CINNY-001 last open thread restore', () => {
 
     await page.goto(`/home/${encodeURIComponent(roomWithThread.roomId)}`);
 
-    await expect
-      .poll(() => new URL(page.url()).searchParams.get('threadId'), {
-        timeout: 10_000,
-        message: 'Room re-entry should restore the previously open thread',
-      })
-      .toBe(roomWithThread.rootId);
-
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(roomWithThread.replyBody)).toBeVisible({ timeout: 10_000 });
+    // Give a delayed restore every chance to misbehave, then assert the room
+    // view held: no threadId crept back into the URL and no Thread View pane.
+    await expect(page.getByText(roomWithThread.rootBody).first()).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(3_000);
+    expect(new URL(page.url()).searchParams.get('threadId')).toBeNull();
+    await expect(page.getByText('Thread View')).toHaveCount(0);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-001-last-open-thread');
   });
