@@ -13,7 +13,7 @@ vi.mock('./longText', async (importOriginal) => {
     hydrateMindroomLongTextSource: hydrateMock,
   };
 });
-vi.mock('./MindroomLongTextText', () => ({
+vi.mock('./longTextDownload', () => ({
   downloadMindroomLongTextSidecarText: vi.fn(async () => '{}'),
 }));
 

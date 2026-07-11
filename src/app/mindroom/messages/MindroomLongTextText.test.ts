@@ -569,6 +569,53 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('shows warm content on the render that enables hydration, before effects run', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    const source = createLongTextSource({ previewContent: content });
+    const actualLongText = await vi.importActual<typeof import('./longText')>('./longText');
+    await actualLongText.hydrateMindroomLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
+      mockMx
+    );
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+
+    const render = (hydrate: boolean) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        hydrate,
+        content,
+        longTextSource: source,
+        renderBody: (_content, props) => props.body,
+      });
+
+    // Overscan mount: cold render keeps the cheap preview despite the warm
+    // cache (PR #110's guard).
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Preview response'
+    );
+
+    // Viewport entry flips hydrate: the flip's OWN render (no act, effects
+    // not yet flushed) must already show the cached full content.
+    renderer.update(render(true));
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Full prewarmed response'
+    );
+
+    // Effects settle without a re-download.
+    await act(async () => {});
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('renders hydrated Markdown and a tool card while the real message stays collapsed', async () => {
     const { CollapsibleMessage } = await import('../threads/CollapsibleMessage');
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');

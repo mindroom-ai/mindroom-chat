@@ -46,7 +46,7 @@ const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
 describe('ride trace corpus', () => {
   it('derives each clientHeight from bottom-rest clamp physics', () => {
     CORPUS.forEach(({ trace, clientHeight }) => {
-      expect(deriveClientHeightFromBottomRest(trace.frames)).toBe(clientHeight);
+      expect(deriveClientHeightFromBottomRest(trace.frames, trace.viewport.h)).toBe(clientHeight);
     });
   });
 

@@ -22,6 +22,20 @@ session-scoped per client. Also rebased onto dev at #123 (runbook-only
 conflict). Upstream PR #121 (direction-baseline reset between gestures) is
 complementary and still needs its own port onto the extracted controller.
 
+Round 2 (codex + PR bots, same policy of verify-then-fix): a synchronous
+loader throw settled the in-flight promise — and ran its finally-cleanup —
+before registration, pinning a resolved preview promise forever (loader now
+deferred one microtask past `inflight.set`); a warm row flipping
+hydrate=false→true still painted the preview once (render now reads the
+cache directly via `displayContent`, converged by the effect); replay
+firings now use the production gate's ±2px instead of the 16px rAF slack;
+clientHeight derivation is bounded by the recorded window height so a ride
+that never rests at the bottom returns undefined instead of a mid-scroll
+plateau; merged a split import and repointed the prewarm test's stale mock.
+Declined as before: historical runbook entries keep their historical
+validation numbers, and pre-existing reflow damage in old dev sections
+stays out of this PR's scope.
+
 ### Ride-trace replay corpus + the remaining settle-cascade defect (2026-07-11)
 
 Why the suite kept missing these bugs: unit tests can only assert our model

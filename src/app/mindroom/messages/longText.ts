@@ -282,7 +282,12 @@ export const hydrateMindroomLongTextSource = async (
 
   const download = (async () => {
     try {
-      const sidecarText = await loadSidecarText(source);
+      // The loader must not run before the in-flight entry is registered:
+      // this async body executes synchronously up to its first await, so a
+      // SYNCHRONOUS loader throw would settle the promise — and run the
+      // finally-cleanup — before inflight.set below, pinning an
+      // already-resolved preview promise in the map forever.
+      const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
       const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
       if (!hydratedContent) return source.previewContent;
       const normalizedHydratedContent = normalizeHydratedMindroomContent(hydratedContent);

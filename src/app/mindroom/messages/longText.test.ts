@@ -568,6 +568,9 @@ describe('hydrateMindroomLongTextSource', () => {
     // The prewarm pool and a mounting row race the same source: one fetch.
     const first = hydrateMindroomLongTextSource(source, loader, cacheOwner);
     const second = hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    // The loader is deferred one microtask past in-flight registration.
+    await Promise.resolve();
+    expect(loader).toHaveBeenCalledTimes(1);
     releaseLoader(JSON.stringify({ msgtype: 'm.text', body: 'Full response' }));
     const [firstResolved, secondResolved] = await Promise.all([first, second]);
 
@@ -592,6 +595,38 @@ describe('hydrateMindroomLongTextSource', () => {
     const loader = vi
       .fn<[], Promise<string>>()
       .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(JSON.stringify({ msgtype: 'm.text', body: 'Recovered' }));
+
+    const failed = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    expect(failed).toBe(source.previewContent);
+
+    const recovered = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    expect(recovered.body).toBe('Recovered');
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries after a SYNCHRONOUS loader throw instead of pinning the entry in flight', async () => {
+    const source = expectDefined(
+      getMindroomLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview',
+        url: 'mxc://server/sync-throw',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      })
+    );
+    const cacheOwner = {};
+    // A sync throw settles the async body before its first await; the
+    // in-flight entry must be registered before the loader can run, or the
+    // finally-cleanup fires before registration and a resolved preview
+    // promise stays in the map forever.
+    const loader = vi
+      .fn<[], Promise<string>>()
+      .mockImplementationOnce(() => {
+        throw new Error('sync failure');
+      })
       .mockResolvedValueOnce(JSON.stringify({ msgtype: 'm.text', body: 'Recovered' }));
 
     const failed = await hydrateMindroomLongTextSource(source, loader, cacheOwner);

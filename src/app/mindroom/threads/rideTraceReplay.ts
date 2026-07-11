@@ -86,10 +86,14 @@ export const parseRideTrace = (raw: unknown): RideTrace => {
  * derivation converged on 0.9*viewport + padding — the recorder's gap
  * band is inset 10% — and misclassified ~25px of bottom overscroll;
  * review 2026-07-11 recovered the real values from settle-write clamps.)
- * Returns undefined when the ride never rests at the bottom.
+ * Candidates are bounded by the recorded window height — a scroller's
+ * clientHeight cannot exceed it — so a mid-scroll plateau (where sh - st
+ * is the remaining ride, not the viewport) can never masquerade as the
+ * answer. Returns undefined when the ride never rests at the bottom.
  */
 export const deriveClientHeightFromBottomRest = (
-  frames: readonly RideTraceFrame[]
+  frames: readonly RideTraceFrame[],
+  viewportHeightPx: number
 ): number | undefined => {
   let run = 0;
   let best: number | undefined;
@@ -101,23 +105,31 @@ export const deriveClientHeightFromBottomRest = (
     run = stable ? run + 1 : 0;
     if (run >= 5) {
       const candidate = frame.sh - frame.st;
-      if (best === undefined || candidate < best) best = candidate;
+      if (candidate <= viewportHeightPx && (best === undefined || candidate < best)) {
+        best = candidate;
+      }
     }
   }
   return best;
 };
 
-// The replay samples at rAF cadence while the guard runs per scroll
-// event; classification carries this slack for edge-adjacent frames.
+// Recorded settles are classified with rAF slack: the trace samples at
+// frame cadence while the guard ran per scroll event, so the pre-settle
+// frame can lag the event's true offset by a few px.
 export const CLIENT_HEIGHT_SLACK_PX = 16;
+// Replayed predicate firings need no sampling slack — the predicate is
+// evaluated ON the frame's own offset, so anything past the production
+// gate's ±1px (plus 1px rounding) is a real out-of-bounds firing.
+export const REPLAY_FIRING_SLACK_PX = 2;
 
 export const isOutOfPhysicalBounds = (
   scrollTop: number,
   scrollHeight: number,
-  clientHeight: number
+  clientHeight: number,
+  slackPx: number = CLIENT_HEIGHT_SLACK_PX
 ): boolean => {
   const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-  return scrollTop < -CLIENT_HEIGHT_SLACK_PX || scrollTop > maxScrollTop + CLIENT_HEIGHT_SLACK_PX;
+  return scrollTop < -slackPx || scrollTop > maxScrollTop + slackPx;
 };
 
 export type LedgerSettleObservation = {
@@ -219,7 +231,12 @@ export const replayLedgerBoundaryGuard = (
       firings.push({
         frameIndex: index,
         scrollTop: frame.st,
-        outOfBounds: isOutOfPhysicalBounds(frame.st, frame.sh, clientHeight),
+        outOfBounds: isOutOfPhysicalBounds(
+          frame.st,
+          frame.sh,
+          clientHeight,
+          REPLAY_FIRING_SLACK_PX
+        ),
       });
     }
   }

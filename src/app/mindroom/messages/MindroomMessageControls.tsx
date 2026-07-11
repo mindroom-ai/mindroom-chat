@@ -35,9 +35,11 @@ import {
   getMindroomAiRunUsageLabel,
 } from './aiRunDisplay';
 import { MindroomLongTextSource, getMindroomLongTextSource } from './longText';
-import { getMindroomLongTextDownloadName } from './longTextDownload';
+import {
+  downloadMindroomLongTextSidecarBlob,
+  getMindroomLongTextDownloadName,
+} from './longTextDownload';
 import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
-import { downloadMindroomLongTextSidecarBlob } from './longTextDownload';
 import * as css from './MindroomMessageControls.css';
 
 export function useMindroomMessageControls(content: Record<string, unknown>, menuOpen: boolean) {

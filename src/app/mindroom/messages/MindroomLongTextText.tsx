@@ -279,7 +279,18 @@ export function MindroomLongTextText({
     };
   }, [loading]);
 
-  const afterBody = renderAfterBody?.(content, resolvedContent);
+  // Render-time warm-cache read: a row that mounted cold (hydrate=false)
+  // and later flips to hydrate=true must show cached content on the flip's
+  // OWN render, not one effect-pass later (the mount initializer and the
+  // hydration effect only cover mount and post-paint). Pure read of the
+  // module cache for the current source; the effect converges state to the
+  // same value.
+  const warmResolvedContent = hydrate
+    ? getCachedMindroomLongTextContent(longTextSource, mx)
+    : undefined;
+  const displayContent = warmResolvedContent ?? resolvedContent;
+
+  const afterBody = renderAfterBody?.(content, displayContent);
 
   let textContent: ReactNode;
   if (kind === MindroomLongTextKind.Emote) {
@@ -288,8 +299,8 @@ export function MindroomLongTextText({
         displayName={displayName ?? ''}
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -299,8 +310,8 @@ export function MindroomLongTextText({
       <MNotice
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -310,8 +321,8 @@ export function MindroomLongTextText({
       <MText
         edited={edited}
         renderStateSuffix={renderStateSuffix}
-        content={resolvedContent}
-        renderBody={(props) => renderBody(resolvedContent, props)}
+        content={displayContent}
+        renderBody={(props) => renderBody(displayContent, props)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
