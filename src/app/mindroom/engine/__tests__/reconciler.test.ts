@@ -343,6 +343,52 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     expect(persistRepair).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      name: 'decreased',
+      fetchedUnsigned: { 'm.relations': { 'm.thread': { count: 3 } } },
+    },
+    { name: 'removed', fetchedUnsigned: undefined },
+  ])('repairs an authoritative aggregation that was $name', async ({ fetchedUnsigned }) => {
+    const room = makeFakeRoom();
+    const cachedPage = makeCachedPage([]);
+    cachedPage.events = [
+      {
+        event_id: '$root',
+        unsigned: { 'm.relations': { 'm.thread': { count: 5 } } },
+      },
+    ];
+    const mx = makeMockClient({
+      room,
+      fetchRelations: () => ({
+        chunk: [
+          {
+            event_id: '$root',
+            ...(fetchedUnsigned ? { unsigned: fetchedUnsigned } : {}),
+          },
+        ],
+      }),
+    });
+    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
+      vi.fn(() => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }));
+
+    const result = await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      cachedPage,
+      persistRepair,
+    });
+
+    expect(result.repaired).toBe(true);
+    expect(persistRepair).toHaveBeenCalledWith(
+      expect.objectContaining({ relationSnapshotMode: 'authoritative' })
+    );
+  });
+
   it('deduplicates: a second schedule for the same key while the first is in-flight returns the in-flight promise identity', async () => {
     // AC9 explicit wording: SCHEDULING is unconditional; COALESCING
     // returns the in-flight promise. This is what makes "user opens
@@ -1955,9 +2001,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     }).finally(() => {
       settled = true;
     });
-    await flushMicrotasks();
-
-    expect(persistRepair).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(persistRepair).toHaveBeenCalledTimes(1));
     expect(settled).toBe(false);
     expect(onRepaired).not.toHaveBeenCalled();
 

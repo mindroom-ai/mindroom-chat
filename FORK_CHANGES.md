@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### PR #104 focused reliability and maintainability follow-up (2026-07-11)
+
+- Status: complete on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`;
+  PR #123 is open.
+- Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
+  root preview freshness, monotonic-but-upgradable bundled relations, transient refresh-error
+  classification, and separation of the reconciler's network scan from its repair/persist phase.
+- The follow-up also repairs the concatenated `.prettierignore` entry and makes pull-request CI run
+  typecheck, ESLint, and Prettier in addition to tests and the production build.
+- Compact root previews now carry their source revision timestamp with their text. Complete text
+  beats a streaming placeholder; otherwise the newer source revision wins, so cached v2 repairs
+  stale SDK v1 and a later live v3 upgrades cleanly. Focused compact suites pass 42 tests.
+- Partial relation snapshots now merge only the two owned aggregate shapes: `m.thread` keeps maximum
+  count/participation and the newest `latest_event`; `m.annotation` unions keys with maximum counts.
+  Opaque existing bundles stay unchanged and authoritative snapshots retain replace/decrease
+  semantics. Focused revision/cache-store suites pass 33 tests.
+- Token refresh policy now lives in a pure boundary helper: definitive `M_UNKNOWN_TOKEN` failures
+  request logout, while rate limits, server failures, and network errors remain retryable. The
+  focused auth suites pass 25 tests.
+- Relation scanning/continuation handling moved to `reconcilerScan.ts`; repair and persistence remain
+  in `reconciler.ts`. Maximum function complexity fell from 77 to 25, combined production lines
+  decreased slightly, and the full engine plus cache-boundary suite passes 208 tests.
+- Explicitly out of scope: new cross-tab refresh coordination, crash-resumable cleanup protocols,
+  legacy service-worker compatibility redesign, and upstream/inherited edge cases without a normal
+  fork-specific reproduction. The goal is a smaller, easier-to-reason-about patch rather than a new
+  coordination subsystem.
+- Independent review caught two integration defects before publication: a repository-wide Prettier
+  step would fail on 275 baseline files, so CI now checks only the PR's NUL-delimited changed-file
+  set; and partial monotonic relation comparison initially masked authoritative decreases/removals,
+  so the comparison mode is now explicit and reconciler regressions cover both cases. Re-review
+  approved both corrections. The first full test run also exposed an incomplete MatrixEvent edit
+  fixture; the fixture now carries the timestamp/sender contract used by production. Final
+  exact-range review also added the standard `--` option terminator to the changed-file Prettier
+  invocation; re-review approved the corrected command.
+- Final local gate is green: all 391 Vitest files / 3,034 tests, TypeScript typecheck, full ESLint
+  with zero errors / 17 baseline warnings, changed-file Prettier, `git diff --check`, and the
+  production plus PWA/service-worker build. Every logical change received independent review.
+
 ### Thread missing-middle: reconciler shortfall drain (2026-07-10)
 
 - Status: implemented on branch `caveman/fix-thread-missing-middle` off `dev` at `706f011c`
@@ -819,6 +857,14 @@ ESLint zero errors (17 baseline warnings — the pruning removal's leftover
 unused test helper was cleaned up); Prettier on touched files; production and
 PWA/service-worker builds. An independent review pass over the working tree
 preceded the commits.
+
+Follow-up scope correction (2026-07-11): removed the later mounted-component
+replacement listener and its expanded stop-reaction tests. Current MindRoom
+`origin/main` writes terminal stream metadata and then explicitly redacts the
+stop reaction during normal response cleanup. The merged metadata-based
+suppression remains as the offline/gappy-sync fallback; adding a second live
+refresh path for the brief or failed-redaction window was disproportionate to
+that backend contract and the fork's maintainability goal.
 
 ### Full-PR correctness and simplification sweep (2026-07-11)
 

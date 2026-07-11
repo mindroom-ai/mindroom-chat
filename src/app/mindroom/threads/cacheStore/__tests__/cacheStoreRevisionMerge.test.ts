@@ -129,12 +129,12 @@ const expectRedacted = (event: Partial<IEvent> | undefined): void => {
   expect(JSON.stringify(event)).not.toContain('edited secret');
 };
 
-const expectNewestEditWithExistingAggregations = (event: Partial<IEvent> | undefined): void => {
+const expectNewestEditWithMonotonicAggregations = (event: Partial<IEvent> | undefined): void => {
   const relations = event?.unsigned?.['m.relations'] as
     | Record<string, Partial<IEvent> & { count?: number }>
     | undefined;
   expect(relations?.['m.replace']?.event_id).toBe('$edit-v3');
-  expect(relations?.['m.thread']?.count).toBe(3);
+  expect(relations?.['m.thread']?.count).toBe(7);
 };
 
 describe('cache storage same-ID revision merge', () => {
@@ -371,7 +371,7 @@ describe('cache storage same-ID revision merge', () => {
     expect(JSON.stringify(anchoredThreadPage)).not.toContain('stale secret');
   });
 
-  it('keeps the newest room edit and existing partial aggregations', async () => {
+  it('keeps the newest room edit while independently advancing partial aggregations', async () => {
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
       withRevision('$room-event', '$edit-v3', 300, 3),
     ]);
@@ -380,7 +380,7 @@ describe('cache storage same-ID revision merge', () => {
     ]);
 
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
-    expectNewestEditWithExistingAggregations(page.events[0]);
+    expectNewestEditWithMonotonicAggregations(page.events[0]);
   });
 
   it('keeps existing thread aggregations when a newer edit observation omits them', async () => {
@@ -425,6 +425,41 @@ describe('cache storage same-ID revision merge', () => {
     )?.['m.thread'];
     expect(thread?.count).toBe(3);
     expect(thread?.latest_event?.event_id).toBe('$latest-new');
+  });
+
+  it('advances a partial thread aggregation and ignores a later stale downgrade', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withThreadBundle('$thread-root-event', 2, '$latest-old', 100),
+    ]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withThreadBundle('$thread-root-event', 5, '$latest-new', 200),
+    ]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      withThreadBundle('$thread-root-event', 2, '$latest-old', 100),
+    ]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    const thread = (
+      page.events[0]?.unsigned?.['m.relations'] as
+        | Record<string, { count?: number; latest_event?: Partial<IEvent> }>
+        | undefined
+    )?.['m.thread'];
+    expect(thread?.count).toBe(5);
+    expect(thread?.latest_event?.event_id).toBe('$latest-new');
+  });
+
+  it('advances partial annotation counts and ignores a later stale bucket', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [withAnnotationBundle('$annotated', 2)]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [withAnnotationBundle('$annotated', 5)]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [withAnnotationBundle('$annotated', 2)]);
+
+    const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    const annotation = (
+      page.events[0]?.unsigned?.['m.relations'] as
+        | Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }>
+        | undefined
+    )?.['m.annotation'];
+    expect(annotation?.chunk).toEqual([expect.objectContaining({ count: 5 })]);
   });
 
   it('does not let a partial annotation observation replace an existing bucket', async () => {
@@ -514,7 +549,7 @@ describe('cache storage same-ID revision merge', () => {
     expect(JSON.stringify(page.events[0])).not.toContain('secret from stale /relations');
   });
 
-  it('keeps the newest thread-reply edit and existing partial aggregations', async () => {
+  it('keeps the newest thread-reply edit while advancing partial aggregations', async () => {
     await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [
       withRevision('$reply', '$edit-v3', 300, 3),
     ]);
@@ -523,7 +558,7 @@ describe('cache storage same-ID revision merge', () => {
     ]);
 
     const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
-    expectNewestEditWithExistingAggregations(page.events[0]);
+    expectNewestEditWithMonotonicAggregations(page.events[0]);
   });
 
   it('does not overwrite a redacted thread root with stale plaintext', async () => {
@@ -610,7 +645,7 @@ describe('cache storage same-ID revision merge', () => {
     expect(relations?.['m.thread']?.count).toBe(3);
   });
 
-  it('keeps the newest thread-root edit and existing partial aggregations', async () => {
+  it('keeps the newest thread-root edit while advancing partial aggregations', async () => {
     await saveThreadEventsToCache(
       SESSION_ID,
       ROOM_ID,
@@ -627,6 +662,6 @@ describe('cache storage same-ID revision merge', () => {
     );
 
     const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
-    expectNewestEditWithExistingAggregations(page.rootEvent);
+    expectNewestEditWithMonotonicAggregations(page.rootEvent);
   });
 });

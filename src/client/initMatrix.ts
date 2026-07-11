@@ -36,10 +36,10 @@ import {
   getSessionStoreName,
   listSessions,
   removeSession,
-  updateSessionCredentials,
 } from '../app/state/sessions';
 import { clearAppOwnedCacheLocalStorage } from '../app/utils/appOwnedStorage';
 import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
+import { createSessionTokenRefresh } from './sessionTokenRefresh';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
@@ -87,22 +87,10 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     ? createMatrixClient({ baseUrl: session.baseUrl })
     : undefined;
   const tokenRefreshFunction = refreshClient
-    ? async (refreshToken: string) => {
-        const response = await refreshClient.refreshToken(refreshToken);
-        const nextRefreshToken = response.refresh_token ?? refreshToken;
-        const expiresInMs =
-          typeof response.expires_in_ms === 'number' ? response.expires_in_ms : undefined;
-        updateSessionCredentials(session.sessionId, {
-          accessToken: response.access_token,
-          refreshToken: nextRefreshToken,
-          expiresInMs,
-        });
-        return {
-          accessToken: response.access_token,
-          refreshToken: nextRefreshToken,
-          expiry: expiresInMs === undefined ? undefined : new Date(Date.now() + expiresInMs),
-        };
-      }
+    ? createSessionTokenRefresh({
+        sessionId: session.sessionId,
+        refresh: (refreshToken) => refreshClient.refreshToken(refreshToken),
+      })
     : undefined;
 
   const mx = createMatrixClient({

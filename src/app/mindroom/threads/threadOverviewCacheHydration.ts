@@ -5,6 +5,7 @@ import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
+  getCompactThreadRootPreviewInfo,
 } from './compactThreadRootData';
 import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from './eventRepository';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -211,6 +212,13 @@ export const resolveCachedOverviewUpdate = ({
   compactCachedThreadRootBodyMap,
   compactThreadRootBodyMap,
 }: ResolveCachedOverviewUpdateOptions): CachedOverviewUpdate | null => {
+  // Capture the SDK revision before the cache mapper gets a chance to reuse
+  // and update the same MatrixEvent instance.
+  const livePreview = compactThreadRootBodyMap.get(rootId);
+  const livePreviewSourceTs = getCompactThreadRootPreviewInfo(currentRootEvent, {
+    eventId: rootId,
+    room,
+  })?.sourceTs;
   const cachedActivityTs = getCompactCachedThreadActivityTs({
     threadId: rootId,
     cachedPage,
@@ -256,21 +264,24 @@ export const resolveCachedOverviewUpdate = ({
     : undefined;
 
   let nextPreview: string | undefined;
+  let nextPreviewSourceTs: number | undefined;
   if (showCompactRoomView && !compactCachedThreadRootBodyMap.has(rootId)) {
-    const cachedPreview = getCompactCachedThreadRootPreviewInfo({
+    const cachedPreviewInfo = getCompactCachedThreadRootPreviewInfo({
       threadId: rootId,
       cachedPage,
       mapper,
     });
-    // Fill-only for healthy previews: live SDK state is authoritative once
-    // present (the merge in mergeCompactThreadRootBodyMaps lets live win),
-    // and a live root temporarily behind the cache is healed by the same-id
-    // revision merge during room cache hydration. The one preview the cache
-    // may replace is a truncated streaming placeholder ("Thinking…") — the
-    // merge yields to cache for those, matching the retry allowance below.
-    const livePreview = compactThreadRootBodyMap.get(rootId);
-    if (cachedPreview && (!livePreview || hasLikelyIncompleteStreamingBody(livePreview))) {
-      nextPreview = cachedPreview;
+    const shouldUseCachedPreview =
+      !!cachedPreviewInfo &&
+      (!livePreview ||
+        (hasLikelyIncompleteStreamingBody(livePreview) &&
+          !hasLikelyIncompleteStreamingBody(cachedPreviewInfo.previewText)) ||
+        (!hasLikelyIncompleteStreamingBody(cachedPreviewInfo.previewText) &&
+          livePreviewSourceTs !== undefined &&
+          cachedPreviewInfo.sourceTs > livePreviewSourceTs));
+    if (cachedPreviewInfo && shouldUseCachedPreview) {
+      nextPreview = cachedPreviewInfo.previewText;
+      nextPreviewSourceTs = cachedPreviewInfo.sourceTs;
     }
   }
 
@@ -290,6 +301,7 @@ export const resolveCachedOverviewUpdate = ({
     rootId,
     nextActivityTs,
     nextPreview,
+    nextPreviewSourceTs,
     nextReplyPreviewText,
     nextLastSenderId,
     nextMessageCount,

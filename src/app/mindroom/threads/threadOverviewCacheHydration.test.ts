@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { ThreadRecord } from './types';
 import {
@@ -108,6 +108,132 @@ const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
 });
 
 describe('resolveCachedOverviewUpdate', () => {
+  const cachedEditedRootPage = {
+    rootEvent: {
+      event_id: '$thread-root',
+      origin_server_ts: 50,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { body: 'live v1', msgtype: 'm.text' },
+    },
+    events: [
+      {
+        event_id: '$root-edit-v2',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: {
+          body: '* cached v2',
+          msgtype: 'm.text',
+          'm.new_content': { body: 'cached v2', msgtype: 'm.text' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$thread-root' },
+        },
+      },
+    ],
+    hasMoreBefore: false,
+  };
+
+  it('uses a newer cached root edit over healthy-looking stale SDK text', () => {
+    const liveRoot = new MatrixEvent({
+      event_id: '$thread-root',
+      origin_server_ts: 50,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { body: 'live v1', msgtype: 'm.text' },
+    });
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: '$thread-root',
+      room: makeRoom([liveRoot]),
+      mapper: (rawEvent) => new MatrixEvent(rawEvent),
+      cachedPage: cachedEditedRootPage,
+      currentRootEvent: liveRoot,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map([['$thread-root', 'live v1']]),
+    });
+
+    expect(update).toMatchObject({
+      nextPreview: 'cached v2',
+      nextPreviewSourceTs: 200,
+    });
+  });
+
+  it('does not replace a newer live root edit with stale cache text', () => {
+    const liveRoot = new MatrixEvent({
+      event_id: '$thread-root',
+      origin_server_ts: 50,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { body: 'live v1', msgtype: 'm.text' },
+    });
+    liveRoot.makeReplaced(
+      new MatrixEvent({
+        event_id: '$root-edit-v3',
+        origin_server_ts: 300,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: {
+          body: '* live v3',
+          msgtype: 'm.text',
+          'm.new_content': { body: 'live v3', msgtype: 'm.text' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$thread-root' },
+        },
+      })
+    );
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: '$thread-root',
+      room: makeRoom([liveRoot]),
+      mapper: (rawEvent) => new MatrixEvent(rawEvent),
+      cachedPage: cachedEditedRootPage,
+      currentRootEvent: liveRoot,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map([['$thread-root', 'live v3']]),
+    });
+
+    expect(update?.nextPreview).toBeUndefined();
+    expect(update?.nextPreviewSourceTs).toBeUndefined();
+  });
+
+  it('uses complete cached text when newer live text is still a streaming placeholder', () => {
+    const liveRoot = new MatrixEvent({
+      event_id: '$thread-root',
+      origin_server_ts: 300,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { body: 'Thinking...  ⋯', msgtype: 'm.text' },
+    });
+    const cachedPage = {
+      rootEvent: {
+        event_id: '$thread-root',
+        origin_server_ts: 200,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: { body: 'cached complete', msgtype: 'm.text' },
+      },
+      events: [],
+      hasMoreBefore: false,
+    };
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: '$thread-root',
+      room: makeRoom([liveRoot]),
+      mapper: (rawEvent) => new MatrixEvent(rawEvent),
+      cachedPage,
+      currentRootEvent: liveRoot,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map([['$thread-root', 'Thinking...  ⋯']]),
+    });
+
+    expect(update).toMatchObject({
+      nextPreview: 'cached complete',
+      nextPreviewSourceTs: 200,
+    });
+  });
+
   it('uses the ThreadRecord snapshot to avoid downgrading from older cached reply metadata', () => {
     const threadRootId = '$thread-root';
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
