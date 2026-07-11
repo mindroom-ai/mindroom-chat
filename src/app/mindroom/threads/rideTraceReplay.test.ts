@@ -57,11 +57,7 @@ describe('ride trace corpus', () => {
     // ledger rides in virtual-core scrollMargin).
     CORPUS.forEach(({ trace, clientHeight }) => {
       [-5000, 5000].forEach((forcedLedgerPx) => {
-        const firings = replayLedgerBoundaryGuard(
-          trace.frames,
-          clientHeight,
-          () => forcedLedgerPx
-        );
+        const firings = replayLedgerBoundaryGuard(trace.frames, clientHeight, () => forcedLedgerPx);
         const outOfBounds = firings.filter((firing) => firing.outOfBounds);
         expect(outOfBounds).toEqual([]);
       });

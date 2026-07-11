@@ -52,9 +52,7 @@ describe('prewarmMindroomLongTextSidecars', () => {
     );
 
     expect(hydrateMock).toHaveBeenCalledTimes(2);
-    const uris = hydrateMock.mock.calls.map(
-      (call) => (call[0] as { mxcUri: string }).mxcUri
-    );
+    const uris = hydrateMock.mock.calls.map((call) => (call[0] as { mxcUri: string }).mxcUri);
     expect(uris.sort()).toEqual(['mxc://s/a', 'mxc://s/b']);
     // Cache owner is the Matrix client, matching the render path's keying.
     expect(hydrateMock.mock.calls[0][2]).toBe(mx);

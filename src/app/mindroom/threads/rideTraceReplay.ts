@@ -117,9 +117,7 @@ export const isOutOfPhysicalBounds = (
   clientHeight: number
 ): boolean => {
   const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-  return (
-    scrollTop < -CLIENT_HEIGHT_SLACK_PX || scrollTop > maxScrollTop + CLIENT_HEIGHT_SLACK_PX
-  );
+  return scrollTop < -CLIENT_HEIGHT_SLACK_PX || scrollTop > maxScrollTop + CLIENT_HEIGHT_SLACK_PX;
 };
 
 export type LedgerSettleObservation = {

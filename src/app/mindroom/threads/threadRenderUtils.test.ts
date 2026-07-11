@@ -325,9 +325,7 @@ describe('estimateThreadEventRowHeight', () => {
   });
 
   it('uses the smaller compact base', () => {
-    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
-      26
-    );
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(26);
   });
 
   it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
