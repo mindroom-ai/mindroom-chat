@@ -44,6 +44,15 @@ const edit = (eventId: string, targetId: string, body: string, ts: number): Part
   },
 });
 
+const redaction = (eventId: string, targetId: string, ts: number): Partial<IEvent> => ({
+  event_id: eventId,
+  origin_server_ts: ts,
+  sender: SENDER,
+  type: 'm.room.redaction',
+  redacts: targetId,
+  content: {},
+});
+
 const withRevision = (
   eventId: string,
   editId: string,
@@ -228,6 +237,84 @@ describe('cache storage same-ID revision merge', () => {
 
     const db = await openCacheStore(SESSION_ID);
     expect(db).toBeDefined();
+    const ledger = (await readLedgerSnapshot(db!)).find((row) => row.roomId === ROOM_ID);
+    expect(ledger).toMatchObject({
+      eventCount: storedEvents.length,
+      approxBytes: storedEvents.reduce((sum, event) => sum + JSON.stringify(event).length, 0),
+    });
+  });
+
+  it('purges direct redaction targets across scopes and rejects stale same-id replays', async () => {
+    const target = message('$message-target', 'message secret', 100);
+    const reaction = {
+      event_id: '$reaction-target',
+      origin_server_ts: 110,
+      sender: SENDER,
+      type: 'm.reaction',
+      content: {
+        'm.relates_to': {
+          rel_type: 'm.annotation',
+          event_id: '$message-target',
+          key: 'reaction secret',
+        },
+      },
+    } satisfies Partial<IEvent>;
+    const root = message(THREAD_ID, 'root secret', 50);
+
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [target, reaction]);
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [target, reaction], root);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      redaction('$redact-message', '$message-target', 300),
+      redaction('$redact-reaction', '$reaction-target', 301),
+      redaction('$redact-root', THREAD_ID, 302),
+    ]);
+
+    const redactedRoomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 20);
+    const redactedThreadPage = await loadLatestCachedThreadEvents(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      20
+    );
+    expect(redactedRoomPage.events.map((event) => event.event_id)).not.toEqual(
+      expect.arrayContaining(['$message-target', '$reaction-target'])
+    );
+    expect(redactedThreadPage.events.map((event) => event.event_id)).not.toEqual(
+      expect.arrayContaining(['$message-target', '$reaction-target'])
+    );
+    expect(redactedThreadPage.rootEvent).toBeUndefined();
+
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [target, reaction, message('$room-valid', 'valid room event', 400)],
+      'room-after-redaction'
+    );
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      [target, reaction, message('$thread-valid', 'valid thread event', 400)],
+      root,
+      'thread-after-redaction'
+    );
+
+    const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 20);
+    const threadPage = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 20);
+    const serializedCache = JSON.stringify({ roomPage, threadPage });
+    expect(serializedCache).not.toContain('message secret');
+    expect(serializedCache).not.toContain('reaction secret');
+    expect(serializedCache).not.toContain('root secret');
+    expect(threadPage.rootEvent).toBeUndefined();
+    expect(await loadCachedRoomPaginationToken(SESSION_ID, ROOM_ID, '$room-valid')).toBe(
+      'room-after-redaction'
+    );
+    expect(
+      await loadCachedThreadPaginationToken(SESSION_ID, ROOM_ID, THREAD_ID, '$thread-valid')
+    ).toBe('thread-after-redaction');
+
+    const storedEvents = [...roomPage.events, ...threadPage.events];
+    const db = await openCacheStore(SESSION_ID);
     const ledger = (await readLedgerSnapshot(db!)).find((row) => row.roomId === ROOM_ID);
     expect(ledger).toMatchObject({
       eventCount: storedEvents.length,

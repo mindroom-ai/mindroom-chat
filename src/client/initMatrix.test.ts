@@ -1797,10 +1797,9 @@ describe('removeStoredSession', () => {
         deviceId: 'DEVICE_B',
         accessToken: 'token-b',
       },
-      undefined,
+      { setActive: false },
       localStorageMock
     );
-    setActiveSession(activeSession.sessionId, localStorageMock);
     localStorageMock.setItem = vi.fn(() => {
       throw new Error('blocked write');
     });
@@ -1889,13 +1888,15 @@ describe('removeStoredSession', () => {
       deviceId: 'DEVICE_A',
       accessToken: 'token-a',
     });
-    const inactiveSession = putSession({
-      baseUrl: 'https://matrix.org',
-      userId: '@bob:matrix.org',
-      deviceId: 'DEVICE_B',
-      accessToken: 'token-b',
-    });
-    setActiveSession(activeSession.sessionId);
+    const inactiveSession = putSession(
+      {
+        baseUrl: 'https://matrix.org',
+        userId: '@bob:matrix.org',
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-b',
+      },
+      { setActive: false }
+    );
 
     const previousDeviceRustCryptoStoreNames = getSessionRustCryptoStoreNames({
       ...inactiveSession,

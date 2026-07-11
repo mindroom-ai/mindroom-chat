@@ -1,5 +1,4 @@
-import type { IEvent, MatrixEvent, Room } from 'matrix-js-sdk';
-import { RelationType } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
 
@@ -56,6 +55,21 @@ const withoutRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> => {
     delete nextUnsigned['m.relations'];
   }
   return { ...rawEvent, unsigned: nextUnsigned };
+};
+
+const withRawReplacement = (
+  rawEvent: Partial<IEvent>,
+  replacement: MatrixEvent | undefined
+): Partial<IEvent> => {
+  const base = withoutRawReplacement(rawEvent);
+  if (!replacement) return base;
+
+  const unsigned = { ...base.unsigned };
+  const currentRelations = unsigned['m.relations'];
+  const relations = isRecord(currentRelations) ? { ...currentRelations } : {};
+  relations[RelationType.Replace] = replacement.event;
+  unsigned['m.relations'] = relations;
+  return { ...base, unsigned };
 };
 
 const withoutMatchingRawReplacement = (
@@ -419,8 +433,12 @@ export const mergeSameIdEventRevision = ({
 
   if (liveEvent.isRedacted()) return liveEvent;
 
-  const incomingEvent = mapEvent(rawEvent);
+  // Snapshot all replacement candidates before calling the SDK mapper: it
+  // reuses same-id room events and eagerly applies their bundled replacement.
+  const incomingEvent = new MatrixEvent(rawEvent as IEvent);
   const incomingReplacement = getSerializedReplacementEvent(incomingEvent);
+  const currentReplacement = liveEvent.replacingEvent() ?? undefined;
+  const serializedLiveReplacement = getSerializedReplacementEvent(liveEvent);
   const isKnownRedacted = (replacement: MatrixEvent | undefined): boolean => {
     const replacementId = replacement?.getId();
     return (
@@ -428,42 +446,51 @@ export const mergeSameIdEventRevision = ({
       (replacementId ? room.findEventById(replacementId)?.isRedacted() === true : false)
     );
   };
-  const removeSerializedReference = (replacement: MatrixEvent | undefined): void => {
-    const replacementId = replacement?.getId();
-    if (!replacementId) return;
-    const rawLiveEvent = liveEvent.event as Partial<IEvent>;
-    const prunedLiveEvent = stripRedactedRelationsFromRawEvent(
-      rawLiveEvent,
-      new Set([replacementId])
-    );
-    if (prunedLiveEvent !== rawLiveEvent) liveEvent.setUnsigned(prunedLiveEvent.unsigned ?? {});
-  };
-
-  let currentReplacement = liveEvent.replacingEvent() ?? undefined;
-  if (isKnownRedacted(currentReplacement)) {
-    removeSerializedReference(currentReplacement);
-    liveEvent.makeReplaced();
-    currentReplacement = undefined;
-  }
-  if (!isSameSenderEditEvent(liveEvent, incomingReplacement)) return liveEvent;
-  if (isKnownRedacted(incomingReplacement)) {
-    removeSerializedReference(incomingReplacement);
-    return liveEvent;
-  }
-  const serializedLiveReplacementCandidate = getSerializedReplacementEvent(liveEvent);
-  const serializedLiveReplacement =
-    isSameSenderEditEvent(liveEvent, serializedLiveReplacementCandidate) &&
-    !isKnownRedacted(serializedLiveReplacementCandidate)
-      ? serializedLiveReplacementCandidate
-      : undefined;
-  const latestReplacement = getLatestEdit(
-    liveEvent,
-    [currentReplacement, serializedLiveReplacement, incomingReplacement].filter(
-      (candidate): candidate is MatrixEvent => !!candidate
-    )
+  const candidates = [currentReplacement, serializedLiveReplacement, incomingReplacement];
+  const redactedReplacementIds = new Set(
+    candidates
+      .filter(isKnownRedacted)
+      .map((candidate) => candidate?.getId())
+      .filter((eventId): eventId is string => !!eventId)
   );
+  const validCandidates = candidates.filter((candidate): candidate is MatrixEvent => {
+    const eventId = candidate?.getId();
+    return (
+      isSameSenderEditEvent(liveEvent, candidate) &&
+      typeof eventId === 'string' &&
+      !redactedReplacementIds.has(eventId)
+    );
+  });
+  const latestReplacement = getLatestEdit(liveEvent, validCandidates);
+
+  // Strip the live bundle as well as the mapper input. Otherwise the mapper's
+  // shallow unsigned merge could still observe and eagerly apply the old
+  // bundle that was already attached to the live event.
+  const rawLiveEvent = liveEvent.event as Partial<IEvent>;
+  const liveWithoutReplacement = withoutRawReplacement(rawLiveEvent);
+  if (liveWithoutReplacement !== rawLiveEvent) {
+    liveEvent.setUnsigned(liveWithoutReplacement.unsigned ?? {});
+  }
+  mapEvent(withoutRawReplacement(rawEvent));
+
+  let resolvedReplacement = latestReplacement;
   if (latestReplacement && latestReplacement !== currentReplacement) {
-    liveEvent.makeReplaced(latestReplacement);
+    const mappedReplacement = mapEvent(latestReplacement.event as Partial<IEvent>);
+    resolvedReplacement =
+      isSameSenderEditEvent(liveEvent, mappedReplacement) && !isKnownRedacted(mappedReplacement)
+        ? mappedReplacement
+        : undefined;
+  }
+  if ((liveEvent.replacingEvent() ?? undefined) !== resolvedReplacement) {
+    liveEvent.makeReplaced(resolvedReplacement);
+  }
+
+  const liveWithReplacement = withRawReplacement(
+    liveEvent.event as Partial<IEvent>,
+    resolvedReplacement
+  );
+  if (liveWithReplacement !== liveEvent.event) {
+    liveEvent.setUnsigned(liveWithReplacement.unsigned ?? {});
   }
   return liveEvent;
 };

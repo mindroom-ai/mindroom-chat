@@ -65,11 +65,17 @@ describe('eventRepository same-id revision merge', () => {
       roomId: '!room:example.org',
       findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
     };
-    const preferLive = createPreferLiveEventMapper(room as never, mapRawEvent);
+    const mapEvent = vi.fn(mapRawEvent);
+    const preferLive = createPreferLiveEventMapper(room as never, mapEvent);
 
     const merged = preferLive(makeRawMessage('$target', 'v1', { replacement: edit }));
 
     expect(merged).toBe(live);
+    expect(mapEvent).toHaveBeenCalledTimes(2);
+    expect(
+      mapEvent.mock.calls[0]?.[0].unsigned?.['m.relations']?.[RelationType.Replace]
+    ).toBeUndefined();
+    expect(mapEvent.mock.calls[1]?.[0]).toMatchObject({ event_id: '$edit-v2' });
     expect(merged.replacingEvent()?.getId()).toBe('$edit-v2');
     expect(merged.replacingEvent()?.getContent()['m.new_content']).toMatchObject({ body: 'v2' });
   });
@@ -91,6 +97,76 @@ describe('eventRepository same-id revision merge', () => {
     expect(merged).toBe(live);
     expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
     expect(merged.getContent()).toMatchObject({ body: 'v3' });
+  });
+
+  it('does not let an SDK-style mapper overwrite the newer live replacement before comparison', () => {
+    const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
+    const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
+    live.makeReplaced(mapRawEvent(liveEdit));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+    const sdkStyleMap = vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {
+      if (rawEvent.event_id !== '$target') return mapRawEvent(rawEvent);
+
+      live.setUnsigned({ ...live.getUnsigned(), ...rawEvent.unsigned });
+      const replacement = (
+        rawEvent.unsigned?.['m.relations'] as Record<string, Partial<IEvent>> | undefined
+      )?.[RelationType.Replace];
+      if (replacement) live.makeReplaced(mapRawEvent(replacement));
+      return live;
+    });
+    const incoming = makeRawMessage('$target', 'v1', { replacement: cachedEdit });
+    const incomingRelations = incoming.unsigned?.['m.relations'] as Record<string, unknown>;
+    incomingRelations[RelationType.Thread] = { count: 7 };
+
+    const merged = createPreferLiveEventMapper(room as never, sdkStyleMap)(incoming);
+
+    expect(merged).toBe(live);
+    expect(sdkStyleMap).toHaveBeenCalledTimes(1);
+    expect(sdkStyleMap).toHaveBeenCalledWith(expect.objectContaining({ event_id: '$target' }));
+    expect(
+      sdkStyleMap.mock.calls[0]?.[0].unsigned?.['m.relations']?.[RelationType.Replace]
+    ).toBeUndefined();
+    expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
+    expect(merged.getContent()).toMatchObject({ body: 'v3' });
+    expect(merged.getUnsigned()['m.relations']?.[RelationType.Thread]).toEqual({ count: 7 });
+  });
+
+  it('clears a private replacement when the incoming same-id bundle proves it was redacted', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'original'));
+    const edit = mapRawEvent(makeRawEdit('$edit-v2', '$target', 'secret', { ts: 200 }));
+    live.makeReplaced(edit);
+    const redactedEdit = {
+      ...makeRawEdit('$edit-v2', '$target', 'secret', { ts: 200 }),
+      content: {},
+      unsigned: {
+        redacted_because: {
+          event_id: '$redaction',
+          room_id: '!room:example.org',
+          sender: '@moderator:example.org',
+          type: 'm.room.redaction',
+          origin_server_ts: 300,
+          redacts: '$edit-v2',
+          content: {},
+        },
+      },
+    } satisfies Partial<IEvent>;
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+
+    createPreferLiveEventMapper(
+      room as never,
+      mapRawEvent
+    )(makeRawMessage('$target', 'original', { replacement: redactedEdit }));
+
+    expect(live.replacingEvent()).toBeNull();
+    expect(live.getUnsigned()['m.relations']?.[RelationType.Replace]).toBeUndefined();
+    expect(JSON.stringify(live.event)).not.toContain('secret');
   });
 
   it('does not re-persist a stale authoritative bundle for a known-redacted edit', () => {

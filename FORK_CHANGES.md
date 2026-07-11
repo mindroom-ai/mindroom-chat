@@ -716,25 +716,58 @@ The shipped v1 session format and normal multi-account flows remain compatible.
 After a conflict-free rebase, the branch is directly based on `origin/dev` at
 `79690aca7` (through merged PR #112, including #111 and #102). A second forced
 remote refresh and `git rebase origin/dev` confirmed that this remains the live
-tip, with no conflict entries. The exact merge-base diff is 190 files, 12,967
-insertions, and 6,513 deletions: 2,629 net production lines, 3,558 net test
-lines, and 267 net documentation/skill/config lines. No generated artifacts are
-included. At 6,454 net lines overall, this is roughly 67 percent smaller than
+tip, with no conflict entries. The exact merge-base diff is 190 files, 13,248
+insertions, and 6,524 deletions: 2,700 net production lines, 3,722 net test
+lines, and 302 net documentation/skill/config lines. No generated artifacts are
+included. At 6,724 net lines overall, this is roughly 66 percent smaller than
 the approximately 19,700-net-line pre-reduction checkpoint; the largest single
 churn item is deletion of the former 2,518-line monolithic
 `RoomTimeline.architecture.test.ts`.
 
-Green on the current same-tree snapshot: all 387 Vitest files / 2,966 tests,
-the 13-file / 226-test focused cache, gap, redaction, session, service-worker,
-and command-palette review set, TypeScript typecheck, production and
-PWA/service-worker builds, Prettier and diff checks, and full ESLint with zero
-errors (17 existing warnings). The first post-rebase full run also exposed a
-timing-dependent test setup added by this branch: it reactivated an account,
-which intentionally refreshed `lastUsedAt`, but compared against the stale
-pre-reactivation object. The setup now creates the other account as inactive
-directly; independent review confirmed that no production change was needed.
-The history is reduced to five logical commits. A guarded rewritten-history
-push and fresh exact-pushed-head native/Fable reviews remain required.
+The rewritten five-commit checkpoint was pushed as `d464d126d`. Green at that
+checkpoint: all 387 Vitest files / 2,966 tests, the 13-file / 226-test focused
+cache, gap, redaction, session, service-worker, and command-palette review set,
+TypeScript typecheck, production and PWA/service-worker builds, Prettier and
+diff checks, and full ESLint with zero errors (17 existing warnings). The first
+post-rebase full run also exposed a timing-dependent test setup added by this
+branch: it reactivated an account, which intentionally refreshed `lastUsedAt`,
+but compared against the stale pre-reactivation object. Both affected setups
+now create the other account as inactive directly; no production change was
+needed.
+
+Fresh exact-pushed-head review then found two substantive fork-specific cache
+defects rather than speculative concurrency cases. First, a redaction-only
+batch durably marked its target but the scrub and later marker lookup covered
+only replacement events. A cached ordinary message, reaction, or thread root
+outside SDK memory could therefore retain plaintext or be resurrected by a
+later stale page. Marker lookup now includes every incoming event id, the rare
+room scrub removes marked unredacted records and roots across every scope, and
+later writes accept a marked id only when merging into a genuine redacted
+shell. Pagination tokens follow the first event actually persisted and probe/
+ledger counts follow actual writes. This remains one room-scoped marker per id
+with O(batch) ordinary lookups; it does not add locks or cross-tab coordination.
+
+Second, the same-id revision merger called the production SDK mapper before
+capturing the current replacement. The mapper reuses the live target and
+eagerly applies its bundled edit, so stale cached `v2` data could synchronously
+downgrade a live `v3` edit before comparison. The merger now snapshots private,
+serialized, and incoming candidates first; treats redaction as an event-id-wide
+invalidation; strips only `m.replace` from the live target and mapper input;
+and maps a selected non-current winner separately. Normal SDK unsigned, thread,
+and decryption hooks still run, while stale, cross-sender, or redacted edits are
+never applied even transiently. The private and serialized winner are restored
+to the same revision afterward.
+
+Regression coverage reproduces direct-target plaintext/reaction/root removal,
+stale replay rejection, token and ledger accuracy, production-style mapper
+mutation, preservation of non-edit relation updates, and same-id private-edit
+redaction. Independent focused re-review approved both fixes. The post-fix tree
+is green on 25 cache/timeline files / 301 tests, 24 session-lifecycle tests,
+TypeScript typecheck, touched lint and formatting, full ESLint with zero errors
+(17 existing warnings), production plus PWA/service-worker builds, and all 387
+Vitest files / 2,969 tests. The history is organized as six logical commits,
+with this final commit containing exact-head review remediation. A new push and
+fresh native/Fable reviews of that exact pushed head remain required.
 
 ### Fork hardening review remediation (2026-07-09, superseded)
 
