@@ -51,20 +51,20 @@ export const deriveAutomatedMarketingVersion = (
   buildNumber,
   checkedInMarketingVersion
 ) => {
-  const { parts } = parseBaseVersion(packageVersion, 'package.json version');
+  const packageBaseVersion = parseBaseVersion(packageVersion, 'package.json version');
   assertBuildNumber(String(buildNumber), 'automated build counter');
-  const derivedVersion = `${parts[0]}.${parts[1]}.${parts[2] + Number.parseInt(buildNumber, 10)}`;
   const checkedInVersion = parseBaseVersion(
     checkedInMarketingVersion,
     'checked-in iOS MARKETING_VERSION'
   );
+  const counterBaseVersion =
+    compareBaseVersions(packageBaseVersion.version, checkedInVersion.version) >= 0
+      ? packageBaseVersion
+      : checkedInVersion;
+  const counter = Number.parseInt(buildNumber, 10);
 
-  if (compareBaseVersions(derivedVersion, checkedInVersion.version) > 0) {
-    return derivedVersion;
-  }
-
-  return `${checkedInVersion.parts[0]}.${checkedInVersion.parts[1]}.${
-    checkedInVersion.parts[2] + 1
+  return `${counterBaseVersion.parts[0]}.${counterBaseVersion.parts[1]}.${
+    counterBaseVersion.parts[2] + counter
   }`;
 };
 

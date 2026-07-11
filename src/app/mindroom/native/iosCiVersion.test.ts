@@ -25,7 +25,7 @@ describe('resolveIosCiVersionMetadata', () => {
 
   it('keeps an explicit iOS build number override ahead of release tags', () => {
     const metadata = resolveIosCiVersionMetadata({
-      env: { IOS_BUILD_NUMBER: '123' },
+      env: { CI_BUILD_NUMBER: '999', IOS_BUILD_NUMBER: '123' },
       packageVersion: '4.12.2',
       checkedInMarketingVersion: '4.12.2',
       checkedInBuildNumber: '80',
@@ -83,11 +83,11 @@ describe('resolveIosCiVersionMetadata', () => {
       headTags: ['v4.12.3-mindroom.1'],
     });
 
-    expect(previous.marketingVersion).toBe('4.12.126');
-    expect(next.marketingVersion).toBe('4.12.128');
+    expect(previous.marketingVersion).toBe('4.12.127');
+    expect(next.marketingVersion).toBe('4.12.129');
   });
 
-  it('floors a low Xcode Cloud counter above the checked-in marketing version', () => {
+  it('uses a newer checked-in marketing version as the automated counter base', () => {
     const metadata = resolveIosCiVersionMetadata({
       env: { CI: 'TRUE', CI_BUILD_NUMBER: '1' },
       packageVersion: '4.12.3',
@@ -101,16 +101,65 @@ describe('resolveIosCiVersionMetadata', () => {
     expect(metadata.buildNumber).toBe('1');
   });
 
-  it('floors across a checked-in minor-version transition', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { CI: 'TRUE', CI_BUILD_NUMBER: '1' },
-      packageVersion: '4.12.3',
-      checkedInMarketingVersion: '4.13.2',
-      checkedInBuildNumber: '33',
-      headTags: [],
-    });
+  it('keeps consecutive low counters increasing across the checked-in version floor', () => {
+    const marketingVersions = Array.from(
+      { length: 10 },
+      (_value, index) =>
+        resolveIosCiVersionMetadata({
+          env: { CI: 'TRUE', CI_BUILD_NUMBER: String(index + 1) },
+          packageVersion: '4.12.3',
+          checkedInMarketingVersion: '4.12.10',
+          checkedInBuildNumber: '33',
+          headTags: [],
+        }).marketingVersion
+    );
 
-    expect(metadata.marketingVersion).toBe('4.13.3');
+    expect(marketingVersions).toEqual(
+      Array.from({ length: 10 }, (_value, index) => `4.12.${index + 11}`)
+    );
+  });
+
+  it('keeps consecutive counters increasing across a checked-in minor-version transition', () => {
+    const marketingVersions = ['1', '2'].map(
+      (buildNumber) =>
+        resolveIosCiVersionMetadata({
+          env: { CI: 'TRUE', CI_BUILD_NUMBER: buildNumber },
+          packageVersion: '4.12.3',
+          checkedInMarketingVersion: '4.13.2',
+          checkedInBuildNumber: '33',
+          headTags: [],
+        }).marketingVersion
+    );
+
+    expect(marketingVersions).toEqual(['4.13.3', '4.13.4']);
+  });
+
+  it.each([
+    {
+      description: 'checked-in major version',
+      packageVersion: '4.12.3',
+      checkedInMarketingVersion: '5.0.2',
+      expected: ['5.0.3', '5.0.4'],
+    },
+    {
+      description: 'package major version',
+      packageVersion: '5.0.0',
+      checkedInMarketingVersion: '4.13.9',
+      expected: ['5.0.1', '5.0.2'],
+    },
+  ])('uses the newer $description as the counter base', (testCase) => {
+    const marketingVersions = ['1', '2'].map(
+      (buildNumber) =>
+        resolveIosCiVersionMetadata({
+          env: { CI: 'TRUE', CI_BUILD_NUMBER: buildNumber },
+          packageVersion: testCase.packageVersion,
+          checkedInMarketingVersion: testCase.checkedInMarketingVersion,
+          checkedInBuildNumber: '33',
+          headTags: [],
+        }).marketingVersion
+    );
+
+    expect(marketingVersions).toEqual(testCase.expected);
   });
 
   it.each(['IOS_MARKETING_VERSION', 'APP_STORE_MARKETING_VERSION'])(
