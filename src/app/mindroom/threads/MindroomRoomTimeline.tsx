@@ -1460,6 +1460,16 @@ export function RoomTimeline({
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
     ledgerBoundaryScrollTopRef.current = scrollEl.scrollTop;
+    const onLedgerBoundaryTouchStart = () => {
+      // iOS can advance compositor momentum while withholding JavaScript
+      // scroll events. A new touch can then reverse that silent travel; if
+      // the first new scroll compares with the pre-touch event baseline,
+      // its net delta can point the wrong way and fire the receding edge's
+      // proximity guard. Start a fresh direction epoch at the true handoff
+      // offset. Capture keeps child controls from hiding the gesture, and
+      // the passive read cannot interfere with native scrolling.
+      ledgerBoundaryScrollTopRef.current = scrollEl.scrollTop;
+    };
     const onLedgerBoundaryScroll = () => {
       const currentScrollTop = scrollEl.scrollTop;
       const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
@@ -1496,8 +1506,15 @@ export function RoomTimeline({
         settleScrollCompensation('boundary');
       }
     };
+    scrollEl.addEventListener('touchstart', onLedgerBoundaryTouchStart, {
+      capture: true,
+      passive: true,
+    });
     scrollEl.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
-    return () => scrollEl.removeEventListener('scroll', onLedgerBoundaryScroll);
+    return () => {
+      scrollEl.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
+      scrollEl.removeEventListener('scroll', onLedgerBoundaryScroll);
+    };
   }, [scrollRef, settleScrollCompensation, threadId, threadInitialRenderMode]);
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {

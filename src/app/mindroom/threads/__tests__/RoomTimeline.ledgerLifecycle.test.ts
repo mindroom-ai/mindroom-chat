@@ -108,12 +108,26 @@ const makeLedgerSettleElements = (
   let scrollTopValue = initialScrollTop;
   const scrollWrites: number[] = [];
   const scrollListeners: EventListener[] = [];
+  const touchStartListeners: EventListener[] = [];
   const scrollElement = {
     isConnected: true,
-    addEventListener: vi.fn((type: string, listener: EventListener) => {
-      if (type === 'scroll') scrollListeners.push(listener);
-    }),
-    removeEventListener: vi.fn(),
+    addEventListener: vi.fn(
+      (
+        type: string,
+        listener: EventListener,
+        _options?: boolean | AddEventListenerOptions
+      ) => {
+        if (type === 'scroll') scrollListeners.push(listener);
+        if (type === 'touchstart') touchStartListeners.push(listener);
+      }
+    ),
+    removeEventListener: vi.fn(
+      (
+        _type: string,
+        _listener: EventListener,
+        _options?: boolean | EventListenerOptions
+      ) => undefined
+    ),
     getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
     querySelector: vi.fn(() => undefined),
     querySelectorAll: vi.fn(() => []),
@@ -139,7 +153,21 @@ const makeLedgerSettleElements = (
     scrollTopValue = nextScrollTop;
     scrollListeners.forEach((listener) => listener(new Event('scroll')));
   };
-  return { scrollElement, innerElement, scrollWrites, fireScroll };
+  const moveSilently = (nextScrollTop: number) => {
+    scrollTopValue = nextScrollTop;
+  };
+  const fireTouchStart = (nextScrollTop = scrollTopValue) => {
+    moveSilently(nextScrollTop);
+    touchStartListeners.forEach((listener) => listener(new Event('touchstart')));
+  };
+  return {
+    scrollElement,
+    innerElement,
+    scrollWrites,
+    fireScroll,
+    moveSilently,
+    fireTouchStart,
+  };
 };
 
 const readLedgerSettleCounts = async () => {
@@ -640,6 +668,112 @@ describe('RoomTimeline ledger lifecycle', () => {
         quiescence: countsBefore.quiescence,
         boundary: countsBefore.boundary + 4,
       });
+    } finally {
+      mockIsIOSWebKit = false;
+      renderer?.unmount();
+    }
+  });
+
+  it('starts a fresh boundary-direction epoch when a touch reverses silent compositor travel', async () => {
+    mockIsIOSWebKit = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$ledger-touch-direction-epoch';
+    const thread = buildThread(threadId, '$touch-direction-', 5);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    const {
+      scrollElement,
+      innerElement,
+      scrollWrites,
+      fireScroll,
+      moveSilently,
+      fireTouchStart,
+    } = makeLedgerSettleElements(34_331, {
+      top: -34_000,
+      // Inside the positive-ledger bottom guard, but not crossed.
+      bottom: 1600,
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const countsBefore = await readLedgerSettleCounts();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork();
+      });
+      const touchStartRegistration = scrollElement.addEventListener.mock.calls.find(
+        ([type], index) =>
+          type === 'touchstart' &&
+          scrollElement.addEventListener.mock.calls[index]?.[2] !== undefined
+      );
+      expect(touchStartRegistration?.[2]).toEqual({ capture: true, passive: true });
+      const touchStartListener = touchStartRegistration?.[1];
+      expect(touchStartListener).toEqual(expect.any(Function));
+
+      const hook = roomTimelineVirtualizerState.lastInstance
+        ?.shouldAdjustScrollPositionOnItemSizeChange as
+        | ((
+            item: { end: number },
+            delta: number,
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
+          ) => boolean)
+        | undefined;
+      await act(async () => {
+        expect(
+          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+
+        // iOS can advance compositor scrollTop while withholding JavaScript
+        // scroll events. A new touch begins at the true 34431px offset and
+        // reverses upward to 34396px. Comparing 34396 with the stale 34331px
+        // delivered-event baseline falsely calls this forward motion. The
+        // resulting +72px write turns the native -35px frame into a +37px
+        // reversal and can kill the new gesture.
+        moveSilently(34_431);
+        fireTouchStart();
+        fireScroll(34_396);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([]);
+      expect(innerElement.style.marginTop).toBe('-72px');
+      expect(await readLedgerSettleCounts()).toEqual(countsBefore);
+
+      await act(async () => {
+        // A later reversal really does head toward the guarded bottom and
+        // must retain #119's proactive clamp protection.
+        fireScroll(34_420);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34_492]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork();
+      });
+      renderer = undefined;
+      expect(scrollElement.removeEventListener).toHaveBeenCalledWith(
+        'touchstart',
+        touchStartListener,
+        true
+      );
     } finally {
       mockIsIOSWebKit = false;
       renderer?.unmount();
