@@ -30,9 +30,8 @@ const makeDefaultOptions = () => {
     // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
     // at the top of `runThreadOpenCacheFirst`. Every open that survives
     // the hydrate + post-hydrate guards schedules exactly one reconcile
-    // with reason `open-thread-choke-point`.
+    // from the single thread-open choke point.
     scheduleReconcile: vi.fn(async () => ({
-      reason: 'open-thread-choke-point' as const,
       repaired: false,
       fetchedCount: 0,
       iterations: 1,
@@ -91,7 +90,7 @@ describe('runThreadOpenCacheFirst', () => {
     // on every open that survives the hydrate + post-hydrate guards.
     // On the complete-coverage path this is the only reconcile —
     // structurally impossible for a coverage branch to skip. Reason
-    // is `open-thread-choke-point` (the three earlier branch-local
+    // is the single thread-open choke point (the three earlier branch-local
     // reason variants — open-complete-coverage, open-partial-coverage,
     // open-backfill-completed — were consolidated when the branch
     // schedule sites were deleted).
@@ -101,7 +100,6 @@ describe('runThreadOpenCacheFirst', () => {
         roomId: opts.room.roomId,
         threadId: '$root',
         cachedPage,
-        reason: 'open-thread-choke-point',
       })
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
@@ -147,7 +145,6 @@ describe('runThreadOpenCacheFirst', () => {
     // cache-first path triggers for a partial snapshot.
     expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
     const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0];
-    expect(reconcileArgs.reason).toBe('open-thread-choke-point');
     expect(reconcileArgs.threadId).toBe('$root');
     expect(reconcileArgs.cachedPage).toBe(cachedPage);
   });
@@ -195,7 +192,6 @@ describe('runThreadOpenCacheFirst', () => {
       async (args: { onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void }) => {
         capturedOnRepaired = args.onRepaired;
         return {
-          reason: 'open-thread-choke-point' as const,
           repaired: true,
           fetchedCount: 1,
           iterations: 1,
@@ -264,7 +260,6 @@ describe('runThreadOpenCacheFirst', () => {
       async (args: { onRepaired?: (repairedEvents: readonly MatrixEvent[]) => void }) => {
         capturedOnRepaired = args.onRepaired;
         return {
-          reason: 'open-thread-choke-point' as const,
           repaired: false,
           fetchedCount: 0,
           iterations: 1,
@@ -313,7 +308,6 @@ describe('runThreadOpenCacheFirst', () => {
         roomId: opts.room.roomId,
         threadId: '$root',
         cachedPage: undefined,
-        reason: 'open-thread-choke-point',
       })
     );
   });

@@ -2,16 +2,28 @@
  * CINNY-207 P3.2: engineGapTracker + inMemoryGapFillScheduler.
  *
  * Covers: TimelineReset on the room's UNFILTERED timelineSet →
- * mark + enqueue limited-sync job; TimelineReset on a thread
- * timelineSet → ignored (not a gap event); Sync→PREPARED → one
- * startup job per joined room; dedup + priority (limited-sync
- * beats startup); left rooms excluded; probe counter increments.
+ * mark + dispatch limited-sync job; TimelineReset on a thread
+ * timelineSet → ignored (not a gap event); Sync→PREPARED → startup
+ * jobs only for rooms with durable markers; left rooms excluded;
+ * probe counter increments. The scheduler is a dispatch seam — jobs
+ * never queue in it; per-room coalescing lives in the executor.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
-import { createEngineGapTracker, createInMemoryGapFillScheduler } from '../engineGapTracker';
+import {
+  createEngineGapTracker,
+  createInMemoryGapFillScheduler,
+  type GapFillJob,
+  type GapFillScheduler,
+} from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
+
+const captureEnqueues = (scheduler: GapFillScheduler): GapFillJob[] => {
+  const jobs: GapFillJob[] = [];
+  scheduler.onEnqueue((job) => jobs.push(job));
+  return jobs;
+};
 
 const makeRoom = ({
   roomId,
@@ -42,38 +54,23 @@ describe('createInMemoryGapFillScheduler (CINNY-207 P3.2)', () => {
   beforeEach(() => resetCacheProbe());
   afterEach(() => resetCacheProbe());
 
-  it('enqueues a job and exposes it via pendingJobs()', () => {
+  it('dispatches every enqueued job to subscribers and counts the probe', () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const jobs = captureEnqueues(scheduler);
     scheduler.enqueueGapFill({ roomId: '!a', reason: 'startup', markedAt: 1 });
-    expect(scheduler.pendingJobs()).toHaveLength(1);
-    expect(scheduler.pendingJobs()[0].roomId).toBe('!a');
-    expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(1);
+    scheduler.enqueueGapFill({ roomId: '!a', reason: 'limited-sync', markedAt: 2 });
+    expect(jobs.map((job) => job.reason)).toEqual(['startup', 'limited-sync']);
+    expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(2);
   });
 
-  it('dedupes by roomId (later enqueue replaces earlier)', () => {
+  it('a throwing subscriber does not break other subscribers', () => {
     const scheduler = createInMemoryGapFillScheduler();
+    scheduler.onEnqueue(() => {
+      throw new Error('bad subscriber');
+    });
+    const jobs = captureEnqueues(scheduler);
     scheduler.enqueueGapFill({ roomId: '!a', reason: 'startup', markedAt: 1 });
-    scheduler.enqueueGapFill({
-      roomId: '!a',
-      reason: 'limited-sync',
-      markedAt: 2,
-      prevBatch: 'tok',
-    });
-    expect(scheduler.pendingJobs()).toHaveLength(1);
-    expect(scheduler.pendingJobs()[0].reason).toBe('limited-sync');
-    expect(scheduler.pendingJobs()[0].prevBatch).toBe('tok');
-  });
-
-  it('does not downgrade limited-sync to startup', () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    scheduler.enqueueGapFill({
-      roomId: '!a',
-      reason: 'limited-sync',
-      markedAt: 2,
-      prevBatch: 'tok',
-    });
-    scheduler.enqueueGapFill({ roomId: '!a', reason: 'startup', markedAt: 3 });
-    expect(scheduler.pendingJobs()[0].reason).toBe('limited-sync');
+    expect(jobs).toHaveLength(1);
   });
 });
 
@@ -101,6 +98,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
   it('marks the room and enqueues a limited-sync job on TimelineReset for the unfiltered timelineSet', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     loadCachedTail.mockResolvedValueOnce({
       events: [{ event_id: '$pre-gap-tail', origin_server_ts: 1 }],
@@ -127,7 +125,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       nextToken: 'batch-1',
       overlapEventIds: ['$pre-gap-tail'],
     });
-    expect(scheduler.pendingJobs()).toEqual([
+    expect(enqueued).toEqual([
       {
         roomId: '!a',
         reason: 'limited-sync',
@@ -168,6 +166,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
   it('ignores TimelineReset on non-unfiltered timelineSets (thread resets are not gap events)', () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const room = makeRoom({ roomId: '!a' });
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
@@ -181,11 +180,12 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     tracker.handleTimelineReset(room, differentSet, false);
 
     expect(markDiscontinuity).not.toHaveBeenCalled();
-    expect(scheduler.pendingJobs()).toHaveLength(0);
+    expect(enqueued).toHaveLength(0);
   });
 
   it('ignores TimelineReset with a missing room or timelineSet (defensive)', () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
@@ -201,11 +201,12 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       false
     );
 
-    expect(scheduler.pendingJobs()).toHaveLength(0);
+    expect(enqueued).toHaveLength(0);
   });
 
   it('enqueues startup jobs only for joined rooms with durable markers', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const joinedA = makeRoom({ roomId: '!join-a', paginationToken: 'ta' });
     const joinedB = makeRoom({ roomId: '!join-b', paginationToken: null });
     const leftC = makeRoom({ roomId: '!left-c', membership: 'leave', paginationToken: 'tc' });
@@ -235,8 +236,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
     await tracker.handleSyncPrepared();
 
-    const jobs = scheduler.pendingJobs();
-    expect(jobs).toEqual([
+    expect(enqueued).toEqual([
       {
         roomId: '!join-a',
         reason: 'startup',
@@ -248,8 +248,9 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(1);
   });
 
-  it('a limited-sync job that arrives after a startup job wins the dedup', async () => {
+  it('a limited-sync reset after a startup resume dispatches a newer job for the executor to coalesce', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const mx = { getRooms: () => [room] } as unknown as MatrixClient;
     const tracker = createEngineGapTracker({
@@ -271,14 +272,16 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     await markDiscontinuity.mock.results[0].value;
     await Promise.resolve();
 
-    const jobs = scheduler.pendingJobs();
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].reason).toBe('limited-sync');
-    expect(jobs[0].prevBatch).toBe('batch-1');
+    // Both jobs dispatch; the executor keeps the one with the newest
+    // markedAt, so the later reset supersedes the startup resume.
+    expect(enqueued.map((job) => job.reason)).toEqual(['startup', 'limited-sync']);
+    expect(enqueued[1].prevBatch).toBe('batch-1');
+    expect(enqueued[1].markedAt).toBeGreaterThan(enqueued[0].markedAt);
   });
 
   it('handleSyncPrepared is a no-op when no MatrixClient is present (safety valve)', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const tracker = createEngineGapTracker({
       // @ts-expect-error deliberately omit for the safety test
       mx: undefined,
@@ -287,12 +290,13 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
       markDiscontinuity,
     });
     await tracker.handleSyncPrepared();
-    expect(scheduler.pendingJobs()).toHaveLength(0);
+    expect(enqueued).toHaveLength(0);
   });
 
   it('retains and retries a limited-sync job until its marker is durable', async () => {
     vi.useFakeTimers();
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const onPersistenceError = vi.fn();
     markDiscontinuity
@@ -310,10 +314,10 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
     await vi.waitFor(() => expect(onPersistenceError).toHaveBeenCalledTimes(1));
-    expect(scheduler.pendingJobs()).toEqual([]);
+    expect(enqueued).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(scheduler.pendingJobs()).toEqual([
+    expect(enqueued).toEqual([
       {
         roomId: '!a',
         reason: 'limited-sync',
@@ -328,6 +332,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
   it('cancels an undurable marker retry when the tracker stops', async () => {
     vi.useFakeTimers();
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const onPersistenceError = vi.fn();
     markDiscontinuity.mockRejectedValue(new Error('blocked cache'));
@@ -346,11 +351,12 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(markDiscontinuity).toHaveBeenCalledTimes(1);
-    expect(scheduler.pendingJobs()).toEqual([]);
+    expect(enqueued).toEqual([]);
   });
 
   it('does not enqueue a stale marker after a newer reset supersedes it', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
     let resolveFirst:
@@ -379,7 +385,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     tracker.handleTimelineReset(secondRoom, secondRoom.getUnfilteredTimelineSet());
     resolveFirst?.({ markedAt: 1000, prevBatch: 'batch-1' });
     await vi.waitFor(() => {
-      expect(scheduler.pendingJobs()).toEqual([
+      expect(enqueued).toEqual([
         {
           roomId: '!a',
           reason: 'limited-sync',
@@ -394,6 +400,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
 
   it('shares the pre-gap boundary when a newer reset supersedes a pending mark', async () => {
     const scheduler = createInMemoryGapFillScheduler();
+    const enqueued = captureEnqueues(scheduler);
     const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
     let resolveBoundary:
@@ -437,7 +444,7 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
         overlapEventIds: ['$pre-gap-tail'],
       });
     });
-    expect(scheduler.pendingJobs()).toEqual([
+    expect(enqueued).toEqual([
       {
         roomId: '!a',
         reason: 'limited-sync',

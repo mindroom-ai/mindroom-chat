@@ -18,10 +18,7 @@ type ThreadOpenSeedSession = {
  * reach into the engine directly (keeps arch-guard boundaries clean).
  */
 export type ScheduleReconcileFn = (
-  args: Pick<
-    ScheduleReconcileArgs,
-    'roomId' | 'room' | 'threadId' | 'cachedPage' | 'reason' | 'onRepaired'
-  >
+  args: Pick<ScheduleReconcileArgs, 'roomId' | 'room' | 'threadId' | 'cachedPage' | 'onRepaired'>
 ) => Promise<ReconcileResult>;
 
 type RunThreadOpenCacheFirstOptions = {
@@ -138,7 +135,6 @@ export const runThreadOpenCacheFirst = async ({
     room,
     threadId,
     cachedPage: hydratedCachedPage,
-    reason: 'open-thread-choke-point',
     onRepaired: (repairedEvents) => {
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the

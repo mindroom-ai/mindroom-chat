@@ -4,7 +4,7 @@
  * Two guarantees under test:
  *
  *   AC9 — coverage gates PAINT, never REVALIDATE. A reconcile
- *         scheduled with `reason: 'open-thread-choke-point'` still
+ *         scheduled from the thread-open choke point still
  *         performs the network verify (mocked fetchRelations invoked).
  *
  *   D7 no-op — when the fetched page's event ids are entirely already
@@ -247,7 +247,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
 
     // Snapshot the pending queue before it drains — the pending job's
@@ -287,7 +286,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(1);
@@ -338,7 +336,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
       persistRepair,
     });
 
@@ -373,7 +370,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
     await flushMicrotasks();
 
@@ -384,7 +380,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
     expect(second).toBe(first);
 
@@ -424,7 +419,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       onRepaired: staleViewCallback,
     });
     await flushMicrotasks();
@@ -436,7 +430,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       onRepaired: currentViewCallback,
     });
 
@@ -478,7 +471,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -519,7 +511,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(false);
@@ -571,7 +562,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
       persistRepair,
     });
 
@@ -611,7 +601,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(true);
@@ -639,7 +628,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -725,7 +713,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$edit-target', '$redact-target']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -818,7 +805,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
       room: staleRoom,
     });
 
@@ -870,7 +856,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(2);
@@ -905,7 +890,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -932,7 +916,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -977,7 +960,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -1003,7 +985,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -1035,7 +1016,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair: persistRepair as never,
       continuationStore,
     });
@@ -1085,7 +1065,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -1112,7 +1091,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       persistRepair,
       continuationStore,
     });
@@ -1154,7 +1132,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$persisted-from-earlier-pass']),
-      reason: 'open-thread-choke-point',
       persistRepair: vi.fn(({ events }) => ({
         rawEvents: events.map((event) => event.event as Partial<IEvent>),
         loadedReplyCount: 0,
@@ -1205,7 +1182,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         room,
         threadId: '$thread',
         cachedPage: makeCachedPage(['$known']),
-        reason: 'open-thread-choke-point',
         continuationStore,
       });
 
@@ -1243,7 +1219,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       continuationStore,
     });
 
@@ -1292,7 +1267,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$persisted-page']),
-      reason: 'open-thread-choke-point',
       continuationStore,
       persistRepair,
     });
@@ -1370,7 +1344,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
       onRepaired: (batch) => {
         onRepairedBatch = batch;
@@ -1415,7 +1388,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage([]),
-      reason: 'open-thread-choke-point',
     });
     const probe = getCacheProbeSnapshot();
     expect(probe.reconcilesScheduled).toBe(1);
@@ -1444,7 +1416,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     const probe = getCacheProbeSnapshot();
@@ -1501,7 +1472,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
     });
 
@@ -1629,7 +1599,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage,
-      reason: 'open-thread-choke-point',
       room,
     });
 
@@ -1695,7 +1664,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -1778,7 +1746,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomThreadNull,
       onRepaired,
     });
@@ -1845,7 +1812,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
       room: roomWithThread,
     });
 
@@ -1891,7 +1857,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
       onRepaired,
     });
 
@@ -1952,7 +1917,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(true);
@@ -1986,7 +1950,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       onRepaired,
       persistRepair,
     }).finally(() => {
@@ -2027,7 +1990,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$known']),
-      reason: 'open-thread-choke-point',
       onRepaired,
       persistRepair,
     });
@@ -2123,7 +2085,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$edit-target', '$reply-1']),
-      reason: 'open-thread-choke-point',
       room: roomSdkAhead,
       onRepaired,
     });
@@ -2178,7 +2139,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       roomId: '!room:example',
       threadId: '$thread',
       cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-      reason: 'open-thread-choke-point',
     });
 
     expect(result.repaired).toBe(false);
@@ -2250,7 +2210,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         debugTraceId: 'test-trace-1',
       });
 
@@ -2334,7 +2293,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         // debugTraceId intentionally omitted.
       });
 
@@ -2403,7 +2361,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
         onRepaired,
       });
 
@@ -2451,7 +2408,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
       await flushMicrotasks();
 
@@ -2491,7 +2447,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -2521,7 +2476,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -2551,7 +2505,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1', '$reply-2']),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -2577,7 +2530,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage([]),
-        reason: 'open-thread-choke-point',
       });
 
       const probe = getCacheProbeSnapshot();
@@ -2607,7 +2559,6 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
         roomId: '!room:example',
         threadId: '$thread',
         cachedPage: makeCachedPage(['$reply-1']),
-        reason: 'open-thread-choke-point',
         onRepaired: () => undefined,
       });
 

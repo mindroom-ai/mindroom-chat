@@ -4,8 +4,8 @@ import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../../client/initMatrix';
 import { createBackfillScheduler } from '../backfillScheduler';
-import { createGapFillExecutor, GAP_FILL_OVERLAP_TAIL_LIMIT } from '../gapFillExecutor';
-import { createInMemoryGapFillScheduler } from '../engineGapTracker';
+import { createGapFillExecutor } from '../gapFillExecutor';
+import { createInMemoryGapFillScheduler, GAP_FILL_OVERLAP_TAIL_LIMIT } from '../engineGapTracker';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
   clearRoomTailDiscontinuity,
@@ -204,6 +204,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
@@ -211,7 +212,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       prevBatch: 'tok-0',
     });
 
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -260,13 +260,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
       prevBatch: 'tok-0',
     });
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -295,13 +295,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // `gapFillsEnqueued` and `schedulerEnqueued` stay in lockstep —
     // otherwise a probe snapshot of the AC13 fail path is ambiguous
     // (silent policy skip vs. real execution failure).
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!fed:example.org',
       reason: 'startup',
       markedAt: Date.now(),
     });
 
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -336,13 +336,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // (`resolveRoomPrefetchTier` returns "own") so they DO enter the
     // scheduler — but `isRoomEligibleForRawFetch` in the executor
     // rejects them and clears the marker.
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!e2e:mindroom.chat',
       reason: 'startup',
       markedAt: Date.now(),
     });
 
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -378,7 +378,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await waitForCompleted();
 
     expect(mx.__messages.length).toBe(1);
-    expect(gapFillScheduler.pendingJobs()).toEqual([]);
+
     const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$e2');
     expect(cached?.event_id).toBe('$e2');
   });
@@ -413,6 +413,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     });
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
@@ -420,7 +421,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       prevBatch: 'old-token',
       generation: 'old-generation',
     });
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCondition(() => typeof resolveFirst === 'function');
 
@@ -497,6 +497,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
@@ -504,7 +505,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       prevBatch: 'tok-0',
     });
 
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     // The executor's runOnce catches the createMessagesRequest reject
     // internally (marker preserved, void return), so the job resolves
@@ -541,6 +541,10 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       .mockImplementation(loadRoomTailDiscontinuity);
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    const executor = createGapFillExecutor(
+      { mx, sessionId: SESSION_ID, scheduler, loadDiscontinuity },
+      gapFillScheduler
+    );
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
@@ -549,10 +553,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       generation: 'read-failure',
     });
 
-    const executor = createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, loadDiscontinuity },
-      gapFillScheduler
-    );
     await waitForCompleted();
 
     expect(mx.__messages).toHaveLength(0);
@@ -586,14 +586,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     });
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!room:mindroom.chat',
-      reason: 'limited-sync',
-      markedAt: 1000,
-      prevBatch: 'tok-0',
-      generation: 'write-failure',
-    });
-
     createGapFillExecutor(
       {
         mx,
@@ -603,6 +595,14 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: 1000,
+      prevBatch: 'tok-0',
+      generation: 'write-failure',
+    });
+
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -640,14 +640,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     });
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!room:mindroom.chat',
-      reason: 'limited-sync',
-      markedAt: 1000,
-      prevBatch: 'tok-0',
-      generation: 'overlap-generation',
-    });
-
     createGapFillExecutor(
       {
         mx,
@@ -661,6 +653,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: 1000,
+      prevBatch: 'tok-0',
+      generation: 'overlap-generation',
+    });
 
     await waitForCondition(() => persistCalls === 2);
     expect(mx.__messages).toHaveLength(2);
@@ -712,13 +711,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!room:mindroom.chat',
-      reason: 'limited-sync',
-      markedAt: Date.now(),
-      prevBatch: 'tok-0',
-    });
-
     const executor = createGapFillExecutor(
       {
         mx,
@@ -731,6 +723,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -860,6 +859,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     gapFillScheduler.enqueueGapFill({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
@@ -867,7 +867,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       prevBatch: 'tok-stale',
     });
 
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -907,13 +906,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!fed:example.org',
-      reason: 'startup',
-      markedAt: Date.now(),
-      prevBatch: 'tok-fed',
-    });
-
     createGapFillExecutor(
       {
         mx,
@@ -928,6 +920,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!fed:example.org',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-fed',
+    });
+
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -954,13 +953,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!other:mindroom.chat',
-      reason: 'startup',
-      markedAt: Date.now(),
-      prevBatch: 'tok-other',
-    });
-
     createGapFillExecutor(
       {
         mx,
@@ -978,6 +970,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!other:mindroom.chat',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-other',
+    });
+
     await flushMicrotasks();
     await waitForCompleted();
 
@@ -1009,12 +1008,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId,
-      reason: 'startup',
-      markedAt: Date.now(),
-      prevBatch: 'tok-other',
-    });
     const loadCachedTail = vi
       .fn()
       .mockResolvedValueOnce({ events: [rawEvent('$original-tail', 1)], hasMoreBefore: false })
@@ -1030,6 +1023,12 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId,
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-other',
+    });
 
     await waitForCompleted(1);
     expect(mx.__messages).toHaveLength(0);
@@ -1062,12 +1061,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId,
-      reason: 'startup',
-      markedAt: Date.now(),
-      prevBatch: 'tok-fed',
-    });
     const executor = createGapFillExecutor(
       {
         mx,
@@ -1077,6 +1070,12 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId,
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-fed',
+    });
 
     await waitForCompleted(1);
     expect(mx.__messages).toHaveLength(0);
@@ -1106,13 +1105,6 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
-    gapFillScheduler.enqueueGapFill({
-      roomId: '!focused:mindroom.chat',
-      reason: 'startup',
-      markedAt: Date.now(),
-      prevBatch: 'tok-focused',
-    });
-
     createGapFillExecutor(
       {
         mx,
@@ -1128,6 +1120,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       },
       gapFillScheduler
     );
+    gapFillScheduler.enqueueGapFill({
+      roomId: '!focused:mindroom.chat',
+      reason: 'startup',
+      markedAt: Date.now(),
+      prevBatch: 'tok-focused',
+    });
+
     await flushMicrotasks();
     await waitForCompleted();
 

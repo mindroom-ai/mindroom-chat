@@ -7,19 +7,18 @@
  *      — the SDK's way of saying "your last sync token wasn't good
  *      enough; I discarded the tail and started fresh from a newer
  *      state, so events between then and now are gone". The tracker
- *      marks the room as tail-discontinuous in the cache (so the fill
- *      survives a page reload) and enqueues a `limited-sync` gap-fill
- *      job.
- *   2. `ClientEvent.Sync → PREPARED` on the initial cold start — the
- *      moment when we can enumerate joined rooms and know that the
- *      liveMode gate is about to unlock. We enqueue a `startup` job
- *      per joined room to fill anything the cold catchup missed
- *      (this is what turns AC13 green after a restart).
+ *      durably marks the room as tail-discontinuous in the cache (so
+ *      the fill survives a page reload) and enqueues a `limited-sync`
+ *      gap-fill job. This marker is the sole gap-detection signal.
+ *   2. `ClientEvent.Sync → PREPARED` on the initial cold start —
+ *      startup jobs are enqueued only for joined rooms whose durable
+ *      tail-discontinuity markers survived a previous session, so an
+ *      unfinished fill resumes after a restart.
  *
- * P3.2 scope (per plan Deviations): the tracker only MARKS and
- * ENQUEUES. Executing the fill is Phase 4's job — the scheduler here
- * is an in-memory stub with `pendingJobs()` for inspection. The
- * `gapFillsEnqueued` probe counter is the AC13 evidence handle.
+ * The tracker only MARKS and ENQUEUES. Executing the fill is the
+ * gap-fill executor's job; it supersedes stale work by the marker's
+ * markedAt/generation. The `gapFillsEnqueued` probe counter is the
+ * AC13 evidence handle.
  */
 
 import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
@@ -44,37 +43,24 @@ export type GapFillJob = {
 
 export type GapFillScheduler = {
   enqueueGapFill(job: GapFillJob): void;
-  pendingJobs(): readonly GapFillJob[];
   /**
-   * Subscribe to enqueue events. The listener fires once per accepted
-   * enqueue (deduped rejects don't fire). Returns an unsubscribe
-   * function. CINNY-207 P4.2 uses this so `gapFillExecutor` can drain
-   * the queue promptly rather than polling.
+   * Subscribe to enqueue events. Returns an unsubscribe function.
+   * CINNY-207 P4.2 uses this so `gapFillExecutor` reacts to a fresh
+   * limited-sync reset immediately rather than polling.
    */
   onEnqueue(listener: (job: GapFillJob) => void): () => void;
-  remove(roomId: string): void;
-  /** Test-only: drop all queued jobs. */
-  clear(): void;
 };
 
 /**
- * In-memory gap-fill queue. Dedupes by roomId — the executor runs one
- * fill per room and the reason is informational (Phase 4 may promote
- * a `startup` job to `limited-sync` if a reset arrives later). No
- * persistence across restarts is required at this layer because
- * `tailDiscontinuity` in the cache is the durable record.
+ * Gap-fill dispatch seam between the tracker and the executor. Jobs are
+ * dispatched to subscribers synchronously and never queue here: the executor
+ * owns per-room coalescing (by markedAt/generation), and `tailDiscontinuity`
+ * in the cache is the durable record that survives restarts.
  */
 export const createInMemoryGapFillScheduler = (): GapFillScheduler => {
-  const jobs = new Map<string, GapFillJob>();
   const listeners = new Set<(job: GapFillJob) => void>();
   return {
     enqueueGapFill(job) {
-      const existing = jobs.get(job.roomId);
-      // `limited-sync` beats `startup` when both are present — a fresh
-      // reset carries a real prevBatch and supersedes an earlier
-      // opportunistic startup job.
-      if (existing && existing.reason === 'limited-sync' && job.reason === 'startup') return;
-      jobs.set(job.roomId, job);
       countCacheProbe('gapFillsEnqueued');
       listeners.forEach((listener) => {
         try {
@@ -84,15 +70,12 @@ export const createInMemoryGapFillScheduler = (): GapFillScheduler => {
         }
       });
     },
-    pendingJobs: () => Array.from(jobs.values()),
     onEnqueue(listener) {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    remove: (roomId) => jobs.delete(roomId),
-    clear: () => jobs.clear(),
   };
 };
 
@@ -127,6 +110,19 @@ export type EngineGapTracker = {
 const GAP_MARK_RETRY_BASE_MS = 1_000;
 const GAP_MARK_RETRY_MAX_MS = 30_000;
 export const GAP_FILL_OVERLAP_TAIL_LIMIT = 200;
+
+/**
+ * Unique event ids of a cached-tail page, in page order. Both the tracker
+ * (marker write) and the executor (marker-less fallback snapshot) derive the
+ * pre-gap boundary through this one helper so the two can never diverge.
+ */
+export const collectOverlapEventIds = (events: readonly { event_id?: unknown }[]): string[] => [
+  ...new Set(
+    events.flatMap((event) =>
+      typeof event.event_id === 'string' && event.event_id.length > 0 ? [event.event_id] : []
+    )
+  ),
+];
 
 type PendingGapMark = {
   job: GapFillJob;
@@ -247,15 +243,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
       const overlapEventIds =
         previous?.overlapEventIds ??
         loadCachedTail(options.sessionId, room.roomId, GAP_FILL_OVERLAP_TAIL_LIMIT)
-          .then((cachedTail) => [
-            ...new Set(
-              cachedTail.events.flatMap((cachedEvent) =>
-                typeof cachedEvent.event_id === 'string' && cachedEvent.event_id.length > 0
-                  ? [cachedEvent.event_id]
-                  : []
-              )
-            ),
-          ])
+          .then((cachedTail) => collectOverlapEventIds(cachedTail.events))
           // A failed boundary read must NOT be committed as the meaningful
           // "no cached boundary existed" [] state — leave the field unset so
           // the executor takes its own guarded snapshot (and defers, marker

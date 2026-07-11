@@ -39,6 +39,7 @@ import {
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import type { BackfillScheduler } from './backfillScheduler';
 import {
+  collectOverlapEventIds,
   GAP_FILL_OVERLAP_TAIL_LIMIT,
   type GapFillJob,
   type GapFillScheduler,
@@ -50,8 +51,6 @@ import {
   resolveRoomPrefetchTier,
   type PrefetchConfig,
 } from './prefetchPolicy';
-
-export { GAP_FILL_OVERLAP_TAIL_LIMIT } from './engineGapTracker';
 
 // Batch size for the /messages page — matches the app's other backfill
 // batches so the scheduler's cooperative abort granularity is
@@ -105,15 +104,11 @@ export type GapFillExecutorOptions = {
 };
 
 /**
- * Wire the executor to a `GapFillScheduler` (the Phase 3.2 queue).
- * On wire we drain any jobs already queued (typically zero, since the
- * gap tracker only enqueues after Sync->PREPARED and TimelineReset),
- * and subscribe to future enqueues so a fresh limited-sync reset
- * dispatches a fill immediately. Returns a teardown that unsubscribes
- * and blocks further enqueues.
+ * Wire the executor to a `GapFillScheduler` dispatch seam: every enqueue
+ * from the gap tracker runs (or coalesces into) a fill immediately.
+ * Returns a teardown that unsubscribes and blocks further enqueues.
  */
 export type GapFillExecutor = {
-  drainNow(): void;
   /** Retry policy-deferred or capped work after focus or prefetch scope changes. */
   recheckDeferred(roomId?: string): void;
   stop(): void;
@@ -173,13 +168,7 @@ export const createGapFillExecutor = (
         // instead of risking an unnecessary crawl to room genesis.
         return;
       }
-      overlapEventIds = [
-        ...new Set(
-          cachedTail.events.flatMap((event) =>
-            typeof event.event_id === 'string' && event.event_id.length > 0 ? [event.event_id] : []
-          )
-        ),
-      ];
+      overlapEventIds = collectOverlapEventIds(cachedTail.events);
       if (durableMarker) {
         const boundaryCheckpointed = await checkpointRoomTailDiscontinuity(
           sessionId,
@@ -412,23 +401,7 @@ export const createGapFillExecutor = (
     });
   };
 
-  const drainNow = (): void => {
-    if (stopped) return;
-    const pending = gapFillScheduler.pendingJobs();
-    if (pending.length === 0) return;
-    pending.forEach((job) => {
-      gapFillScheduler.remove(job.roomId);
-      enqueue(job);
-    });
-  };
-
-  // Drain everything already queued (usually nothing on wire), then
-  // subscribe so future enqueues dispatch immediately.
-  drainNow();
-  const unsubscribe = gapFillScheduler.onEnqueue((job) => {
-    gapFillScheduler.remove(job.roomId);
-    enqueue(job);
-  });
+  const unsubscribe = gapFillScheduler.onEnqueue(enqueue);
 
   const stop = (): void => {
     stopped = true;
@@ -437,5 +410,5 @@ export const createGapFillExecutor = (
     unsubscribe();
   };
 
-  return { drainNow, recheckDeferred, stop };
+  return { recheckDeferred, stop };
 };

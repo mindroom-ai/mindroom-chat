@@ -123,22 +123,25 @@ describe('RoomTimeline', () => {
 
     it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
       const { shouldHydrateLatestRoomCache } = await import('../eventRepository');
+      const { MatrixEvent } = await import('matrix-js-sdk');
+      const loadedEvent = (eventId: string, ts: number) =>
+        new MatrixEvent(makeCachedRoomEvent(eventId, ts) as never);
 
       expect(
         shouldHydrateLatestRoomCache(
-          makeCachedRoomEvent('$loaded', 100),
+          loadedEvent('$loaded', 100),
           makeCachedRoomEvent('$cached', 200)
         )
       ).toBe(true);
       expect(
         shouldHydrateLatestRoomCache(
-          makeCachedRoomEvent('$loaded', 200),
+          loadedEvent('$loaded', 200),
           makeCachedRoomEvent('$cached', 200)
         )
       ).toBe(false);
       expect(
         shouldHydrateLatestRoomCache(
-          makeCachedRoomEvent('$loaded', 300),
+          loadedEvent('$loaded', 300),
           makeCachedRoomEvent('$cached', 200)
         )
       ).toBe(false);

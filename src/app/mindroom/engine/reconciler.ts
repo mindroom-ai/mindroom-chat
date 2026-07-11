@@ -110,20 +110,6 @@ const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
   restartFromHead: restartThreadReconcileContinuationFromHead,
 };
 
-/**
- * Why the reconcile pass was scheduled. Included in probe logs so a
- * capture can distinguish "user opened a thread we already had cached
- * (D7 revalidation)" from "user opened a fresh room we just hydrated".
- */
-export type ReconcileReason =
-  // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
-  // at the top of the thread-open flow (see runThreadOpenCacheFirst).
-  // Replaces the three earlier open-* variants ('open-complete-coverage',
-  // 'open-partial-coverage', 'open-backfill-completed') that each pinned
-  // a branch-local schedule call site — those sites are gone; there is
-  // now exactly one thread-open reconcile per open, structurally.
-  'open-thread-choke-point';
-
 export type ScheduleReconcileArgs = {
   readonly mx: MatrixClient;
   readonly sessionId: string;
@@ -145,7 +131,6 @@ export type ScheduleReconcileArgs = {
    * server page against what we already have.
    */
   readonly cachedPage?: HydratedThreadCachePage;
-  readonly reason: ReconcileReason;
   /**
    * Fired at most once per pass, and only when the reconciler actually
    * applied a repair. Receives the fully-mapped, prefer-live event
@@ -182,7 +167,6 @@ export type ScheduleReconcileArgs = {
 };
 
 export type ReconcileResult = {
-  readonly reason: ReconcileReason;
   readonly repaired: boolean;
   /** Total mapped events fetched across all iterations. */
   readonly fetchedCount: number;
@@ -317,9 +301,17 @@ const detectDivergence = (
   cachedRevisions: Map<string, EventRevisionDescriptor>,
   cachedEmbeddedRelationEventIds: ReadonlySet<string>
 ): boolean => {
-  const fetchedRedactedEventIds = collectExplicitRedactedEventIds(fetched);
-  for (const eventId of fetchedRedactedEventIds) {
+  // Redaction targets known to the fetch: divergent when the cache still
+  // embeds them as relations, or still holds an unredacted revision of them
+  // (an interrupted multi-record write can leave the target record behind
+  // its redaction record). The set is a slight superset of raw `redacts`
+  // extraction — tombstoned fetched events in it also trip the revision
+  // upgrade below, so folding them here only widens toward idempotent
+  // repairs.
+  for (const eventId of collectExplicitRedactedEventIds(fetched)) {
     if (cachedEmbeddedRelationEventIds.has(eventId)) return true;
+    const targetRevision = cachedRevisions.get(eventId);
+    if (targetRevision && !targetRevision.redacted) return true;
   }
 
   for (const rawEvent of fetched) {
@@ -333,20 +325,6 @@ const detectDivergence = (
 
     if (hasEventRevisionUpgrade(describeRawEventRevision(rawEvent), cachedRevision)) {
       return true;
-    }
-
-    // A previously-cached redaction record can still be actionable if
-    // its target record predates the redaction. This is rare but keeps
-    // repair robust against interrupted multi-record writes.
-    if (rawEvent.type === 'm.room.redaction') {
-      const targetId =
-        typeof rawEvent.redacts === 'string'
-          ? rawEvent.redacts
-          : ((rawEvent.content as Record<string, unknown> | undefined)?.redacts as
-              | string
-              | undefined);
-      const targetRevision = targetId ? cachedRevisions.get(targetId) : undefined;
-      if (targetRevision && !targetRevision.redacted) return true;
     }
   }
   return false;
@@ -402,7 +380,6 @@ const runThreadReconcilePass = async ({
   threadId,
   cachedPage,
   signal,
-  reason,
   debugTraceId,
   persistRepair,
   continuationStore,
@@ -414,7 +391,6 @@ const runThreadReconcilePass = async ({
   threadId: string;
   cachedPage: HydratedThreadCachePage | undefined;
   signal: AbortSignal;
-  reason: ReconcileReason;
   debugTraceId: string | undefined;
   persistRepair: typeof persistThreadEventCacheSnapshotCommitted;
   continuationStore: ThreadReconcileContinuationStore;
@@ -500,7 +476,7 @@ const runThreadReconcilePass = async ({
         // convergence to server truth); this is the only legitimate
         // silent exit before the first fetch.
         countCacheProbe('reconcilesSignalAborted');
-        return { reason, repaired: false, fetchedCount, iterations, aborted: true };
+        return { repaired: false, fetchedCount, iterations, aborted: true };
       }
 
       phaseIterations += 1;
@@ -643,7 +619,7 @@ const runThreadReconcilePass = async ({
   if (signal.aborted) {
     // Post-loop signal-abort — same class as in-loop signal-abort.
     countCacheProbe('reconcilesSignalAborted');
-    return { reason, repaired: false, fetchedCount, iterations, aborted: true };
+    return { repaired: false, fetchedCount, iterations, aborted: true };
   }
 
   // CINNY-207 P5 review (greptile P1: paged batch order reverses):
@@ -669,11 +645,11 @@ const runThreadReconcilePass = async ({
 
   const scanComplete = scanExit === 'overlap' || scanExit === 'end';
 
-  // Zero-fetch fast path — the D7 cheap no-op. When the server returned
-  // no events (or all fetches failed) there is nothing to reconcile and
-  // no tick to fire.
-  if (allMapped.length === 0) {
-    if ((scanExit === 'overlap' || scanExit === 'end') && continuation?.validatingHead === true) {
+  // Settle the durable cursor for a pass that applies no repair: a complete
+  // validating-head scan clears its marker; an incomplete scan with a usable
+  // next token checkpoints so the next open resumes instead of restarting.
+  const settleContinuationWithoutRepair = async (): Promise<void> => {
+    if (scanComplete && continuation?.validatingHead === true) {
       await continuationStore
         .clear(sessionId, roomId, threadId, continuation.generation)
         .catch(() => false);
@@ -685,6 +661,13 @@ const runThreadReconcilePass = async ({
           .catch(() => false);
       }
     }
+  };
+
+  // Zero-fetch fast path — the D7 cheap no-op. When the server returned
+  // no events (or all fetches failed) there is nothing to reconcile and
+  // no tick to fire.
+  if (allMapped.length === 0) {
+    await settleContinuationWithoutRepair();
     // CINNY-207 AC2 STEP 1 (2026-07-04): treat "fetch failed with no
     // usable pages" AND "server returned empty chunks" as the same
     // outcome bucket for probe purposes — both are silent exits with
@@ -699,13 +682,12 @@ const runThreadReconcilePass = async ({
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount: 0,
       iterations,
-      reason,
       repaired: false,
       roomId,
       threadId,
       fetchFailedOccurred,
     });
-    return { reason, repaired: false, fetchedCount, iterations, aborted: false };
+    return { repaired: false, fetchedCount, iterations, aborted: false };
   }
 
   // Deterministic divergence check: does the fetched page introduce
@@ -717,18 +699,7 @@ const runThreadReconcilePass = async ({
   const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
 
   if (!diverged) {
-    if ((scanExit === 'overlap' || scanExit === 'end') && continuation?.validatingHead === true) {
-      await continuationStore
-        .clear(sessionId, roomId, threadId, continuation.generation)
-        .catch(() => false);
-    } else if (!scanComplete && fromToken && scanExit !== 'token-loop') {
-      const currentContinuation = await ensureContinuation();
-      if (currentContinuation) {
-        await continuationStore
-          .checkpoint(sessionId, roomId, threadId, currentContinuation.generation, fromToken)
-          .catch(() => false);
-      }
-    }
+    await settleContinuationWithoutRepair();
     // CINNY-207 AC2 STEP 1 (2026-07-04): the D7 no-op path — the
     // reconciler ran end to end and confirmed the cache agreed with
     // server truth. Cheap by design; the counter separates this from
@@ -737,12 +708,11 @@ const runThreadReconcilePass = async ({
     logTimelineDebug(debugTraceId, 'reconcile-complete', {
       fetchedCount,
       iterations,
-      reason,
       repaired: false,
       roomId,
       threadId,
     });
-    return { reason, repaired: false, fetchedCount, iterations, aborted: false };
+    return { repaired: false, fetchedCount, iterations, aborted: false };
   }
 
   // P5-GATE-FIX (AC2): inject the fetched, mapped events into the SDK
@@ -778,7 +748,6 @@ const runThreadReconcilePass = async ({
     // from "SDK thread present, injection ran but render still stale".
     countCacheProbe('reconcilesThreadNull');
     logTimelineDebug(debugTraceId, 'reconcile-thread-null', {
-      reason,
       roomId,
       threadId,
       mappedCount: allMapped.length,
@@ -952,13 +921,11 @@ const runThreadReconcilePass = async ({
     fetchedCount,
     iterations,
     scanExit,
-    reason,
     repaired: true,
     roomId,
     threadId,
   });
   return {
-    reason,
     repaired: true,
     fetchedCount,
     iterations,
@@ -989,7 +956,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     room: providedRoom,
     threadId,
     cachedPage,
-    reason,
     onRepaired,
     debugTraceId,
     persistRepair = persistThreadEventCacheSnapshotCommitted,
@@ -1006,7 +972,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
   countCacheProbe('reconcilesScheduled');
 
   logTimelineDebug(debugTraceId, 'reconcile-scheduled', {
-    reason,
     roomId,
     threadId,
   });
@@ -1021,7 +986,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
       if (!room) {
         countCacheProbe('reconcilesNoRoom');
         return Promise.resolve({
-          reason,
           repaired: false,
           fetchedCount: 0,
           iterations: 0,
@@ -1036,7 +1000,6 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
         threadId,
         cachedPage,
         signal,
-        reason,
         debugTraceId,
         persistRepair,
         continuationStore,
