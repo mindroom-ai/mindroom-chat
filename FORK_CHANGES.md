@@ -5,7 +5,7 @@
 ### PR #104 focused reliability and maintainability follow-up (2026-07-11)
 
 - Status: complete on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`;
-  draft PR #123 is open.
+  PR #123 is open.
 - Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
   root preview freshness, monotonic-but-upgradable bundled relations, transient refresh-error
   classification, and separation of the reconciler's network scan from its repair/persist phase.
