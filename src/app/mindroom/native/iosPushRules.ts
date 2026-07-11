@@ -64,10 +64,12 @@ const MINDROOM_STREAM_PUSH_RULES: StreamPushRule[] = [
 ];
 
 export const ensureMindroomStreamingPushRules = async (mx: PushRuleClient): Promise<void> => {
-  for (const rule of MINDROOM_STREAM_PUSH_RULES) {
-    await mx.addPushRule('global', PushRuleKind.Override, rule.ruleId, {
-      conditions: streamStatusConditions(rule.status),
-      actions: rule.actions,
-    });
-  }
+  await Promise.all(
+    MINDROOM_STREAM_PUSH_RULES.map((rule) =>
+      mx.addPushRule('global', PushRuleKind.Override, rule.ruleId, {
+        conditions: streamStatusConditions(rule.status),
+        actions: rule.actions,
+      })
+    )
+  );
 };

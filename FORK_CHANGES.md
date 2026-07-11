@@ -18,6 +18,12 @@
   (0 errors / 19 existing warnings), touched-file Prettier, and full `npm test` (364 files / 2,882
   tests) pass. The behavior test uses the SDK push processor with a real `m.replace` event to prove
   terminal rules take priority over Matrix's default edit suppression.
+- Risks: rule installation is not atomic, although a failure disables the current iOS pusher;
+  successfully written rules persist server-side. Homeserver matching requires visible
+  `io.mindroom.stream_status` metadata, so encrypted events cannot use this behavior. Installed
+  rules also remain when native push is disabled or the app is uninstalled.
+- Next steps: merge after review approval, monitor terminal-status push delivery, and consider
+  explicit rule cleanup when native push is disabled.
 
 ### Automatic Xcode Cloud App Store versioning (2026-07-10)
 

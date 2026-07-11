@@ -126,6 +126,6 @@ describe('ensureMindroomStreamingPushRules', () => {
     await expect(ensureMindroomStreamingPushRules({ addPushRule })).rejects.toThrow(
       'push rules unavailable'
     );
-    expect(addPushRule).toHaveBeenCalledTimes(2);
+    expect(addPushRule).toHaveBeenCalledTimes(6);
   });
 });
