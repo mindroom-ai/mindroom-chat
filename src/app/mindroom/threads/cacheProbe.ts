@@ -357,6 +357,15 @@ export type CacheProbeCounters = {
   // Ledger fold: anchor AND every baseline row vanished — no boundary to
   // diff against; the capture was dropped uncompensated.
   threadPrependFoldAnchorLost: number;
+  // Offset-ledger settlement causes. Both counters increment only when
+  // the component performs the non-zero cancelling scrollTop write:
+  // `ledgerQuiescenceSettles` after a true-rest waiter resolves, and
+  // `ledgerBoundarySettles` when the safety guard rebases near an
+  // otherwise unreachable content edge. Ride trace v3 samples these
+  // scalars per frame so a visually coherent rebase can still be
+  // attributed when it cancels native iOS momentum.
+  ledgerQuiescenceSettles: number;
+  ledgerBoundarySettles: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -418,6 +427,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPaginateBackStaleThreadBails: 0,
   threadPrependFoldAnchorFallback: 0,
   threadPrependFoldAnchorLost: 0,
+  ledgerQuiescenceSettles: 0,
+  ledgerBoundarySettles: 0,
 });
 
 let counters = createEmptyCounters();
@@ -429,6 +440,12 @@ export const countCacheProbe = (key: keyof CacheProbeCounters, amount = 1): void
 };
 
 export const getCacheProbeSnapshot = (): CacheProbeCounters => ({ ...counters });
+
+// Allocation-free scalar read for per-animation-frame diagnostics. The
+// full snapshot intentionally returns a defensive copy, but cloning the
+// whole probe object at 60fps would let the ride recorder manufacture the
+// frame-time spikes it exists to attribute.
+export const getCacheProbeCounter = (key: keyof CacheProbeCounters): number => counters[key];
 
 export const resetCacheProbe = (): void => {
   counters = createEmptyCounters();

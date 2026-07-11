@@ -109,6 +109,101 @@
   (0 errors / 19 pre-existing warnings), focused Vitest, live Playwright (including 3/3 repeated
   passes after the review timing hardening), and `git diff --check`.
 
+### iOS long-thread momentum loss during ledger settlement (2026-07-10)
+
+- Status: complete locally; independent reviews found no remaining code/test issues, with v3 device
+  acceptance still pending. Isolated branch `caveman/fix-ios-long-thread-momentum-loss` is rebased
+  onto `origin/dev` at `740f8b746`. PR #114 merged into `dev` while this task was in progress, so its
+  desktop-focused scroll-jump fix is now part of the base; this iOS work remains four separate local
+  commits and was never added to PR #114 or its branch. No production deploy was performed.
+- Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
+  (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
+  momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
+  changed `scrollTop` by about +1720px while the ledger moved -1596px -> 0; the programmatic write
+  stopped native inertia even though the anchor did not visibly jump.
+- Primary hypothesis: `waitForScrollQuiescence` currently trusts a 150ms absence of JavaScript
+  `scroll` events. iOS can continue compositor momentum while delivery of those events pauses, so
+  an offset-ledger or prepend waiter can falsely declare rest and write `scrollTop` mid-fling.
+- Separate risk under investigation: `shouldSettleLedgerAtBoundary` intentionally settles during a
+  live ride near an unreachable ledger edge to prevent a blank region. That safety path may explain
+  the large trace rebase and must be distinguished from ordinary quiescence rather than weakened
+  blindly.
+- Baseline: the existing focused quiescence suite passes (11 tests). RED is now proven: three new
+  fake-timer cases advance `scrollTop` during the idle window without dispatching `scroll`, through
+  ordinary positive offsets, a negative iOS rubber-band offset, and fractional motion. All three
+  fail against the event-only waiter because it resolves at the first 100ms deadline instead of
+  requiring a fresh full idle window.
+- GREEN: each idle window now captures `scrollTop` and compares it at the deadline. A changed offset
+  re-arms the full window even when no event was delivered; exact comparison deliberately preserves
+  fractional motion and naturally supports negative rubber-band values. Scroll events still sample
+  and re-arm, touch blocking/detach cleanup are unchanged, finite waits retain their starvation cap,
+  and `Infinity` still creates no cap timer. A dedicated silent-progress test pins the finite cap as
+  an absolute deadline. The focused suite passes (15 tests); touched lint, typecheck, and production
+  build also pass.
+- Independent review found no remaining code or test issues after strengthening the real-event path
+  to mutate the sampled offset. It confirmed silent positive/negative/fractional progress, exact one
+  idle-window event re-arming, absolute finite caps, uncapped `Infinity`, touch/cancel/detach cleanup,
+  and timer-race idempotence.
+- Boundary audit: `tr=-1596` in the large t=61330 episode means ledger `px=+1596`, which predicts
+  most of the observed +1720 `scrollTop` rebase. At `scrollTop=1023` on the 695px viewport, the
+  positive-ledger top guard's two-viewport geometry is strongly consistent with the settle, but v2
+  lacks the inner/scroller rectangles needed to prove the predicate was true. All three callers also
+  shared one untagged settle.
+- Instrumentation RED was proven: a trace-schema regression exported v2 with no per-frame cause
+  counts, while two component tests proved the existing boundary and quiescence writes occurred but
+  failed because neither incremented a distinguishable counter.
+- Instrumentation GREEN: each successful non-zero settle now increments either
+  `ledgerQuiescenceSettles` or `ledgerBoundarySettles`; stale/no-element waits do not count. Ride
+  trace v3 samples both cumulative scalars (`lq`/`lb`) on every frame through a zero-allocation getter,
+  so adjacent-frame deltas attribute each rebase. Component coverage pins ordinary dropped-measurement
+  quiescence, boundary settlement followed by a pending-waiter no-op, and prepend-fold quiescence.
+- Independent instrumentation review approved the final slice with no findings after strengthening
+  the trace test from one static frame to live quiescence and boundary counter transitions across
+  three frames. Focused coverage passes (4 files / 94 tests), as do typecheck, production build,
+  touched lint (0 errors / 1 pre-existing warning), focused Prettier, and `git diff --check`.
+- Rebase: the first replay onto `88b071e6` had only Runbook insertion conflicts; both sections were
+  preserved and shared ledger code auto-merged. The three implementation/test commits then replayed
+  conflict-free onto final base `740f8b746`; this fourth docs-only commit records final validation.
+  The combined focused battery passes (7 files / 193 tests), including PR #114's desktop correction
+  contracts plus iOS quiescence, real-virtualizer, ledger lifecycle, cache fold, and trace coverage.
+- Independent post-rebase review found and closed two merge-only mismatches: the new lifecycle cases
+  now use PR #114's `scrollDirection` hook contract, and this Runbook records the new base/ordering.
+  It confirmed `threadRenderUtils.ts` is byte-identical to `origin/dev`, the three implementation/test
+  patches are otherwise range-diff equivalent, conflict markers are absent, and the 193-test battery
+  is green.
+- Boundary decision: keep the existing guard unchanged pending a v3 device trace. The current ledger
+  keeps an existing anchor fixed by placing the newly loaded prefix at a negative scroll origin; any
+  spacer added in the same commit requires an equal counter-offset and leaves that prefix just as
+  unreachable. Only a preallocated top runway can make it reachable without a `scrollTop` write, and
+  that is a larger architecture change affecting open/focus/bottom coordinates, scrollbar/minimap
+  scale, loading UI, reserve replenishment, and exhaustion fallback. Merely shrinking or polling the
+  two-viewport guard delays the same momentum-killing write and risks restoring its proven 367px
+  blank / 4968px clamp regression.
+- Acceptance interpretation: this patch fixes every false-quiescence settlement (`lq`) caused by
+  event-throttled but still-changing `scrollTop`. The v2 trace cannot prove which of its three stalls
+  were `lq`; the large t=61330 and top-rubber-band t=62476 episodes are boundary-compatible and may
+  remain as the deliberate no-blank tradeoff. A same-thread v3 recapture is required before promoting
+  the preallocated-runway redesign.
+- Live Docker-Matrix ride guard: 3 passed / 2 explicit environment skips. The sustained ride had
+  737 frames, zero gaps/jumps, and one quiescence settle. The boundary ride reached `scrollTop=0`,
+  accrued 1242px of ledger, recorded exactly one quiescence plus one boundary settle, and kept gaps/
+  jumps at zero. Hydration grew 8 -> 561 rows with zero off-bottom interval. Both pagination-specific
+  rides sampled clean pixels/DOM but skipped loudly because this server filled all 361 rows before
+  sampling; the compositor case now shares the neighboring test's existing degeneration guard.
+  Independent follow-up review found the skips honest and the boundary counter assertion non-vacuous.
+- Final validation on `740f8b746`: full `npm test` passes (363 files / 2878 tests), full lint passes
+  (0 errors / 19 pre-existing warnings), typecheck and production build pass, and `git diff --check`
+  is clean. Final independent replay review confirmed the exact merge base, three equivalent local
+  implementation/test patches, expected 12-file diff, correct Runbook ordering, and no interaction
+  with upstream #109.
+- Device acceptance procedure once this branch is available on the iPhone: open the same long thread
+  with `?ridetrace=1`; make repeated strong upward flings through at least two back-pagination page
+  arrivals; after any inertia loss, do not touch for roughly half a second; continue the ride, then
+  tap the red TRACE button and share the JSON. Confirm `version: 3`; a counter increase in `lq`
+  attributes a stall to quiescence, while `lb` attributes it to the retained boundary tradeoff. If
+  no stall remains or only `lq` stalls disappear, ship this focused fix; a renewed `lb` stall is the
+  promotion signal for the separately designed preallocated-runway architecture.
+
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
 - Status: complete; independent review found no actionable issues.
