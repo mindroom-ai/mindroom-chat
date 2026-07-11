@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Delay MindRoom push notifications until streaming finishes (2026-07-11)
+
+- Status: complete locally on `caveman/delay-streaming-push` from `origin/dev` at `5d66af4f2`;
+  final review found no remaining issues.
+- MindRoom sends the initial agent event with `io.mindroom.stream_status: pending`, progressive
+  `m.replace` edits with `streaming`, and terminal edits with `completed`, `cancelled`,
+  `interrupted`, or `error`. Edit envelopes carry this metadata at both the wrapper and
+  `m.new_content` levels.
+- Matrix normally notifies for the initial event and suppresses all edits through
+  `.m.rule.suppress_edits`. Cinny will install higher-priority account override rules that suppress
+  active statuses and notify on terminal statuses, leaving events without MindRoom stream metadata
+  unchanged.
+- Validation: focused push-rule tests, typecheck, App Store preflight, production build, full lint
+  (0 errors / 19 existing warnings), touched-file Prettier, and full `npm test` (364 files / 2,882
+  tests) pass. The behavior test uses the SDK push processor with a real `m.replace` event to prove
+  terminal rules take priority over Matrix's default edit suppression.
+
 ### Automatic Xcode Cloud App Store versioning (2026-07-10)
 
 - Status: complete locally; independent post-fix review found no remaining issues.

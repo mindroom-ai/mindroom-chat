@@ -27,6 +27,7 @@ import {
   upsertIOSPushPusher,
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
+import { ensureMindroomStreamingPushRules } from '../native/iosPushRules';
 
 const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
 const LogoHighlightSVG = MINDROOM_FAVICON_SRC;
@@ -231,6 +232,7 @@ function MindroomNativeIOSPushFeature() {
         return;
       }
 
+      await ensureMindroomStreamingPushRules(mx);
       await registerIOSPush();
     };
 
