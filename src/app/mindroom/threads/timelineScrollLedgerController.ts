@@ -60,6 +60,42 @@ export type TimelineScrollLedgerController = {
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
 
+type LedgerSettleVirtualizer<TOptions extends { scrollMargin?: number }> = {
+  scrollOffset: number | null;
+  options: TOptions;
+  setOptions: (options: TOptions) => void;
+};
+
+/**
+ * The DOM/virtualizer half of a ledger settle, as ONE function so the
+ * real-core contract test (timelineScrollLedgerSettle.contract.test.ts)
+ * executes the production sequence instead of a re-implementation.
+ *
+ * Ordering is load-bearing: the scrollTop write echoes asynchronously (iOS
+ * may coalesce it away entirely) while setOptions recomputes the window
+ * synchronously — so the virtualizer's cached offset must be reconciled to
+ * the clamped post-write value FIRST, or the recompute pairs zeroed margin
+ * with a pre-write offset and shifts the window by the whole fold,
+ * mounting and measuring a band of far-away rows in one 100-240ms frame
+ * (the settle-cascade jump: up to +1,531px content growth right after
+ * rest, ride-traces 1783802452438 / 1783804190290, pinned in
+ * rideTraceReplay.test.ts). Returns the clamped post-write scrollTop.
+ */
+export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
+  inner: { style: { marginTop: string } },
+  scrollElement: { scrollTop: number },
+  px: number,
+  virtualizer: LedgerSettleVirtualizer<TOptions>
+): number => {
+  inner.style.marginTop = '';
+  scrollElement.scrollTop += px;
+  // Read back the browser-clamped value instead of assuming old+px.
+  const settledScrollTop = scrollElement.scrollTop;
+  virtualizer.scrollOffset = settledScrollTop;
+  virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
+  return settledScrollTop;
+};
+
 /**
  * Owns the timeline virtualizer and its offset-ledger lifecycle.
  *
@@ -221,15 +257,16 @@ export const useTimelineScrollLedgerController = ({
       const scrollElement = getScrollElement();
       if (px === 0 || !inner || !scrollElement) return;
       scrollCompensationPxRef.current = 0;
-      inner.style.marginTop = '';
-      scrollElement.scrollTop += px;
-      // Read back the browser-clamped value instead of assuming old+px.
-      // Safari can suppress/coalesce the setter's scroll event, so waiting
-      // for that event would leave the boundary direction baseline stale.
-      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+      // Waiting for the write's scroll event would leave the boundary
+      // direction baseline stale (Safari can suppress/coalesce it), so the
+      // settle's clamped read-back seeds it directly.
+      ledgerBoundaryScrollTopRef.current = applyLedgerSettle(
+        inner,
+        scrollElement,
+        px,
+        virtualizerRef.current
+      );
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
-      const currentVirtualizer = virtualizerRef.current;
-      currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
     },
     [getScrollElement]
   );

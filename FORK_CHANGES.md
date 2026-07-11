@@ -2,6 +2,51 @@
 
 ## Runbook
 
+### Settle-cascade jump after rest: diagnosis and plan (2026-07-11)
+
+- Status: VALIDATED on device (iPad trace `ride-trace-1783811896380`, same
+  thread as the defect rides): all five tracked rest settles up to 3,202px
+  land with zero slip, zero extra growth, anchor row surviving; the
+  100-240ms cascade stalls are gone (slowest settle frame 125ms = the
+  once-per-open fill). Post-fix behavior pinned in the corpus
+  (`ipadCascadeFixed`); pre-fix goldens kept as detector proof. Known
+  residuals (smaller, separate families): ~98px slip when the open-fill's
+  single 33k rebase lands while touching the top edge; ~31px top-bounce
+  boundary slip inside the event-vs-frame sampling gap. The
+  defect's pre-fix rides stay pinned in the corpus (`rideTraceReplay.test.ts`,
+  test "detects the settle-cascade defect in the pre-#124 rides"); the
+  original tracking note lives on PR #122, the fix on PR #124.
+- Root cause confirmed in virtual-core 3.17.3: `scrollMargin` is baked into
+  every measurement's start and ranges are computed against the virtualizer's
+  CACHED `scrollOffset`; the settle wrote `scrollElement.scrollTop` directly,
+  whose echo event is async (iOS may coalesce it away), so the same-block
+  `setOptions(scrollMargin: 0)` recomputed the window with new measurements
+  and a pre-write offset — shifting the range by the whole fold and mounting
+  a band of never-measured rows.
+- Fix: the settle now assigns the clamped post-write scrollTop to the
+  virtualizer's public `scrollOffset` before `setOptions`, making the fold
+  atomic from the window's point of view. Ordering + value pinned in the
+  boundary-settle lifecycle test (offset snapshot at setOptions call time).
+- Symptom (both 2026-07-11 traces of thread ff7965e2, pre- and post-#122
+  builds): ~150ms after a fling rests, the quiescence settle executes fold +
+  scrollTop rewrite + `setOptions(scrollMargin: 0)` in one synchronous block;
+  the same 100-240ms frame remounts/remeasures window rows, growing
+  scrollHeight up to 1,531px beyond the fold with no matching scroll shift —
+  a visible content jump. The trace recorder's anchor row unmounts in exactly
+  those frames, which is why they long masqueraded as slip-0 settles.
+- Working hypothesis: the settle's synchronous `setOptions` notify recomputes
+  the window before virtual-core's cached scrollOffset has absorbed the
+  scrollTop write (the echoing scroll event is async/coalesced on iOS), so
+  the window shifts by the fold px for one recompute, mounting a band of
+  never-measured rows whose estimate error lands as the extra growth.
+- Executed plan (all done): (1) the stale-offset recompute is proven by the
+  real-core contract test's detector companion; (2) the settle is atomic —
+  `applyLedgerSettle` syncs the cached offset before `setOptions`; (3) the
+  corpus holds post-fix goldens from the validation trace (`ipadCascadeFixed`,
+  five tracked large rest settles at zero slip / zero extra growth).
+- Explicitly out of scope: mounting the window ahead of momentum (the eaten
+  fling itself) — separate, larger change.
+
 ### External PR #122 review: verified findings fixed, one declined (2026-07-11)
 
 An external AI review of PR #122 raised three findings; each was verified
