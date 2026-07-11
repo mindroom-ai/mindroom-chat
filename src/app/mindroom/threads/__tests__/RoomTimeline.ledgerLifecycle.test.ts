@@ -692,6 +692,20 @@ describe('RoomTimeline ledger lifecycle', () => {
             }
           ) => boolean)
         | undefined;
+      const virtualizerInstance = roomTimelineVirtualizerState.lastInstance as unknown as {
+        scrollOffset?: number;
+        setOptions: (next: unknown) => void;
+      };
+      const offsetAtSetOptions: (number | undefined)[] = [];
+      const originalSetOptions = virtualizerInstance.setOptions.bind(virtualizerInstance);
+      virtualizerInstance.setOptions = (next: unknown) => {
+        // The settle must reconcile the virtualizer's cached offset BEFORE
+        // the setOptions window recompute: stale offset + zeroed margin
+        // shifts the computed range by the whole fold — the settle-cascade
+        // remeasure burst traced on device (rideTraceReplay.test.ts).
+        offsetAtSetOptions.push(virtualizerInstance.scrollOffset);
+        originalSetOptions(next);
+      };
       await act(async () => {
         // Arm before the listener has seen any scroll event. Its mount-time
         // baseline must classify this very first native frame as forward
@@ -710,6 +724,10 @@ describe('RoomTimeline ledger lifecycle', () => {
         quiescence: countsBefore.quiescence,
         boundary: countsBefore.boundary + 1,
       });
+      // The cached offset was synced to the clamped post-write scrollTop
+      // before the recompute, and stays synced after the settle.
+      expect(offsetAtSetOptions).toEqual([34412]);
+      expect(virtualizerInstance.scrollOffset).toBe(34412);
 
       await act(async () => {
         expect(hook!({ end: 100 }, 34, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(

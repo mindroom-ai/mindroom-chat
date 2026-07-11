@@ -4,9 +4,21 @@
 
 ### Settle-cascade jump after rest: diagnosis and plan (2026-07-11)
 
-- Status: in progress on `fix/settle-cascade-remeasure`. The defect is pinned
-  by the merged ride-trace corpus (`rideTraceReplay.test.ts`, test "detects
-  the OPEN settle-cascade defect") and documented on PR #122.
+- Status: fix implemented on `fix/settle-cascade-remeasure` (PR #124);
+  awaiting on-device validation on the lab, then corpus rethreshold. The
+  defect is pinned by the merged ride-trace corpus (`rideTraceReplay.test.ts`,
+  test "detects the OPEN settle-cascade defect") and documented on PR #122.
+- Root cause confirmed in virtual-core 3.17.3: `scrollMargin` is baked into
+  every measurement's start and ranges are computed against the virtualizer's
+  CACHED `scrollOffset`; the settle wrote `scrollElement.scrollTop` directly,
+  whose echo event is async (iOS may coalesce it away), so the same-block
+  `setOptions(scrollMargin: 0)` recomputed the window with new measurements
+  and a pre-write offset — shifting the range by the whole fold and mounting
+  a band of never-measured rows.
+- Fix: the settle now assigns the clamped post-write scrollTop to the
+  virtualizer's public `scrollOffset` before `setOptions`, making the fold
+  atomic from the window's point of view. Ordering + value pinned in the
+  boundary-settle lifecycle test (offset snapshot at setOptions call time).
 - Symptom (both 2026-07-11 traces of thread ff7965e2, pre- and post-#122
   builds): ~150ms after a fling rests, the quiescence settle executes fold +
   scrollTop rewrite + `setOptions(scrollMargin: 0)` in one synchronous block;

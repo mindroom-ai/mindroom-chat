@@ -229,6 +229,16 @@ export const useTimelineScrollLedgerController = ({
       ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
       const currentVirtualizer = virtualizerRef.current;
+      // Reconcile the virtualizer's cached offset in the SAME block. The
+      // scrollTop write above echoes asynchronously (iOS may coalesce it
+      // away entirely), while setOptions below recomputes the window
+      // synchronously: with scrollMargin zeroed but the cached offset
+      // still pre-write, the computed window shifts by the whole fold,
+      // mounting and measuring a band of far-away rows in one frame — the
+      // 100-240ms settle-cascade stall with up to +1,531px content growth
+      // right after rest (ride-traces 1783802452438 / 1783804190290,
+      // pinned in rideTraceReplay.test.ts).
+      currentVirtualizer.scrollOffset = scrollElement.scrollTop;
       currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
     },
     [getScrollElement]
