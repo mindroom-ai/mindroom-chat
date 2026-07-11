@@ -111,10 +111,11 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: in progress on isolated branch `caveman/fix-ios-long-thread-momentum-loss`, rebased onto
-  `origin/dev` at `88b071e6`. PR #114 merged into `dev` while this task was in progress, so its
-  desktop-focused scroll-jump fix is now part of the base; this iOS work remains two separate local
-  commits and was never added to PR #114 or its branch. No production deploy is authorized.
+- Status: complete locally; independent reviews found no remaining code/test issues, with v3 device
+  acceptance still pending. Isolated branch `caveman/fix-ios-long-thread-momentum-loss` is rebased
+  onto `origin/dev` at `740f8b746`. PR #114 merged into `dev` while this task was in progress, so its
+  desktop-focused scroll-jump fix is now part of the base; this iOS work remains four separate local
+  commits and was never added to PR #114 or its branch. No production deploy was performed.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -160,14 +161,16 @@
   the trace test from one static frame to live quiescence and boundary counter transitions across
   three frames. Focused coverage passes (4 files / 94 tests), as do typecheck, production build,
   touched lint (0 errors / 1 pre-existing warning), focused Prettier, and `git diff --check`.
-- Rebase: both local commits were replayed onto `88b071e6`; the only conflicts were Runbook insertion
-  points, both sections were preserved, and code in the shared ledger subsystem auto-merged. The
-  combined focused battery passes (7 files / 193 tests), including PR #114's desktop correction
+- Rebase: the first replay onto `88b071e6` had only Runbook insertion conflicts; both sections were
+  preserved and shared ledger code auto-merged. The three implementation/test commits then replayed
+  conflict-free onto final base `740f8b746`; this fourth docs-only commit records final validation.
+  The combined focused battery passes (7 files / 193 tests), including PR #114's desktop correction
   contracts plus iOS quiescence, real-virtualizer, ledger lifecycle, cache fold, and trace coverage.
 - Independent post-rebase review found and closed two merge-only mismatches: the new lifecycle cases
   now use PR #114's `scrollDirection` hook contract, and this Runbook records the new base/ordering.
-  It confirmed `threadRenderUtils.ts` is byte-identical to `origin/dev`, the two local patches are
-  otherwise range-diff equivalent, conflict markers are absent, and the 193-test battery is green.
+  It confirmed `threadRenderUtils.ts` is byte-identical to `origin/dev`, the three implementation/test
+  patches are otherwise range-diff equivalent, conflict markers are absent, and the 193-test battery
+  is green.
 - Boundary decision: keep the existing guard unchanged pending a v3 device trace. The current ledger
   keeps an existing anchor fixed by placing the newly loaded prefix at a negative scroll origin; any
   spacer added in the same commit requires an equal counter-offset and leaves that prefix just as
@@ -188,8 +191,18 @@
   rides sampled clean pixels/DOM but skipped loudly because this server filled all 361 rows before
   sampling; the compositor case now shares the neighboring test's existing degeneration guard.
   Independent follow-up review found the skips honest and the boundary counter assertion non-vacuous.
-- Next: run the full repository gates, finalize status, and leave exact v3 device recapture
-  instructions; do not deploy this branch as part of the task.
+- Final validation on `740f8b746`: full `npm test` passes (363 files / 2878 tests), full lint passes
+  (0 errors / 19 pre-existing warnings), typecheck and production build pass, and `git diff --check`
+  is clean. Final independent replay review confirmed the exact merge base, three equivalent local
+  implementation/test patches, expected 12-file diff, correct Runbook ordering, and no interaction
+  with upstream #109.
+- Device acceptance procedure once this branch is available on the iPhone: open the same long thread
+  with `?ridetrace=1`; make repeated strong upward flings through at least two back-pagination page
+  arrivals; after any inertia loss, do not touch for roughly half a second; continue the ride, then
+  tap the red TRACE button and share the JSON. Confirm `version: 3`; a counter increase in `lq`
+  attributes a stall to quiescence, while `lb` attributes it to the retained boundary tradeoff. If
+  no stall remains or only `lq` stalls disappear, ship this focused fix; a renewed `lb` stall is the
+  promotion signal for the separately designed preallocated-runway architecture.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
