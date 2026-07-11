@@ -474,16 +474,10 @@ export const useMindroomThreadIndex = ({
     );
   }, [compactThreadRootData.bodyMap, cachedMetadata.compactRootBodyMap]);
 
-  const [debouncedFreeText, setDebouncedFreeText] = useState(
-    requestedThreadFilterState.freeText
-  );
-  const liveThreadFilterState = requestedThreadFilterState;
+  const [debouncedFreeText, setDebouncedFreeText] = useState(requestedThreadFilterState.freeText);
 
   useEffect(() => {
-    const timer = setTimeout(
-      () => setDebouncedFreeText(requestedThreadFilterState.freeText),
-      300
-    );
+    const timer = setTimeout(() => setDebouncedFreeText(requestedThreadFilterState.freeText), 300);
     return () => clearTimeout(timer);
   }, [requestedThreadFilterState.freeText]);
 
@@ -493,12 +487,13 @@ export const useMindroomThreadIndex = ({
   );
   const threadSortControlSignature = useMemo(
     () =>
+      // searchQuery defaults to state.freeText, which already carries the
+      // debounced text here.
       createThreadSortControlSignature({
         state: debouncedThreadFilterState,
-        searchQuery: debouncedFreeText,
         viewMode: effectiveViewMode,
       }),
-    [debouncedFreeText, debouncedThreadFilterState, effectiveViewMode]
+    [debouncedThreadFilterState, effectiveViewMode]
   );
   const visibleThreadRootEventMap = useMemo(
     () => buildThreadRootEventMap(roomSurfaceEventEntries, visibleThreadRootData.indexMap),
@@ -581,7 +576,7 @@ export const useMindroomThreadIndex = ({
         normalThreadRecordMap,
         compactThreadRecordMap,
         threadFilterState: debouncedThreadFilterState,
-        liveThreadFilterState,
+        liveThreadFilterState: requestedThreadFilterState,
         fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
         searchQuery: debouncedFreeText,
         threadSortFreezeState,
@@ -597,7 +592,7 @@ export const useMindroomThreadIndex = ({
       normalThreadRecordMap,
       compactThreadRecordMap,
       debouncedThreadFilterState,
-      liveThreadFilterState,
+      requestedThreadFilterState,
       debouncedFreeText,
       threadSortFreezeState,
       threadSortControlSignature,

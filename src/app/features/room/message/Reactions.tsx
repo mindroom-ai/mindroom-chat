@@ -28,8 +28,8 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 export type ReactionsProps = {
   room: Room;
   mEventId: string;
-  /** Reaction target, for suppressing stale MindRoom stop chips. Falls back to a room lookup. */
-  targetEvent?: MatrixEvent;
+  /** Reaction target; used to suppress stale MindRoom stop chips. */
+  targetEvent: MatrixEvent;
   canSendReaction?: boolean;
   relations: Relations;
   onReactionToggle: (
@@ -59,10 +59,7 @@ export const Reactions = as<'div', ReactionsProps>(
     const myUserId = mx.getUserId();
     const reactions = useRelations(
       relations,
-      useCallback(
-        (rel) => getRenderableAnnotationsByKey(rel, targetEvent ?? room.findEventById?.(mEventId)),
-        [targetEvent, room, mEventId]
-      )
+      useCallback((rel) => getRenderableAnnotationsByKey(rel, targetEvent), [targetEvent])
     );
 
     const handleViewReaction: MouseEventHandler<HTMLButtonElement> = (evt) => {

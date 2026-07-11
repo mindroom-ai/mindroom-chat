@@ -16,6 +16,7 @@ import { bumpRecentThread, clearRecentThreadsStore } from '../recent-threads/rec
 import {
   DEFAULT_CROSS_ROOM_THREAD_FILTERS,
   clearCrossRoomThreadFiltersStore,
+  makeCrossRoomThreadFiltersAtom,
 } from '../cross-room-threads/crossRoomThreadFilters';
 
 const USER_ID = '@alice:example.org';
@@ -55,7 +56,7 @@ describe('MindRoom client storage atom registration', () => {
     bumpRecentThread('!room:example.org', '$thread-root', 200, 'Preview text');
     setRecentThreadsPanelHeight(320);
     setRecentThreadsPanelMobileExpanded(true);
-    getDefaultStore().set(atoms.crossRoomThreadFiltersAtom, {
+    getDefaultStore().set(makeCrossRoomThreadFiltersAtom(USER_ID), {
       ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
       query: 'agent',
     });
@@ -67,7 +68,7 @@ describe('MindRoom client storage atom registration', () => {
     expect(storage.get(`recentThreadsPanelMobileExpanded:${USER_ID}`)).toBe(
       '{"expanded":true,"v":1}'
     );
-    expect(getDefaultStore().get(atoms.crossRoomThreadFiltersAtom).query).toBe('agent');
+    expect(getDefaultStore().get(makeCrossRoomThreadFiltersAtom(USER_ID)).query).toBe('agent');
     expect(storage.get(`crossRoomThreadFilters:${USER_ID}`)).not.toContain('"query"');
 
     unregister();

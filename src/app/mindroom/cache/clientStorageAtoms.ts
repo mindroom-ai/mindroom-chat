@@ -8,17 +8,17 @@ import {
   makeRecentThreadsPanelMobileExpandedAtom,
   registerRecentThreadsPanelMobileExpandedAtom,
 } from '../recent-threads/recentThreadsPanelMobileExpanded';
-import {
-  makeCrossRoomThreadFiltersAtom,
-  registerCrossRoomThreadFiltersAtom,
-} from '../cross-room-threads/crossRoomThreadFilters';
+
+// The cross-room thread filters atom is NOT registered here: its registry has
+// no imperative writers (nothing resolves an "active" atom for it), so
+// consumers create it directly via `makeCrossRoomThreadFiltersAtom` and
+// session cleanup clears the registry without needing a registration.
 
 export type MindroomClientStorageAtoms = {
   userId: string;
   recentThreadsAtom: ReturnType<typeof makeRecentThreadsAtom>;
   recentThreadsPanelHeightAtom: ReturnType<typeof makeRecentThreadsPanelHeightAtom>;
   recentThreadsPanelMobileExpandedAtom: ReturnType<typeof makeRecentThreadsPanelMobileExpandedAtom>;
-  crossRoomThreadFiltersAtom: ReturnType<typeof makeCrossRoomThreadFiltersAtom>;
 };
 
 export const makeMindroomClientStorageAtoms = (userId: string): MindroomClientStorageAtoms => ({
@@ -26,7 +26,6 @@ export const makeMindroomClientStorageAtoms = (userId: string): MindroomClientSt
   recentThreadsAtom: makeRecentThreadsAtom(userId),
   recentThreadsPanelHeightAtom: makeRecentThreadsPanelHeightAtom(userId),
   recentThreadsPanelMobileExpandedAtom: makeRecentThreadsPanelMobileExpandedAtom(userId),
-  crossRoomThreadFiltersAtom: makeCrossRoomThreadFiltersAtom(userId),
 });
 
 export const registerMindroomClientStorageAtoms = ({
@@ -34,7 +33,6 @@ export const registerMindroomClientStorageAtoms = ({
   recentThreadsAtom,
   recentThreadsPanelHeightAtom,
   recentThreadsPanelMobileExpandedAtom,
-  crossRoomThreadFiltersAtom,
 }: MindroomClientStorageAtoms): (() => void) => {
   const unregisterRecentThreadsAtom = registerRecentThreadsAtom(userId, recentThreadsAtom);
   const unregisterRecentThreadsPanelHeightAtom = registerRecentThreadsPanelHeightAtom(
@@ -43,13 +41,8 @@ export const registerMindroomClientStorageAtoms = ({
   );
   const unregisterRecentThreadsPanelMobileExpandedAtom =
     registerRecentThreadsPanelMobileExpandedAtom(userId, recentThreadsPanelMobileExpandedAtom);
-  const unregisterCrossRoomThreadFiltersAtom = registerCrossRoomThreadFiltersAtom(
-    userId,
-    crossRoomThreadFiltersAtom
-  );
 
   return () => {
-    unregisterCrossRoomThreadFiltersAtom();
     unregisterRecentThreadsPanelMobileExpandedAtom();
     unregisterRecentThreadsPanelHeightAtom();
     unregisterRecentThreadsAtom();

@@ -13,7 +13,6 @@ const capture = (
 ): ThreadVirtualPrependCapture => ({
   threadId: '$root',
   anchorEventId: '$anchor',
-  anchorIndex: 2,
   anchorSeq: 7,
   abovePrices: new Map([['$old', 40]]),
   foldedEvents,

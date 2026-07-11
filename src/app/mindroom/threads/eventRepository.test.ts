@@ -5,7 +5,6 @@ import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   createPreferLiveEventMapper,
-  loadRoomCachePersistenceState,
   loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
   loadRoomCachedBackStateSnapshot,
@@ -889,43 +888,6 @@ describe('eventRepository room cached pagination snapshots', () => {
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$newer', '$older']);
     expect(snapshot.beforeToken).toBe('before-older');
     expect(snapshot.hasMoreCachedBack).toBe(true);
-  });
-});
-
-describe('eventRepository room cache persistence state', () => {
-  it('clears stale SDK backward tokens when cached metadata proves the room start', async () => {
-    const state = await loadRoomCachePersistenceState({
-      sessionId: 'session',
-      roomId: '!room:example.org',
-      earliestLoadedEventId: '$earliest',
-      currentBeforeToken: 'sdk-before',
-      loadPaginationToken: async (sessionId, roomId, eventId) => {
-        expect(sessionId).toBe('session');
-        expect(roomId).toBe('!room:example.org');
-        expect(eventId).toBe('$earliest');
-        return null;
-      },
-    });
-
-    expect(state.cachedBeforeToken).toBeNull();
-    expect(state.beforeTokenForEarliest).toBeNull();
-    expect(state.roomStartKnown).toBe(true);
-    expect(state.shouldClearBackwardToken).toBe(true);
-  });
-
-  it('keeps the SDK backward token when cache metadata has no stronger coverage fact', async () => {
-    const state = await loadRoomCachePersistenceState({
-      sessionId: 'session',
-      roomId: '!room:example.org',
-      earliestLoadedEventId: '$earliest',
-      currentBeforeToken: 'sdk-before',
-      loadPaginationToken: async () => undefined,
-    });
-
-    expect(state.cachedBeforeToken).toBeUndefined();
-    expect(state.beforeTokenForEarliest).toBe('sdk-before');
-    expect(state.roomStartKnown).toBe(false);
-    expect(state.shouldClearBackwardToken).toBe(false);
   });
 });
 

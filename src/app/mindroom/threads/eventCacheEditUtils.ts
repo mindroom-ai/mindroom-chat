@@ -8,8 +8,8 @@ import {
 import { getLatestEdit, isEventOrderedAfter } from '../../utils/room';
 import { countCacheProbe } from './cacheProbe';
 import {
-  collectEmbeddedRelationEventIds,
-  collectExplicitRedactedEventIds,
+  collectKnownRedactedEventIds,
+  createIsKnownRedacted,
   stripRedactedRelationsFromRawEvent,
 } from './eventRevision';
 
@@ -352,30 +352,19 @@ export const hydrateCachedEvents = ({
 }): RedactedRelationTarget[] => {
   const redactedRelationTargets = applyCachedRedactions(room, events);
   const rawEvents = events.map((event) => event.event as Partial<IEvent>);
-  const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
-  events.forEach((event) => {
-    const eventId = event.getId();
-    if (eventId && event.isRedacted()) redactedEventIds.add(eventId);
-    const associatedId = event.isRedaction() ? event.getAssociatedId() : undefined;
-    if (associatedId) redactedEventIds.add(associatedId);
-  });
-  collectEmbeddedRelationEventIds(rawEvents).forEach((eventId) => {
-    if (room.findEventById(eventId)?.isRedacted()) redactedEventIds.add(eventId);
-  });
+  // `applyCachedRedactions` has already applied every in-batch redaction, so
+  // `collectKnownRedactedEventIds` now sees the same `unsigned.redacted_because`
+  // that a manual `events.forEach(event.isRedacted())` pass would surface, plus
+  // the raw `m.room.redaction` records (including v11 `content.redacts`) and
+  // the live-room lookups for embedded relation targets.
+  const redactedEventIds = collectKnownRedactedEventIds(room, rawEvents);
 
   events.forEach((event) => {
     const rawEvent = event.event as Partial<IEvent>;
     const prunedRawEvent = stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds);
     if (prunedRawEvent !== rawEvent) event.setUnsigned(prunedRawEvent.unsigned ?? {});
   });
-  const isKnownRedacted = (event: MatrixEvent): boolean => {
-    if (event.isRedacted()) return true;
-    const eventId = event.getId();
-    return (
-      !!eventId &&
-      (redactedEventIds.has(eventId) || room.findEventById(eventId)?.isRedacted() === true)
-    );
-  };
+  const isKnownRedacted = createIsKnownRedacted(room, redactedEventIds);
   applyCachedReplaceRelations(events, isKnownRedacted);
   applySerializedCachedReplaceRelations(events, isKnownRedacted);
   if (timelineSets) {

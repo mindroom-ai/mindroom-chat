@@ -1,26 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
-import { getMindroomAiRunInfo } from '../messages/aiRun';
+import {
+  ACTIVE_STREAM_STATUSES,
+  STREAM_STATUS_KEY,
+  TERMINAL_STREAM_STATUSES,
+  getMindroomAiRunInfo,
+  getStreamStatusFromContent,
+} from '../messages/aiRun';
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
-
-const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
-const ACTIVE_STREAM_STATES = new Set(['active', 'running', 'streaming']);
-const TERMINAL_STREAM_STATES = new Set([
-  'complete',
-  'completed',
-  'done',
-  'error',
-  'failed',
-  'stopped',
-  'cancelled',
-  'interrupted',
-]);
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -52,28 +45,27 @@ const getPreferredEventContent = (
   return getLatestMessageContent(mEvent, editedEvent);
 };
 
-const getStatusFromMetadata = (metadata: unknown): string | undefined => {
-  if (typeof metadata === 'string' && metadata.length > 0) {
-    return metadata.toLowerCase();
-  }
-
+// Some producers wrap the stream status in a `{ status | state }` record instead
+// of writing a plain string. Fall back to that shape when the shared string
+// helper (which only accepts strings) yields nothing.
+const getStatusFromRecordMetadata = (metadata: unknown): string | undefined => {
   if (!isRecord(metadata)) return undefined;
-
   const statusCandidate = metadata.status ?? metadata.state;
   if (typeof statusCandidate !== 'string' || statusCandidate.length === 0) return undefined;
-
   return statusCandidate.toLowerCase();
 };
 
 const getMindroomStreamStatus = (content: Record<string, unknown>): string | undefined => {
+  const fromStringForm = getStreamStatusFromContent(content);
+  if (fromStringForm) return fromStringForm;
+
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
     : undefined;
-
-  const newContentStatus = getStatusFromMetadata(newContent?.[STREAM_STATUS_KEY]);
-  if (newContentStatus) return newContentStatus;
-
-  return getStatusFromMetadata(content[STREAM_STATUS_KEY]);
+  return (
+    getStatusFromRecordMetadata(newContent?.[STREAM_STATUS_KEY]) ??
+    getStatusFromRecordMetadata(content[STREAM_STATUS_KEY])
+  );
 };
 
 const hasStopReaction = (relations: Relations | undefined): boolean =>
@@ -104,14 +96,14 @@ const isEventStreaming = (
 
   const streamStatus = getMindroomStreamStatus(content);
   const terminalMetadata =
-    (aiRunStatus && TERMINAL_STREAM_STATES.has(aiRunStatus)) ||
-    (streamStatus && TERMINAL_STREAM_STATES.has(streamStatus));
+    (aiRunStatus && TERMINAL_STREAM_STATUSES.has(aiRunStatus)) ||
+    (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus));
 
   if (hasStopReaction(relations) && !terminalMetadata) {
     return true;
   }
 
-  return !!streamStatus && ACTIVE_STREAM_STATES.has(streamStatus) && !terminalMetadata;
+  return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus) && !terminalMetadata;
 };
 
 const getThreadStreamingSnapshot = (

@@ -174,6 +174,44 @@ export const collectEmbeddedRelationEventIds = (
   return eventIds;
 };
 
+/**
+ * Union of every event id known to be redacted from the given raw batch: the
+ * batch's own explicit redactions (from `unsigned.redacted_because` or
+ * `m.room.redaction` records, including `content.redacts` for room-v11) plus
+ * embedded relation targets that the live room already reports redacted.
+ * Callers use this both to prune stale relation bundles from persisted raws
+ * (see `stripRedactedRelationsFromRawEvent`) and to gate live SDK relation
+ * application against events the SDK has already redacted.
+ */
+export const collectKnownRedactedEventIds = (
+  room: Room,
+  rawEvents: readonly Partial<IEvent>[]
+): Set<string> => {
+  const knownRedactedIds = collectExplicitRedactedEventIds(rawEvents);
+  collectEmbeddedRelationEventIds(rawEvents).forEach((eventId) => {
+    if (room.findEventById(eventId)?.isRedacted()) knownRedactedIds.add(eventId);
+  });
+  return knownRedactedIds;
+};
+
+/**
+ * Returns a predicate that answers whether a live MatrixEvent is redacted in
+ * either the SDK-owned instance or in the caller's `knownRedactedIds`
+ * (typically built by `collectKnownRedactedEventIds`). The extra room lookup
+ * catches an event whose current in-batch instance predates a redaction the
+ * live room already applied.
+ */
+export const createIsKnownRedacted =
+  (room: Room, knownRedactedIds: ReadonlySet<string>): ((event: MatrixEvent) => boolean) =>
+  (event) => {
+    if (event.isRedacted()) return true;
+    const eventId = event.getId();
+    return (
+      !!eventId &&
+      (knownRedactedIds.has(eventId) || room.findEventById(eventId)?.isRedacted() === true)
+    );
+  };
+
 const getNonReplacementRelations = (rawEvent: Partial<IEvent>): Record<string, unknown> => {
   const relations = rawEvent.unsigned?.['m.relations'];
   if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return {};
@@ -449,13 +487,9 @@ export const mergeSameIdEventRevision = ({
   const incomingReplacement = getSerializedReplacementEvent(incomingEvent);
   const currentReplacement = liveEvent.replacingEvent() ?? undefined;
   const serializedLiveReplacement = getSerializedReplacementEvent(liveEvent);
-  const isKnownRedacted = (replacement: MatrixEvent | undefined): boolean => {
-    const replacementId = replacement?.getId();
-    return (
-      !!replacement?.isRedacted() ||
-      (replacementId ? room.findEventById(replacementId)?.isRedacted() === true : false)
-    );
-  };
+  const isKnownRedactedEvent = createIsKnownRedacted(room, new Set<string>());
+  const isKnownRedacted = (replacement: MatrixEvent | undefined): boolean =>
+    !!replacement && isKnownRedactedEvent(replacement);
   const candidates = [currentReplacement, serializedLiveReplacement, incomingReplacement];
   const redactedReplacementIds = new Set(
     candidates
@@ -478,7 +512,13 @@ export const mergeSameIdEventRevision = ({
   // `m.replace` bundles stripped first so nothing can eagerly apply the old
   // bundle. The winning replacement is applied explicitly below.
   const rawLiveEvent = liveEvent.event as Partial<IEvent>;
-  const mergedRawEvent = withMergedRelations(rawEvent, rawLiveEvent, rawEvent, undefined, 'partial');
+  const mergedRawEvent = withMergedRelations(
+    rawEvent,
+    rawLiveEvent,
+    rawEvent,
+    undefined,
+    'partial'
+  );
   const liveWithoutReplacement = withoutRawReplacement(rawLiveEvent);
   if (liveWithoutReplacement !== rawLiveEvent) {
     liveEvent.setUnsigned(liveWithoutReplacement.unsigned ?? {});

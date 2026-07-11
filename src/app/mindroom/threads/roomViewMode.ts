@@ -45,17 +45,13 @@ const getStoredRoomViewMode = (key: string, legacyKey: string): RoomViewMode => 
   return migrated;
 };
 
-const setStoredRoomViewMode = (key: string, value: RoomViewMode) => {
-  setLocalStorageItem(key, value);
-};
-
 const createRoomViewModeAtomFamily = (sessionId: string) =>
   atomFamily((roomId: string) => {
     const storageKey = getRoomViewModeStorageKey(sessionId, roomId);
     return atomWithLocalStorage<RoomViewMode>(
       storageKey,
       (key) => getStoredRoomViewMode(key, getLegacyRoomViewModeStorageKey(roomId)),
-      setStoredRoomViewMode
+      setLocalStorageItem
     );
   });
 
@@ -70,10 +66,8 @@ export const roomViewModeAtomFamily = (sessionId: string, roomId: string) => {
   return family(roomId);
 };
 
-export const clearRoomViewModeStore = (
-  sessionId: string,
-  storage: Storage | undefined = getSafeLocalStorage()
-): void => {
+export const clearRoomViewModeStore = (sessionId: string): void => {
+  const storage = getSafeLocalStorage();
   const storagePrefix = `${ROOM_VIEW_MODE}:${sessionId}:`;
   getStorageKeysSafe(storage)
     .filter((key) => key.startsWith(storagePrefix))

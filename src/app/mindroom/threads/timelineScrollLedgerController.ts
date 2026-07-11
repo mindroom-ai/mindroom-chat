@@ -103,8 +103,8 @@ export const useTimelineScrollLedgerController = ({
   const ledgerFoldSizeCacheRef = useRef<Map<VirtualItemKey, number>>();
 
   const priceThreadRowForLedger = useCallback(
-    (eventId: string, index: number): number =>
-      ledgerFoldSizeCacheRef.current?.get(eventId) ?? estimateSize(index),
+    (key: VirtualItemKey, index: number): number =>
+      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index),
     [estimateSize]
   );
   const threadEventsRef = useRef(threadEvents);
@@ -127,7 +127,6 @@ export const useTimelineScrollLedgerController = ({
       threadVirtualPrependCaptureRef.current = {
         threadId: captureThreadId,
         anchorEventId,
-        anchorIndex,
         anchorSeq,
         abovePrices: buildLedgerFoldBaseline(anchorIndex),
         foldedEvents: currentThreadEvents,
@@ -198,10 +197,9 @@ export const useTimelineScrollLedgerController = ({
 
   useLayoutEffect(() => {
     ledgerFoldSizeCacheRef.current = virtualizer.itemSizeCache;
-    roomFoldPriceRef.current = (key, index) =>
-      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index);
+    roomFoldPriceRef.current = priceThreadRowForLedger;
     virtualizerRef.current = virtualizer;
-  }, [estimateSize, roomFoldPriceRef, virtualizer]);
+  }, [priceThreadRowForLedger, roomFoldPriceRef, virtualizer]);
 
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split

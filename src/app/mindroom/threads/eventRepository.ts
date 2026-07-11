@@ -37,8 +37,7 @@ import {
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { countCacheProbe } from './cacheProbe';
 import {
-  collectEmbeddedRelationEventIds,
-  collectExplicitRedactedEventIds,
+  collectKnownRedactedEventIds,
   compareEventRevisions,
   describeMatrixEventRevision,
   describeRawEventRevision,
@@ -492,63 +491,12 @@ export const resolveHydratedRoomBeforeToken = (
   paginationToken: string | null
 ): string | null => (cachedBeforeToken !== undefined ? cachedBeforeToken : paginationToken);
 
-export const resolvePersistedRoomBeforeToken = (
-  paginationToken: string | null | undefined,
-  cachedBeforeToken: string | null | undefined
-): string | null | undefined => {
-  if (paginationToken === null || cachedBeforeToken === null) return null;
-  if (typeof paginationToken === 'string') return paginationToken;
-  return cachedBeforeToken;
-};
-
-export type RoomCachePersistenceState = {
-  cachedBeforeToken: string | null | undefined;
-  beforeTokenForEarliest: string | null | undefined;
-  roomStartKnown: boolean;
-  shouldClearBackwardToken: boolean;
-};
-
-export const loadRoomCachePersistenceState = async ({
-  sessionId,
-  roomId,
-  earliestLoadedEventId,
-  currentBeforeToken,
-  loadPaginationToken = loadCachedRoomPaginationTokenFromCache,
-}: {
-  sessionId: string;
-  roomId: string;
-  earliestLoadedEventId?: string;
-  currentBeforeToken: string | null | undefined;
-  loadPaginationToken?: LoadCachedRoomPaginationToken;
-}): Promise<RoomCachePersistenceState> => {
-  const cachedBeforeToken = await loadPaginationToken(sessionId, roomId, earliestLoadedEventId);
-
-  return {
-    cachedBeforeToken,
-    beforeTokenForEarliest: resolvePersistedRoomBeforeToken(currentBeforeToken, cachedBeforeToken),
-    roomStartKnown: currentBeforeToken === null || cachedBeforeToken === null,
-    shouldClearBackwardToken: cachedBeforeToken === null && currentBeforeToken !== null,
-  };
-};
-
-export const getLatestLoadedRoomEvent = (
-  room: Room,
-  linkedTimelines: EventTimeline[]
-): MatrixEvent | undefined => {
-  const loadedEvents = getMainTimelineCacheEvents(room, linkedTimelines);
-  return loadedEvents[loadedEvents.length - 1];
-};
-
 export const shouldHydrateLatestRoomCache = (
-  loadedLatestEvent: Partial<IEvent> | MatrixEvent | undefined,
+  loadedLatestEvent: MatrixEvent | undefined,
   cachedLatestEvent: Partial<IEvent> | undefined
 ): boolean => {
   if (!cachedLatestEvent) return false;
-  const loadedRaw = loadedLatestEvent
-    ? 'event' in loadedLatestEvent
-      ? (loadedLatestEvent.event as Partial<IEvent>)
-      : loadedLatestEvent
-    : undefined;
+  const loadedRaw = loadedLatestEvent?.event as Partial<IEvent> | undefined;
   const anchorComparison = compareCachedPaginationAnchors(
     getRoomCursorAnchor(cachedLatestEvent),
     getRoomCursorAnchor(loadedRaw)
@@ -557,11 +505,12 @@ export const shouldHydrateLatestRoomCache = (
   if (!loadedLatestEvent || !loadedRaw || cachedLatestEvent.event_id !== loadedRaw.event_id) {
     return false;
   }
-  const loadedRevision =
-    'event' in loadedLatestEvent
-      ? describeMatrixEventRevision(loadedLatestEvent)
-      : describeRawEventRevision(loadedLatestEvent);
-  return compareEventRevisions(describeRawEventRevision(cachedLatestEvent), loadedRevision) > 0;
+  return (
+    compareEventRevisions(
+      describeRawEventRevision(cachedLatestEvent),
+      describeMatrixEventRevision(loadedLatestEvent)
+    ) > 0
+  );
 };
 
 export const filterLatestRoomCacheHydrationEvents = (
@@ -827,11 +776,8 @@ const sanitizeAuthoritativeRawEvents = (
     const eventId = mEvent.getId();
     if (eventId && mEvent.isRedacted()) redactedEventById.set(eventId, mEvent);
   });
-  const redactedEventIds = collectExplicitRedactedEventIds(authoritativeRawEvents);
+  const redactedEventIds = collectKnownRedactedEventIds(room, authoritativeRawEvents);
   redactedEventById.forEach((_event, eventId) => redactedEventIds.add(eventId));
-  collectEmbeddedRelationEventIds(authoritativeRawEvents).forEach((eventId) => {
-    if (room.findEventById(eventId)?.isRedacted()) redactedEventIds.add(eventId);
-  });
 
   return authoritativeRawEvents.map((rawEvent) => {
     const eventId = rawEvent.event_id;

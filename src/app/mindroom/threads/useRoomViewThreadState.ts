@@ -36,10 +36,7 @@ import {
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
 import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from './threadFilterDsl';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
@@ -170,18 +167,11 @@ export const useRoomViewThreadState = ({
     effectiveViewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
   );
 
-  const updateFromEffectiveQueryState = useCallback(
-    (updater: (state: ThreadFilterState) => ThreadFilterState) => {
-      setThreadFilterState(updater(threadFilterState));
-    },
-    [setThreadFilterState, threadFilterState]
-  );
-
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
-      updateFromEffectiveQueryState((state) => updateThreadFilterKey(state, key));
+      setThreadFilterState(updateThreadFilterKey(threadFilterState, key));
     },
-    [updateFromEffectiveQueryState]
+    [setThreadFilterState, threadFilterState]
   );
 
   // Simple mode's single binary control: unresolved-only on/off. Flips only
@@ -189,11 +179,11 @@ export const useRoomViewThreadState = ({
   // storage. ('exclude' is the one resolved value the simple-mode projection
   // keeps, so flipping the raw value matches what the user sees.)
   const handleToggleUnresolvedOnly = useCallback(() => {
-    updateFromEffectiveQueryState((state) => ({
-      ...state,
-      resolved: state.resolved === 'exclude' ? 'any' : 'exclude',
-    }));
-  }, [updateFromEffectiveQueryState]);
+    setThreadFilterState({
+      ...threadFilterState,
+      resolved: threadFilterState.resolved === 'exclude' ? 'any' : 'exclude',
+    });
+  }, [setThreadFilterState, threadFilterState]);
 
   const handleSortDirectionChange = useCallback(() => {
     setThreadFilterState({
@@ -219,30 +209,30 @@ export const useRoomViewThreadState = ({
 
   const handleCycleTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => cycleTagFilter(state, tag));
+      setThreadFilterState(cycleTagFilter(threadFilterState, tag));
     },
-    [updateFromEffectiveQueryState]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleAddTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => addTagFilter(state, tag));
+      setThreadFilterState(addTagFilter(threadFilterState, tag));
     },
-    [updateFromEffectiveQueryState]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      updateFromEffectiveQueryState((state) => removeTagFilter(state, tag));
+      setThreadFilterState(removeTagFilter(threadFilterState, tag));
     },
-    [updateFromEffectiveQueryState]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      updateFromEffectiveQueryState((state) => applyPreset(state, preset));
+      setThreadFilterState(applyPreset(threadFilterState, preset));
     },
-    [updateFromEffectiveQueryState]
+    [setThreadFilterState, threadFilterState]
   );
 
   const handleSearchQueryChange = useCallback(

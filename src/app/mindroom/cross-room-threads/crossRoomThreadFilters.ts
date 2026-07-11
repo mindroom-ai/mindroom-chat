@@ -205,8 +205,6 @@ const crossRoomThreadFiltersRegistry = createUserScopedAtomRegistry<CrossRoomThr
 
 export const makeCrossRoomThreadFiltersAtom = crossRoomThreadFiltersRegistry.getOrCreate;
 
-export const registerCrossRoomThreadFiltersAtom = crossRoomThreadFiltersRegistry.registerActive;
-
 export const clearCrossRoomThreadFiltersStore = (userId: string) => {
   crossRoomThreadFiltersRegistry.clear(userId);
 };

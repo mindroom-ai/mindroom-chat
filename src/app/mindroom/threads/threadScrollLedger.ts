@@ -5,7 +5,6 @@ export type ThreadLedgerEvent = {
 export type ThreadVirtualPrependCapture = {
   threadId: string;
   anchorEventId: string;
-  anchorIndex: number;
   anchorSeq: number;
   abovePrices: Map<string, number>;
   foldedEvents: unknown;
@@ -126,7 +125,6 @@ export const planThreadLedgerRender = ({
       nextCapture: {
         ...capture,
         anchorEventId: boundaryEventId,
-        anchorIndex: boundaryIndex,
         abovePrices: buildThreadFoldBaseline(threadEvents, boundaryIndex, priceRow),
         foldedEvents: threadEvents,
       },
@@ -140,7 +138,6 @@ export const planThreadLedgerRender = ({
     nextCapture: {
       ...capture,
       anchorEventId: boundaryEventId,
-      anchorIndex: boundaryIndex,
       foldedEvents: threadEvents,
     },
     probe,

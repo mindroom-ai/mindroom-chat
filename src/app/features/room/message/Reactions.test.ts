@@ -115,6 +115,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle,
@@ -153,6 +154,7 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle: vi.fn(),
