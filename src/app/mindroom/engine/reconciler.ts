@@ -361,7 +361,7 @@ const fetchThreadRelationPage = async (
   roomId: string,
   threadId: string,
   fromToken: string | undefined
-): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | undefined> => {
+): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | 'invalid-token' | undefined> => {
   const [err, relData] = await to(
     mx.fetchRelations(roomId, threadId, null, null, {
       dir: Direction.Backward,
@@ -370,7 +370,13 @@ const fetchThreadRelationPage = async (
       ...(fromToken ? { from: fromToken } : {}),
     })
   );
-  if (err || !relData) return undefined;
+  if (err) {
+    // Only a server verdict on the token itself may discard a saved cursor;
+    // a network-level failure must leave durable scan progress untouched.
+    const { errcode, httpStatus } = err as { errcode?: string; httpStatus?: number };
+    return errcode === 'M_UNKNOWN_TOKEN' || httpStatus === 400 ? 'invalid-token' : undefined;
+  }
+  if (!relData) return undefined;
   return {
     events: (relData.chunk ?? []) as Partial<IEvent>[],
     nextToken: relData.next_batch ?? undefined,
@@ -483,6 +489,7 @@ const runThreadReconcilePass = async ({
     let phaseIterations = 0;
     let phaseFetchedPage = false;
     let retriedSavedCursorFetch = false;
+    let savedTokenRejected = false;
     const phaseStartToken = fromToken;
     scanExit = undefined;
 
@@ -500,6 +507,12 @@ const runThreadReconcilePass = async ({
       iterations += 1;
       // eslint-disable-next-line no-await-in-loop
       const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
+      if (page === 'invalid-token') {
+        savedTokenRejected = phaseStartToken !== undefined && !phaseFetchedPage;
+        fetchFailedOccurred = true;
+        scanExit = 'fetch-failed';
+        break;
+      }
       if (!page) {
         fetchFailedOccurred = true;
         if (phaseStartToken !== undefined && !phaseFetchedPage && !retriedSavedCursorFetch) {
@@ -611,9 +624,7 @@ const runThreadReconcilePass = async ({
       scanExit = 'fetch-failed';
     }
 
-    const invalidSavedToken =
-      scanExit === 'token-loop' ||
-      (scanExit === 'fetch-failed' && !phaseFetchedPage && phaseStartToken !== undefined);
+    const invalidSavedToken = scanExit === 'token-loop' || savedTokenRejected;
     if (invalidSavedToken && continuation) {
       // A saved token can expire or a server can repeat it. Reset the cursor
       // generation-safely rather than retrying the same unusable token on

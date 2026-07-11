@@ -426,15 +426,25 @@ export const mergeSameIdEventRevision = ({
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   room: Room;
 }): MatrixEvent => {
+  // Never route an event the room already owns through the SDK mapper: its
+  // reuse branch permanently sets the mapper instance's `preventReEmit` flag,
+  // which would strip Decrypted/Replaced/BeforeRedaction re-emitters from
+  // every FRESH event the same mapper maps afterwards in this pass.
+  const mapDetached = (raw: Partial<IEvent>): MatrixEvent => {
+    const existing =
+      typeof raw.event_id === 'string' ? room.findEventById(raw.event_id) : undefined;
+    return existing && !existing.status ? existing : mapEvent(raw);
+  };
+
   const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
   if (rawRedactedBecause && !liveEvent.isRedacted()) {
-    liveEvent.makeRedacted(mapEvent(rawRedactedBecause as Partial<IEvent>), room);
+    liveEvent.makeRedacted(mapDetached(rawRedactedBecause as Partial<IEvent>), room);
   }
 
   if (liveEvent.isRedacted()) return liveEvent;
 
-  // Snapshot all replacement candidates before calling the SDK mapper: it
-  // reuses same-id room events and eagerly applies their bundled replacement.
+  // Snapshot all replacement candidates before mutating the live event, so a
+  // stale bundled edit can never transiently downgrade a newer streamed edit.
   const incomingEvent = new MatrixEvent(rawEvent as IEvent);
   const incomingReplacement = getSerializedReplacementEvent(incomingEvent);
   const currentReplacement = liveEvent.replacingEvent() ?? undefined;
@@ -463,26 +473,21 @@ export const mergeSameIdEventRevision = ({
   });
   const latestReplacement = getLatestEdit(liveEvent, validCandidates);
 
-  // Strip the live bundle as well as the mapper input. Otherwise the mapper's
-  // shallow unsigned merge could still observe and eagerly apply the old
-  // bundle that was already attached to the live event.
+  // Merge the incoming unsigned onto the live event directly (the same
+  // shallow merge the SDK mapper's reuse branch performs), with both sides'
+  // `m.replace` bundles stripped first so nothing can eagerly apply the old
+  // bundle. The winning replacement is applied explicitly below.
   const rawLiveEvent = liveEvent.event as Partial<IEvent>;
-  const mapperRawEvent = withMergedRelations(
-    rawEvent,
-    rawLiveEvent,
-    rawEvent,
-    undefined,
-    'partial'
-  );
+  const mergedRawEvent = withMergedRelations(rawEvent, rawLiveEvent, rawEvent, undefined, 'partial');
   const liveWithoutReplacement = withoutRawReplacement(rawLiveEvent);
   if (liveWithoutReplacement !== rawLiveEvent) {
     liveEvent.setUnsigned(liveWithoutReplacement.unsigned ?? {});
   }
-  mapEvent(mapperRawEvent);
+  liveEvent.setUnsigned({ ...liveEvent.getUnsigned(), ...(mergedRawEvent.unsigned ?? {}) });
 
   let resolvedReplacement = latestReplacement;
   if (latestReplacement && latestReplacement !== currentReplacement) {
-    const mappedReplacement = mapEvent(latestReplacement.event as Partial<IEvent>);
+    const mappedReplacement = mapDetached(latestReplacement.event as Partial<IEvent>);
     resolvedReplacement =
       isSameSenderEditEvent(liveEvent, mappedReplacement) && !isKnownRedacted(mappedReplacement)
         ? mappedReplacement

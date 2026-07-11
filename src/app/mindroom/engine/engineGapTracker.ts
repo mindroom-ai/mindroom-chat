@@ -137,7 +137,7 @@ type PendingGapMark = {
     nextToken?: string | null;
     overlapEventIds?: string[];
   };
-  overlapEventIds: Promise<string[]>;
+  overlapEventIds: Promise<string[] | undefined>;
   failureCount: number;
   reported: boolean;
   retryTimer?: ReturnType<typeof globalThis.setTimeout>;
@@ -256,7 +256,11 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
               )
             ),
           ])
-          .catch(() => []);
+          // A failed boundary read must NOT be committed as the meaningful
+          // "no cached boundary existed" [] state — leave the field unset so
+          // the executor takes its own guarded snapshot (and defers, marker
+          // intact, if that read fails too).
+          .catch(() => undefined);
       pendingMarks.set(room.roomId, {
         job,
         marker: {

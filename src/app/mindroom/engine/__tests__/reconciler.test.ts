@@ -102,6 +102,9 @@ const makeFakeEvent = ({
         ? { rel_type: 'm.replace', event_id: replaceTargetId }
         : null,
     getUnsigned: () => raw.unsigned ?? {},
+    setUnsigned: (unsigned: IEvent['unsigned']) => {
+      raw.unsigned = unsigned;
+    },
     makeRedacted: () => undefined,
     makeReplaced: () => undefined,
     replacingEvent: () => null,
@@ -1179,9 +1182,11 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       });
       const fetchRelations = vi.fn();
       if (failureMode === 'rejected') {
-        fetchRelations
-          .mockRejectedValueOnce(new Error('invalid token'))
-          .mockRejectedValueOnce(new Error('invalid token'));
+        // A definitive server verdict (M_UNKNOWN_TOKEN) discards the cursor
+        // without the network-blip retry.
+        fetchRelations.mockRejectedValueOnce(
+          Object.assign(new Error('invalid token'), { errcode: 'M_UNKNOWN_TOKEN' })
+        );
       } else {
         fetchRelations.mockResolvedValueOnce({ chunk: [], next_batch: 'stale-token' });
       }
@@ -1205,15 +1210,51 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       });
 
       expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'stale-token' });
-      const headCallIndex = failureMode === 'rejected' ? 2 : 1;
-      if (failureMode === 'rejected') {
-        expect(fetchRelations.mock.calls[1][4]).toMatchObject({ from: 'stale-token' });
-      }
-      expect(fetchRelations.mock.calls[headCallIndex][4]).not.toHaveProperty('from');
+      expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
       expect(continuationStore.restartFromHead).toHaveBeenCalledTimes(1);
       expect(continuationStore.getMarker()).toBeUndefined();
     }
   );
+
+  it('preserves the saved cursor when fetching it fails at the network level', async () => {
+    const room = makeFakeRoom();
+    const continuationStore = createContinuationStore();
+    await continuationStore.begin('session', '!room:example', '$thread', {
+      generation: 'saved-generation',
+      startedAt: 1,
+      nextToken: 'saved-token',
+      overlapEventIds: ['$known'],
+    });
+    const fetchRelations = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockRejectedValueOnce(new Error('network down'));
+    const mx = {
+      getRoom: () => room,
+      getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
+      fetchRelations,
+    } as unknown as MatrixClient;
+
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:example',
+      room,
+      threadId: '$thread',
+      cachedPage: makeCachedPage(['$known']),
+      reason: 'open-thread-choke-point',
+      continuationStore,
+    });
+
+    // One retry of the same cursor, then give up WITHOUT discarding durable
+    // scan progress — the next online open resumes from the saved token.
+    expect(fetchRelations).toHaveBeenCalledTimes(2);
+    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'saved-token' });
+    expect(fetchRelations.mock.calls[1][4]).toMatchObject({ from: 'saved-token' });
+    expect(continuationStore.restartFromHead).not.toHaveBeenCalled();
+    expect(continuationStore.getMarker()).toMatchObject({ nextToken: 'saved-token' });
+  });
 
   it('does not turn an empty saved boundary into an early overlap after token recovery', async () => {
     const room = makeFakeRoom();
@@ -1226,8 +1267,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     });
     const fetchRelations = vi
       .fn()
-      .mockRejectedValueOnce(new Error('expired token'))
-      .mockRejectedValueOnce(new Error('expired token'))
+      .mockRejectedValueOnce(
+        Object.assign(new Error('expired token'), { errcode: 'M_UNKNOWN_TOKEN' })
+      )
       .mockResolvedValueOnce({ chunk: [{ event_id: '$persisted-page' }], next_batch: 'head-2' })
       .mockResolvedValueOnce({ chunk: [{ event_id: '$older' }], next_batch: undefined });
     const mx = {
@@ -1255,11 +1297,10 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       persistRepair,
     });
 
-    expect(fetchRelations).toHaveBeenCalledTimes(4);
+    expect(fetchRelations).toHaveBeenCalledTimes(3);
     expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'expired-token' });
-    expect(fetchRelations.mock.calls[1][4]).toMatchObject({ from: 'expired-token' });
-    expect(fetchRelations.mock.calls[2][4]).not.toHaveProperty('from');
-    expect(fetchRelations.mock.calls[3][4]).toMatchObject({ from: 'head-2' });
+    expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(fetchRelations.mock.calls[2][4]).toMatchObject({ from: 'head-2' });
     expect(continuationStore.getMarker()).toBeUndefined();
   });
 

@@ -139,6 +139,33 @@ describe('createEngineGapTracker (CINNY-207 P3.2)', () => {
     expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(1);
   });
 
+  it('does not commit a failed pre-gap tail read as an empty boundary', async () => {
+    const scheduler = createInMemoryGapFillScheduler();
+    const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    loadCachedTail.mockRejectedValueOnce(new Error('read failed'));
+    const tracker = createEngineGapTracker({
+      mx: {} as unknown as MatrixClient,
+      sessionId: 'session',
+      scheduler,
+      markDiscontinuity,
+      loadCachedTail,
+      now: () => 1000,
+    });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
+    await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
+
+    // [] durably means "no cached boundary existed"; a failed read must leave
+    // the boundary unset so the executor takes its own guarded snapshot.
+    expect(markDiscontinuity).toHaveBeenCalledWith('session', '!a', {
+      markedAt: 1000,
+      prevBatch: 'batch-1',
+      generation: '1000:batch-1',
+      nextToken: 'batch-1',
+      overlapEventIds: undefined,
+    });
+  });
+
   it('ignores TimelineReset on non-unfiltered timelineSets (thread resets are not gap events)', () => {
     const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a' });

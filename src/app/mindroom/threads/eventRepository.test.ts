@@ -83,11 +83,10 @@ describe('eventRepository same-id revision merge', () => {
     const merged = preferLive(makeRawMessage('$target', 'v1', { replacement: edit }));
 
     expect(merged).toBe(live);
-    expect(mapEvent).toHaveBeenCalledTimes(2);
-    expect(
-      mapEvent.mock.calls[0]?.[0].unsigned?.['m.relations']?.[RelationType.Replace]
-    ).toBeUndefined();
-    expect(mapEvent.mock.calls[1]?.[0]).toMatchObject({ event_id: '$edit-v2' });
+    // The live event never goes through the mapper (its reuse branch would
+    // poison the mapper's preventReEmit flag); only the fresh edit is mapped.
+    expect(mapEvent).toHaveBeenCalledTimes(1);
+    expect(mapEvent.mock.calls[0]?.[0]).toMatchObject({ event_id: '$edit-v2' });
     expect(merged.replacingEvent()?.getId()).toBe('$edit-v2');
     expect(merged.replacingEvent()?.getContent()['m.new_content']).toMatchObject({ body: 'v2' });
   });
@@ -111,7 +110,7 @@ describe('eventRepository same-id revision merge', () => {
     expect(merged.getContent()).toMatchObject({ body: 'v3' });
   });
 
-  it('does not let an SDK-style mapper overwrite the newer live replacement before comparison', () => {
+  it('never routes the live event through the SDK mapper, so its eager bundle apply cannot downgrade', () => {
     const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
     const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
     const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
@@ -128,11 +127,7 @@ describe('eventRepository same-id revision merge', () => {
     const merged = createPreferLiveEventMapper(room as never, sdkStyleMap)(incoming);
 
     expect(merged).toBe(live);
-    expect(sdkStyleMap).toHaveBeenCalledTimes(1);
-    expect(sdkStyleMap).toHaveBeenCalledWith(expect.objectContaining({ event_id: '$target' }));
-    expect(
-      sdkStyleMap.mock.calls[0]?.[0].unsigned?.['m.relations']?.[RelationType.Replace]
-    ).toBeUndefined();
+    expect(sdkStyleMap).not.toHaveBeenCalledWith(expect.objectContaining({ event_id: '$target' }));
     expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
     expect(merged.getContent()).toMatchObject({ body: 'v3' });
     expect(merged.getUnsigned()['m.relations']?.[RelationType.Thread]).toEqual({ count: 7 });
