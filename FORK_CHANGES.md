@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Defer ledger boundary settles during rubber-band overscroll (2026-07-11)
+
+iPad trace `ride-trace-1783802452438` (analyzed against the two prior iPhone
+traces) showed the felt "momentum stops, then it jumps": a fling into the
+bottom edge rubber-bands while the window is still filling, and the ledger
+boundary settle then rewrites scrollTop mid-bounce — frame 192 slipped a
+visible 87px while the offset was 64px past `scrollHeight - clientHeight`.
+Quiescence settles in the same trace rebased up to 5,106px with zero slip, so
+the fix is to wait: `shouldSettleLedgerAtBoundary` now takes `scrollHeight`
+and defers (returns false) while the offset is outside the physical range
+(1px slack for fractional iOS offsets). The bounce's landing event re-enters
+bounds and the guard resumes; a true rest is covered by the always-armed
+quiescence settle. Not a fork regression: the settle harness is a verbatim
+extraction of pre-merge dev's (#119-era) logic — the same signature appears
+in both Jul 10 iPhone traces — but cache-first opens make the fill window
+where it bites much easier to hit. The lifecycle test's fake scroller
+declared `scrollHeight: 4000` under trace-shaped ~34.4k offsets; it now
+declares a range that contains them.
+
 ### Long-text hydration: port PR #110 onto merged dev + thread sidecar prewarm (2026-07-11)
 
 PR #110 (viewport-gated hydration of collapsed long-text rows) predated the
