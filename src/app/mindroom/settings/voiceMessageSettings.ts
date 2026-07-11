@@ -1,10 +1,9 @@
 import { atom } from 'jotai';
-import { atomWithLocalStorage } from '../../state/utils/atomWithLocalStorage';
 import {
-  getSafeLocalStorage,
-  getStorageItemSafe,
-  setStorageItemSafe,
-} from '../../utils/safeLocalStorage';
+  atomWithLocalStorage,
+  getLocalStorageItem,
+  setLocalStorageItem,
+} from '../../state/utils/atomWithLocalStorage';
 
 export const VOICE_PLAYBACK_RATES = [1, 1.5, 2] as const;
 export type VoicePlaybackRate = typeof VOICE_PLAYBACK_RATES[number];
@@ -37,23 +36,11 @@ export const cycleVoicePlaybackRate = (rate: VoicePlaybackRate): VoicePlaybackRa
   return VOICE_PLAYBACK_RATES[(currentIndex + 1) % VOICE_PLAYBACK_RATES.length];
 };
 
-const getStoredVoicePlaybackRate = (key: string): VoicePlaybackRate => {
-  const item = getStorageItemSafe(getSafeLocalStorage(), key);
-  if (item === null) return DEFAULT_VOICE_PLAYBACK_RATE;
-
-  try {
-    return sanitizeVoicePlaybackRate(JSON.parse(item) as unknown);
-  } catch {
-    return DEFAULT_VOICE_PLAYBACK_RATE;
-  }
-};
+const getStoredVoicePlaybackRate = (key: string): VoicePlaybackRate =>
+  sanitizeVoicePlaybackRate(getLocalStorageItem<unknown>(key, DEFAULT_VOICE_PLAYBACK_RATE));
 
 const setStoredVoicePlaybackRate = (key: string, value: unknown) => {
-  setStorageItemSafe(
-    getSafeLocalStorage(),
-    key,
-    JSON.stringify(sanitizeVoicePlaybackRate(value))
-  );
+  setLocalStorageItem(key, sanitizeVoicePlaybackRate(value));
 };
 
 const voiceMessagePlaybackRateStorageAtom = atomWithLocalStorage<unknown>(
@@ -62,23 +49,11 @@ const voiceMessagePlaybackRateStorageAtom = atomWithLocalStorage<unknown>(
   setStoredVoicePlaybackRate
 );
 
-const getStoredVoiceMessageVolume = (key: string): number => {
-  const item = getStorageItemSafe(getSafeLocalStorage(), key);
-  if (item === null) return DEFAULT_VOICE_MESSAGE_VOLUME;
-
-  try {
-    return sanitizeVoiceMessageVolume(JSON.parse(item) as unknown);
-  } catch {
-    return DEFAULT_VOICE_MESSAGE_VOLUME;
-  }
-};
+const getStoredVoiceMessageVolume = (key: string): number =>
+  sanitizeVoiceMessageVolume(getLocalStorageItem<unknown>(key, DEFAULT_VOICE_MESSAGE_VOLUME));
 
 const setStoredVoiceMessageVolume = (key: string, value: unknown) => {
-  setStorageItemSafe(
-    getSafeLocalStorage(),
-    key,
-    JSON.stringify(sanitizeVoiceMessageVolume(value))
-  );
+  setLocalStorageItem(key, sanitizeVoiceMessageVolume(value));
 };
 
 const voiceMessageVolumeStorageAtom = atomWithLocalStorage<unknown>(

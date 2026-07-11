@@ -239,21 +239,24 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: 'Full response',
-        formatted_body: '<p>🔧 <code>tool_name</code> [1]</p>',
-        'io.mindroom.ai_run': {
-          version: 1,
-          status: 'completed',
-          usage: { total_tokens: 125 },
-        },
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
-        },
-      })
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
+          msgtype: 'm.text',
+          body: 'Full response',
+          formatted_body: '<p>🔧 <code>tool_name</code> [1]</p>',
+          'io.mindroom.ai_run': {
+            version: 1,
+            status: 'completed',
+            usage: { total_tokens: 125 },
+          },
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('Full response');
@@ -282,25 +285,28 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* fallback edit body',
-        'io.mindroom.ai_run': {
-          version: 1,
-          status: 'cached',
-          usage: { total_tokens: 42 },
-        },
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          body: 'final edited body',
-          formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
-        },
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [{ type: 'tool_call_completed', tool_name: 'search_web' }],
-        },
-      })
+          body: '* fallback edit body',
+          'io.mindroom.ai_run': {
+            version: 1,
+            status: 'cached',
+            usage: { total_tokens: 42 },
+          },
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'final edited body',
+            formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
+          },
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [{ type: 'tool_call_completed', tool_name: 'search_web' }],
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('final edited body');
@@ -340,17 +346,20 @@ describe('hydrateMindroomLongTextSource', () => {
       ],
     };
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* fallback edit body',
-        [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          body: 'final edited body',
-          formatted_body: '<p>final edited body</p>',
-        },
-      })
+          body: '* fallback edit body',
+          [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'final edited body',
+            formatted_body: '<p>final edited body</p>',
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('final edited body');
@@ -371,15 +380,18 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* wrapper body',
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          formatted_body: '<p>formatted only</p>',
-        },
-      })
+          body: '* wrapper body',
+          'm.new_content': {
+            msgtype: 'm.text',
+            formatted_body: '<p>formatted only</p>',
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('* wrapper body');
@@ -399,9 +411,13 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () => {
-      throw new Error('download failed');
-    });
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () => {
+        throw new Error('download failed');
+      },
+      {}
+    );
 
     expect(resolved).toBe(source.previewContent);
     expect(resolved.body).toBe('preview body');
@@ -420,7 +436,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () => '{bad-json');
+    const resolved = await hydrateMindroomLongTextSource(source, async () => '{bad-json', {});
 
     expect(resolved).toBe(source.previewContent);
     expect(resolved.body).toBe('preview body');
@@ -446,8 +462,9 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const first = await hydrateMindroomLongTextSource(source, loadSidecarText);
-    const second = await hydrateMindroomLongTextSource(source, loadSidecarText);
+    const cacheOwner = {};
+    const first = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
+    const second = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
 
     expect(loadSidecarText).toHaveBeenCalledTimes(1);
     expect(second).toBe(first);

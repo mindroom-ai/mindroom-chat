@@ -72,10 +72,6 @@ export const enqueueMindroomAccountSettingsPatch = (
       );
     });
   accountSettingsWriteTails.set(mx, task);
-  const removeCompletedTail = () => {
-    if (accountSettingsWriteTails.get(mx) === task) accountSettingsWriteTails.delete(mx);
-  };
-  void task.then(removeCompletedTail, removeCompletedTail);
   return task;
 };
 

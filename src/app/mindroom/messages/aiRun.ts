@@ -135,9 +135,11 @@ export const hasMindroomAiRunMetadata = (content: Record<string, unknown>): bool
 
 const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
 
-const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
-const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
-const TERMINAL_STREAM_STATUSES = new Set([
+export const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
+// 'pending' counts as active so callers driving spinners (e.g. thread streaming
+// state) treat a not-yet-started run as still in flight.
+export const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
+export const TERMINAL_STREAM_STATUSES = new Set([
   'complete',
   'completed',
   'done',
@@ -148,7 +150,9 @@ const TERMINAL_STREAM_STATUSES = new Set([
   'interrupted',
 ]);
 
-const getStreamStatusFromContent = (content: Record<string, unknown>): string | undefined => {
+export const getStreamStatusFromContent = (
+  content: Record<string, unknown>
+): string | undefined => {
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
     : undefined;

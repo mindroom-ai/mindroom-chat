@@ -84,16 +84,18 @@ const getSectionItems = ({
             : '',
         config: commandPaletteSearchConfig.rooms,
       });
-    case 'users':
+    case 'users': {
+      const hasSearchText = parsedQuery.searchText.length > 0;
       return searchCommandPaletteSection({
         items: source.getUsers({
-          exhaustive: parsedQuery.searchText.trim().length > 0,
-          includeRelatedRooms: parsedQuery.mode === 'users' || parsedQuery.searchText.length > 0,
+          exhaustive: hasSearchText,
+          includeRelatedRooms: parsedQuery.mode === 'users' || hasSearchText,
         }),
         query:
           parsedQuery.mode === 'users' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
         config: commandPaletteSearchConfig.users,
       });
+    }
     default:
       return source.getMessages(parsedQuery.showMessages ? parsedQuery.searchText : '');
   }

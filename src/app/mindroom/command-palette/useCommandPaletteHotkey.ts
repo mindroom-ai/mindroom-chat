@@ -1,10 +1,6 @@
 import { useCallback } from 'react';
 import { useKeyDown } from '../../hooks/useKeyDown';
-
-const hasBlockingPortalOverlay = (): boolean => {
-  const portalContainer = document.getElementById('portalContainer');
-  return !!portalContainer && portalContainer.children.length > 0;
-};
+import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 
 export const useCommandPaletteHotkey = (
   opened: boolean,

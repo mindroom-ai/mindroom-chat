@@ -13,14 +13,11 @@ export const supportsAuthenticatedMedia = ({
   unstableFeatures?.[AUTHENTICATED_MEDIA_UNSTABLE_FEATURE] === true ||
   versions.includes(AUTHENTICATED_MEDIA_SPEC_VERSION);
 
-export const hasServiceWorkerMediaAuthSupport = (
-  serviceWorkerApiSupported: boolean = typeof navigator !== 'undefined' &&
-    'serviceWorker' in navigator,
-  runtimeServiceWorkerEnabled: boolean = isServiceWorkerEnabled(),
-  serviceWorkerControlled: boolean = serviceWorkerApiSupported && typeof navigator !== 'undefined'
-    ? Boolean(navigator.serviceWorker?.controller)
-    : false
-): boolean => serviceWorkerApiSupported && runtimeServiceWorkerEnabled && serviceWorkerControlled;
+const hasServiceWorkerMediaAuthSupport = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  isServiceWorkerEnabled() &&
+  Boolean(navigator.serviceWorker?.controller);
 
 const subscribeToServiceWorkerControl = (listener: () => void): (() => void) => {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return () => undefined;
@@ -28,8 +25,6 @@ const subscribeToServiceWorkerControl = (listener: () => void): (() => void) => 
   serviceWorker.addEventListener('controllerchange', listener);
   return () => serviceWorker.removeEventListener('controllerchange', listener);
 };
-
-const getServiceWorkerControlSnapshot = (): boolean => hasServiceWorkerMediaAuthSupport();
 
 // Capacitor iOS WebViews run on `capacitor://` and do not expose service workers,
 // but we can still use authenticated media endpoints via token-in-query fallback.
@@ -40,19 +35,19 @@ export const hasCapacitorMediaAuthSupport = (
 ): boolean => protocol === 'capacitor:';
 
 export const hasMediaAuthTransportSupport = (
-  serviceWorkerAvailable: boolean = hasServiceWorkerMediaAuthSupport(),
+  serviceWorkerAvailable: boolean,
   capacitorAvailable: boolean = hasCapacitorMediaAuthSupport()
 ): boolean => serviceWorkerAvailable || capacitorAvailable;
 
 export const shouldUseMediaAuthentication = (
   specVersions: SpecVersions,
-  mediaAuthTransportAvailable: boolean = hasMediaAuthTransportSupport()
+  mediaAuthTransportAvailable: boolean
 ): boolean => supportsAuthenticatedMedia(specVersions) && mediaAuthTransportAvailable;
 
 export const useMediaAuthentication = (): boolean => {
   const serviceWorkerAvailable = useSyncExternalStore(
     subscribeToServiceWorkerControl,
-    getServiceWorkerControlSnapshot,
+    hasServiceWorkerMediaAuthSupport,
     () => false
   );
   return shouldUseMediaAuthentication(

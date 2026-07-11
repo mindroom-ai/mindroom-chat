@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from '../../state/imageViewer';
+import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { isIOSStandaloneWebApp } from './nativeSso';
 
 const EDGE_START_MAX_X = 28;
@@ -13,11 +14,6 @@ type TouchEventWithFlag = TouchEvent & {
 };
 
 export type EdgeSwipeDirection = 'back' | 'forward';
-
-const hasBlockingPortal = (): boolean => {
-  if (typeof document === 'undefined') return false;
-  return (document.getElementById('portalContainer')?.childElementCount ?? 0) > 0;
-};
 
 export const useEdgeSwipe = ({
   blockStandaloneWebApp = false,
@@ -51,7 +47,7 @@ export const useEdgeSwipe = ({
     };
 
     const handleTouchStart = (event: TouchEventWithFlag) => {
-      if (event[HANDLED_EVENT_FLAG] || hasBlockingPortal() || event.touches.length !== 1) {
+      if (event[HANDLED_EVENT_FLAG] || hasBlockingPortalOverlay() || event.touches.length !== 1) {
         reset();
         return;
       }
@@ -73,7 +69,7 @@ export const useEdgeSwipe = ({
 
     const handleTouchMove = (event: TouchEventWithFlag) => {
       if (!tracking || event[HANDLED_EVENT_FLAG]) return;
-      if (hasBlockingPortal() || event.touches.length !== 1) {
+      if (hasBlockingPortalOverlay() || event.touches.length !== 1) {
         reset();
         return;
       }

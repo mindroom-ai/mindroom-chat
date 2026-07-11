@@ -11,7 +11,7 @@ import {
   sanitizePrefetchScope,
 } from '../engine/prefetchPolicy';
 
-export const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
+const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
 
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 const MINDROOM_SETTINGS_STORE_VERSION = 1;
@@ -25,7 +25,7 @@ type MindroomSettingsStore = MindroomSettings & {
   v: typeof MINDROOM_SETTINGS_STORE_VERSION;
 };
 
-export const DEFAULT_MINDROOM_SETTINGS: MindroomSettings = {
+const DEFAULT_MINDROOM_SETTINGS: MindroomSettings = {
   prefetchScope: DEFAULT_PREFETCH_SCOPE,
   prefetchDepth: sanitizePrefetchDepth(undefined),
 };
@@ -114,13 +114,7 @@ export const migrateMindroomSettingsStorage = (
 ): boolean => {
   if (!storage) return false;
 
-  const currentRaw = getStorageItemSafe(storage, MINDROOM_SETTINGS_STORAGE_KEY);
-  const current = parseRecord(currentRaw);
-  if (isNewerMindroomSettingsStore(currentRaw)) return false;
-
-  const settings =
-    currentRaw === null ? loadMindroomSettings(storage) : sanitizeMindroomSettings(current);
-  if (!saveMindroomSettings(settings, storage)) return false;
+  if (!saveMindroomSettings(loadMindroomSettings(storage), storage)) return false;
 
   const legacyRaw = getStorageItemSafe(storage, LEGACY_SETTINGS_STORAGE_KEY);
   const legacy = parseRecord(legacyRaw);

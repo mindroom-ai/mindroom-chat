@@ -3,7 +3,6 @@ import { mxcUrlToHttp } from './mediaUrl';
 
 describe('mxcUrlToHttp', () => {
   const originalWindow = globalThis.window;
-  const originalLocalStorage = globalThis.localStorage;
   const originalNavigator = globalThis.navigator;
 
   afterEach(() => {
@@ -12,15 +11,6 @@ describe('mxcUrlToHttp', () => {
     } else {
       Object.defineProperty(globalThis, 'window', {
         value: originalWindow,
-        configurable: true,
-      });
-    }
-
-    if (originalLocalStorage === undefined) {
-      Reflect.deleteProperty(globalThis, 'localStorage');
-    } else {
-      Object.defineProperty(globalThis, 'localStorage', {
-        value: originalLocalStorage,
         configurable: true,
       });
     }
@@ -126,12 +116,6 @@ describe('mxcUrlToHttp', () => {
         location: {
           protocol: 'capacitor:',
         },
-      },
-      configurable: true,
-    });
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: {
-        getItem: () => 'secret-token',
       },
       configurable: true,
     });

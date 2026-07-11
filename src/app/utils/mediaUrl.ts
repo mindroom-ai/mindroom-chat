@@ -55,13 +55,10 @@ export const mxcUrlToHttp = (
   if (!accessToken) return mediaUrl;
   if (!validMediaRequest(mediaUrl, mx.getHomeserverUrl())) return mediaUrl;
 
-  try {
-    const urlObj = new URL(mediaUrl);
-    // Capacitor iOS lacks service workers, so native media elements cannot receive
-    // Authorization headers. Use a query token fallback for authenticated media.
-    urlObj.searchParams.set('access_token', accessToken);
-    return urlObj.toString();
-  } catch {
-    return mediaUrl;
-  }
+  // Capacitor iOS lacks service workers, so native media elements cannot receive
+  // Authorization headers. Use a query token fallback for authenticated media.
+  // validMediaRequest already ruled out unparseable URLs.
+  const urlObj = new URL(mediaUrl);
+  urlObj.searchParams.set('access_token', accessToken);
+  return urlObj.toString();
 };

@@ -229,7 +229,7 @@ export const useCommandPaletteSource = (
       const cachedItems = cache.get(cacheKey);
       if (cachedItems) return cachedItems;
 
-      const items = new Map<string, CommandPaletteUserItem & { onSelect: () => void }>();
+      const items: (CommandPaletteUserItem & { onSelect: () => void })[] = [];
       const { candidates, currentRoomMemberIds } = collectCommandPaletteUserCandidates({
         directUsers,
         exhaustive,
@@ -240,11 +240,9 @@ export const useCommandPaletteSource = (
         selectedRoomId,
       });
 
-      const upsertUser = (
-        userId: string,
-        displayName: string | undefined,
-        sourceRoomId?: string
-      ) => {
+      // collectCommandPaletteUserCandidates dedupes by userId, so each candidate
+      // maps to a unique item; no merge with an existing entry is needed.
+      candidates.forEach(({ userId, displayName, sourceRoomId }) => {
         if (!userId || userId === myUserId) return;
 
         const existingDmRoomId = knownDmRoomByUserId.get(userId);
@@ -258,7 +256,7 @@ export const useCommandPaletteSource = (
         const baseSortRank = sourceRoomId ? roomActivityRank.get(sourceRoomId) ?? 0 : 0;
         const dmSortRank = existingDmRoomId ? directActivityRank.get(existingDmRoomId) ?? 0 : 0;
         const boost = (existingDmRoomId ? 25 : 0) + (currentRoomMemberIds.has(userId) ? 15 : 0);
-        const nextItem: CommandPaletteUserItem & { onSelect: () => void } = {
+        items.push({
           id: userId,
           kind: 'user',
           displayName: displayName ?? dmDisplayName ?? localpart,
@@ -276,35 +274,11 @@ export const useCommandPaletteSource = (
 
             navigate(target.path);
           },
-        };
-
-        const existing = items.get(userId);
-        if (!existing) {
-          items.set(userId, nextItem);
-          return;
-        }
-
-        items.set(userId, {
-          ...existing,
-          displayName:
-            existing.displayName === existing.localpart &&
-            nextItem.displayName !== nextItem.localpart
-              ? nextItem.displayName
-              : existing.displayName,
-          dmRoomName: nextItem.dmRoomName ?? existing.dmRoomName,
-          existingDmRoomId: nextItem.existingDmRoomId ?? existing.existingDmRoomId,
-          sortRank: Math.max(existing.sortRank ?? 0, nextItem.sortRank ?? 0),
-          boost: Math.max(existing.boost ?? 0, nextItem.boost ?? 0),
         });
-      };
-
-      candidates.forEach(({ userId, displayName, sourceRoomId }) => {
-        upsertUser(userId, displayName, sourceRoomId);
       });
 
-      const resolvedItems = Array.from(items.values());
-      cache.set(cacheKey, resolvedItems);
-      return resolvedItems;
+      cache.set(cacheKey, items);
+      return items;
     };
   }, [
     directActivityRank,

@@ -26,6 +26,7 @@ import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useMobileKeyboardViewportFix } from '../../hooks/useMobileKeyboardViewportFix';
+import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 
@@ -119,10 +120,7 @@ export function RoomView({
     useCallback(
       (evt) => {
         if (editableActiveElement()) return;
-        const portalContainer = document.getElementById('portalContainer');
-        if (portalContainer && portalContainer.children.length > 0) {
-          return;
-        }
+        if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
           ReactEditor.focus(editor);
         }
