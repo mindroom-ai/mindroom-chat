@@ -2,6 +2,73 @@
 
 ## Runbook
 
+### Automatic Xcode Cloud App Store versioning (2026-07-10)
+
+- Status: complete locally; independent post-fix review found no remaining issues.
+- Recent `dev` evidence: Xcode Cloud App Store preparation failed for the three merges after
+  the manual `4.12.4 (33)` bump, while GitHub release, Android, Docker, and Netlify jobs stayed
+  green. The manual version-bump merge itself was the only recent Xcode archive to succeed.
+- The Xcode archive completed compilation and failed only while preparing the build for App Store
+  Connect. Existing Metal/Capacitor warnings are unrelated.
+- Root cause: `MARKETING_VERSION` remained the checked-in `4.12.4` train across later merges.
+  Updating `CURRENT_PROJECT_VERSION` from a release tag creates a new build, but cannot reopen an
+  App Store version train after that marketing version has been released.
+- Automatic policy: Xcode Cloud's always-present, auto-incrementing `CI_BUILD_NUMBER` now wins over
+  release tags and supplies both `CURRENT_PROJECT_VERSION` and the counter for a fresh marketing
+  patch. For package `4.12.3`, checked-in `4.12.4`, and Xcode build `64`, the archive becomes
+  `4.12.68 (64)`.
+- Explicit `IOS_MARKETING_VERSION`, `APP_STORE_MARKETING_VERSION`, and `IOS_BUILD_NUMBER` overrides
+  remain available for deliberate manual releases. Non-CI local builds without a tag keep the
+  checked-in Xcode marketing version; release tags can still provide their build number but never
+  drive Apple's marketing version because their iteration resets when `package.json` changes.
+- RED: focused version tests failed six cases before implementation: marketing versions stayed
+  fixed, release tags beat `CI_BUILD_NUMBER`, and source metadata was absent.
+- Independent review found that the first implementation also derived non-Xcode marketing versions
+  from resettable release iterations, which could regress across package releases or after an Xcode
+  Cloud build. Automatic marketing derivation is now restricted to Xcode Cloud's global counter;
+  package-transition and reset-tag regression tests cover the boundary.
+- Final GREEN after merging current `origin/dev`: focused version suite (10 tests), Xcode Cloud
+  metadata simulation, shell syntax, App Store preflight, typecheck, production build, full lint
+  (0 errors, 19 existing warnings), `git diff --check`, and full `npm test` (356 files, 2834 tests).
+- Independent merge review confirmed all PR #108 code/test files match `origin/dev` and the iOS
+  diff remains correct; its only finding was the missing section break below, now restored.
+- PR #109 review follow-up: accepted the requested invariant that an automatically derived Xcode
+  Cloud marketing version must be strictly greater than the checked-in `MARKETING_VERSION`. A low
+  counter uses the newer checked-in version as its counter base; explicit marketing overrides
+  remain authoritative. The regression reproduced `4.12.4` from package `4.12.3`, checked-in
+  `4.12.10`, and build `1` before the fix, then resolves `4.12.11 (1)` after it.
+- Also updated the defensive shell error to list `CI_BUILD_NUMBER`, matching the resolver. Merged
+  current `origin/dev` through PRs #111, #102, and #112 without rewriting history; Runbook
+  insertion conflicts preserved all sections, and upstream code remains unchanged.
+- Independent follow-up review found no production issue and requested boundary coverage for a
+  checked-in minor-version transition plus both marketing overrides through the Xcode Cloud path;
+  those regressions were added and the re-review found no remaining issues.
+- Review-follow-up GREEN: focused version suite (14 tests), low-counter simulation, App Store
+  preflight, shell syntax, typecheck, production build, full lint (0 errors, 19 existing warnings),
+  `git diff --check`, and full `npm test` (363 files, 2864 tests).
+- Final merge review confirmed all upstream code files match `origin/dev` and the iOS diff remains
+  correct; its only finding was one dropped Runbook separator, restored before push.
+- Merge-conflict repair: merged current `origin/dev` at `88b071e61` through PR #114 without
+  rewriting history. The sole conflict was the shared Runbook insertion point; both feature
+  sections are preserved, and all six incoming code/test files match `origin/dev` exactly.
+- Independent merge review found that the previous constant `checked-in patch + 1` floor mapped
+  consecutive low Xcode counters to the same marketing version, recreating a closed-train risk
+  after the first release. A focused RED regression reproduced builds 1 and 2 both resolving to
+  `4.13.3`, and builds 1 through 8 colliding at `4.12.11` across the old floor boundary.
+- Automatic marketing versions now add `CI_BUILD_NUMBER` to the newer of the package version and
+  checked-in Xcode marketing version. This keeps every consecutive counter strictly increasing
+  while staying ahead across checked-in patch, minor, or major transitions; explicit marketing
+  overrides remain authoritative. An arbitrary downward counter reset after an automatically
+  released version still requires advancing the checked-in baseline because no stateless formula
+  can infer the prior remote release.
+- Final GREEN on current `dev`: focused version suite (17 tests), combined version/scrolling suite
+  (103 tests), App Store preflight, consecutive-counter metadata simulations, shell syntax,
+  typecheck, production build, full lint (0 errors / 19 existing warnings), code/test Prettier,
+  `git diff --check`, and full `npm test` (363 files / 2870 tests).
+- Final independent re-review confirmed the max-base-plus-counter formula, patch/minor/both-major
+  transition coverage, explicit marketing/build override precedence, Runbook examples, and reset
+  caveat; no issues remain.
+
 ### Preserve upward scrolling when expanded rows remeasure (2026-07-10)
 
 - Status: complete; independent review found no remaining behavioral issues.
