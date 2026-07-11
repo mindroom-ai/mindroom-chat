@@ -400,11 +400,16 @@ describe('RoomTimeline ledger lifecycle', () => {
         | ((
             item: { end: number },
             delta: number,
-            instance: { scrollOffset: number | null; isScrolling: boolean }
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
           ) => boolean)
         | undefined;
       await act(async () => {
-        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, isScrolling: true })).toBe(false);
+        expect(
+          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
         await flushAsyncWork(3);
       });
       expect(innerElement.style.marginTop).toBe('-64px');
@@ -468,11 +473,16 @@ describe('RoomTimeline ledger lifecycle', () => {
         | ((
             item: { end: number },
             delta: number,
-            instance: { scrollOffset: number | null; isScrolling: boolean }
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
           ) => boolean)
         | undefined;
       await act(async () => {
-        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, isScrolling: true })).toBe(false);
+        expect(
+          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
         await flushAsyncWork(3);
       });
       expect(innerElement.style.marginTop).toBe('-64px');

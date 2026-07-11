@@ -111,9 +111,10 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: in progress on isolated branch `caveman/fix-ios-long-thread-momentum-loss`, based directly
-  on `origin/dev` at `79690aca`; this work is deliberately separate from PR #114 and its
-  desktop-focused scroll-jump branch. No production deploy is authorized.
+- Status: in progress on isolated branch `caveman/fix-ios-long-thread-momentum-loss`, rebased onto
+  `origin/dev` at `88b071e6`. PR #114 merged into `dev` while this task was in progress, so its
+  desktop-focused scroll-jump fix is now part of the base; this iOS work remains two separate local
+  commits and was never added to PR #114 or its branch. No production deploy is authorized.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -159,8 +160,36 @@
   the trace test from one static frame to live quiescence and boundary counter transitions across
   three frames. Focused coverage passes (4 files / 94 tests), as do typecheck, production build,
   touched lint (0 errors / 1 pre-existing warning), focused Prettier, and `git diff --check`.
-- Next: rebase the isolated branch onto the latest `origin/dev` as requested, then use the boundary
-  safety contract and realistic coverage to determine the smallest safe second behavior change.
+- Rebase: both local commits were replayed onto `88b071e6`; the only conflicts were Runbook insertion
+  points, both sections were preserved, and code in the shared ledger subsystem auto-merged. The
+  combined focused battery passes (7 files / 193 tests), including PR #114's desktop correction
+  contracts plus iOS quiescence, real-virtualizer, ledger lifecycle, cache fold, and trace coverage.
+- Independent post-rebase review found and closed two merge-only mismatches: the new lifecycle cases
+  now use PR #114's `scrollDirection` hook contract, and this Runbook records the new base/ordering.
+  It confirmed `threadRenderUtils.ts` is byte-identical to `origin/dev`, the two local patches are
+  otherwise range-diff equivalent, conflict markers are absent, and the 193-test battery is green.
+- Boundary decision: keep the existing guard unchanged pending a v3 device trace. The current ledger
+  keeps an existing anchor fixed by placing the newly loaded prefix at a negative scroll origin; any
+  spacer added in the same commit requires an equal counter-offset and leaves that prefix just as
+  unreachable. Only a preallocated top runway can make it reachable without a `scrollTop` write, and
+  that is a larger architecture change affecting open/focus/bottom coordinates, scrollbar/minimap
+  scale, loading UI, reserve replenishment, and exhaustion fallback. Merely shrinking or polling the
+  two-viewport guard delays the same momentum-killing write and risks restoring its proven 367px
+  blank / 4968px clamp regression.
+- Acceptance interpretation: this patch fixes every false-quiescence settlement (`lq`) caused by
+  event-throttled but still-changing `scrollTop`. The v2 trace cannot prove which of its three stalls
+  were `lq`; the large t=61330 and top-rubber-band t=62476 episodes are boundary-compatible and may
+  remain as the deliberate no-blank tradeoff. A same-thread v3 recapture is required before promoting
+  the preallocated-runway redesign.
+- Live Docker-Matrix ride guard: 3 passed / 2 explicit environment skips. The sustained ride had
+  737 frames, zero gaps/jumps, and one quiescence settle. The boundary ride reached `scrollTop=0`,
+  accrued 1242px of ledger, recorded exactly one quiescence plus one boundary settle, and kept gaps/
+  jumps at zero. Hydration grew 8 -> 561 rows with zero off-bottom interval. Both pagination-specific
+  rides sampled clean pixels/DOM but skipped loudly because this server filled all 361 rows before
+  sampling; the compositor case now shares the neighboring test's existing degeneration guard.
+  Independent follow-up review found the skips honest and the boundary counter assertion non-vacuous.
+- Next: run the full repository gates, finalize status, and leave exact v3 device recapture
+  instructions; do not deploy this branch as part of the task.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
