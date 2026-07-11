@@ -4,12 +4,11 @@
 
 ### PR #104 focused reliability and maintainability follow-up (2026-07-11)
 
-- Status: complete locally on `caveman/pr104-follow-up-hardening`, based on merged `dev` at
-  `adfa35962`; draft PR pending.
+- Status: complete on `caveman/pr104-follow-up-hardening`, based on merged `dev` at `adfa35962`;
+  draft PR #123 is open.
 - Scope is limited to ordinary-path issues introduced or exposed by PR #104: timestamp-aware compact
-  root preview freshness, monotonic-but-upgradable bundled relations, terminal stop-reaction updates
-  after in-place Matrix edits, transient refresh-error classification, and separation of the
-  reconciler's network scan from its repair/persist phase.
+  root preview freshness, monotonic-but-upgradable bundled relations, transient refresh-error
+  classification, and separation of the reconciler's network scan from its repair/persist phase.
 - The follow-up also repairs the concatenated `.prettierignore` entry and makes pull-request CI run
   typecheck, ESLint, and Prettier in addition to tests and the production build.
 - Compact root previews now carry their source revision timestamp with their text. Complete text
@@ -19,9 +18,6 @@
   count/participation and the newest `latest_event`; `m.annotation` unions keys with maximum counts.
   Opaque existing bundles stay unchanged and authoritative snapshots retain replace/decrease
   semantics. Focused revision/cache-store suites pass 33 tests.
-- `Reactions` listens directly for the SDK target event's in-place replacement signal, refilters the
-  small chip subtree, and returns `null` when only a stale stop chip remains. All four timeline
-  branches share the filtered gate. The focused component/timeline suites pass 26 tests.
 - Token refresh policy now lives in a pure boundary helper: definitive `M_UNKNOWN_TOKEN` failures
   request logout, while rate limits, server failures, and network errors remain retryable. The
   focused auth suites pass 25 tests.
@@ -40,7 +36,7 @@
   fixture; the fixture now carries the timestamp/sender contract used by production. Final
   exact-range review also added the standard `--` option terminator to the changed-file Prettier
   invocation; re-review approved the corrected command.
-- Final local gate is green: all 392 Vitest files / 3,040 tests, TypeScript typecheck, full ESLint
+- Final local gate is green: all 391 Vitest files / 3,034 tests, TypeScript typecheck, full ESLint
   with zero errors / 17 baseline warnings, changed-file Prettier, `git diff --check`, and the
   production plus PWA/service-worker build. Every logical change received independent review.
 
@@ -861,6 +857,14 @@ ESLint zero errors (17 baseline warnings — the pruning removal's leftover
 unused test helper was cleaned up); Prettier on touched files; production and
 PWA/service-worker builds. An independent review pass over the working tree
 preceded the commits.
+
+Follow-up scope correction (2026-07-11): removed the later mounted-component
+replacement listener and its expanded stop-reaction tests. Current MindRoom
+`origin/main` writes terminal stream metadata and then explicitly redacts the
+stop reaction during normal response cleanup. The merged metadata-based
+suppression remains as the offline/gappy-sync fallback; adding a second live
+refresh path for the brief or failed-redaction window was disproportionate to
+that backend contract and the fork's maintainability goal.
 
 ### Full-PR correctness and simplification sweep (2026-07-11)
 
