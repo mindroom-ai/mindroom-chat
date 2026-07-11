@@ -57,7 +57,127 @@ describe('event aggregation revisions', () => {
     expect(hasEventRevisionUpgrade(leftRevision, rightRevision)).toBe(false);
   });
 
-  it('preserves order for opaque relation chunks', () => {
+  it('advances partial thread counts without accepting stale count downgrades', () => {
+    const withThreadCount = (count: number) =>
+      baseEvent({
+        'm.relations': {
+          'm.thread': { count, current_user_participated: count >= 5 },
+        },
+      });
+
+    const upgraded = mergeRawEventRevisions(withThreadCount(2), withThreadCount(5));
+    const replayedStale = mergeRawEventRevisions(upgraded, withThreadCount(2));
+    const threadBundle = replayedStale.unsigned?.['m.relations']?.['m.thread'];
+
+    expect(threadBundle).toEqual({ count: 5, current_user_participated: true });
+    expect(
+      hasEventRevisionUpgrade(
+        describeRawEventRevision(withThreadCount(2)),
+        describeRawEventRevision(upgraded)
+      )
+    ).toBe(false);
+    expect(
+      hasEventRevisionUpgrade(
+        describeRawEventRevision(withThreadCount(6)),
+        describeRawEventRevision(upgraded)
+      )
+    ).toBe(true);
+  });
+
+  it('moves partial thread latest_event forward while keeping the maximum observed count', () => {
+    const withThread = (count: number, latestId: string, latestTs: number) =>
+      baseEvent({
+        'm.relations': {
+          'm.thread': {
+            count,
+            latest_event: {
+              event_id: latestId,
+              sender: '@alice:example.org',
+              origin_server_ts: latestTs,
+              type: 'm.room.message',
+              content: { body: latestId, msgtype: 'm.text' },
+            },
+          },
+        },
+      });
+
+    const merged = mergeRawEventRevisions(
+      withThread(5, '$reply-old', 100),
+      withThread(4, '$reply-new', 200)
+    );
+    expect(merged.unsigned?.['m.relations']?.['m.thread']).toMatchObject({
+      count: 5,
+      latest_event: { event_id: '$reply-new', origin_server_ts: 200 },
+    });
+  });
+
+  it('advances relation evidence independently of a stale edit without repeated divergence', () => {
+    const withEditAndCount = (editId: string, editTs: number, count: number) =>
+      baseEvent({
+        'm.relations': {
+          'm.replace': {
+            event_id: editId,
+            sender: '@alice:example.org',
+            origin_server_ts: editTs,
+            type: 'm.room.message',
+            content: {
+              'm.new_content': { body: editId },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$event' },
+            },
+          },
+          'm.thread': { count },
+        },
+      });
+    const current = withEditAndCount('$edit-v3', 300, 2);
+    const staleEditWithNewCount = withEditAndCount('$edit-v2', 200, 5);
+
+    expect(
+      hasEventRevisionUpgrade(
+        describeRawEventRevision(staleEditWithNewCount),
+        describeRawEventRevision(current)
+      )
+    ).toBe(true);
+    const merged = mergeRawEventRevisions(current, staleEditWithNewCount);
+    expect(merged.unsigned?.['m.relations']).toMatchObject({
+      'm.replace': { event_id: '$edit-v3' },
+      'm.thread': { count: 5 },
+    });
+    expect(
+      hasEventRevisionUpgrade(
+        describeRawEventRevision(staleEditWithNewCount),
+        describeRawEventRevision(merged)
+      )
+    ).toBe(false);
+  });
+
+  it('merges partial annotation buckets per key with monotonic counts', () => {
+    const withAnnotations = (chunk: Array<Record<string, unknown>>) =>
+      baseEvent({ 'm.relations': { 'm.annotation': { chunk } } });
+    const current = withAnnotations([{ type: 'm.reaction', key: '👍', count: 2, me: true }]);
+    const upgraded = mergeRawEventRevisions(
+      current,
+      withAnnotations([
+        { type: 'm.reaction', key: '👍', count: 5 },
+        { type: 'm.reaction', key: '❤️', count: 1 },
+      ])
+    );
+    const replayedStale = mergeRawEventRevisions(
+      upgraded,
+      withAnnotations([{ type: 'm.reaction', key: '👍', count: 2 }])
+    );
+    const annotation = replayedStale.unsigned?.['m.relations']?.['m.annotation'] as {
+      chunk?: Array<{ key?: string; count?: number; me?: boolean }>;
+    };
+
+    expect(annotation.chunk).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: '👍', count: 5, me: true }),
+        expect.objectContaining({ key: '❤️', count: 1 }),
+      ])
+    );
+  });
+
+  it('keeps opaque partial bundles stable while authoritative snapshots preserve their order', () => {
     const left = baseEvent({
       'm.relations': {
         'com.example.ordered': { chunk: ['first', 'second'] },
@@ -71,7 +191,7 @@ describe('event aggregation revisions', () => {
 
     expect(
       hasEventRevisionUpgrade(describeRawEventRevision(right), describeRawEventRevision(left))
-    ).toBe(true);
+    ).toBe(false);
     expect(
       mergeRawEventRevisions(left, right, 'authoritative').unsigned?.['m.relations']?.[
         'com.example.ordered'

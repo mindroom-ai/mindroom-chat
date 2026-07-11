@@ -259,6 +259,114 @@ const canonicalizeRelations = (relations: Record<string, unknown>): Record<strin
       ])
   );
 
+const getFiniteCount = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+
+const getRawObservationTs = (rawEvent: Record<string, unknown> | undefined): number => {
+  if (!rawEvent) return 0;
+  const event = rawEvent as Partial<IEvent>;
+  const replacement = getRawReplacement(event);
+  const replacementTs = getReplacementRevision(event.sender, replacement)?.ts ?? 0;
+  const eventTs =
+    typeof event.origin_server_ts === 'number' && Number.isFinite(event.origin_server_ts)
+      ? event.origin_server_ts
+      : 0;
+  return Math.max(eventTs, replacementTs);
+};
+
+const pickFresherRawObservation = (
+  current: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined => {
+  if (!current) return incoming;
+  if (!incoming) return current;
+  const currentTs = getRawObservationTs(current);
+  const incomingTs = getRawObservationTs(incoming);
+  if (currentTs !== incomingTs) return incomingTs > currentTs ? incoming : current;
+
+  const currentId = typeof current.event_id === 'string' ? current.event_id : '';
+  const incomingId = typeof incoming.event_id === 'string' ? incoming.event_id : '';
+  if (currentId !== incomingId) return incomingId > currentId ? incoming : current;
+  return stableSerialize(incoming) > stableSerialize(current) ? incoming : current;
+};
+
+const mergePartialThreadBundle = (current: unknown, incoming: unknown): unknown => {
+  if (!isRecord(current)) return canonicalizeAggregation(incoming);
+  if (!isRecord(incoming)) return canonicalizeAggregation(current);
+
+  const currentLatest = isRecord(current.latest_event) ? current.latest_event : undefined;
+  const incomingLatest = isRecord(incoming.latest_event) ? incoming.latest_event : undefined;
+  const latestEvent = pickFresherRawObservation(currentLatest, incomingLatest);
+  const canonicalCurrent = canonicalizeAggregation(current) as Record<string, unknown>;
+  const canonicalIncoming = canonicalizeAggregation(incoming) as Record<string, unknown>;
+  const merged: Record<string, unknown> = {
+    ...canonicalIncoming,
+    ...canonicalCurrent,
+  };
+
+  const currentCount = getFiniteCount(current.count);
+  const incomingCount = getFiniteCount(incoming.count);
+  if (currentCount !== undefined || incomingCount !== undefined) {
+    merged.count = Math.max(currentCount ?? 0, incomingCount ?? 0);
+  }
+
+  if (current.current_user_participated === true || incoming.current_user_participated === true) {
+    merged.current_user_participated = true;
+  } else if (
+    current.current_user_participated === false ||
+    incoming.current_user_participated === false
+  ) {
+    merged.current_user_participated = false;
+  }
+
+  if (latestEvent) merged.latest_event = canonicalizeAggregation(latestEvent);
+  else delete merged.latest_event;
+  return canonicalizeAggregation(merged);
+};
+
+const getAnnotationBucketId = (bucket: Record<string, unknown>): string => {
+  const type = typeof bucket.type === 'string' ? bucket.type : '';
+  const key = typeof bucket.key === 'string' ? bucket.key : '';
+  return type || key ? `${type}\u0000${key}` : stableSerialize(bucket);
+};
+
+const mergeAnnotationBucket = (
+  current: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): Record<string, unknown> => {
+  const currentCount = getFiniteCount(current.count);
+  const incomingCount = getFiniteCount(incoming.count);
+  const merged = { ...incoming, ...current };
+  if (currentCount !== undefined || incomingCount !== undefined) {
+    merged.count = Math.max(currentCount ?? 0, incomingCount ?? 0);
+  }
+  if (current.me === true || incoming.me === true) merged.me = true;
+  return merged;
+};
+
+const mergePartialAnnotationBundle = (current: unknown, incoming: unknown): unknown => {
+  if (!isRecord(current)) return canonicalizeRelationBundle(RelationType.Annotation, incoming);
+  if (!isRecord(incoming)) return canonicalizeRelationBundle(RelationType.Annotation, current);
+
+  const currentChunk = Array.isArray(current.chunk) ? current.chunk.filter(isRecord) : [];
+  const incomingChunk = Array.isArray(incoming.chunk) ? incoming.chunk.filter(isRecord) : [];
+  const merged: Record<string, unknown> = { ...incoming, ...current };
+  const buckets = new Map<string, Record<string, unknown>>();
+  [...currentChunk, ...incomingChunk].forEach((bucket) => {
+    const canonicalBucket = canonicalizeAggregation(bucket) as Record<string, unknown>;
+    const bucketId = getAnnotationBucketId(canonicalBucket);
+    const existing = buckets.get(bucketId);
+    buckets.set(
+      bucketId,
+      existing ? mergeAnnotationBucket(existing, canonicalBucket) : canonicalBucket
+    );
+  });
+  merged.chunk = [...buckets.values()].sort((left, right) =>
+    stableSerialize(left).localeCompare(stableSerialize(right))
+  );
+  return canonicalizeRelationBundle(RelationType.Annotation, merged);
+};
+
 const mergeNonReplacementRelations = (
   current: Record<string, unknown>,
   incoming: Record<string, unknown>,
@@ -266,10 +374,22 @@ const mergeNonReplacementRelations = (
 ): Record<string, unknown> => {
   const canonicalIncoming = canonicalizeRelations(incoming);
   if (mode === 'authoritative') return canonicalIncoming;
-  // Partial SDK serializations may omit unrelated bundles. Add newly seen
-  // relation types, but keep an existing type until an explicitly
-  // authoritative server snapshot replaces or removes it.
-  return { ...canonicalIncoming, ...canonicalizeRelations(current) };
+  // Partial SDK serializations may omit unrelated bundles, so absence never
+  // deletes a relation type. Known aggregate bundles merge monotonically:
+  // counts can advance and latest_event can move forward, while a stale
+  // partial observation cannot lower already-seen evidence.
+  const merged = canonicalizeRelations(current);
+  Object.entries(canonicalIncoming).forEach(([relationType, incomingBundle]) => {
+    const currentBundle = merged[relationType];
+    if (currentBundle === undefined) {
+      merged[relationType] = incomingBundle;
+    } else if (relationType === RelationType.Thread) {
+      merged[relationType] = mergePartialThreadBundle(currentBundle, incomingBundle);
+    } else if (relationType === RelationType.Annotation) {
+      merged[relationType] = mergePartialAnnotationBundle(currentBundle, incomingBundle);
+    }
+  });
+  return canonicalizeRelations(merged);
 };
 
 const withMergedRelations = (
@@ -396,10 +516,14 @@ export const hasEventRevisionUpgrade = (
     !current.redacted &&
     !candidate.redacted &&
     compareReplacementRevision(candidate.replacement, current.replacement) > 0;
+  const mergedAggregations = mergeNonReplacementRelations(
+    current.aggregations,
+    candidate.aggregations
+  );
   return (
     redactionUpgrade ||
     replacementUpgrade ||
-    stableSerialize(candidate.aggregations) !== stableSerialize(current.aggregations)
+    stableSerialize(mergedAggregations) !== stableSerialize(current.aggregations)
   );
 };
 
