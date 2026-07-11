@@ -18,6 +18,14 @@ const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'pro
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
 const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
 const appDelegatePath = path.join(repoRoot, 'ios', 'App', 'App', 'AppDelegate.swift');
+const localizableStringsPath = path.join(
+  repoRoot,
+  'ios',
+  'App',
+  'App',
+  'en.lproj',
+  'Localizable.strings'
+);
 const appIconDir = path.join(
   repoRoot,
   'ios',
@@ -182,6 +190,27 @@ if (iosPushConfig.enabled === true) {
     appDelegate.includes('didFailToRegisterForRemoteNotificationsWithError'),
     'AppDelegate.swift: missing APNs didFailToRegisterForRemoteNotifications callback.'
   );
+
+  if (iosPushConfig.format === 'full') {
+    check(
+      fs.existsSync(localizableStringsPath),
+      'iOS: full push payloads require en.lproj/Localizable.strings.'
+    );
+    check(
+      xcodeProject.includes('Localizable.strings in Resources'),
+      'Xcode project: Localizable.strings must be included in the App resources phase.'
+    );
+
+    if (fs.existsSync(localizableStringsPath)) {
+      const localizableStrings = readText(localizableStringsPath);
+      ['MSG_FROM_USER_WITH_CONTENT', 'MSG_FROM_USER_IN_ROOM_WITH_CONTENT'].forEach((key) => {
+        check(
+          localizableStrings.includes(`"${key}"`),
+          `Localizable.strings: missing Sygnal notification key ${key}.`
+        );
+      });
+    }
+  }
 }
 
 const requiredPlistKeys = [

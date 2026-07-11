@@ -4,7 +4,21 @@ import type { IPusherRequest, MatrixClient } from 'matrix-js-sdk';
 import { ClientConfig } from '../../hooks/useClientConfig';
 import { getActiveSession, getSessionScopedStorageKey } from '../../state/sessions';
 
-type MatrixPusherRequest = IPusherRequest;
+type IOSPushDefaultPayload = {
+  aps: {
+    alert?: {
+      title: string;
+      body: string;
+    };
+    sound: 'default';
+  };
+};
+
+type MatrixPusherRequest = Omit<IPusherRequest, 'data'> & {
+  data: IPusherRequest['data'] & {
+    default_payload: IOSPushDefaultPayload;
+  };
+};
 type MatrixPusherClient = Pick<MatrixClient, 'setPusher'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
@@ -174,6 +188,20 @@ export const buildIOSPushPusherRequest = (
   token: string,
   pushConfig: IOSPushConfig
 ): MatrixPusherRequest => {
+  const defaultPayload: IOSPushDefaultPayload = {
+    aps: {
+      sound: 'default',
+      ...(pushConfig.format === 'event_id_only'
+        ? {
+            alert: {
+              title: pushConfig.appDisplayName,
+              body: 'New message',
+            },
+          }
+        : {}),
+    },
+  };
+
   const request: MatrixPusherRequest = {
     kind: 'http',
     app_id: pushConfig.appId,
@@ -186,6 +214,7 @@ export const buildIOSPushPusherRequest = (
     data: {
       url: pushConfig.gatewayUrl,
       format: pushConfig.format,
+      default_payload: defaultPayload,
     },
   };
 

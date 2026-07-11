@@ -222,7 +222,7 @@ describe('resolveIOSPushConfig', () => {
 });
 
 describe('buildIOSPushPusherRequest', () => {
-  it('builds a Matrix HTTP pusher payload', () => {
+  it('builds a visible fallback for event-id-only pushes', () => {
     const request = buildIOSPushPusherRequest('token-123', {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
@@ -246,6 +246,38 @@ describe('buildIOSPushPusherRequest', () => {
       data: {
         url: 'https://push.example.com/_matrix/push/v1/notify',
         format: 'event_id_only',
+        default_payload: {
+          aps: {
+            alert: {
+              title: 'MindRoom iOS',
+              body: 'New message',
+            },
+            sound: 'default',
+          },
+        },
+      },
+    });
+  });
+
+  it('requests full payloads for sender and message previews', () => {
+    const request = buildIOSPushPusherRequest('token-123', {
+      appId: 'com.mindroom-ios',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'MindRoom iOS',
+      deviceDisplayName: 'iPhone',
+      profileTag: 'profile-1',
+      append: true,
+      format: 'full',
+      lang: 'en',
+    });
+
+    expect(request.data).toEqual({
+      url: 'https://push.example.com/_matrix/push/v1/notify',
+      format: 'full',
+      default_payload: {
+        aps: {
+          sound: 'default',
+        },
       },
     });
   });
