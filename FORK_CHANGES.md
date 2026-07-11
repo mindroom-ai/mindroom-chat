@@ -4,8 +4,15 @@
 
 ### Settle-cascade jump after rest: diagnosis and plan (2026-07-11)
 
-- Status: fix implemented on `fix/settle-cascade-remeasure` (PR #124);
-  awaiting on-device validation on the lab, then corpus rethreshold. The
+- Status: VALIDATED on device (iPad trace `ride-trace-1783811896380`, same
+  thread as the defect rides): all five tracked rest settles up to 3,202px
+  land with zero slip, zero extra growth, anchor row surviving; the
+  100-240ms cascade stalls are gone (slowest settle frame 125ms = the
+  once-per-open fill). Post-fix behavior pinned in the corpus
+  (`ipadCascadeFixed`); pre-fix goldens kept as detector proof. Known
+  residuals (smaller, separate families): ~98px slip when the open-fill's
+  single 33k rebase lands while touching the top edge; ~31px top-bounce
+  boundary slip inside the event-vs-frame sampling gap. The
   defect is pinned by the merged ride-trace corpus (`rideTraceReplay.test.ts`,
   test "detects the OPEN settle-cascade defect") and documented on PR #122.
 - Root cause confirmed in virtual-core 3.17.3: `scrollMargin` is baked into

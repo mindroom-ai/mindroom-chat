@@ -35,12 +35,16 @@ const ipadFill = loadTrace('ride-trace-1783802452438');
 const iphoneFixed = loadTrace('ride-trace-1783804190290');
 const iphoneOldA = loadTrace('ride-trace-1783745470971');
 const iphoneOldB = loadTrace('ride-trace-1783737737705');
+// Same thread and iPad as ipadFill, recorded on the #124 settle-atomicity
+// build: the post-cascade-fix good ride.
+const ipadCascadeFixed = loadTrace('ride-trace-1783811896380');
 
 const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
   { trace: ipadFill, clientHeight: 469 },
   { trace: iphoneFixed, clientHeight: 465 },
   { trace: iphoneOldA, clientHeight: 500 },
   { trace: iphoneOldB, clientHeight: 469 },
+  { trace: ipadCascadeFixed, clientHeight: 469 },
 ];
 
 describe('ride trace corpus', () => {
@@ -121,15 +125,14 @@ describe('ride trace corpus', () => {
     });
   });
 
-  it('detects the OPEN settle-cascade defect: rest settles that grow content beyond the fold', () => {
-    // Not yet fixed (2026-07-11): the quiescence settle's synchronous
-    // remount/remeasure changes content height by far more than the
-    // ledger fold, in a single 100-240ms frame, right after the ride
-    // comes to rest — the remaining "momentum stops, then it jumps"
-    // report. Both rides of thread ff7965e2 show it; the anchor row is
-    // unmounted in those frames, so anchorSlipPx is blind (undefined).
-    // When the cascade fix lands, these goldens should be replaced by
-    // thresholds over a post-fix trace.
+  it('detects the settle-cascade defect in the pre-#124 rides', () => {
+    // Fixed by #124 (settle atomicity: the virtualizer's cached offset is
+    // reconciled before the setOptions recompute). These goldens keep the
+    // PRE-fix rides as detector proof: the quiescence settle's synchronous
+    // remount/remeasure grew content far beyond the ledger fold in single
+    // 100-240ms frames right after rest, with the anchor row unmounted
+    // (anchorSlipPx blind). The post-fix behavior is pinned by the
+    // ipadCascadeFixed test below.
     const cascade = (trace: RideTrace, clientHeight: number) =>
       extractLedgerSettles(trace.frames, clientHeight).filter(
         (settle) => settle.cause === 'quiescence' && settle.extraGrowthPx > 200
@@ -146,5 +149,28 @@ describe('ride trace corpus', () => {
     const iphoneCascade = cascade(iphoneFixed, 465);
     expect(iphoneCascade.map((settle) => settle.frameIndex)).toEqual([641]);
     expect(iphoneCascade[0].extraGrowthPx).toBe(216);
+  });
+
+  it('holds the #124 build to atomic settles: large rest rebases track the anchor with zero slip', () => {
+    // Post-fix ride of the SAME thread and device as ipadFill. Pre-fix,
+    // every large rest settle was a blind remount burst; now the big
+    // quiescence rebases keep the anchor mounted and land pixel-perfect.
+    const settles = extractLedgerSettles(ipadCascadeFixed.frames, 469);
+    const largeRest = settles.filter(
+      (settle) => settle.cause === 'quiescence' && Math.abs(settle.scrollShiftPx) > 400
+    );
+    expect(largeRest.length).toBe(6);
+    const tracked = largeRest.filter((settle) => settle.anchorSlipPx !== undefined);
+    // One settle coincides with below-viewport window extension (frame
+    // 409: +3,444px growth below the fold, 36ms frame, zero coverage gap)
+    // and re-picks the recorder anchor; the other five are fully tracked.
+    expect(tracked.length).toBe(5);
+    tracked.forEach((settle) => {
+      expect(settle.anchorSlipPx).toBe(0);
+      expect(settle.extraGrowthPx).toBe(0);
+    });
+    // The 100-240ms settle-cascade stalls are gone; the slowest settle
+    // frame is the once-per-open initial fill.
+    expect(Math.max(...settles.map((settle) => settle.frameMs))).toBeLessThanOrEqual(130);
   });
 });
