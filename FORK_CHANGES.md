@@ -217,10 +217,11 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: PR #116 merged the sampled-quiescence fix into `dev`; the v2 boundary follow-up has native
-  acceptance for both failure modes and is replayed onto current `origin/dev` at `5d66af4f2`.
-  Draft PR #119 is open from `caveman/fix-ios-boundary-momentum-loss-v2`. No production deploy was
-  performed by this task.
+- Status: PR #116 merged the sampled-quiescence fix and PR #119 merged the direction-aware boundary
+  fix into `dev`. A focused follow-up on `caveman/harden-ios-ledger-direction` resets #119's
+  delivered-event direction baseline when a new touch begins after silent compositor travel;
+  independent review and full validation are complete. PR #121 is open from that branch. No
+  production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -384,6 +385,53 @@
   iOS-push patch, and no findings. Post-replay full Vitest passes (363 files / 2,885 tests), as do
   typecheck, production build, full lint (0 errors / 19 pre-existing warnings), the focused ledger
   suite (2 files / 86 tests), and `git diff --check`.
+- Direction-epoch follow-up (2026-07-11): #119 correctly compares each delivered scroll offset with
+  the previous one, but iOS can advance compositor momentum without delivering those events. If a
+  new touch reverses that silent travel, the first event of the new gesture can have a net delta in
+  the old direction. The positive-bottom or negative-top proximity guard can then pay a coherent
+  ledger while the endangered edge is actually receding, recreating the momentum kill #119 removed.
+- Follow-up RED: a component lifecycle regression starts at `scrollTop=34331`, arms +72px of ledger
+  near the bottom guard, silently advances the compositor to 34431, begins a new touch there, then
+  delivers the first reversed frame at 34396. Current `dev` compares 34396 with stale 34331,
+  classifies it as forward, and writes 34468; relative to the silent origin that reverses native
+  -35px motion into +37px. The test expects no write while preserving a later real toward-bottom
+  settle. Focused Vitest fails exactly that one new case (1 failed / 7 passed).
+- Follow-up GREEN: a passive capture-phase `touchstart` listener now snapshots the live native
+  `scrollTop` into the boundary baseline before the first event of the new gesture. The trace-shaped
+  reversal performs no app write and keeps its -72px coherent margin; a subsequent genuine forward
+  frame still triggers exactly one +72px bottom-clamp safety settle. The focused lifecycle suite
+  passes (8 tests), touched ESLint reports 0 errors / 1 pre-existing warning, and `git diff --check`
+  is clean.
+- Scope: in-range free momentum cannot reverse without new input, while edge crossings observed by
+  a scroll callback remain covered by #119's unconditional guards. A full silent edge cross/rebound
+  or a reversal inside one uninterrupted direct-touch drag with every intermediate scroll callback
+  suppressed remains theoretical and observable via the existing v3 `st`/touch/`lb` trace fields;
+  touchmove intent or rAF polling is intentionally not added without device evidence.
+- Independent follow-up review approved the behavior and found one test-contract gap: the first
+  GREEN mock did not prove capture/passive registration or matching cleanup. The regression now pins
+  both the exact listener options and same-handler capture teardown. Re-review also caught broad
+  unrelated formatter churn in all three touched files; it was removed before commit. The final
+  focused diff has no remaining findings, and the four-file momentum battery passes (111 tests).
+- Follow-up final validation on `origin/dev` `886a8599e`: full Vitest passes (364 files / 2,892
+  tests), as do typecheck, production build, full lint (0 errors / 19 pre-existing warnings), touched
+  lint (0 errors / 1 pre-existing warning), and `git diff --check`. The Docker-Matrix
+  iPhone-emulated/CPU-throttled boundary ride passed with 1,004 frames, `scrollTop=0`, 1,188px
+  maximum ledger, zero coverage gaps/blank frames/anchor jumps, and exactly one quiescence plus one
+  boundary settle. Chromium cannot reproduce Safari's event-suppression timing; the trace-shaped
+  component RED/GREEN is the behavioral oracle for this gesture-epoch case.
+- Final rebase: fetched `origin/dev` immediately before publishing; it remained at `886a8599e`, so
+  commit `af0cf8748` was already directly based on the current default branch and the rebase was a
+  no-op.
+- Publishing: pushed `caveman/harden-ios-ledger-direction` and opened PR #121 targeting `dev`.
+- Merge-conflict repair after PR #123: merged current `origin/dev` at `bb3a2109f` without rewriting
+  history. `dev` had moved the complete ledger lifecycle into `timelineScrollLedgerController`, so
+  the obsolete component implementation and its large lifecycle-test conflict were not restored.
+  The touch-epoch reset now lives with the boundary guard in that controller, with a focused
+  controller regression covering silent compositor travel, reversal, genuine forward settlement,
+  passive capture registration, and matching cleanup. The focused momentum battery passes (4
+  files / 98 tests); the full suite passes (391 files / 3,035 tests), as do typecheck, production
+  plus PWA/service-worker builds, full lint (0 errors / 17 existing warnings), formatting, and
+  `git diff --check`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
