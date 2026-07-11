@@ -4,3 +4,5 @@ package.json
 package-lock.json
 LICENSE
 README.md
+# Preserve the runbook's sentence-per-line source formatting.
+FORK_CHANGES.md
