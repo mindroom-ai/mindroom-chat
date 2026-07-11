@@ -259,7 +259,7 @@ describe('buildIOSPushPusherRequest', () => {
     });
   });
 
-  it('requests full payloads for sender and message previews', () => {
+  it('leaves the full-format alert to Sygnal for sender and message previews', () => {
     const request = buildIOSPushPusherRequest('token-123', {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',

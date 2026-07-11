@@ -3,7 +3,7 @@
 "MSG_FROM_USER" = "Message from %1$@";
 "MSG_FROM_USER_IN_ROOM" = "%1$@ in %2$@";
 "ACTION_FROM_USER" = "%1$@ %2$@";
-"ACTION_FROM_USER_IN_ROOM" = "%2$@ in %1$@: %3$@";
+"ACTION_FROM_USER_IN_ROOM" = "%2$@ %3$@ in %1$@";
 "IMAGE_FROM_USER" = "%1$@ sent an image: %2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@ sent an image in %3$@: %2$@";
 "VOICE_CALL_FROM_USER" = "Voice call from %1$@";

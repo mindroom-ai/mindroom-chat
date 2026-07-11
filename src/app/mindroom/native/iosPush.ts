@@ -191,6 +191,7 @@ export const buildIOSPushPusherRequest = (
   const defaultPayload: IOSPushDefaultPayload = {
     aps: {
       sound: 'default',
+      // Sygnal adds loc-key/loc-args for full pushes; a default body would mask that preview.
       ...(pushConfig.format === 'event_id_only'
         ? {
             alert: {

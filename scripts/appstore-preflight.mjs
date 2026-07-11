@@ -40,6 +40,19 @@ const failures = [];
 
 const readText = (filePath) => fs.readFileSync(filePath, 'utf8');
 
+const readStringsText = (filePath) => {
+  const contents = fs.readFileSync(filePath);
+  if (contents[0] === 0xff && contents[1] === 0xfe) {
+    return contents.subarray(2).toString('utf16le');
+  }
+  if (contents[0] === 0xfe && contents[1] === 0xff) {
+    const littleEndianContents = Buffer.from(contents.subarray(2));
+    littleEndianContents.swap16();
+    return littleEndianContents.toString('utf16le');
+  }
+  return contents.toString('utf8');
+};
+
 const check = (condition, message) => {
   if (!condition) failures.push(message);
 };
@@ -202,11 +215,26 @@ if (iosPushConfig.enabled === true) {
     );
 
     if (fs.existsSync(localizableStringsPath)) {
-      const localizableStrings = readText(localizableStringsPath);
-      ['MSG_FROM_USER_WITH_CONTENT', 'MSG_FROM_USER_IN_ROOM_WITH_CONTENT'].forEach((key) => {
+      const localizableStrings = readStringsText(localizableStringsPath);
+      const requiredSygnalLocalizations = {
+        MSG_FROM_USER_WITH_CONTENT: '%1$@: %2$@',
+        MSG_FROM_USER_IN_ROOM_WITH_CONTENT: '%1$@ in %2$@: %3$@',
+        MSG_FROM_USER: 'Message from %1$@',
+        MSG_FROM_USER_IN_ROOM: '%1$@ in %2$@',
+        ACTION_FROM_USER: '%1$@ %2$@',
+        ACTION_FROM_USER_IN_ROOM: '%2$@ %3$@ in %1$@',
+        IMAGE_FROM_USER: '%1$@ sent an image: %2$@',
+        IMAGE_FROM_USER_IN_ROOM: '%1$@ sent an image in %3$@: %2$@',
+        VOICE_CALL_FROM_USER: 'Voice call from %1$@',
+        VIDEO_CALL_FROM_USER: 'Video call from %1$@',
+        USER_INVITE_TO_NAMED_ROOM: '%1$@ invited you to %2$@',
+        USER_INVITE_TO_CHAT: '%1$@ invited you to a chat',
+      };
+
+      Object.entries(requiredSygnalLocalizations).forEach(([key, value]) => {
         check(
-          localizableStrings.includes(`"${key}"`),
-          `Localizable.strings: missing Sygnal notification key ${key}.`
+          localizableStrings.includes(`"${key}" = "${value}";`),
+          `Localizable.strings: missing or invalid Sygnal notification template ${key}.`
         );
       });
     }
