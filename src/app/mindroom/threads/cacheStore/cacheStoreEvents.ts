@@ -59,7 +59,7 @@ const getRedactedRelationMetaScope = (eventId: string): string =>
 const getRedactedRelationMetaKey = (roomId: string, eventId: string): string =>
   buildMetaKey(roomId, getRedactedRelationMetaScope(eventId));
 
-const stripRedactedRawEvents = <T extends Partial<IEvent>>(
+const stripKnownRedactedRelations = <T extends Partial<IEvent>>(
   rawEvents: readonly T[],
   redactedEventIds: ReadonlySet<string>
 ): T[] =>
@@ -86,11 +86,6 @@ const buildMergedEventRecord = (
     approxBytes: estimateRawEventBytes(rawEvent),
   };
 };
-
-const stripKnownRedactedRelations = <T extends Partial<IEvent>>(
-  rawEvents: readonly T[],
-  redactedEventIds: ReadonlySet<string>
-): T[] => stripRedactedRawEvents(rawEvents, redactedEventIds);
 
 const canPersistMarkedEvent = (
   rawEvent: Partial<IEvent>,
@@ -165,6 +160,47 @@ const collectRedactedTombstones = (
     }
   });
   return tombstones;
+};
+
+/**
+ * Return the subset of `redactedEventIds` that have no marker row yet
+ * on the room's meta store. Callers use this to gate the room-wide
+ * scrub cursor: once an id is marked, every historical repair for it
+ * has been applied and re-scrubbing on later saves is pure work.
+ */
+const collectRedactedIdsWithoutMarker = async (
+  db: IDBDatabase,
+  roomId: string,
+  redactedEventIds: ReadonlySet<string>
+): Promise<Set<string>> => {
+  if (redactedEventIds.size === 0) return new Set();
+  return new Promise<Set<string>>((resolve, reject) => {
+    const transaction = db.transaction(META_STORE, 'readonly');
+    const metaStore = transaction.objectStore(META_STORE);
+    const unmarkedIds = new Set(redactedEventIds);
+    let failed = false;
+    redactedEventIds.forEach((eventId) => {
+      const request = metaStore.get(getRedactedRelationMetaKey(roomId, eventId));
+      request.onsuccess = () => {
+        if (failed) return;
+        if (request.result) unmarkedIds.delete(eventId);
+      };
+      request.onerror = () => {
+        if (failed) return;
+        failed = true;
+        reject(request.error);
+      };
+    });
+    transaction.oncomplete = () => {
+      if (!failed) resolve(unmarkedIds);
+    };
+    transaction.onerror = () => {
+      if (!failed) reject(transaction.error);
+    };
+    transaction.onabort = () => {
+      if (!failed) reject(transaction.error);
+    };
+  });
 };
 
 const runScrubRedactedRelationsTxn = async (
@@ -501,7 +537,13 @@ export const saveRoomEventsToCacheCommitted = async (
     const redactedTombstones = collectRedactedTombstones(rawEvents);
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
     if (redactedEventIds.size > 0) {
-      await runScrubRedactedRelationsTxn(db, roomId, redactedEventIds, redactedTombstones);
+      // Only scrub for ids we have never marked before: marker rows are
+      // written by the scrub itself, so an already-marked id was fully
+      // repaired on its first save and re-scrubbing is pure work.
+      const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
+      if (unscrubbedIds.size > 0) {
+        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+      }
     }
     if (normalizedEvents.length === 0) return true;
 
@@ -711,6 +753,28 @@ export const deleteRoomEventsFromCache = async (
 
 // --- Thread API ---
 
+/**
+ * Assemble a CachedThreadEventPage from a meta row + ordered replies.
+ * Passing `undefined` for `meta` produces a "no cached state" page
+ * (snapshot flags false, no beforeToken) — used both when the cache is
+ * empty AND for the batch loader's early-return shape so every returned
+ * page carries the same field set.
+ */
+const buildThreadEventPage = (
+  meta: CachedMetaRecord | undefined,
+  orderedEvents: CachedThreadEvent[],
+  hasMoreBefore: boolean
+): CachedThreadEventPage => ({
+  rootEvent: meta?.rootEvent,
+  events: orderedEvents,
+  hasMoreBefore,
+  beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+  expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+  snapshotComplete: meta?.snapshotComplete === true,
+  relationSnapshotComplete: meta?.relationSnapshotComplete === true,
+  tailLoaded: meta?.tailLoaded === true,
+});
+
 export const loadLatestCachedThreadEvents = async (
   sessionId: string,
   roomId: string,
@@ -724,17 +788,7 @@ export const loadLatestCachedThreadEvents = async (
     limit,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  const orderedEvents = events.reverse() as CachedThreadEvent[];
-  return {
-    rootEvent: meta?.rootEvent,
-    events: orderedEvents,
-    hasMoreBefore,
-    beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-    expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
-    snapshotComplete: meta?.snapshotComplete === true,
-    relationSnapshotComplete: meta?.relationSnapshotComplete === true,
-    tailLoaded: meta?.tailLoaded === true,
-  };
+  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore);
 };
 
 /** Read several thread tails in one IndexedDB transaction. */
@@ -750,7 +804,7 @@ export const loadLatestCachedThreadEventsBatch = async (
   const db = await openCacheStore(sessionId);
   if (!db || limit <= 0) {
     uniqueThreadIds.forEach((threadId) => {
-      empty.set(threadId, { events: [], hasMoreBefore: false });
+      empty.set(threadId, buildThreadEventPage(undefined, [], false));
     });
     return empty;
   }
@@ -797,18 +851,8 @@ export const loadLatestCachedThreadEventsBatch = async (
     transaction.oncomplete = () => {
       const pages = new Map<string, CachedThreadEventPage>();
       states.forEach(({ threadId, events, hasMoreBefore, metaRequest }) => {
-        const orderedEvents = events.reverse();
         const meta = metaRequest.result as CachedMetaRecord | undefined;
-        pages.set(threadId, {
-          rootEvent: meta?.rootEvent,
-          events: orderedEvents,
-          hasMoreBefore,
-          beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-          expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
-          snapshotComplete: meta?.snapshotComplete === true,
-          relationSnapshotComplete: meta?.relationSnapshotComplete === true,
-          tailLoaded: meta?.tailLoaded === true,
-        });
+        pages.set(threadId, buildThreadEventPage(meta, events.reverse(), hasMoreBefore));
       });
       resolve(pages);
     };
@@ -824,7 +868,7 @@ export const loadCachedThreadEventsBefore = async (
   before: CursorAnchor | undefined,
   limit: number
 ): Promise<CachedThreadEventPage> => {
-  if (!before) return { events: [], hasMoreBefore: false };
+  if (!before) return buildThreadEventPage(undefined, [], false);
   const { events, hasMoreBefore, meta } = await runScopedCursor({
     sessionId,
     roomId,
@@ -833,40 +877,7 @@ export const loadCachedThreadEventsBefore = async (
     upperBound: before,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  const orderedEvents = events.reverse() as CachedThreadEvent[];
-  return {
-    rootEvent: meta?.rootEvent,
-    events: orderedEvents,
-    hasMoreBefore,
-    beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-    expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
-    snapshotComplete: meta?.snapshotComplete === true,
-    relationSnapshotComplete: meta?.relationSnapshotComplete === true,
-    tailLoaded: meta?.tailLoaded === true,
-  };
-};
-
-export const loadCachedThreadPaginationToken = async (
-  sessionId: string,
-  roomId: string,
-  threadId: string,
-  eventId: string
-): Promise<string | null | undefined> => {
-  const db = await openCacheStore(sessionId);
-  if (!db) return undefined;
-
-  return new Promise<string | null | undefined>((resolve, reject) => {
-    const transaction = db.transaction([META_STORE], 'readonly');
-    const metaStore = transaction.objectStore(META_STORE);
-    const metaRequest = metaStore.get(buildMetaKey(roomId, threadId));
-
-    transaction.oncomplete = () => {
-      const meta = metaRequest.result as CachedMetaRecord | undefined;
-      resolve(getCachedPaginationToken(meta?.beforeTokens, eventId));
-    };
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore);
 };
 
 export const loadCachedThreadEvent = async (
@@ -940,7 +951,11 @@ export const saveThreadEventsToCacheCommitted = async (
       threadId
     );
     if (redactedEventIds.size > 0) {
-      await runScrubRedactedRelationsTxn(db, roomId, redactedEventIds, redactedTombstones);
+      // Gate the room-wide scrub on marker presence (see room-save above).
+      const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
+      if (unscrubbedIds.size > 0) {
+        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+      }
     }
     if (normalizedEvents.length === 0 && !rootEvent) return true;
 
@@ -1137,20 +1152,21 @@ const runSaveThreadEventsTxn = async (
     transaction.onabort = () => reject(transaction.error);
   });
 
-const deleteThreadEvents = async (
+/** Best-effort compatibility API used by fire-and-forget cleanup paths. */
+export const deleteThreadEventsFromCache = async (
   sessionId: string,
   roomId: string,
   threadId: string,
   eventIds: string[]
-): Promise<boolean> => {
-  if (eventIds.length === 0) return true;
+): Promise<void> => {
+  if (eventIds.length === 0) return;
   // CINNY-207 P2 review: dedupe (same rationale as
   // deleteRoomEventsFromCache — avoid double-decrementing the ledger).
   const uniqueEventIds = Array.from(new Set(eventIds));
 
   try {
     const db = await openCacheStore(sessionId);
-    if (!db) return false;
+    if (!db) return;
 
     countCacheProbe('eventDeletes', uniqueEventIds.length);
 
@@ -1182,20 +1198,9 @@ const deleteThreadEvents = async (
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-    return true;
   } catch {
-    return false;
+    // Best-effort — see rationale on deleteRoomEventsFromCache.
   }
-};
-
-/** Best-effort compatibility API used by fire-and-forget cleanup paths. */
-export const deleteThreadEventsFromCache = async (
-  sessionId: string,
-  roomId: string,
-  threadId: string,
-  eventIds: string[]
-): Promise<void> => {
-  await deleteThreadEvents(sessionId, roomId, threadId, eventIds);
 };
 
 /**

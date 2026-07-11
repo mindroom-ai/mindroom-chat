@@ -34,10 +34,6 @@ export {
   deleteCacheStoreDb,
   openCacheStore,
   resetCacheStoreForTesting,
-  getOpenCacheStoreDbPromise,
-  setLegacyWipeHook,
-  __setLegacyWipeHookForTests,
-  CacheStoreBlockedError,
 } from './cacheStoreDb';
 
 export {
@@ -63,7 +59,6 @@ export {
   loadCachedRoomPaginationToken,
   loadCachedThreadEvent,
   loadCachedThreadEventsBefore,
-  loadCachedThreadPaginationToken,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadLatestCachedThreadEventsBatch,

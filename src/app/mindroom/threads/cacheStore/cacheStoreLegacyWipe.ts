@@ -18,8 +18,9 @@ import {
 // wipe idempotent — AC14 asserts exactly-once behavior against this
 // marker.
 //
-// The wipe is invoked by `openCacheStore` via `setLegacyWipeHook`, so
-// this module has no consumers other than the DB opener bootstrap.
+// The wipe is invoked directly by `openCacheStore` after schema-v3
+// open success, so this module has no consumers other than the DB
+// opener bootstrap.
 
 // Reserved metaKey (see cacheStoreSchema); duplicated here to keep the
 // wipe module independent of the schema import for constant tree-shake.
@@ -87,10 +88,7 @@ const shouldAttemptLegacySingletonWipe = (sessionId: string): boolean => {
  * subsequent open the marker is found and this function returns without
  * touching IndexedDB.
  */
-export const performLegacyDbWipe = async (
-  sessionId: string,
-  db: IDBDatabase
-): Promise<void> => {
+export const performLegacyDbWipe = async (sessionId: string, db: IDBDatabase): Promise<void> => {
   const marker = await readWipeMarker(db).catch(() => undefined);
   if (marker) return;
 

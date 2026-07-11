@@ -123,6 +123,7 @@ export type CachedMetaRecord = {
     prevBatch?: string | null;
     generation?: string;
     nextToken?: string | null;
+    /** Event ids from the cached room tail before this gap-fill began. */
     overlapEventIds?: string[];
   };
   /** Durable cursor for a bounded multi-page thread reconciliation. */

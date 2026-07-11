@@ -40,9 +40,8 @@ export class CacheStoreBlockedError extends Error {
   }
 }
 
-const hasRequiredCacheStoreStores = (
-  db: Pick<IDBDatabase, 'objectStoreNames'>
-): boolean => REQUIRED_STORES.every((store) => db.objectStoreNames.contains(store));
+const hasRequiredCacheStoreStores = (db: Pick<IDBDatabase, 'objectStoreNames'>): boolean =>
+  REQUIRED_STORES.every((store) => db.objectStoreNames.contains(store));
 
 const deleteIndexedDb = async (dbName: string): Promise<void> => {
   if (typeof indexedDB === 'undefined') return;
@@ -78,36 +77,11 @@ const applyUpgrade = (db: IDBDatabase): void => {
   }
 };
 
-/**
- * Hook for the D8 legacy-wipe step. Runs after schema-v3 open success
- * and before we hand the DB out to callers. The default implementation
- * (`performLegacyDbWipe`) deletes the three legacy DB names once per
- * session and writes an idempotency marker into the meta store, so a
- * second open is a cheap marker read.
- */
-type LegacyWipeHook = (sessionId: string, db: IDBDatabase) => Promise<void>;
-
-const DEFAULT_LEGACY_WIPE_HOOK: LegacyWipeHook = (sessionId, db) =>
-  performLegacyDbWipe(sessionId, db);
-
-let legacyWipeHook: LegacyWipeHook = DEFAULT_LEGACY_WIPE_HOOK;
-
-export const __setLegacyWipeHookForTests = (hook: LegacyWipeHook | undefined): void => {
-  legacyWipeHook = hook ?? DEFAULT_LEGACY_WIPE_HOOK;
-};
-
-export const setLegacyWipeHook = (hook: LegacyWipeHook): void => {
-  legacyWipeHook = hook;
-};
-
-// Retained for callers that want the currently open DB (for deleteDatabase
-// coordination) without re-opening it.
-export const getOpenCacheStoreDbPromise = (
-  sessionId: string
-): Promise<IDBDatabase | undefined> | undefined => {
-  const dbName = getCacheStoreDbName(sessionId);
-  return dbPromiseByName.get(dbName);
-};
+// D8 legacy-wipe step: after a schema-v3 open we delete the three legacy
+// DB names once per session, writing an idempotency marker into the meta
+// store so second opens are a cheap marker read. Tests mock the
+// `cacheStoreLegacyWipe` module directly via `vi.mock`, so no runtime
+// hook indirection is needed.
 
 export const openCacheStore = (
   sessionId: string,
@@ -159,9 +133,9 @@ export const openCacheStore = (
         db.close();
         dbPromiseByName.delete(dbName);
       };
-      // D8 wipe hook runs after the schema is confirmed and before we
-      // hand the DB out to callers.
-      legacyWipeHook(sessionId, db)
+      // D8 wipe runs after the schema is confirmed and before we hand
+      // the DB out to callers.
+      performLegacyDbWipe(sessionId, db)
         .catch(() => undefined)
         .finally(() => resolve(db));
     };
@@ -201,14 +175,11 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
 };
 
 /**
- * Testing utility — drop all memoized dbPromise entries and restore the
- * legacy-wipe hook to its default (`performLegacyDbWipe`). Combined
- * with a fresh `IDBFactory`, this makes each test start from a clean
- * slate.
+ * Testing utility — drop all memoized dbPromise entries so the next
+ * `openCacheStore` re-opens against a fresh `IDBFactory`.
  */
 export const resetCacheStoreForTesting = (): void => {
   dbPromiseByName.clear();
-  legacyWipeHook = DEFAULT_LEGACY_WIPE_HOOK;
 };
 
 // Re-exported so the wipe hook (P2.1 commit 3) can iterate stored

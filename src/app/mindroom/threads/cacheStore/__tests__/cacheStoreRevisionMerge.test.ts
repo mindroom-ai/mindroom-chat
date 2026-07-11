@@ -10,7 +10,6 @@ import {
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadCachedRoomPaginationToken,
-  loadCachedThreadPaginationToken,
   openCacheStore,
   readLedgerSnapshot,
   resetCacheStoreForTesting,
@@ -309,9 +308,11 @@ describe('cache storage same-ID revision merge', () => {
     expect(await loadCachedRoomPaginationToken(SESSION_ID, ROOM_ID, '$room-valid')).toBe(
       'room-after-redaction'
     );
-    expect(
-      await loadCachedThreadPaginationToken(SESSION_ID, ROOM_ID, THREAD_ID, '$thread-valid')
-    ).toBe('thread-after-redaction');
+    // Thread token is asserted through the production `beforeToken` path:
+    // when `$thread-valid` is the earliest surviving event, its stored
+    // token is what the paginator will see on the next backward read.
+    expect(threadPage.events[0]?.event_id).toBe('$thread-valid');
+    expect(threadPage.beforeToken).toBe('thread-after-redaction');
 
     const storedEvents = [...roomPage.events, ...threadPage.events];
     const db = await openCacheStore(SESSION_ID);
@@ -353,15 +354,21 @@ describe('cache storage same-ID revision merge', () => {
     expect(await loadCachedRoomPaginationToken(SESSION_ID, ROOM_ID, '$room-valid')).toBe(
       'room-token'
     );
-    expect(
-      await loadCachedThreadPaginationToken(SESSION_ID, ROOM_ID, THREAD_ID, '$thread-valid')
-    ).toBe('thread-token');
+    // Same pattern as the previous scenario: `$thread-valid` is the
+    // earliest event to survive redaction filtering, so the paginator's
+    // beforeToken must be anchored to its stored token.
+    const anchoredThreadPage = await loadLatestCachedThreadEvents(
+      SESSION_ID,
+      ROOM_ID,
+      THREAD_ID,
+      20
+    );
+    expect(anchoredThreadPage.events[0]?.event_id).toBe('$thread-valid');
+    expect(anchoredThreadPage.beforeToken).toBe('thread-token');
     expect(JSON.stringify(await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 20))).not.toContain(
       'stale secret'
     );
-    expect(
-      JSON.stringify(await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 20))
-    ).not.toContain('stale secret');
+    expect(JSON.stringify(anchoredThreadPage)).not.toContain('stale secret');
   });
 
   it('keeps the newest room edit and existing partial aggregations', async () => {
