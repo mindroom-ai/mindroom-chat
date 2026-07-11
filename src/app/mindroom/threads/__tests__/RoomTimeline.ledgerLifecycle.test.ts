@@ -101,7 +101,10 @@ const setThreadEvents = (events: MockEvent[]) => {
   );
 };
 
-const makeLedgerSettleElements = (initialScrollTop = 0) => {
+const makeLedgerSettleElements = (
+  initialScrollTop = 0,
+  innerRect = { top: -1000, bottom: 60_000 }
+) => {
   let scrollTopValue = initialScrollTop;
   const scrollWrites: number[] = [];
   const scrollListeners: EventListener[] = [];
@@ -128,9 +131,12 @@ const makeLedgerSettleElements = (initialScrollTop = 0) => {
   const innerElement = {
     style: {} as Record<string, string>,
     // With a positive ledger this is inside the two-viewport top guard.
-    getBoundingClientRect: vi.fn(() => ({ top: -1000, bottom: 60_000 })),
+    getBoundingClientRect: vi.fn(() => innerRect),
   };
-  const fireScroll = () => {
+  const fireScroll = (nextScrollTop = scrollTopValue) => {
+    // Native/compositor movement updates the backing value without going
+    // through the app-write probe in the property setter.
+    scrollTopValue = nextScrollTop;
     scrollListeners.forEach((listener) => listener(new Event('scroll')));
   };
   return { scrollElement, innerElement, scrollWrites, fireScroll };
@@ -367,16 +373,19 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
-  it('tags a boundary settlement once and leaves the pending quiescence waiter as a no-op', async () => {
+  it('coasts through positive-ledger top runway and settles at physical exhaustion', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-    const threadId = '$ledger-boundary-cause';
-    const thread = buildThread(threadId, '$boundary-', 5);
+    const threadId = '$ledger-positive-top-runway';
+    const thread = buildThread(threadId, '$top-runway-', 5);
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
     setThreadEvents(thread.initialEvents);
-    const { scrollElement, innerElement, scrollWrites, fireScroll } =
-      makeLedgerSettleElements(1023);
+    const innerRect = { top: -1114, bottom: 60_000 };
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      1139,
+      innerRect
+    );
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const waitsBefore = settleWaits.length;
     const countsBefore = await readLedgerSettleCounts();
@@ -408,18 +417,31 @@ describe('RoomTimeline ledger lifecycle', () => {
         | undefined;
       await act(async () => {
         expect(
-          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
+          hook!({ end: 100 }, 89, { scrollOffset: 5000, scrollDirection: 'forward' })
         ).toBe(false);
         await flushAsyncWork(3);
-      });
-      expect(innerElement.style.marginTop).toBe('-64px');
-      expect(settleWaits).toHaveLength(waitsBefore + 1);
-
-      await act(async () => {
-        fireScroll();
+        // Exact v3 geometry: reachable top is -1114 + 89 = -1025px.
+        // Native motion is still backward, but this is valid runway rather
+        // than blank space and must not perform an app scrollTop write.
+        fireScroll(1081);
         await flushAsyncWork(3);
       });
-      expect(scrollWrites).toEqual([1087]);
+      expect(scrollWrites).toEqual([]);
+      expect(innerElement.style.marginTop).toBe('-89px');
+      expect(await readLedgerSettleCounts()).toEqual(countsBefore);
+
+      await act(async () => {
+        // Once Safari reaches its physical minimum, reachable top is zero.
+        // Settle there immediately; momentum has already exhausted itself.
+        // The fixed normal-flow origin is 56px: -1114 + 89 + 1081.
+        // Moving scrollTop 1081 -> 0 therefore moves the rect by +1081,
+        // leaving innerTop=-33 rather than fabricating ledger-only motion.
+        innerRect.top += 1081;
+        innerRect.bottom += 1081;
+        fireScroll(0);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([89]);
       expect(innerElement.style.marginTop).toBe('');
       expect(await readLedgerSettleCounts()).toEqual({
         quiescence: countsBefore.quiescence,
@@ -430,7 +452,7 @@ describe('RoomTimeline ledger lifecycle', () => {
         settleWaits[waitsBefore].resolve();
         await flushAsyncWork(3);
       });
-      expect(scrollWrites).toEqual([1087]);
+      expect(scrollWrites).toEqual([89]);
       expect(await readLedgerSettleCounts()).toEqual({
         quiescence: countsBefore.quiescence,
         boundary: countsBefore.boundary + 1,
@@ -441,7 +463,190 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
-  it('tags an ordinary ledger settlement as quiescence', async () => {
+  it('settles only toward a ledger boundary and survives a coalesced write event', async () => {
+    mockIsIOSWebKit = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$ledger-boundary-cause';
+    const thread = buildThread(threadId, '$boundary-', 5);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    // Trace-shaped geometry: the inner bottom is inside the positive-
+    // ledger bottom guard while the top is tens of thousands of px away.
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      34331,
+      { top: -34000, bottom: 1500 }
+    );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const waitsBefore = settleWaits.length;
+    const countsBefore = await readLedgerSettleCounts();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork();
+      });
+
+      const hook = roomTimelineVirtualizerState.lastInstance
+        ?.shouldAdjustScrollPositionOnItemSizeChange as
+        | ((
+            item: { end: number },
+            delta: number,
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
+          ) => boolean)
+        | undefined;
+      await act(async () => {
+        // Arm before the listener has seen any scroll event. Its mount-time
+        // baseline must classify this very first native frame as forward
+        // and preserve the toward-bottom safety guard.
+        expect(
+          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(settleWaits).toHaveLength(waitsBefore + 1);
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+
+      await act(async () => {
+        expect(
+          hook!({ end: 100 }, 34, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        // Update the direction baseline while the ledger remains below the
+        // 48px boundary floor. The next crossing oracle fails if this update
+        // is moved below the early return.
+        fireScroll(34250);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412]);
+      expect(innerElement.style.marginTop).toBe('-34px');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+
+      await act(async () => {
+        // Another measured row brings the ledger to +72px. This small
+        // reversal is forward from the correctly remembered 34250, but
+        // still backward from the stale pre-subfloor 34412: only the correct
+        // baseline recognizes travel toward the nearby bottom boundary.
+        expect(
+          hook!({ end: 100 }, 38, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        fireScroll(34290);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 2,
+      });
+
+      await act(async () => {
+        // Re-arm the exact traced +72px case. The mock settlement setter
+        // above emitted no scroll event, so this also begins from its
+        // synchronously read-back 34362 baseline.
+        expect(
+          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        fireScroll(34313);
+        // A stationary event is not evidence of travel toward either edge.
+        fireScroll(34313);
+        // Native momentum then continues upward, AWAY from the endangered
+        // bottom. The old guard wrote 34278+72=34350 here, visibly reversed
+        // the frame, and stopped Safari's fling.
+        fireScroll(34278);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362]);
+      expect(innerElement.style.marginTop).toBe('-72px');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 2,
+      });
+
+      await act(async () => {
+        // Reverse toward the endangered bottom: its guard still performs
+        // exactly one atomic safety rebase before any debt is exposed.
+        fireScroll(34313);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362, 34385]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 3,
+      });
+
+      await act(async () => {
+        // The mock setter intentionally emits no scroll event, matching an
+        // iOS-coalesced programmatic write. A fresh ledger plus a native
+        // upward frame must compare against the read-back 34385 baseline,
+        // not the stale pre-settle 34313 offset (which would look forward).
+        expect(
+          hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        fireScroll(34370);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362, 34385]);
+      expect(innerElement.style.marginTop).toBe('-72px');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 3,
+      });
+
+      await act(async () => {
+        // Approaching the bottom again consumes the fresh ledger; the
+        // original pending rest waiter then has nothing left to settle.
+        fireScroll(34400);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362, 34385, 34472]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 4,
+      });
+
+      await act(async () => {
+        settleWaits[waitsBefore].resolve();
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34362, 34385, 34472]);
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 4,
+      });
+    } finally {
+      mockIsIOSWebKit = false;
+      renderer?.unmount();
+    }
+  });
+
+  it('tags quiescence and refreshes the boundary baseline without a write event', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const threadId = '$ledger-quiescence-cause';
@@ -449,7 +654,10 @@ describe('RoomTimeline ledger lifecycle', () => {
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
     setThreadEvents(thread.initialEvents);
-    const { scrollElement, innerElement, scrollWrites } = makeLedgerSettleElements();
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      1000,
+      { top: -34000, bottom: 1500 }
+    );
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const waitsBefore = settleWaits.length;
     const countsBefore = await readLedgerSettleCounts();
@@ -492,10 +700,40 @@ describe('RoomTimeline ledger lifecycle', () => {
         settleWaits[waitsBefore].resolve();
         await flushAsyncWork(3);
       });
-      expect(scrollWrites).toEqual([64]);
+      expect(scrollWrites).toEqual([1064]);
       expect(innerElement.style.marginTop).toBe('');
       expect(await readLedgerSettleCounts()).toEqual({
         quiescence: countsBefore.quiescence + 1,
+        boundary: countsBefore.boundary,
+      });
+
+      await act(async () => {
+        // The quiescence write emitted no mock scroll event. A fresh ledger
+        // followed by native upward motion must compare against the written
+        // 1064px offset, not the stale pre-settle 1000px value (which would
+        // misclassify this as forward and hit the nearby bottom guard).
+        expect(
+          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        await flushAsyncWork(3);
+        fireScroll(1050);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([1064]);
+      expect(innerElement.style.marginTop).toBe('-64px');
+      expect(settleWaits).toHaveLength(waitsBefore + 2);
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence + 1,
+        boundary: countsBefore.boundary,
+      });
+
+      await act(async () => {
+        settleWaits[waitsBefore + 1].resolve();
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([1064, 1114]);
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence + 2,
         boundary: countsBefore.boundary,
       });
     } finally {

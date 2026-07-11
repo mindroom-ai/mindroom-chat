@@ -179,11 +179,10 @@
 
 ### iOS long-thread momentum loss during ledger settlement (2026-07-10)
 
-- Status: complete locally; independent reviews found no remaining code/test issues, with v3 device
-  acceptance still pending. Isolated branch `caveman/fix-ios-long-thread-momentum-loss` is rebased
-  onto `origin/dev` at `740f8b746`. PR #114 merged into `dev` while this task was in progress, so its
-  desktop-focused scroll-jump fix is now part of the base; this iOS work remains four separate local
-  commits and was never added to PR #114 or its branch. No production deploy was performed.
+- Status: PR #116 merged the sampled-quiescence fix into `dev`; the v2 boundary follow-up has native
+  acceptance for both failure modes and is replayed onto current `origin/dev` at `5d66af4f2`.
+  Draft PR #119 is open from `caveman/fix-ios-boundary-momentum-loss-v2`. No production deploy was
+  performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -271,6 +270,82 @@
   attributes a stall to quiescence, while `lb` attributes it to the retained boundary tradeoff. If
   no stall remains or only `lq` stalls disappear, ship this focused fix; a renewed `lb` stall is the
   promotion signal for the separately designed preallocated-runway architecture.
+- v3 device acceptance (2026-07-11): `ride-trace-1783779812509.json` captured the same 655-row
+  thread for 45.5s on an iPhone 17 Pro simulator (402x714). Pagination and row count were stable.
+  The strengthened quiescence path preserved two long coast tails down to the final -1px frame and
+  settled only 229-238ms later (`lq` increased, `lb` stayed fixed), validating the sampled-offset
+  fix. One remaining stall was attributed exactly to `lb`: native upward momentum was still moving
+  -18px/frame with `scrollTop=34313`, `scrollHeight=35475`, and positive ledger 34px; the next frame
+  reset a newly accumulated 72px ledger, wrote `scrollTop +72px` (net frame reversal +37px),
+  increased `lb`, and stopped all motion for 5.16s until the next touch.
+- Boundary root cause: that event was not top-runway exhaustion. The positive-ledger _bottom_ edge
+  was within the conservative two-viewport guard while the fling was moving upward, away from it.
+  The old predicate was direction-blind, so it paid safe debt for an edge that was receding and
+  needlessly killed Safari momentum. The minimal fix gates the top boundary to backward/upward
+  travel and the bottom boundary to forward/downward travel; stationary and away-from-edge debt is
+  left coherent until true quiescence. The proven top blank/unreachable-prefix and bottom-clamp
+  protections remain active whenever a ride actually approaches their edge.
+- RED/GREEN provenance: focused predicate tests first proved both symmetric away-from-edge cases
+  failed. Component lifecycle coverage reproduces the exact trace geometry and arithmetic: it
+  updates the direction baseline through a sub-48px ledger frame, accumulates 34+38=72px, and
+  verifies the 34313 -> 34278 upward frame performs no app write; reversing toward the endangered
+  bottom still performs exactly one 34313+72=34385 safety settle. Additional no-echo cases pin the
+  direction baseline to the actual clamped `scrollTop` immediately after both boundary and
+  quiescence writes, because iOS may coalesce their synthetic scroll events. The focused files pass
+  (83 tests). Full/live/device validation and independent review remain pending.
+- Direction-gate validation: full Vitest passes (363 files / 2,880 tests), as do typecheck,
+  production build, full lint (0 errors / 19 pre-existing warnings), the focused real-virtualizer
+  battery (7 files / 195 tests), `git diff --check`, and the Docker-Matrix boundary ride. The live
+  ride reached `scrollTop=0` with 1,003 frames, 1,188px maximum ledger, zero coverage gaps/jumps,
+  and one retained toward-top boundary settle. Independent review found no defect in the
+  edge/direction mapping or its first-event, subfloor, stationary, and coalesced-write coverage.
+- Native follow-up (2026-07-11): Appium/XCUITest 11.17.4 drove 33 real `swipeDown(velocity:)`
+  gestures through a local 320-reply fixture in iPhone 17 Pro Safari. The direction fix removed the
+  original false bottom-edge stop, but v3 `ride-trace-1783784177182.json` caught a remaining
+  toward-top guard stop: `scrollTop` 1391 -> 1325 -> 1261 -> 1139 -> 1081 while ledger was +89px,
+  then `lb` increased, the ledger reset, and the sampled frame reversed to 1114 before becoming
+  stationary. The inferred native step was still about -56px. This is the retained two-viewport
+  safety write firing roughly 1.5 viewports before the real top, so device acceptance was not yet
+  complete.
+- Positive-top geometry correction: re-auditing the sign algebra showed that the proposed
+  preallocated runway was unnecessary and would have expanded the coordinate surface for open,
+  focus, scrollbar/minimap, short-thread, and reserve-exhaustion behavior. For positive ledger
+  `innerTop + ledgerPx` cancels the compensating margin, so approaching the top does not expose a
+  blank band; it only leaves the newly folded prefix beyond the current physical origin. The
+  browser's remaining range is already a safe write-free runway. Negative ledger still creates a
+  real top margin, and positive ledger still risks a bottom clamp, so those proactive guards remain.
+- Exact-edge RED/GREEN: a trace-shaped predicate regression first failed because +89px ledger at
+  `innerTop=-1114` settled with 1025px of valid runway left. The positive-ledger top branch now waits
+  for actual native exhaustion (`scrollElement.scrollTop <= 0`) before paying debt; negative-top and
+  positive-bottom crossings still settle regardless of the last sampled direction, while their
+  proximity retains toward-edge direction gates. Independent review caught that the inner rect's
+  normal-flow padding can reach the viewport a few pixels before the browser hard stop, so a second
+  RED pins the physical scroll offset rather than inferring exhaustion from inner geometry. The
+  corrected component fixture moves its rect by the exact native scroll delta, performs no app write
+  during the traced upward frame, then performs one +89px settlement only at scrollTop 0; its pending
+  quiescence waiter becomes a no-op. Focused coverage passes (2 files / 86 tests).
+- Complete native acceptance (2026-07-11): the recorder's 2700-frame production cap was temporarily
+  enlarged only in the local `ridetrace=1` dev session so Appium's full 53,000px traversal fit in one
+  export; the diagnostic constant was reverted immediately afterward and is absent from the diff.
+  `ride-trace-1783786487574.json` contains 7,867 v3 frames across 131.7s, all 321 events, and
+  `scrollTop` 49,871 -> 0. Five `lq` transitions followed 133-150ms stationary windows and each had
+  inferred native delta exactly 0. The only `lb` transition occurred at physical exhaustion: sampled
+  `scrollTop` coasted 81 -> 68 -> 56 -> 44 -> 32 -> 21 -> 10 before the +1466px atomic settle; its
+  inferred final native step was -19px into `scrollTop <= 0`, with no coherent physical runway left.
+  There was no mid-ride boundary settlement. Stable-thread normalized gap was 0, frame-time p95/max
+  was 21/60ms, and the raw 1466px trace jump was exactly the coordinate-origin ledger reset rather
+  than a painted anchor displacement.
+- Live boundary acceptance: the Docker-Matrix iPhone-emulated/CPU-throttled ride passed with 1,002
+  frames, `scrollTop=0`, 1,226px maximum ledger, zero gaps, zero anchor jumps, and one retained
+  boundary settle. Full Vitest before the physical-offset review fix passed 363 files / 2,882 tests;
+  typecheck, production build, and full lint passed (0 errors / 19 pre-existing warnings). Final
+  gates on the physical-offset fix and current base are recorded below.
+- Final replay/validation: the two follow-up commits replayed conflict-free onto `origin/dev`
+  `5d66af4f2`; `git range-diff` reported both patches exactly equivalent, and independent review
+  confirmed a clean merge base, the expected five-file scope, no interaction with #115's disjoint
+  iOS-push patch, and no findings. Post-replay full Vitest passes (363 files / 2,885 tests), as do
+  typecheck, production build, full lint (0 errors / 19 pre-existing warnings), the focused ledger
+  suite (2 files / 86 tests), and `git diff --check`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
