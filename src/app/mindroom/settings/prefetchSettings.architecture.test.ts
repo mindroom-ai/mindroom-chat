@@ -131,7 +131,11 @@ describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
     expect(atomSource).not.toContain("from '../../state/settings'");
     expect(genericSource).not.toContain('prefetchScope');
     expect(genericSource).not.toContain('prefetchDepth');
+    expect(indexSource).toContain('migrateLegacyIOSPushEnabled();');
     expect(indexSource).toContain('migrateMindroomSettingsStorage();');
+    expect(indexSource.indexOf('migrateLegacyIOSPushEnabled();')).toBeLessThan(
+      indexSource.indexOf('migrateMindroomSettingsStorage();')
+    );
   });
 
   it('keeps prefetchDepth OUT of paint-time cache reads (PR #72 greptile P2 pair)', () => {

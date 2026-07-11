@@ -127,6 +127,20 @@ const getLegacyIOSPushEnabled = (): boolean | undefined => {
   return undefined;
 };
 
+const getStoredIOSPushEnabled = (key: string): boolean | undefined => {
+  const stored = trimConfigValue(readStorage(key));
+  if (stored === '0' || stored === 'false') return false;
+  if (stored) return true;
+  return undefined;
+};
+
+/** Preserve the old device-wide preference before generic settings rewrites its legacy blob. */
+export const migrateLegacyIOSPushEnabled = (): void => {
+  if (getStoredIOSPushEnabled(PUSH_ENABLED_STORAGE_KEY) !== undefined) return;
+  const legacyValue = getLegacyIOSPushEnabled();
+  if (legacyValue !== undefined) writeStorage(PUSH_ENABLED_STORAGE_KEY, legacyValue ? '1' : '0');
+};
+
 export const isNativeIOSPlatform = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
@@ -257,9 +271,10 @@ export const unregisterIOSPush = async (): Promise<void> => {
 
 export const getIOSPushEnabled = (sessionId?: string): boolean => {
   const storageKey = resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId);
-  const stored = trimConfigValue(readStorage(storageKey));
-  if (stored === '0' || stored === 'false') return false;
-  if (stored) return true;
+  const scopedValue = getStoredIOSPushEnabled(storageKey);
+  if (scopedValue !== undefined) return scopedValue;
+  const globalValue = getStoredIOSPushEnabled(PUSH_ENABLED_STORAGE_KEY);
+  if (globalValue !== undefined) return globalValue;
   const legacyValue = getLegacyIOSPushEnabled();
   if (legacyValue !== undefined) return legacyValue;
   return true;

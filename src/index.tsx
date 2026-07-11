@@ -20,6 +20,7 @@ import App from './app/pages/App';
 import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
 import { bootstrapRideTraceFlagFromUrl } from './app/mindroom/threads/rideTraceRecorder';
 import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroomSettingsStorage';
+import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -47,6 +48,7 @@ const mountApp = () => {
 };
 
 const bootstrap = async () => {
+  migrateLegacyIOSPushEnabled();
   migrateMindroomSettingsStorage();
 
   // Request persistent storage to prevent browser from evicting IndexedDB
