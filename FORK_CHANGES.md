@@ -877,6 +877,25 @@ to the meta-transaction contracts, scrub gate atomicity, scheduler wiring
 order, and the known-redacted set equivalence) and confirmed zero behavioral
 regressions; four benign observations were noted in the review record.
 
+### Second rebase: dev PRs #118/#119 ported onto the fork architecture (2026-07-11)
+
+`dev` advanced again with #118 (reconciler shortfall drain healing a missing
+thread middle) and #119 (direction-aware ledger boundary guard preserving iOS
+momentum), both written against pre-PR architecture. After the rebase (one
+conflict stop, resolutions kept the fork's extraction), both were ported
+semantically: the shortfall guard, max-of-sources expected reply count,
+`isRawThreadReply`, exhaustion-driven `beforeTokenForEarliest: null` persists
+(including the phantom-count no-divergence persist), and the
+`reconcileShortfallPagesPastOverlap` probe now live inside the fork's
+phase/continuation reconciler, with exhaustion claims gated to fresh-head
+phases; the six-test shortfall suite was adapted to the injectable
+`persistRepair` seam and reason-free API. The direction-aware boundary guard,
+settle-write baseline read-back, and view-reset baseline clear were ported
+into `timelineScrollLedgerController`, and upstream's three direction tests
+replaced the two earlier settle tests. #118's pagination flag-latch fix and
+#119's `shouldSettleLedgerAtBoundary` predicate merged cleanly. Validation:
+390 files / 3,014 tests, typecheck, lint at baseline, production + PWA builds.
+
 ### Review round 2: sweep regressions and residual dead weight (2026-07-11)
 
 A second fan-out review against the post-sweep head (same harness: 29 finders,

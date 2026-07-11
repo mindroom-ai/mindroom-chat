@@ -57,6 +57,7 @@ import {
   hydrateCachedEvents,
   reconcileRelationEventsWithAggregation,
 } from '../threads/eventCacheEditUtils';
+import { getKnownThreadReplyCount } from '../threads/threadRecord';
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
@@ -93,6 +94,25 @@ const RECONCILE_BATCH_SIZE = 200;
 const MAX_RECONCILE_ITERATIONS = 25;
 
 type ReconcileScanExit = 'overlap' | 'end' | 'fetch-failed' | 'page-cap' | 'token-loop';
+
+/**
+ * 2026-07-10 missing-middle fix (upstream #118): raw-JSON check for a
+ * first-class thread reply (rel_type `m.thread` pointing at this thread's
+ * root). Used to build the union of known reply ids for the shortfall
+ * guard. Deliberately strict — reactions and edits never count, and an
+ * event that omits the relation is not counted either. Undercounting is
+ * safe: it can only keep the fetch loop paging longer (bounded by
+ * MAX_RECONCILE_ITERATIONS and `next_batch` exhaustion), never stop it
+ * early.
+ */
+const isRawThreadReply = (rawEvent: Partial<IEvent>, threadId: string): boolean => {
+  const eventId = rawEvent.event_id;
+  if (typeof eventId !== 'string' || eventId.length === 0 || eventId === threadId) return false;
+  const relatesTo = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
+  return relatesTo?.rel_type === 'm.thread' && relatesTo.event_id === threadId;
+};
 
 type ThreadReconcileContinuationStore = {
   load: typeof loadThreadReconcileContinuation;
@@ -433,6 +453,44 @@ const runThreadReconcilePass = async ({
   const allRaw: Partial<IEvent>[] = [];
   let scanExit: ReconcileScanExit | undefined;
 
+  // 2026-07-10 missing-middle fix (upstream #118): overlap-with-cache alone
+  // is NOT a convergence proof. The cache always holds the live-synced
+  // tail, so page 1 of the backward drain overlaps immediately — and a
+  // hole BETWEEN the tail and older segments was structurally invisible.
+  // The shortfall guard keeps paging past an overlap while the union of
+  // known reply ids still falls short of the authoritative reply count.
+  // The count is the MAX of every available source — live root's bundled
+  // m.thread count, cached root's bundled count, and the recorded coverage
+  // count — matching the store's own monotonic merge policy (the live
+  // bundle can be stale-LOW while the recorded count is fresh). A count
+  // that is stale-HIGH costs one drain bounded by `next_batch` exhaustion
+  // and MAX_RECONCILE_ITERATIONS per open — observable via
+  // `reconcileShortfallPagesPastOverlap`.
+  const liveRootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
+  const expectedReplyCountCandidates = [
+    liveRootEvent ? getKnownThreadReplyCount(liveRootEvent) : undefined,
+    cachedPage?.hydratedRootEvent
+      ? getKnownThreadReplyCount(cachedPage.hydratedRootEvent)
+      : undefined,
+    cachedPage?.expectedReplyCount,
+    cachedPage?.cacheCoverage?.expectedReplyCount,
+  ].filter((count): count is number => typeof count === 'number');
+  const expectedReplyCount =
+    expectedReplyCountCandidates.length > 0 ? Math.max(...expectedReplyCountCandidates) : undefined;
+  const knownReplyIds = new Set<string>();
+  cachedPage?.events.forEach((rawEvent) => {
+    if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
+  });
+  // True when a fresh-head phase observed `next_batch` exhaustion — the
+  // pass has then seen the ENTIRE relations stream from HEAD to the thread
+  // start. (A resumed-cursor phase starting mid-stream cannot make this
+  // claim, hence the phaseStartToken gate at the assignment site.)
+  let drainedToExhaustion = false;
+  // True when the shortfall guard drove at least one page past a
+  // cached-window overlap — deep healing work rather than the ordinary
+  // single-page tail verify.
+  let pagedPastOverlapForShortfall = false;
+
   // Set by the fetch loop when it observed a fetch failure that
   // produced no usable page (SDK threw / returned undefined). Used
   // AFTER the loop to distinguish "empty response" from "everything
@@ -551,27 +609,45 @@ const runThreadReconcilePass = async ({
       fetchedCount += pageMapped.length;
       allRaw.push(...pageRaw);
       allMapped.push(...pageMapped);
+      pageRaw.forEach((rawEvent) => {
+        if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
+      });
 
       // Convergence check: any event id in the fetched page that we
       // already have in cache means the server tail has caught up with
       // (or overlaps) what the cache knows. Removes F7's 200-event
       // ceiling — the reconciler pages further only when the divergence
-      // is deeper than the current batch.
+      // is deeper than the current batch. Overlap alone is not enough
+      // when the reply-count union still shows a shortfall (missing-
+      // middle fix above): the hole sits BEHIND the overlapping tail,
+      // so the drain continues until the count is satisfied or the
+      // stream exhausts.
       const overlap = pageMapped.some((mEvent) => {
         const id = mEvent.getId();
         return typeof id === 'string' && originalOverlapEventIds.has(id);
       });
       if (!page.nextToken) {
+        if (phaseStartToken === undefined) drainedToExhaustion = true;
         scanExit = 'end';
         break;
       }
-      if (overlap) {
+      const replyShortfall =
+        typeof expectedReplyCount === 'number' && knownReplyIds.size < expectedReplyCount;
+      if (overlap && !replyShortfall) {
         scanExit = 'overlap';
         break;
       }
       if (page.nextToken === fromToken) {
         scanExit = 'token-loop';
         break;
+      }
+      // Bump only when the next fetch will actually happen — at the
+      // MAX_RECONCILE_ITERATIONS boundary the while-condition exits before
+      // fetching, and counting that page would overstate the trace
+      // evidence.
+      if (overlap && phaseIterations < MAX_RECONCILE_ITERATIONS) {
+        pagedPastOverlapForShortfall = true;
+        countCacheProbe('reconcileShortfallPagesPastOverlap');
       }
       fromToken = page.nextToken;
     }
@@ -698,8 +774,37 @@ const runThreadReconcilePass = async ({
   // path zero-cost.
   const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
 
+  // 2026-07-10 missing-middle fix: exhaustion in a fresh-head phase means
+  // the server confirmed nothing exists before the batch's earliest event.
+  // (`fetchFailedOccurred` is mutually exclusive with exhaustion — a failed
+  // page breaks the loop immediately — the guard is defensive redundancy.)
+  const serverConfirmedStart = drainedToExhaustion && !fetchFailedOccurred;
+
   if (!diverged) {
     await settleContinuationWithoutRepair();
+    // 2026-07-10 missing-middle fix (upstream #118 review finding): a
+    // shortfall-driven full drain that found no divergence still observed
+    // the server-confirmed start. Without recording it, the phantom-high-
+    // count shape (expected count above what the stream can ever yield)
+    // would re-drain on every open with nothing to show for it. Restricted
+    // to shortfall-driven multi-page passes so the ordinary single-page
+    // "cached was right" open keeps its zero-persist D7 guarantee.
+    if (serverConfirmedStart && pagedPastOverlapForShortfall && allMapped.length > 0) {
+      const noDivergenceRootEvent =
+        room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId) ?? undefined;
+      const startSnapshot = persistRepair({
+        sessionId,
+        room,
+        threadId,
+        events: allMapped,
+        rootEvent: noDivergenceRootEvent,
+        relationSnapshotMode: 'authoritative',
+        authoritativeRawEvents: allRaw,
+        beforeTokenForEarliest: null,
+      });
+      await startSnapshot.write.catch(() => false);
+      countCacheProbe('reconcilerPersists');
+    }
     // CINNY-207 AC2 STEP 1 (2026-07-04): the D7 no-op path — the
     // reconciler ran end to end and confirmed the cache agreed with
     // server truth. Cheap by design; the counter separates this from
@@ -862,6 +967,13 @@ const runThreadReconcilePass = async ({
   const canCheckpoint = Boolean(continuation && fromToken && scanExit !== 'token-loop');
   let durable = false;
   if (scanComplete || canCheckpoint) {
+    // 2026-07-10 missing-middle fix: when a fresh-head drain observed
+    // `next_batch` exhaustion with no fetch failures, record the server-
+    // confirmed start via `beforeTokenForEarliest: null` so the next open
+    // of a healed thread takes the legitimate complete-coverage paint
+    // instead of re-draining. Deliberately NOT upgraded here:
+    // `relationSnapshotComplete` — the PR #84 contract reserves that proof
+    // for the background prewarm's full /relations drain.
     const repairSnapshot = persistRepair({
       sessionId,
       room,
@@ -870,6 +982,7 @@ const runThreadReconcilePass = async ({
       rootEvent,
       relationSnapshotMode: 'authoritative',
       authoritativeRawEvents: allRaw,
+      ...(serverConfirmedStart ? { beforeTokenForEarliest: null } : {}),
     });
     const writeCommitted = await repairSnapshot.write.catch(() => false);
     countCacheProbe('reconcilerPersists');

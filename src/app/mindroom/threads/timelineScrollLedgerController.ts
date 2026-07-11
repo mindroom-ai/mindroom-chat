@@ -201,6 +201,13 @@ export const useTimelineScrollLedgerController = ({
     virtualizerRef.current = virtualizer;
   }, [priceThreadRowForLedger, roomFoldPriceRef, virtualizer]);
 
+  // Last native/programmatic offset observed by the direction-aware ledger
+  // boundary guard (upstream #119). Settlement writes update this
+  // synchronously because iOS may coalesce their echoing scroll event; a
+  // stale pre-write baseline can invert the direction of the next native
+  // momentum frame.
+  const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
+
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
   // across paints. scrollTop must be written before setOptions because the
@@ -216,6 +223,10 @@ export const useTimelineScrollLedgerController = ({
       scrollCompensationPxRef.current = 0;
       inner.style.marginTop = '';
       scrollElement.scrollTop += px;
+      // Read back the browser-clamped value instead of assuming old+px.
+      // Safari can suppress/coalesce the setter's scroll event, so waiting
+      // for that event would leave the boundary direction baseline stale.
+      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
       const currentVirtualizer = virtualizerRef.current;
       currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
@@ -223,13 +234,34 @@ export const useTimelineScrollLedgerController = ({
     [getScrollElement]
   );
 
-  // Accumulated debt is visible empty space only near a content boundary.
-  // Settle there immediately instead of letting a continuous ride enter it.
+  // Ledger boundary guard (upstream #119, direction-aware): negative ledger
+  // can expose a real top margin, while positive ledger can clamp the
+  // bottom, so those edges retain a direction-aware two-viewport guard.
+  // Positive ledger has no top blank; it may coast through the remaining
+  // physical range and settles only at actual top exhaustion. The
+  // distinction comes from two v3 iPhone traces: a +72px bottom settle
+  // while travelling away and a +89px top settle 1025px before the hard
+  // stop both reversed a live native frame and killed Safari momentum.
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement) return undefined;
+    ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
     const onLedgerBoundaryScroll = () => {
+      const currentScrollTop = scrollElement.scrollTop;
+      const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
+      const scrollDirection =
+        currentScrollTop > previousScrollTop
+          ? 'forward'
+          : currentScrollTop < previousScrollTop
+          ? 'backward'
+          : null;
+      // Keep the baseline current even while the ledger is zero or below
+      // its arming floor. Otherwise the first correction-bearing event can
+      // compare against an arbitrarily old offset.
+      ledgerBoundaryScrollTopRef.current = currentScrollTop;
       const px = scrollCompensationPxRef.current;
+      // Cheap early exit on the hot path (direction tracking above is just
+      // scrollTop arithmetic; the common px=0 case still avoids rect reads).
       if (px > -48 && px < 48) return;
       const inner = virtualInnerRef.current;
       if (!inner) return;
@@ -242,7 +274,9 @@ export const useTimelineScrollLedgerController = ({
           innerBottom: innerRect.bottom,
           scrollTop: scrollRect.top,
           scrollBottom: scrollRect.bottom,
+          scrollOffset: currentScrollTop,
           clientHeight: scrollElement.clientHeight,
+          scrollDirection,
         })
       ) {
         settleScrollCompensation('boundary');
@@ -318,6 +352,7 @@ export const useTimelineScrollLedgerController = ({
       compensationSettleArmedRef.current = false;
       ledgerSettleWantedRef.current = false;
       threadVirtualPrependCaptureRef.current = undefined;
+      ledgerBoundaryScrollTopRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;
   }, [

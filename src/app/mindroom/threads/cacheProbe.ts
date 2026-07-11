@@ -133,7 +133,6 @@ export type CacheProbeCounters = {
   reconcilesFetchFailed: number;
   reconcilesNoDivergence: number;
   reconcilesNoRoom: number;
-  reconcilesRoomScopeNoop: number;
   // 2026-07-10 missing-middle fix: bumps each time the reconciler's
   // fetch loop pages PAST a cached-window overlap because the union of
   // known reply ids (cached + fetched so far) still falls short of the
