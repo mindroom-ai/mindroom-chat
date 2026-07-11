@@ -182,8 +182,8 @@
 - Status: PR #116 merged the sampled-quiescence fix and PR #119 merged the direction-aware boundary
   fix into `dev`. A focused follow-up on `caveman/harden-ios-ledger-direction` resets #119's
   delivered-event direction baseline when a new touch begins after silent compositor travel;
-  independent review, full validation, and the final `origin/dev` rebase are complete, with
-  publishing pending. No production deploy was performed by this task.
+  independent review, full validation, and the final `origin/dev` rebase are complete. Draft PR
+  #121 is open from that branch. No production deploy was performed by this task.
 - Device evidence: ride trace `ride-trace-1783730409848.json` captured a healthy 9.1s iPhone ride
   (95 -> 130 replies, pagination active, no sustained content gap or main-thread stall) with three
   momentum losses coincident with offset-ledger rebases. The largest visually coherent rebase
@@ -384,6 +384,7 @@
 - Final rebase: fetched `origin/dev` immediately before publishing; it remained at `886a8599e`, so
   commit `af0cf8748` was already directly based on the current default branch and the rebase was a
   no-op.
+- Publishing: pushed `caveman/harden-ios-ledger-direction` and opened draft PR #121 targeting `dev`.
 
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
