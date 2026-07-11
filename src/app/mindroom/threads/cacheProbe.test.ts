@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
   countCacheProbe,
+  getCacheProbeCounter,
   getCacheProbeSnapshot,
   markCacheHydrateEnd,
   markCacheHydrateStart,
@@ -37,6 +38,13 @@ describe('cacheProbe', () => {
 
     expect(snapshot.roomEventPuts).toBe(3);
     expect(getCacheProbeSnapshot().roomEventPuts).toBe(7);
+  });
+
+  it('reads one counter without allocating a snapshot', () => {
+    countCacheProbe('ledgerBoundarySettles', 3);
+
+    expect(getCacheProbeCounter('ledgerBoundarySettles')).toBe(3);
+    expect(getCacheProbeCounter('ledgerQuiescenceSettles')).toBe(0);
   });
 
   it('resets all counters', () => {

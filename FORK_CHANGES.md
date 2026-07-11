@@ -142,8 +142,26 @@
   to mutate the sampled offset. It confirmed silent positive/negative/fractional progress, exact one
   idle-window event re-arming, absolute finite caps, uncapped `Infinity`, touch/cancel/detach cleanup,
   and timer-race idempotence.
-- Next: add per-frame settlement-cause trace tags and boundary-contract coverage, then use that
-  evidence to determine the smallest safe second behavior change.
+- Boundary audit: `tr=-1596` in the large t=61330 episode means ledger `px=+1596`, which predicts
+  most of the observed +1720 `scrollTop` rebase. At `scrollTop=1023` on the 695px viewport, the
+  positive-ledger top guard's two-viewport geometry is strongly consistent with the settle, but v2
+  lacks the inner/scroller rectangles needed to prove the predicate was true. All three callers also
+  shared one untagged settle.
+- Instrumentation RED was proven: a trace-schema regression exported v2 with no per-frame cause
+  counts, while two component tests proved the existing boundary and quiescence writes occurred but
+  failed because neither incremented a distinguishable counter.
+- Instrumentation GREEN: each successful non-zero settle now increments either
+  `ledgerQuiescenceSettles` or `ledgerBoundarySettles`; stale/no-element waits do not count. Ride
+  trace v3 samples both cumulative scalars (`lq`/`lb`) on every frame through a zero-allocation getter,
+  so adjacent-frame deltas attribute each rebase. Component coverage pins ordinary dropped-measurement
+  quiescence, boundary settlement followed by a pending-waiter no-op, and prepend-fold quiescence.
+- Independent instrumentation review approved the final slice with no findings after strengthening
+  the trace test from one static frame to live quiescence and boundary counter transitions across
+  three frames. Focused coverage passes (4 files / 94 tests), as do typecheck, production build,
+  touched lint (0 errors / 1 pre-existing warning), focused Prettier, and `git diff --check`.
+- Next: rebase the isolated branch onto the latest `origin/dev` as requested, then use the boundary
+  safety contract and realistic coverage to determine the smallest safe second behavior change.
+
 ### iOS account-settings Matrix ID copy (2026-07-10)
 
 - Status: complete; independent review found no actionable issues.

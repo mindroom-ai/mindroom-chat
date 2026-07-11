@@ -21,9 +21,10 @@
  * slammed into the top edge) stops moving, so the edge case resolves
  * through the same idle path.
  *
- * `maxWaitMs` caps the wait so a pathological continuous scroller
- * still gets content (accepting one momentum kill) instead of being
- * starved; a capped commit is at worst the pre-fix behavior, once.
+ * `maxWaitMs` caps finite pagination waits so a pathological continuous
+ * scroller still gets content instead of being starved. Ledger-settlement
+ * consumers pass Infinity because their coherent margin can remain live
+ * until genuine rest without delaying the fetched content itself.
  */
 
 // The shared "quiet window" used by every scroll-quiescence consumer.
