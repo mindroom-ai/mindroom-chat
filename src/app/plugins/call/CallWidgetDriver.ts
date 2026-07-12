@@ -26,10 +26,27 @@ import {
 import { getCallCapabilities } from './utils';
 import { downloadMedia, mxcUrlToHttp } from '../../utils/matrix';
 
+const TO_DEVICE_ENCRYPTION_RETRY_DELAYS_MS = [0, 250, 750, 1500, 3000] as const;
+const TO_DEVICE_BACKGROUND_RETRY_DELAYS_MS = [5000, 10_000, 20_000, 30_000] as const;
+
+type ToDeviceRecipient = { userId: string; deviceId: string };
+type MatrixCrypto = NonNullable<ReturnType<MatrixClient['getCrypto']>>;
+
+const recipientKey = ({ userId, deviceId }: ToDeviceRecipient): string =>
+  `${userId}\u0000${deviceId}`;
+const recipientGenerationKey = (eventType: string, recipient: ToDeviceRecipient): string =>
+  `${eventType}\u0000${recipientKey(recipient)}`;
+
 export class CallWidgetDriver extends WidgetDriver {
   private allowedCapabilities: Set<Capability>;
 
   private readonly mx: MatrixClient;
+
+  private disposed = false;
+
+  private encryptionGeneration = new Map<string, number>();
+
+  private nextEncryptionGeneration = 0;
 
   public constructor(mx: MatrixClient, private inRoomId: string) {
     super();
@@ -163,15 +180,37 @@ export class CallWidgetDriver extends WidgetDriver {
         }
       }
 
+      const generation = this.nextEncryptionGeneration + 1;
+      this.nextEncryptionGeneration = generation;
+      Object.entries(contentMap).forEach(([userId, userContentMap]) => {
+        Object.keys(userContentMap).forEach((deviceId) => {
+          this.encryptionGeneration.set(
+            recipientGenerationKey(eventType, { userId, deviceId }),
+            generation
+          );
+        });
+      });
       await Promise.all(
         Object.entries(invertedContentMap).map(async ([stringifiedContent, recipients]) => {
-          const batch = await crypto.encryptToDeviceMessages(
+          const content = JSON.parse(stringifiedContent);
+          const pendingRecipients = await this.encryptAndQueueToDevice(
+            crypto,
             eventType,
+            content,
             recipients,
-            JSON.parse(stringifiedContent)
+            TO_DEVICE_ENCRYPTION_RETRY_DELAYS_MS,
+            generation
           );
 
-          await this.mx.queueToDevice(batch);
+          if (pendingRecipients.length > 0 && !this.disposed) {
+            void this.retryEncryptedToDeviceInBackground(
+              crypto,
+              eventType,
+              content,
+              pendingRecipients,
+              generation
+            );
+          }
         })
       );
     } else {
@@ -186,6 +225,132 @@ export class CallWidgetDriver extends WidgetDriver {
         ),
       });
     }
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+    this.encryptionGeneration.clear();
+  }
+
+  private async encryptAndQueueToDevice(
+    crypto: MatrixCrypto,
+    eventType: string,
+    content: object,
+    recipients: ToDeviceRecipient[],
+    retryDelaysMs: readonly number[],
+    generation: number
+  ): Promise<ToDeviceRecipient[]> {
+    let pendingRecipients = recipients;
+
+    // Rust crypto omits recipients whose device keys have not reached its
+    // store yet. That is common when an agent joins immediately after a call
+    // room is created. An empty batch is otherwise indistinguishable from
+    // success to Element Call, which then never re-sends the media key.
+    // eslint-disable-next-line no-restricted-syntax
+    for (const delayMs of retryDelaysMs) {
+      pendingRecipients = this.currentEncryptionRecipients(
+        eventType,
+        pendingRecipients,
+        generation
+      );
+      if (pendingRecipients.length === 0) return [];
+      if (delayMs > 0) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, delayMs);
+        });
+      }
+      pendingRecipients = this.currentEncryptionRecipients(
+        eventType,
+        pendingRecipients,
+        generation
+      );
+      if (pendingRecipients.length === 0) return [];
+
+      try {
+        // For tracked users this waits for an in-flight key query. Avoid
+        // downloadUncached: that API's returned map does not populate the Rust
+        // store used by encryptToDeviceMessages.
+        await crypto.getUserDeviceInfo(
+          Array.from(new Set(pendingRecipients.map(({ userId }) => userId)))
+        );
+        pendingRecipients = this.currentEncryptionRecipients(
+          eventType,
+          pendingRecipients,
+          generation
+        );
+        if (pendingRecipients.length === 0) return [];
+        const batch = await crypto.encryptToDeviceMessages(eventType, pendingRecipients, content);
+        pendingRecipients = this.currentEncryptionRecipients(
+          eventType,
+          pendingRecipients,
+          generation
+        );
+        if (pendingRecipients.length === 0) return [];
+        const currentRecipientKeys = new Set(pendingRecipients.map(recipientKey));
+        const currentBatch = {
+          ...batch,
+          batch: batch.batch.filter((recipient) =>
+            currentRecipientKeys.has(recipientKey(recipient))
+          ),
+        };
+        const encryptedRecipients = new Set(currentBatch.batch.map(recipientKey));
+
+        if (currentBatch.batch.length > 0) await this.mx.queueToDevice(currentBatch);
+
+        pendingRecipients = this.currentEncryptionRecipients(
+          eventType,
+          pendingRecipients.filter(
+            (recipient) => !encryptedRecipients.has(recipientKey(recipient))
+          ),
+          generation
+        );
+        if (pendingRecipients.length === 0) return [];
+      } catch {
+        // Key queries and Olm session creation can race the member join. Keep
+        // the exact recipient set pending and retry without widening delivery.
+      }
+    }
+
+    return pendingRecipients;
+  }
+
+  private async retryEncryptedToDeviceInBackground(
+    crypto: MatrixCrypto,
+    eventType: string,
+    content: object,
+    recipients: ToDeviceRecipient[],
+    generation: number
+  ): Promise<void> {
+    let pendingRecipients = recipients;
+    let retryIndex = 0;
+
+    while (pendingRecipients.length > 0 && !this.disposed) {
+      const delayMs =
+        TO_DEVICE_BACKGROUND_RETRY_DELAYS_MS[
+          Math.min(retryIndex, TO_DEVICE_BACKGROUND_RETRY_DELAYS_MS.length - 1)
+        ];
+      pendingRecipients = await this.encryptAndQueueToDevice(
+        crypto,
+        eventType,
+        content,
+        pendingRecipients,
+        [delayMs],
+        generation
+      );
+      retryIndex += 1;
+    }
+  }
+
+  private currentEncryptionRecipients(
+    eventType: string,
+    recipients: ToDeviceRecipient[],
+    generation: number
+  ): ToDeviceRecipient[] {
+    if (this.disposed) return [];
+    return recipients.filter(
+      (recipient) =>
+        this.encryptionGeneration.get(recipientGenerationKey(eventType, recipient)) === generation
+    );
   }
 
   public async readRoomTimeline(
