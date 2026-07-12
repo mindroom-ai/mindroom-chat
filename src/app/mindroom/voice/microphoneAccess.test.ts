@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestMicrophoneAccess } from './microphoneAccess';
+import { getMicrophoneAccessErrorMessage, requestMicrophoneAccess } from './microphoneAccess';
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -40,5 +40,14 @@ describe('requestMicrophoneAccess', () => {
     await expect(requestMicrophoneAccess()).rejects.toThrow(
       'Allow microphone access for MindRoom in iPhone settings'
     );
+  });
+
+  it('maps standard media errors from another realm without relying on DOMException', () => {
+    expect(
+      getMicrophoneAccessErrorMessage({ name: 'NotFoundError', message: 'foreign realm error' })
+    ).toBe('No microphone was found on this device.');
+    expect(
+      getMicrophoneAccessErrorMessage({ name: 'NotReadableError', message: 'foreign realm error' })
+    ).toBe('Microphone is unavailable right now (it may be in use by another app).');
   });
 });

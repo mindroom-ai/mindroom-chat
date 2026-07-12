@@ -16,23 +16,34 @@ const getBlockedMicrophoneMessage = (): string => {
 };
 
 export const getMicrophoneAccessErrorMessage = (error: unknown): string => {
-  if (error instanceof DOMException) {
-    if (error.name === 'NotAllowedError') {
-      return getBlockedMicrophoneMessage();
-    }
-    if (error.name === 'NotFoundError') {
-      return 'No microphone was found on this device.';
-    }
-    if (error.name === 'NotReadableError') {
-      return 'Microphone is unavailable right now (it may be in use by another app).';
-    }
+  const errorName =
+    typeof error === 'object' && error !== null && 'name' in error && typeof error.name === 'string'
+      ? error.name
+      : undefined;
+
+  if (errorName === 'NotAllowedError') {
+    return getBlockedMicrophoneMessage();
+  }
+  if (errorName === 'NotFoundError') {
+    return 'No microphone was found on this device.';
+  }
+  if (errorName === 'NotReadableError') {
+    return 'Microphone is unavailable right now (it may be in use by another app).';
   }
 
-  if (error instanceof Error) {
-    if (/not allowed by the user agent|current context/i.test(error.message)) {
+  const errorMessage =
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof error.message === 'string'
+      ? error.message
+      : undefined;
+
+  if (errorMessage !== undefined) {
+    if (/not allowed by the user agent|current context/i.test(errorMessage)) {
       return getBlockedMicrophoneMessage();
     }
-    return error.message;
+    return errorMessage;
   }
 
   return 'Failed to access microphone.';
