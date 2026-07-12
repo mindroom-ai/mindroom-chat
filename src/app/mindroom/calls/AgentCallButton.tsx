@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Button, color, Icon, Icons, Spinner, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -32,6 +32,14 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
   const closeUserRoomProfile = useCloseUserRoomProfile();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   if (
     !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined) ||
@@ -62,12 +70,22 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
         displayName,
         createRoom?.defaultEncryption ?? true
       );
+      if (!mountedRef.current) {
+        await cleanupCreatedAgentCall(mx, roomId, userId);
+        return;
+      }
       const room = await waitForJoinedRoom(mx, roomId);
+      if (!mountedRef.current) {
+        await cleanupCreatedAgentCall(mx, roomId, userId);
+        return;
+      }
+      setLoading(false);
       startCall(room, { microphone: true, video: false, sound: true });
       navigateRoom(roomId);
       closeUserRoomProfile();
     } catch (callError) {
       if (roomId) await cleanupCreatedAgentCall(mx, roomId, userId);
+      if (!mountedRef.current) return;
       setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
       setLoading(false);
     }

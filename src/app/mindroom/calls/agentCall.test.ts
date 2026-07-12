@@ -1,10 +1,10 @@
 import { ClientEvent, Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StateEvent } from '../../../types/matrix/room';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
   hasMindroomVoiceCallsPresence,
-  MINDROOM_AGENT_CALL_EVENT_TYPE,
   waitForJoinedRoom,
 } from './agentCall';
 
@@ -25,14 +25,18 @@ const mx = {
   forget,
 } as any;
 
-const ephemeralRoom = (creatorUserId = '@alice:mindroom.test'): Room =>
+const ephemeralRoom = (
+  creatorUserId = '@alice:mindroom.test',
+  eventSender = '@alice:mindroom.test'
+): Room =>
   ({
     roomId: '!call:mindroom.test',
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) =>
-          eventType === MINDROOM_AGENT_CALL_EVENT_TYPE
+          eventType === StateEvent.MindroomAgentCall
             ? {
+                getSender: () => eventSender,
                 getContent: () => ({
                   version: 1,
                   agent_user_id: '@mindroom_helper:mindroom.test',
@@ -76,7 +80,7 @@ describe('MindRoom agent calls', () => {
         },
         { type: 'org.matrix.msc3401.call', state_key: '', content: {} },
         {
-          type: MINDROOM_AGENT_CALL_EVENT_TYPE,
+          type: StateEvent.MindroomAgentCall,
           state_key: '',
           content: {
             version: 1,
@@ -97,7 +101,7 @@ describe('MindRoom agent calls', () => {
         name: 'Call with mindroom_helper',
         initial_state: [
           { type: 'org.matrix.msc3401.call', state_key: '', content: {} },
-          expect.objectContaining({ type: MINDROOM_AGENT_CALL_EVENT_TYPE }),
+          expect.objectContaining({ type: StateEvent.MindroomAgentCall }),
         ],
       })
     );
@@ -145,6 +149,17 @@ describe('MindRoom agent calls', () => {
 
   it('does not clean up a room created by someone else', async () => {
     await cleanupMindroomAgentCall(mx, ephemeralRoom('@bob:mindroom.test'));
+
+    expect(kick).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('does not trust forged creator metadata from another event sender', async () => {
+    await cleanupMindroomAgentCall(
+      mx,
+      ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test')
+    );
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
