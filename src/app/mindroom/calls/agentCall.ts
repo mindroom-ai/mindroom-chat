@@ -137,8 +137,10 @@ export const cleanupCreatedAgentCall = async (
 };
 
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
+  const event = getStateEvent(room, StateEvent.MindroomAgentCall);
   const content = getMindroomAgentCallContent(room);
-  if (!content || content.creator_user_id !== mx.getUserId()) return;
+  const userId = mx.getUserId();
+  if (!content || event?.getSender() !== userId || content.creator_user_id !== userId) return;
 
   await cleanupCreatedAgentCall(mx, room.roomId, content.agent_user_id);
 };

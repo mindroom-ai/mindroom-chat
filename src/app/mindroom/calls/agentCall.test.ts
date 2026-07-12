@@ -25,7 +25,10 @@ const mx = {
   forget,
 } as any;
 
-const ephemeralRoom = (creatorUserId = '@alice:mindroom.test'): Room =>
+const ephemeralRoom = (
+  creatorUserId = '@alice:mindroom.test',
+  eventSender = '@alice:mindroom.test'
+): Room =>
   ({
     roomId: '!call:mindroom.test',
     getLiveTimeline: () => ({
@@ -33,6 +36,7 @@ const ephemeralRoom = (creatorUserId = '@alice:mindroom.test'): Room =>
         getStateEvents: (eventType: string) =>
           eventType === MINDROOM_AGENT_CALL_EVENT_TYPE
             ? {
+                getSender: () => eventSender,
                 getContent: () => ({
                   version: 1,
                   agent_user_id: '@mindroom_helper:mindroom.test',
@@ -145,6 +149,17 @@ describe('MindRoom agent calls', () => {
 
   it('does not clean up a room created by someone else', async () => {
     await cleanupMindroomAgentCall(mx, ephemeralRoom('@bob:mindroom.test'));
+
+    expect(kick).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('does not trust forged creator metadata from another event sender', async () => {
+    await cleanupMindroomAgentCall(
+      mx,
+      ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test')
+    );
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();

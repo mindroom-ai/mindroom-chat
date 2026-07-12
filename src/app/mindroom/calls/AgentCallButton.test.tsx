@@ -113,6 +113,41 @@ describe('AgentCallButton', () => {
     );
     expect(mocks.navigateRoom).toHaveBeenCalledWith('!call:mindroom.test');
     expect(mocks.closeProfile).toHaveBeenCalledOnce();
+    expect(renderer.root.findByType('button').props.disabled).toBe(false);
+  });
+
+  it('cleans up without starting a call when unmounted during room sync', async () => {
+    let resolveRoom!: (room: { roomId: string }) => void;
+    mocks.waitForJoinedRoom.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRoom = resolve;
+      })
+    );
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+    let callPromise!: Promise<void>;
+
+    await act(async () => {
+      callPromise = renderer.root.findByType('button').props.onClick();
+      await Promise.resolve();
+    });
+    act(() => renderer.unmount());
+    resolveRoom({ roomId: '!call:mindroom.test' });
+    await act(async () => callPromise);
+
+    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
+      expect.anything(),
+      '!call:mindroom.test',
+      '@mindroom_helper:mindroom.test'
+    );
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
+    expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
   it('cleans up the temporary room when joining fails', async () => {
