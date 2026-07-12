@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Retry encrypted MatrixRTC keys for newly joined agent devices (2026-07-12)
+
+- Status: implementation, local validation, and independent review complete.
+- Root cause: Rust crypto can temporarily omit a newly joined device from
+  `encryptToDeviceMessages`. The widget driver previously queued the resulting
+  empty batch as success, after which Element Call marked its outbound media
+  key as shared and never retried. The agent could subscribe to the microphone
+  publication but could not decrypt subsequent frames.
+- Fix: before accepting an encrypted to-device send, wait for in-flight device
+  list updates, queue any successfully encrypted recipients, and retry only
+  omitted devices. Because Element Call swallows ordinary transport errors,
+  missing recipients continue on a capped background backoff for the lifetime
+  of the call. Disposal cancels retries, and a newer key supersedes the old
+  retry only for the exact same recipient; disjoint participant retries remain
+  independent. Async crypto steps recheck lifecycle and generation before
+  queueing. Room and media encryption remain enabled.
+- Coverage: immediate encryption, empty-batch recovery, partial-batch and local
+  queue-failure retry, background recovery, disjoint recipient independence,
+  in-flight supersession, and disposal cancellation.
+- Validation: focused tests pass (9 tests), the full suite passes
+  (400 files / 3,105 tests), and typecheck, production build, Prettier, and
+  `git diff --check` are clean. Touched-file ESLint has 0 errors and 2
+  pre-existing `CallEmbed.ts` console warnings. Independent review found no
+  correctness, race, lifecycle, security/privacy, or test-coverage defects.
+  Greptile follow-up separates crypto preparation failures from rejected local
+  queue writes, documents the deliberate fresh-ciphertext retry, and adds its
+  regression test.
+
 ### Agent-call microphone permission preflight (2026-07-12)
 
 - Status: implemented on `caveman/fix-ios-agent-call-microphone`. Agent calls now request microphone access from the top-level app as the first result of the Call tap, before creating the temporary Matrix room or mounting Element Call's hidden iframe.
