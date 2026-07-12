@@ -13,6 +13,8 @@
 - Reject pagination commits captured from a different linked-array identity so
   in-flight work cannot reinstall the orphaned chain after recovery.
 - Scope excludes compact-history coverage and pagination scheduling changes.
+- Rebased onto current `dev`; full Vitest passes (398 files / 3,091 tests), as
+  do typecheck, production build, and touched-file ESLint and Prettier.
 
 ### iOS voice-call readiness (2026-07-12, follow-up to the agent-calls PR)
 
