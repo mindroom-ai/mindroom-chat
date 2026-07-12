@@ -32,15 +32,30 @@ describe('requestMicrophoneAccess', () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
+  it('fails clearly when media capture is unsupported', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: undefined,
+    });
+
+    await expect(requestMicrophoneAccess()).rejects.toThrow(
+      'Microphone access is not supported on this device.'
+    );
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
   it('gives iOS users actionable recovery instructions when access is denied', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
-    getUserMedia.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
+    const denial = new DOMException('denied', 'NotAllowedError');
+    getUserMedia.mockRejectedValueOnce(denial);
 
-    await expect(requestMicrophoneAccess()).rejects.toThrow(
-      'Allow microphone access for MindRoom in iPhone settings'
-    );
+    await expect(requestMicrophoneAccess()).rejects.toMatchObject({
+      message: expect.stringContaining('Allow microphone access for MindRoom in iPhone settings'),
+      cause: denial,
+    });
   });
+
   it('maps standard media errors from another realm without relying on DOMException', () => {
     expect(
       getMicrophoneAccessErrorMessage({ name: 'NotFoundError', message: 'foreign realm error' })

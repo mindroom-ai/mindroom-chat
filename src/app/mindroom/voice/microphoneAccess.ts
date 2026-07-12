@@ -65,6 +65,10 @@ export const requestMicrophoneAccess = async (): Promise<void> => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((track) => track.stop());
   } catch (error) {
-    throw new Error(getMicrophoneAccessErrorMessage(error));
+    const accessError = new Error(getMicrophoneAccessErrorMessage(error)) as Error & {
+      cause?: unknown;
+    };
+    accessError.cause = error;
+    throw accessError;
   }
 };
