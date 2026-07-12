@@ -58,6 +58,8 @@
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
+		<!-- Keep voice-call audio alive when the screen locks or the app backgrounds -->
+		<string>audio</string>
 		<string>remote-notification</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
@@ -74,9 +76,9 @@
 	<!-- Local network access prompt -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>MindRoom needs to connect to your local Matrix homeserver.</string>
-	<!-- Microphone access for voice messages -->
+	<!-- Microphone access for voice messages and voice calls -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>MindRoom needs microphone access to record voice messages.</string>
+	<string>MindRoom needs microphone access to record voice messages and talk in voice calls.</string>
 	<!-- Camera access for capturing attachments -->
 	<key>NSCameraUsageDescription</key>
 	<string>MindRoom needs camera access to capture photos and videos to send in chats.</string>
