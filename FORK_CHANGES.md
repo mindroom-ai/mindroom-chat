@@ -50,6 +50,14 @@
   UNRECOVERED discards, and on iOS 26.2+ the discard probe should read 0
   (a non-zero reading means a session escaped the scrollend gate and the
   watchdog covered it).
+- PR #126 CodeRabbit follow-up: the pinned jsdom 22.1.0 does expose
+  `window.onscrollend`, so the supported-branch tests were already executing,
+  but they now install and restore that capability explicitly instead of
+  relying on jsdom's incidental handler surface. The unsupported-platform
+  test still deletes the scoped property and proves the plain-idle fallback.
+  Focused coverage (18 tests), typecheck, production build, Prettier, full
+  ESLint (0 errors / 17 pre-existing warnings), and full `npm test` (394 files
+  / 3068 tests) pass; independent review found no descriptor-lifecycle issue.
 
 ### Split settles across pending commits (2026-07-12, PR #126 first mechanism)
 

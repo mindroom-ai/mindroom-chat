@@ -247,9 +247,28 @@ describe('waitForScrollQuiescence', () => {
   });
 
   describe('scroll-session awareness (scrollend-capable platforms)', () => {
-    // jsdom ships onscrollend natively, so the per-call feature detection
-    // is already in the supported branch — the same environment every
-    // WebKit >= 26.2 user runs.
+    let originalScrollEndDescriptor: PropertyDescriptor | undefined;
+
+    beforeEach(() => {
+      originalScrollEndDescriptor = Object.getOwnPropertyDescriptor(window, 'onscrollend');
+      Object.defineProperty(window, 'onscrollend', {
+        configurable: true,
+        writable: true,
+        value: null,
+      });
+    });
+
+    afterEach(() => {
+      if (originalScrollEndDescriptor) {
+        Object.defineProperty(window, 'onscrollend', originalScrollEndDescriptor);
+      } else {
+        delete (window as { onscrollend?: unknown }).onscrollend;
+      }
+    });
+
+    // Install the capability explicitly instead of relying on jsdom's
+    // incidental event-handler surface. The fallback test below deletes
+    // this scoped property so both feature-detection branches stay pinned.
     it('holds the settle open across a session pause until scrollend releases it', async () => {
       // The discarded-write rides: a touchless scrub session (scroll
       // indicator/trackpad — no touch events) pauses >150ms with the DOM
