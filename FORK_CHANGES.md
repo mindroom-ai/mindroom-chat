@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Agent-call microphone permission preflight (2026-07-12)
+
+- Status: implemented on `caveman/fix-ios-agent-call-microphone`. Agent calls now request microphone access from the top-level app as the first result of the Call tap, before creating the temporary Matrix room or mounting Element Call's hidden iframe.
+- The permission-only stream is stopped immediately; Element Call still owns the stream published to the call. A denied/unavailable microphone leaves no orphaned room and surfaces platform-specific recovery guidance, including the iPhone Settings path.
+- Root cause of the missing host-level permission flow: `NSMicrophoneUsageDescription` only supplies the native prompt text. The first capture request still happened much later inside the auto-joining iframe, after asynchronous room creation/sync, with no host-level denial feedback. Whether this gap alone caused the reported agent silence still requires a physical-device call.
+- Validation: focused permission/call/voice-recorder tests pass (3 files / 47 tests); the full suite passes (399 files / 3,096 tests); typecheck, production build, touched-file ESLint, Prettier, and `git diff --check` pass. Self-review rebased onto current `dev` and hardened media-error mapping for cross-realm/browser environments that do not expose a global `DOMException`; review follow-up preserves the original capture failure as `cause` and covers unsupported media capture. Independent review found no correctness, privacy/security, WKWebView, or async-lifecycle defects. Remaining device gate: confirm the native prompt and audible agent input on a physical iPhone.
+
 ### Room timeline re-links after gappy sync (2026-07-10)
 
 - Status: implementation complete in PR #113; compact cold-start PR #102 is

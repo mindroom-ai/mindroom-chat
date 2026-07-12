@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createAgentVoiceRoom: vi.fn(),
   cleanupCreatedAgentCall: vi.fn(),
   waitForJoinedRoom: vi.fn(),
+  requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
   navigateRoom: vi.fn(),
   closeProfile: vi.fn(),
@@ -19,6 +20,10 @@ vi.mock('./agentCall', async (importOriginal) => ({
   createAgentVoiceRoom: mocks.createAgentVoiceRoom,
   cleanupCreatedAgentCall: mocks.cleanupCreatedAgentCall,
   waitForJoinedRoom: mocks.waitForJoinedRoom,
+}));
+
+vi.mock('../voice/microphoneAccess', () => ({
+  requestMicrophoneAccess: mocks.requestMicrophoneAccess,
 }));
 
 vi.mock('../../hooks/useMatrixClient', () => ({
@@ -56,6 +61,7 @@ vi.mock('../../state/hooks/userRoomProfile', () => ({
 describe('AgentCallButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
     mocks.createAgentVoiceRoom.mockResolvedValue('!call:mindroom.test');
     mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
   });
@@ -100,6 +106,10 @@ describe('AgentCallButton', () => {
       await button.props.onClick();
     });
 
+    expect(mocks.requestMicrophoneAccess).toHaveBeenCalledOnce();
+    expect(mocks.requestMicrophoneAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.createAgentVoiceRoom.mock.invocationCallOrder[0]
+    );
     expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
       expect.anything(),
       '@mindroom_helper:mindroom.test',
@@ -114,6 +124,29 @@ describe('AgentCallButton', () => {
     expect(mocks.navigateRoom).toHaveBeenCalledWith('!call:mindroom.test');
     expect(mocks.closeProfile).toHaveBeenCalledOnce();
     expect(renderer.root.findByType('button').props.disabled).toBe(false);
+  });
+
+  it('does not create a call room when microphone access is denied', async () => {
+    mocks.requestMicrophoneAccess.mockRejectedValueOnce(
+      new Error(
+        'Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.'
+      )
+    );
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.createAgentVoiceRoom).not.toHaveBeenCalled();
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('Allow microphone access for MindRoom');
   });
 
   it('cleans up without starting a call when unmounted during room sync', async () => {
