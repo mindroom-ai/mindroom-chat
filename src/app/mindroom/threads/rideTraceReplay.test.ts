@@ -285,7 +285,7 @@ describe('ride trace corpus', () => {
       [1631, 1636],
     ]);
 
-    // Detector specificity: all 43 other large settles across the corpus
+    // Detector specificity: all 42 other large settles across the corpus
     // held their write — including 17,864px folds — so a firing is a real
     // platform revert, not momentum noise.
     [ipadFill, iphoneFixed, iphoneOldA, iphoneOldB, ipadCascadeFixed].forEach((trace) => {

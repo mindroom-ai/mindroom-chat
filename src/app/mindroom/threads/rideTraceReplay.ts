@@ -222,12 +222,16 @@ export type DiscardedSettleWriteObservation = {
  * Find settles whose scrollTop write the platform DISCARDED: the
  * compositor reasserted the pre-settle offset within the watch window
  * (touchless scroll sessions — scrubber/trackpad — own the position;
- * ride-trace-1783829722124 settles 491/617/650 reverted 74-300ms after
- * the write, two of them snapshot-coherent and atomically applied). The
- * walk mirrors the production watchdog exactly: the settled offset seeds
- * the event baseline, the first frame that leaves the settled
- * neighborhood decides (reassertion → discard; anything else → held),
- * and a touch or the window expiring ends the watch.
+ * ride-trace-1783829722124 settles 491/617/1232 landed snapshot-coherent
+ * and atomic, then reverted 90-588ms later when the scrubber moved). The
+ * walk mirrors the production watchdog's decision sequence: the settled
+ * offset seeds the event baseline, the first frame that leaves the
+ * settled neighborhood decides (reassertion → discard; anything else →
+ * held), and a touch or the window expiring ends the watch. One replay
+ * approximation: the settled offset is the unclamped preSettle + px —
+ * v3 traces cannot recover the browser-clamped read-back the production
+ * watchdog stores, and the clamp only diverges at hard edges where the
+ * boundary guard already defers settles.
  */
 export const extractDiscardedSettleWrites = (
   frames: readonly RideTraceFrame[]

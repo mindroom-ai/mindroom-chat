@@ -62,7 +62,7 @@
   layout commit; the next settle therefore folds one coherent snapshot.
 - RED/GREEN: the real virtual-core contract reproduces both exact mismatches;
   its 5000px harness originally wrote 4995/5001 and cleared the old margin,
-  it now proves no DOM, offset, option, or range mutation. A controller test
+  it now proves no DOM, offset, option, or range mutations. A controller test
   proves the deferred attempt commits the -5px snapshot, re-arms, and then
   settles once. The corpus now includes both #125 rides, exposes committed
   `ledgerShiftPx`, and pins frames 650/1612 so a scrollShift-based selector

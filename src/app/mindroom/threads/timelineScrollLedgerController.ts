@@ -319,9 +319,13 @@ export const useTimelineScrollLedgerController = ({
       // settle's clamped read-back seeds it directly.
       const settledScrollTop = applyLedgerSettle(inner, scrollElement, px, virtualizerRef.current);
       if (settledScrollTop === undefined) {
-        // The preflight above and this call are synchronous, but retain the
-        // debt defensively if the DOM is ever mutated by a callback in this
-        // block.
+        // The preflight above and this call are synchronous, so this branch
+        // is unreachable today; it retains the debt defensively in case a
+        // callback ever mutates the DOM inside this block. CONTRACT: if
+        // applyLedgerSettle ever gains an async step, restoring the px
+        // SNAPSHOT here would silently drop any measurement delta that
+        // arrived after the pre-read — this restore (and the zero-write
+        // above) must then become a compare-and-swap against the live ref.
         scrollCompensationPxRef.current = px;
         ledgerSettleWantedRef.current = true;
         setLedgerCommitTick((tick) => tick + 1);

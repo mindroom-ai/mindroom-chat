@@ -267,7 +267,7 @@ export const shouldSettleLedgerAtBoundary = ({
 // split-settle preflight cannot see this class). The predicate recognizes
 // the reassertion event so the controller can restore the fold to the
 // ledger; thresholds are census-calibrated against all 49 large settles
-// in the trace corpus: 6 discards, 0 false positives
+// in the trace corpus: 7 discards, 0 false positives
 // (rideTraceReplay.test.ts).
 export const SETTLE_DISCARD_WINDOW_MS = 2000;
 // Watches arm only for folds the boundary guard considers meaningful; a
