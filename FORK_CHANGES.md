@@ -18,14 +18,17 @@
   retry only for the exact same recipient; disjoint participant retries remain
   independent. Async crypto steps recheck lifecycle and generation before
   queueing. Room and media encryption remain enabled.
-- Coverage: immediate encryption, empty-batch recovery, partial-batch retry,
-  background recovery, disjoint recipient independence, in-flight
-  supersession, and disposal cancellation.
-- Validation: focused tests pass (8 tests), the full suite passes
-  (400 files / 3,104 tests), and typecheck, production build, Prettier, and
+- Coverage: immediate encryption, empty-batch recovery, partial-batch and local
+  queue-failure retry, background recovery, disjoint recipient independence,
+  in-flight supersession, and disposal cancellation.
+- Validation: focused tests pass (9 tests), the full suite passes
+  (400 files / 3,105 tests), and typecheck, production build, Prettier, and
   `git diff --check` are clean. Touched-file ESLint has 0 errors and 2
   pre-existing `CallEmbed.ts` console warnings. Independent review found no
   correctness, race, lifecycle, security/privacy, or test-coverage defects.
+  Greptile follow-up separates crypto preparation failures from rejected local
+  queue writes, documents the deliberate fresh-ciphertext retry, and adds its
+  regression test.
 
 ### Agent-call microphone permission preflight (2026-07-12)
 

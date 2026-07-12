@@ -106,6 +106,31 @@ describe('CallWidgetDriver.sendToDevice', () => {
     expect(queueToDevice).toHaveBeenCalledTimes(2);
   });
 
+  it('retries exact recipients when the local to-device queue rejects a batch', async () => {
+    vi.useFakeTimers();
+    const recipient = { userId: '@agent:example.org', deviceId: 'AGENT' };
+    const { driver, encryptToDeviceMessages, queueToDevice } = makeDriver([
+      encryptedBatch(recipient),
+      encryptedBatch(recipient),
+    ]);
+    queueToDevice.mockRejectedValueOnce(new Error('store unavailable'));
+
+    const send = driver.sendToDevice('io.element.call.encryption_keys', true, {
+      [recipient.userId]: { [recipient.deviceId]: { keys: { key: 'secret', index: 0 } } },
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await send;
+
+    expect(encryptToDeviceMessages).toHaveBeenCalledTimes(2);
+    expect(encryptToDeviceMessages).toHaveBeenNthCalledWith(
+      2,
+      'io.element.call.encryption_keys',
+      [recipient],
+      { keys: { key: 'secret', index: 0 } }
+    );
+    expect(queueToDevice).toHaveBeenCalledTimes(2);
+  });
+
   it('continues retrying a missing device in the background', async () => {
     vi.useFakeTimers();
     const recipient = { userId: '@agent:example.org', deviceId: 'MISSING' };

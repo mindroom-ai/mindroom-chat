@@ -31,6 +31,7 @@ const TO_DEVICE_BACKGROUND_RETRY_DELAYS_MS = [5000, 10_000, 20_000, 30_000] as c
 
 type ToDeviceRecipient = { userId: string; deviceId: string };
 type MatrixCrypto = NonNullable<ReturnType<MatrixClient['getCrypto']>>;
+type EncryptedToDeviceBatch = Awaited<ReturnType<MatrixCrypto['encryptToDeviceMessages']>>;
 
 const recipientKey = ({ userId, deviceId }: ToDeviceRecipient): string =>
   `${userId}\u0000${deviceId}`;
@@ -266,6 +267,7 @@ export class CallWidgetDriver extends WidgetDriver {
       );
       if (pendingRecipients.length === 0) return [];
 
+      let batch: EncryptedToDeviceBatch;
       try {
         // For tracked users this waits for an in-flight key query. Avoid
         // downloadUncached: that API's returned map does not populate the Rust
@@ -279,36 +281,43 @@ export class CallWidgetDriver extends WidgetDriver {
           generation
         );
         if (pendingRecipients.length === 0) return [];
-        const batch = await crypto.encryptToDeviceMessages(eventType, pendingRecipients, content);
+        batch = await crypto.encryptToDeviceMessages(eventType, pendingRecipients, content);
         pendingRecipients = this.currentEncryptionRecipients(
           eventType,
           pendingRecipients,
           generation
         );
         if (pendingRecipients.length === 0) return [];
-        const currentRecipientKeys = new Set(pendingRecipients.map(recipientKey));
-        const currentBatch = {
-          ...batch,
-          batch: batch.batch.filter((recipient) =>
-            currentRecipientKeys.has(recipientKey(recipient))
-          ),
-        };
-        const encryptedRecipients = new Set(currentBatch.batch.map(recipientKey));
-
-        if (currentBatch.batch.length > 0) await this.mx.queueToDevice(currentBatch);
-
-        pendingRecipients = this.currentEncryptionRecipients(
-          eventType,
-          pendingRecipients.filter(
-            (recipient) => !encryptedRecipients.has(recipientKey(recipient))
-          ),
-          generation
-        );
-        if (pendingRecipients.length === 0) return [];
       } catch {
         // Key queries and Olm session creation can race the member join. Keep
         // the exact recipient set pending and retry without widening delivery.
+        continue;
       }
+
+      const currentRecipientKeys = new Set(pendingRecipients.map(recipientKey));
+      const currentBatch = {
+        ...batch,
+        batch: batch.batch.filter((recipient) => currentRecipientKeys.has(recipientKey(recipient))),
+      };
+      const encryptedRecipients = new Set(currentBatch.batch.map(recipientKey));
+
+      if (currentBatch.batch.length > 0) {
+        try {
+          await this.mx.queueToDevice(currentBatch);
+        } catch {
+          // A rejected local queue write provides no accepted-recipient result.
+          // Keep the exact recipients pending and create fresh ciphertext on
+          // retry rather than risk treating an unqueued call key as delivered.
+          continue;
+        }
+      }
+
+      pendingRecipients = this.currentEncryptionRecipients(
+        eventType,
+        pendingRecipients.filter((recipient) => !encryptedRecipients.has(recipientKey(recipient))),
+        generation
+      );
+      if (pendingRecipients.length === 0) return [];
     }
 
     return pendingRecipients;
