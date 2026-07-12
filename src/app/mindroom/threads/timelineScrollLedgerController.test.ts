@@ -10,6 +10,7 @@ const virtualizer = vi.hoisted(() => ({
   setOptions: vi.fn(),
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
 }));
+const settleWaits = vi.hoisted(() => [] as Array<() => void>);
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: () => virtualizer,
@@ -23,7 +24,10 @@ vi.mock('./rideTraceRecorder', () => ({
 vi.mock('./scrollQuiescence', () => ({
   hasActiveWindowTouches: () => false,
   isIOSWebKitDevice: () => true,
-  waitForScrollQuiescence: () => new Promise<void>(() => {}),
+  waitForScrollQuiescence: () =>
+    new Promise<void>((resolve) => {
+      settleWaits.push(resolve);
+    }),
 }));
 
 const event = (eventId: string): ThreadLedgerEvent => ({
@@ -35,9 +39,96 @@ beforeEach(() => {
   virtualizer.options = {};
   virtualizer.setOptions.mockClear();
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
+  settleWaits.length = 0;
 });
 
 describe('useTimelineScrollLedgerController', () => {
+  it('defers a settle until the painted margin catches up with the live ledger', async () => {
+    let scrollTop = 5000;
+    const writes: number[] = [];
+    const scrollElement = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      getBoundingClientRect: () => ({ top: 0, bottom: 600 }),
+      clientHeight: 600,
+      scrollHeight: 20_000,
+      get scrollTop() {
+        return scrollTop;
+      },
+      set scrollTop(value: number) {
+        writes.push(value);
+        scrollTop = value;
+      },
+    } as unknown as HTMLDivElement;
+    const innerElement = {
+      style: { marginTop: '' } as CSSStyleDeclaration,
+      getBoundingClientRect: () => ({ top: -5000, bottom: 15_000 }),
+    } as unknown as HTMLDivElement;
+
+    const Harness = () => {
+      const pendingRoomFoldPxRef = useRef(0);
+      const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
+        () => 10
+      );
+      const controller = useTimelineScrollLedgerController({
+        alive: () => true,
+        clearPendingThreadAnchor: vi.fn(),
+        estimateSize: () => 10,
+        getItemKey: (index) => index,
+        getScrollElement: () => scrollElement,
+        itemCount: 1,
+        pendingRoomFoldPxRef,
+        roomFoldPriceRef,
+        roomId: '!room:example.org',
+        threadEventIndexMap: new Map(),
+        threadEvents: [],
+        threadId: '$root',
+        threadInitialRenderMode: 'live',
+        threadPaginatingBack: false,
+      });
+      return React.createElement('inner', { ref: controller.virtualInnerRef });
+    };
+
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Harness), {
+        createNodeMock: () => innerElement,
+      });
+    });
+    const adjustment = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as (
+      item: { end: number },
+      delta: number,
+      instance: { scrollOffset: number | null; scrollDirection: 'forward' | 'backward' | null }
+    ) => boolean;
+    act(() => {
+      expect(adjustment({ end: 100 }, -5, { scrollOffset: 5000, scrollDirection: null })).toBe(
+        false
+      );
+    });
+    expect(innerElement.style.marginTop).toBe('5px');
+    expect(settleWaits).toHaveLength(1);
+
+    // Exact trace shape: React has not yet painted the accumulator's newer
+    // -5px snapshot, so the DOM still carries the previous 512px ledger.
+    innerElement.style.marginTop = '-512px';
+    await act(async () => {
+      settleWaits[0]();
+      await Promise.resolve();
+    });
+    expect(writes).toEqual([]);
+    expect(innerElement.style.marginTop).toBe('5px');
+    expect(settleWaits).toHaveLength(2);
+
+    await act(async () => {
+      settleWaits[1]();
+      await Promise.resolve();
+    });
+    expect(writes).toEqual([4995]);
+    expect(innerElement.style.marginTop).toBe('');
+
+    act(() => renderer.unmount());
+  });
+
   it('resets the boundary direction baseline at touch start', () => {
     let scrollTop = 34_331;
     const writes: number[] = [];

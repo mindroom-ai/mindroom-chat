@@ -2,22 +2,106 @@
 
 ## Runbook
 
+### Discarded settle writes in touchless scroll sessions (2026-07-11, PR #126 second mechanism)
+
+- Status: implemented on PR #126 alongside the split-settle preflight below;
+  full battery passes. Device validation (a scrub-heavy ride) is the merge
+  gate for both mechanisms.
+- Certainty census (both #125 validation rides): every failure sits in a
+  TOUCHLESS scroll span. Trace 1's window (frames 353-786, containing
+  settles 491/525/617/650) travels 20,736px through 9 full stops and 8
+  re-accelerations with zero touch events — a post-touch fling decays
+  monotonically and cannot restart, so the span is actively driven by
+  non-touch input (scroll-indicator scrubbing, trackpad, or similar; the
+  specific device is unproven and immaterial — what matters is that the
+  session is invisible to every touch-based gate). Both rides do contain
+  touch frames elsewhere (65 and 71 ride-wide). The spans' pauses exceed
+  the 150ms idle window with the DOM offset frozen, so the quiescence
+  waiter settles mid-session — and the compositor, which still owns the
+  position, DISCARDS the write: 7 of the corpus's 49 large settles
+  reverted to the exact pre-settle offset (ratios 0.99-1.04x of the
+  fold), 0 false positives in the five older flick rides. Three of the
+  seven (491: +8,769px, 617: +1,217px, 1232: +1,589px in
+  ride-trace-1783829722124) were SNAPSHOT-COHERENT and landed atomically
+  — the split-settle preflight cannot see them (ledgerShiftPx ==
+  scrollShiftPx, slip 0); the revert arrives 90-588ms later, when the
+  session next moves. 1631 in ride-trace-1783829767914 is the RECORDED
+  (#125) build's own recovery settle, discarded again by the same
+  still-live session — by analogy (the trace predates the preflight), a
+  one-commit defer-and-retry lands inside the same session and is
+  discarded the same way, so deferral alone cannot close this class.
+- Fix, two sides:
+  1. Prevention — `waitForScrollQuiescence` is scroll-session-aware where
+     the platform ships `scrollend` (WebKit since Safari/iOS 26.2,
+     feature-detected per call): a scroll event marks the session live and
+     only its scrollend releases the idle path; a 1,500ms stale TTL bounds
+     a swallowed scrollend to a late settle rather than starvation.
+  2. Recovery — a controller watchdog (`isDiscardedSettleWrite`, census-
+     calibrated: single event >=0.8x of the fold against it, landing
+     within max(48, 0.5x|px|) of the pre-settle offset, 2s window, disarmed
+     by touchstart / motion-from-settled / view reset) restores the fold to
+     the ledger through the ordinary drop path without writing scrollTop,
+     and bumps the `ledgerSettleWriteDiscarded` probe. The 0.8 ratio
+     separates reversions (~1.0x) from held-write momentum resumes (the
+     #119 device sequence steps 0.68x and must not re-ledger).
+- Instruments: `extractDiscardedSettleWrites` replays the watchdog against
+  recorded rides; the corpus pins all seven discards by frame and asserts
+  zero in the older traces. Merge-gate trace: zero split settles, zero
+  UNRECOVERED discards, and on iOS 26.2+ the discard probe should read 0
+  (a non-zero reading means a session escaped the scrollend gate and the
+  watchdog covered it).
+- PR #126 CodeRabbit follow-up: the pinned jsdom 22.1.0 does expose
+  `window.onscrollend`, so the supported-branch tests were already executing,
+  but they now install and restore that capability explicitly instead of
+  relying on jsdom's incidental handler surface. The unsupported-platform
+  test still deletes the scoped property and proves the plain-idle fallback.
+  Focused coverage (18 tests), typecheck, production build, Prettier, full
+  ESLint (0 errors / 17 pre-existing warnings), and full `npm test` (394 files
+  / 3068 tests) pass; independent review found no descriptor-lifecycle issue.
+
+### Split settles across pending commits (2026-07-12, PR #126 first mechanism)
+
+- Both #125 validation traces contain the defect (thread ff7965e2
+  frame 650: a 512px painted ledger was cleared by a -5px write, producing
+  +517px growth and ~507px visible slip; thread 3dddbf0e frame 1612: a 216px
+  painted ledger was cleared by a +1px write, producing +215px slip).
+- Root cause: the fully-above measurement was correctly deferred into the
+  iOS ledger, but an already-armed quiescence wait could resolve after the
+  mutable accumulator changed and before React committed its matching DOM
+  margin/virtualizer snapshot. Settlement read the newer -5px/+1px accumulator
+  while clearing the older 512px/216px inline margin, splitting one logical
+  correction across two paints.
+- Fix: `applyLedgerSettle` now verifies that the live accumulator matches the
+  ledger encoded by the committed inline margin before changing scrollTop,
+  the margin, or virtual-core options. A mismatch performs no write, forces
+  the pending ledger render, and re-arms true-rest settlement from that
+  layout commit; the next settle therefore folds one coherent snapshot.
+- RED/GREEN: the real virtual-core contract reproduces both exact mismatches;
+  its 5000px harness originally wrote 4995/5001 and cleared the old margin,
+  it now proves no DOM, offset, option, or range mutations. A controller test
+  proves the deferred attempt commits the -5px snapshot, re-arms, and then
+  settles once. The corpus now includes both #125 rides, exposes committed
+  `ledgerShiftPx`, and pins frames 650/1612 so a scrollShift-based selector
+  cannot hide this class again.
+- Validation: the focused controller/real-core/trace suites passed ten
+  consecutive runs; typecheck, production build, Prettier, touched and full
+  ESLint (0 errors / 17 pre-existing warnings), and full `npm test` (394
+  files / 3062 tests) pass. Independent review found no production or
+  behavioral-test issues after the trace-sign and naming corrections.
+
 ### Momentum runway: the open-phase false edge (2026-07-11)
 
-- Status: VALIDATED on device (two 2026-07-11 evening iPad traces on the
-  #125 build): zero slipping-or-blind settles under touch in both rides;
-  the open-fill 34k rebase lands untouched with zero extra growth; #124
-  atomicity holds (large rest settles up to +8,769px at slip 0). Golden
-  pinned in the corpus (`ipadTouchGateFixed`). NEW open residual observed
-  in both rides: near-zero-shift quiescence frames with +215/+507px of
-  uncompensated above-viewport row growth at rest (frames 1612/650) — the
-  measurement-correction hook's at-rest branch; next fix, separate PR.
-- Candidate fix 1 implemented on `fix/momentum-runway` (PR #125):
-  boundary settles defer under a live finger (`hasActiveWindowTouches`);
-  deployed to the lab, awaiting an on-device validation trace to pin the
-  post-fix golden (zero slipping settles under touch) before merge.
-  Candidate 2 (full cached list at open) stays out pending a paint-cost
-  measurement.
+- Status: PR #125 merged. Two 2026-07-11 evening iPad traces validate its
+  narrow touch gate: zero slipping-or-blind settles under touch; the open-fill
+  34k rebase lands without a live touch. The prior corpus assertion that
+  #124 atomicity also held was invalid because it selected large settles by
+  `scrollShiftPx` and therefore excluded the exact 512px-ledger/-5px-write
+  failure. PR #126 corrects the metric and fixes that separate race.
+- PR #125's production change defers boundary settles under a live finger
+  (`hasActiveWindowTouches`). The validation rides began their first touch
+  after the full cached thread had already landed, so they validate that
+  guard but do not prove removal of the immediate-open false edge. Feeding
+  the full cached list immediately remains out pending a paint-cost measure.
 - Reframed by the #124 validation trace (`ride-trace-1783811896380`): the
   "fling momentum gets eaten" residual is now confined to the OPEN PHASE.
   `data-thread-count` shows the cache-first fast paint renders a ~31-event

@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import {
   RideTrace,
   deriveClientHeightFromBottomRest,
+  extractDiscardedSettleWrites,
   extractLedgerSettles,
   parseRideTrace,
   replayLedgerBoundaryGuard,
@@ -41,6 +42,10 @@ const ipadCascadeFixed = loadTrace('ride-trace-1783811896380');
 // Same thread and iPad, recorded on the #125 touch-gate build: the
 // post-touch-gate golden (its open-fill 34k rebase lands untouched).
 const ipadTouchGateFixed = loadTrace('ride-trace-1783829722124');
+// Independent #125 ride on a different thread. It reproduces the same
+// committed/live split settle at a smaller magnitude (216px painted, 1px
+// live accumulator).
+const secondIpadTouchGateFixed = loadTrace('ride-trace-1783829767914');
 
 const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
   { trace: ipadFill, clientHeight: 469 },
@@ -49,6 +54,7 @@ const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
   { trace: iphoneOldB, clientHeight: 469 },
   { trace: ipadCascadeFixed, clientHeight: 469 },
   { trace: ipadTouchGateFixed, clientHeight: 469 },
+  { trace: secondIpadTouchGateFixed, clientHeight: 495 },
 ];
 
 describe('ride trace corpus', () => {
@@ -201,27 +207,92 @@ describe('ride trace corpus', () => {
 
   it('holds the #125 build to the touch-gate golden: no settle moves content under a finger', () => {
     // Post-touch-gate ride of the same thread and iPad. The pre-#125
-    // trace's two harmful under-touch settles are gone; the open-fill's
-    // 34k rebase lands with no touch and zero extra growth, and #124's
-    // atomicity keeps holding (every large rest settle grows nothing
-    // beyond the fold; every tracked one lands at slip 0). Known OPEN
-    // residual, deliberately outside this golden: near-zero-shift settle
-    // frames can coincide with uncompensated above-viewport row growth at
-    // rest (frame 650: +517px, slip ~507 — the measurement-correction
-    // hook's at-rest branch, next fix).
+    // trace's two harmful under-touch settles are gone. This golden is
+    // deliberately scoped to #125's touch gate; settle atomicity is tested
+    // separately below using the committed ledger magnitude, not scrollTop
+    // shift (which is the value that went wrong in these rides).
     const settles = extractLedgerSettles(ipadTouchGateFixed.frames, 469);
     const slippedUnderTouch = settles.filter(
       (settle) =>
         settle.touchActive && (settle.anchorSlipPx === undefined || settle.anchorSlipPx > 2)
     );
     expect(slippedUnderTouch).toEqual([]);
-    const largeRest = settles.filter(
-      (settle) => settle.cause === 'quiescence' && Math.abs(settle.scrollShiftPx) > 400
-    );
-    expect(largeRest.length).toBeGreaterThanOrEqual(5);
-    largeRest.forEach((settle) => {
-      expect(settle.extraGrowthPx).toBe(0);
-      if (settle.anchorSlipPx !== undefined) expect(settle.anchorSlipPx).toBe(0);
+  });
+
+  it('detects the committed/live split settles in both #125 validation rides', () => {
+    const splitSettles = (trace: RideTrace, clientHeight: number) =>
+      extractLedgerSettles(trace.frames, clientHeight).filter(
+        (settle) =>
+          settle.cause === 'quiescence' &&
+          Math.abs(settle.ledgerShiftPx) > 200 &&
+          Math.abs(settle.ledgerShiftPx - settle.scrollShiftPx) > 200
+      );
+
+    const ipad = splitSettles(ipadTouchGateFixed, 469);
+    expect(ipad).toHaveLength(1);
+    expect(ipad[0]).toMatchObject({
+      frameIndex: 650,
+      ledgerShiftPx: 512,
+      scrollShiftPx: -5,
+      extraGrowthPx: 517,
+      anchorSlipPx: 507,
+      touchActive: false,
+    });
+
+    const secondIpad = splitSettles(secondIpadTouchGateFixed, 495);
+    expect(secondIpad).toHaveLength(1);
+    expect(secondIpad[0]).toMatchObject({
+      frameIndex: 1612,
+      ledgerShiftPx: 216,
+      scrollShiftPx: 1,
+      extraGrowthPx: 215,
+      anchorSlipPx: 215,
+      touchActive: false,
+    });
+  });
+
+  it('detects the discarded settle writes in the touchless scrub rides — and nowhere else', () => {
+    // Second mechanism in the same two rides: both were touchless scroll
+    // sessions (trace 1's failure window travels 20,736px through 9 full
+    // stops and 8 re-accelerations with zero touch events — actively
+    // driven non-touch input: scrubbing, trackpad, or similar; a fling
+    // cannot restart after stopping), whose >150ms pauses
+    // pass the idle window while the compositor still owns the position.
+    // Settles 491, 617 and 1232 were SNAPSHOT-COHERENT and landed
+    // atomically (ledgerShiftPx == scrollShiftPx, slip 0 — invisible to
+    // the split metric above), yet the compositor reasserted the exact
+    // pre-settle offset 90-588ms later, discarding folds of up to
+    // +8,769px wholesale; the delay is the remaining scrub-pause length,
+    // surfacing when the scrubber resumes. The split settles 650/1612
+    // also register here because their assumed fold write never
+    // materialized as one coherent offset. 1631 is the recorded (#125)
+    // build's own recovery
+    // settle, discarded again by the same still-live session.
+    const ipadDiscards = extractDiscardedSettleWrites(ipadTouchGateFixed.frames);
+    expect(
+      ipadDiscards.map((discard) => [discard.settleFrameIndex, discard.discardFrameIndex])
+    ).toEqual([
+      [491, 506],
+      [525, 535],
+      [617, 619],
+      [650, 650],
+      [1232, 1262],
+    ]);
+    expect(ipadDiscards.map((discard) => discard.ledgerPx)).toEqual([8769, 292, 1217, 512, 1589]);
+
+    const secondDiscards = extractDiscardedSettleWrites(secondIpadTouchGateFixed.frames);
+    expect(
+      secondDiscards.map((discard) => [discard.settleFrameIndex, discard.discardFrameIndex])
+    ).toEqual([
+      [1612, 1612],
+      [1631, 1636],
+    ]);
+
+    // Detector specificity: all 42 other large settles across the corpus
+    // held their write — including 17,864px folds — so a firing is a real
+    // platform revert, not momentum noise.
+    [ipadFill, iphoneFixed, iphoneOldA, iphoneOldB, ipadCascadeFixed].forEach((trace) => {
+      expect(extractDiscardedSettleWrites(trace.frames)).toEqual([]);
     });
   });
 });

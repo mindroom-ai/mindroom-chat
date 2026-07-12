@@ -860,6 +860,208 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
+  it('restores a discarded settle write to the ledger and refolds it at true rest', async () => {
+    // PR #126 second mechanism: a touchless scroll session (scrubber/
+    // trackpad) still owns the position when a settle write lands in one
+    // of its pauses; the compositor discards the write and reasserts the
+    // pre-settle offset as one large scroll event (matched-snapshot folds
+    // up to +8,769px reverted on device — rideTraceReplay.test.ts). The
+    // watchdog must recognize that reassertion, restore the fold to the
+    // ledger without writing scrollTop, and let the pending true-rest
+    // wait refold it.
+    mockIsIOSWebKit = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$ledger-discard-watchdog';
+    const thread = buildThread(threadId, '$discard-', 5);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      34331,
+      { top: -34000, bottom: 1500 }
+    );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const waitsBefore = settleWaits.length;
+    const countsBefore = await readLedgerSettleCounts();
+    const readDiscardProbe = async () => {
+      const { getCacheProbeSnapshot } = await import('../cacheProbe');
+      return (getCacheProbeSnapshot() as unknown as Record<string, number>)
+        .ledgerSettleWriteDiscarded;
+    };
+    const discardsBefore = await readDiscardProbe();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork();
+      });
+
+      const hook = roomTimelineVirtualizerState.lastInstance
+        ?.shouldAdjustScrollPositionOnItemSizeChange as
+        | ((
+            item: { end: number },
+            delta: number,
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
+          ) => boolean)
+        | undefined;
+
+      await act(async () => {
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
+        await flushAsyncWork(3);
+        // Boundary settle: one atomic 72px fold + write (34340 + 72).
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412]);
+      expect(innerElement.style.marginTop).toBe('');
+
+      await act(async () => {
+        // The compositor reasserts the pre-settle offset: a single event
+        // teleporting back to 34338 (2px from the pre-settle 34340 — the
+        // session kept drifting during the ping-pong on device).
+        fireScroll(34338);
+        await flushAsyncWork(3);
+      });
+      // The fold is back in the ledger — margin restored, NO scrollTop
+      // write fighting the live session, probe attributes the revert.
+      expect(scrollWrites).toEqual([34412]);
+      expect(innerElement.style.marginTop).toBe('-72px');
+      expect(await readDiscardProbe()).toBe(discardsBefore + 1);
+      // No new boundary settle fired on the reassertion event itself.
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence,
+        boundary: countsBefore.boundary + 1,
+      });
+
+      await act(async () => {
+        // The still-pending true-rest wait refolds the restored ledger.
+        settleWaits[waitsBefore].resolve();
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34410]);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(await readLedgerSettleCounts()).toEqual({
+        quiescence: countsBefore.quiescence + 1,
+        boundary: countsBefore.boundary + 1,
+      });
+    } finally {
+      mockIsIOSWebKit = false;
+      renderer?.unmount();
+    }
+  });
+
+  it('watchdog stands down when motion resumes from the settled offset or a finger arrives', async () => {
+    mockIsIOSWebKit = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$ledger-discard-standdown';
+    const thread = buildThread(threadId, '$standdown-', 5);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
+      34331,
+      { top: -34000, bottom: 1500 }
+    );
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const readDiscardProbe = async () => {
+      const { getCacheProbeSnapshot } = await import('../cacheProbe');
+      return (getCacheProbeSnapshot() as unknown as Record<string, number>)
+        .ledgerSettleWriteDiscarded;
+    };
+    const discardsBefore = await readDiscardProbe();
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork();
+      });
+
+      const hook = roomTimelineVirtualizerState.lastInstance
+        ?.shouldAdjustScrollPositionOnItemSizeChange as
+        | ((
+            item: { end: number },
+            delta: number,
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
+          ) => boolean)
+        | undefined;
+
+      await act(async () => {
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
+        await flushAsyncWork(3);
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412]);
+
+      await act(async () => {
+        // Motion resumes FROM the settled offset (the write held): the
+        // first event past the settled neighborhood retires the watch, so
+        // the later pass through the pre-settle offset is recognized as
+        // ordinary travel, not a reassertion.
+        fireScroll(34390);
+        fireScroll(34360);
+        fireScroll(34338);
+        await flushAsyncWork(3);
+      });
+      expect(await readDiscardProbe()).toBe(discardsBefore);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(scrollWrites).toEqual([34412]);
+
+      await act(async () => {
+        // Second settle, then a REAL finger lands before any reassertion:
+        // the gesture owns all subsequent motion — never the watchdog.
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
+        await flushAsyncWork(3);
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34412]);
+      const touchStartListener = (
+        scrollElement.addEventListener as ReturnType<typeof vi.fn>
+      ).mock.calls.find((call) => call[0] === 'touchstart')?.[1] as EventListener;
+      expect(typeof touchStartListener).toBe('function');
+      await act(async () => {
+        touchStartListener(new Event('touchstart'));
+        fireScroll(34338);
+        await flushAsyncWork(3);
+      });
+      expect(await readDiscardProbe()).toBe(discardsBefore);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(scrollWrites).toEqual([34412, 34412]);
+    } finally {
+      mockIsIOSWebKit = false;
+      renderer?.unmount();
+    }
+  });
+
   // The open-at-latest pin is observable through the scrollToBottom dom
   // util, which the shared harness mocks module-wide.
   const getScrollToBottomMock = async () => {
