@@ -22,6 +22,7 @@ import { useMemberPowerCompare } from '../../hooks/useMemberPowerCompare';
 import { CreatorChip } from './CreatorChip';
 import { getDirectCreatePath, withSearchParam } from '../../pages/pathUtils';
 import { DirectCreateSearchParams } from '../../pages/paths';
+import { AgentCallButton } from '../../mindroom/calls/AgentCallButton';
 
 type UserRoomProfileProps = {
   userId: string;
@@ -79,7 +80,8 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
           <Box gap="400" alignItems="Start">
             <UserHeroName displayName={displayName} userId={userId} />
             {userId !== myUserId && (
-              <Box shrink="No">
+              <Box shrink="No" gap="200">
+                <AgentCallButton userId={userId} displayName={displayName} />
                 <Button
                   size="300"
                   variant="Primary"
