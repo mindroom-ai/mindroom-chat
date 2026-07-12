@@ -176,4 +176,22 @@ describe('ride trace corpus', () => {
     // frame is the once-per-open initial fill.
     expect(Math.max(...settles.map((settle) => settle.frameMs))).toBeLessThanOrEqual(130);
   });
+
+  it('detects the under-touch settles the #125 gate eliminates', () => {
+    // This pre-#125 ride settled twice under a live finger — the 33k
+    // open-fill rebase (frame 137, 98px slip) and a top-bounce boundary
+    // settle (frame 1677, 31px slip). The touch gate defers both to the
+    // at-rest quiescence settle; the next device trace must show zero
+    // touch-frame settles.
+    const settles = extractLedgerSettles(ipadCascadeFixed.frames, 469);
+    // touchActive alone also catches a benign same-frame coincidence
+    // (frame 1198: the touch began in the settle's own rAF sample, slip
+    // 0); the harmful class is a settle that MOVED content under the
+    // finger.
+    const slippedUnderTouch = settles.filter(
+      (settle) =>
+        settle.touchActive && (settle.anchorSlipPx === undefined || settle.anchorSlipPx > 2)
+    );
+    expect(slippedUnderTouch.map((settle) => settle.frameIndex)).toEqual([137, 1677]);
+  });
 });

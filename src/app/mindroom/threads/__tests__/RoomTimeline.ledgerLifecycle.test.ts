@@ -36,10 +36,11 @@ const settleWaits: { resolve: () => void }[] = [];
 // Mutable so the dropped-correction pin can run the component's iOS
 // always-drop path (the hook builder captures this function).
 let mockIsIOSWebKit = false;
+let mockHasActiveTouches = false;
 vi.mock('../scrollQuiescence', () => ({
   SCROLL_QUIESCENCE_IDLE_MS: 150,
   isIOSWebKitDevice: () => mockIsIOSWebKit,
-  hasActiveWindowTouches: () => false,
+  hasActiveWindowTouches: () => mockHasActiveTouches,
   waitForScrollQuiescence: vi.fn((_el: unknown, opts?: { maxWaitMs?: number }): Promise<void> => {
     if (opts?.maxWaitMs === Infinity) {
       return new Promise<void>((resolve) => {
@@ -714,6 +715,15 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+        // A crossing event under a live finger must NOT settle: rewriting
+        // scrollTop mid-drag reverses the gesture frame (the open-fill's
+        // 33k rebase slipped 98px landing on a drag's first in-bounds
+        // event, ride-trace-1783811896380 frame 137).
+        mockHasActiveTouches = true;
+        fireScroll(34335);
+        await flushAsyncWork(3);
+        expect(scrollWrites).toEqual([]);
+        mockHasActiveTouches = false;
         fireScroll(34340);
         await flushAsyncWork(3);
       });
