@@ -41,7 +41,6 @@ describe('requestMicrophoneAccess', () => {
       'Allow microphone access for MindRoom in iPhone settings'
     );
   });
-
   it('maps standard media errors from another realm without relying on DOMException', () => {
     expect(
       getMicrophoneAccessErrorMessage({ name: 'NotFoundError', message: 'foreign realm error' })
