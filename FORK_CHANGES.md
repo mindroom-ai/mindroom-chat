@@ -7,21 +7,29 @@
 - Status: implemented on PR #126 alongside the split-settle preflight below;
   full battery passes. Device validation (a scrub-heavy ride) is the merge
   gate for both mechanisms.
-- Certainty census (both #125 validation rides): the rides are TOUCHLESS
-  scroll sessions — ~21,000px of stop-and-go travel with zero touch frames
-  (iOS scroll-indicator scrubbing or a trackpad; the finger is on UIKit
-  chrome, invisible to every touch-based gate). Their pauses exceed the
-  150ms idle window with the DOM offset frozen, so the quiescence waiter
-  settles mid-session — and the compositor, which still owns the position,
-  DISCARDS the write: 7 of the corpus's 49 large settles reverted to the
-  exact pre-settle offset (ratios 0.99-1.04x of the fold), 0 false
-  positives in the five older flick rides. Three of the seven (491:
-  +8,769px, 617: +1,217px, 1232: +1,589px in ride-trace-1783829722124)
-  were SNAPSHOT-COHERENT and landed atomically — the split-settle
-  preflight cannot see them (ledgerShiftPx == scrollShiftPx, slip 0); the
-  revert arrives 90-588ms later, when the scrubber next moves. 1631 in
-  ride-trace-1783829767914 is a recovery settle discarded AGAIN by the
-  same still-live session, proving one-commit deferral is not enough.
+- Certainty census (both #125 validation rides): every failure sits in a
+  TOUCHLESS scroll span. Trace 1's window (frames 353-786, containing
+  settles 491/525/617/650) travels 20,736px through 9 full stops and 8
+  re-accelerations with zero touch events — a post-touch fling decays
+  monotonically and cannot restart, so the span is actively driven by
+  non-touch input (scroll-indicator scrubbing, trackpad, or similar; the
+  specific device is unproven and immaterial — what matters is that the
+  session is invisible to every touch-based gate). Both rides do contain
+  touch frames elsewhere (65 and 71 ride-wide). The spans' pauses exceed
+  the 150ms idle window with the DOM offset frozen, so the quiescence
+  waiter settles mid-session — and the compositor, which still owns the
+  position, DISCARDS the write: 7 of the corpus's 49 large settles
+  reverted to the exact pre-settle offset (ratios 0.99-1.04x of the
+  fold), 0 false positives in the five older flick rides. Three of the
+  seven (491: +8,769px, 617: +1,217px, 1232: +1,589px in
+  ride-trace-1783829722124) were SNAPSHOT-COHERENT and landed atomically
+  — the split-settle preflight cannot see them (ledgerShiftPx ==
+  scrollShiftPx, slip 0); the revert arrives 90-588ms later, when the
+  session next moves. 1631 in ride-trace-1783829767914 is the RECORDED
+  (#125) build's own recovery settle, discarded again by the same
+  still-live session — by analogy (the trace predates the preflight), a
+  one-commit defer-and-retry lands inside the same session and is
+  discarded the same way, so deferral alone cannot close this class.
 - Fix, two sides:
   1. Prevention — `waitForScrollQuiescence` is scroll-session-aware where
      the platform ships `scrollend` (WebKit since Safari/iOS 26.2,

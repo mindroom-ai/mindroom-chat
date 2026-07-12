@@ -253,8 +253,10 @@ describe('ride trace corpus', () => {
 
   it('detects the discarded settle writes in the touchless scrub rides — and nowhere else', () => {
     // Second mechanism in the same two rides: both were touchless scroll
-    // sessions (iOS scroll-indicator scrubbing / trackpad — ~21,000px of
-    // stop-and-go travel with zero touch frames), whose >150ms pauses
+    // sessions (trace 1's failure window travels 20,736px through 9 full
+    // stops and 8 re-accelerations with zero touch events — actively
+    // driven non-touch input: scrubbing, trackpad, or similar; a fling
+    // cannot restart after stopping), whose >150ms pauses
     // pass the idle window while the compositor still owns the position.
     // Settles 491, 617 and 1232 were SNAPSHOT-COHERENT and landed
     // atomically (ledgerShiftPx == scrollShiftPx, slip 0 — invisible to
@@ -263,7 +265,8 @@ describe('ride trace corpus', () => {
     // +8,769px wholesale; the delay is the remaining scrub-pause length,
     // surfacing when the scrubber resumes. The split settles 650/1612
     // also register here because their assumed fold write never
-    // materialized as one coherent offset. 1631 is 1612's own recovery
+    // materialized as one coherent offset. 1631 is the recorded (#125)
+    // build's own recovery
     // settle, discarded again by the same still-live session.
     const ipadDiscards = extractDiscardedSettleWrites(ipadTouchGateFixed.frames);
     expect(
