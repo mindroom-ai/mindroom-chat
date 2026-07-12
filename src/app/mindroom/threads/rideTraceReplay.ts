@@ -135,6 +135,8 @@ export const isOutOfPhysicalBounds = (
 export type LedgerSettleObservation = {
   frameIndex: number;
   cause: 'boundary' | 'quiescence';
+  /** Ledger pixels cleared from the committed DOM margin in this frame. */
+  ledgerShiftPx: number;
   /** scrollTop rewrite the settle performed (frame delta). */
   scrollShiftPx: number;
   /** scrollHeight change across the settle frame. */
@@ -174,6 +176,10 @@ export const extractLedgerSettles = (
     const boundary = frame.lb !== previous.lb;
     const quiescence = frame.lq !== previous.lq;
     if (!boundary && !quiescence) continue;
+    // marginTop is -ledgerPx. Clearing a -512px margin to zero therefore
+    // represents a +512px ledger settle, regardless of how far scrollTop
+    // actually moved in the same sampled frame.
+    const ledgerShiftPx = frame.tr - previous.tr;
     const scrollShiftPx = frame.st - previous.st;
     const heightShiftPx = frame.sh - previous.sh;
     // jump === 0 on a large rebase means the anchor was re-picked, not
@@ -183,6 +189,7 @@ export const extractLedgerSettles = (
     settles.push({
       frameIndex: index,
       cause: boundary ? 'boundary' : 'quiescence',
+      ledgerShiftPx,
       scrollShiftPx,
       heightShiftPx,
       extraGrowthPx: heightShiftPx - scrollShiftPx,

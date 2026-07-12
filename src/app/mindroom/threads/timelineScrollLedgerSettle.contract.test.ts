@@ -58,6 +58,16 @@ function makeSettledScroller() {
   return { virtualizer, element, inner };
 }
 
+function makeTraceMismatch(paintedLedgerPx: number) {
+  const state = makeSettledScroller();
+  state.inner.style.marginTop = `-${paintedLedgerPx}px`;
+  state.virtualizer.setOptions({
+    ...state.virtualizer.options,
+    scrollMargin: -paintedLedgerPx,
+  });
+  return state;
+}
+
 const rangeOf = (virtualizer: Virtualizer<Element, Element>): [number, number] => {
   const items = virtualizer.getVirtualItems();
   return [items[0].index, items[items.length - 1].index];
@@ -93,4 +103,23 @@ describe('ledger settle contract (real virtual-core)', () => {
     const [afterStart] = rangeOf(virtualizer);
     expect(beforeStart - afterStart).toBe(FOLD_PX / ROW_ESTIMATE);
   });
+
+  it.each([
+    { paintedLedgerPx: 512, liveLedgerPx: -5 },
+    { paintedLedgerPx: 216, liveLedgerPx: 1 },
+  ])(
+    'defers a $paintedLedgerPx px painted ledger when the live accumulator has moved to $liveLedgerPx px',
+    ({ paintedLedgerPx, liveLedgerPx }) => {
+      const { virtualizer, element, inner } = makeTraceMismatch(paintedLedgerPx);
+      const before = rangeOf(virtualizer);
+
+      const settledScrollTop = applyLedgerSettle(inner, element, liveLedgerPx, virtualizer);
+
+      expect(settledScrollTop).toBeUndefined();
+      expect(element.scrollTop).toBe(START_OFFSET);
+      expect(inner.style.marginTop).toBe(`-${paintedLedgerPx}px`);
+      expect(virtualizer.options.scrollMargin).toBe(-paintedLedgerPx);
+      expect(rangeOf(virtualizer)).toEqual(before);
+    }
+  );
 });

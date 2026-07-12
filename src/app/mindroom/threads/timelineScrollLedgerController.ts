@@ -70,6 +70,26 @@ type LedgerSettleVirtualizer<TOptions extends { scrollMargin?: number }> = {
   setOptions: (options: TOptions) => void;
 };
 
+const LEDGER_SNAPSHOT_EPSILON_PX = 0.01;
+
+/**
+ * The inline margin is the ledger snapshot React actually committed to the
+ * DOM. The mutable accumulator can already contain a newer measurement while
+ * the render that pairs that measurement with scrollMargin/tile positions is
+ * still pending.
+ */
+const isLedgerSettleSnapshotCurrent = (
+  inner: { style: { marginTop: string } },
+  liveLedgerPx: number
+): boolean => {
+  const marginTop = inner.style.marginTop.trim();
+  const paintedLedgerPx = marginTop === '' ? 0 : -Number.parseFloat(marginTop);
+  return (
+    Number.isFinite(paintedLedgerPx) &&
+    Math.abs(paintedLedgerPx - liveLedgerPx) <= LEDGER_SNAPSHOT_EPSILON_PX
+  );
+};
+
 /**
  * The DOM/virtualizer half of a ledger settle, as ONE function so the
  * real-core contract test (timelineScrollLedgerSettle.contract.test.ts)
@@ -83,14 +103,20 @@ type LedgerSettleVirtualizer<TOptions extends { scrollMargin?: number }> = {
  * mounting and measuring a band of far-away rows in one 100-240ms frame
  * (the settle-cascade jump: up to +1,531px content growth right after
  * rest, ride-traces 1783802452438 / 1783804190290, pinned in
- * rideTraceReplay.test.ts). Returns the clamped post-write scrollTop.
+ * rideTraceReplay.test.ts). Returns the clamped post-write scrollTop, or
+ * undefined without mutating anything when the committed margin and live
+ * accumulator are different ledger snapshots.
  */
 export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
   inner: { style: { marginTop: string } },
   scrollElement: { scrollTop: number },
   px: number,
   virtualizer: LedgerSettleVirtualizer<TOptions>
-): number => {
+): number | undefined => {
+  // Never clear one committed margin with a different, newer accumulator.
+  // The next React commit will paint the newer snapshot coherently; its
+  // layout effect re-arms settlement.
+  if (!isLedgerSettleSnapshotCurrent(inner, px)) return undefined;
   inner.style.marginTop = '';
   scrollElement.scrollTop += px;
   // Read back the browser-clamped value instead of assuming old+px.
@@ -260,16 +286,30 @@ export const useTimelineScrollLedgerController = ({
       const inner = virtualInnerRef.current;
       const scrollElement = getScrollElement();
       if (px === 0 || !inner || !scrollElement) return;
+      if (!isLedgerSettleSnapshotCurrent(inner, px)) {
+        // A measurement arrived after the currently painted snapshot. Force
+        // (or reinforce) the render for that accumulator, then let its layout
+        // effect arm a fresh true-rest wait. Clearing the older margin now is
+        // the exact 512->-5 / 216->1 split settle captured on device.
+        ledgerSettleWantedRef.current = true;
+        setLedgerCommitTick((tick) => tick + 1);
+        return;
+      }
       scrollCompensationPxRef.current = 0;
       // Waiting for the write's scroll event would leave the boundary
       // direction baseline stale (Safari can suppress/coalesce it), so the
       // settle's clamped read-back seeds it directly.
-      ledgerBoundaryScrollTopRef.current = applyLedgerSettle(
-        inner,
-        scrollElement,
-        px,
-        virtualizerRef.current
-      );
+      const settledScrollTop = applyLedgerSettle(inner, scrollElement, px, virtualizerRef.current);
+      if (settledScrollTop === undefined) {
+        // The preflight above and this call are synchronous, but retain the
+        // debt defensively if the DOM is ever mutated by a callback in this
+        // block.
+        scrollCompensationPxRef.current = px;
+        ledgerSettleWantedRef.current = true;
+        setLedgerCommitTick((tick) => tick + 1);
+        return;
+      }
+      ledgerBoundaryScrollTopRef.current = settledScrollTop;
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
     },
     [getScrollElement]
