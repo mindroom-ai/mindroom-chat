@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### iOS voice-call readiness (2026-07-12, follow-up to the agent-calls PR)
+
+- Status: implemented on `caveman/ios-voice-call-shell` (based on the agent-calls branch).
+- Why voice calls "did not work on the iOS app": no device build ever contained a
+  working feature. TestFlight/dev predates the feature entirely, and the only local
+  tree with the feature on it (main checkout, dist built 10:37) carried the pre-fix
+  composition where `UserRoomProfileRenderer` rendered outside `CallEmbedProvider`,
+  so `useCallStart` → `useCallEmbedRef` threw `CallEmbedRef is not provided` during
+  render of every opened profile. The instance was fixed on the PR branch
+  (`5ccd34537`), but never reached a device.
+- Platform verification (iOS 26 simulator, exact Capacitor-replica shell —
+  `capacitor://localhost` via `WKURLSchemeHandler`, auto-granting `WKUIDelegate`):
+  `getUserMedia({audio:true})` succeeds in the main frame AND inside a
+  CallEmbed-style sandboxed iframe; the matrix-widget-api postMessage handshake
+  works with tuple origins both ways; workers run; no service worker exists on
+  the custom scheme (so no SW/iframe interference). Prod LiveKit JWT + SFU are
+  healthy with CORS `*` (including `Origin: capacitor://localhost`). The platform
+  layer is NOT a blocker.
+- This branch closes the remaining iOS gaps:
+  - `useCallStart` no longer throws at render time when the `CallEmbedRef`
+    provider is absent — the failure moved to call time as the existing catchable
+    "No embed container element found" error, so a mis-nested provider can never
+    take down the profile surface again (regression test pins the exact crash).
+  - `UIBackgroundModes` gains `audio` so an active call keeps running when the
+    phone locks or the app backgrounds (previously the call would go silent).
+  - `NSMicrophoneUsageDescription` now covers voice calls, not just voice messages.
+  - `iosScheme: 'https'` removed from `capacitor.config.ts`: WKWebView refuses
+    scheme handlers for http/https, so Capacitor silently falls back to
+    `capacitor://localhost` today; if a future Capacitor honored the override, the
+    origin change would wipe sessions and E2EE state on installed devices.
+- Remaining device validation: build the phone app from a tree that includes the
+  agent-calls branch head plus this branch, then place a call from an agent
+  profile (expect mic prompt, join, and audio that survives screen lock).
+
 ### One-click ephemeral voice calls with MindRoom agents (2026-07-12)
 
 - Status: implemented locally. Full Cinny tests pass (396 files / 3,080 tests), along with typecheck, production build, touched-file Prettier, and ESLint (0 errors / 17 pre-existing warnings). MindRoom's focused backend suites and touched Python Ruff lint and format checks pass. Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.

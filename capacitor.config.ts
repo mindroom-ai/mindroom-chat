@@ -9,7 +9,11 @@ const config: CapacitorConfig = {
     cleartext: true,
     // Allow mixed content (HTTPS app talking to HTTP homeserver)
     androidScheme: 'https',
-    iosScheme: 'https',
+    // No iosScheme: WKWebView refuses handlers for schemes it serves natively
+    // (http/https), so Capacitor silently falls back to capacitor://localhost.
+    // The app's storage (sessions, crypto store) is keyed to that origin — if a
+    // future Capacitor honored an https override, the origin change would wipe
+    // logins and E2EE state on every installed device.
   },
   ios: {
     // Let the web app own safe-area rendering instead of leaving native gutters

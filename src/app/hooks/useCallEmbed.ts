@@ -59,11 +59,14 @@ export const useCallStart = (dm = false) => {
   const mx = useMatrixClient();
   const theme = useTheme();
   const setCallEmbed = useSetAtom(callEmbedAtom);
-  const callEmbedRef = useCallEmbedRef();
+  // Surfaces like user profiles mount this hook for every rendered user, so a
+  // missing CallEmbedRef provider must fail when a call is started (catchable
+  // by the caller), never during render of the host surface.
+  const callEmbedRef = useContext(CallEmbedRefContext);
 
   const startCall = useCallback(
     (room: Room, pref?: CallPreferences) => {
-      const container = callEmbedRef.current;
+      const container = callEmbedRef?.current;
       if (!container) {
         throw new Error('Failed to start call, No embed container element found!');
       }
