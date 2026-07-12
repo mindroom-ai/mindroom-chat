@@ -12,6 +12,7 @@
 - Coverage: room creation/signaling metadata, sync wait, cleanup ownership, profile eligibility, one-click start flow, backend ad-hoc room resolution, ambiguity, media teardown, and persisted-invite cleanup.
 - Independent self-review caught and fixed duplicate hangup/close cleanup plus orphaned rooms after a post-create startup failure; cleanup is now idempotent and failure-safe.
 - Zero-tolerance PR review replaced the operator-granting `trusted_private_chat` preset with least-privilege `private_chat`, gated the action on the backend's per-agent presence capability, and serialized kicked-agent teardown against in-flight reconciliation.
+- Post-deploy fix: the user-profile renderer now lives inside `CallEmbedProvider`, so opening an agent profile can access the existing call container instead of throwing `CallEmbedRef is not provided`.
 
 ### Discarded settle writes in touchless scroll sessions (2026-07-11, PR #126 second mechanism)
 
