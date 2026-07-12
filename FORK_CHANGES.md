@@ -4,7 +4,15 @@
 
 ### Momentum runway: the open-phase false edge (2026-07-11)
 
-- Status: candidate fix 1 implemented on `fix/momentum-runway` (PR #125):
+- Status: VALIDATED on device (two 2026-07-11 evening iPad traces on the
+  #125 build): zero slipping-or-blind settles under touch in both rides;
+  the open-fill 34k rebase lands untouched with zero extra growth; #124
+  atomicity holds (large rest settles up to +8,769px at slip 0). Golden
+  pinned in the corpus (`ipadTouchGateFixed`). NEW open residual observed
+  in both rides: near-zero-shift quiescence frames with +215/+507px of
+  uncompensated above-viewport row growth at rest (frames 1612/650) — the
+  measurement-correction hook's at-rest branch; next fix, separate PR.
+- Candidate fix 1 implemented on `fix/momentum-runway` (PR #125):
   boundary settles defer under a live finger (`hasActiveWindowTouches`);
   deployed to the lab, awaiting an on-device validation trace to pin the
   post-fix golden (zero slipping settles under touch) before merge.
