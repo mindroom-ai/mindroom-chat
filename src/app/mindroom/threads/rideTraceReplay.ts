@@ -155,6 +155,12 @@ export type LedgerSettleObservation = {
   anchorSlipPx: number | undefined;
   /** Whether the pre-settle frame sat outside the physical scroll range. */
   outOfBoundsBefore: boolean;
+  /**
+   * Whether the settle landed on a frame with a live touch. Rewriting
+   * scrollTop under a finger reverses the gesture frame (the #125 touch
+   * gate defers these to the at-rest quiescence settle).
+   */
+  touchActive: boolean;
 };
 
 export const extractLedgerSettles = (
@@ -183,6 +189,7 @@ export const extractLedgerSettles = (
       frameMs: frame.dt,
       anchorSlipPx: anchorBlind ? undefined : Math.abs(frame.jump - Math.abs(scrollShiftPx)),
       outOfBoundsBefore: isOutOfPhysicalBounds(previous.st, previous.sh, clientHeight),
+      touchActive: frame.touch === 1,
     });
   }
   return settles;

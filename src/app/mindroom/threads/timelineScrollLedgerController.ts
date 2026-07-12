@@ -12,7 +12,11 @@ import {
 import { useVirtualizer, type ReactVirtualizer } from '@tanstack/react-virtual';
 import { countCacheProbe } from './cacheProbe';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
-import { isIOSWebKitDevice, waitForScrollQuiescence } from './scrollQuiescence';
+import {
+  hasActiveWindowTouches,
+  isIOSWebKitDevice,
+  waitForScrollQuiescence,
+} from './scrollQuiescence';
 import {
   buildMeasurementScrollCorrectionHook,
   shouldSettleLedgerAtBoundary,
@@ -306,6 +310,13 @@ export const useTimelineScrollLedgerController = ({
       // Cheap early exit on the hot path (direction tracking above is just
       // scrollTop arithmetic; the common px=0 case still avoids rect reads).
       if (px > -48 && px < 48) return;
+      // No settles under a live finger: rewriting scrollTop mid-drag
+      // reverses the gesture frame (ride-trace-1783811896380 frame 137:
+      // the open-fill's 33k rebase landed on the first in-bounds event of
+      // a drag and slipped 98px). #119 gates momentum direction and the
+      // rubber-band deferral gates overscroll; this gates the drag itself.
+      // The at-rest quiescence settle owns the fold after release.
+      if (hasActiveWindowTouches()) return;
       const inner = virtualInnerRef.current;
       if (!inner) return;
       const innerRect = inner.getBoundingClientRect();

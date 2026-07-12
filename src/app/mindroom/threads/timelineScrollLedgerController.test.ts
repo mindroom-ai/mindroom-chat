@@ -21,6 +21,7 @@ vi.mock('./rideTraceRecorder', () => ({
 }));
 
 vi.mock('./scrollQuiescence', () => ({
+  hasActiveWindowTouches: () => false,
   isIOSWebKitDevice: () => true,
   waitForScrollQuiescence: () => new Promise<void>(() => {}),
 }));

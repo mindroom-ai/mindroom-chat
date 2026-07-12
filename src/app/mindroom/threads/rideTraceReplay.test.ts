@@ -38,6 +38,9 @@ const iphoneOldB = loadTrace('ride-trace-1783737737705');
 // Same thread and iPad as ipadFill, recorded on the #124 settle-atomicity
 // build: the post-cascade-fix good ride.
 const ipadCascadeFixed = loadTrace('ride-trace-1783811896380');
+// Same thread and iPad, recorded on the #125 touch-gate build: the
+// post-touch-gate golden (its open-fill 34k rebase lands untouched).
+const ipadTouchGateFixed = loadTrace('ride-trace-1783829722124');
 
 const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
   { trace: ipadFill, clientHeight: 469 },
@@ -45,6 +48,7 @@ const CORPUS: { trace: RideTrace; clientHeight: number }[] = [
   { trace: iphoneOldA, clientHeight: 500 },
   { trace: iphoneOldB, clientHeight: 469 },
   { trace: ipadCascadeFixed, clientHeight: 469 },
+  { trace: ipadTouchGateFixed, clientHeight: 469 },
 ];
 
 describe('ride trace corpus', () => {
@@ -175,5 +179,49 @@ describe('ride trace corpus', () => {
     // The 100-240ms settle-cascade stalls are gone; the slowest settle
     // frame is the once-per-open initial fill.
     expect(Math.max(...settles.map((settle) => settle.frameMs))).toBeLessThanOrEqual(130);
+  });
+
+  it('detects the under-touch settles the #125 gate eliminates', () => {
+    // This pre-#125 ride settled twice under a live finger — the 33k
+    // open-fill rebase (frame 137, 98px slip) and a top-bounce boundary
+    // settle (frame 1677, 31px slip). The touch gate defers both to the
+    // at-rest quiescence settle; the next device trace must show zero
+    // touch-frame settles.
+    const settles = extractLedgerSettles(ipadCascadeFixed.frames, 469);
+    // touchActive alone also catches a benign same-frame coincidence
+    // (frame 1198: the touch began in the settle's own rAF sample, slip
+    // 0); the harmful class is a settle that MOVED content under the
+    // finger.
+    const slippedUnderTouch = settles.filter(
+      (settle) =>
+        settle.touchActive && (settle.anchorSlipPx === undefined || settle.anchorSlipPx > 2)
+    );
+    expect(slippedUnderTouch.map((settle) => settle.frameIndex)).toEqual([137, 1677]);
+  });
+
+  it('holds the #125 build to the touch-gate golden: no settle moves content under a finger', () => {
+    // Post-touch-gate ride of the same thread and iPad. The pre-#125
+    // trace's two harmful under-touch settles are gone; the open-fill's
+    // 34k rebase lands with no touch and zero extra growth, and #124's
+    // atomicity keeps holding (every large rest settle grows nothing
+    // beyond the fold; every tracked one lands at slip 0). Known OPEN
+    // residual, deliberately outside this golden: near-zero-shift settle
+    // frames can coincide with uncompensated above-viewport row growth at
+    // rest (frame 650: +517px, slip ~507 — the measurement-correction
+    // hook's at-rest branch, next fix).
+    const settles = extractLedgerSettles(ipadTouchGateFixed.frames, 469);
+    const slippedUnderTouch = settles.filter(
+      (settle) =>
+        settle.touchActive && (settle.anchorSlipPx === undefined || settle.anchorSlipPx > 2)
+    );
+    expect(slippedUnderTouch).toEqual([]);
+    const largeRest = settles.filter(
+      (settle) => settle.cause === 'quiescence' && Math.abs(settle.scrollShiftPx) > 400
+    );
+    expect(largeRest.length).toBeGreaterThanOrEqual(5);
+    largeRest.forEach((settle) => {
+      expect(settle.extraGrowthPx).toBe(0);
+      if (settle.anchorSlipPx !== undefined) expect(settle.anchorSlipPx).toBe(0);
+    });
   });
 });
