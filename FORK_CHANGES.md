@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### At-rest above-viewport growth escapes compensation (2026-07-12)
+
+- Status: diagnosis on `fix/at-rest-above-growth`; both #125 validation
+  traces show it (thread ff7965e2 frame 650: +517px growth, ~507px visible
+  slip on a -5px-shift quiescence frame; thread 3dddbf0e frame 1612:
+  +215px). No touch, no momentum: a row ABOVE the viewport grows at rest
+  (hydration/extras remeasure) and the shift reaches the reader — neither
+  ledger-deferred nor scroll-adjusted.
+- Suspect: `shouldApplyMeasurementScrollCorrection` / the fully-above drop
+  path — its decision table at rest (isScrollingBackward=false, iOS) and
+  virtual-core's at-rest apply path need tracing against these frames.
+- Instrument: the corpus extractor already exposes these as near-zero-shift
+  settles with large extraGrowthPx and slip; the #125 golden deliberately
+  excludes them, so the fix's golden will assert their absence.
+
 ### Momentum runway: the open-phase false edge (2026-07-11)
 
 - Status: VALIDATED on device (two 2026-07-11 evening iPad traces on the
