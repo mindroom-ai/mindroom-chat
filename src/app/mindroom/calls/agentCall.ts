@@ -126,14 +126,13 @@ export const cleanupCreatedAgentCall = async (
 
   try {
     await mx.leave(roomId);
-  } catch {
-    // A failed leave remains visible and can be retried from the room menu.
-  } finally {
     try {
       await mx.forget(roomId);
     } catch {
       // Leaving is the important cleanup; forgetting can be retried by the SDK/UI later.
     }
+  } catch {
+    // A failed leave remains visible and can be retried from the room menu.
   }
 };
 

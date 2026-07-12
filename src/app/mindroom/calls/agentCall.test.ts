@@ -135,6 +135,14 @@ describe('MindRoom agent calls', () => {
     expect(forget).toHaveBeenCalledWith('!call:mindroom.test');
   });
 
+  it('does not try to forget a room when leaving fails', async () => {
+    leave.mockRejectedValueOnce(new Error('leave failed'));
+
+    await cleanupMindroomAgentCall(mx, ephemeralRoom());
+
+    expect(forget).not.toHaveBeenCalled();
+  });
+
   it('does not clean up a room created by someone else', async () => {
     await cleanupMindroomAgentCall(mx, ephemeralRoom('@bob:mindroom.test'));
 

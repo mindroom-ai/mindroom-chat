@@ -4,7 +4,7 @@
 
 ### One-click ephemeral voice calls with MindRoom agents (2026-07-12)
 
-- Status: implemented locally. Full Cinny tests pass (396 files / 3,077 tests), along with typecheck, production build, touched-file Prettier, and ESLint (0 errors / 17 pre-existing warnings). MindRoom's focused backend suites and touched Python Ruff lint and format checks pass. Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.
+- Status: implemented locally. Full Cinny tests pass (396 files / 3,078 tests), along with typecheck, production build, touched-file Prettier, and ESLint (0 errors / 17 pre-existing warnings). MindRoom's focused backend suites and touched Python Ruff lint and format checks pass. Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.
 - A same-homeserver `mindroom_` agent profile now shows a **Call** action only when its presence advertises `📞 Voice calls`, MatrixRTC and WebRTC are available, and no other call is active.
 - The action creates a private audio-only Matrix call room, follows the configured default-encryption policy, tags it with `io.mindroom.agent_call`, invites exactly that agent, waits for the room to arrive through sync, opens it, and joins immediately.
 - Ending or closing the call kicks the invited agent, leaves, and forgets creator-owned tagged rooms. The MindRoom backend removes kicked ad-hoc rooms from the agent's persisted invite set, so a temporary call room is not rejoined after restart.
