@@ -4,7 +4,12 @@
 
 ### Momentum runway: the open-phase false edge (2026-07-11)
 
-- Status: reconnaissance on `fix/momentum-runway`; implementation next.
+- Status: candidate fix 1 implemented on `fix/momentum-runway` (PR #125):
+  boundary settles defer under a live finger (`hasActiveWindowTouches`);
+  deployed to the lab, awaiting an on-device validation trace to pin the
+  post-fix golden (zero slipping settles under touch) before merge.
+  Candidate 2 (full cached list at open) stays out pending a paint-cost
+  measurement.
 - Reframed by the #124 validation trace (`ride-trace-1783811896380`): the
   "fling momentum gets eaten" residual is now confined to the OPEN PHASE.
   `data-thread-count` shows the cache-first fast paint renders a ~31-event
