@@ -14,6 +14,7 @@ import {
   hasMindroomVoiceCallsPresence,
   waitForJoinedRoom,
 } from './agentCall';
+import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 
 type AgentCallButtonProps = {
   userId: string;
@@ -64,6 +65,9 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
 
     let roomId: string | undefined;
     try {
+      await requestMicrophoneAccess();
+      if (!mountedRef.current) return;
+
       roomId = await createAgentVoiceRoom(
         mx,
         userId,
