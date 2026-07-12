@@ -81,7 +81,11 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
             <UserHeroName displayName={displayName} userId={userId} />
             {userId !== myUserId && (
               <Box shrink="No" gap="200">
-                <AgentCallButton userId={userId} displayName={displayName} />
+                <AgentCallButton
+                  userId={userId}
+                  displayName={displayName}
+                  presenceStatus={presence?.status}
+                />
                 <Button
                   size="300"
                   variant="Primary"

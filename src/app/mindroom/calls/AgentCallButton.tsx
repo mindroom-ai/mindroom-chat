@@ -8,14 +8,20 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { webRTCSupported } from '../../utils/rtc';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
-import { cleanupCreatedAgentCall, createAgentVoiceRoom, waitForJoinedRoom } from './agentCall';
+import {
+  cleanupCreatedAgentCall,
+  createAgentVoiceRoom,
+  hasMindroomVoiceCallsPresence,
+  waitForJoinedRoom,
+} from './agentCall';
 
 type AgentCallButtonProps = {
   userId: string;
   displayName?: string;
+  presenceStatus?: string;
 };
 
-export function AgentCallButton({ userId, displayName }: AgentCallButtonProps) {
+export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCallButtonProps) {
   const mx = useMatrixClient();
   const { createRoom } = useClientConfig();
   const startCall = useCallStart(false);
@@ -27,7 +33,12 @@ export function AgentCallButton({ userId, displayName }: AgentCallButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
-  if (!isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined)) return null;
+  if (
+    !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined) ||
+    !hasMindroomVoiceCallsPresence(presenceStatus)
+  ) {
+    return null;
+  }
 
   const unavailable = !livekitSupported || !rtcSupported || !!callEmbed;
   const unavailableReason = !livekitSupported

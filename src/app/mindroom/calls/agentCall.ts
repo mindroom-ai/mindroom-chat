@@ -16,6 +16,10 @@ import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
 
 export const MINDROOM_AGENT_CALL_EVENT_TYPE = 'io.mindroom.agent_call';
+export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
+
+export const hasMindroomVoiceCallsPresence = (status: string | undefined): boolean =>
+  status?.split(' | ').includes(MINDROOM_VOICE_CALLS_PRESENCE) ?? false;
 
 export type MindroomAgentCallContent = {
   version: 1;
@@ -54,7 +58,7 @@ export const createAgentVoiceRoom = async (
     name: `Call with ${displayName ?? getMxIdLocalPart(agentUserId) ?? agentUserId}`,
     invite: [agentUserId],
     visibility: Visibility.Private,
-    preset: Preset.TrustedPrivateChat,
+    preset: Preset.PrivateChat,
     creation_content: {
       type: RoomType.Call,
     },

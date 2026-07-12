@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   closeProfile: vi.fn(),
 }));
 
-vi.mock('./agentCall', () => ({
+const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
+
+vi.mock('./agentCall', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./agentCall')>()),
   createAgentVoiceRoom: mocks.createAgentVoiceRoom,
   cleanupCreatedAgentCall: mocks.cleanupCreatedAgentCall,
   waitForJoinedRoom: mocks.waitForJoinedRoom,
@@ -62,18 +65,34 @@ describe('AgentCallButton', () => {
     const foreignAgent = create(
       <AgentCallButton userId="@mindroom_helper:elsewhere.test" displayName="Helper" />
     );
-    const localAgent = create(
-      <AgentCallButton userId="@mindroom_helper:mindroom.test" displayName="Helper" />
+    const localAgentWithoutCalls = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus="🤖 Model: openai/gpt-5.5"
+      />
+    );
+    const localVoiceAgent = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
     );
 
     expect(human.toJSON()).toBeNull();
     expect(foreignAgent.toJSON()).toBeNull();
-    expect(JSON.stringify(localAgent.toJSON())).toContain('Call');
+    expect(localAgentWithoutCalls.toJSON()).toBeNull();
+    expect(JSON.stringify(localVoiceAgent.toJSON())).toContain('Call');
   });
 
   it('creates, opens, and immediately joins the private audio room', async () => {
     const renderer = create(
-      <AgentCallButton userId="@mindroom_helper:mindroom.test" displayName="Helper" />
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
     );
     const button = renderer.root.findByType('button');
 
@@ -99,7 +118,11 @@ describe('AgentCallButton', () => {
   it('cleans up the temporary room when joining fails', async () => {
     mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
     const renderer = create(
-      <AgentCallButton userId="@mindroom_helper:mindroom.test" displayName="Helper" />
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
     );
 
     await act(async () => {

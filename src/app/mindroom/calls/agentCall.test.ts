@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
+  hasMindroomVoiceCallsPresence,
   MINDROOM_AGENT_CALL_EVENT_TYPE,
   waitForJoinedRoom,
 } from './agentCall';
@@ -62,7 +63,7 @@ describe('MindRoom agent calls', () => {
       name: 'Call with Helper',
       invite: ['@mindroom_helper:mindroom.test'],
       visibility: 'private',
-      preset: 'trusted_private_chat',
+      preset: 'private_chat',
       creation_content: { type: 'org.matrix.msc3417.call' },
       power_level_content_override: {
         events: { 'org.matrix.msc3401.call.member': 0 },
@@ -86,6 +87,26 @@ describe('MindRoom agent calls', () => {
         },
       ],
     });
+  });
+
+  it('creates an unencrypted room when client policy disables encryption', async () => {
+    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', undefined, false);
+
+    expect(createRoom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Call with mindroom_helper',
+        initial_state: [
+          { type: 'org.matrix.msc3401.call', state_key: '', content: {} },
+          expect.objectContaining({ type: MINDROOM_AGENT_CALL_EVENT_TYPE }),
+        ],
+      })
+    );
+  });
+
+  it('requires the exact voice-call presence capability', () => {
+    expect(hasMindroomVoiceCallsPresence('🤖 Model: openai/gpt-5.5 | 📞 Voice calls')).toBe(true);
+    expect(hasMindroomVoiceCallsPresence('💼 Discusses voice calls')).toBe(false);
+    expect(hasMindroomVoiceCallsPresence(undefined)).toBe(false);
   });
 
   it('waits for the created room to arrive through sync', async () => {
