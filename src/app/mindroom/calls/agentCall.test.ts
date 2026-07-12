@@ -1,10 +1,10 @@
 import { ClientEvent, Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StateEvent } from '../../../types/matrix/room';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
   hasMindroomVoiceCallsPresence,
-  MINDROOM_AGENT_CALL_EVENT_TYPE,
   waitForJoinedRoom,
 } from './agentCall';
 
@@ -34,7 +34,7 @@ const ephemeralRoom = (
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) =>
-          eventType === MINDROOM_AGENT_CALL_EVENT_TYPE
+          eventType === StateEvent.MindroomAgentCall
             ? {
                 getSender: () => eventSender,
                 getContent: () => ({
@@ -80,7 +80,7 @@ describe('MindRoom agent calls', () => {
         },
         { type: 'org.matrix.msc3401.call', state_key: '', content: {} },
         {
-          type: MINDROOM_AGENT_CALL_EVENT_TYPE,
+          type: StateEvent.MindroomAgentCall,
           state_key: '',
           content: {
             version: 1,
@@ -101,7 +101,7 @@ describe('MindRoom agent calls', () => {
         name: 'Call with mindroom_helper',
         initial_state: [
           { type: 'org.matrix.msc3401.call', state_key: '', content: {} },
-          expect.objectContaining({ type: MINDROOM_AGENT_CALL_EVENT_TYPE }),
+          expect.objectContaining({ type: StateEvent.MindroomAgentCall }),
         ],
       })
     );

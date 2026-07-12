@@ -15,7 +15,6 @@ import {
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
 
-export const MINDROOM_AGENT_CALL_EVENT_TYPE = 'io.mindroom.agent_call';
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
 export const hasMindroomVoiceCallsPresence = (status: string | undefined): boolean =>
@@ -32,7 +31,7 @@ const createAgentCallState = (
   creatorUserId: string,
   agentUserId: string
 ): ICreateRoomStateEvent => ({
-  type: MINDROOM_AGENT_CALL_EVENT_TYPE,
+  type: StateEvent.MindroomAgentCall,
   state_key: '',
   content: {
     version: 1,
@@ -100,19 +99,6 @@ export const waitForJoinedRoom = (
   });
 };
 
-export const getMindroomAgentCallContent = (room: Room): MindroomAgentCallContent | undefined => {
-  const content = getStateEvent(room, StateEvent.MindroomAgentCall)?.getContent();
-  if (
-    content?.version !== 1 ||
-    content?.ephemeral !== true ||
-    typeof content?.agent_user_id !== 'string' ||
-    typeof content?.creator_user_id !== 'string'
-  ) {
-    return undefined;
-  }
-  return content as MindroomAgentCallContent;
-};
-
 export const cleanupCreatedAgentCall = async (
   mx: MatrixClient,
   roomId: string,
@@ -138,9 +124,17 @@ export const cleanupCreatedAgentCall = async (
 
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
   const event = getStateEvent(room, StateEvent.MindroomAgentCall);
-  const content = getMindroomAgentCallContent(room);
+  const content = event?.getContent();
   const userId = mx.getUserId();
-  if (!content || event?.getSender() !== userId || content.creator_user_id !== userId) return;
+  if (
+    content?.version !== 1 ||
+    content?.ephemeral !== true ||
+    typeof content?.agent_user_id !== 'string' ||
+    event?.getSender() !== userId ||
+    content?.creator_user_id !== userId
+  ) {
+    return;
+  }
 
   await cleanupCreatedAgentCall(mx, room.roomId, content.agent_user_id);
 };

@@ -4,7 +4,7 @@
 
 ### One-click ephemeral voice calls with MindRoom agents (2026-07-12)
 
-- Status: implemented locally. Full Cinny tests pass (396 files / 3,078 tests), along with typecheck, production build, touched-file Prettier, and ESLint (0 errors / 17 pre-existing warnings). MindRoom's focused backend suites and touched Python Ruff lint and format checks pass. Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.
+- Status: implemented locally. Full Cinny tests pass (396 files / 3,080 tests), along with typecheck, production build, touched-file Prettier, and ESLint (0 errors / 17 pre-existing warnings). MindRoom's focused backend suites and touched Python Ruff lint and format checks pass. Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.
 - A same-homeserver `mindroom_` agent profile now shows a **Call** action only when its presence advertises `📞 Voice calls`, MatrixRTC and WebRTC are available, and no other call is active.
 - The action creates a private audio-only Matrix call room, follows the configured default-encryption policy, tags it with `io.mindroom.agent_call`, invites exactly that agent, waits for the room to arrive through sync, opens it, and joins immediately.
 - Ending or closing the call kicks the invited agent, leaves, and forgets creator-owned tagged rooms. The MindRoom backend removes kicked ad-hoc rooms from the agent's persisted invite set, so a temporary call room is not rejoined after restart.
@@ -13,6 +13,15 @@
 - Independent self-review caught and fixed duplicate hangup/close cleanup plus orphaned rooms after a post-create startup failure; cleanup is now idempotent and failure-safe.
 - Zero-tolerance PR review replaced the operator-granting `trusted_private_chat` preset with least-privilege `private_chat`, gated the action on the backend's per-agent presence capability, and serialized kicked-agent teardown against in-flight reconciliation.
 - Post-deploy fix: the user-profile renderer now lives inside `CallEmbedProvider`, so opening an agent profile can access the existing call container instead of throwing `CallEmbedRef is not provided`.
+- Embedded Element Call refreshed to `@element-hq/element-call-embedded` 0.20.3.
+- Review hardening: hangup cleanup only trusts `io.mindroom.agent_call` state whose
+  event sender is the local user (forged `creator_user_id` content from another
+  sender can no longer trigger kick/leave/forget), an abandoned start (profile
+  closed mid-create) cleans up the room instead of navigating into it, and the
+  button re-enables on the success path.
+- Review cleanup: `io.mindroom.agent_call` is defined once as
+  `StateEvent.MindroomAgentCall`; the cleanup guard validates the single fetched
+  state event instead of re-reading room state through a second helper.
 
 ### Discarded settle writes in touchless scroll sessions (2026-07-11, PR #126 second mechanism)
 
