@@ -130,7 +130,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.1.0",
-    "@element-hq/element-call-embedded": "0.20.1",
+    "@element-hq/element-call-embedded": "0.20.3",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
     "@playwright/test": "1.58.2",
     "@rollup/plugin-inject": "5.0.3",

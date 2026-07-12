@@ -138,10 +138,10 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
                           <Outlet />
                         </ClientLayout>
                         <CallStatusRenderer />
+                        <UserRoomProfileRenderer />
                       </CallEmbedProvider>
                       <CommandPaletteRenderer />
                       <SettingsModalRenderer />
-                      <UserRoomProfileRenderer />
                       <CreateRoomModalRenderer />
                       <CreateSpaceModalRenderer />
                       <RoomSettingsRenderer />
