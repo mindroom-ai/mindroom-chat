@@ -30,6 +30,28 @@
 // The shared "quiet window" used by every scroll-quiescence consumer.
 export const SCROLL_QUIESCENCE_IDLE_MS = 150;
 
+// Touchless scroll sessions (iOS scroll-indicator scrubbing, trackpads)
+// deliver no touch events and pause longer than any idle window while the
+// compositor still owns the scroll position — the DOM offset freezes at
+// the last delivered event, so neither the idle window nor the sampling
+// check can see the live session. A settle write landing in such a pause
+// is DISCARDED: both 2026-07-11 evening rides show folds up to +8,769px
+// reverted to the exact pre-settle offset within 74-300ms
+// (ride-trace-1783829722124 settles 491/617/650, pinned in
+// rideTraceReplay.test.ts). Where the platform ships `scrollend` (WebKit
+// since Safari/iOS 26.2) the session's end is observable directly: a
+// scroll event marks the session live and only its scrollend releases the
+// idle path. The stale TTL bounds a swallowed scrollend, so a wedged flag
+// degrades to a late settle rather than a starved one; the ledger
+// controller's discard watchdog remains the recovery on platforms
+// without the event.
+export const SCROLL_SESSION_STALE_MS = 1500;
+
+// Detected per call: the check is one `in` lookup, and jsdom tests
+// legitimately toggle the property to exercise both branches.
+const supportsScrollEndEvents = (): boolean =>
+  typeof window !== 'undefined' && 'onscrollend' in window;
+
 export type WaitForScrollQuiescenceOptions = {
   // Quiet window with no scroll events (and no active touch) that
   // counts as quiescent.
@@ -57,8 +79,7 @@ const installTouchTracker = () => {
   touchTrackerInstalled = true;
   // `touches` is read defensively: synthetic Events (tests, exotic
   // embedders) may lack it.
-  const readActiveTouches = (event: Event): number =>
-    (event as TouchEvent).touches?.length ?? 0;
+  const readActiveTouches = (event: Event): number => (event as TouchEvent).touches?.length ?? 0;
   window.addEventListener(
     'touchstart',
     (event) => {
@@ -124,11 +145,19 @@ export const waitForScrollQuiescence = (
     let capTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
     let sampledScrollTop = scrollElement.scrollTop;
+    // Scroll-session tracking (scrollend-capable platforms only): a wait
+    // that observes a scroll event is inside a session until its scrollend
+    // arrives or the session goes stale. A wait armed entirely within a
+    // session's pause sees no event and keeps today's idle behavior — the
+    // discard watchdog covers that residue.
+    let scrollSessionLive = false;
+    let lastScrollEventAt = 0;
 
     const cleanup = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
       if (capTimer !== undefined) clearTimeout(capTimer);
       scrollElement.removeEventListener('scroll', onActivity);
+      scrollElement.removeEventListener('scrollend', onScrollSessionEnd);
     };
 
     const settle = () => {
@@ -165,22 +194,38 @@ export const waitForScrollQuiescence = (
           armIdleTimer();
           return;
         }
-        if (windowActiveTouches === 0) {
+        const sessionStillLive =
+          scrollSessionLive && Date.now() - lastScrollEventAt < SCROLL_SESSION_STALE_MS;
+        if (windowActiveTouches === 0 && !sessionStillLive) {
           settle();
           return;
         }
-        // A finger is still down: re-arm and poll at idle granularity
-        // (a touchend elsewhere has no element event to re-arm
-        // through). Bounded by the cap timer.
+        // A finger is still down, or a touchless scroll session has not
+        // delivered its scrollend: re-arm and poll at idle granularity
+        // (a touchend elsewhere has no element event to re-arm through;
+        // the session flag times out via the stale TTL). Bounded by the
+        // cap timer for finite waits.
         armIdleTimer();
       }, idleMs);
     };
 
     function onActivity() {
+      if (supportsScrollEndEvents()) {
+        scrollSessionLive = true;
+        lastScrollEventAt = Date.now();
+      }
+      armIdleTimer();
+    }
+
+    function onScrollSessionEnd() {
+      scrollSessionLive = false;
       armIdleTimer();
     }
 
     scrollElement.addEventListener('scroll', onActivity, { passive: true });
+    // Harmless where unsupported: the event simply never fires, and the
+    // session flag is only ever set on scrollend-capable platforms.
+    scrollElement.addEventListener('scrollend', onScrollSessionEnd, { passive: true });
 
     if (Number.isFinite(maxWaitMs)) {
       capTimer = setTimeout(settle, maxWaitMs);

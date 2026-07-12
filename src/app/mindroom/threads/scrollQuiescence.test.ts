@@ -53,7 +53,9 @@ describe('waitForScrollQuiescence', () => {
     }
     await flushMicrotasks();
     expect(isSettled()).toBe(false);
-    // Momentum ends: no more scroll events → idle window elapses.
+    // Momentum ends. jsdom (like every scrollend-capable platform) closes
+    // native momentum with a scrollend; the idle window then elapses.
+    el.dispatchEvent(new Event('scrollend'));
     vi.advanceTimersByTime(150);
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
@@ -152,7 +154,9 @@ describe('waitForScrollQuiescence', () => {
     }
     await flushMicrotasks();
     expect(isSettled()).toBe(false);
-    // Genuine quiet still resolves.
+    // Genuine quiet still resolves (the scroll sequence closes with its
+    // scrollend on scrollend-capable platforms like jsdom).
+    el.dispatchEvent(new Event('scrollend'));
     vi.advanceTimersByTime(150);
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
@@ -173,9 +177,7 @@ describe('waitForScrollQuiescence', () => {
   });
 
   it('keeps the finite cap absolute while silent offset progress re-arms idle', async () => {
-    const isSettled = settledFlag(
-      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 250 })
-    );
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 250 }));
 
     vi.advanceTimersByTime(75);
     el.scrollTop = 100;
@@ -232,7 +234,9 @@ describe('waitForScrollQuiescence', () => {
     // the model.
     window.dispatchEvent(new Event('touchstart'));
     // The touchend is never delivered — the wedge.
-    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity }));
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity })
+    );
     vi.advanceTimersByTime(5_000);
     await flushMicrotasks();
     expect(isSettled()).toBe(false);
@@ -240,6 +244,72 @@ describe('waitForScrollQuiescence', () => {
     vi.advanceTimersByTime(200);
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
+  });
+
+  describe('scroll-session awareness (scrollend-capable platforms)', () => {
+    // jsdom ships onscrollend natively, so the per-call feature detection
+    // is already in the supported branch — the same environment every
+    // WebKit >= 26.2 user runs.
+    it('holds the settle open across a session pause until scrollend releases it', async () => {
+      // The discarded-write rides: a touchless scrub session (scroll
+      // indicator/trackpad — no touch events) pauses >150ms with the DOM
+      // offset frozen. The idle window alone would settle mid-session and
+      // the compositor discards the write (ride-trace-1783829722124
+      // settles 491/617/650). With scrollend observable, the session's
+      // scroll event holds the idle path until its scrollend arrives.
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      el.dispatchEvent(new Event('scroll'));
+      // Scrub pause: far past the idle window, but the session never
+      // ended — no settle.
+      vi.advanceTimersByTime(150);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(false);
+      vi.advanceTimersByTime(600);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(false);
+      // Scrubber release → scrollend → one idle window later, true rest.
+      el.dispatchEvent(new Event('scrollend'));
+      vi.advanceTimersByTime(150);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    });
+
+    it('a swallowed scrollend degrades to a late settle via the session TTL, never starvation', async () => {
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      el.dispatchEvent(new Event('scroll'));
+      // No scrollend ever arrives (delivery bug / exotic embedder). The
+      // idle poll keeps re-arming until the session goes stale, then
+      // settles — bounded, not wedged.
+      vi.advanceTimersByTime(1499);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(false);
+      vi.advanceTimersByTime(151);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    });
+
+    it('platforms without scrollend keep the plain idle window', async () => {
+      // Remove the native property for this test only: a scroll event
+      // must not open a session that only scrollend could close.
+      const descriptor = Object.getOwnPropertyDescriptor(window, 'onscrollend');
+      delete (window as { onscrollend?: unknown }).onscrollend;
+      try {
+        expect('onscrollend' in window).toBe(false);
+        const isSettled = settledFlag(
+          waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+        );
+        el.dispatchEvent(new Event('scroll'));
+        vi.advanceTimersByTime(150);
+        await flushMicrotasks();
+        expect(isSettled()).toBe(true);
+      } finally {
+        if (descriptor) Object.defineProperty(window, 'onscrollend', descriptor);
+      }
+    });
   });
 
   it('resolves immediately for a detached element', async () => {
@@ -250,9 +320,7 @@ describe('waitForScrollQuiescence', () => {
   });
 
   it('settles at the next idle tick when the element unmounts mid-wait', async () => {
-    const isSettled = settledFlag(
-      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 10_000 })
-    );
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 10_000 }));
     el.dispatchEvent(new Event('scroll'));
     el.remove();
     vi.advanceTimersByTime(100);

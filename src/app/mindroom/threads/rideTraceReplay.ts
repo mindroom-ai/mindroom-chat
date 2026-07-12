@@ -1,4 +1,10 @@
-import { shouldSettleLedgerAtBoundary } from './threadRenderUtils';
+import {
+  SETTLE_DISCARD_HELD_SLACK_PX,
+  SETTLE_DISCARD_MIN_LEDGER_PX,
+  SETTLE_DISCARD_WINDOW_MS,
+  isDiscardedSettleWrite,
+  shouldSettleLedgerAtBoundary,
+} from './threadRenderUtils';
 
 /**
  * Ride-trace replay (2026-07-11). The on-device recorder
@@ -200,6 +206,66 @@ export const extractLedgerSettles = (
     });
   }
   return settles;
+};
+
+export type DiscardedSettleWriteObservation = {
+  /** Frame where the settle fired (cause counter tick). */
+  settleFrameIndex: number;
+  /** Frame where the compositor reasserted the pre-settle offset. */
+  discardFrameIndex: number;
+  /** Ledger pixels the discarded write had folded. */
+  ledgerPx: number;
+  cause: 'boundary' | 'quiescence';
+};
+
+/**
+ * Find settles whose scrollTop write the platform DISCARDED: the
+ * compositor reasserted the pre-settle offset within the watch window
+ * (touchless scroll sessions — scrubber/trackpad — own the position;
+ * ride-trace-1783829722124 settles 491/617/650 reverted 74-300ms after
+ * the write, two of them snapshot-coherent and atomically applied). The
+ * walk mirrors the production watchdog exactly: the settled offset seeds
+ * the event baseline, the first frame that leaves the settled
+ * neighborhood decides (reassertion → discard; anything else → held),
+ * and a touch or the window expiring ends the watch.
+ */
+export const extractDiscardedSettleWrites = (
+  frames: readonly RideTraceFrame[]
+): DiscardedSettleWriteObservation[] => {
+  const discards: DiscardedSettleWriteObservation[] = [];
+  for (let index = 1; index < frames.length; index += 1) {
+    const frame = frames[index];
+    const previous = frames[index - 1];
+    const boundary = frame.lb !== previous.lb;
+    const quiescence = frame.lq !== previous.lq;
+    if (!boundary && !quiescence) continue;
+    const preSettleScrollTop = previous.st;
+    const px = -previous.tr;
+    if (Math.abs(px) < SETTLE_DISCARD_MIN_LEDGER_PX) continue;
+    const settledScrollTop = preSettleScrollTop + px;
+    let previousScrollTop = settledScrollTop;
+    for (
+      let watch = index;
+      watch < frames.length && frames[watch].t - frames[index].t <= SETTLE_DISCARD_WINDOW_MS;
+      watch += 1
+    ) {
+      if (watch > index && frames[watch].touch) break;
+      const currentScrollTop = frames[watch].st;
+      if (isDiscardedSettleWrite({ px, preSettleScrollTop, previousScrollTop, currentScrollTop })) {
+        discards.push({
+          settleFrameIndex: index,
+          discardFrameIndex: watch,
+          ledgerPx: px,
+          cause: boundary ? 'boundary' : 'quiescence',
+        });
+        break;
+      }
+      // Motion resumed from the settled offset: the write held.
+      if (Math.abs(currentScrollTop - settledScrollTop) > SETTLE_DISCARD_HELD_SLACK_PX) break;
+      previousScrollTop = currentScrollTop;
+    }
+  }
+  return discards;
 };
 
 export type BoundaryGuardReplayFiring = {

@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import {
   RideTrace,
   deriveClientHeightFromBottomRest,
+  extractDiscardedSettleWrites,
   extractLedgerSettles,
   parseRideTrace,
   replayLedgerBoundaryGuard,
@@ -247,6 +248,48 @@ describe('ride trace corpus', () => {
       extraGrowthPx: 215,
       anchorSlipPx: 215,
       touchActive: false,
+    });
+  });
+
+  it('detects the discarded settle writes in the touchless scrub rides — and nowhere else', () => {
+    // Second mechanism in the same two rides: both were touchless scroll
+    // sessions (iOS scroll-indicator scrubbing / trackpad — ~21,000px of
+    // stop-and-go travel with zero touch frames), whose >150ms pauses
+    // pass the idle window while the compositor still owns the position.
+    // Settles 491, 617 and 1232 were SNAPSHOT-COHERENT and landed
+    // atomically (ledgerShiftPx == scrollShiftPx, slip 0 — invisible to
+    // the split metric above), yet the compositor reasserted the exact
+    // pre-settle offset 90-588ms later, discarding folds of up to
+    // +8,769px wholesale; the delay is the remaining scrub-pause length,
+    // surfacing when the scrubber resumes. The split settles 650/1612
+    // also register here because their assumed fold write never
+    // materialized as one coherent offset. 1631 is 1612's own recovery
+    // settle, discarded again by the same still-live session.
+    const ipadDiscards = extractDiscardedSettleWrites(ipadTouchGateFixed.frames);
+    expect(
+      ipadDiscards.map((discard) => [discard.settleFrameIndex, discard.discardFrameIndex])
+    ).toEqual([
+      [491, 506],
+      [525, 535],
+      [617, 619],
+      [650, 650],
+      [1232, 1262],
+    ]);
+    expect(ipadDiscards.map((discard) => discard.ledgerPx)).toEqual([8769, 292, 1217, 512, 1589]);
+
+    const secondDiscards = extractDiscardedSettleWrites(secondIpadTouchGateFixed.frames);
+    expect(
+      secondDiscards.map((discard) => [discard.settleFrameIndex, discard.discardFrameIndex])
+    ).toEqual([
+      [1612, 1612],
+      [1631, 1636],
+    ]);
+
+    // Detector specificity: all 43 other large settles across the corpus
+    // held their write — including 17,864px folds — so a firing is a real
+    // platform revert, not momentum noise.
+    [ipadFill, iphoneFixed, iphoneOldA, iphoneOldB, ipadCascadeFixed].forEach((trace) => {
+      expect(extractDiscardedSettleWrites(trace.frames)).toEqual([]);
     });
   });
 });

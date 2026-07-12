@@ -2,11 +2,50 @@
 
 ## Runbook
 
-### At-rest above-viewport growth escapes compensation (2026-07-12)
+### Discarded settle writes in touchless scroll sessions (2026-07-11, PR #126 second mechanism)
 
-- Status: implementation complete on PR #126; focused behavioral/real-core
-  coverage and typecheck pass. Device validation is still required before
-  merge. Both #125 validation traces contain the defect (thread ff7965e2
+- Status: implemented on PR #126 alongside the split-settle preflight below;
+  full battery passes. Device validation (a scrub-heavy ride) is the merge
+  gate for both mechanisms.
+- Certainty census (both #125 validation rides): the rides are TOUCHLESS
+  scroll sessions — ~21,000px of stop-and-go travel with zero touch frames
+  (iOS scroll-indicator scrubbing or a trackpad; the finger is on UIKit
+  chrome, invisible to every touch-based gate). Their pauses exceed the
+  150ms idle window with the DOM offset frozen, so the quiescence waiter
+  settles mid-session — and the compositor, which still owns the position,
+  DISCARDS the write: 7 of the corpus's 49 large settles reverted to the
+  exact pre-settle offset (ratios 0.99-1.04x of the fold), 0 false
+  positives in the five older flick rides. Three of the seven (491:
+  +8,769px, 617: +1,217px, 1232: +1,589px in ride-trace-1783829722124)
+  were SNAPSHOT-COHERENT and landed atomically — the split-settle
+  preflight cannot see them (ledgerShiftPx == scrollShiftPx, slip 0); the
+  revert arrives 90-588ms later, when the scrubber next moves. 1631 in
+  ride-trace-1783829767914 is a recovery settle discarded AGAIN by the
+  same still-live session, proving one-commit deferral is not enough.
+- Fix, two sides:
+  1. Prevention — `waitForScrollQuiescence` is scroll-session-aware where
+     the platform ships `scrollend` (WebKit since Safari/iOS 26.2,
+     feature-detected per call): a scroll event marks the session live and
+     only its scrollend releases the idle path; a 1,500ms stale TTL bounds
+     a swallowed scrollend to a late settle rather than starvation.
+  2. Recovery — a controller watchdog (`isDiscardedSettleWrite`, census-
+     calibrated: single event >=0.8x of the fold against it, landing
+     within max(48, 0.5x|px|) of the pre-settle offset, 2s window, disarmed
+     by touchstart / motion-from-settled / view reset) restores the fold to
+     the ledger through the ordinary drop path without writing scrollTop,
+     and bumps the `ledgerSettleWriteDiscarded` probe. The 0.8 ratio
+     separates reversions (~1.0x) from held-write momentum resumes (the
+     #119 device sequence steps 0.68x and must not re-ledger).
+- Instruments: `extractDiscardedSettleWrites` replays the watchdog against
+  recorded rides; the corpus pins all seven discards by frame and asserts
+  zero in the older traces. Merge-gate trace: zero split settles, zero
+  UNRECOVERED discards, and on iOS 26.2+ the discard probe should read 0
+  (a non-zero reading means a session escaped the scrollend gate and the
+  watchdog covered it).
+
+### Split settles across pending commits (2026-07-12, PR #126 first mechanism)
+
+- Both #125 validation traces contain the defect (thread ff7965e2
   frame 650: a 512px painted ledger was cleared by a -5px write, producing
   +517px growth and ~507px visible slip; thread 3dddbf0e frame 1612: a 216px
   painted ledger was cleared by a +1px write, producing +215px slip).

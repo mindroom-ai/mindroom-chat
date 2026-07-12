@@ -255,6 +255,70 @@ export const shouldSettleLedgerAtBoundary = ({
   return false;
 };
 
+// Discarded settle writes (PR #126, second mechanism). During a touchless
+// scroll session — iOS scroll-indicator scrubbing or a trackpad: no touch
+// events, event-delivery pauses longer than any idle window — the
+// compositor still owns the scroll position. A settle write landing in
+// such a pause is discarded wholesale: the next compositor commit
+// reasserts the pre-settle offset as one large scroll event against the
+// fold, 74-300ms later on the recorded rides (ride-trace-1783829722124
+// settles 491/617/650, ride-trace-1783829767914 settles 1612/1631 — the
+// 491/617 folds were snapshot-coherent and landed atomically, so the
+// split-settle preflight cannot see this class). The predicate recognizes
+// the reassertion event so the controller can restore the fold to the
+// ledger; thresholds are census-calibrated against all 49 large settles
+// in the trace corpus: 6 discards, 0 false positives
+// (rideTraceReplay.test.ts).
+export const SETTLE_DISCARD_WINDOW_MS = 2000;
+// Watches arm only for folds the boundary guard considers meaningful; a
+// discarded sub-48px fold is visually indistinct from sampling noise.
+export const SETTLE_DISCARD_MIN_LEDGER_PX = 48;
+// An event this close to the settled offset is the write's own echo (or
+// rest); one beyond it that is NOT a reassertion means motion resumed
+// from the settled position — the write held, stop watching.
+export const SETTLE_DISCARD_HELD_SLACK_PX = 24;
+// The reassertion arrives as a single event restoring essentially the
+// WHOLE fold (all seven corpus reversions measure 0.99-1.04x of px: the
+// compositor returns to its own track wholesale). Genuine momentum
+// resuming after a HELD write steps much smaller relative to the fold —
+// the #119 device sequence settles 72px and then moves 49px (0.68x),
+// which a 0.6 ratio misread as a reversion.
+const SETTLE_DISCARD_DELTA_RATIO = 0.8;
+// ...and it lands near the pre-settle offset (the compositor kept
+// scrubbing during the ping-pong on one ride: 180px past the exact
+// value at a 512px fold, hence proportional rather than exact slack).
+const SETTLE_DISCARD_PROXIMITY_RATIO = 0.5;
+const SETTLE_DISCARD_PROXIMITY_MIN_PX = 48;
+
+type DiscardedSettleWriteOpts = {
+  // Ledger pixels the settle folded (its write was scrollTop += px).
+  px: number;
+  // scrollTop immediately before the settle write.
+  preSettleScrollTop: number;
+  // Offset of the previous scroll event (the settle's clamped read-back
+  // seeds the baseline, so the first event's delta is measured from the
+  // settled offset).
+  previousScrollTop: number;
+  // Offset of the scroll event under classification.
+  currentScrollTop: number;
+};
+
+export const isDiscardedSettleWrite = ({
+  px,
+  preSettleScrollTop,
+  previousScrollTop,
+  currentScrollTop,
+}: DiscardedSettleWriteOpts): boolean => {
+  const delta = currentScrollTop - previousScrollTop;
+  const againstFold = px > 0 ? delta < 0 : delta > 0;
+  if (!againstFold) return false;
+  if (Math.abs(delta) < SETTLE_DISCARD_DELTA_RATIO * Math.abs(px)) return false;
+  return (
+    Math.abs(currentScrollTop - preSettleScrollTop) <=
+    Math.max(SETTLE_DISCARD_PROXIMITY_MIN_PX, SETTLE_DISCARD_PROXIMITY_RATIO * Math.abs(px))
+  );
+};
+
 // Per-row virtualizer estimates from event CONTENT. Thread rows are
 // bimodal — one-liners (~80px) and fold-capped long messages (~150px,
 // CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
