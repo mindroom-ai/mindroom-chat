@@ -1,4 +1,4 @@
-import React, { RefObject, useRef, useState } from 'react';
+import React, { RefObject, useRef } from 'react';
 import { Badge, Box, color, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { useCallEmbed, useCallJoined, useCallEmbedPlacementSync } from '../../hooks/useCallEmbed';
 import { ContainerColor } from '../../styles/ContainerColor.css';
@@ -16,6 +16,7 @@ import { CallControls } from './CallControls';
 import { useLivekitSupport } from '../../hooks/useLivekitSupport';
 import { webRTCSupported } from '../../utils/rtc';
 import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice';
+import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
 
 function LivekitServerMissingMessage() {
   return (
@@ -143,8 +144,7 @@ type CallJoinedProps = {
 function CallJoined({ joined, containerRef }: CallJoinedProps) {
   const callEmbed = useCallEmbed();
   const callFailure = useCallFailureNotice(joined);
-  const [dismissedEventId, setDismissedEventId] = useState<string>();
-  const visibleFailure = callFailure?.eventId !== dismissedEventId ? callFailure : undefined;
+  const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, callFailure);
 
   return (
     <Box className={css.CallJoined} grow="Yes" direction="Column">
@@ -167,7 +167,7 @@ function CallJoined({ joined, containerRef }: CallJoinedProps) {
             aria-label="Dismiss voice call error"
             size="300"
             radii="300"
-            onClick={() => setDismissedEventId(visibleFailure.eventId)}
+            onClick={dismissFailure}
           >
             <Icon src={Icons.Cross} size="100" />
           </IconButton>

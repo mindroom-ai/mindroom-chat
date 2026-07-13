@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react';
-import { EventTimelineSetHandlerMap, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
-import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { EventTimelineSetHandlerMap, MatrixClient, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';
 import { getCallFailureNotice } from './callFailureNotice';
 
-type CallFailureNotice = {
+export type CallFailureNotice = {
   eventId: string;
   message: string;
 };
 
 const RECENT_NOTICE_WINDOW_MS = 60_000;
 
-const decryptEvent = async (event: MatrixEvent, crypto: CryptoBackend): Promise<boolean> => {
+const decryptEvent = async (event: MatrixEvent, mx: MatrixClient): Promise<boolean> => {
   if (!event.isEncrypted()) return true;
 
   try {
-    if (!event.isBeingDecrypted()) {
-      await event.attemptDecryption(crypto);
-    }
-    await event.getDecryptionPromise();
+    await mx.decryptEventIfNeeded(event);
     return !event.isDecryptionFailure();
   } catch {
     return false;
@@ -36,13 +32,17 @@ export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undef
     if (!joined) return undefined;
 
     let active = true;
+    let latestEventTs = 0;
     const inspectEvent = async (event: MatrixEvent): Promise<boolean> => {
-      const crypto = mx.getCrypto() as CryptoBackend | undefined;
-      if (event.isEncrypted() && (!crypto || !(await decryptEvent(event, crypto)))) return false;
+      if (!active || !(await decryptEvent(event, mx))) return false;
 
-      const message = getCallFailureNotice(event);
+      const message = getCallFailureNotice(event, mx.getUserId() ?? undefined);
       if (!message || !active) return false;
-      setNotice({ eventId: event.getId() ?? `${event.getTs()}:${message}`, message });
+      const eventTs = event.getTs();
+      if (eventTs <= latestEventTs) return false;
+
+      latestEventTs = eventTs;
+      setNotice({ eventId: event.getId() ?? `${eventTs}:${message}`, message });
       return true;
     };
     const handleTimelineEvent: EventTimelineSetHandlerMap[RoomEvent.Timeline] = async (
@@ -74,6 +74,7 @@ export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undef
       .reverse();
     void (async () => {
       for (const event of recentEvents) {
+        if (!active) return;
         if (await inspectEvent(event)) return;
       }
     })();
