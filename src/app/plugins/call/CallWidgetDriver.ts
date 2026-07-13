@@ -165,14 +165,6 @@ export class CallWidgetDriver extends WidgetDriver {
     if (encrypted) {
       const crypto = this.mx.getCrypto();
       if (!crypto) throw new Error('E2EE not enabled');
-      const room = this.mx.getRoom(this.inRoomId);
-      if (room) {
-        // Call-only rooms may never encrypt an ordinary timeline event. Start
-        // the SDK's supported room-encryption preparation explicitly so Rust
-        // crypto resolves lazy-loaded members, tracks their devices, and
-        // processes the resulting key query before to-device key retries.
-        crypto.prepareToEncrypt(room);
-      }
 
       // attempt to re-batch these up into a single request
       const invertedContentMap: { [content: string]: { userId: string; deviceId: string }[] } = {};
@@ -275,6 +267,7 @@ export class CallWidgetDriver extends WidgetDriver {
       );
       if (pendingRecipients.length === 0) return [];
 
+      this.prepareRoomEncryption(crypto);
       let batch: EncryptedToDeviceBatch;
       try {
         // For tracked users this waits for an in-flight key query. Avoid
@@ -333,6 +326,17 @@ export class CallWidgetDriver extends WidgetDriver {
     }
 
     return pendingRecipients;
+  }
+
+  private prepareRoomEncryption(crypto: MatrixCrypto): void {
+    const room = this.mx.getRoom(this.inRoomId);
+    if (!room) return;
+    // Call-only rooms may never encrypt an ordinary timeline event. Start the
+    // SDK's supported preparation on every timed attempt: this lets a room
+    // that was initially absent recover and lets Rust's serialized preparation
+    // chain restart after an earlier failure. The exact-device polling below
+    // bridges the API's intentionally non-awaitable completion.
+    crypto.prepareToEncrypt(room);
   }
 
   private async retryEncryptedToDeviceInBackground(

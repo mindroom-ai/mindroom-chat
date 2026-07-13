@@ -30,11 +30,12 @@ const makeDriver = (batches: EncryptBatch[]) => {
     );
   const prepareToEncrypt = vi.fn();
   const room = { roomId: '!room:example.org' };
+  const getRoom = vi.fn().mockReturnValue(room);
   const queueToDevice = vi.fn().mockResolvedValue(undefined);
   const mx = {
     getDeviceId: () => 'LOCAL',
     getSafeUserId: () => '@local:example.org',
-    getRoom: () => room,
+    getRoom,
     getCrypto: () => ({ encryptToDeviceMessages, getUserDeviceInfo, prepareToEncrypt }),
     queueToDevice,
   } as unknown as MatrixClient;
@@ -43,6 +44,7 @@ const makeDriver = (batches: EncryptBatch[]) => {
     driver: new CallWidgetDriver(mx, '!room:example.org'),
     encryptToDeviceMessages,
     getUserDeviceInfo,
+    getRoom,
     prepareToEncrypt,
     queueToDevice,
     room,
@@ -125,6 +127,27 @@ describe('CallWidgetDriver.sendToDevice', () => {
     expect(queueToDevice).toHaveBeenCalledOnce();
   });
 
+  it('prepares a room that appears after the first key-delivery attempt', async () => {
+    vi.useFakeTimers();
+    const recipient = { userId: '@agent:example.org', deviceId: 'AGENT' };
+    const { driver, getRoom, getUserDeviceInfo, prepareToEncrypt, queueToDevice, room } =
+      makeDriver([encryptedBatch(recipient)]);
+    getRoom.mockReturnValueOnce(null).mockReturnValue(room);
+    getUserDeviceInfo
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([[recipient.userId, new Map([[recipient.deviceId, {}]])]]));
+
+    const send = driver.sendToDevice('io.element.call.encryption_keys', true, {
+      [recipient.userId]: { [recipient.deviceId]: { keys: { key: 'secret', index: 0 } } },
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await send;
+
+    expect(getRoom).toHaveBeenCalledTimes(2);
+    expect(prepareToEncrypt).toHaveBeenCalledWith(room);
+    expect(queueToDevice).toHaveBeenCalledOnce();
+  });
+
   it('queues available devices and retries only recipients omitted by crypto', async () => {
     vi.useFakeTimers();
     const first = { userId: '@agent:example.org', deviceId: 'KNOWN' };
@@ -198,6 +221,33 @@ describe('CallWidgetDriver.sendToDevice', () => {
 
     await vi.advanceTimersByTimeAsync(5000);
 
+    expect(queueToDevice).toHaveBeenCalledOnce();
+  });
+
+  it('recovers when the exact device appears only after foreground retries', async () => {
+    vi.useFakeTimers();
+    const recipient = { userId: '@agent:example.org', deviceId: 'LATE' };
+    const { driver, encryptToDeviceMessages, getUserDeviceInfo, queueToDevice } = makeDriver([
+      encryptedBatch(recipient),
+    ]);
+    getUserDeviceInfo
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([[recipient.userId, new Map([[recipient.deviceId, {}]])]]));
+
+    const send = driver.sendToDevice('io.element.call.encryption_keys', true, {
+      [recipient.userId]: { [recipient.deviceId]: { keys: { key: 'secret', index: 0 } } },
+    });
+    await vi.advanceTimersByTimeAsync(5500);
+    await send;
+    expect(encryptToDeviceMessages).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(encryptToDeviceMessages).toHaveBeenCalledOnce();
     expect(queueToDevice).toHaveBeenCalledOnce();
   });
 

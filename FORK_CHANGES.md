@@ -24,8 +24,12 @@
   key attempt, and do not ask Rust crypto to encrypt until
   `getUserDeviceInfo` contains the exact requested device. Existing exact-device
   foreground/background retry, supersession, and disposal behavior remains.
-- Validation: focused call-key tests pass (11 tests), the full suite passes
-  (400 files / 3,107 tests), and typecheck, production build, touched-file
+- Review hardening: preparation now runs on every timed attempt rather than
+  only once before the loop, so a transiently absent room and an asynchronous
+  preparation failure can recover. Coverage proves an exact device first
+  appearing in the background window is still delivered.
+- Validation: focused call-key tests pass (13 tests), the full suite passes
+  (400 files / 3,109 tests), and typecheck, production build, touched-file
   ESLint, Prettier, and `git diff --check` are clean. Independent review found
   no correctness, lifecycle, recipient-scope, or matrix-js-sdk integration
   defects; remaining validation is a physical encrypted call after deployment.
