@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### Automatically activate published web builds without breaking offline use (2026-07-12)
+
+- Status: implementation and local validation complete; production branch
+  deployment pending.
+- Each production build emits an unprecached `version.json` containing the Git
+  commit used for both the manifest and the compiled client constant. A
+  cache-busted, `no-store` request checks it at startup, every five minutes,
+  when the tab becomes visible, and when the browser returns online.
+- When the published commit differs, MindRoom Chat registers `sw.js` with the
+  commit in its query string and `updateViaCache: none`. The worker already uses
+  `skipWaiting()` and `clients.claim()`; the old client reloads once after the
+  new worker takes control, or after activation if the browser reports no
+  controller change because the worker bytes were already current. The new
+  hashed application assets therefore take over without a manual hard refresh.
+- Version fetches, worker registration, and update failures are deliberately
+  ignored, and a stalled manifest request is aborted after five seconds. No
+  version request or update reload runs while `navigator.onLine` is false. The
+  older service-worker-control recovery reload now additionally requires a
+  successful cache-busted manifest fetch, preventing a nominally online but
+  disconnected browser from refreshing away its loaded tab.
+- `version.json` is excluded from Workbox precaching. This is essential: a
+  precached latest-version pointer would permanently report the version of the
+  worker currently controlling the page.
+- Validation: updater unit tests cover failure/malformed manifests, current
+  versions, changed versions with one reload, and offline behavior; service
+  worker tests, typecheck, and a production build pass. The production build
+  contains `version.json`, excludes it from `sw.js`, and compiles the matching
+  commit into the client bundle.
+
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, GitHub repository rename, and

@@ -21,6 +21,7 @@ describe('service worker app shell caching', () => {
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
     expect(viteConfigSource).toContain("'public/element-call/**'");
     expect(viteConfigSource).toContain("'runtime-config.js'");
+    expect(viteConfigSource).toContain("'version.json'");
   });
 
   it('does not use the SPA fallback for same-origin backend routes', () => {
