@@ -47,7 +47,7 @@
   Reduced-motion users still receive the static gradient fallback.
 - Coverage and validation: focused component/stacking coverage passes (3 files / 8 tests) and pins
   the touch/pointer contract, interactive repel options, background hit target, and auth control
-  layering. Full Vitest passes (403 files / 3,115 tests), as do typecheck, production/PWA build,
+  layering. Full Vitest passes (406 files / 3,122 tests), as do typecheck, production/PWA build,
   full ESLint (0 errors / 17 pre-existing warnings), touched-file Prettier, and `git diff --check`.
   Live Chromium computed `pointer-events: auto` plus `touch-action: none`, hit the canvas in empty
   background space, and hit the footer link over the canvas. Independent re-review found no
