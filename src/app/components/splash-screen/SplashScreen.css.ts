@@ -17,7 +17,7 @@ export const SplashScreenParticle = style({
 });
 
 globalStyle(
-  `${SplashScreenParticle} :is(a, button, input, label, select, textarea, [role='button'], [role='menuitem'], [tabindex])`,
+  `${SplashScreenParticle} :is(a, button, input, label, select, textarea, [role='button'], [role='menuitem'], [tabindex]:not([tabindex='-1']))`,
   {
     pointerEvents: 'auto',
   }

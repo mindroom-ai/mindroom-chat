@@ -55,7 +55,9 @@
   defects; a physical-iPhone gesture remains optional release smoke testing.
 - Review cleanup: co-locate `pointer-events` and `touch-action` in the existing particle-canvas
   class instead of recreating a redundant inline style object. Coverage pins both the class wiring
-  and its touch-interaction declarations.
+  and its touch-interaction declarations. Hit-target assertions are scoped per exported style but
+  ignore property order, and the splash pass-through selector excludes `tabindex="-1"`
+  focus-management elements.
 
 ### Open threads from call-room side chat (2026-07-12)
 
