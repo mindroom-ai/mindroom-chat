@@ -1,15 +1,27 @@
 import React from 'react';
 import { Room } from 'matrix-js-sdk';
 import { useSetAtom } from 'jotai';
-import { useParams } from 'react-router-dom';
 import { Box, Text, TooltipProvider, Tooltip, Icon, Icons, IconButton, toRem } from 'folds';
 import { Page, PageHeader } from '../../components/page';
 import { callChatAtom } from '../../state/callEmbed';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { RoomView } from './MindroomRoomView';
 
-export function MindroomCallChatView({ room }: { room: Room }) {
-  const { eventId } = useParams();
+type MindroomCallChatViewProps = {
+  room: Room;
+  eventId?: string;
+  focusEventInRoom?: boolean;
+  threadId?: string;
+  onThreadLoadError?: (threadId: string) => void;
+};
+
+export function MindroomCallChatView({
+  room,
+  eventId,
+  focusEventInRoom,
+  threadId,
+  onThreadLoadError,
+}: MindroomCallChatViewProps) {
   const setChat = useSetAtom(callChatAtom);
   const screenSize = useScreenSizeContext();
 
@@ -51,7 +63,13 @@ export function MindroomCallChatView({ room }: { room: Room }) {
         </Box>
       </PageHeader>
       <Box grow="Yes" direction="Column">
-        <RoomView room={room} eventId={eventId} />
+        <RoomView
+          room={room}
+          eventId={eventId}
+          focusEventInRoom={focusEventInRoom}
+          threadId={threadId}
+          onThreadLoadError={onThreadLoadError}
+        />
       </Box>
     </Page>
   );

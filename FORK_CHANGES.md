@@ -29,6 +29,25 @@
   review found no remaining layering, visibility, placement, React ownership,
   resource-lifecycle, copy-pipeline, or test-coverage defects.
 
+### Open threads from call-room side chat (2026-07-12)
+
+- Status: implementation, local validation, and independent review complete.
+- Root cause: compact thread cards navigated to a room URL containing `threadId`, but
+  `MindroomCallChatView` rendered `RoomView` with only the room and path event id. The call-room
+  parent already resolved the effective thread route and its load-error guard, but did not pass
+  either into the side-chat wrapper, so the URL changed while the chat stayed on its overview.
+- Fix: pass the shared room route state (`threadId`, focused event, and failed-thread handler) from
+  `MindroomRoom` through `MindroomCallChatView` into `RoomView`. This keeps call-room chat on the
+  same thread-resolution path as an ordinary room, including classic-mode suppression and stale
+  recent-thread cleanup.
+- Coverage: a call-room render now proves that changing from the overview URL to a thread URL
+  updates the mounted side chat, and a focused wrapper test proves the complete route state reaches
+  `RoomView`. Focused tests pass (2 files / 7 tests); the full suite passes (401 files / 3,111
+  tests), as do typecheck, production/PWA build, touched-file Prettier and ESLint, full ESLint (0
+  errors / 17 pre-existing warnings), and `git diff --check`. Independent review found no
+  actionable correctness, routing, lifecycle, desktop/mobile, or test-coverage defects; live
+  browser/device smoke testing remains optional follow-up validation.
+
 ### Prepare Rust crypto for call-only encrypted rooms (2026-07-12)
 
 - Status: implementation, local validation, and independent review complete

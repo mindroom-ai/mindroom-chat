@@ -3,7 +3,14 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockRoomViewProps = {
+  eventId?: string;
+  focusEventInRoom?: boolean;
+  threadId?: string;
   onThreadLoadError?: (threadId: string) => void;
+};
+
+type MockCallChatViewProps = MockRoomViewProps & {
+  room: { roomId: string; isCallRoom: () => boolean };
 };
 
 const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, roomState } =
@@ -11,8 +18,11 @@ const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, 
     navigateRoomMock: vi.fn(),
     navigateRoomThreadMock: vi.fn(),
     removeRecentThreadMock: vi.fn(),
-    room: { roomId: '!room:example.org', isCallRoom: () => false },
+    room: { roomId: '!room:example.org', isCallRoom: () => roomState.callRoom },
     roomState: {
+      callChat: false,
+      callChatViewProps: undefined as MockCallChatViewProps | undefined,
+      callRoom: false,
       eventId: undefined as string | undefined,
       search: '',
       roomViewProps: undefined as MockRoomViewProps | undefined,
@@ -33,7 +43,7 @@ vi.mock('jotai', async () => {
 
   return {
     ...actual,
-    useAtomValue: () => false,
+    useAtomValue: () => roomState.callChat,
   };
 });
 
@@ -140,7 +150,10 @@ vi.mock('../MindroomRoomViewHeader', () => ({
 }));
 
 vi.mock('../MindroomCallChatView', () => ({
-  MindroomCallChatView: () => React.createElement('div'),
+  MindroomCallChatView: (props: MockCallChatViewProps) => {
+    roomState.callChatViewProps = props;
+    return React.createElement('mock-call-chat-view');
+  },
 }));
 
 vi.mock('../../../state/callEmbed', () => ({
@@ -155,6 +168,9 @@ describe('Room', () => {
   });
 
   afterEach(() => {
+    roomState.callChat = false;
+    roomState.callChatViewProps = undefined;
+    roomState.callRoom = false;
     roomState.eventId = undefined;
     roomState.search = '';
     roomState.roomViewProps = undefined;
@@ -231,5 +247,30 @@ describe('Room', () => {
 
     expect(renderer!.root.findAllByType('mock-room-view')).toHaveLength(1);
     expect(renderer!.root.findAllByType('mock-room-view-header')).toHaveLength(0);
+  });
+
+  it('updates call-room chat from the overview to the selected thread route', async () => {
+    roomState.callChat = true;
+    roomState.callRoom = true;
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+
+    expect(roomState.callChatViewProps?.threadId).toBeUndefined();
+
+    roomState.search = '?threadId=%24root';
+    await act(async () => {
+      renderer!.update(React.createElement(Room));
+    });
+
+    expect(roomState.callChatViewProps).toMatchObject({
+      focusEventInRoom: false,
+      room,
+      threadId: '$root',
+    });
+    expect(roomState.callChatViewProps?.onThreadLoadError).toEqual(expect.any(Function));
   });
 });
