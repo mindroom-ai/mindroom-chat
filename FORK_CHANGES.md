@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Animated agent-call background (2026-07-12)
+
+- Status: implementation, local validation, and independent review complete.
+- Root cause: embedded Element Call paints its own opaque canvas, leaving the
+  newly added agent-call surface as a giant white frame during startup when the
+  app is dark but the device color scheme is light.
+- Fix: reuse the theme-aware MindRoom WebGL particle animation from login behind
+  the visible call iframe. The vendored Element Call document and iframe are
+  made transparent so the animation remains visible, with the particle theme's
+  solid color as a first-frame fallback. Hidden calls do not run WebGL.
+- Coverage: focused tests pin animation visibility, iframe layering, the exact
+  Vite copy transform, and the pre-stylesheet transparency override against the
+  real vendored Element Call `index.html`; an upstream missing `<head>` now
+  fails the build instead of silently restoring the opaque canvas.
+- Validation: focused tests pass (3 files / 5 tests), as do typecheck, production
+  build, touched-file Prettier, ESLint (0 errors / 2 pre-existing `CallEmbed.ts`
+  console warnings), and `git diff --check`. The full suite passes 401 files /
+  3,112 tests, with one unrelated existing failure in
+  `virtualizerIOSScrollContract.test.ts:251` that reproduces alone. Independent
+  review found no remaining layering, visibility, placement, React ownership,
+  resource-lifecycle, copy-pipeline, or test-coverage defects.
+
 ### Prepare Rust crypto for call-only encrypted rooms (2026-07-12)
 
 - Status: implementation, local validation, and independent review complete
