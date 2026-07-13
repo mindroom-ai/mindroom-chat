@@ -28,7 +28,7 @@ MindRoom Chat began as a Cinny fork, but it is now developed as an independent p
 | Deployment | Runtime configuration and base-path support for root or subpath hosting, plus fork-owned Docker and release workflows |
 | Engineering | A large regression suite and a maintained compatibility ledger for product, Matrix SDK, deployment, and native-app changes |
 
-Cinny remains the upstream foundation and is credited in [Upstream Attribution](#upstream-attribution). We continue to evaluate and incorporate compatible upstream improvements, while MindRoom Chat's product behavior and release decisions are owned here.
+Cinny remains the upstream foundation and is credited in [Upstream Attribution](#upstream-attribution). Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
 
 For the implementation history and rationale behind individual changes, see [`FORK_CHANGES.md`](./FORK_CHANGES.md).
 

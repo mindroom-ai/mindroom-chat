@@ -5,7 +5,7 @@
 ### Clarify the README comparison with upstream Cinny (2026-07-12)
 
 - Status: implementation, local validation, and publication complete on
-  `caveman/update-readme-differences`; PR #142 is open and ready for review.
+  `caveman/update-readme-differences`; PR #142 tracks the change.
 - Problem: the README comparison listed individual fork features but did not
   explain that MindRoom Chat now owns an independent product direction,
   release cadence, native apps, deployment model, and MindRoom integrations.
