@@ -16,22 +16,21 @@ The app prioritizes:
 
 ## What Is Different From Upstream Cinny
 
-| Area | MindRoom Chat |
+MindRoom Chat began as a Cinny fork, but it is now developed as an independent product for Matrix-based AI-agent workflows. It retains Cinny's Matrix foundation while owning its product direction, release cadence, native apps, deployment model, and MindRoom integrations.
+
+| Area | MindRoom Chat direction |
 | --- | --- |
-| Branding | MindRoom identity, assets, defaults, and onboarding text |
-| Message model | Strong focus on edit-resolution behavior for streaming content |
-| Threads | Thread-aware composition, deep-linking, and timeline behavior improvements |
-| Tool UX | MindRoom tool-trace rendering (`io.mindroom.tool_trace` v2 markers) |
-| Long text | MindRoom v2 sidecar hydration, safer fallbacks, original download support |
-| Commands | `!` command autocomplete for MindRoom workflows |
-| Apple auth | Apple-first SSO provider handling (`Sign in with Apple` / `Sign up with Apple`) |
-| Voice | iOS-friendly recording defaults and composer-first UX |
-| Deployment | Runtime base-path support for one build artifact |
-| iOS | Capacitor app setup and App Store compliance workflow/docs |
+| Product | Independent MindRoom branding, roadmap, defaults, onboarding, CI, and releases |
+| Agent workflows | Streaming edit resolution, response cancellation, model/run metadata, collapsible tool traces, long-text sidecars, and `!` command autocomplete |
+| Threads and navigation | Thread-aware composition, deep links, search, unread state, and timeline recovery tuned for long-running agent conversations |
+| Calls and voice | Agent-call flows built on MatrixRTC and embedded Element Call, including encrypted call-key handling and native microphone preflight |
+| Native iOS | Capacitor packaging, Apple-oriented authentication, APNs/Sygnal push support, voice recording behavior, and App Store release tooling |
+| Deployment | Runtime configuration and base-path support for root or subpath hosting, plus fork-owned Docker and release workflows |
+| Engineering | A large regression suite and a maintained compatibility ledger for product, Matrix SDK, deployment, and native-app changes |
 
-For detailed implementation and rationale, see:
+Cinny remains the upstream foundation and is credited in [Upstream Attribution](#upstream-attribution). Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
 
-- [`FORK_CHANGES.md`](./FORK_CHANGES.md)
+For the implementation history and rationale behind individual changes, see [`FORK_CHANGES.md`](./FORK_CHANGES.md).
 
 ## App Store / iOS Submission Docs
 

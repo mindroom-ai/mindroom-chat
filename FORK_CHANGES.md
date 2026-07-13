@@ -51,6 +51,24 @@
   commit into the client bundle. Cloudflare reports the cache-busted manifest
   as dynamic.
 
+### Clarify the README comparison with upstream Cinny (2026-07-12)
+
+- Status: implementation, local validation, and publication complete on
+  `caveman/update-readme-differences`; PR #142 tracks the change.
+- Problem: the README comparison listed individual fork features but did not
+  explain that MindRoom Chat now owns an independent product direction,
+  release cadence, native apps, deployment model, and MindRoom integrations.
+- Change: lead with that product relationship, group the substantive
+  differences across agent workflows, Matrix behavior, calls, native iOS,
+  deployment, and engineering ownership, and state the continuing upstream
+  policy explicitly. Cinny remains credited as the foundation, and compatible
+  upstream improvements can still be incorporated.
+- Validation: the full Vitest suite passes (407 files / 3,129 tests), as do
+  Markdown formatting, the attribution-anchor and `FORK_CHANGES.md` link
+  checks, and `git diff --check`. A second self-review found no unsupported
+  product claims, broken links, compatibility renames, or unrelated README
+  changes.
+
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, GitHub repository rename, and
