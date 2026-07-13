@@ -73,7 +73,7 @@ git diff -- README.md docs/superpowers/specs/2026-07-12-readme-upstream-differen
 
 Expected: the patch changes only the intended README section and adds the two workflow documents.
 
-- [ ] **Step 5: Commit the implementation**
+- [x] **Step 5: Commit the implementation**
 
 Run:
 
