@@ -16,6 +16,7 @@ export type StoredSession = {
   accessToken: string;
   expiresInMs?: number;
   refreshToken?: string;
+  cryptoStoreInitialized?: boolean;
   lastUsedAt: number;
   lastKnownPath?: string;
   lastKnownDisplayName?: string;
@@ -151,6 +152,8 @@ const toStoredSession = (value: unknown): StoredSession | undefined => {
     accessToken,
     expiresInMs: typeof value.expiresInMs === 'number' ? value.expiresInMs : undefined,
     refreshToken: typeof value.refreshToken === 'string' ? value.refreshToken : undefined,
+    cryptoStoreInitialized:
+      typeof value.cryptoStoreInitialized === 'boolean' ? value.cryptoStoreInitialized : undefined,
     lastUsedAt: typeof value.lastUsedAt === 'number' ? value.lastUsedAt : 0,
     lastKnownPath: typeof value.lastKnownPath === 'string' ? value.lastKnownPath : undefined,
     lastKnownDisplayName:
@@ -320,6 +323,8 @@ export const putSession = (
     accessToken: input.accessToken,
     expiresInMs: input.expiresInMs,
     refreshToken: input.refreshToken,
+    cryptoStoreInitialized:
+      existing?.deviceId === input.deviceId ? existing.cryptoStoreInitialized : undefined,
     lastUsedAt: timestamp,
     lastKnownPath: input.lastKnownPath ?? existing?.lastKnownPath,
     lastKnownDisplayName: input.lastKnownDisplayName ?? existing?.lastKnownDisplayName,
@@ -380,6 +385,35 @@ export const updateSessionCredentials = (
     expiresInMs: credentials.expiresInMs,
   };
 
+  writeSessionStore(
+    {
+      ...store,
+      sessions: upsertSession(store.sessions, nextSession),
+    },
+    storage
+  );
+  return nextSession;
+};
+
+export const hasInitializedCryptoStore = (
+  sessionId: string,
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
+): boolean =>
+  getSessionStore(storage).sessions.find((session) => session.sessionId === sessionId)
+    ?.cryptoStoreInitialized === true;
+
+export const markCryptoStoreInitialized = (
+  sessionId: string,
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
+): StoredSession | undefined => {
+  const store = getSessionStore(storage);
+  const session = store.sessions.find((item) => item.sessionId === sessionId);
+  if (!session || session.cryptoStoreInitialized) return session;
+
+  const nextSession: StoredSession = {
+    ...session,
+    cryptoStoreInitialized: true,
+  };
   writeSessionStore(
     {
       ...store,

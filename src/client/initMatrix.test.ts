@@ -7,6 +7,7 @@ import {
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
+  MissingCryptoStoreError,
   removeStoredSession,
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
@@ -25,6 +26,7 @@ import {
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
   getSessionStore,
+  markCryptoStoreInitialized,
   putSession,
 } from '../app/state/sessions';
 // CINNY-207 P2.3: cache module APIs now come directly from `./cacheStore`.
@@ -208,6 +210,7 @@ describe('initClient', () => {
     const setMaxListeners = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto,
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners,
     } as never);
 
@@ -246,6 +249,267 @@ describe('initClient', () => {
     expect(setMaxListeners).toHaveBeenCalledWith(50);
   });
 
+  it('refuses to recreate missing Rust crypto stores for an existing device identity', async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalIndexedDB = globalThis.indexedDB;
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    markCryptoStoreInitialized(session.sessionId, storage);
+    const databases = vi.fn().mockResolvedValue([]);
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: { databases },
+    });
+
+    try {
+      await expect(initClient(session)).rejects.toBeInstanceOf(MissingCryptoStoreError);
+      expect(databases).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(createMatrixClient)).not.toHaveBeenCalled();
+      expect(vi.mocked(IndexedDBStore)).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: originalIndexedDB,
+      });
+    }
+  });
+
+  it.each([
+    {
+      name: 'opens cached crypto without a homeserver request while offline',
+      onLine: false,
+      expectedQueries: 0,
+    },
+    {
+      name: 'keeps a known local crypto store usable when its online identity query fails',
+      onLine: true,
+      expectedQueries: 1,
+    },
+  ])('$name', async ({ onLine, expectedQueries }) => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalIndexedDB = globalThis.indexedDB;
+    const originalNavigator = globalThis.navigator;
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    markCryptoStoreInitialized(session.sessionId, storage);
+    const databases = vi
+      .fn()
+      .mockResolvedValue(getSessionRustCryptoStoreNames(session).map((name) => ({ name })));
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: { databases },
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { onLine },
+    });
+
+    try {
+      vi.mocked(IndexedDBStore).mockImplementation(
+        () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
+      );
+      vi.mocked(IndexedDBCryptoStore).mockImplementation(
+        () => ({} as unknown as IndexedDBCryptoStore)
+      );
+      const setMaxListeners = vi.fn();
+      const authedRequest = vi.fn().mockRejectedValue(new Error('network unavailable'));
+      vi.mocked(createMatrixClient).mockReturnValue({
+        initRustCrypto: vi.fn().mockResolvedValue(undefined),
+        http: { authedRequest },
+        setMaxListeners,
+      } as never);
+
+      await initClient(session);
+
+      expect(databases).toHaveBeenCalledTimes(1);
+      expect(authedRequest).toHaveBeenCalledTimes(expectedQueries);
+      expect(setMaxListeners).toHaveBeenCalledWith(50);
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: originalIndexedDB,
+      });
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
+  });
+
+  it('accepts a local crypto identity that matches the homeserver device keys', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const startup = vi.fn().mockResolvedValue(undefined);
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () => ({ startup, destroy } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockResolvedValue({
+      device_keys: {
+        '@user:example.com': {
+          DEVICE: {
+            keys: {
+              'ed25519:DEVICE': 'ed-key',
+              'curve25519:DEVICE': 'curve-key',
+            },
+          },
+        },
+      },
+    });
+
+    const getOwnDeviceKeys = vi.fn().mockResolvedValue({
+      ed25519: 'ed-key',
+      curve25519: 'curve-key',
+    });
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      getCrypto: vi.fn(() => ({ getOwnDeviceKeys })),
+      http: { authedRequest },
+      setMaxListeners,
+    } as never);
+
+    await initClient({
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    });
+
+    expect(authedRequest).toHaveBeenCalledWith('POST', '/keys/query', undefined, {
+      device_keys: { '@user:example.com': ['DEVICE'] },
+    });
+    expect(getOwnDeviceKeys).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).toHaveBeenCalledWith(50);
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it('stops before startup when local crypto keys would replace an existing device identity', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          startup: vi.fn().mockResolvedValue(undefined),
+          destroy,
+        } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockResolvedValue({
+      device_keys: {
+        '@user:example.com': {
+          DEVICE: {
+            keys: {
+              'ed25519:DEVICE': 'server-ed-key',
+              'curve25519:DEVICE': 'server-curve-key',
+            },
+          },
+        },
+      },
+    });
+
+    const stopClient = vi.fn();
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      getCrypto: vi.fn(() => ({
+        getOwnDeviceKeys: vi.fn().mockResolvedValue({
+          ed25519: 'local-ed-key',
+          curve25519: 'local-curve-key',
+        }),
+      })),
+      http: { authedRequest },
+      stopClient,
+      setMaxListeners,
+    } as never);
+
+    await expect(
+      initClient({
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      })
+    ).rejects.toThrow('Remove this account, then sign in again');
+
+    expect(stopClient).toHaveBeenCalledTimes(1);
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before startup when the homeserver identity check is unavailable', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          startup: vi.fn().mockResolvedValue(undefined),
+          destroy,
+        } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockRejectedValue(new Error('offline'));
+
+    const stopClient = vi.fn();
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      http: { authedRequest },
+      stopClient,
+      setMaxListeners,
+    } as never);
+
+    await expect(
+      initClient({
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      })
+    ).rejects.toThrow('could not verify the encryption identity');
+
+    expect(stopClient).toHaveBeenCalledTimes(1);
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).not.toHaveBeenCalled();
+  });
+
   it('starts IndexedDB store startup and Rust crypto initialization in parallel', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     let resolveStartup: (() => void) | undefined;
@@ -274,6 +538,7 @@ describe('initClient', () => {
     );
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto,
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
     } as never);
 
@@ -288,10 +553,10 @@ describe('initClient', () => {
       settled = true;
     });
 
-    await Promise.resolve();
-
-    expect(startup).toHaveBeenCalledTimes(1);
-    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(startup).toHaveBeenCalledTimes(1);
+      expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    });
     expect(settled).toBe(false);
 
     resolveStartup?.();
@@ -397,6 +662,7 @@ describe('initClient', () => {
     );
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
     } as never);
 
@@ -446,6 +712,7 @@ describe('initClient', () => {
       const refreshClient = { refreshToken };
       const matrixClient = {
         initRustCrypto: vi.fn().mockResolvedValue(undefined),
+        http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
         setMaxListeners: vi.fn(),
       };
       vi.mocked(createMatrixClient)
