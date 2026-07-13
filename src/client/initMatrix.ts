@@ -89,21 +89,10 @@ export class MissingCryptoStoreError extends Error {
 export class DeviceIdentityVerificationError extends Error {
   constructor(userId: string) {
     super(
-      `MindRoom Chat could not verify the encryption identity for ${userId} with the homeserver. ` +
-        'Check your connection and retry. No encryption keys were changed.'
+      `MindRoom Chat could not safely verify the encryption storage and device identity for ${userId}. ` +
+        'Check your connection and browser storage access, then retry. No encryption keys were changed.'
     );
     this.name = 'DeviceIdentityVerificationError';
-  }
-}
-
-export class DeviceIdentityMismatchError extends Error {
-  constructor(userId: string) {
-    super(
-      `The local encryption identity for ${userId} no longer matches this Matrix device on the homeserver. ` +
-        'Encrypted messages and calls cannot be trusted in this state. ' +
-        'Remove this account, then sign in again to create a new Matrix device.'
-    );
-    this.name = 'DeviceIdentityMismatchError';
   }
 }
 
@@ -130,18 +119,9 @@ const inspectDatabaseExistence = async (name: string): Promise<boolean | undefin
     };
     request.onerror = () => {
       if (created || request.error?.name === 'AbortError') {
-        // An aborted first open should not persist a database, but delete it
-        // defensively before Rust crypto gets a chance to create the real one.
-        let deletion: IDBOpenDBRequest;
-        try {
-          deletion = indexedDB.deleteDatabase(name);
-        } catch {
-          resolve(false);
-          return;
-        }
-        deletion.onsuccess = () => resolve(false);
-        deletion.onerror = () => resolve(false);
-        deletion.onblocked = () => resolve(false);
+        // Aborting the initial versionchange transaction leaves no database.
+        // Do not issue a racing delete against another tab starting crypto.
+        resolve(false);
         return;
       }
       resolve(undefined);
@@ -153,55 +133,24 @@ const inspectCryptoStoreContinuity = async (
   session: ClientBootstrapSession
 ): Promise<boolean | undefined> => {
   if (typeof indexedDB === 'undefined') return undefined;
-  const expectedNames = getSessionRustCryptoStoreNames(session);
+  const [cryptoStoreName] = getSessionRustCryptoStoreNames(session);
 
   if (typeof indexedDB.databases === 'function') {
     try {
       const databases = await indexedDB.databases();
       const names = new Set(databases.flatMap(({ name }) => (name ? [name] : [])));
-      return expectedNames.every((name) => names.has(name));
+      // StoreHandle.open(prefix, undefined) uses the unencrypted Rust store,
+      // which creates only ::matrix-sdk-crypto. The ::matrix-sdk-crypto-meta
+      // database exists only when a password or storage key protects the
+      // local store, so its absence says nothing about device continuity.
+      return names.has(cryptoStoreName);
     } catch {
       // Safari privacy modes and older browsers may deny enumeration. Fall
-      // back to non-destructively opening each known database name.
+      // back to non-destructively opening the required database.
     }
   }
 
-  const existence = await Promise.all(expectedNames.map(inspectDatabaseExistence));
-  if (existence.some((exists) => exists === false)) return false;
-  if (existence.every((exists) => exists === true)) return true;
-  return undefined;
-};
-
-type DeviceIdentityVerificationMode = 'opportunistic' | 'required';
-type DeviceIdentityVerificationPlan = {
-  mode: DeviceIdentityVerificationMode;
-  cleanupRustStoresOnFailure: boolean;
-};
-
-const getDeviceIdentityVerificationPlan = async (
-  session: ClientBootstrapSession
-): Promise<DeviceIdentityVerificationPlan> => {
-  const cryptoStoreExists = await inspectCryptoStoreContinuity(session);
-  if (cryptoStoreExists === true) {
-    // Existing stores remain usable offline. When online, still compare their
-    // identity with the server so a replacement by another broken client is
-    // detected rather than silently producing undecryptable traffic.
-    return { mode: 'opportunistic', cleanupRustStoresOnFailure: false };
-  }
-  if (cryptoStoreExists === false && hasInitializedCryptoStore(session.sessionId)) {
-    throw new MissingCryptoStoreError(session.userId);
-  }
-
-  // A genuinely new login has no local store and no server keys. An existing
-  // login whose store disappeared has server keys which must match the local
-  // identity before startClient can upload anything.
-  return {
-    mode: 'required',
-    // Only delete databases when the preflight conclusively established that
-    // Rust crypto is creating them now. An indeterminate preflight can still
-    // represent an existing store in a browser that denies DB enumeration.
-    cleanupRustStoresOnFailure: cryptoStoreExists === false,
-  };
+  return inspectDatabaseExistence(cryptoStoreName);
 };
 
 type DeviceKeysQueryResponse = {
@@ -216,10 +165,10 @@ type DeviceKeysQueryResponse = {
   >;
 };
 
-const verifyDeviceIdentity = async (
+const serverHasDeviceIdentity = async (
   mx: MatrixClient,
   session: ClientBootstrapSession
-): Promise<void> => {
+): Promise<boolean> => {
   let body: DeviceKeysQueryResponse;
   try {
     body = await mx.http.authedRequest<DeviceKeysQueryResponse>(
@@ -236,33 +185,28 @@ const verifyDeviceIdentity = async (
     throw new DeviceIdentityVerificationError(session.userId);
   }
 
-  const serverKeys = body.device_keys?.[session.userId]?.[session.deviceId]?.keys;
-  if (!serverKeys) return;
+  const serverDevice = body.device_keys?.[session.userId]?.[session.deviceId];
+  if (!serverDevice) return false;
 
+  const serverKeys = serverDevice.keys;
+  if (!serverKeys) throw new DeviceIdentityVerificationError(session.userId);
   const serverEd25519 = serverKeys[`ed25519:${session.deviceId}`];
   const serverCurve25519 = serverKeys[`curve25519:${session.deviceId}`];
   if (!serverEd25519 || !serverCurve25519) {
     throw new DeviceIdentityVerificationError(session.userId);
   }
-
-  const crypto = mx.getCrypto();
-  if (!crypto) throw new DeviceIdentityVerificationError(session.userId);
-  let localKeys;
-  try {
-    localKeys = await crypto.getOwnDeviceKeys();
-  } catch {
-    throw new DeviceIdentityVerificationError(session.userId);
-  }
-  if (!localKeys?.ed25519 || !localKeys.curve25519) {
-    throw new DeviceIdentityVerificationError(session.userId);
-  }
-  if (serverEd25519 !== localKeys.ed25519 || serverCurve25519 !== localKeys.curve25519) {
-    throw new DeviceIdentityMismatchError(session.userId);
-  }
+  return true;
 };
 
 export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
-  const identityVerification = await getDeviceIdentityVerificationPlan(session);
+  const cryptoStoreExists = await inspectCryptoStoreContinuity(session);
+  if (cryptoStoreExists === undefined) {
+    throw new DeviceIdentityVerificationError(session.userId);
+  }
+  if (cryptoStoreExists === false && hasInitializedCryptoStore(session.sessionId)) {
+    throw new MissingCryptoStoreError(session.userId);
+  }
+
   const storeNames = getSessionStoreName(session);
   const indexedDBStore = new IndexedDBStore({
     indexedDB: global.indexedDB,
@@ -298,6 +242,14 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     verificationMethods: ['m.sas.v1'],
   });
 
+  // A new Matrix login has no uploaded device keys yet. If the homeserver
+  // already knows keys for this device ID while its local database is absent,
+  // creating Rust crypto would replace that identity. Decide before opening
+  // the Rust store so no generated keys or cleanup paths are involved.
+  if (cryptoStoreExists === false && (await serverHasDeviceIdentity(mx, session))) {
+    throw new MissingCryptoStoreError(session.userId);
+  }
+
   const initializationResults = await Promise.allSettled([
     indexedDBStore.startup(),
     mx.initRustCrypto({
@@ -317,34 +269,6 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     throw initializationFailure.reason;
   }
 
-  const shouldVerifyIdentity =
-    identityVerification.mode === 'required' ||
-    (identityVerification.mode === 'opportunistic' &&
-      typeof navigator !== 'undefined' &&
-      navigator.onLine === true);
-  if (shouldVerifyIdentity) {
-    try {
-      await verifyDeviceIdentity(mx, session);
-    } catch (error) {
-      const canUseKnownLocalStore =
-        identityVerification.mode === 'opportunistic' &&
-        error instanceof DeviceIdentityVerificationError;
-      if (!canUseKnownLocalStore) {
-        await Promise.allSettled([
-          Promise.resolve().then(() => mx.stopClient()),
-          indexedDBStore.destroy(),
-        ]);
-        if (identityVerification.cleanupRustStoresOnFailure) {
-          // stopClient closes the Rust IndexedDB handles. Delete only stores
-          // proven absent before this attempt so a failed verification cannot
-          // turn freshly generated, untrusted keys into an "existing" store on
-          // retry. Cleanup failure must not mask the original identity error.
-          await Promise.allSettled([deleteNamedDatabases(getSessionRustCryptoStoreNames(session))]);
-        }
-        throw error;
-      }
-    }
-  }
   markCryptoStoreInitialized(session.sessionId);
 
   mx.setMaxListeners(50);
