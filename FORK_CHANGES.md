@@ -5,8 +5,8 @@
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, GitHub repository rename, and
-  publication complete on `caveman/rename-mindroom-chat`; draft PR #140 is
-  open against `dev`.
+  publication complete on `caveman/rename-mindroom-chat`; PR #140 is open
+  against `dev` and ready for review.
 - Product decision: the fork has become a substantial standalone client, so its
   first-party identity is now **MindRoom Chat** while Cinny remains credited as
   the upstream project.
