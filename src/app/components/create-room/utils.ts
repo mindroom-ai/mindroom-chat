@@ -9,7 +9,11 @@ import {
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import { RoomType, StateEvent } from '../../../types/matrix/room';
 import { getViaServers } from '../../plugins/via-servers';
+import { getPowersLevelFromMatrixEvent } from '../../hooks/usePowerLevels';
+import { getRoomCreatorsForRoomId } from '../../hooks/useRoomCreators';
+import { getRoomPermissionsAPI } from '../../hooks/useRoomPermissions';
 import { getMxIdServer } from '../../utils/matrix';
+import { getStateEvent } from '../../utils/room';
 import { CreateRoomAccess } from './types';
 
 export const createRoomCreationContent = (
@@ -111,7 +115,25 @@ export type CreateRoomData = {
   allowFederation: boolean;
   additionalCreators?: string[];
 };
+
+export const canAddRoomToSpace = (mx: MatrixClient, parent: Room): boolean => {
+  const powerLevels = getPowersLevelFromMatrixEvent(
+    getStateEvent(parent, StateEvent.RoomPowerLevels)
+  );
+  const creators = getRoomCreatorsForRoomId(mx, parent.roomId);
+  return getRoomPermissionsAPI(creators, powerLevels).stateEvent(
+    StateEvent.SpaceChild,
+    mx.getSafeUserId()
+  );
+};
+
 export const createRoom = async (mx: MatrixClient, data: CreateRoomData): Promise<string> => {
+  // Creating the room before discovering a missing m.space.child permission
+  // would strand an orphan room. Recheck immediately before any creation.
+  if (data.parent && !canAddRoomToSpace(mx, data.parent)) {
+    throw new Error('Missing permission to add rooms to this Space.');
+  }
+
   const initialState: ICreateRoomStateEvent[] = [];
 
   if (data.encryption) {

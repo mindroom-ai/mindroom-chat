@@ -8,7 +8,7 @@ import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { useOrphanRooms, useRooms } from '../../../state/hooks/roomList';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
-import { isSpace } from '../../../utils/room';
+import { isRoom, isSpace } from '../../../utils/room';
 
 export const useHomeRooms = () => {
   const mx = useMatrixClient();
@@ -20,6 +20,26 @@ export const useHomeRooms = () => {
   const orphanRooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
   const flatRooms = useRooms(mx, allRoomsAtom, mDirects);
   return simpleMode ? flatRooms : orphanRooms;
+};
+
+/** All non-direct rooms and spaces used by Home's unified navigation tree. */
+export const getHomeNavigationRooms = (
+  mx: MatrixClient,
+  allRoomIds: string[],
+  mDirects: Set<string>
+): { roomIds: string[]; spaceIds: string[] } => ({
+  roomIds: allRoomIds.filter((roomId) => !mDirects.has(roomId) && isRoom(mx.getRoom(roomId))),
+  spaceIds: allRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId))),
+});
+
+export const useHomeNavigationRooms = () => {
+  const mx = useMatrixClient();
+  const mDirects = useAtomValue(mDirectAtom);
+  const allRoomIds = useAtomValue(allRoomsAtom);
+  return useMemo(
+    () => getHomeNavigationRooms(mx, allRoomIds, mDirects),
+    [allRoomIds, mDirects, mx]
+  );
 };
 
 export const getHomeSearchRooms = (
@@ -36,10 +56,8 @@ export const getHomeSearchRooms = (
       !isSpace(mx.getRoom(roomId))
   );
 
-export const mergeHomeSearchRoomSources = (
-  sdkRoomIds: string[],
-  allRoomIds: string[]
-): string[] => Array.from(new Set([...sdkRoomIds, ...allRoomIds]));
+export const mergeHomeSearchRoomSources = (sdkRoomIds: string[], allRoomIds: string[]): string[] =>
+  Array.from(new Set([...sdkRoomIds, ...allRoomIds]));
 
 export const useHomeSearchRooms = () => {
   const mx = useMatrixClient();
