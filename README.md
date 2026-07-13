@@ -1,11 +1,11 @@
-# MindRoom
+# MindRoom Chat
 
-MindRoom is a Matrix client focused on AI-agent workflows.
-This repository is the [MindRoom Cinny fork](https://github.com/mindroom-ai/mindroom-cinny), with product and UX changes for MindRoom use cases.
+MindRoom Chat is a Matrix client focused on AI-agent workflows.
+It is built on Cinny, with substantial product and UX changes for MindRoom use cases.
 
-## What MindRoom Is
+## What MindRoom Chat Is
 
-MindRoom is designed for teams that use Matrix as the execution and collaboration layer for AI-assisted work.
+MindRoom Chat is designed for teams that use Matrix as the execution and collaboration layer for AI-assisted work.
 The app prioritizes:
 
 - reliable streaming/edit rendering,
@@ -16,22 +16,21 @@ The app prioritizes:
 
 ## What Is Different From Upstream Cinny
 
-| Area | MindRoom Fork |
+MindRoom Chat began as a Cinny fork, but it is now developed as an independent product for Matrix-based AI-agent workflows. It retains Cinny's Matrix foundation while owning its product direction, release cadence, native apps, deployment model, and MindRoom integrations.
+
+| Area | MindRoom Chat direction |
 | --- | --- |
-| Branding | MindRoom identity, assets, defaults, and onboarding text |
-| Message model | Strong focus on edit-resolution behavior for streaming content |
-| Threads | Thread-aware composition, deep-linking, and timeline behavior improvements |
-| Tool UX | MindRoom tool-trace rendering (`io.mindroom.tool_trace` v2 markers) |
-| Long text | MindRoom v2 sidecar hydration, safer fallbacks, original download support |
-| Commands | `!` command autocomplete for MindRoom workflows |
-| Apple auth | Apple-first SSO provider handling (`Sign in with Apple` / `Sign up with Apple`) |
-| Voice | iOS-friendly recording defaults and composer-first UX |
-| Deployment | Runtime base-path support for one build artifact |
-| iOS | Capacitor app setup and App Store compliance workflow/docs |
+| Product | Independent MindRoom branding, roadmap, defaults, onboarding, CI, and releases |
+| Agent workflows | Streaming edit resolution, response cancellation, model/run metadata, collapsible tool traces, long-text sidecars, and `!` command autocomplete |
+| Threads and navigation | Thread-aware composition, deep links, search, unread state, and timeline recovery tuned for long-running agent conversations |
+| Calls and voice | Agent-call flows built on MatrixRTC and embedded Element Call, including encrypted call-key handling and native microphone preflight |
+| Native iOS | Capacitor packaging, Apple-oriented authentication, APNs/Sygnal push support, voice recording behavior, and App Store release tooling |
+| Deployment | Runtime configuration and base-path support for root or subpath hosting, plus fork-owned Docker and release workflows |
+| Engineering | A large regression suite and a maintained compatibility ledger for product, Matrix SDK, deployment, and native-app changes |
 
-For detailed implementation and rationale, see:
+Cinny remains the upstream foundation and is credited in [Upstream Attribution](#upstream-attribution). Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
 
-- [`FORK_CHANGES.md`](./FORK_CHANGES.md)
+For the implementation history and rationale behind individual changes, see [`FORK_CHANGES.md`](./FORK_CHANGES.md).
 
 ## App Store / iOS Submission Docs
 
@@ -95,7 +94,7 @@ Containerized runtime also supports:
 ### Reverse-proxy examples
 
 - Netlify: [`netlify.toml`](./netlify.toml)
-- Nginx: [`contrib/nginx/cinny.domain.tld.conf`](./contrib/nginx/cinny.domain.tld.conf)
+- Nginx: [`contrib/nginx/mindroom-chat.domain.tld.conf`](./contrib/nginx/mindroom-chat.domain.tld.conf)
 - Caddy: [`contrib/caddy/caddyfile`](./contrib/caddy/caddyfile)
 
 ## iOS Build / Archive
@@ -124,8 +123,8 @@ registration). To turn it on for a deployment:
       "enabled": true,
       "appId": "chat.mindroom.app",
       "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
-      "appDisplayName": "MindRoom iOS",
-      "deviceDisplayName": "MindRoom iOS",
+      "appDisplayName": "MindRoom Chat iOS",
+      "deviceDisplayName": "MindRoom Chat iOS",
       "append": true,
       "format": "full"
     }
@@ -136,7 +135,7 @@ registration). To turn it on for a deployment:
 2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
 3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
 4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications`
-   inside MindRoom.
+   inside MindRoom Chat.
 5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
 
 `format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and
@@ -154,14 +153,14 @@ npm start
 ## Docker
 
 ```bash
-docker build -t mindroom-cinny:latest .
-docker run -p 8080:80 mindroom-cinny:latest
+docker build -t mindroom-chat:latest .
+docker run -p 8080:80 mindroom-chat:latest
 ```
 
 ## Dockerized Matrix E2E
 
-The Docker boundary for local e2e is the Matrix stack, not the Cinny app itself.
-Cinny and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
+The Docker boundary for local e2e is the Matrix stack, not the MindRoom Chat app itself.
+MindRoom Chat and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
 
 Start or stop the local Matrix stack:
 
@@ -231,7 +230,7 @@ npm run release:next-tag
 
 This project is built on top of Cinny and Matrix ecosystem libraries.
 
-- MindRoom Cinny fork: <https://github.com/mindroom-ai/mindroom-cinny>
+- MindRoom Chat: <https://github.com/mindroom-ai/mindroom-chat>
 - Original Cinny project: <https://cinny.in>
 - Matrix: <https://matrix.org>
 

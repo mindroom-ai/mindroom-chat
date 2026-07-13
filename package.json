@@ -1,7 +1,7 @@
 {
-  "name": "cinny",
+  "name": "mindroom-chat",
   "version": "4.12.3",
-  "description": "Yet another matrix client",
+  "description": "A Matrix client for MindRoom AI-agent workflows",
   "main": "index.js",
   "type": "module",
   "engines": {

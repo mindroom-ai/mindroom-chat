@@ -17,10 +17,10 @@ import { spawn, spawnSync } from 'node:child_process';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scriptPath = fileURLToPath(import.meta.url);
-const defaultDerivedDataPath = join(tmpdir(), 'mindroom-cinny-ios-phone-derived-data');
-const lockPath = join(tmpdir(), 'mindroom-cinny-ios-phone.lock');
-const watcherPidPath = join(tmpdir(), 'mindroom-cinny-ios-phone-watch.pid');
-const watcherLogPath = join(tmpdir(), 'mindroom-cinny-ios-phone-watch.log');
+const defaultDerivedDataPath = join(tmpdir(), 'mindroom-chat-ios-phone-derived-data');
+const lockPath = join(tmpdir(), 'mindroom-chat-ios-phone.lock');
+const watcherPidPath = join(tmpdir(), 'mindroom-chat-ios-phone-watch.pid');
+const watcherLogPath = join(tmpdir(), 'mindroom-chat-ios-phone-watch.log');
 const activeChildProcesses = new Set();
 let activeLockRelease;
 
@@ -268,10 +268,7 @@ const listDevices = () => {
     throw new Error('Unable to list CoreDevice devices with xcrun devicectl.');
   }
 
-  return output
-    .split('\n')
-    .map(parseDeviceLine)
-    .filter(Boolean);
+  return output.split('\n').map(parseDeviceLine).filter(Boolean);
 };
 
 const resolveDeviceId = (explicitDeviceId) => {
@@ -293,7 +290,9 @@ const resolveDeviceId = (explicitDeviceId) => {
     const choices = installableIphones
       .map((device) => `  ${device.identifier}  ${device.name}  ${device.state}  ${device.model}`)
       .join('\n');
-    throw new Error(`Multiple installable iPhones found. Set IOS_DEVICE_ID or pass --device:\n${choices}`);
+    throw new Error(
+      `Multiple installable iPhones found. Set IOS_DEVICE_ID or pass --device:\n${choices}`
+    );
   }
 
   const knownDevices = devices
@@ -305,7 +304,8 @@ const resolveDeviceId = (explicitDeviceId) => {
   );
 };
 
-const appPathFor = (derivedDataPath) => join(derivedDataPath, 'Build/Products/Debug-iphoneos/App.app');
+const appPathFor = (derivedDataPath) =>
+  join(derivedDataPath, 'Build/Products/Debug-iphoneos/App.app');
 
 const runOnce = async (options) => {
   const releaseLock = acquireLock();
@@ -421,29 +421,32 @@ const runWatch = async (options) => {
     }
 
     if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(async () => {
-      if (shutdownRequested) return;
+    debounceTimer = setTimeout(
+      async () => {
+        if (shutdownRequested) return;
 
-      if (running) {
-        pending = true;
-        return;
-      }
+        if (running) {
+          pending = true;
+          return;
+        }
 
-      running = true;
-      pending = false;
-      try {
-        printStep(reason || 'Initial iOS phone push');
-        await runOnce(options);
-        process.stdout.write('\nWatching for the next change...\n');
-      } catch (error) {
-        process.stderr.write(`\n${error instanceof Error ? error.message : String(error)}\n`);
-        process.stderr.write('Watching will continue; fix the issue and save a file to retry.\n');
-      } finally {
-        suppressDeployGeneratedUntil = Date.now() + 5000;
-        running = false;
-        if (pending) trigger('Pushing queued changes');
-      }
-    }, reason ? 1500 : 0);
+        running = true;
+        pending = false;
+        try {
+          printStep(reason || 'Initial iOS phone push');
+          await runOnce(options);
+          process.stdout.write('\nWatching for the next change...\n');
+        } catch (error) {
+          process.stderr.write(`\n${error instanceof Error ? error.message : String(error)}\n`);
+          process.stderr.write('Watching will continue; fix the issue and save a file to retry.\n');
+        } finally {
+          suppressDeployGeneratedUntil = Date.now() + 5000;
+          running = false;
+          if (pending) trigger('Pushing queued changes');
+        }
+      },
+      reason ? 1500 : 0
+    );
   };
 
   const targets = existingWatchTargets();

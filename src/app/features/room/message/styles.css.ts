@@ -32,6 +32,13 @@ export const MessageAvatar = style({
   cursor: 'pointer',
 });
 
+export const MessageAvatarWithModel = style({
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: toRem(3),
+  width: toRem(64),
+});
+
 export const MessageQuickReaction = style({
   minWidth: toRem(32),
 });

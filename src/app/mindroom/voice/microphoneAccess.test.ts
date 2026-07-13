@@ -51,7 +51,9 @@ describe('requestMicrophoneAccess', () => {
     getUserMedia.mockRejectedValueOnce(denial);
 
     await expect(requestMicrophoneAccess()).rejects.toMatchObject({
-      message: expect.stringContaining('Allow microphone access for MindRoom in iPhone settings'),
+      message: expect.stringContaining(
+        'Allow microphone access for MindRoom Chat in iPhone settings'
+      ),
       cause: denial,
     });
   });

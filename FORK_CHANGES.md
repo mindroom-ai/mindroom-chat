@@ -1,6 +1,92 @@
-# MindRoom Cinny Fork Changes
+# MindRoom Chat Changes
 
 ## Runbook
+
+### Update repository-local review skills for MindRoom Chat (2026-07-12)
+
+- Status: implementation, local validation, and publication complete on
+  `caveman/mindroom-chat-migration`; PR #143 tracks the change.
+- Problem: two repository-local review skill descriptions still called the
+  product the MindRoom Cinny fork after the repository and product rename.
+- Change: describe both review workflows as applying to MindRoom Chat while
+  leaving compatibility-sensitive Cinny identifiers and historical runbook
+  entries unchanged.
+- Validation: the full Vitest suite passes (407 files / 3,129 tests), as do
+  typecheck, production/PWA build, touched-file Prettier, ESLint (0 errors / 17
+  pre-existing warnings), and `git diff --check`. The repository-wide Prettier
+  check still reports the existing formatting backlog outside this change.
+
+### Hide agent-only thread filters in agentless rooms (2026-07-12)
+
+- Status: implementation, local validation, independent review, and publication
+  complete on `caveman/hide-agentless-thread-filters`; PR #144 is open against
+  `dev` and ready for review.
+- Problem: the compact room toolbar exposed agent workflow filters, presets,
+  statistics, tags, and sort locking even in ordinary Matrix rooms with no
+  MindRoom agent membership.
+- Change: derive agent presence from live joined/invited room membership. In an
+  agentless room the toolbar keeps only thread search, the room-view selector,
+  and the sort selector; agent rooms retain the full toolbar. Simple Mode keeps
+  its intentionally reduced state model: agent rooms retain its unresolved
+  control, while agentless rooms omit the otherwise empty toolbar instead of
+  exposing full-mode controls that Simple Mode would ignore.
+- Transition behavior: when the last agent leaves, status/tag filters and sort
+  locking stop affecting the room immediately. Free-text search and the chosen
+  sort remain active; the stored agent-specific filter setup is preserved and
+  returns if an agent rejoins. Agentless search is deliberately plain text, so
+  `is:` and `tag:`-looking text cannot mutate invisible filter dimensions.
+- Coverage: component behavior pins both toolbar variants, active membership
+  classification, membership transition projection, Simple Mode, and the
+  normal/call room prop path. Independent review found and verified fixes for
+  Simple Mode dead controls, hidden state remaining active after agent
+  departure, and agentless search erasing preserved agent filters. The final
+  Greptile pass also surfaced two confirmed polish items: the search draft now
+  uses the same plain-text normalization as persisted state, and live agent
+  detection now uses the synchronously seeded member hook as its single source.
+  The final focused suite passes 8 files / 101 tests, and the full suite passes
+  408 files / 3,138 tests. TypeScript, the production/PWA build,
+  `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17
+  pre-existing warnings.
+
+### Clarify the README comparison with upstream Cinny (2026-07-12)
+
+- Status: implementation, local validation, and publication complete on
+  `caveman/update-readme-differences`; PR #142 tracks the change.
+- Problem: the README comparison listed individual fork features but did not
+  explain that MindRoom Chat now owns an independent product direction,
+  release cadence, native apps, deployment model, and MindRoom integrations.
+- Change: lead with that product relationship, group the substantive
+  differences across agent workflows, Matrix behavior, calls, native iOS,
+  deployment, and engineering ownership, and state the continuing upstream
+  policy explicitly. Cinny remains credited as the foundation, and compatible
+  upstream improvements can still be incorporated.
+- Validation: the full Vitest suite passes (407 files / 3,129 tests), as do
+  Markdown formatting, the attribution-anchor and `FORK_CHANGES.md` link
+  checks, and `git diff --check`. A second self-review found no unsupported
+  product claims, broken links, compatibility renames, or unrelated README
+  changes.
+
+### Rename the client and repository to MindRoom Chat (2026-07-12)
+
+- Status: implementation, local validation, GitHub repository rename, and
+  publication complete on `caveman/rename-mindroom-chat`; PR #140 is open
+  against `dev` and ready for review.
+- Product decision: the fork has become a substantial standalone client, so its
+  first-party identity is now **MindRoom Chat** while Cinny remains credited as
+  the upstream project.
+- Scope: update the web/PWA/native display names, package and release artifact
+  names, first-party source links, contributor templates, and operator docs;
+  preserve Cinny protocol/storage compatibility identifiers and upstream
+  attribution. The App Store Connect marketing name remains `Mindroom AI`
+  because that existing record documents that `MindRoom` was unavailable.
+- Repository transition: `mindroom-ai/mindroom-cinny` is now
+  `mindroom-ai/mindroom-chat`; GitHub redirects the old repository URL. The
+  local `origin` now uses the new URL, and the rebrand branch is published.
+- Validation: focused branding/native/runtime suites pass (12 files / 95
+  tests), as does the full suite (404 files / 3,118 tests), typecheck,
+  production/PWA build, App Store preflight, touched-file Prettier and ESLint,
+  full ESLint (0 errors / 17 pre-existing warnings), plist/JSON validation, and
+  `git diff --check`.
 
 ### Animated agent-call background (2026-07-12)
 
@@ -32,6 +118,61 @@
   self-review of the final diff found no remaining layering, visibility,
   placement, React ownership, resource-lifecycle, copy-pipeline, merge-conflict,
   or test-coverage defects.
+
+### Keep the WebGL loading background continuous across bootstrap screens (2026-07-12)
+
+- Status: implementation, local/browser validation, and independent review complete.
+- Root cause: each config, homeserver, client-startup, and auth loading surface mounted its own
+  `MindRoomParticleBackground`. React replaces those surfaces as bootstrap advances, destroying the
+  current Particular Drift renderer and starting a new WebGL simulation even when only the loading
+  text changed. React Router also has a short uninitialized interval around its initial redirect,
+  when it renders no route at all.
+- Fix: `PersistentParticleBackgroundProvider` now owns one app-level renderer while any loading/auth
+  surface requests it. Surface leases use a commit-boundary handoff, so an outgoing screen can
+  release and its replacement can acquire without unmounting the canvas. The renderer is still
+  removed once no particle surface is visible, avoiding an invisible WebGL workload behind the
+  ready client. `RouterProvider` supplies a leased loading fallback across its initialization gap,
+  and standalone surfaces retain their local-background fallback.
+- Review hardening: the persistent canvas sits below transparent hosted surfaces, empty splash/auth
+  space passes pointer hits through to WebGL, and explicit controls plus the auth card/footer opt
+  back into hit testing. This preserves desktop interaction while keeping every form/recovery action
+  clickable. Hit-target assertions are scoped per exported style without depending on property
+  order or accepting numeric prefixes. Splash and auth defensively restore pointer input for
+  interactive descendants while excluding `tabindex="-1"` focus-management elements.
+- Coverage and validation: lifecycle tests prove keyed handoffs and a delayed initial router
+  redirect retain one renderer, then release it after the final surface. Hit-target and SplashScreen
+  coverage pin transparent hosting plus control interaction. Full Vitest passes (407 files / 3,129
+  tests), as do typecheck, production/PWA build, full ESLint (0 errors / 17 pre-existing warnings),
+  touched-file Prettier, and `git diff --check`. Live Chromium kept the exact same connected canvas
+  DOM node from delayed config loading through router redirect and auth, hit the canvas in empty
+  space, and hit/clicked the config retry and auth controls. Independent re-review found no remaining
+  lifecycle, layering, input, performance, or coverage defects.
+
+### Enable direct-touch interaction on the WebGL particle background (2026-07-12)
+
+- Status: implementation, local/browser validation, and independent review complete.
+- Root cause: Particular Drift already handles standards-based `pointermove` events, including
+  touch pointers, but `MindRoomParticleBackground.css.ts` disabled canvas pointer events whenever
+  the device reported a coarse pointer or no hover. iPhones therefore never delivered finger
+  movement to the renderer.
+- Fix: keep pointer events enabled on coarse-pointer devices and set `touch-action: none` on the
+  background canvas. Direct finger drags now reach the existing repel interaction instead of being
+  claimed as a browser pan. Empty splash/auth regions pass hits through to the canvas, while
+  foreground controls and the raised auth card/footer retain normal touch and scroll behavior.
+  Reduced-motion users still receive the static gradient fallback.
+- Coverage and validation: focused component/stacking coverage passes (3 files / 8 tests) and pins
+  the touch/pointer contract, interactive repel options, background hit target, and auth control
+  layering. Full Vitest passes (406 files / 3,122 tests), as do typecheck, production/PWA build,
+  full ESLint (0 errors / 17 pre-existing warnings), touched-file Prettier, and `git diff --check`.
+  Live Chromium computed `pointer-events: auto` plus `touch-action: none`, hit the canvas in empty
+  background space, and hit the footer link over the canvas. Independent re-review found no
+  remaining iPhone/Safari Pointer Events, scrolling, accessibility, reduced-motion, or coverage
+  defects; a physical-iPhone gesture remains optional release smoke testing.
+- Review cleanup: co-locate `pointer-events` and `touch-action` in the existing particle-canvas
+  class instead of recreating a redundant inline style object. Coverage pins both the class wiring
+  and its touch-interaction declarations. Hit-target assertions are scoped per exported style but
+  ignore property order, and the splash pass-through selector excludes `tabindex="-1"`
+  focus-management elements.
 
 ### Open threads from call-room side chat (2026-07-12)
 

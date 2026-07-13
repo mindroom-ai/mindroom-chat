@@ -11,7 +11,7 @@
 
 ```bash
 # Clone the repo (or pull latest)
-cd mindroom-cinny
+cd mindroom-chat
 
 # Install dependencies and build web assets
 npm install
@@ -64,8 +64,8 @@ This project includes native iOS push registration via Capacitor and Matrix push
       "enabled": true,
       "appId": "chat.mindroom.app",
       "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
-      "appDisplayName": "MindRoom iOS",
-      "deviceDisplayName": "MindRoom iOS",
+      "appDisplayName": "MindRoom Chat iOS",
+      "deviceDisplayName": "MindRoom Chat iOS",
       "append": true,
       "format": "full"
     }

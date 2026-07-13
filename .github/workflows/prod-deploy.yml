@@ -40,7 +40,7 @@ jobs:
         id: vars
         run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
       - name: Create tar.gz
-        run: tar -czvf cinny-${{ steps.vars.outputs.tag }}.tar.gz dist
+        run: tar -czvf mindroom-chat-${{ steps.vars.outputs.tag }}.tar.gz dist
       - name: Sign tar.gz
         run: |
           echo '${{ secrets.GNUPG_KEY }}' | gpg --batch --import
@@ -50,13 +50,13 @@ jobs:
           # non-armored and hex-encode it so that its printable.
           echo "PGP Signing key, in raw PGP format in hex. Import with cat ... | xxd -r -p - | gpg --import"
           gpg --export | xxd -p
-          echo '${{ secrets.GNUPG_PASSPHRASE }}' | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --armor --detach-sign cinny-${{ steps.vars.outputs.tag }}.tar.gz
+          echo '${{ secrets.GNUPG_PASSPHRASE }}' | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --armor --detach-sign mindroom-chat-${{ steps.vars.outputs.tag }}.tar.gz
       - name: Upload tagged release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: |
-            cinny-${{ steps.vars.outputs.tag }}.tar.gz
-            cinny-${{ steps.vars.outputs.tag }}.tar.gz.asc
+            mindroom-chat-${{ steps.vars.outputs.tag }}.tar.gz
+            mindroom-chat-${{ steps.vars.outputs.tag }}.tar.gz.asc
 
   publish-image:
     name: Push Docker image to ghcr
