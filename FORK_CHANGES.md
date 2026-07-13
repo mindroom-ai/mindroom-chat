@@ -33,6 +33,35 @@
   placement, React ownership, resource-lifecycle, copy-pipeline, merge-conflict,
   or test-coverage defects.
 
+### Keep the WebGL loading background continuous across bootstrap screens (2026-07-12)
+
+- Status: implementation, local/browser validation, and independent review complete.
+- Root cause: each config, homeserver, client-startup, and auth loading surface mounted its own
+  `MindRoomParticleBackground`. React replaces those surfaces as bootstrap advances, destroying the
+  current Particular Drift renderer and starting a new WebGL simulation even when only the loading
+  text changed. React Router also has a short uninitialized interval around its initial redirect,
+  when it renders no route at all.
+- Fix: `PersistentParticleBackgroundProvider` now owns one app-level renderer while any loading/auth
+  surface requests it. Surface leases use a commit-boundary handoff, so an outgoing screen can
+  release and its replacement can acquire without unmounting the canvas. The renderer is still
+  removed once no particle surface is visible, avoiding an invisible WebGL workload behind the
+  ready client. `RouterProvider` supplies a leased loading fallback across its initialization gap,
+  and standalone surfaces retain their local-background fallback.
+- Review hardening: the persistent canvas sits below transparent hosted surfaces, empty splash/auth
+  space passes pointer hits through to WebGL, and explicit controls plus the auth card/footer opt
+  back into hit testing. This preserves desktop interaction while keeping every form/recovery action
+  clickable. Hit-target assertions are scoped per exported style without depending on property
+  order or accepting numeric prefixes. Splash and auth defensively restore pointer input for
+  interactive descendants while excluding `tabindex="-1"` focus-management elements.
+- Coverage and validation: lifecycle tests prove keyed handoffs and a delayed initial router
+  redirect retain one renderer, then release it after the final surface. Hit-target and SplashScreen
+  coverage pin transparent hosting plus control interaction. Full Vitest passes (407 files / 3,129
+  tests), as do typecheck, production/PWA build, full ESLint (0 errors / 17 pre-existing warnings),
+  touched-file Prettier, and `git diff --check`. Live Chromium kept the exact same connected canvas
+  DOM node from delayed config loading through router redirect and auth, hit the canvas in empty
+  space, and hit/clicked the config retry and auth controls. Independent re-review found no remaining
+  lifecycle, layering, input, performance, or coverage defects.
+
 ### Enable direct-touch interaction on the WebGL particle background (2026-07-12)
 
 - Status: implementation, local/browser validation, and independent review complete.

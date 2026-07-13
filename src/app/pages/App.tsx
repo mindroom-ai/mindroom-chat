@@ -13,6 +13,7 @@ import { ScreenSizeProvider, useScreenSize } from '../hooks/useScreenSize';
 import { useCompositionEndTracking } from '../hooks/useComposingCheck';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { ReactQueryDevtoolsToggle } from '../components/ReactQueryDevtoolsToggle';
+import { PersistentParticleBackgroundProvider } from '../components/particle-background';
 
 const queryClient = new QueryClient();
 
@@ -25,33 +26,38 @@ function App() {
   const portalContainer = document.getElementById('portalContainer') ?? undefined;
 
   return (
-    <TooltipContainerProvider value={portalContainer}>
-      <PopOutContainerProvider value={portalContainer}>
-        <OverlayContainerProvider value={portalContainer}>
-          <ScreenSizeProvider value={screenSize}>
-            <FeatureCheck>
-              <ClientConfigLoader
-                fallback={() => <ConfigConfigLoading />}
-                error={(err, retry, ignore) => (
-                  <ConfigConfigError error={err} retry={retry} ignore={ignore} />
-                )}
-              >
-                {(clientConfig) => (
-                  <ClientConfigProvider value={clientConfig}>
-                    <QueryClientProvider client={queryClient}>
-                      <JotaiProvider store={appJotaiStore}>
-                        <RouterProvider router={createRouter(clientConfig, screenSize)} />
-                      </JotaiProvider>
-                      <ReactQueryDevtoolsToggle />
-                    </QueryClientProvider>
-                  </ClientConfigProvider>
-                )}
-              </ClientConfigLoader>
-            </FeatureCheck>
-          </ScreenSizeProvider>
-        </OverlayContainerProvider>
-      </PopOutContainerProvider>
-    </TooltipContainerProvider>
+    <PersistentParticleBackgroundProvider>
+      <TooltipContainerProvider value={portalContainer}>
+        <PopOutContainerProvider value={portalContainer}>
+          <OverlayContainerProvider value={portalContainer}>
+            <ScreenSizeProvider value={screenSize}>
+              <FeatureCheck>
+                <ClientConfigLoader
+                  fallback={() => <ConfigConfigLoading />}
+                  error={(err, retry, ignore) => (
+                    <ConfigConfigError error={err} retry={retry} ignore={ignore} />
+                  )}
+                >
+                  {(clientConfig) => (
+                    <ClientConfigProvider value={clientConfig}>
+                      <QueryClientProvider client={queryClient}>
+                        <JotaiProvider store={appJotaiStore}>
+                          <RouterProvider
+                            router={createRouter(clientConfig, screenSize)}
+                            fallbackElement={<ConfigConfigLoading />}
+                          />
+                        </JotaiProvider>
+                        <ReactQueryDevtoolsToggle />
+                      </QueryClientProvider>
+                    </ClientConfigProvider>
+                  )}
+                </ClientConfigLoader>
+              </FeatureCheck>
+            </ScreenSizeProvider>
+          </OverlayContainerProvider>
+        </PopOutContainerProvider>
+      </TooltipContainerProvider>
+    </PersistentParticleBackgroundProvider>
   );
 }
 

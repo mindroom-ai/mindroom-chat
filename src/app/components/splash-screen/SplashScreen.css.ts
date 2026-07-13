@@ -23,6 +23,11 @@ globalStyle(
   }
 );
 
+export const SplashScreenPersistentParticle = style({
+  zIndex: 1,
+  backgroundColor: 'transparent',
+});
+
 export const SplashScreenContent = style({
   position: 'relative',
   zIndex: 1,
