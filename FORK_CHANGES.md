@@ -4,8 +4,8 @@
 
 ### Keep the fixed call embed inside the room call pane (2026-07-13)
 
-- Status: implementation, local validation, and independent review complete; publication is
-  pending.
+- Status: implementation, local validation, independent review, and publication complete on
+  `caveman/fix-call-embed-placement`; PR #146 is open against `dev` and ready for review.
 - Symptom: after the transparent animated call background shipped, an active call could cover the
   navigation and recent-thread columns. Their badges remained visible over a large white call
   surface while the actual participant tile appeared offset inside it.
@@ -29,7 +29,9 @@
   current call-layout path performs one. Greptile rated the fix 5/5 and safe to merge with no
   findings. Gemini's one maintainability suggestion was confirmed and addressed by giving the
   placement helper a small explicit return type instead of coupling it to the full global
-  `CSSStyleDeclaration` interface.
+  `CSSStyleDeclaration` interface. Its thread is resolved, and the web build, Android APK, and
+  container-publish checks pass on the reviewed code tip. CodeRabbit, Sourcery, and Qodo reported
+  quota/seat limits rather than code findings.
 
 ### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
 
