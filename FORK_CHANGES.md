@@ -17,6 +17,13 @@
   new worker takes control, or after activation if the browser reports no
   controller change because the worker bytes were already current. The new
   hashed application assets therefore take over without a manual hard refresh.
+- The first deployment needs a worker-side bootstrap because an older page
+  cannot run updater code it does not contain. During install the new worker
+  records whether an active predecessor exists. On upgrade only, activation
+  claims and navigates existing top-level tabs after the new app shell is
+  precached. First installs do not reload. The navigation remains safe if the
+  network drops between install and activation because the new worker serves
+  its cached shell.
 - Version fetches, worker registration, and update failures are deliberately
   ignored, and a stalled manifest request is aborted after five seconds. No
   version request or update reload runs while `navigator.onLine` is false. The
