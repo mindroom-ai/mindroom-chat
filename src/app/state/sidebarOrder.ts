@@ -79,10 +79,7 @@ export const readLegacyRoomOrderBySpace = (userId: string): RoomOrderBySpaceStat
   readRoomOrderBySpace(`${ROOM_ORDER_STORAGE_KEY_PREFIX}${userId}`);
 
 export const clearLegacyRoomOrderBySpace = (userId: string): boolean =>
-  removeStorageItemSafe(
-    getSafeLocalStorage(),
-    `${ROOM_ORDER_STORAGE_KEY_PREFIX}${userId}`
-  );
+  removeStorageItemSafe(getSafeLocalStorage(), `${ROOM_ORDER_STORAGE_KEY_PREFIX}${userId}`);
 
 const writeRoomOrderBySpace = (key: string, value: RoomOrderBySpaceState) => {
   const sanitized = Object.entries(value).reduce<RoomOrderBySpaceState>(

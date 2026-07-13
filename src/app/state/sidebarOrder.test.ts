@@ -116,9 +116,7 @@ describe('sidebarOrder', () => {
       '!space-a': ['!room-b', '!room-a'],
     });
     expect(clearLegacyRoomOrderBySpace('@alice:example.org')).toBe(true);
-    expect(
-      storageState.has(`${ROOM_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`)
-    ).toBe(false);
+    expect(storageState.has(`${ROOM_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`)).toBe(false);
   });
 
   it('removes a room from one parent space order only', () => {
