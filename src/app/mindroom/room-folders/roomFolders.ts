@@ -274,7 +274,7 @@ export const removeRoomOrder = (roomOrder: RoomOrder, orderKey: string): RoomOrd
   return remaining;
 };
 
-const roomFoldersWriteTails = new WeakMap<MatrixClient, Promise<void>>();
+const roomFoldersWriteTails = new WeakMap<MatrixClient, Promise<RoomFolderNavigationState>>();
 
 export type RoomFolderNavigationMutation = (
   state: RoomFolderNavigationState
@@ -283,18 +283,25 @@ export type RoomFolderNavigationMutation = (
 export const enqueueRoomFolderNavigationMutation = (
   mx: MatrixClient,
   mutation: RoomFolderNavigationMutation
-): Promise<void> => {
+): Promise<RoomFolderNavigationState> => {
   const task = (roomFoldersWriteTails.get(mx) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
       const current = mx.getAccountData(ROOM_FOLDERS_ACCOUNT_DATA_TYPE as any)?.getContent();
       const state = sanitizeRoomFolderNavigationState(current);
       const next = mutation(state);
-      if (next === state) return;
+      if (next === state) return state;
       await mx.setAccountData(
         ROOM_FOLDERS_ACCOUNT_DATA_TYPE as any,
         makeRoomFoldersAccountData(current, next.folders, next.roomOrder) as any
       );
+
+      const echoed = mx.getAccountData(ROOM_FOLDERS_ACCOUNT_DATA_TYPE as any)?.getContent();
+      // A running matrix-js-sdk client resolves setAccountData after a same-type
+      // sync echo, which may contain a concurrent writer's value. Test doubles
+      // and pre-start clients can resolve without updating the local store; in
+      // that fallback case, preserve the successfully requested state.
+      return echoed === current ? next : sanitizeRoomFolderNavigationState(echoed);
     });
 
   roomFoldersWriteTails.set(mx, task);
@@ -313,4 +320,4 @@ export const enqueueRoomFoldersMutation = (
   enqueueRoomFolderNavigationMutation(mx, (state) => {
     const folders = mutation(state.folders);
     return folders === state.folders ? state : { ...state, folders };
-  });
+  }).then(() => undefined);

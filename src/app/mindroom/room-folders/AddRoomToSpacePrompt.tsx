@@ -1,5 +1,5 @@
 import React, { useId, useState } from 'react';
-import { Room } from 'matrix-js-sdk';
+import { EventType, Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -54,16 +54,12 @@ export function AddRoomToSpacePrompt({
     setAdding(true);
     setFailed(false);
     try {
-      await mx.sendStateEvent(
-        space.roomId,
-        StateEvent.SpaceChild as any,
-        {
-          auto_join: false,
-          suggested: false,
-          via: getViaServers(room),
-        },
-        room.roomId
-      );
+      const content = {
+        auto_join: false,
+        suggested: false,
+        via: getViaServers(room),
+      };
+      await mx.sendStateEvent(space.roomId, EventType.SpaceChild, content, room.roomId);
       onAdded?.();
       onCancel();
     } catch {

@@ -116,6 +116,68 @@ describe('RoomFoldersProvider', () => {
     expect(removeListener).toHaveBeenCalledWith('accountData', accountDataHandler);
   });
 
+  it('rebases pending optimistic mutations and settles to the echoed account data', async () => {
+    let accountDataHandler:
+      | ((event: { getType: () => string; getContent: () => unknown }) => void)
+      | undefined;
+    let resolveWrite: (() => void) | undefined;
+    const pendingWrite = new Promise<void>((resolve) => {
+      resolveWrite = resolve;
+    });
+    let currentContent = {
+      folders: [{ id: 'work', name: 'Work', room_ids: [] }],
+    };
+    const mx = {
+      getAccountData: vi.fn(() => ({ getContent: () => currentContent })),
+      setAccountData: vi.fn(() => pendingWrite),
+      on: vi.fn((_event, handler) => {
+        accountDataHandler = handler;
+      }),
+      removeListener: vi.fn(),
+    } as unknown as MatrixClient;
+    let foldersApi: ReturnType<typeof useRoomFolders> | undefined;
+
+    function Consumer() {
+      foldersApi = useRoomFolders();
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <ClientStartupProvider hasCompletedInitialSync>
+            <RoomFoldersProvider>
+              <Consumer />
+            </RoomFoldersProvider>
+          </ClientStartupProvider>
+        </MatrixClientProvider>
+      );
+    });
+
+    let rename: Promise<void> | undefined;
+    act(() => {
+      rename = foldersApi?.renameFolder('work', 'Renamed');
+    });
+    await vi.waitFor(() => expect(mx.setAccountData).toHaveBeenCalledTimes(1));
+
+    currentContent = {
+      folders: [{ id: 'work', name: 'Changed elsewhere', room_ids: [] }],
+    };
+    act(() => {
+      accountDataHandler?.({
+        getType: () => ROOM_FOLDERS_ACCOUNT_DATA_TYPE,
+        getContent: () => currentContent,
+      });
+    });
+    expect(foldersApi?.folders[0]?.name).toBe('Renamed');
+
+    resolveWrite?.();
+    await act(async () => rename);
+    expect(foldersApi?.folders[0]?.name).toBe('Changed elsewhere');
+    act(() => renderer?.unmount());
+  });
+
   it('optimistically reorders a Home group and persists it in account data', async () => {
     const initialContent = {
       folders: [
@@ -351,6 +413,63 @@ describe('RoomFoldersProvider', () => {
       await expect(foldersApi?.renameFolder('work', 'Renamed')).rejects.toThrow('offline');
     });
     expect(foldersApi?.folders).toEqual([{ id: 'work', name: 'Work', roomIds: [] }]);
+    expect(foldersApi?.saveError).toBe(true);
+
+    act(() => renderer?.unmount());
+  });
+
+  it('rolls back only a failed mutation while preserving newer queued optimistic state', async () => {
+    const initialContent = {
+      folders: [{ id: 'work', name: 'Work', room_ids: [] }],
+    };
+    const setAccountData = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined);
+    const mx = {
+      getAccountData: vi.fn(() => ({ getContent: () => initialContent })),
+      setAccountData,
+      on: vi.fn(),
+      removeListener: vi.fn(),
+    } as unknown as MatrixClient;
+    let foldersApi: ReturnType<typeof useRoomFolders> | undefined;
+
+    function Consumer() {
+      foldersApi = useRoomFolders();
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <ClientStartupProvider hasCompletedInitialSync>
+            <RoomFoldersProvider>
+              <Consumer />
+            </RoomFoldersProvider>
+          </ClientStartupProvider>
+        </MatrixClientProvider>
+      );
+    });
+
+    let failedRename: Promise<void> | undefined;
+    let queuedReorder: Promise<void> | undefined;
+    act(() => {
+      failedRename = foldersApi?.renameFolder('work', 'Renamed');
+      queuedReorder = foldersApi?.reorderRooms('unfiled', ['!b:example.org', '!a:example.org']);
+    });
+
+    expect(foldersApi?.folders[0]?.name).toBe('Renamed');
+    expect(foldersApi?.roomOrder.unfiled).toEqual(['!b:example.org', '!a:example.org']);
+
+    await act(async () => {
+      await expect(failedRename).rejects.toThrow('offline');
+      await queuedReorder;
+    });
+
+    expect(foldersApi?.folders).toEqual([{ id: 'work', name: 'Work', roomIds: [] }]);
+    expect(foldersApi?.roomOrder.unfiled).toEqual(['!b:example.org', '!a:example.org']);
+    expect(setAccountData).toHaveBeenCalledTimes(2);
     expect(foldersApi?.saveError).toBe(true);
 
     act(() => renderer?.unmount());

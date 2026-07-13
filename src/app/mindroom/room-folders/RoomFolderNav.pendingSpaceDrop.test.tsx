@@ -92,4 +92,43 @@ describe('pending Space drops', () => {
     expect(latestPending).toBeUndefined();
     expect(latestResolved).toBeUndefined();
   });
+
+  it('clears a confirmation when its SDK room object disappears', () => {
+    const room = { roomId: pendingDrop.roomId } as Room;
+    const space = { roomId: pendingDrop.spaceId } as Room;
+    const rooms = new Map([
+      [room.roomId, room],
+      [space.roomId, space],
+    ]);
+    const mx = {
+      getRoom: vi.fn((roomId: string) => rooms.get(roomId)),
+    } as unknown as MatrixClient;
+
+    act(() => {
+      renderer = create(
+        <PendingDropHarness
+          mx={mx}
+          revision={0}
+          roomIds={[room.roomId]}
+          spaceIds={[space.roomId]}
+        />
+      );
+    });
+    expect(latestResolved?.space).toBe(space);
+
+    rooms.delete(space.roomId);
+    act(() => {
+      renderer?.update(
+        <PendingDropHarness
+          mx={mx}
+          revision={1}
+          roomIds={[room.roomId]}
+          spaceIds={[space.roomId]}
+        />
+      );
+    });
+
+    expect(latestPending).toBeUndefined();
+    expect(latestResolved).toBeUndefined();
+  });
 });

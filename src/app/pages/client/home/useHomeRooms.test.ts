@@ -67,4 +67,24 @@ describe('getHomeNavigationRooms', () => {
       spaceIds: ['!space:example.org'],
     });
   });
+
+  it('flattens rooms and hides Space headers in simple mode', () => {
+    const makeRoom = (type?: string) => ({
+      getLiveTimeline: () => ({
+        getState: () => ({
+          getStateEvents: () => ({ getContent: () => ({ type }) }),
+        }),
+      }),
+    });
+    const rooms = new Map([
+      ['!space-child:example.org', makeRoom()],
+      ['!space:example.org', makeRoom('m.space')],
+    ]);
+    const mx = { getRoom: (roomId: string) => rooms.get(roomId) } as unknown as MatrixClient;
+
+    expect(getHomeNavigationRooms(mx, Array.from(rooms.keys()), new Set(), true)).toEqual({
+      roomIds: ['!space-child:example.org'],
+      spaceIds: [],
+    });
+  });
 });

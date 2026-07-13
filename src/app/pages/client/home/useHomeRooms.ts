@@ -26,19 +26,21 @@ export const useHomeRooms = () => {
 export const getHomeNavigationRooms = (
   mx: MatrixClient,
   allRoomIds: string[],
-  mDirects: Set<string>
+  mDirects: Set<string>,
+  simpleMode = false
 ): { roomIds: string[]; spaceIds: string[] } => ({
   roomIds: allRoomIds.filter((roomId) => !mDirects.has(roomId) && isRoom(mx.getRoom(roomId))),
-  spaceIds: allRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId))),
+  spaceIds: simpleMode ? [] : allRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId))),
 });
 
 export const useHomeNavigationRooms = () => {
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
   const allRoomIds = useAtomValue(allRoomsAtom);
+  const simpleMode = useSimpleMode();
   return useMemo(
-    () => getHomeNavigationRooms(mx, allRoomIds, mDirects),
-    [allRoomIds, mDirects, mx]
+    () => getHomeNavigationRooms(mx, allRoomIds, mDirects, simpleMode),
+    [allRoomIds, mDirects, mx, simpleMode]
   );
 };
 

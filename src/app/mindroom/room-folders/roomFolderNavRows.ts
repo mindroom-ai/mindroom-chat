@@ -55,6 +55,7 @@ export const buildRoomFolderNavRows = (
   selectedRoomId?: string
 ): RoomFolderNavRow[] => {
   const availableRoomIds = new Set(roomIds);
+  const availableSpaceIds = new Set(spaceIds);
   const assignedRoomIds = new Set(folders.flatMap((folder) => folder.roomIds));
   const categories: Array<{
     kind: RoomNavCategoryKind;
@@ -83,7 +84,11 @@ export const buildRoomFolderNavRows = (
     {
       kind: 'unfiled' as const,
       roomIds: roomIds.filter(
-        (roomId) => !assignedRoomIds.has(roomId) && !roomToParents.has(roomId)
+        (roomId) =>
+          !assignedRoomIds.has(roomId) &&
+          !Array.from(roomToParents.get(roomId) ?? []).some((parentId) =>
+            availableSpaceIds.has(parentId)
+          )
       ),
       categoryId: makeNavCategoryId('home', 'room'),
       roomOrderKey: UNFILED_ROOM_ORDER_KEY,

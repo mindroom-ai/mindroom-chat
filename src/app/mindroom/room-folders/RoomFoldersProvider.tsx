@@ -51,6 +51,11 @@ type RoomFoldersContextValue = {
   clearRoomOrder: (orderKey: string) => Promise<void>;
 };
 
+type PendingNavigationMutation = {
+  id: number;
+  mutation: RoomFolderNavigationMutation;
+};
+
 const RoomFoldersContext = createContext<RoomFoldersContextValue | undefined>(undefined);
 
 const readRoomFolderNavigation = (
@@ -67,9 +72,20 @@ export function RoomFoldersProvider({ children }: { children: ReactNode }) {
     readRoomFolderNavigation(mx)
   );
   const [saveError, setSaveError] = useState(false);
+  const pendingMutations = useRef<PendingNavigationMutation[]>([]);
+  const nextMutationId = useRef(0);
   const legacyMigrationStarted = useRef(false);
   const initialSyncCompleted = useRef(hasCompletedInitialSync);
   const initialSyncWaiters = useRef(new Set<() => void>());
+
+  const applyPendingMutations = useCallback(
+    (state: RoomFolderNavigationState): RoomFolderNavigationState =>
+      pendingMutations.current.reduce(
+        (current, pendingMutation) => pendingMutation.mutation(current),
+        state
+      ),
+    []
+  );
 
   useEffect(() => {
     initialSyncCompleted.current = hasCompletedInitialSync;
@@ -87,12 +103,13 @@ export function RoomFoldersProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    pendingMutations.current = [];
     setNavigation(readRoomFolderNavigation(mx));
     setSaveError(false);
 
     const handleAccountData = (event: MatrixEvent) => {
       if (event.getType() === ROOM_FOLDERS_ACCOUNT_DATA_TYPE) {
-        setNavigation(sanitizeRoomFolderNavigationState(event.getContent()));
+        setNavigation(applyPendingMutations(sanitizeRoomFolderNavigationState(event.getContent())));
         setSaveError(false);
       }
     };
@@ -101,22 +118,32 @@ export function RoomFoldersProvider({ children }: { children: ReactNode }) {
     return () => {
       mx.removeListener(ClientEvent.AccountData, handleAccountData);
     };
-  }, [mx]);
+  }, [applyPendingMutations, mx]);
 
   const mutate = useCallback(
     async (mutation: RoomFolderNavigationMutation) => {
+      const pendingMutation = { id: nextMutationId.current, mutation };
+      nextMutationId.current += 1;
+      pendingMutations.current.push(pendingMutation);
       setSaveError(false);
       setNavigation((current) => mutation(current));
       try {
         await waitForInitialSync();
-        await enqueueRoomFolderNavigationMutation(mx, mutation);
+        const echoedNavigation = await enqueueRoomFolderNavigationMutation(mx, mutation);
+        pendingMutations.current = pendingMutations.current.filter(
+          (current) => current.id !== pendingMutation.id
+        );
+        setNavigation(applyPendingMutations(echoedNavigation));
       } catch (error) {
-        setNavigation(readRoomFolderNavigation(mx));
+        pendingMutations.current = pendingMutations.current.filter(
+          (current) => current.id !== pendingMutation.id
+        );
+        setNavigation(applyPendingMutations(readRoomFolderNavigation(mx)));
         setSaveError(true);
         throw error;
       }
     },
-    [mx, waitForInitialSync]
+    [applyPendingMutations, mx, waitForInitialSync]
   );
 
   useEffect(() => {

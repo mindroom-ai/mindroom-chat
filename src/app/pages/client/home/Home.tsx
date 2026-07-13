@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, forwardRef, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, forwardRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
@@ -75,9 +75,10 @@ const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, re
 type HomeCreateMenuProps = {
   requestClose: () => void;
   onCreateFolder: () => void;
+  simpleMode: boolean;
 };
 const HomeCreateMenu = forwardRef<HTMLDivElement, HomeCreateMenuProps>(
-  ({ requestClose, onCreateFolder }, ref) => {
+  ({ requestClose, onCreateFolder, simpleMode }, ref) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const open = (path: string) => {
@@ -107,19 +108,27 @@ const HomeCreateMenu = forwardRef<HTMLDivElement, HomeCreateMenuProps>(
               {t('nav.createRoomFolder')}
             </Text>
           </MenuItem>
-          <MenuItem size="300" radii="300" onClick={() => open(getCreatePath())}>
-            <Icon size="100" src={Icons.Space} />
-            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              {t('nav.createSpace')}
-            </Text>
-          </MenuItem>
+          {!simpleMode && (
+            <MenuItem size="300" radii="300" onClick={() => open(getCreatePath())}>
+              <Icon size="100" src={Icons.Space} />
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                {t('nav.createSpace')}
+              </Text>
+            </MenuItem>
+          )}
         </Box>
       </Menu>
     );
   }
 );
 
-function HomeHeader({ onCreateFolder }: { onCreateFolder: () => void }) {
+function HomeHeader({
+  onCreateFolder,
+  simpleMode,
+}: {
+  onCreateFolder: () => void;
+  simpleMode: boolean;
+}) {
   const { t } = useTranslation();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [createMenuAnchor, setCreateMenuAnchor] = useState<RectCords>();
@@ -164,52 +173,54 @@ function HomeHeader({ onCreateFolder }: { onCreateFolder: () => void }) {
           </Box>
         </Box>
       </PageNavHeader>
-      <PopOut
+      <HomeHeaderPopOutMenu
         anchor={createMenuAnchor}
-        position="Bottom"
-        align="End"
-        offset={6}
-        content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              onDeactivate: () => setCreateMenuAnchor(undefined),
-              clickOutsideDeactivates: true,
-              isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
-              isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
-              escapeDeactivates: stopPropagation,
-            }}
-          >
-            <HomeCreateMenu
-              requestClose={() => setCreateMenuAnchor(undefined)}
-              onCreateFolder={onCreateFolder}
-            />
-          </FocusTrap>
-        }
-      />
-      <PopOut
-        anchor={menuAnchor}
-        position="Bottom"
-        align="End"
-        offset={6}
-        content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              onDeactivate: () => setMenuAnchor(undefined),
-              clickOutsideDeactivates: true,
-              isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
-              isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
-              escapeDeactivates: stopPropagation,
-            }}
-          >
-            <HomeMenu requestClose={() => setMenuAnchor(undefined)} />
-          </FocusTrap>
-        }
-      />
+        onDeactivate={() => setCreateMenuAnchor(undefined)}
+      >
+        <HomeCreateMenu
+          requestClose={() => setCreateMenuAnchor(undefined)}
+          onCreateFolder={onCreateFolder}
+          simpleMode={simpleMode}
+        />
+      </HomeHeaderPopOutMenu>
+      <HomeHeaderPopOutMenu anchor={menuAnchor} onDeactivate={() => setMenuAnchor(undefined)}>
+        <HomeMenu requestClose={() => setMenuAnchor(undefined)} />
+      </HomeHeaderPopOutMenu>
     </>
+  );
+}
+
+function HomeHeaderPopOutMenu({
+  anchor,
+  onDeactivate,
+  children,
+}: {
+  anchor?: RectCords;
+  onDeactivate: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <PopOut
+      anchor={anchor}
+      position="Bottom"
+      align="End"
+      offset={6}
+      content={
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            returnFocusOnDeactivate: false,
+            onDeactivate,
+            clickOutsideDeactivates: true,
+            isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
+            isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
+            escapeDeactivates: stopPropagation,
+          }}
+        >
+          {children}
+        </FocusTrap>
+      }
+    />
   );
 }
 
@@ -255,7 +266,7 @@ function HomeEmpty() {
   );
 }
 
-function HomeContent() {
+export function HomeContent() {
   const { t } = useTranslation();
   useNavToActivePathMapper('home');
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
@@ -274,7 +285,7 @@ function HomeContent() {
 
   return (
     <PageNav>
-      <HomeHeader onCreateFolder={() => setCreateFolderPrompt(true)} />
+      <HomeHeader onCreateFolder={() => setCreateFolderPrompt(true)} simpleMode={simpleMode} />
       {createFolderPrompt && (
         <RoomFolderPrompt onSubmit={createFolder} onCancel={() => setCreateFolderPrompt(false)} />
       )}

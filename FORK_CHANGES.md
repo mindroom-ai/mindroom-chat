@@ -93,8 +93,9 @@
 
 - Status: Home room-reordering follow-up is implemented, locally validated, independently
   re-reviewed, AI-reviewed, deployed to `chat.lab.mindroom.chat`, and live-validated on
-  desktop/mobile. PR #135 is reconciled and published against the latest `dev`; post-merge local
-  and live validation are complete, and the refreshed CI/AI review cycle is in progress.
+  desktop/mobile. PR #135 is reconciled locally with the latest `dev` identity-continuity change;
+  the final CodeRabbit follow-up is implemented and locally validated, and publication plus the
+  repeat CI/AI review cycle are in progress.
 - Follow-up (2026-07-13): Home's grouped overview is adopting the same whole-row sortable room
   component already used by Space navigation for mouse, touch long-press, and keyboard input.
   Expanded personal-folder, Space, and Rooms groups each keep a private order in the existing
@@ -151,6 +152,23 @@
   confirmation cannot remain actionable or reopen after leave/rejoin. Its isolated lifecycle
   regression covers the retained-object membership transition, state cleanup, and rejoin;
   independent re-review found no remaining P0–P2 lifecycle or stale-membership issue.
+- Final CodeRabbit follow-up compares parent relationships only with currently rendered Spaces, so
+  leaving a Space cannot hide its former child from Rooms. Simple Mode now deliberately supplies no
+  Space headers or Create Space menu entry; together those behaviors flatten every non-direct
+  joined room without making Space children unreachable. Focused row and Home-source regressions
+  cover both sides of that contract.
+- Optimistic account-data writes now track pending mutations explicitly. Remote echoes are rebased
+  through the pending queue, and a failed write removes and rolls back only its own mutation before
+  replaying newer queued changes over the latest account data. Since matrix-js-sdk resolves
+  `setAccountData` after any same-type echo, successful writes also settle from the actual echoed
+  state before replaying remaining pending mutations. Dedicated provider regressions cover both an
+  intervening external echo and a failed-first/successful-second write sequence.
+- CodeRabbit's suggestion to retain a pending Space drop when `mx.getRoom()` disappears was rejected
+  after independent validation: a drag can only begin with both SDK objects present, and retaining a
+  hidden unusable confirmation would recreate the ghost-reopen risk. An explicit object-removal
+  lifecycle regression documents the safety behavior. Home prompt/empty-state and routed-room
+  provider integration tests fill the two requested coverage gaps; Space-child writes now use the
+  SDK's typed `EventType.SpaceChild`, and the duplicated Home-header popout wiring is shared.
 - Home rooms can be grouped into personal named folders without changing Matrix Spaces or room
   state. Folder create/rename/delete lives in the Home sidebar, and each room's overflow menu can
   move it to a folder or back to the unfiled Rooms section.
@@ -176,8 +194,15 @@
   passes (425 files / 3,208 tests), and typecheck, production/PWA build, touched-file ESLint,
   Prettier, and `git diff --check` are clean. Independent final review found no remaining
   actionable correctness, persistence, cross-surface, input, accessibility, synchronization,
-  migration, or test-coverage findings; the independent post-merge review likewise found no P0–P2
-  issue or merge regression.
+  migration, or test-coverage findings; both independent post-merge reviews likewise found no
+  P0–P2 issue, crypto/startup interaction, or merge regression.
+- After the final CodeRabbit follow-up, the affected navigation/persistence/Home suites pass (8
+  files / 36 tests), the full suite passes (427 files / 3,217 tests), and typecheck,
+  production/PWA build, touched-file ESLint, Prettier, and `git diff --check` are clean. Independent
+  finding validation confirmed the stale-parent, queued-optimistic-state, and Simple Mode issues,
+  found the SDK-object invalidation behavior intentional, and caught the authoritative-echo and
+  Simple Mode menu gaps before publication. Its final re-review found no remaining P0–P2 issue or
+  adverse interaction among the combined fixes.
 
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 

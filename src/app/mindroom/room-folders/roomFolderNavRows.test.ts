@@ -140,6 +140,25 @@ describe('room folder navigation rows', () => {
     ]);
   });
 
+  it('keeps rooms unfiled when their only parents are not in the current Space list', () => {
+    const rows = buildRoomFolderNavRows(
+      makeMatrixClient(),
+      ['!alpha:example.org'],
+      [],
+      new Map([['!alpha:example.org', new Set(['!left-space:example.org'])]]),
+      [],
+      {},
+      new Set(),
+      new Map()
+    );
+
+    expect(
+      rows.map((row) =>
+        row.type === 'room' ? `${row.categoryKind}:${row.roomId}` : row.categoryKind
+      )
+    ).toEqual(['unfiled', 'unfiled:!alpha:example.org']);
+  });
+
   it('applies the account-data order independently inside each expanded group', () => {
     const rows = buildRoomFolderNavRows(
       makeMatrixClient(),
