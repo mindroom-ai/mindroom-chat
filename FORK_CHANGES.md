@@ -36,7 +36,55 @@
 - Validation: session and initialization suites cover marker lifecycle,
   missing stores, offline-safe existing stores, matching server identities,
   mismatches, and unavailable identity checks.
+### Automatically activate published web builds without breaking offline use (2026-07-12)
 
+- Status: implementation and local validation complete. The equivalent updater
+  code from the predecessor combined branch was deployed atomically to
+  `chat.mindroom.chat`, and live manifest/build checks passed.
+- Each production build emits an unprecached `version.json` containing the Git
+  commit used for both the manifest and the compiled client constant. A
+  cache-busted, `no-store` request checks it at startup, every five minutes,
+  when the tab becomes visible, and when the browser returns online.
+- When the published commit differs, MindRoom Chat registers `sw.js` with the
+  commit in its query string and `updateViaCache: none`. The worker already uses
+  `skipWaiting()` and `clients.claim()`; the old client reloads once after the
+  new worker takes control, or after activation if the browser reports no
+  controller change because the worker bytes were already current. The new
+  hashed application assets therefore take over without a manual hard refresh.
+- The first deployment needs a worker-side bootstrap because an older page
+  cannot run updater code it does not contain. During install the new worker
+  records whether an active predecessor exists. On upgrade only, activation
+  claims and navigates existing top-level tabs after the new app shell is
+  precached. First installs do not reload. The navigation remains safe if the
+  network drops between install and activation because the new worker serves
+  its cached shell.
+- Version fetches, worker registration, and update failures are deliberately
+  ignored, and a stalled manifest request is aborted after five seconds. No
+  version request or update reload runs while `navigator.onLine` is false. The
+  older service-worker-control recovery reload now additionally requires a
+  successful cache-busted manifest fetch, preventing a nominally online but
+  disconnected browser from refreshing away its loaded tab.
+- `version.json` is excluded from Workbox precaching. This is essential: a
+  precached latest-version pointer would permanently report the version of the
+  worker currently controlling the page.
+- Review hardening: the monitor ignores a late worker activation after it has
+  stopped, owns and replaces its stop handle if bootstrap is invoked again,
+  accepts SemVer build metadata, and does not poison its in-memory reload guard
+  when a session guard suppresses a reload. It relies on versioned
+  `serviceWorker.register()` to trigger installation without a redundant
+  immediate `registration.update()` request or unused registration state.
+  Provider commit variables are validated as hashes; Netlify's documented
+  commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`,
+  which is only a fallback when Git metadata is unavailable. Startup also
+  skips manifest discovery when no active service worker can use its result.
+- Validation: updater unit tests cover build-version selection,
+  failure/malformed manifests, stalled requests, current versions, changed
+  versions with one reload, and offline behavior. The full suite passes 411
+  files / 3,154 tests, as do service worker tests, typecheck, touched-file lint
+  and formatting, and a production build. The live production branch build
+  contains `version.json`, excludes it from `sw.js`, and compiles the matching
+  commit into the client bundle. Cloudflare reports the cache-busted manifest
+  as dynamic.
 ### Update repository-local review skills for MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, and publication complete on

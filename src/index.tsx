@@ -21,6 +21,7 @@ import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap
 import { bootstrapRideTraceFlagFromUrl } from './app/mindroom/threads/rideTraceRecorder';
 import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroomSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
+import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -47,6 +48,8 @@ const mountApp = () => {
   root.render(<App />);
 };
 
+let stopAppVersionMonitor: (() => void) | undefined;
+
 const bootstrap = async () => {
   migrateLegacyIOSPushEnabled();
   migrateMindroomSettingsStorage();
@@ -71,7 +74,9 @@ const bootstrap = async () => {
     subscribeToSessionStore(postCurrentSessionToSW);
 
     const isProductionSW = import.meta.env.MODE === 'production';
-    const swUrl = isProductionSW ? appUrl('sw.js') : appUrl('dev-sw.js?dev-sw');
+    const swUrl = isProductionSW
+      ? `${appUrl('sw.js')}?version=${encodeURIComponent(APP_BUILD_VERSION)}`
+      : appUrl('dev-sw.js?dev-sw');
 
     navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
     navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
@@ -87,7 +92,12 @@ const bootstrap = async () => {
         // dev runs silently without a service worker. The production sw.js
         // is bundled as a classic script.
         type: isProductionSW ? 'classic' : 'module',
+        updateViaCache: 'none',
       });
+      if (isProductionSW) {
+        stopAppVersionMonitor?.();
+        stopAppVersionMonitor = startAppVersionMonitor();
+      }
     } catch {
       // Keep booting even if service worker registration fails.
     }
@@ -113,9 +123,14 @@ const bootstrap = async () => {
             .getRegistration()
             .catch(() => undefined);
           if (registration?.active && !window.sessionStorage.getItem(RELOAD_FLAG)) {
-            window.sessionStorage.setItem(RELOAD_FLAG, '1');
-            window.location.reload();
-            return;
+            const publishedVersion = navigator.onLine
+              ? await fetchPublishedAppVersion()
+              : undefined;
+            if (publishedVersion) {
+              window.sessionStorage.setItem(RELOAD_FLAG, '1');
+              window.location.reload();
+              return;
+            }
           }
         }
       }
@@ -124,6 +139,14 @@ const bootstrap = async () => {
     }
 
     postCurrentSessionToSW();
+  }
+
+  try {
+    if (window.sessionStorage.getItem('mindroom_app_version_reloading') === APP_BUILD_VERSION) {
+      window.sessionStorage.removeItem('mindroom_app_version_reloading');
+    }
+  } catch {
+    // Blocked sessionStorage does not affect app startup.
   }
 
   mountApp();
