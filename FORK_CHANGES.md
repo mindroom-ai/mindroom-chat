@@ -4,8 +4,8 @@
 
 ### Update repository-local review skills for MindRoom Chat (2026-07-12)
 
-- Status: implementation and local validation complete on
-  `caveman/mindroom-chat-migration`; publication is pending.
+- Status: implementation, local validation, and publication complete on
+  `caveman/mindroom-chat-migration`; PR #143 tracks the change.
 - Problem: two repository-local review skill descriptions still called the
   product the MindRoom Cinny fork after the repository and product rename.
 - Change: describe both review workflows as applying to MindRoom Chat while
