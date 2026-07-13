@@ -2,6 +2,35 @@
 
 ## Runbook
 
+### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
+
+- Status: implementation, local validation, and production diagnosis complete.
+- Root cause: a persisted MindRoom Chat login can survive while its device-scoped
+  Rust crypto IndexedDB databases disappear. Initializing Rust crypto with the
+  old Matrix device ID then creates a new identity and uploads it under that
+  same ID. Other Matrix clients correctly reject the Ed25519 identity change,
+  so bidirectional MatrixRTC frame-key exchange fails even though SFU audio
+  tracks connect normally.
+- Fix: inspect both device-scoped Rust crypto databases before initialization,
+  using IndexedDB enumeration with a non-destructive open fallback. Existing
+  stores open without a network dependency, preserving cached/offline startup.
+  A previously initialized session with missing stores is stopped immediately.
+  For new or ambiguous sessions, MindRoom Chat initializes locally, queries the
+  same device ID through the SDK's refresh-aware authenticated HTTP client, and
+  compares both Ed25519 and Curve25519 keys before `startClient` can upload
+  anything. Existing local stores are also checked whenever the homeserver is
+  reachable, detecting a server identity replaced by another broken client. A
+  mismatch produces a specific recovery error instructing the user to remove
+  the account and sign in again, which creates a new Matrix device.
+- Scope: a successful initialization persists a continuity marker in the
+  session registry; a new login with a different device ID resets it. No key
+  material or key fingerprints are copied into localStorage. Identity-query
+  failures fail closed with a retryable message, while known existing stores
+  retain offline startup.
+- Validation: session and initialization suites cover marker lifecycle,
+  missing stores, offline-safe existing stores, matching server identities,
+  mismatches, and unavailable identity checks.
+
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, GitHub repository rename, and
