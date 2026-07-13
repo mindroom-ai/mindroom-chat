@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
+import { normalizeThreadSearchText } from './roomThreadOverviewModel';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 
 const { passthrough, simpleModeState } = vi.hoisted(() => ({
@@ -773,6 +774,40 @@ describe('RoomThreadOverview', () => {
     expect(
       renderer.root.find((node) => node.props['data-search-input'] === 'true').props.value
     ).toBe('is:resolved hello world');
+
+    renderer.unmount();
+  });
+
+  it('preserves an agentless plain-text search draft while canonical state updates', () => {
+    function Harness() {
+      const [state, setState] = React.useState(makeDefaultState());
+      return React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        hasMindroomAgents: false,
+        state,
+        onSearchQueryChange: (query: string) =>
+          setState((current) => ({
+            ...current,
+            freeText: normalizeThreadSearchText(query),
+            unsupportedQuery: '',
+          })),
+      });
+    }
+
+    const renderer = create(React.createElement(Harness));
+    act(() => {
+      renderer.root.find((node) => node.props['data-search-toggle'] === 'true').props.onClick();
+    });
+
+    act(() => {
+      renderer.root
+        .find((node) => node.props['data-search-input'] === 'true')
+        .props.onChange({ target: { value: 'hello is:streaming ' } });
+    });
+
+    expect(
+      renderer.root.find((node) => node.props['data-search-input'] === 'true').props.value
+    ).toBe('hello is:streaming ');
 
     renderer.unmount();
   });

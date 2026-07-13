@@ -40,9 +40,13 @@
   normal/call room prop path. Independent review found and verified fixes for
   Simple Mode dead controls, hidden state remaining active after agent
   departure, and agentless search erasing preserved agent filters. The final
-  focused suite passes 7 files / 98 tests, and the full suite passes 408 files /
-  3,137 tests. TypeScript, the production/PWA build, `git diff --check`, and
-  full ESLint also pass; ESLint reports 0 errors and 17 pre-existing warnings.
+  Greptile pass also surfaced two confirmed polish items: the search draft now
+  uses the same plain-text normalization as persisted state, and live agent
+  detection now uses the synchronously seeded member hook as its single source.
+  The final focused suite passes 8 files / 101 tests, and the full suite passes
+  408 files / 3,138 tests. TypeScript, the production/PWA build,
+  `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17
+  pre-existing warnings.
 
 ### Clarify the README comparison with upstream Cinny (2026-07-12)
 

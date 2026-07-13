@@ -283,6 +283,9 @@ export const applyFrozenThreadOrder = (
 
 export const resetThreadFilterState = (): ThreadFilterState => createDefaultThreadFilterState();
 
+export const normalizeThreadSearchText = (query: string): string =>
+  query.trim().split(/\s+/).filter(Boolean).join(' ');
+
 // ─── Simple mode ─────────────────────────────────────────────────────────────
 
 /**

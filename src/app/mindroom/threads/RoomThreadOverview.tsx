@@ -29,6 +29,7 @@ import {
   hasActiveThreadFilters,
   FILTER_PRESETS,
   isOrModeStatusChip,
+  normalizeThreadSearchText,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
@@ -772,12 +773,14 @@ export function RoomThreadOverview({
     (query: string) => {
       setLastAppliedPreset(null);
       setSearchQueryDraft(query);
-      pendingSearchCanonicalRef.current = serializeThreadFilterQuery(
-        applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
-      );
+      pendingSearchCanonicalRef.current = hasMindroomAgents
+        ? serializeThreadFilterQuery(
+            applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
+          )
+        : normalizeThreadSearchText(query);
       onSearchQueryChange(query);
     },
-    [onSearchQueryChange, state]
+    [hasMindroomAgents, onSearchQueryChange, state]
   );
 
   const handleCycleTagWithPresetClear = useCallback(

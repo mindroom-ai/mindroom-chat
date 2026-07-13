@@ -3,7 +3,9 @@ import { logger } from 'matrix-js-sdk/lib/logger';
 import { useEffect, useState } from 'react';
 
 export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] => {
-  const [members, setMembers] = useState<RoomMember[]>([]);
+  const [members, setMembers] = useState<RoomMember[]>(
+    () => mx.getRoom(roomId)?.getMembers() ?? []
+  );
 
   useEffect(() => {
     const room = mx.getRoom(roomId);

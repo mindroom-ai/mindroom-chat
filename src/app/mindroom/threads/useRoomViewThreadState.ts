@@ -27,6 +27,7 @@ import {
   cycleSortMode,
   cycleTagFilter,
   type FilterPreset,
+  normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
   simplifyAgentlessThreadFilterState,
@@ -214,7 +215,7 @@ export const useRoomViewThreadState = ({
           // With agent controls hidden, the retained search field is plain
           // text. Preserve agent filters in storage and treat is:/tag: tokens
           // literally instead of mutating invisible filter dimensions.
-          freeText: pendingQuery.trim().split(/\s+/).filter(Boolean).join(' '),
+          freeText: normalizeThreadSearchText(pendingQuery),
           unsupportedQuery: '',
         };
     threadFilterStateRef.current = applied;

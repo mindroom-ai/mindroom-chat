@@ -34,10 +34,7 @@ export function Room() {
   const screenSize = useScreenSizeContext();
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
-  // The hook subscription rerenders this surface for membership changes. Read
-  // the room snapshot directly so the first render does not briefly treat a
-  // known agent room as agentless while the hook's initial effect is pending.
-  const hasMindroomAgents = hasActiveMindroomAgent(room.getMembers());
+  const hasMindroomAgents = hasActiveMindroomAgent(members);
   const chat = useAtomValue(callChatAtom);
   const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
