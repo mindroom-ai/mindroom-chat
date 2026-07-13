@@ -2,6 +2,83 @@
 
 ## Runbook
 
+### Expose the WebGL background behind active calls (2026-07-13)
+
+- Status: implementation, cleanup, automated validation, and live joined-call verification are
+  complete on `caveman/fix-call-embed-placement`; PR #146 is open against `dev`, mergeable, and
+  ready for review.
+- Symptom: after the call host placement fix, the active call stays inside the room pane but the
+  area around the participant tile remains white instead of showing the MindRoom WebGL particle
+  background.
+- Root cause: the injected Element Call override only set `background-color: transparent`. Live
+  Brave inspection confirmed that the iframe body still had Element Call's full-frame SVG
+  `background-image`. Clearing that image made the iframe document transparent, but Chromium still
+  composites its transparent document onto the iframe's own white canvas; a WebGL renderer in the
+  parent document therefore cannot become the visible call background.
+- Fix: reset the complete `background` shorthand on the vendored Element Call `html` and `body`,
+  which clears both its solid color and background image while preserving the participant tiles
+  and controls. Portal the MindRoom particle renderer into the same-origin Element Call document,
+  before its `#root`, then layer that application root above it. The renderer's self-contained mode
+  supplies the layout and gradient inline because the parent document's generated stylesheet does
+  not cross the iframe boundary; iframe-local media CSS preserves the existing static gradient for
+  reduced-motion users. The fixed host remains transparent and owns only the imperatively appended
+  iframe; the measured room target remains an empty placement reference.
+- Cleanup: the abandoned parent-layer implementation has been removed completely. The redundant
+  `CallBackground` visibility wrapper and the empty target's background/stacking styles are gone.
+  The target and controls are back in the original `CallView`; no test-only target attribute or
+  extraction remains. The small `CallEmbedHost` extraction stays deliberately because its ref and
+  childless-render test protect the imperative iframe ownership boundary.
+- Validation: the running Vite server serves the shorthand override, and live iframe inspection
+  reports `background-image: none` for both `html` and `body` (the old artifact reported Element
+  Call's SVG on `body`). A joined local call in Brave visibly renders the animated MindRoom field
+  behind the participant surface. The focused call/background/placement suite passes (7 files / 18
+  tests). After merging current `dev`, including the latest call-failure banner behavior, the full
+  Vitest suite passes (417 files / 3,181 tests), and typecheck, the production/PWA build plus final
+  Element Call artifact verification, touched-file ESLint and Prettier, and `git diff --check` all
+  pass.
+- Review: independent review confirmed the base portal lifecycle and found three cleanup/hardening
+  gaps: missing iframe-local reduced-motion handling, insufficient effect/load lifecycle coverage,
+  and the leftover target extraction. All three are addressed; the portal test now covers an
+  initially missing Element Call root, iframe load and repeated-load remounts, foreign-document
+  rendering, visibility cleanup, style restoration, and duplicate prevention. Re-review found that
+  Particular Drift's inline `display` would beat the first reduced-motion rule; both the page and
+  iframe rules now explicitly take precedence. Final independent re-review found no actionable
+  issues and confirmed the compiled production CSS contains the required important rule. After
+  merging current `dev`, the web build, Android APK, and container-publish checks all pass;
+  Greptile completes successfully with no new findings. CodeRabbit and Sourcery report quota/rate
+  limits, while Qodo reports paused reviews/seat limits rather than code findings.
+
+### Keep the fixed call embed inside the room call pane (2026-07-13)
+
+- Status: implementation, local validation, independent review, and publication complete on
+  `caveman/fix-call-embed-placement`; PR #146 is open against `dev` and ready for review.
+- Symptom: after the transparent animated call background shipped, an active call could cover the
+  navigation and recent-thread columns. Their badges remained visible over a large white call
+  surface while the actual participant tile appeared offset inside it.
+- Root cause: `useCallEmbedPlacementSync` positions a viewport-fixed host with `offsetTop` and
+  `offsetLeft`, which are relative to the placeholder's offset parent. In the deployed desktop
+  layout both values were `0`, so the call host started at the viewport origin instead of the room
+  pane. Live Brave measurements confirmed the host at `(0, 0)` and covering the shell. The recent
+  transparency change exposed this older coordinate-space mismatch.
+- Fix: derive all four fixed-host dimensions from the placeholder's viewport-relative
+  `getBoundingClientRect()`. This keeps the fixed host aligned with the room pane even when the pane
+  is offset by the space navigation, room list, and recent-threads columns, and preserves fractional
+  visual dimensions.
+- Coverage and validation: the focused regression makes offset-parent/client metrics disagree with
+  the viewport rectangle and proves the viewport rectangle wins. The focused call/background suite
+  passes (4 files / 11 tests), and the full Vitest suite passes (412 files / 3,166 tests), as do
+  typecheck, the production/PWA build plus final Element Call artifact verification, full ESLint (0
+  errors / 17 pre-existing warnings), touched-file Prettier, and `git diff --check`.
+- Review: independent review found no actionable issues. It confirmed that current call-pane
+  position changes also resize the flex placeholder and therefore retrigger its `ResizeObserver`.
+  A hypothetical future pure translation without a size change would need another signal, but no
+  current call-layout path performs one. Greptile rated the fix 5/5 and safe to merge with no
+  findings. Gemini's one maintainability suggestion was confirmed and addressed by giving the
+  placement helper a small explicit return type instead of coupling it to the full global
+  `CSSStyleDeclaration` interface. Its thread is resolved, and the web build, Android APK, and
+  container-publish checks pass on the reviewed code tip. CodeRabbit, Sourcery, and Qodo reported
+  quota/seat limits rather than code findings.
+
 ### Keep agent model badges on the standard message grid (2026-07-13)
 
 - Status: implementation, live diagnosis, independent review, PR review

@@ -123,6 +123,19 @@ export const useCallThemeSync = (embed: CallEmbed) => {
   }, [theme.kind, embed]);
 };
 
+export const getCallEmbedViewportPlacement = (
+  container: HTMLDivElement
+): { top: string; left: string; width: string; height: string } => {
+  const { top, left, width, height } = container.getBoundingClientRect();
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${width}px`,
+    height: `${height}px`,
+  };
+};
+
 export const useCallEmbedPlacementSync = (containerViewRef: RefObject<HTMLDivElement>): void => {
   const callEmbedRef = useCallEmbedRef();
 
@@ -131,10 +144,7 @@ export const useCallEmbedPlacementSync = (containerViewRef: RefObject<HTMLDivEle
     const container = containerViewRef.current;
     if (!embedEl || !container) return;
 
-    embedEl.style.top = `${container.offsetTop}px`;
-    embedEl.style.left = `${container.offsetLeft}px`;
-    embedEl.style.width = `${container.clientWidth}px`;
-    embedEl.style.height = `${container.clientHeight}px`;
+    Object.assign(embedEl.style, getCallEmbedViewportPlacement(container));
   }, [callEmbedRef, containerViewRef]);
 
   useResizeObserver(
