@@ -17,13 +17,13 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 describe('authUi', () => {
-  it('exposes MindRoom auth branding in one UI contract', () => {
-    expect(MINDROOM_AUTH_BRANDING.appName).toBe('MindRoom');
-    expect(MINDROOM_AUTH_BRANDING.cinnySourceUrl).toBe(
-      'https://github.com/mindroom-ai/mindroom-cinny'
+  it('exposes MindRoom Chat auth branding in one UI contract', () => {
+    expect(MINDROOM_AUTH_BRANDING.appName).toBe('MindRoom Chat');
+    expect(MINDROOM_AUTH_BRANDING.chatSourceUrl).toBe(
+      'https://github.com/mindroom-ai/mindroom-chat'
     );
-    expect(MINDROOM_AUTH_BRANDING.deviceDisplayName).toBe('MindRoom Web');
-    expect(MINDROOM_AUTH_BRANDING.logoAlt).toBe('MindRoom Logo');
+    expect(MINDROOM_AUTH_BRANDING.deviceDisplayName).toBe('MindRoom Chat Web');
+    expect(MINDROOM_AUTH_BRANDING.logoAlt).toBe('MindRoom Chat Logo');
   });
 
   it('uses web SSO redirects outside native apps', () => {

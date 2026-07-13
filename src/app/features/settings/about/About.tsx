@@ -73,7 +73,7 @@ export function About({ requestClose }: AboutProps) {
                   <Box gap="200" wrap="Wrap">
                     <Button
                       as="a"
-                      href="https://github.com/mindroom-ai/mindroom-cinny"
+                      href={MINDROOM_CLIENT_BRANDING.sourceUrl}
                       rel="noreferrer noopener"
                       target="_blank"
                       variant="Secondary"

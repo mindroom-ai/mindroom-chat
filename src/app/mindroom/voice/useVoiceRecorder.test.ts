@@ -734,7 +734,7 @@ describe('useVoiceRecorder', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
 
     expect(getVoiceRecorderErrorMessage(new DOMException('', 'NotAllowedError'))).toBe(
-      'Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.'
+      'Microphone access is blocked. Allow microphone access for MindRoom Chat in Android app settings and try again.'
     );
   });
 

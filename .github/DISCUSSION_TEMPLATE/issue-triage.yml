@@ -4,7 +4,7 @@ body:
     attributes:
       value: |
         > [!IMPORTANT]
-        > Please check for both existing [Discussions](https://github.com/mindroom-ai/mindroom-cinny/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-cinny/issues?q=sort%3Areactions-desc) prior to opening a new Discussion.
+        > Please check for both existing [Discussions](https://github.com/mindroom-ai/mindroom-chat/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-chat/issues?q=sort%3Areactions-desc) prior to opening a new Discussion.
   - type: markdown
     attributes:
       value: '# Issue Details'
@@ -26,7 +26,7 @@ body:
     attributes:
       label: Expected Behavior
       description: |
-        Describe how you expect Cinny to behave in this situation.
+        Describe how you expect MindRoom Chat to behave in this situation.
       placeholder: |
         I expected the message to appear in the room timeline immediately after sending.
         OR
@@ -37,7 +37,7 @@ body:
     attributes:
       label: Actual Behavior
       description: |
-        Describe how Cinny actually behaves in this situation.  If it is not immediately obvious how the actual behavior differs from the expected behavior described above, please be sure to mention the deviation specifically.
+        Describe how MindRoom Chat actually behaves in this situation. If it is not immediately obvious how the actual behavior differs from the expected behavior described above, please be sure to mention the deviation specifically.
       placeholder: |
         The application freezes for 3 seconds and then shows a white screen.
     validations:
@@ -48,7 +48,7 @@ body:
       description: |
         Provide a detailed set of step-by-step instructions for reproducing this issue.
       placeholder: |
-        1. Open Cinny and log in to my account
+        1. Open MindRoom Chat and log in to my account
         2. Navigate to the #general room
         3. Type a message in the message box
         4. Press Enter to send
@@ -62,14 +62,14 @@ body:
         Please provide information about your environment. Include the following:
         - OS:
         - Browser: 
-        - Cinny Web Version: (app.cinny.in or self hosted)
-        - Cinny desktop Version: (appimage or deb or flatpak)
+        - MindRoom Chat version:
+        - Platform/browser:
         - Matrix Homeserver:
       placeholder: |
         - OS: Windows 11
         - Browser: Chrome 120.0.6099.109
-        - Cinny Web Version: 3.2.0 (app.cinny.in or self hosted)
-        - Cinny desktop Version: 3.2.0 (appimage or deb or flatpak)
+        - MindRoom Chat version: 4.12.3
+        - Platform/browser: iOS 26 / native app
         - Matrix Homeserver: matrix.org (Synapse 1.97.0)
       render: text
     validations:
@@ -116,12 +116,12 @@ body:
       value: |
         # User Acknowledgements
         > [!TIP]
-        > Use these links to review the existing MindRoom Cinny [Discussions](https://github.com/mindroom-ai/mindroom-cinny/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-cinny/issues?q=sort%3Areactions-desc).
+        > Use these links to review the existing MindRoom Chat [Discussions](https://github.com/mindroom-ai/mindroom-chat/discussions?discussions_q=) and [Issues](https://github.com/mindroom-ai/mindroom-chat/issues?q=sort%3Areactions-desc).
   - type: checkboxes #add faqs in future
     attributes:
       label: 'I acknowledge that:'
       options:
-        - label: I have searched the MindRoom Cinny repository (both open and closed Discussions and Issues) and confirm this is not a duplicate of an existing issue or discussion.
+        - label: I have searched the MindRoom Chat repository (both open and closed Discussions and Issues) and confirm this is not a duplicate of an existing issue or discussion.
           required: true
         - label: I have checked the "Preview" tab on all text fields to ensure that everything looks right, and have wrapped all configuration and code in code blocks with a group of three backticks (` ``` `) on separate lines.
           required: true

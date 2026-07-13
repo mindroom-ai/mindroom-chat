@@ -198,7 +198,7 @@
       "toggleTheme": "Toggle Theme",
       "toggleThemeDescription": "Switch between light and dark",
       "logout": "Logout",
-      "logoutDescription": "Sign out of Cinny",
+      "logoutDescription": "Sign out of MindRoom Chat",
       "markCurrentRoomRead": "Mark Current Room Read",
       "markCurrentRoomReadDescription": "Mark {{room}} as read",
       "copyCurrentRoomLink": "Copy Current Room Link",

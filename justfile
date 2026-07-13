@@ -68,7 +68,7 @@ ios-phone-stop:
 
 # Follow the background iOS phone watcher log
 ios-phone-log:
-  tail -f /tmp/mindroom-cinny-ios-phone-watch.log
+  tail -f /tmp/mindroom-chat-ios-phone-watch.log
 
 # Reinstall Node deps and rebuild + sync the Android project (full refresh)
 android-rebuild:

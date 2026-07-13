@@ -81,7 +81,7 @@ vi.mock('../../components/splash-screen', () => ({
   }: {
     children?: React.ReactNode;
     loadingMessages?: string[];
-  }) => React.createElement('div', null, loadingMessages?.[0] ?? 'Loading MindRoom', children),
+  }) => React.createElement('div', null, loadingMessages?.[0] ?? 'Loading MindRoom Chat', children),
 }));
 
 vi.mock('../../components/ServerConfigsLoader', () => ({
@@ -348,7 +348,7 @@ describe('ClientRoot', () => {
     });
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
-    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(true);
+    expect(hasRenderedText(renderer, 'Loading MindRoom Chat')).toBe(true);
 
     resolveClientB?.(createMockClient());
     await act(flushEffects);
@@ -736,7 +736,7 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
-    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(false);
+    expect(hasRenderedText(renderer, 'Loading MindRoom Chat')).toBe(false);
     expect(
       renderer?.root.findAll((node) => node.props['aria-label'] === 'Startup recovery options')
     ).toHaveLength(0);
@@ -765,7 +765,7 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
-    expect(hasRenderedText(renderer, 'Loading MindRoom')).toBe(true);
+    expect(hasRenderedText(renderer, 'Loading MindRoom Chat')).toBe(true);
   });
 
   it('does not treat a saved sync token as a renderable cached shell without loaded rooms', () => {

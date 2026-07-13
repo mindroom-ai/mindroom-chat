@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'chat.mindroom.app',
-  appName: 'MindRoom',
+  appName: 'MindRoom Chat',
   webDir: 'dist',
   server: {
     // Allow connecting to local homeserver over HTTP

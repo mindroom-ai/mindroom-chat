@@ -17,7 +17,7 @@ export function AuthFooter() {
     <Box className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
       <Text size="T300">
         Powered by{' '}
-        <a href={MINDROOM_AUTH_BRANDING.cinnySourceUrl} target="_blank" rel="noreferrer">
+        <a href={MINDROOM_AUTH_BRANDING.chatSourceUrl} target="_blank" rel="noreferrer">
           {MINDROOM_AUTH_BRANDING.appName}
         </a>
         ,{' '}

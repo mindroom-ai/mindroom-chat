@@ -1,6 +1,27 @@
-# MindRoom Cinny Fork Changes
+# MindRoom Chat Changes
 
 ## Runbook
+
+### Rename the client and repository to MindRoom Chat (2026-07-12)
+
+- Status: implementation and local validation complete on
+  `caveman/rename-mindroom-chat`; repository rename and PR publication pending.
+- Product decision: the fork has become a substantial standalone client, so its
+  first-party identity is now **MindRoom Chat** while Cinny remains credited as
+  the upstream project.
+- Scope: update the web/PWA/native display names, package and release artifact
+  names, first-party source links, contributor templates, and operator docs;
+  preserve Cinny protocol/storage compatibility identifiers and upstream
+  attribution. The App Store Connect marketing name remains `Mindroom AI`
+  because that existing record documents that `MindRoom` was unavailable.
+- Repository transition: rename `mindroom-ai/mindroom-cinny` to
+  `mindroom-ai/mindroom-chat` after local validation, then push this branch and
+  open the rebrand PR against `dev`.
+- Validation: focused branding/native/runtime suites pass (12 files / 95
+  tests), as does the full suite (404 files / 3,118 tests), typecheck,
+  production/PWA build, App Store preflight, touched-file Prettier and ESLint,
+  full ESLint (0 errors / 17 pre-existing warnings), plist/JSON validation, and
+  `git diff --check`.
 
 ### Animated agent-call background (2026-07-12)
 
