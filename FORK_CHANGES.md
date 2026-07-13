@@ -146,6 +146,11 @@
   their visible error state, captures the create-menu anchor before entering React's state updater,
   keeps provider deletion naming consistent, and uses a generic localized Save label in folder
   prompts. Greptile follow-up also consolidates duplicate navigation imports.
+- Final Greptile follow-up clears a pending shared-Space drop when either side is no longer in the
+  joined room/Space lists, even while matrix-js-sdk retains its stale `Room` object, so a hidden
+  confirmation cannot remain actionable or reopen after leave/rejoin. Its isolated lifecycle
+  regression covers the retained-object membership transition, state cleanup, and rejoin;
+  independent re-review found no remaining P0–P2 lifecycle or stale-membership issue.
 - Home rooms can be grouped into personal named folders without changing Matrix Spaces or room
   state. Folder create/rename/delete lives in the Home sidebar, and each room's overflow menu can
   move it to a folder or back to the unfiled Rooms section.
@@ -167,12 +172,13 @@
   virtualizer, or lifecycle findings.
 - The room-order follow-up adds migration/catch-up, account schema, shared ordering, whole-row
   pointer, keyboard-handle, collapsed-group, placement, and shared-Space confirmation coverage.
-  Focused tests pass (9 files / 40 tests). After reconciling with current `dev`, the full suite
-  passes (423 files / 3,196 tests), and typecheck, production/PWA build, touched-file ESLint,
+  Focused tests pass (10 files / 41 tests). After reconciling with current `dev`, the full suite
+  passes (425 files / 3,208 tests), and typecheck, production/PWA build, touched-file ESLint,
   Prettier, and `git diff --check` are clean. Independent final review found no remaining
   actionable correctness, persistence, cross-surface, input, accessibility, synchronization,
   migration, or test-coverage findings; the independent post-merge review likewise found no P0–P2
   issue or merge regression.
+
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 
 - Status: implementation and local validation complete.

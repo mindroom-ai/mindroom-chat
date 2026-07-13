@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useMemo, useState } from 'react';
+import React, { MouseEventHandler, useCallback, useMemo, useState } from 'react';
 import {
   DndContext,
   DragCancelEvent,
@@ -70,6 +70,7 @@ import {
   collectRoomIdsByOrderKey,
 } from './roomFolderNavRows';
 import { useRoomFolderNavVirtualizer } from './useRoomFolderNavVirtualizer';
+import { PendingSpaceDrop, useResolvedPendingSpaceDrop } from './useResolvedPendingSpaceDrop';
 
 type DropTargetData = RoomFolderDropTarget;
 const NO_CLOSED_CATEGORIES = new Set<string>();
@@ -219,11 +220,15 @@ export function RoomFolderNav({
   const roomToParents = useAtomValue(roomToParentsAtom);
   const { folders, roomOrder, moveRoom, reorderRooms, saveError } = useRoomFolders();
   const [draggedRoomId, setDraggedRoomId] = useState<string>();
-  const [pendingSpaceDrop, setPendingSpaceDrop] = useState<{
-    roomId: string;
-    spaceId: string;
-    placement: { orderKey: string; roomIds: string[] };
-  }>();
+  const [pendingSpaceDrop, setPendingSpaceDrop] = useState<PendingSpaceDrop>();
+  const clearPendingSpaceDrop = useCallback(() => setPendingSpaceDrop(undefined), []);
+  const resolvedPendingSpaceDrop = useResolvedPendingSpaceDrop(
+    mx,
+    pendingSpaceDrop,
+    roomIds,
+    spaceIds,
+    clearPendingSpaceDrop
+  );
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId) =>
     closedCategories.has(categoryId)
@@ -505,25 +510,19 @@ export function RoomFolderNav({
           </Box>
         ) : null}
       </DragOverlay>
-      {pendingSpaceDrop &&
-        (() => {
-          const room = mx.getRoom(pendingSpaceDrop.roomId);
-          const space = mx.getRoom(pendingSpaceDrop.spaceId);
-          if (!room || !space) return null;
-          return (
-            <AddRoomToSpacePrompt
-              room={room}
-              space={space}
-              onAdded={() => {
-                void reorderRooms(
-                  pendingSpaceDrop.placement.orderKey,
-                  pendingSpaceDrop.placement.roomIds
-                ).catch(() => undefined);
-              }}
-              onCancel={() => setPendingSpaceDrop(undefined)}
-            />
-          );
-        })()}
+      {resolvedPendingSpaceDrop && (
+        <AddRoomToSpacePrompt
+          room={resolvedPendingSpaceDrop.room}
+          space={resolvedPendingSpaceDrop.space}
+          onAdded={() => {
+            void reorderRooms(
+              resolvedPendingSpaceDrop.pending.placement.orderKey,
+              resolvedPendingSpaceDrop.pending.placement.roomIds
+            ).catch(() => undefined);
+          }}
+          onCancel={clearPendingSpaceDrop}
+        />
+      )}
     </DndContext>
   );
 }
