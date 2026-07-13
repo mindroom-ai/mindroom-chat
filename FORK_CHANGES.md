@@ -4,7 +4,7 @@
 
 ### Animated agent-call background (2026-07-12)
 
-- Status: implementation, local validation, and independent review complete.
+- Status: implementation, post-conflict validation, and review complete.
 - Root cause: embedded Element Call paints its own opaque canvas, leaving the
   newly added agent-call surface as a giant white frame during startup when the
   app is dark but the device color scheme is light.
@@ -21,13 +21,17 @@
   transformed `index.html` without failing the build. Gemini's Buffer and
   stacking suggestions were validated as already satisfied by the copy
   plugin's UTF-8 transform contract and the particle root's existing z-index.
+  All three PR review threads have evidence-backed replies and are resolved;
+  Greptile's final review rates the updated implementation 5/5 with no further
+  findings.
 - Validation: focused tests pass (3 files / 7 tests), as do typecheck, production
   build, touched-file Prettier, ESLint (0 errors / 2 pre-existing `CallEmbed.ts`
-  console warnings), and `git diff --check`. The full suite passes 402 files /
-  3,115 tests, with one unrelated existing failure in
+  console warnings), and `git diff --check` after merging current `dev`. The
+  full suite passes 403 files / 3,117 tests, with one unrelated existing failure in
   `virtualizerIOSScrollContract.test.ts:251` that reproduces alone. Independent
-  review found no remaining layering, visibility, placement, React ownership,
-  resource-lifecycle, copy-pipeline, or test-coverage defects.
+  self-review of the final diff found no remaining layering, visibility,
+  placement, React ownership, resource-lifecycle, copy-pipeline, merge-conflict,
+  or test-coverage defects.
 
 ### Open threads from call-room side chat (2026-07-12)
 
