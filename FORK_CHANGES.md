@@ -38,6 +38,50 @@
   tests), as do typecheck, the production/PWA build, touched-file Prettier,
   `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings).
 
+### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
+
+- Status: implementation simplified after independent review; local validation
+  is complete and publication review is in progress.
+- Root cause: a persisted MindRoom Chat login can survive while its device-scoped
+  Rust crypto IndexedDB database disappears. Initializing Rust crypto with the
+  old Matrix device ID then creates a new identity and uploads it under that
+  same ID. Other Matrix clients correctly reject the Ed25519 identity change,
+  so bidirectional MatrixRTC frame-key exchange fails even though SFU audio
+  tracks connect normally.
+- Fix: inspect the device-scoped Rust crypto database before initialization,
+  using IndexedDB enumeration with a non-destructive open fallback. The
+  passwordless `StoreHandle.open` configuration used by MindRoom Chat creates
+  `::matrix-sdk-crypto`; it does not normally create the password/key-only
+  `::matrix-sdk-crypto-meta` database, so that optional database is deliberately
+  excluded from the continuity decision. Existing stores open without a
+  network dependency, preserving cached/offline startup.
+  A previously initialized session with a missing main database is stopped
+  immediately. For a session without that marker (including sessions saved by
+  older releases), MindRoom Chat queries the same device ID through the SDK's
+  refresh-aware authenticated HTTP client before Rust initialization. Existing
+  Ed25519 and Curve25519 device keys prove that recreating the local store would
+  replace an identity, so startup is refused with recovery instructions. A
+  device ID with no uploaded keys is a genuine new login and may initialize.
+- Scope: a successful initialization persists a continuity marker in the
+  session registry; a new login with a different device ID resets it. No key
+  material or fingerprints are copied into localStorage. An unavailable or
+  incomplete identity response fails before Rust crypto can create keys and is
+  retryable; an indeterminate local database check also fails closed. The
+  fallback probe aborts the initial IndexedDB transaction when the database is
+  absent and does not issue a potentially racing cleanup deletion. This guard
+  detects disappearance of the main database; it does not claim to diagnose
+  selective record corruption inside an existing Rust store.
+- Validation: session and initialization suites cover marker lifecycle,
+  missing stores, the real passwordless one-database layout, offline-safe
+  existing stores, enumeration fallback behavior, genuine new logins, existing
+  server identities, incomplete responses, and unavailable identity checks. A
+  dependency-level contract test opens the pinned
+  `matrix-sdk-crypto-wasm` store against a fresh IndexedDB implementation and
+  proves that no metadata database is created without a password or storage
+  key. The full Vitest suite passes (412 files / 3,165 tests), as do typecheck,
+  touched-file ESLint and Prettier, `git diff --check`, the production/PWA
+  build, and the Element Call background-build verification.
+
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 
 - Status: implementation and local validation complete. The equivalent updater
@@ -87,7 +131,6 @@
   contains `version.json`, excludes it from `sw.js`, and compiles the matching
   commit into the client bundle. Cloudflare reports the cache-busted manifest
   as dynamic.
-
 ### Update repository-local review skills for MindRoom Chat (2026-07-12)
 
 - Status: implementation, local validation, and publication complete on
