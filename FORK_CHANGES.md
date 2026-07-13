@@ -44,12 +44,58 @@
   which is only a fallback when Git metadata is unavailable.
 - Validation: updater unit tests cover build-version selection,
   failure/malformed manifests, stalled requests, current versions, changed
-  versions with one reload, and offline behavior. The full suite passes 410
-  files / 3,143 tests, as do service worker tests, typecheck, touched-file lint
+  versions with one reload, and offline behavior. The full suite passes 411
+  files / 3,152 tests, as do service worker tests, typecheck, touched-file lint
   and formatting, and a production build. The live production branch build
   contains `version.json`, excludes it from `sw.js`, and compiles the matching
   commit into the client bundle. Cloudflare reports the cache-busted manifest
   as dynamic.
+
+### Update repository-local review skills for MindRoom Chat (2026-07-12)
+
+- Status: implementation, local validation, and publication complete on
+  `caveman/mindroom-chat-migration`; PR #143 tracks the change.
+- Problem: two repository-local review skill descriptions still called the
+  product the MindRoom Cinny fork after the repository and product rename.
+- Change: describe both review workflows as applying to MindRoom Chat while
+  leaving compatibility-sensitive Cinny identifiers and historical runbook
+  entries unchanged.
+- Validation: the full Vitest suite passes (407 files / 3,129 tests), as do
+  typecheck, production/PWA build, touched-file Prettier, ESLint (0 errors / 17
+  pre-existing warnings), and `git diff --check`. The repository-wide Prettier
+  check still reports the existing formatting backlog outside this change.
+
+### Hide agent-only thread filters in agentless rooms (2026-07-12)
+
+- Status: implementation, local validation, independent review, and publication
+  complete on `caveman/hide-agentless-thread-filters`; PR #144 is open against
+  `dev` and ready for review.
+- Problem: the compact room toolbar exposed agent workflow filters, presets,
+  statistics, tags, and sort locking even in ordinary Matrix rooms with no
+  MindRoom agent membership.
+- Change: derive agent presence from live joined/invited room membership. In an
+  agentless room the toolbar keeps only thread search, the room-view selector,
+  and the sort selector; agent rooms retain the full toolbar. Simple Mode keeps
+  its intentionally reduced state model: agent rooms retain its unresolved
+  control, while agentless rooms omit the otherwise empty toolbar instead of
+  exposing full-mode controls that Simple Mode would ignore.
+- Transition behavior: when the last agent leaves, status/tag filters and sort
+  locking stop affecting the room immediately. Free-text search and the chosen
+  sort remain active; the stored agent-specific filter setup is preserved and
+  returns if an agent rejoins. Agentless search is deliberately plain text, so
+  `is:` and `tag:`-looking text cannot mutate invisible filter dimensions.
+- Coverage: component behavior pins both toolbar variants, active membership
+  classification, membership transition projection, Simple Mode, and the
+  normal/call room prop path. Independent review found and verified fixes for
+  Simple Mode dead controls, hidden state remaining active after agent
+  departure, and agentless search erasing preserved agent filters. The final
+  Greptile pass also surfaced two confirmed polish items: the search draft now
+  uses the same plain-text normalization as persisted state, and live agent
+  detection now uses the synchronously seeded member hook as its single source.
+  The final focused suite passes 8 files / 101 tests, and the full suite passes
+  408 files / 3,138 tests. TypeScript, the production/PWA build,
+  `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17
+  pre-existing warnings.
 
 ### Clarify the README comparison with upstream Cinny (2026-07-12)
 

@@ -1,6 +1,6 @@
 ---
 name: native-subagent-pr-loop
-description: Use when the user asks for native Codex sub-agents, parallel PR review agents, unbiased re-review loops, or main-thread fixes after agent findings in the MindRoom Cinny fork.
+description: Use when the user asks for native Codex sub-agents, parallel PR review agents, unbiased re-review loops, or main-thread fixes after agent findings in MindRoom Chat.
 ---
 
 # Native Subagent PR Loop
