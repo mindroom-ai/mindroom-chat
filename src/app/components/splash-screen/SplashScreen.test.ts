@@ -1,7 +1,9 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SplashScreen } from './SplashScreen';
+
+const particleBackgroundMock = vi.hoisted(() => ({ persistent: false }));
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -15,11 +17,14 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../particle-background', () => ({
-  MindRoomParticleBackground: ({ position }: { position?: string }) =>
-    React.createElement('div', {
-      'data-mindroom-particle-background': true,
-      'data-position': position,
-    }),
+  ParticleBackgroundSurface: ({ position }: { position?: string }) =>
+    particleBackgroundMock.persistent
+      ? null
+      : React.createElement('div', {
+          'data-mindroom-particle-background': true,
+          'data-position': position,
+        }),
+  usePersistentParticleBackground: () => particleBackgroundMock.persistent,
 }));
 
 vi.mock('./SplashScreen.css', () => ({
@@ -27,9 +32,14 @@ vi.mock('./SplashScreen.css', () => ({
   SplashScreenContent: 'splash-screen-content',
   SplashScreenFooter: 'splash-screen-footer',
   SplashScreenParticle: 'splash-screen-particle',
+  SplashScreenPersistentParticle: 'splash-screen-persistent-particle',
 }));
 
 describe('SplashScreen', () => {
+  beforeEach(() => {
+    particleBackgroundMock.persistent = false;
+  });
+
   it('uses the MindRoom particle background by default', () => {
     const renderer = create(
       React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
@@ -60,6 +70,26 @@ describe('SplashScreen', () => {
     expect(
       renderer.root.findAllByProps({ 'data-mindroom-particle-background': true })
     ).toHaveLength(0);
+  });
+
+  it('uses the hosted renderer without painting an opaque surface over it', () => {
+    particleBackgroundMock.persistent = true;
+
+    const renderer = create(
+      React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
+    );
+
+    expect(
+      renderer.root.findAllByProps({ 'data-mindroom-particle-background': true })
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          node.type === 'div' &&
+          typeof node.props.className === 'string' &&
+          node.props.className.includes('splash-screen-persistent-particle')
+      )
+    ).toHaveLength(1);
   });
 
   it.each([null, false])(
