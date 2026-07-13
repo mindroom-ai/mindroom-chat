@@ -14,6 +14,15 @@ const readExportBlock = (relativePath: string, exportName: string) => {
 };
 
 describe('particle background hit targets', () => {
+  it('keeps direct touch gestures on the particle canvas', () => {
+    const sourcePath = './MindRoomParticleBackground.css.ts';
+    const particleCanvas = readExportBlock(sourcePath, 'ParticleCanvas');
+
+    expect(particleCanvas).toContain("pointerEvents: 'auto'");
+    expect(particleCanvas).toContain("touchAction: 'none'");
+    expect(readSource(sourcePath)).not.toContain("'(hover: none), (pointer: coarse)'");
+  });
+
   it('passes empty splash space through while preserving interactive controls', () => {
     const sourcePath = '../splash-screen/SplashScreen.css.ts';
     const source = readSource(sourcePath);
