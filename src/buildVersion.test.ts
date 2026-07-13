@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { resolveBuildVersion } from '../scripts/build-version.mjs';
 
 describe('build version selection', () => {
@@ -52,5 +53,16 @@ describe('build version selection', () => {
 
   it('returns no version when every source is unavailable', () => {
     expect(resolveBuildVersion({})).toBeUndefined();
+  });
+
+  it('passes the exact GitHub commit into every published container build', () => {
+    const expectedBuildArg = ['MINDROOM_BUILD_VERSION=', '$', '{{ github.sha }}'].join('');
+    for (const workflow of [
+      '../.github/workflows/docker-publish-push.yml',
+      '../.github/workflows/prod-deploy.yml',
+    ]) {
+      const source = readFileSync(new URL(workflow, import.meta.url), 'utf8');
+      expect(source).toContain(expectedBuildArg);
+    }
   });
 });

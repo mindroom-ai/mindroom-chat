@@ -4,8 +4,13 @@ on:
   pull_request:
     paths:
       - 'Dockerfile'
+      - '.dockerignore'
       - '.github/workflows/docker-pr.yml'
+      - '.github/workflows/docker-publish-push.yml'
       - '.github/workflows/prod-deploy.yml'
+      - 'scripts/build-version.mjs'
+      - 'src/buildVersion.test.ts'
+      - 'vite.config.js'
 
 jobs:
   docker-build:
@@ -20,7 +25,7 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-        
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
@@ -56,8 +61,20 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            mindroom-chat:docker-check
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MINDROOM_BUILD_VERSION=${{ github.event.pull_request.head.sha }}
+
+      - name: Verify embedded build version
+        env:
+          EXPECTED_BUILD_VERSION: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(docker run --rm --entrypoint cat mindroom-chat:docker-check /app/version.json)"
+          expected="{\"version\":\"${EXPECTED_BUILD_VERSION}\"}"
+          test "${actual}" = "${expected}"
 
       - name: Show Docker images
         run: docker images
