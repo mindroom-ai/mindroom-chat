@@ -24,6 +24,7 @@ export const ParticleCanvas = style({
   height: '100%',
   opacity: 1,
   pointerEvents: 'auto',
+  touchAction: 'none',
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       display: 'none',

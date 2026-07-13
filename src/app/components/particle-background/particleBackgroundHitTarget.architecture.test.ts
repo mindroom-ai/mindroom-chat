@@ -5,6 +5,15 @@ const readSource = (relativePath: string) =>
   readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 
 describe('particle background hit targets', () => {
+  it('keeps direct touch gestures on the particle canvas', () => {
+    const source = readSource('./MindRoomParticleBackground.css.ts');
+
+    expect(source).toMatch(
+      /ParticleCanvas = style\([\s\S]*pointerEvents: 'auto'[\s\S]*touchAction: 'none'/
+    );
+    expect(source).not.toContain("'(hover: none), (pointer: coarse)'");
+  });
+
   it('passes empty splash space through while preserving interactive controls', () => {
     const source = readSource('../splash-screen/SplashScreen.css.ts');
 

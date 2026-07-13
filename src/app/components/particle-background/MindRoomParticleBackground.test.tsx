@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { MindRoomParticleBackground } from './MindRoomParticleBackground';
 
 vi.mock('@basnijholt/particular-drift/react', () => ({
-  ParticularDriftCanvas: ({ style, options }: { style?: React.CSSProperties; options?: unknown }) =>
-    React.createElement('canvas', { style, 'data-options': options }),
+  ParticularDriftCanvas: ({ className, options }: { className?: string; options?: unknown }) =>
+    React.createElement('canvas', { className, 'data-options': options }),
 }));
 
 vi.mock('./MindRoomParticleBackground.css', () => ({
@@ -24,10 +24,7 @@ describe('MindRoomParticleBackground', () => {
     });
 
     const canvas = renderer!.root.findByType('canvas');
-    expect(canvas.props.style).toMatchObject({
-      pointerEvents: 'auto',
-      touchAction: 'none',
-    });
+    expect(canvas.props.className).toBe('particle-canvas');
     expect(canvas.props['data-options']).toMatchObject({
       interactive: true,
       cursorMode: 'repel',

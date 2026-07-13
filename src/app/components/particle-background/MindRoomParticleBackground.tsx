@@ -75,7 +75,6 @@ export function MindRoomParticleBackground({
         className={css.ParticleCanvas}
         imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
         options={options}
-        style={{ pointerEvents: 'auto', touchAction: 'none' }}
       />
     </div>
   );
