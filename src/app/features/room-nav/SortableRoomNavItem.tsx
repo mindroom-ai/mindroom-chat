@@ -121,9 +121,18 @@ export function SortableRoomNavItemContainer({
       className={SidebarRowDragSource}
       style={sortableStyle(transform, transition, isDragging)}
       data-room-id={roomId}
-      onPointerDownCapture={stopPointerActivation}
-      onMouseDownCapture={stopPointerActivation}
-      onTouchStartCapture={stopPointerActivation}
+      onPointerDownCapture={(evt) => {
+        setActivatorNodeRef(evt.currentTarget);
+        stopPointerActivation(evt);
+      }}
+      onMouseDownCapture={(evt) => {
+        setActivatorNodeRef(evt.currentTarget);
+        stopPointerActivation(evt);
+      }}
+      onTouchStartCapture={(evt) => {
+        setActivatorNodeRef(evt.currentTarget);
+        stopPointerActivation(evt);
+      }}
       {...pointerListeners}
     >
       {!disabled && (
