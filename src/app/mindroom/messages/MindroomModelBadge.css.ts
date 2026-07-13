@@ -1,5 +1,12 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import {
+  MESSAGE_AVATAR_WIDTH_PX,
+  MESSAGE_LAYOUT_GAP_SPACE_KEY,
+} from '../../components/message/layout/config';
+import { getMindroomModelBadgeMaxWidth } from './modelBadgeLayout';
+
+const messageLayoutGap = config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY];
 
 export const Badge = style({
   display: 'inline-flex',
@@ -7,7 +14,8 @@ export const Badge = style({
   justifyContent: 'center',
   gap: toRem(2),
   boxSizing: 'border-box',
-  maxWidth: toRem(64),
+  // Let the badge overflow the avatar by exactly the shared layout gap on either side.
+  maxWidth: getMindroomModelBadgeMaxWidth(toRem(MESSAGE_AVATAR_WIDTH_PX), messageLayoutGap),
   minHeight: toRem(14),
   padding: `0 ${toRem(4)}`,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,

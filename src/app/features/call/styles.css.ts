@@ -26,3 +26,21 @@ export const CallControlContainer = style({
 export const PrescreenMessage = style({
   padding: config.space.S200,
 });
+
+export const CallJoined = style({
+  position: 'relative',
+  minHeight: 0,
+});
+
+export const CallFailureBanner = style({
+  position: 'absolute',
+  zIndex: 2,
+  top: config.space.S400,
+  left: '50%',
+  width: `calc(100% - ${toRem(32)})`,
+  maxWidth: toRem(720),
+  transform: 'translateX(-50%)',
+  padding: config.space.S400,
+  borderRadius: config.radii.R400,
+  boxShadow: config.shadow.E200,
+});
