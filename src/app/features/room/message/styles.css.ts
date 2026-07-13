@@ -36,9 +36,7 @@ export const MessageAvatarWithModel = style({
   flexDirection: 'column',
   alignItems: 'center',
   gap: toRem(3),
-  width: toRem(44),
-  marginLeft: toRem(-4),
-  marginRight: toRem(-4),
+  width: toRem(64),
 });
 
 export const MessageQuickReaction = style({

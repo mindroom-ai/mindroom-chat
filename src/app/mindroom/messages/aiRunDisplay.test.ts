@@ -59,6 +59,21 @@ describe('getMindroomAiRunCompactModelLabel', () => {
       'GPT-5.4'
     );
   });
+
+  it('drops latest aliases with and without a version number', () => {
+    expect(
+      getMindroomAiRunCompactModelLabel({
+        modelProvider: 'anthropic',
+        modelId: 'claude-sonnet-latest',
+      })
+    ).toBe('Sonnet');
+    expect(
+      getMindroomAiRunCompactModelLabel({
+        modelProvider: 'anthropic',
+        modelId: 'claude-opus-4-latest',
+      })
+    ).toBe('Opus 4');
+  });
 });
 
 describe('getMindroomAiRunUsageLabel', () => {

@@ -38,7 +38,7 @@ const formatModelId = (modelId: string): string => {
   const claudeMatch = modelId.match(/claude-(?:\d+(?:[-.]\d+)*-)?(opus|sonnet|haiku)(?:-(.*))?/i);
   if (claudeMatch) {
     const family = titleCaseWords(claudeMatch[1]);
-    const version = claudeMatch[2]?.replace(/-/g, '.').replace(/\.latest$/i, '');
+    const version = claudeMatch[2]?.replace(/-/g, '.').replace(/(?:^|\.)latest$/i, '');
     return version ? `${family} ${version}` : family;
   }
 

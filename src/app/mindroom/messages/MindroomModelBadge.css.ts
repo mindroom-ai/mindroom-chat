@@ -7,7 +7,7 @@ export const Badge = style({
   justifyContent: 'center',
   gap: toRem(2),
   boxSizing: 'border-box',
-  maxWidth: toRem(68),
+  maxWidth: toRem(64),
   minHeight: toRem(14),
   padding: `0 ${toRem(4)}`,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
