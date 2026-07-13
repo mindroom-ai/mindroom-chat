@@ -1,5 +1,4 @@
-import React, { MouseEventHandler, RefObject, useMemo, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { MouseEventHandler, useMemo, useState } from 'react';
 import {
   DndContext,
   DragCancelEvent,
@@ -56,6 +55,7 @@ import { RoomFolderDropTarget, resolveRoomFolderDrop } from './roomFolderDnd';
 import { useRoomFolders } from './RoomFoldersProvider';
 import { RoomFolder } from './roomFolders';
 import { RoomFolderNavRow, buildRoomFolderNavRows } from './roomFolderNavRows';
+import { useRoomFolderNavVirtualizer } from './useRoomFolderNavVirtualizer';
 
 type DropTargetData = RoomFolderDropTarget;
 
@@ -186,7 +186,7 @@ type RoomFolderNavProps = {
   selectedRoomId?: string;
   notificationPreferences: RoomsNotificationPreferences;
   roomToUnread: RoomToUnread;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollElement: HTMLDivElement | null;
 };
 
 export function RoomFolderNav({
@@ -195,7 +195,7 @@ export function RoomFolderNav({
   selectedRoomId,
   notificationPreferences,
   roomToUnread,
-  scrollRef,
+  scrollElement,
 }: RoomFolderNavProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -230,12 +230,7 @@ export function RoomFolderNav({
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     useSensor(KeyboardSensor)
   );
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 38,
-    overscan: 10,
-  });
+  const virtualizer = useRoomFolderNavVirtualizer(rows.length, scrollElement);
 
   const handleDragStart = (event: DragStartEvent) => {
     setDraggedRoomId((event.active.data.current as { roomId?: string } | undefined)?.roomId);

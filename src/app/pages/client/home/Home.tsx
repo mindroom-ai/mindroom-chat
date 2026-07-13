@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, forwardRef, useRef, useState } from 'react';
+import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
@@ -261,7 +261,7 @@ function HomeEmpty() {
 function HomeContent() {
   const { t } = useTranslation();
   useNavToActivePathMapper('home');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const { roomIds: rooms, spaceIds } = useHomeNavigationRooms();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const roomToUnread = useAtomValue(roomToUnreadAtom);
@@ -285,7 +285,7 @@ function HomeContent() {
         {noRoomToDisplay ? (
           <HomeEmpty />
         ) : (
-          <PageNavContent scrollRef={scrollRef}>
+          <PageNavContent scrollRef={setScrollElement}>
             <Box direction="Column" gap="300">
               <NavCategory>
                 {!simpleMode && (
@@ -369,7 +369,7 @@ function HomeContent() {
                 selectedRoomId={selectedRoomId}
                 notificationPreferences={notificationPreferences}
                 roomToUnread={roomToUnread}
-                scrollRef={scrollRef}
+                scrollElement={scrollElement}
               />
             </Box>
           </PageNavContent>
