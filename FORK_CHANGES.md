@@ -5,7 +5,8 @@
 ### Expose the WebGL background behind active calls (2026-07-13)
 
 - Status: implementation, cleanup, automated validation, and live joined-call verification are
-  complete on `caveman/fix-call-embed-placement`; publication is in progress.
+  complete on `caveman/fix-call-embed-placement`; PR #146 is open against `dev`, mergeable, and
+  ready for review.
 - Symptom: after the call host placement fix, the active call stays inside the room pane but the
   area around the participant tile remains white instead of showing the MindRoom WebGL particle
   background.
@@ -42,7 +43,10 @@
   rendering, visibility cleanup, style restoration, and duplicate prevention. Re-review found that
   Particular Drift's inline `display` would beat the first reduced-motion rule; both the page and
   iframe rules now explicitly take precedence. Final independent re-review found no actionable
-  issues and confirmed the compiled production CSS contains the required important rule.
+  issues and confirmed the compiled production CSS contains the required important rule. After
+  merging current `dev`, the web build, Android APK, and container-publish checks all pass;
+  Greptile completes successfully with no new findings. CodeRabbit and Sourcery report quota/rate
+  limits, while Qodo reports paused reviews/seat limits rather than code findings.
 
 ### Keep the fixed call embed inside the room call pane (2026-07-13)
 
