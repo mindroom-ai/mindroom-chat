@@ -34,9 +34,10 @@
   disconnected 12 px constant, and did not scope its avatar-size regex to the
   AI-run branch. The replacement uses imported production constants, derives
   the CSS cap from the real gap token, and checks the rendered AI-run subtree.
-- Validation after PR review: the full Vitest suite passes (412 files / 3,155
-  tests), as do typecheck, the production/PWA build, touched-file Prettier,
-  `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings).
+- Validation after PR review and merging current `dev`: the full Vitest suite
+  passes (413 files / 3,166 tests), as do typecheck, the production/PWA build,
+  touched-file Prettier, `git diff --check`, and full ESLint (0 errors / 17
+  pre-existing warnings).
 
 ### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
 
