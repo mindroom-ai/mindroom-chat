@@ -251,7 +251,9 @@ export function RoomFolderNav({
 
     const currentFolderId = folders.find((folder) => folder.roomIds.includes(roomId))?.id;
     const action = resolveRoomFolderDrop(roomId, target, roomToParents, currentFolderId);
-    if (action?.type === 'move-personal') void moveRoom(action.roomId, action.folderId);
+    if (action?.type === 'move-personal') {
+      void moveRoom(action.roomId, action.folderId).catch(() => undefined);
+    }
     if (action?.type === 'add-to-space') {
       setPendingSpaceDrop({ roomId: action.roomId, spaceId: action.spaceId });
     }

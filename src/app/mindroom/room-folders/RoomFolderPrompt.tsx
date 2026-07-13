@@ -112,7 +112,7 @@ export function RoomFolderPrompt({ initialName, onSubmit, onCancel }: RoomFolder
               </Box>
               <Button type="submit" variant="Primary" disabled={saving}>
                 {saving && <Spinner size="100" />}
-                <Text size="B400">{t('settings.general.dateTime.save')}</Text>
+                <Text size="B400">{t('nav.save')}</Text>
               </Button>
             </Box>
           </Dialog>

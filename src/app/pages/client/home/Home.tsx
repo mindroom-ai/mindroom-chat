@@ -149,11 +149,10 @@ function HomeHeader({ onCreateFolder }: { onCreateFolder: () => void }) {
               aria-label={t('nav.create')}
               aria-pressed={!!createMenuAnchor}
               variant="Background"
-              onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                setCreateMenuAnchor((anchor) =>
-                  anchor ? undefined : event.currentTarget.getBoundingClientRect()
-                )
-              }
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                const anchor = event.currentTarget.getBoundingClientRect();
+                setCreateMenuAnchor((currentAnchor) => (currentAnchor ? undefined : anchor));
+              }}
             >
               <Icon src={Icons.Plus} size="200" />
             </IconButton>

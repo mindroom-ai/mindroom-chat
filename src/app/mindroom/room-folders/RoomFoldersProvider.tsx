@@ -89,7 +89,7 @@ export function RoomFoldersProvider({ children }: { children: ReactNode }) {
       mutate((current) => renameRoomFolder(current, folderId, name)),
     [mutate]
   );
-  const removeFolder = useCallback(
+  const deleteFolder = useCallback(
     (folderId: string) => mutate((current) => deleteRoomFolder(current, folderId)),
     [mutate]
   );
@@ -106,10 +106,10 @@ export function RoomFoldersProvider({ children }: { children: ReactNode }) {
       clearSaveError,
       createFolder,
       renameFolder,
-      deleteFolder: removeFolder,
+      deleteFolder,
       moveRoom,
     }),
-    [clearSaveError, createFolder, folders, moveRoom, removeFolder, renameFolder, saveError]
+    [clearSaveError, createFolder, deleteFolder, folders, moveRoom, renameFolder, saveError]
   );
 
   return <RoomFoldersContext.Provider value={value}>{children}</RoomFoldersContext.Provider>;
