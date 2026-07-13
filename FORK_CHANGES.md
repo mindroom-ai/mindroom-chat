@@ -16,6 +16,33 @@
   pre-existing warnings), and `git diff --check`. The repository-wide Prettier
   check still reports the existing formatting backlog outside this change.
 
+### Hide agent-only thread filters in agentless rooms (2026-07-12)
+
+- Status: implementation, local validation, and independent review complete on
+  `caveman/hide-agentless-thread-filters`; publication is in progress.
+- Problem: the compact room toolbar exposed agent workflow filters, presets,
+  statistics, tags, and sort locking even in ordinary Matrix rooms with no
+  MindRoom agent membership.
+- Change: derive agent presence from live joined/invited room membership. In an
+  agentless room the toolbar keeps only thread search, the room-view selector,
+  and the sort selector; agent rooms retain the full toolbar. Simple Mode keeps
+  its intentionally reduced state model: agent rooms retain its unresolved
+  control, while agentless rooms omit the otherwise empty toolbar instead of
+  exposing full-mode controls that Simple Mode would ignore.
+- Transition behavior: when the last agent leaves, status/tag filters and sort
+  locking stop affecting the room immediately. Free-text search and the chosen
+  sort remain active; the stored agent-specific filter setup is preserved and
+  returns if an agent rejoins. Agentless search is deliberately plain text, so
+  `is:` and `tag:`-looking text cannot mutate invisible filter dimensions.
+- Coverage: component behavior pins both toolbar variants, active membership
+  classification, membership transition projection, Simple Mode, and the
+  normal/call room prop path. Independent review found and verified fixes for
+  Simple Mode dead controls, hidden state remaining active after agent
+  departure, and agentless search erasing preserved agent filters. The final
+  focused suite passes 7 files / 98 tests, and the full suite passes 408 files /
+  3,137 tests. TypeScript, the production/PWA build, `git diff --check`, and
+  full ESLint also pass; ESLint reports 0 errors and 17 pre-existing warnings.
+
 ### Clarify the README comparison with upstream Cinny (2026-07-12)
 
 - Status: implementation, local validation, and publication complete on

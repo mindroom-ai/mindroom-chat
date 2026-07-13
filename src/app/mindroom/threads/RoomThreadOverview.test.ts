@@ -1,12 +1,13 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 
-const { passthrough } = vi.hoisted(() => ({
+const { passthrough, simpleModeState } = vi.hoisted(() => ({
   passthrough: 'div',
+  simpleModeState: { enabled: false },
 }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -90,6 +91,10 @@ vi.mock('classnames', () => ({
   default: (...args: (string | boolean | undefined | null)[]) => args.filter(Boolean).join(' '),
 }));
 
+vi.mock('../settings/useMindroomAccountSettings', () => ({
+  useSimpleMode: () => simpleModeState.enabled,
+}));
+
 // Resolve t() keys against the real en.json so the aria/tooltip assertions
 // below keep checking user-visible English copy.
 vi.mock('react-i18next', async () => {
@@ -115,6 +120,7 @@ const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterS
 });
 
 const defaultProps = {
+  hasMindroomAgents: true,
   threadCount: 5,
   totalThreadCount: 5,
   state: makeDefaultState(),
@@ -134,6 +140,71 @@ const defaultProps = {
 };
 
 describe('RoomThreadOverview', () => {
+  afterEach(() => {
+    simpleModeState.enabled = false;
+  });
+
+  it('keeps only search, view, and sort controls in agentless rooms', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        hasMindroomAgents: false,
+        availableTags: ['priority'],
+        isThreadSortFrozen: true,
+        state: makeDefaultState({
+          resolved: 'include',
+          sortBy: 'lastReply',
+          tags: new Map([['priority', 'include']]),
+        }),
+        viewMode: 'compact',
+      })
+    );
+
+    expect(renderer.root.findAll((node) => node.props['data-search-bar'] === 'true')).toHaveLength(
+      1
+    );
+    expect(
+      renderer.root.findAll((node) => node.props['data-view-mode-toggle'] === 'true')
+    ).toHaveLength(3);
+    expect(renderer.root.findAll((node) => node.props['data-sort-by'] !== undefined)).toHaveLength(
+      1
+    );
+
+    expect(
+      renderer.root.findAll((node) => node.props['data-thread-count'] === 'true')
+    ).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.props['data-filter-key'])).toHaveLength(0);
+    expect(
+      renderer.root.findAll((node) => node.props['data-preset-button'] === 'true')
+    ).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.props['data-info-button'] === 'true')).toHaveLength(
+      0
+    );
+    expect(
+      renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true')
+    ).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('does not expose disabled full-mode controls in an agentless simple-mode room', () => {
+    simpleModeState.enabled = true;
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        hasMindroomAgents: false,
+        viewMode: 'compact',
+      })
+    );
+
+    expect(renderer.toJSON()).toBeNull();
+
+    renderer.unmount();
+  });
+
   it('renders five icon toggles', () => {
     const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 

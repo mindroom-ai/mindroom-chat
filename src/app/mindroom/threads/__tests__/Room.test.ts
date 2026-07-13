@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockRoomViewProps = {
+  hasMindroomAgents?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -18,12 +19,17 @@ const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, 
     navigateRoomMock: vi.fn(),
     navigateRoomThreadMock: vi.fn(),
     removeRecentThreadMock: vi.fn(),
-    room: { roomId: '!room:example.org', isCallRoom: () => roomState.callRoom },
+    room: {
+      roomId: '!room:example.org',
+      isCallRoom: () => roomState.callRoom,
+      getMembers: () => roomState.members,
+    },
     roomState: {
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
       eventId: undefined as string | undefined,
+      members: [] as Array<{ membership: string; userId: string }>,
       search: '',
       roomViewProps: undefined as MockRoomViewProps | undefined,
     },
@@ -123,7 +129,7 @@ vi.mock('../useRoomViewMode', () => ({
 }));
 
 vi.mock('../../../hooks/useRoomMembers', () => ({
-  useRoomMembers: () => [],
+  useRoomMembers: () => roomState.members,
 }));
 
 vi.mock('../../../hooks/useRoomNavigate', () => ({
@@ -172,6 +178,7 @@ describe('Room', () => {
     roomState.callChatViewProps = undefined;
     roomState.callRoom = false;
     roomState.eventId = undefined;
+    roomState.members = [];
     roomState.search = '';
     roomState.roomViewProps = undefined;
     navigateRoomMock.mockReset();
@@ -188,6 +195,25 @@ describe('Room', () => {
 
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
     expect(navigateRoomMock).not.toHaveBeenCalled();
+  });
+
+  it('passes live agent membership to the room toolbar surface', async () => {
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    expect(roomState.roomViewProps?.hasMindroomAgents).toBe(false);
+
+    roomState.members = [
+      { membership: 'invite', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    await act(async () => {
+      renderer!.update(React.createElement(Room));
+    });
+    expect(roomState.roomViewProps?.hasMindroomAgents).toBe(true);
   });
 
   it('leaves an explicit thread in the URL untouched', async () => {

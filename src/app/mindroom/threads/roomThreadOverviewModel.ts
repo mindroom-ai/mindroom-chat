@@ -302,6 +302,23 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
   };
 };
 
+/**
+ * Project a persisted filter state onto the controls that remain available in
+ * an agentless room. Agent status and tag filters must not keep affecting the
+ * thread list after their controls disappear, while ordinary text search and
+ * sorting remain usable. The stored state is left untouched so adding an agent
+ * restores the room's previous agent-workflow setup.
+ */
+export const simplifyAgentlessThreadFilterState = (
+  state: ThreadFilterState
+): ThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  sortBy: state.sortBy,
+  sortDirection: state.sortDirection,
+  freeText: state.freeText,
+  unsupportedQuery: state.unsupportedQuery,
+});
+
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
 
 export const cycleTagFilter = (
