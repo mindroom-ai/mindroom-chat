@@ -82,7 +82,7 @@ const bootstrap = async () => {
       if (event.data?.type === 'requestSession') postCurrentSessionToSW();
     });
     try {
-      const registration = await navigator.serviceWorker.register(swUrl, {
+      await navigator.serviceWorker.register(swUrl, {
         scope: ensureBasePathTrailingSlash(getAppBasePath()),
         // vite-plugin-pwa's devOptions serve dev-sw.js as an ES module
         // (type: 'module' in vite.config.js); registering it as a classic
@@ -92,7 +92,7 @@ const bootstrap = async () => {
         type: isProductionSW ? 'classic' : 'module',
         updateViaCache: 'none',
       });
-      if (isProductionSW) startAppVersionMonitor(registration);
+      if (isProductionSW) startAppVersionMonitor();
     } catch {
       // Keep booting even if service worker registration fails.
     }

@@ -30,7 +30,7 @@ export const fetchPublishedAppVersion = async (): Promise<string | undefined> =>
 
     const manifest = (await response.json()) as AppVersionManifest;
     const version = typeof manifest.version === 'string' ? manifest.version.trim() : '';
-    return /^[A-Za-z0-9._-]{1,128}$/.test(version) ? version : undefined;
+    return /^[A-Za-z0-9._+-]{1,128}$/.test(version) ? version : undefined;
   } catch {
     // Version discovery must never interfere with offline or degraded use.
     return undefined;
@@ -76,18 +76,14 @@ type AppVersionMonitorOptions = {
   reload?: () => void;
 };
 
-export const startAppVersionMonitor = (
-  initialRegistration: ServiceWorkerRegistration,
-  {
-    pollIntervalMs = APP_VERSION_POLL_INTERVAL_MS,
-    reload = () => window.location.reload(),
-  }: AppVersionMonitorOptions = {}
-): (() => void) => {
+export const startAppVersionMonitor = ({
+  pollIntervalMs = APP_VERSION_POLL_INTERVAL_MS,
+  reload = () => window.location.reload(),
+}: AppVersionMonitorOptions = {}): (() => void) => {
   let stopped = false;
   let checking = false;
   let pendingVersion: string | undefined;
   let reloadRequestedVersion: string | undefined;
-  let registration = initialRegistration;
 
   const check = async () => {
     if (stopped || checking || !navigator.onLine) return;
@@ -99,12 +95,11 @@ export const startAppVersionMonitor = (
       pendingVersion = publishedVersion;
       const swUrl = new URL(appUrl('sw.js'), window.location.origin);
       swUrl.searchParams.set('version', publishedVersion);
-      registration = await navigator.serviceWorker.register(swUrl, {
+      const registration = await navigator.serviceWorker.register(swUrl, {
         scope: ensureBasePathTrailingSlash(getAppBasePath()),
         type: 'classic',
         updateViaCache: 'none',
       });
-      await registration.update();
       if (await waitForWorkerActivation(registration)) handleControllerChange();
     } catch {
       // A failed update check is equivalent to no update. Keep the current,
@@ -116,7 +111,7 @@ export const startAppVersionMonitor = (
   };
 
   const handleControllerChange = () => {
-    if (!pendingVersion || !navigator.onLine) return;
+    if (stopped || !pendingVersion || !navigator.onLine) return;
     if (reloadRequestedVersion === pendingVersion) return;
     reloadRequestedVersion = pendingVersion;
     try {

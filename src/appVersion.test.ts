@@ -76,11 +76,16 @@ describe('app version updates', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: vi.fn().mockResolvedValue({ version: '../../not-safe' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ version: '1.0.0+build.123' }),
       });
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
 
     await expect(fetchPublishedAppVersion()).resolves.toBeUndefined();
     await expect(fetchPublishedAppVersion()).resolves.toBeUndefined();
+    await expect(fetchPublishedAppVersion()).resolves.toBe('1.0.0+build.123');
   });
 
   it('abandons a stalled version request so degraded startup can continue', async () => {
@@ -106,9 +111,7 @@ describe('app version updates', () => {
       json: vi.fn().mockResolvedValue({ version: APP_BUILD_VERSION }),
     });
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
-    const registration = { update: vi.fn() } as unknown as ServiceWorkerRegistration;
-
-    const stop = startAppVersionMonitor(registration, { reload });
+    const stop = startAppVersionMonitor({ reload });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     const requestedUrl = fetchMock.mock.calls[0]?.[0] as URL;
@@ -129,15 +132,11 @@ describe('app version updates', () => {
         json: vi.fn().mockResolvedValue({ version: publishedVersion }),
       }),
     });
-    const nextRegistration = {
-      active: {},
-      update: vi.fn().mockResolvedValue(undefined),
-    };
+    const nextRegistration = { active: {} };
     serviceWorker.register.mockResolvedValue(nextRegistration);
-    const registration = { update: vi.fn() } as unknown as ServiceWorkerRegistration;
 
-    const stop = startAppVersionMonitor(registration, { reload });
-    await vi.waitFor(() => expect(nextRegistration.update).toHaveBeenCalledTimes(1));
+    const stop = startAppVersionMonitor({ reload });
+    await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
 
     expect(serviceWorker.register).toHaveBeenCalledWith(
       new URL(`https://chat.example.com/sw.js?version=${publishedVersion}`),
@@ -149,6 +148,30 @@ describe('app version updates', () => {
     stop();
   });
 
+  it('does not reload when stopped while worker activation is still pending', async () => {
+    const publishedVersion = 'abcdef123456';
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ version: publishedVersion }),
+      }),
+    });
+    const installingWorker = new EventTarget() as EventTarget & { state: string };
+    installingWorker.state = 'installing';
+    serviceWorker.register.mockResolvedValue({ installing: installingWorker });
+
+    const stop = startAppVersionMonitor({ reload });
+    await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
+    stop();
+
+    installingWorker.state = 'activated';
+    installingWorker.dispatchEvent(new Event('statechange'));
+    await Promise.resolve();
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('does not fetch or reload while offline', async () => {
     const fetchMock = vi.fn();
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
@@ -156,9 +179,7 @@ describe('app version updates', () => {
       configurable: true,
       value: { onLine: false, serviceWorker },
     });
-    const registration = { update: vi.fn() } as unknown as ServiceWorkerRegistration;
-
-    const stop = startAppVersionMonitor(registration, { pollIntervalMs: 1000, reload });
+    const stop = startAppVersionMonitor({ pollIntervalMs: 1000, reload });
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(fetchMock).not.toHaveBeenCalled();

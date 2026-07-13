@@ -33,6 +33,10 @@
 - `version.json` is excluded from Workbox precaching. This is essential: a
   precached latest-version pointer would permanently report the version of the
   worker currently controlling the page.
+- Review hardening: the monitor ignores a late worker activation after it has
+  stopped, accepts SemVer build metadata, and relies on versioned
+  `serviceWorker.register()` to trigger installation without a redundant
+  immediate `registration.update()` request or unused registration state.
 - Validation: updater unit tests cover failure/malformed manifests, stalled
   requests, current versions, changed versions with one reload, and offline
   behavior; service worker tests, typecheck, and a production build pass. The
