@@ -16,10 +16,15 @@
   Vite copy transform, and the pre-stylesheet transparency override against the
   real vendored Element Call `index.html`; an upstream missing `<head>` now
   fails the build instead of silently restoring the opaque canvas.
-- Validation: focused tests pass (3 files / 5 tests), as do typecheck, production
+- AI-review hardening: the production build now verifies the final copied
+  Element Call output, so a copy-order or glob regression cannot overwrite the
+  transformed `index.html` without failing the build. Gemini's Buffer and
+  stacking suggestions were validated as already satisfied by the copy
+  plugin's UTF-8 transform contract and the particle root's existing z-index.
+- Validation: focused tests pass (3 files / 7 tests), as do typecheck, production
   build, touched-file Prettier, ESLint (0 errors / 2 pre-existing `CallEmbed.ts`
-  console warnings), and `git diff --check`. The full suite passes 401 files /
-  3,112 tests, with one unrelated existing failure in
+  console warnings), and `git diff --check`. The full suite passes 402 files /
+  3,115 tests, with one unrelated existing failure in
   `virtualizerIOSScrollContract.test.ts:251` that reproduces alone. Independent
   review found no remaining layering, visibility, placement, React ownership,
   resource-lifecycle, copy-pipeline, or test-coverage defects.
