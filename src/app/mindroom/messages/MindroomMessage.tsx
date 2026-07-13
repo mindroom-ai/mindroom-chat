@@ -46,6 +46,7 @@ import {
   Username,
   UsernameBold,
 } from '../../components/message';
+import { MESSAGE_AVATAR_SIZE } from '../../components/message/layout/config';
 import {
   canEditEvent,
   getEventEdits,
@@ -840,7 +841,7 @@ export const Message = as<'div', MessageProps>(
         <Avatar
           className={css.MessageAvatar}
           as="button"
-          size="300"
+          size={MESSAGE_AVATAR_SIZE}
           data-user-id={senderId}
           onClick={onUserClick}
         >

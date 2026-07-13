@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
+import { MESSAGE_AVATAR_WIDTH_PX } from '../../../components/message/layout/config';
 
 export const MessageBase = style({
   position: 'relative',
@@ -36,7 +37,8 @@ export const MessageAvatarWithModel = style({
   flexDirection: 'column',
   alignItems: 'center',
   gap: toRem(3),
-  width: toRem(64),
+  // Match Avatar size="300" so the wider badge does not shift the message grid.
+  width: toRem(MESSAGE_AVATAR_WIDTH_PX),
 });
 
 export const MessageQuickReaction = style({
