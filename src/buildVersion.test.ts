@@ -20,6 +20,15 @@ describe('build version selection', () => {
     ).toBe('b'.repeat(40));
   });
 
+  it('uses the GitHub commit hash when no explicit version is provided', () => {
+    expect(
+      resolveBuildVersion({
+        GITHUB_SHA: 'd'.repeat(40),
+        DEPLOY_ID: 'netlify-deploy-id',
+      })
+    ).toBe('d'.repeat(40));
+  });
+
   it('rejects branch-like provider values and uses the checked-out commit', () => {
     expect(
       resolveBuildVersion(
@@ -39,5 +48,9 @@ describe('build version selection', () => {
         DEPLOY_ID: 'netlify-deploy-id',
       })
     ).toBe('netlify-deploy-id');
+  });
+
+  it('returns no version when every source is unavailable', () => {
+    expect(resolveBuildVersion({})).toBeUndefined();
   });
 });

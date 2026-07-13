@@ -41,11 +41,12 @@
   immediate `registration.update()` request or unused registration state.
   Provider commit variables are validated as hashes; Netlify's documented
   commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`,
-  which is only a fallback when Git metadata is unavailable.
+  which is only a fallback when Git metadata is unavailable. Startup also
+  skips manifest discovery when no active service worker can use its result.
 - Validation: updater unit tests cover build-version selection,
   failure/malformed manifests, stalled requests, current versions, changed
   versions with one reload, and offline behavior. The full suite passes 411
-  files / 3,152 tests, as do service worker tests, typecheck, touched-file lint
+  files / 3,154 tests, as do service worker tests, typecheck, touched-file lint
   and formatting, and a production build. The live production branch build
   contains `version.json`, excludes it from `sw.js`, and compiles the matching
   commit into the client bundle. Cloudflare reports the cache-busted manifest

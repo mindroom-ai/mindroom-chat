@@ -122,15 +122,15 @@ const bootstrap = async () => {
           const registration = await navigator.serviceWorker
             .getRegistration()
             .catch(() => undefined);
-          const publishedVersion = navigator.onLine ? await fetchPublishedAppVersion() : undefined;
-          if (
-            publishedVersion &&
-            registration?.active &&
-            !window.sessionStorage.getItem(RELOAD_FLAG)
-          ) {
-            window.sessionStorage.setItem(RELOAD_FLAG, '1');
-            window.location.reload();
-            return;
+          if (registration?.active && !window.sessionStorage.getItem(RELOAD_FLAG)) {
+            const publishedVersion = navigator.onLine
+              ? await fetchPublishedAppVersion()
+              : undefined;
+            if (publishedVersion) {
+              window.sessionStorage.setItem(RELOAD_FLAG, '1');
+              window.location.reload();
+              return;
+            }
           }
         }
       }
