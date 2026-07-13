@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Keep the fixed call embed inside the room call pane (2026-07-13)
+
+- Status: implementation, local validation, and independent review complete; publication is
+  pending.
+- Symptom: after the transparent animated call background shipped, an active call could cover the
+  navigation and recent-thread columns. Their badges remained visible over a large white call
+  surface while the actual participant tile appeared offset inside it.
+- Root cause: `useCallEmbedPlacementSync` positions a viewport-fixed host with `offsetTop` and
+  `offsetLeft`, which are relative to the placeholder's offset parent. In the deployed desktop
+  layout both values were `0`, so the call host started at the viewport origin instead of the room
+  pane. Live Brave measurements confirmed the host at `(0, 0)` and covering the shell. The recent
+  transparency change exposed this older coordinate-space mismatch.
+- Fix: derive all four fixed-host dimensions from the placeholder's viewport-relative
+  `getBoundingClientRect()`. This keeps the fixed host aligned with the room pane even when the pane
+  is offset by the space navigation, room list, and recent-threads columns, and preserves fractional
+  visual dimensions.
+- Coverage and validation: the focused regression makes offset-parent/client metrics disagree with
+  the viewport rectangle and proves the viewport rectangle wins. The focused call/background suite
+  passes (4 files / 11 tests), and the full Vitest suite passes (412 files / 3,166 tests), as do
+  typecheck, the production/PWA build plus final Element Call artifact verification, full ESLint (0
+  errors / 17 pre-existing warnings), touched-file Prettier, and `git diff --check`.
+- Review: independent review found no actionable issues. It confirmed that current call-pane
+  position changes also resize the flex placeholder and therefore retrigger its `ResizeObserver`.
+  A hypothetical future pure translation without a size change would need another signal, but no
+  current call-layout path performs one.
+
 ### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
 
 - Status: implementation simplified after independent review; local validation

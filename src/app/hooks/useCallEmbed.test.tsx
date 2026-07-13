@@ -2,7 +2,12 @@ import React, { createRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
-import { CallEmbedRefContextProvider, useCallEmbedRef, useCallStart } from './useCallEmbed';
+import {
+  CallEmbedRefContextProvider,
+  getCallEmbedViewportPlacement,
+  useCallEmbedRef,
+  useCallStart,
+} from './useCallEmbed';
 
 vi.mock('./useMatrixClient', () => ({
   useMatrixClient: () => ({}),
@@ -80,5 +85,31 @@ describe('useCallEmbedRef', () => {
         create(<RefConsumer />);
       });
     }).toThrow('CallEmbedRef is not provided!');
+  });
+});
+
+describe('getCallEmbedViewportPlacement', () => {
+  it('positions the fixed call host from viewport coordinates', () => {
+    const container = {
+      // These offset-parent coordinates caused the call host to cover the app
+      // shell when the room pane itself was offset by navigation columns.
+      offsetTop: 0,
+      offsetLeft: 0,
+      clientWidth: 720,
+      clientHeight: 480,
+      getBoundingClientRect: () => ({
+        top: 72,
+        left: 396,
+        width: 1180,
+        height: 764,
+      }),
+    } as unknown as HTMLDivElement;
+
+    expect(getCallEmbedViewportPlacement(container)).toEqual({
+      top: '72px',
+      left: '396px',
+      width: '1180px',
+      height: '764px',
+    });
   });
 });
