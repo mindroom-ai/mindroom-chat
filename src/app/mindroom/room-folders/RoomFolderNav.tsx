@@ -29,8 +29,7 @@ import {
   config,
   toRem,
 } from 'folds';
-import { useAtom } from 'jotai';
-import { useAtomValue } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
@@ -47,8 +46,7 @@ import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { RoomToUnread } from '../../../types/matrix/room';
 import { stopPropagation } from '../../utils/keyboard';
 import { getCanonicalAliasOrRoomId } from '../../utils/matrix';
-import { getHomeRoomPath } from '../../pages/pathUtils';
-import { getSpacePath } from '../../pages/pathUtils';
+import { getHomeRoomPath, getSpacePath } from '../../pages/pathUtils';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../utils/sortableDrag';
 import { DeleteRoomFolderPrompt, RoomFolderPrompt } from './RoomFolderPrompt';
 import { AddRoomToSpacePrompt } from './AddRoomToSpacePrompt';
