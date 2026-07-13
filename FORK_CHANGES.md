@@ -26,7 +26,10 @@
 - Review: independent review found no actionable issues. It confirmed that current call-pane
   position changes also resize the flex placeholder and therefore retrigger its `ResizeObserver`.
   A hypothetical future pure translation without a size change would need another signal, but no
-  current call-layout path performs one.
+  current call-layout path performs one. Greptile rated the fix 5/5 and safe to merge with no
+  findings. Gemini's one maintainability suggestion was confirmed and addressed by giving the
+  placement helper a small explicit return type instead of coupling it to the full global
+  `CSSStyleDeclaration` interface.
 
 ### Refuse Matrix device identity replacement after local crypto loss (2026-07-12)
 

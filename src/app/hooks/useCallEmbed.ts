@@ -125,7 +125,7 @@ export const useCallThemeSync = (embed: CallEmbed) => {
 
 export const getCallEmbedViewportPlacement = (
   container: HTMLDivElement
-): Pick<CSSStyleDeclaration, 'top' | 'left' | 'width' | 'height'> => {
+): { top: string; left: string; width: string; height: string } => {
   const { top, left, width, height } = container.getBoundingClientRect();
 
   return {
