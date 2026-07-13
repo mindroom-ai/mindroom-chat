@@ -23,11 +23,14 @@ import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
 import {
   addTagFilter,
   applyPreset,
+  createDefaultThreadFilterState,
   cycleSortMode,
   cycleTagFilter,
   type FilterPreset,
+  normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
+  simplifyAgentlessThreadFilterState,
   simplifyThreadFilterState,
   type ThreadFilterKey,
   type ThreadFilterState,
@@ -45,6 +48,7 @@ import { useRoomViewMode } from './useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
   eventId?: string;
+  hasMindroomAgents?: boolean;
   room: Room;
   threadId?: string;
 };
@@ -75,6 +79,7 @@ export type RoomViewThreadState = {
 
 export const useRoomViewThreadState = ({
   eventId,
+  hasMindroomAgents = true,
   room,
   threadId,
 }: UseRoomViewThreadStateOptions): RoomViewThreadState => {
@@ -90,20 +95,28 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  // Simple mode hides every filter control except the unresolved toggle, so
-  // the state handed to the view is projected onto that subspace — persisted
-  // advanced filters must not keep hiding threads with no visible cause. The
-  // stored state is untouched; leaving simple mode restores it.
+  // Project stored filters onto the controls that are currently visible.
+  // Persisted advanced filters must not keep hiding threads with no visible
+  // cause, but remain stored so they can be restored when those controls
+  // become available again.
   const simpleMode = useSimpleMode();
-  const effectiveThreadFilterState = useMemo(
-    () => (simpleMode ? simplifyThreadFilterState(threadFilterState) : threadFilterState),
-    [simpleMode, threadFilterState]
-  );
+  const effectiveThreadFilterState = useMemo(() => {
+    if (simpleMode) {
+      return hasMindroomAgents
+        ? simplifyThreadFilterState(threadFilterState)
+        : createDefaultThreadFilterState();
+    }
+    return hasMindroomAgents
+      ? threadFilterState
+      : simplifyAgentlessThreadFilterState(threadFilterState);
+  }, [hasMindroomAgents, simpleMode, threadFilterState]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
   );
+  const effectiveThreadSortFreezeState =
+    hasMindroomAgents && !simpleMode ? threadSortFreezeState : null;
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -179,7 +192,9 @@ export const useRoomViewThreadState = ({
   const searchQueryDebounceRef = useRef<ReturnType<typeof globalThis.setTimeout>>();
   const pendingSearchQueryRef = useRef<string>();
   const threadFilterStateRef = useRef(threadFilterState);
+  const hasMindroomAgentsRef = useRef(hasMindroomAgents);
   threadFilterStateRef.current = threadFilterState;
+  hasMindroomAgentsRef.current = hasMindroomAgents;
   useEffect(() => () => globalThis.clearTimeout(searchQueryDebounceRef.current), []);
 
   const flushPendingSearchQuery = useCallback((): ThreadFilterState => {
@@ -190,10 +205,19 @@ export const useRoomViewThreadState = ({
     const pendingQuery = pendingSearchQueryRef.current;
     pendingSearchQueryRef.current = undefined;
     if (pendingQuery === undefined) return threadFilterStateRef.current;
-    const applied = applyParsedThreadFilterQuery(
-      threadFilterStateRef.current,
-      parseThreadFilterQuery(pendingQuery)
-    );
+    const applied = hasMindroomAgentsRef.current
+      ? applyParsedThreadFilterQuery(
+          threadFilterStateRef.current,
+          parseThreadFilterQuery(pendingQuery)
+        )
+      : {
+          ...threadFilterStateRef.current,
+          // With agent controls hidden, the retained search field is plain
+          // text. Preserve agent filters in storage and treat is:/tag: tokens
+          // literally instead of mutating invisible filter dimensions.
+          freeText: normalizeThreadSearchText(pendingQuery),
+          unsupportedQuery: '',
+        };
     threadFilterStateRef.current = applied;
     setThreadFilterState(applied);
     return applied;
@@ -306,6 +330,12 @@ export const useRoomViewThreadState = ({
   }, [roomId]);
 
   useEffect(() => {
+    if (!hasMindroomAgents || simpleMode) {
+      setThreadSortFreezeState(null);
+    }
+  }, [hasMindroomAgents, simpleMode]);
+
+  useEffect(() => {
     if (threadId) {
       setLastExitedThread(null);
       return;
@@ -355,7 +385,7 @@ export const useRoomViewThreadState = ({
     storeThreadSummary,
     summaryMap,
     threadFilterState: effectiveThreadFilterState,
-    threadSortFreezeState,
+    threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
     viewMode: effectiveViewMode,
   };
