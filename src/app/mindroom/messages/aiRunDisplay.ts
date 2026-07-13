@@ -25,6 +25,41 @@ export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | un
   return providerAndId || undefined;
 };
 
+const GENERIC_MODEL_CONFIGS = new Set(['auto', 'default']);
+
+const titleCaseWords = (value: string): string =>
+  value
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+
+const formatModelId = (modelId: string): string => {
+  const claudeMatch = modelId.match(/claude-(?:\d+(?:[-.]\d+)*-)?(opus|sonnet|haiku)(?:-(.*))?/i);
+  if (claudeMatch) {
+    const family = titleCaseWords(claudeMatch[1]);
+    const version = claudeMatch[2]?.replace(/-/g, '.').replace(/\.latest$/i, '');
+    return version ? `${family} ${version}` : family;
+  }
+
+  if (/^gpt-/i.test(modelId)) return modelId.replace(/^gpt/i, 'GPT');
+  return titleCaseWords(modelId.replace(/-/g, ' '));
+};
+
+/** A short, friendly model name intended for the always-visible message badge. */
+export const getMindroomAiRunCompactModelLabel = (info: MindroomAiRunInfo): string | undefined => {
+  const modelConfig = info.modelConfig?.trim();
+  if (modelConfig && !GENERIC_MODEL_CONFIGS.has(modelConfig.toLowerCase())) {
+    return titleCaseWords(modelConfig);
+  }
+
+  const modelId = info.modelId?.trim();
+  if (modelId) return formatModelId(modelId);
+
+  const provider = info.modelProvider?.trim();
+  return provider ? titleCaseWords(provider) : undefined;
+};
+
 export const getMindroomAiRunUsageLabel = (info: MindroomAiRunInfo): string | undefined => {
   const parts = [
     info.inputTokens !== undefined

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunCompactModelLabel,
   getMindroomAiRunContextBarSegments,
   getMindroomAiRunContextCacheLabel,
   getMindroomAiRunContextLabel,
@@ -29,6 +30,34 @@ describe('getMindroomAiRunModelLabel', () => {
         modelId: 'claude-sonnet',
       })
     ).toBe('anthropic / claude-sonnet');
+  });
+});
+
+describe('getMindroomAiRunCompactModelLabel', () => {
+  it('prefers a friendly configured model name', () => {
+    expect(
+      getMindroomAiRunCompactModelLabel({
+        modelConfig: 'opus',
+        modelProvider: 'anthropic',
+        modelId: 'claude-opus-4-6',
+      })
+    ).toBe('Opus');
+    expect(getMindroomAiRunCompactModelLabel({ modelConfig: 'bedtime_fable' })).toBe(
+      'Bedtime Fable'
+    );
+  });
+
+  it('uses a concise model id when the config name is generic', () => {
+    expect(
+      getMindroomAiRunCompactModelLabel({
+        modelConfig: 'default',
+        modelProvider: 'anthropic',
+        modelId: 'claude-sonnet-4-6',
+      })
+    ).toBe('Sonnet 4.6');
+    expect(getMindroomAiRunCompactModelLabel({ modelProvider: 'openai', modelId: 'gpt-5.4' })).toBe(
+      'GPT-5.4'
+    );
   });
 });
 

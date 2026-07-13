@@ -24,12 +24,19 @@ const longTextMocks = vi.hoisted(() => ({
 vi.mock('../../../features/room/message/styles.css', () => ({
   BubbleAvatarBase: 'BubbleAvatarBase',
   MessageAvatar: 'MessageAvatar',
+  MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
   MessageBaseBubbleCollapsed: 'MessageBaseBubbleCollapsed',
   MessageMenuGroup: 'MessageMenuGroup',
   MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
+}));
+
+vi.mock('../MindroomModelBadge.css', () => ({
+  Badge: 'Badge',
+  Icon: 'Icon',
+  Label: 'Label',
 }));
 
 vi.mock('../MindroomMessageControls.css', () => ({
@@ -513,6 +520,8 @@ describe('Message token usage menu item', () => {
   it('opens the AI run dialog from the context menu and configures explicit return focus', async () => {
     const { renderer, messageBaseNode } = await renderMessage(mindroomAiRunContent);
 
+    expect(hasSpanText(renderer, 'Fast')).toBe(true);
+    expect(hasNodeTitle(renderer, 'fast (openai / gpt-5-mini)')).toBe(true);
     expect(hasSpanText(renderer, 'AI Run Metadata')).toBe(false);
 
     await openContextMenu(renderer);
