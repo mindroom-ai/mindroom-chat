@@ -29,10 +29,16 @@ import { stopPropagation } from '../../utils/keyboard';
 type AddRoomToSpacePromptProps = {
   room: Room;
   space: Room;
+  onAdded?: () => void;
   onCancel: () => void;
 };
 
-export function AddRoomToSpacePrompt({ room, space, onCancel }: AddRoomToSpacePromptProps) {
+export function AddRoomToSpacePrompt({
+  room,
+  space,
+  onAdded,
+  onCancel,
+}: AddRoomToSpacePromptProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const titleId = useId();
@@ -58,6 +64,7 @@ export function AddRoomToSpacePrompt({ room, space, onCancel }: AddRoomToSpacePr
         },
         room.roomId
       );
+      onAdded?.();
       onCancel();
     } catch {
       setFailed(true);

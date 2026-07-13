@@ -41,5 +41,8 @@ describe('RoomFolderMenuItems', () => {
     );
     expect(choices).toHaveLength(3);
     expect(choices.map((choice) => choice.props['aria-pressed'])).toEqual([false, true, false]);
+
+    act(() => choices[1].props.onClick());
+    expect(mocks.moveRoom).not.toHaveBeenCalled();
   });
 });

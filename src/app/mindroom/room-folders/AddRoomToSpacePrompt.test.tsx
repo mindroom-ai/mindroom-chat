@@ -50,9 +50,12 @@ describe('AddRoomToSpacePrompt', () => {
 
   it('requires confirmation before writing shared Matrix space state', async () => {
     const onCancel = vi.fn();
+    const onAdded = vi.fn();
     let renderer: ReturnType<typeof create> | undefined;
     act(() => {
-      renderer = create(<AddRoomToSpacePrompt room={room} space={space} onCancel={onCancel} />);
+      renderer = create(
+        <AddRoomToSpacePrompt room={room} space={space} onAdded={onAdded} onCancel={onCancel} />
+      );
     });
 
     expect(renderer!.root.findByProps({ role: 'dialog' }).props['aria-modal']).toBe('true');
@@ -69,6 +72,7 @@ describe('AddRoomToSpacePrompt', () => {
       { auto_join: false, suggested: false, via: ['example.org'] },
       room.roomId
     );
+    expect(onAdded).toHaveBeenCalledOnce();
     expect(onCancel).toHaveBeenCalledOnce();
   });
 

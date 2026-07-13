@@ -54,10 +54,7 @@ import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThr
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 import { RoomFolderNav } from '../../../mindroom/room-folders/RoomFolderNav';
-import {
-  RoomFoldersProvider,
-  useRoomFolders,
-} from '../../../mindroom/room-folders/RoomFoldersProvider';
+import { useRoomFolders } from '../../../mindroom/room-folders/RoomFoldersProvider';
 import { RoomFolderPrompt } from '../../../mindroom/room-folders/RoomFolderPrompt';
 
 type HomeMenuProps = {
@@ -380,9 +377,5 @@ function HomeContent() {
 }
 
 export function Home() {
-  return (
-    <RoomFoldersProvider>
-      <HomeContent />
-    </RoomFoldersProvider>
-  );
+  return <HomeContent />;
 }

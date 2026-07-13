@@ -47,6 +47,7 @@ import {
 import { JoinRule, Room } from 'matrix-js-sdk';
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
 import {
@@ -109,14 +110,17 @@ import { InviteUserPrompt } from '../../../components/invite-user-prompt';
 import { useCallEmbed } from '../../../hooks/useCallEmbed';
 import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
-import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
-import { applyOrderOverride } from '../../../state/utils/applyOrderOverride';
 import {
   makeRoomSortableId,
   parseRoomSortableId,
   SortableRoomNavItem,
   SortableRoomNavItemData,
 } from '../../../features/room-nav/SortableRoomNavItem';
+import { useRoomFolders } from '../../../mindroom/room-folders/RoomFoldersProvider';
+import {
+  applyCanonicalRoomOrder,
+  makeSpaceRoomOrderKey,
+} from '../../../mindroom/room-folders/roomFolders';
 
 type SpaceMenuProps = {
   room: Room;
@@ -269,6 +273,7 @@ const isHierarchySpace = (item: HierarchyItem): item is HierarchyItemSpace => 's
 const isHierarchyRoom = (item: HierarchyItem): item is HierarchyItemRoom => !isHierarchySpace(item);
 
 const applyRoomOrderBySpace = (
+  mx: ReturnType<typeof useMatrixClient>,
   hierarchy: HierarchyItem[],
   roomOrderBySpace: Record<string, string[]>,
   expandedParentSpace: (parentSpaceId: string) => boolean
@@ -295,9 +300,11 @@ const applyRoomOrderBySpace = (
     }
 
     const roomById = new Map(roomItems.map((roomItem) => [roomItem.roomId, roomItem]));
-    const orderedRoomIds = applyOrderOverride(
+    const orderedRoomIds = applyCanonicalRoomOrder(
+      mx,
       roomItems.map((roomItem) => roomItem.roomId),
-      roomOrderBySpace[item.roomId] ?? []
+      roomOrderBySpace[makeSpaceRoomOrderKey(item.roomId)] ?? [],
+      item.roomId
     );
     orderedHierarchy.push(...orderedRoomIds.map((roomId) => roomById.get(roomId)!));
   }
@@ -308,7 +315,7 @@ const applyRoomOrderBySpace = (
 function SpaceHeader() {
   const space = useSpace();
   const spaceName = useRoomName(space);
-  const [, setRoomOrderBySpace] = useAtom(useRoomOrderBySpaceAtom());
+  const { clearRoomOrder } = useRoomFolders();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const joinRules = useStateEvent(
@@ -325,8 +332,8 @@ function SpaceHeader() {
   };
 
   const handleSpaceRemoved = useCallback(() => {
-    setRoomOrderBySpace({ type: 'REMOVE_SPACE', parentSpaceId: space.roomId });
-  }, [setRoomOrderBySpace, space.roomId]);
+    void clearRoomOrder(makeSpaceRoomOrderKey(space.roomId)).catch(() => undefined);
+  }, [clearRoomOrder, space.roomId]);
 
   return (
     <>
@@ -446,6 +453,7 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
 }
 
 export function Space() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const space = useSpace();
   useNavToActivePathMapper(space.roomId);
@@ -456,7 +464,7 @@ export function Space() {
   const allRooms = useAtomValue(allRoomsAtom);
   const allJoinedRooms = useMemo(() => new Set(allRooms), [allRooms]);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
-  const [roomOrderBySpace, setRoomOrderBySpace] = useAtom(useRoomOrderBySpaceAtom());
+  const { roomOrder, reorderRooms, clearRoomOrder, saveError } = useRoomFolders();
 
   const tombstoneEvent = useStateEvent(space, StateEvent.RoomTombstone);
   const selectedRoomId = useSelectedRoom();
@@ -502,8 +510,8 @@ export function Space() {
     [closedCategories, space.roomId]
   );
   const orderedHierarchy = useMemo(
-    () => applyRoomOrderBySpace(hierarchy, roomOrderBySpace, isCategoryExpanded),
-    [hierarchy, roomOrderBySpace, isCategoryExpanded]
+    () => applyRoomOrderBySpace(mx, hierarchy, roomOrder, isCategoryExpanded),
+    [hierarchy, isCategoryExpanded, mx, roomOrder]
   );
   const roomDndIdsByParentSpace = useMemo(
     () =>
@@ -532,9 +540,9 @@ export function Space() {
 
   useEffect(() => {
     if (tombstoneEvent) {
-      setRoomOrderBySpace({ type: 'REMOVE_SPACE', parentSpaceId: space.roomId });
+      void clearRoomOrder(makeSpaceRoomOrderKey(space.roomId)).catch(() => undefined);
     }
-  }, [setRoomOrderBySpace, space.roomId, tombstoneEvent]);
+  }, [clearRoomOrder, space.roomId, tombstoneEvent]);
 
   const handleRoomDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -557,13 +565,12 @@ export function Space() {
       const newIndex = roomIds.indexOf(overData.roomId);
       if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
 
-      setRoomOrderBySpace({
-        type: 'REORDER',
-        parentSpaceId: activeData.parentSpaceId,
-        order: arrayMove(roomIds, oldIndex, newIndex),
-      });
+      void reorderRooms(
+        makeSpaceRoomOrderKey(activeData.parentSpaceId),
+        arrayMove(roomIds, oldIndex, newIndex)
+      ).catch(() => undefined);
     },
-    [isCategoryExpanded, orderedHierarchy, setRoomOrderBySpace]
+    [isCategoryExpanded, orderedHierarchy, reorderRooms]
   );
   const handleRoomDragCancel = useCallback((event: DragCancelEvent) => {
     suppressNextClickDefaultAfterPointerDrag(event.activatorEvent);
@@ -636,20 +643,43 @@ export function Space() {
                       parseRoomSortableId(active.id.toString())?.roomId ??
                       active.id.toString();
                     const label = mx.getRoom(roomId)?.name ?? roomId;
-                    return `Picked up Room ${label}. Use arrow keys to reorder. Press space to drop.`;
+                    return t('nav.roomReorderStarted', { room: label });
                   },
-                  onDragOver() {
-                    return undefined;
+                  onDragOver({ over }) {
+                    const target = over ? parseRoomSortableId(over.id.toString()) : undefined;
+                    if (!target) return undefined;
+                    const targetName =
+                      mx.getRoom(target.parentSpaceId)?.name ?? target.parentSpaceId;
+                    return t('nav.roomDragOverRoom', {
+                      room: mx.getRoom(target.roomId)?.name ?? target.roomId,
+                      target: targetName,
+                    });
                   },
-                  onDragEnd() {
-                    return undefined;
+                  onDragEnd({ active, over }) {
+                    const activeRoom = parseRoomSortableId(active.id.toString());
+                    const overRoom = over ? parseRoomSortableId(over.id.toString()) : undefined;
+                    return activeRoom &&
+                      overRoom &&
+                      activeRoom.parentSpaceId === overRoom.parentSpaceId &&
+                      activeRoom.roomId !== overRoom.roomId
+                      ? t('nav.roomDragEnded')
+                      : t('nav.roomDragNoChange');
                   },
                   onDragCancel() {
-                    return undefined;
+                    return t('nav.roomDragCancelled');
                   },
                 },
               }}
             >
+              {saveError && (
+                <Text
+                  role="alert"
+                  size="T200"
+                  style={{ color: color.Critical.Main, padding: `0 ${config.space.S200}` }}
+                >
+                  {t('nav.roomFolderSaveFailed')}
+                </Text>
+              )}
               <NavCategory
                 style={{
                   height: virtualizer.getTotalSize(),
@@ -706,6 +736,7 @@ export function Space() {
                       >
                         <SortableRoomNavItem
                           parentSpaceId={hierarchyItem.parentId}
+                          disabled={!isCategoryExpanded(hierarchyItem.parentId)}
                           room={room}
                           selected={selectedRoomId === roomId}
                           showAvatar={mDirects.has(roomId)}

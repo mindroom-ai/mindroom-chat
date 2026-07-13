@@ -19,6 +19,7 @@ export function RoomFolderMenuItems({
   const currentFolder = folders.find((folder) => folder.roomIds.includes(room.roomId));
   const handleMove = (folderId?: string) => {
     requestClose();
+    if (currentFolder?.id === folderId || (!currentFolder && !folderId)) return;
     void moveRoom(room.roomId, folderId).catch(() => undefined);
   };
 

@@ -30,10 +30,15 @@ import {
 vi.mock('../../components/sidebar/Sidebar.css', () => ({
   SidebarDragSource: 'SidebarDragSource',
   SidebarRowDragSource: 'SidebarRowDragSource',
+  SidebarRowKeyboardDragHandle: 'SidebarRowKeyboardDragHandle',
 }));
 
 vi.mock('./RoomNavItem', () => ({
   RoomNavItem: ({ room }: { room: Room }) => <span>{room.name}</span>,
+}));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (_key: string, values: { room: string }) => `Move ${values.room}` }),
 }));
 
 const rect = (top: number): DOMRect => ({
@@ -129,10 +134,19 @@ describe('SortableRoomNavItem', () => {
   it('builds and parses composite sortable ids with parent and room ids', () => {
     const sortableId = makeRoomSortableId('!space:example.org', '!room-a:example.org');
 
-    expect(sortableId).toBe('!space:example.org::!room-a:example.org');
+    expect(sortableId).toBe('["!space:example.org","!room-a:example.org"]');
     expect(parseRoomSortableId(sortableId)).toEqual({
       parentSpaceId: '!space:example.org',
       roomId: '!room-a:example.org',
+    });
+  });
+
+  it('round-trips group and room ids containing the legacy separator', () => {
+    const sortableId = makeRoomSortableId('space:![::1]', '!room:[::1]');
+
+    expect(parseRoomSortableId(sortableId)).toEqual({
+      parentSpaceId: 'space:![::1]',
+      roomId: '!room:[::1]',
     });
   });
 
@@ -144,8 +158,8 @@ describe('SortableRoomNavItem', () => {
     });
 
     const firstItem = container.querySelector(
-      '[data-room-id="!room-a:example.org"]'
-    ) as HTMLElement;
+      '[data-room-id="!room-a:example.org"] button[aria-label]'
+    ) as HTMLButtonElement;
     firstItem.focus();
 
     await act(async () => {
@@ -175,8 +189,12 @@ describe('SortableRoomNavItem', () => {
 
     expect(onDragEnd).toHaveBeenCalled();
     const lastEvent = onDragEnd.mock.lastCall?.[0] as DragEndEvent;
-    expect(lastEvent.active.id).toBe('!space:example.org::!room-a:example.org');
-    expect(lastEvent.over?.id).toBe('!space:example.org::!room-b:example.org');
+    expect(lastEvent.active.id).toBe(
+      makeRoomSortableId('!space:example.org', '!room-a:example.org')
+    );
+    expect(lastEvent.over?.id).toBe(
+      makeRoomSortableId('!space:example.org', '!room-b:example.org')
+    );
     expect(parseRoomSortableId(lastEvent.active.id.toString())).toEqual({
       parentSpaceId: '!space:example.org',
       roomId: '!room-a:example.org',

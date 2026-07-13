@@ -4,11 +4,24 @@ import { RoomNavCategoryKind } from './roomFolderNavRows';
 export type RoomFolderDropTarget = {
   categoryKind: RoomNavCategoryKind;
   parentId?: string;
+  roomOrderKey: string;
+  targetRoomId?: string;
 };
 
 export type RoomFolderDropAction =
   | { type: 'move-personal'; roomId: string; folderId?: string }
   | { type: 'add-to-space'; roomId: string; spaceId: string };
+
+export const placeRoomInOrder = (
+  roomIds: string[],
+  roomId: string,
+  targetRoomId?: string
+): string[] => {
+  const order = roomIds.filter((id) => id !== roomId);
+  const targetIndex = targetRoomId ? order.indexOf(targetRoomId) : -1;
+  order.splice(targetIndex < 0 ? order.length : targetIndex, 0, roomId);
+  return order;
+};
 
 export const resolveRoomFolderDrop = (
   roomId: string,
