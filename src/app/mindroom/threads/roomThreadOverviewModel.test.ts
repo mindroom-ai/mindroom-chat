@@ -111,16 +111,18 @@ describe('roomThreadOverviewModel', () => {
     it('cycles status filters and resets status mode to AND', async () => {
       const { updateThreadFilterKey } = await import('./roomThreadOverviewModel');
 
-      expect(updateThreadFilterKey(makeDefaultState({ statusMode: 'or' }), 'resolved')).toMatchObject({
+      expect(
+        updateThreadFilterKey(makeDefaultState({ statusMode: 'or' }), 'resolved')
+      ).toMatchObject({
         resolved: 'include',
         statusMode: 'and',
       });
-      expect(updateThreadFilterKey(makeDefaultState({ resolved: 'include' }), 'resolved').resolved).toBe(
-        'exclude'
-      );
-      expect(updateThreadFilterKey(makeDefaultState({ resolved: 'exclude' }), 'resolved').resolved).toBe(
-        'any'
-      );
+      expect(
+        updateThreadFilterKey(makeDefaultState({ resolved: 'include' }), 'resolved').resolved
+      ).toBe('exclude');
+      expect(
+        updateThreadFilterKey(makeDefaultState({ resolved: 'exclude' }), 'resolved').resolved
+      ).toBe('any');
     });
 
     it('cycles natural/last-reply sort modes in the UI order', async () => {
@@ -174,12 +176,8 @@ describe('roomThreadOverviewModel', () => {
 
   describe('tag filter helpers', () => {
     it('cycles, adds, removes, and counts tag filters', async () => {
-      const {
-        addTagFilter,
-        collectAvailableRoomTags,
-        cycleTagFilter,
-        removeTagFilter,
-      } = await import('./roomThreadOverviewModel');
+      const { addTagFilter, collectAvailableRoomTags, cycleTagFilter, removeTagFilter } =
+        await import('./roomThreadOverviewModel');
 
       const defaultState = makeDefaultState();
       const included = cycleTagFilter(defaultState, 'priority');
@@ -328,6 +326,36 @@ describe('roomThreadOverviewModel', () => {
       const projectedOff = simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }));
       expect(projectedOff.resolved).toBe('any');
       expect(serializeThreadFilterQuery(projectedOff)).toBe('');
+    });
+  });
+
+  describe('simplifyAgentlessThreadFilterState', () => {
+    it('keeps only text search and sorting from the full toolbar state', async () => {
+      const { simplifyAgentlessThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      const projected = simplifyAgentlessThreadFilterState(
+        makeDefaultState({
+          resolved: 'include',
+          streaming: 'exclude',
+          scheduled: 'include',
+          unread: 'exclude',
+          idle: 'include',
+          sortBy: 'lastReply',
+          sortDirection: 'asc',
+          statusMode: 'or',
+          tags: new Map([['priority', 'include']]),
+          freeText: 'needle',
+          unsupportedQuery: 'from:alice',
+        })
+      );
+
+      expect(projected).toEqual({
+        ...makeDefaultState(),
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        freeText: 'needle',
+        unsupportedQuery: 'from:alice',
+      });
     });
   });
 });
