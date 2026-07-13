@@ -34,15 +34,22 @@
   precached latest-version pointer would permanently report the version of the
   worker currently controlling the page.
 - Review hardening: the monitor ignores a late worker activation after it has
-  stopped, accepts SemVer build metadata, and relies on versioned
+  stopped, owns and replaces its stop handle if bootstrap is invoked again,
+  accepts SemVer build metadata, and does not poison its in-memory reload guard
+  when a session guard suppresses a reload. It relies on versioned
   `serviceWorker.register()` to trigger installation without a redundant
   immediate `registration.update()` request or unused registration state.
-- Validation: updater unit tests cover failure/malformed manifests, stalled
-  requests, current versions, changed versions with one reload, and offline
-  behavior; service worker tests, typecheck, and a production build pass. The
-  live production branch build contains `version.json`, excludes it from
-  `sw.js`, and compiles the matching commit into the client bundle. Cloudflare
-  reports the cache-busted manifest as dynamic.
+  Provider commit variables are validated as hashes; Netlify's documented
+  commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`,
+  which is only a fallback when Git metadata is unavailable.
+- Validation: updater unit tests cover build-version selection,
+  failure/malformed manifests, stalled requests, current versions, changed
+  versions with one reload, and offline behavior. The full suite passes 410
+  files / 3,143 tests, as do service worker tests, typecheck, touched-file lint
+  and formatting, and a production build. The live production branch build
+  contains `version.json`, excludes it from `sw.js`, and compiles the matching
+  commit into the client bundle. Cloudflare reports the cache-busted manifest
+  as dynamic.
 
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 

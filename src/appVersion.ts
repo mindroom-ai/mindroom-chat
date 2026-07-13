@@ -113,7 +113,6 @@ export const startAppVersionMonitor = ({
   const handleControllerChange = () => {
     if (stopped || !pendingVersion || !navigator.onLine) return;
     if (reloadRequestedVersion === pendingVersion) return;
-    reloadRequestedVersion = pendingVersion;
     try {
       const reloadKey = 'mindroom_app_version_reloading';
       if (window.sessionStorage.getItem(reloadKey) === pendingVersion) return;
@@ -122,6 +121,7 @@ export const startAppVersionMonitor = ({
       // Reloading is still safe if sessionStorage is blocked: controllerchange
       // only fires once for this newly activated worker.
     }
+    reloadRequestedVersion = pendingVersion;
     reload();
   };
   const handleVisibilityChange = () => {

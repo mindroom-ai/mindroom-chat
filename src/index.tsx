@@ -48,6 +48,8 @@ const mountApp = () => {
   root.render(<App />);
 };
 
+let stopAppVersionMonitor: (() => void) | undefined;
+
 const bootstrap = async () => {
   migrateLegacyIOSPushEnabled();
   migrateMindroomSettingsStorage();
@@ -92,7 +94,10 @@ const bootstrap = async () => {
         type: isProductionSW ? 'classic' : 'module',
         updateViaCache: 'none',
       });
-      if (isProductionSW) startAppVersionMonitor();
+      if (isProductionSW) {
+        stopAppVersionMonitor?.();
+        stopAppVersionMonitor = startAppVersionMonitor();
+      }
     } catch {
       // Keep booting even if service worker registration fails.
     }

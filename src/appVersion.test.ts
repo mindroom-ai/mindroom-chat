@@ -17,6 +17,7 @@ describe('app version updates', () => {
   const originalWindow = globalThis.window;
 
   let reload: ReturnType<typeof vi.fn>;
+  let sessionState: Map<string, string>;
   let serviceWorker: MockServiceWorkerContainer;
 
   beforeEach(() => {
@@ -25,7 +26,7 @@ describe('app version updates', () => {
     serviceWorker = new EventTarget() as MockServiceWorkerContainer;
     serviceWorker.register = vi.fn();
 
-    const sessionState = new Map<string, string>();
+    sessionState = new Map<string, string>();
     const windowTarget = new EventTarget();
     Object.assign(windowTarget, {
       location: { origin: 'https://chat.example.com', reload },
@@ -170,6 +171,29 @@ describe('app version updates', () => {
     await Promise.resolve();
 
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('can reload after a stale session guard is cleared', async () => {
+    const publishedVersion = 'abcdef123456';
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ version: publishedVersion }),
+      }),
+    });
+    serviceWorker.register.mockResolvedValue({ active: {} });
+    sessionState.set('mindroom_app_version_reloading', publishedVersion);
+
+    const stop = startAppVersionMonitor({ reload });
+    await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
+    expect(reload).not.toHaveBeenCalled();
+
+    sessionState.delete('mindroom_app_version_reloading');
+    serviceWorker.dispatchEvent(new Event('controllerchange'));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    stop();
   });
 
   it('does not fetch or reload while offline', async () => {

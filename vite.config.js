@@ -11,21 +11,21 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import buildConfig from './build.config';
+import { resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
 
 const getBuildVersion = () => {
-  const environmentVersion =
-    process.env.MINDROOM_BUILD_VERSION ?? process.env.GITHUB_SHA ?? process.env.COMMIT_REF;
-  if (environmentVersion) return environmentVersion.trim();
-
+  let localCommit;
   try {
-    return execFileSync('git', ['rev-parse', 'HEAD'], {
+    localCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: path.resolve(),
       encoding: 'utf8',
     }).trim();
   } catch {
-    return 'unknown';
+    // Manual uploads may not include a Git checkout; DEPLOY_ID remains usable.
   }
+
+  return resolveBuildVersion(process.env, localCommit) ?? 'unknown';
 };
 
 const buildVersion = getBuildVersion();
