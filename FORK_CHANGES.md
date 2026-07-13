@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Enable direct-touch interaction on the WebGL particle background (2026-07-12)
+
+- Status: implementation, local/browser validation, and independent review complete.
+- Root cause: Particular Drift already handles standards-based `pointermove` events, including
+  touch pointers, but `MindRoomParticleBackground.css.ts` disabled canvas pointer events whenever
+  the device reported a coarse pointer or no hover. iPhones therefore never delivered finger
+  movement to the renderer.
+- Fix: keep pointer events enabled on coarse-pointer devices and set `touch-action: none` on the
+  background canvas. Direct finger drags now reach the existing repel interaction instead of being
+  claimed as a browser pan. Empty splash/auth regions pass hits through to the canvas, while
+  foreground controls and the raised auth card/footer retain normal touch and scroll behavior.
+  Reduced-motion users still receive the static gradient fallback.
+- Coverage and validation: focused component/stacking coverage passes (3 files / 7 tests) and pins
+  the touch/pointer contract, interactive repel options, background hit target, and auth control
+  layering. Full Vitest passes (403 files / 3,114 tests), as do typecheck, production/PWA build,
+  full ESLint (0 errors / 17 pre-existing warnings), touched-file Prettier, and `git diff --check`.
+  Live Chromium computed `pointer-events: auto` plus `touch-action: none`, hit the canvas in empty
+  background space, and hit the footer link over the canvas. Independent re-review found no
+  remaining iPhone/Safari Pointer Events, scrolling, accessibility, reduced-motion, or coverage
+  defects; a physical-iPhone gesture remains optional release smoke testing.
+
 ### Open threads from call-room side chat (2026-07-12)
 
 - Status: implementation, local validation, and independent review complete.

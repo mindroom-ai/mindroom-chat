@@ -25,9 +25,6 @@ export const ParticleCanvas = style({
   opacity: 1,
   pointerEvents: 'auto',
   '@media': {
-    '(hover: none), (pointer: coarse)': {
-      pointerEvents: 'none',
-    },
     '(prefers-reduced-motion: reduce)': {
       display: 'none',
     },
