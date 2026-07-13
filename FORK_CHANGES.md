@@ -93,7 +93,7 @@
 
 - Status: Home room-reordering follow-up is implemented, locally validated, independently
   re-reviewed, AI-reviewed, deployed to `chat.lab.mindroom.chat`, and live-validated on
-  desktop/mobile. PR #135 is reconciled locally with the latest `dev` identity-continuity change;
+  desktop/mobile. PR #135 is reconciled locally with the latest `dev` call-failure update;
   the final CodeRabbit follow-up is implemented and locally validated, and publication plus the
   repeat CI/AI review cycle are in progress.
 - Follow-up (2026-07-13): Home's grouped overview is adopting the same whole-row sortable room
@@ -197,7 +197,7 @@
   migration, or test-coverage findings; both independent post-merge reviews likewise found no
   P0–P2 issue, crypto/startup interaction, or merge regression.
 - After the final CodeRabbit follow-up, the affected navigation/persistence/Home suites pass (8
-  files / 36 tests), the full suite passes (427 files / 3,217 tests), and typecheck,
+  files / 36 tests), the latest merged `dev` tree passes (430 files / 3,228 tests), and typecheck,
   production/PWA build, touched-file ESLint, Prettier, and `git diff --check` are clean. Independent
   finding validation confirmed the stale-parent, queued-optimistic-state, and Simple Mode issues,
   found the SDK-object invalidation behavior intentional, and caught the authoritative-echo and
