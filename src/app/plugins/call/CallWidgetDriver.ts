@@ -165,6 +165,14 @@ export class CallWidgetDriver extends WidgetDriver {
     if (encrypted) {
       const crypto = this.mx.getCrypto();
       if (!crypto) throw new Error('E2EE not enabled');
+      const room = this.mx.getRoom(this.inRoomId);
+      if (room) {
+        // Call-only rooms may never encrypt an ordinary timeline event. Start
+        // the SDK's supported room-encryption preparation explicitly so Rust
+        // crypto resolves lazy-loaded members, tracks their devices, and
+        // processes the resulting key query before to-device key retries.
+        crypto.prepareToEncrypt(room);
+      }
 
       // attempt to re-batch these up into a single request
       const invertedContentMap: { [content: string]: { userId: string; deviceId: string }[] } = {};
@@ -272,7 +280,7 @@ export class CallWidgetDriver extends WidgetDriver {
         // For tracked users this waits for an in-flight key query. Avoid
         // downloadUncached: that API's returned map does not populate the Rust
         // store used by encryptToDeviceMessages.
-        await crypto.getUserDeviceInfo(
+        const deviceInfo = await crypto.getUserDeviceInfo(
           Array.from(new Set(pendingRecipients.map(({ userId }) => userId)))
         );
         pendingRecipients = this.currentEncryptionRecipients(
@@ -281,7 +289,11 @@ export class CallWidgetDriver extends WidgetDriver {
           generation
         );
         if (pendingRecipients.length === 0) return [];
-        batch = await crypto.encryptToDeviceMessages(eventType, pendingRecipients, content);
+        const knownRecipients = pendingRecipients.filter((recipient) =>
+          deviceInfo.get(recipient.userId)?.has(recipient.deviceId)
+        );
+        if (knownRecipients.length === 0) continue;
+        batch = await crypto.encryptToDeviceMessages(eventType, knownRecipients, content);
         pendingRecipients = this.currentEncryptionRecipients(
           eventType,
           pendingRecipients,

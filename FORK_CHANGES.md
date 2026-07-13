@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Prepare Rust crypto for call-only encrypted rooms (2026-07-12)
+
+- Status: implementation, local validation, and independent review complete
+  after physical iPhone validation disproved that key-delivery retries alone
+  were sufficient.
+- Live evidence: release `v4.12.3-mindroom.58` and backend release
+  `v2026.7.126` were both deployed. In encrypted room
+  `!IDSDqPf2Dh1Ivt3VoB:mindroom.chat`, the backend subscribed to iPhone device
+  `Gt0cNrhp91` and received its first SFU audio frame, but never logged
+  `call_frame_key_installed`. The same phone immediately worked in unencrypted
+  room `!3hp488ZOp27wokMC7A:mindroom.chat`. The backend Olm session for the
+  iPhone was touched only around encrypted-call teardown.
+- Remaining root cause: a call-only room need not encrypt an ordinary timeline
+  event, so matrix-js-sdk's Rust room encryptor may never run
+  `prepareToEncrypt`. That supported path resolves lazy-loaded members, marks
+  them as tracked, and processes their pending device-key query. Retrying
+  `encryptToDeviceMessages` against an unprepared store cannot make the target
+  device appear.
+- Fix: explicitly prepare the encrypted room before the first to-device call
+  key attempt, and do not ask Rust crypto to encrypt until
+  `getUserDeviceInfo` contains the exact requested device. Existing exact-device
+  foreground/background retry, supersession, and disposal behavior remains.
+- Validation: focused call-key tests pass (11 tests), the full suite passes
+  (400 files / 3,107 tests), and typecheck, production build, touched-file
+  ESLint, Prettier, and `git diff --check` are clean. Independent review found
+  no correctness, lifecycle, recipient-scope, or matrix-js-sdk integration
+  defects; remaining validation is a physical encrypted call after deployment.
+
 ### Retry encrypted MatrixRTC keys for newly joined agent devices (2026-07-12)
 
 - Status: implementation, local validation, and independent review complete.

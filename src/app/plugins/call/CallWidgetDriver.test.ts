@@ -23,12 +23,19 @@ const encryptedBatch = (...recipients: Array<{ userId: string; deviceId: string 
 const makeDriver = (batches: EncryptBatch[]) => {
   const encryptToDeviceMessages = vi.fn();
   batches.forEach((batch) => encryptToDeviceMessages.mockResolvedValueOnce(batch));
-  const getUserDeviceInfo = vi.fn().mockResolvedValue(new Map());
+  const getUserDeviceInfo = vi
+    .fn()
+    .mockImplementation((userIds: string[]) =>
+      Promise.resolve(new Map(userIds.map((userId) => [userId, { has: () => true }])))
+    );
+  const prepareToEncrypt = vi.fn();
+  const room = { roomId: '!room:example.org' };
   const queueToDevice = vi.fn().mockResolvedValue(undefined);
   const mx = {
     getDeviceId: () => 'LOCAL',
     getSafeUserId: () => '@local:example.org',
-    getCrypto: () => ({ encryptToDeviceMessages, getUserDeviceInfo }),
+    getRoom: () => room,
+    getCrypto: () => ({ encryptToDeviceMessages, getUserDeviceInfo, prepareToEncrypt }),
     queueToDevice,
   } as unknown as MatrixClient;
 
@@ -36,13 +43,31 @@ const makeDriver = (batches: EncryptBatch[]) => {
     driver: new CallWidgetDriver(mx, '!room:example.org'),
     encryptToDeviceMessages,
     getUserDeviceInfo,
+    prepareToEncrypt,
     queueToDevice,
+    room,
   };
 };
 
 describe('CallWidgetDriver.sendToDevice', () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('prepares lazy encrypted-room members before looking up call devices', async () => {
+    const recipient = { userId: '@agent:example.org', deviceId: 'AGENT' };
+    const { driver, getUserDeviceInfo, prepareToEncrypt, room } = makeDriver([
+      encryptedBatch(recipient),
+    ]);
+
+    await driver.sendToDevice('io.element.call.encryption_keys', true, {
+      [recipient.userId]: { [recipient.deviceId]: { keys: { key: 'secret', index: 0 } } },
+    });
+
+    expect(prepareToEncrypt).toHaveBeenCalledWith(room);
+    expect(prepareToEncrypt.mock.invocationCallOrder[0]).toBeLessThan(
+      getUserDeviceInfo.mock.invocationCallOrder[0]
+    );
   });
 
   it('queues an encrypted batch once every recipient is present', async () => {
@@ -76,6 +101,27 @@ describe('CallWidgetDriver.sendToDevice', () => {
 
     expect(getUserDeviceInfo).toHaveBeenCalledTimes(2);
     expect(encryptToDeviceMessages).toHaveBeenCalledTimes(2);
+    expect(queueToDevice).toHaveBeenCalledOnce();
+  });
+
+  it('waits until the exact target device reaches the Rust crypto store', async () => {
+    vi.useFakeTimers();
+    const recipient = { userId: '@agent:example.org', deviceId: 'AGENT' };
+    const { driver, encryptToDeviceMessages, getUserDeviceInfo, queueToDevice } = makeDriver([
+      encryptedBatch(recipient),
+    ]);
+    getUserDeviceInfo
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([[recipient.userId, new Map([[recipient.deviceId, {}]])]]));
+
+    const send = driver.sendToDevice('io.element.call.encryption_keys', true, {
+      [recipient.userId]: { [recipient.deviceId]: { keys: { key: 'secret', index: 0 } } },
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await send;
+
+    expect(getUserDeviceInfo).toHaveBeenCalledTimes(2);
+    expect(encryptToDeviceMessages).toHaveBeenCalledOnce();
     expect(queueToDevice).toHaveBeenCalledOnce();
   });
 
