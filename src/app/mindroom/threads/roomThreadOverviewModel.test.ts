@@ -330,4 +330,34 @@ describe('roomThreadOverviewModel', () => {
       expect(serializeThreadFilterQuery(projectedOff)).toBe('');
     });
   });
+
+  describe('simplifyAgentlessThreadFilterState', () => {
+    it('keeps only text search and sorting from the full toolbar state', async () => {
+      const { simplifyAgentlessThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      const projected = simplifyAgentlessThreadFilterState(
+        makeDefaultState({
+          resolved: 'include',
+          streaming: 'exclude',
+          scheduled: 'include',
+          unread: 'exclude',
+          idle: 'include',
+          sortBy: 'lastReply',
+          sortDirection: 'asc',
+          statusMode: 'or',
+          tags: new Map([['priority', 'include']]),
+          freeText: 'needle',
+          unsupportedQuery: 'from:alice',
+        })
+      );
+
+      expect(projected).toEqual({
+        ...makeDefaultState(),
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        freeText: 'needle',
+        unsupportedQuery: 'from:alice',
+      });
+    });
+  });
 });

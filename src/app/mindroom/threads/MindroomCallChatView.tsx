@@ -9,6 +9,7 @@ import { RoomView } from './MindroomRoomView';
 
 type MindroomCallChatViewProps = {
   room: Room;
+  hasMindroomAgents?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -17,6 +18,7 @@ type MindroomCallChatViewProps = {
 
 export function MindroomCallChatView({
   room,
+  hasMindroomAgents = true,
   eventId,
   focusEventInRoom,
   threadId,
@@ -65,6 +67,7 @@ export function MindroomCallChatView({
       <Box grow="Yes" direction="Column">
         <RoomView
           room={room}
+          hasMindroomAgents={hasMindroomAgents}
           eventId={eventId}
           focusEventInRoom={focusEventInRoom}
           threadId={threadId}
