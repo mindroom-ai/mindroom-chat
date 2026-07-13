@@ -148,6 +148,9 @@ export class CallEmbed {
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';
+    iframe.style.position = 'relative';
+    iframe.style.zIndex = '1';
+    iframe.style.backgroundColor = 'transparent';
 
     return iframe;
   }

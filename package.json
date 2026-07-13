@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-element-call-background.mjs",
     "preview": "vite preview",
     "lint": "npm run check:eslint",
     "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
