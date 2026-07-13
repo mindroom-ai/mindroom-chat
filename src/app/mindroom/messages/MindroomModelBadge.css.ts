@@ -7,7 +7,8 @@ export const Badge = style({
   justifyContent: 'center',
   gap: toRem(2),
   boxSizing: 'border-box',
-  maxWidth: toRem(64),
+  // Overflow the 36px avatar by at most the 12px layout gap on either side.
+  maxWidth: toRem(60),
   minHeight: toRem(14),
   padding: `0 ${toRem(4)}`,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,

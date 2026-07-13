@@ -36,7 +36,8 @@ export const MessageAvatarWithModel = style({
   flexDirection: 'column',
   alignItems: 'center',
   gap: toRem(3),
-  width: toRem(64),
+  // Match Avatar size="300" so the wider badge does not shift the message grid.
+  width: toRem(36),
 });
 
 export const MessageQuickReaction = style({

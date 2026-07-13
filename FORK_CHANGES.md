@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Keep agent model badges on the standard message grid (2026-07-13)
+
+- Status: implementation, validation, live diagnosis, and independent review
+  complete.
+- Root cause: the model badge is visually centered under its avatar, but the
+  avatar stack is forced to the badge's 64 px maximum width. Folds' `size="300"`
+  message avatar is only 36 px wide, so AI-run messages widen the leading
+  column by 28 px and push the sender header and message body off the normal
+  room timeline grid.
+- Fix: keep the avatar stack at the standard 36 px column width and allow the
+  wider badge to overflow symmetrically under it. Cap the badge at 60 px so its
+  12 px overflow on each side ends exactly at the Modern and Bubble layout
+  content gap instead of overlapping the content column.
+- Coverage: a focused layout-contract test pins the `size="300"` avatar, centered
+  36 px stack, wider badge behavior, and 60 px non-overlap bound. It and the
+  existing message integration suite pass (2 files / 5 tests).
+- Live validation: browser geometry on the affected production thread measured
+  ordinary message columns at 36 px with content beginning at x=386.55, while
+  the 64 px AI-run column pushed content to x=414.54. The 28 px discrepancy
+  exactly matches the corrected wrapper-width delta.
+- Independent review found the initial 64 px badge cap could intrude 2 px into
+  the content column after restoring the 36 px wrapper. The confirmed fix caps
+  the badge at 60 px; re-review found no remaining correctness, accessibility,
+  responsive, Modern-layout, or Bubble-layout findings.
+- Validation: the full Vitest suite passes (412 files / 3,155 tests), as do
+  typecheck, the production/PWA build, touched-file Prettier, `git diff --check`,
+  and full ESLint (0 errors / 17 pre-existing warnings).
+
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 
 - Status: implementation and local validation complete. The equivalent updater
