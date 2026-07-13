@@ -89,7 +89,7 @@ export class MissingCryptoStoreError extends Error {
 export class DeviceIdentityVerificationError extends Error {
   constructor(userId: string) {
     super(
-      `Cinny could not verify the encryption identity for ${userId} with the homeserver. ` +
+      `MindRoom Chat could not verify the encryption identity for ${userId} with the homeserver. ` +
         'Check your connection and retry. No encryption keys were changed.'
     );
     this.name = 'DeviceIdentityVerificationError';
@@ -173,16 +173,20 @@ const inspectCryptoStoreContinuity = async (
 };
 
 type DeviceIdentityVerificationMode = 'opportunistic' | 'required';
+type DeviceIdentityVerificationPlan = {
+  mode: DeviceIdentityVerificationMode;
+  cleanupRustStoresOnFailure: boolean;
+};
 
-const getDeviceIdentityVerificationMode = async (
+const getDeviceIdentityVerificationPlan = async (
   session: ClientBootstrapSession
-): Promise<DeviceIdentityVerificationMode> => {
+): Promise<DeviceIdentityVerificationPlan> => {
   const cryptoStoreExists = await inspectCryptoStoreContinuity(session);
   if (cryptoStoreExists === true) {
     // Existing stores remain usable offline. When online, still compare their
     // identity with the server so a replacement by another broken client is
     // detected rather than silently producing undecryptable traffic.
-    return 'opportunistic';
+    return { mode: 'opportunistic', cleanupRustStoresOnFailure: false };
   }
   if (cryptoStoreExists === false && hasInitializedCryptoStore(session.sessionId)) {
     throw new MissingCryptoStoreError(session.userId);
@@ -191,7 +195,13 @@ const getDeviceIdentityVerificationMode = async (
   // A genuinely new login has no local store and no server keys. An existing
   // login whose store disappeared has server keys which must match the local
   // identity before startClient can upload anything.
-  return 'required';
+  return {
+    mode: 'required',
+    // Only delete databases when the preflight conclusively established that
+    // Rust crypto is creating them now. An indeterminate preflight can still
+    // represent an existing store in a browser that denies DB enumeration.
+    cleanupRustStoresOnFailure: cryptoStoreExists === false,
+  };
 };
 
 type DeviceKeysQueryResponse = {
@@ -243,13 +253,16 @@ const verifyDeviceIdentity = async (
   } catch {
     throw new DeviceIdentityVerificationError(session.userId);
   }
+  if (!localKeys?.ed25519 || !localKeys.curve25519) {
+    throw new DeviceIdentityVerificationError(session.userId);
+  }
   if (serverEd25519 !== localKeys.ed25519 || serverCurve25519 !== localKeys.curve25519) {
     throw new DeviceIdentityMismatchError(session.userId);
   }
 };
 
 export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
-  const identityVerificationMode = await getDeviceIdentityVerificationMode(session);
+  const identityVerification = await getDeviceIdentityVerificationPlan(session);
   const storeNames = getSessionStoreName(session);
   const indexedDBStore = new IndexedDBStore({
     indexedDB: global.indexedDB,
@@ -305,8 +318,8 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   }
 
   const shouldVerifyIdentity =
-    identityVerificationMode === 'required' ||
-    (identityVerificationMode === 'opportunistic' &&
+    identityVerification.mode === 'required' ||
+    (identityVerification.mode === 'opportunistic' &&
       typeof navigator !== 'undefined' &&
       navigator.onLine === true);
   if (shouldVerifyIdentity) {
@@ -314,13 +327,20 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
       await verifyDeviceIdentity(mx, session);
     } catch (error) {
       const canUseKnownLocalStore =
-        identityVerificationMode === 'opportunistic' &&
+        identityVerification.mode === 'opportunistic' &&
         error instanceof DeviceIdentityVerificationError;
       if (!canUseKnownLocalStore) {
         await Promise.allSettled([
           Promise.resolve().then(() => mx.stopClient()),
           indexedDBStore.destroy(),
         ]);
+        if (identityVerification.cleanupRustStoresOnFailure) {
+          // stopClient closes the Rust IndexedDB handles. Delete only stores
+          // proven absent before this attempt so a failed verification cannot
+          // turn freshly generated, untrusted keys into an "existing" store on
+          // retry. Cleanup failure must not mask the original identity error.
+          await Promise.allSettled([deleteNamedDatabases(getSessionRustCryptoStoreNames(session))]);
+        }
         throw error;
       }
     }

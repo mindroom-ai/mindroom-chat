@@ -27,6 +27,12 @@
   material or key fingerprints are copied into localStorage. Identity-query
   failures fail closed with a retryable message, while known existing stores
   retain offline startup.
+- Review hardening: incomplete local key results are retryable verification
+  failures rather than destructive mismatches. When preflight proves the Rust
+  stores were absent, a failed required verification closes the client and
+  deletes the newly created stores so an untrusted identity cannot be accepted
+  as an existing store on retry. An indeterminate preflight never deletes a
+  possibly existing store.
 - Validation: session and initialization suites cover marker lifecycle,
   missing stores, offline-safe existing stores, matching server identities,
   mismatches, and unavailable identity checks.

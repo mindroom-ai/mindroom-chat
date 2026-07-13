@@ -4,6 +4,7 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
   clearAllCacheAndReload,
+  DeviceIdentityVerificationError,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
@@ -183,6 +184,7 @@ const createDeleteDatabaseMock = ({
 describe('initClient', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
@@ -417,6 +419,18 @@ describe('initClient', () => {
 
   it('stops before startup when local crypto keys would replace an existing device identity', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const session = {
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    };
+    const deleteDatabase = createDeleteDatabaseMock();
+    vi.stubGlobal('indexedDB', {
+      databases: vi.fn().mockResolvedValue([]),
+      deleteDatabase,
+    });
     const destroy = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(
       () =>
@@ -456,19 +470,62 @@ describe('initClient', () => {
       setMaxListeners,
     } as never);
 
-    await expect(
-      initClient({
-        sessionId,
-        baseUrl: 'https://example.com',
-        accessToken: 'token',
-        userId: '@user:example.com',
-        deviceId: 'DEVICE',
-      })
-    ).rejects.toThrow('Remove this account, then sign in again');
+    await expect(initClient(session)).rejects.toThrow('Remove this account, then sign in again');
 
     expect(stopClient).toHaveBeenCalledTimes(1);
     expect(destroy).toHaveBeenCalledTimes(1);
+    expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual(
+      getSessionRustCryptoStoreNames(session)
+    );
     expect(setMaxListeners).not.toHaveBeenCalled();
+  });
+
+  it('treats incomplete local device keys as a retryable verification failure', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const session = {
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    };
+    vi.stubGlobal('indexedDB', {
+      databases: vi.fn().mockResolvedValue([]),
+      deleteDatabase: createDeleteDatabaseMock(),
+    });
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          startup: vi.fn().mockResolvedValue(undefined),
+          destroy: vi.fn().mockResolvedValue(undefined),
+        } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      getCrypto: vi.fn(() => ({
+        getOwnDeviceKeys: vi.fn().mockResolvedValue({ ed25519: 'local-ed-key' }),
+      })),
+      http: {
+        authedRequest: vi.fn().mockResolvedValue({
+          device_keys: {
+            '@user:example.com': {
+              DEVICE: {
+                keys: {
+                  'ed25519:DEVICE': 'server-ed-key',
+                  'curve25519:DEVICE': 'server-curve-key',
+                },
+              },
+            },
+          },
+        }),
+      },
+      stopClient: vi.fn(),
+    } as never);
+
+    await expect(initClient(session)).rejects.toBeInstanceOf(DeviceIdentityVerificationError);
   });
 
   it('fails closed before startup when the homeserver identity check is unavailable', async () => {
