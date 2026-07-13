@@ -4,8 +4,9 @@
 
 ### Hide agent-only thread filters in agentless rooms (2026-07-12)
 
-- Status: implementation, local validation, and independent review complete on
-  `caveman/hide-agentless-thread-filters`; publication is in progress.
+- Status: implementation, local validation, independent review, and publication
+  complete on `caveman/hide-agentless-thread-filters`; PR #144 is open against
+  `dev` and ready for review.
 - Problem: the compact room toolbar exposed agent workflow filters, presets,
   statistics, tags, and sort locking even in ordinary Matrix rooms with no
   MindRoom agent membership.
