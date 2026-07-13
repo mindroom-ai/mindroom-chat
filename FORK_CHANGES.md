@@ -55,7 +55,7 @@
   interactive descendants while excluding `tabindex="-1"` focus-management elements.
 - Coverage and validation: lifecycle tests prove keyed handoffs and a delayed initial router
   redirect retain one renderer, then release it after the final surface. Hit-target and SplashScreen
-  coverage pin transparent hosting plus control interaction. Full Vitest passes (406 files / 3,124
+  coverage pin transparent hosting plus control interaction. Full Vitest passes (407 files / 3,129
   tests), as do typecheck, production/PWA build, full ESLint (0 errors / 17 pre-existing warnings),
   touched-file Prettier, and `git diff --check`. Live Chromium kept the exact same connected canvas
   DOM node from delayed config loading through router redirect and auth, hit the canvas in empty
