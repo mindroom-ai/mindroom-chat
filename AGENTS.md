@@ -11,6 +11,7 @@ MindRoom depends on rapid message edits for streaming. Reliable edit rendering i
 All agents must start with `FORK_CHANGES.md` (Runbook section).
 
 It is the single source of truth for:
+
 - architecture notes,
 - implementation plan,
 - execution order,
@@ -26,6 +27,9 @@ Treat the Runbook section in `FORK_CHANGES.md` as a living document and keep it 
 - Require independent review after each logical step (separate agent/subagent when available; otherwise an independent second self-review).
 - Commit frequently with focused messages.
 - Add/update tests whenever behavior changes.
+- Open pull requests as ready for review, never as drafts. After opening a PR,
+  wait for all AI reviewers to finish, validate every finding, and address all
+  confirmed items before considering the work complete.
 
 ## Testing notes
 
