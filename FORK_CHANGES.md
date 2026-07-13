@@ -2,6 +2,47 @@
 
 ## Runbook
 
+### Expose the WebGL background behind active calls (2026-07-13)
+
+- Status: implementation, cleanup, automated validation, and live joined-call verification are
+  complete on `caveman/fix-call-embed-placement`; publication is in progress.
+- Symptom: after the call host placement fix, the active call stays inside the room pane but the
+  area around the participant tile remains white instead of showing the MindRoom WebGL particle
+  background.
+- Root cause: the injected Element Call override only set `background-color: transparent`. Live
+  Brave inspection confirmed that the iframe body still had Element Call's full-frame SVG
+  `background-image`. Clearing that image made the iframe document transparent, but Chromium still
+  composites its transparent document onto the iframe's own white canvas; a WebGL renderer in the
+  parent document therefore cannot become the visible call background.
+- Fix: reset the complete `background` shorthand on the vendored Element Call `html` and `body`,
+  which clears both its solid color and background image while preserving the participant tiles
+  and controls. Portal the MindRoom particle renderer into the same-origin Element Call document,
+  before its `#root`, then layer that application root above it. The renderer's self-contained mode
+  supplies the layout and gradient inline because the parent document's generated stylesheet does
+  not cross the iframe boundary; iframe-local media CSS preserves the existing static gradient for
+  reduced-motion users. The fixed host remains transparent and owns only the imperatively appended
+  iframe; the measured room target remains an empty placement reference.
+- Cleanup: the abandoned parent-layer implementation has been removed completely. The redundant
+  `CallBackground` visibility wrapper and the empty target's background/stacking styles are gone.
+  The target and controls are back in the original `CallView`; no test-only target attribute or
+  extraction remains. The small `CallEmbedHost` extraction stays deliberately because its ref and
+  childless-render test protect the imperative iframe ownership boundary.
+- Validation: the running Vite server serves the shorthand override, and live iframe inspection
+  reports `background-image: none` for both `html` and `body` (the old artifact reported Element
+  Call's SVG on `body`). A joined local call in Brave visibly renders the animated MindRoom field
+  behind the participant surface. The focused call/background/placement suite passes (7 files / 18
+  tests), the full Vitest suite passes (413 files / 3,169 tests), and typecheck, the production/PWA
+  build plus final Element Call artifact verification, touched-file ESLint and Prettier, and
+  `git diff --check` all pass.
+- Review: independent review confirmed the base portal lifecycle and found three cleanup/hardening
+  gaps: missing iframe-local reduced-motion handling, insufficient effect/load lifecycle coverage,
+  and the leftover target extraction. All three are addressed; the portal test now covers an
+  initially missing Element Call root, iframe load and repeated-load remounts, foreign-document
+  rendering, visibility cleanup, style restoration, and duplicate prevention. Re-review found that
+  Particular Drift's inline `display` would beat the first reduced-motion rule; both the page and
+  iframe rules now explicitly take precedence. Final independent re-review found no actionable
+  issues and confirmed the compiled production CSS contains the required important rule.
+
 ### Keep the fixed call embed inside the room call pane (2026-07-13)
 
 - Status: implementation, local validation, independent review, and publication complete on

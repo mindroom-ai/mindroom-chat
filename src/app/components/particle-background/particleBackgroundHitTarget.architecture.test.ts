@@ -20,6 +20,7 @@ describe('particle background hit targets', () => {
 
     expect(particleCanvas).toContain("pointerEvents: 'auto'");
     expect(particleCanvas).toContain("touchAction: 'none'");
+    expect(particleCanvas).toContain("display: 'none !important'");
     expect(readSource(sourcePath)).not.toContain("'(hover: none), (pointer: coarse)'");
   });
 

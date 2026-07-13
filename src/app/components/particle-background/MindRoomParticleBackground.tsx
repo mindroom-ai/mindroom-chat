@@ -35,10 +35,12 @@ export function resolveMindRoomParticleCount() {
 
 type MindRoomParticleBackgroundProps = {
   position?: 'absolute' | 'fixed';
+  selfContained?: boolean;
 };
 
 export function MindRoomParticleBackground({
   position = 'absolute',
+  selfContained = false,
 }: MindRoomParticleBackgroundProps) {
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
   const particleTheme = PARTICLE_THEMES[useParticleThemeKind()];
@@ -69,12 +71,34 @@ export function MindRoomParticleBackground({
         css.ParticleBackground,
         position === 'fixed' && css.ParticleBackgroundFixed
       )}
+      style={
+        selfContained
+          ? {
+              position,
+              inset: 0,
+              zIndex: 0,
+              pointerEvents: 'none',
+              background: particleTheme.backgroundRadialGradient,
+            }
+          : undefined
+      }
       aria-hidden="true"
     >
       <ParticularDriftCanvas
         className={css.ParticleCanvas}
         imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}
         options={options}
+        style={
+          selfContained
+            ? {
+                width: '100%',
+                height: '100%',
+                opacity: 1,
+                pointerEvents: 'auto',
+                touchAction: 'none',
+              }
+            : undefined
+        }
       />
     </div>
   );
