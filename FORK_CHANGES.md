@@ -4,8 +4,9 @@
 
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 
-- Status: implementation and local validation complete; production branch
-  deployment pending.
+- Status: implementation and local validation complete; draft PR #136 branch
+  deployed atomically to `chat.mindroom.chat` and live manifest/build checks
+  passed.
 - Each production build emits an unprecached `version.json` containing the Git
   commit used for both the manifest and the compiled client constant. A
   cache-busted, `no-store` request checks it at startup, every five minutes,
@@ -25,11 +26,12 @@
 - `version.json` is excluded from Workbox precaching. This is essential: a
   precached latest-version pointer would permanently report the version of the
   worker currently controlling the page.
-- Validation: updater unit tests cover failure/malformed manifests, current
-  versions, changed versions with one reload, and offline behavior; service
-  worker tests, typecheck, and a production build pass. The production build
-  contains `version.json`, excludes it from `sw.js`, and compiles the matching
-  commit into the client bundle.
+- Validation: updater unit tests cover failure/malformed manifests, stalled
+  requests, current versions, changed versions with one reload, and offline
+  behavior; service worker tests, typecheck, and a production build pass. The
+  live production branch build contains `version.json`, excludes it from
+  `sw.js`, and compiles the matching commit into the client bundle. Cloudflare
+  reports the cache-busted manifest as dynamic.
 
 ### Rename the client and repository to MindRoom Chat (2026-07-12)
 
