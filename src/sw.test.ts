@@ -21,6 +21,22 @@ describe('service worker app shell caching', () => {
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
     expect(viteConfigSource).toContain("'public/element-call/**'");
     expect(viteConfigSource).toContain("'runtime-config.js'");
+    expect(viteConfigSource).toContain("'version.json'");
+  });
+
+  it('reloads existing clients from the precached shell on upgrades only', () => {
+    const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
+
+    expect(swSource).toContain("const UPDATE_MARKER_CACHE = 'mindroom-service-worker-update'");
+    expect(swSource).toContain('Boolean(self.registration.active)');
+    expect(swSource).toContain('if (isUpgrade)');
+    expect(swSource).toContain("type: 'window'");
+    expect(swSource).toContain("client.frameType !== 'top-level'");
+    expect(swSource).toContain('await self.clients.claim()');
+    expect(swSource).toContain('await client.navigate(client.url)');
+    expect(swSource.indexOf('await self.clients.claim()')).toBeLessThan(
+      swSource.indexOf('await client.navigate(client.url)')
+    );
   });
 
   it('does not use the SPA fallback for same-origin backend routes', () => {
