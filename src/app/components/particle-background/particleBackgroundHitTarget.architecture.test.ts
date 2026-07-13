@@ -27,14 +27,17 @@ describe('particle background hit targets', () => {
 
   it('keeps the auth card and footer above the interactive canvas', () => {
     const sourcePath = '../../pages/auth/styles.css.ts';
+    const source = readSource(sourcePath);
     const authLayout = readExportBlock(sourcePath, 'AuthLayout');
     const authCard = readExportBlock(sourcePath, 'AuthCard');
     const authFooter = readExportBlock(sourcePath, 'AuthFooter');
 
     expect(authLayout).toContain("pointerEvents: 'none'");
+    expect(source).toContain('AuthLayout} :is(a, button');
+    expect(source).toContain("[tabindex]:not([tabindex='-1'])");
     expect(authCard).toContain("pointerEvents: 'auto'");
     expect(authFooter).toContain("position: 'relative'");
-    expect(authFooter).toContain('zIndex: 1');
+    expect(authFooter).toMatch(/^\s*zIndex: 1,\s*$/m);
     expect(authFooter).toContain("pointerEvents: 'auto'");
   });
 });
