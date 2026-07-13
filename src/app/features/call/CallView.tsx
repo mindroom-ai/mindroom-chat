@@ -1,5 +1,5 @@
-import React, { RefObject, useRef } from 'react';
-import { Badge, Box, color, Header, Scroll, Text, toRem } from 'folds';
+import React, { RefObject, useRef, useState } from 'react';
+import { Badge, Box, color, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { useCallEmbed, useCallJoined, useCallEmbedPlacementSync } from '../../hooks/useCallEmbed';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { PrescreenControls } from './PrescreenControls';
@@ -15,6 +15,7 @@ import * as css from './styles.css';
 import { CallControls } from './CallControls';
 import { useLivekitSupport } from '../../hooks/useLivekitSupport';
 import { webRTCSupported } from '../../utils/rtc';
+import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice';
 
 function LivekitServerMissingMessage() {
   return (
@@ -141,9 +142,37 @@ type CallJoinedProps = {
 };
 function CallJoined({ joined, containerRef }: CallJoinedProps) {
   const callEmbed = useCallEmbed();
+  const callFailure = useCallFailureNotice(joined);
+  const [dismissedEventId, setDismissedEventId] = useState<string>();
+  const visibleFailure = callFailure?.eventId !== dismissedEventId ? callFailure : undefined;
 
   return (
-    <Box grow="Yes" direction="Column">
+    <Box className={css.CallJoined} grow="Yes" direction="Column">
+      {visibleFailure && (
+        <Box
+          className={css.CallFailureBanner}
+          style={{
+            backgroundColor: color.Critical.Container,
+            color: color.Critical.OnContainer,
+          }}
+          role="alert"
+          alignItems="Start"
+          gap="300"
+        >
+          <Box grow="Yes" direction="Column" gap="100">
+            <Text size="B400">Voice call error</Text>
+            <Text size="T300">{visibleFailure.message}</Text>
+          </Box>
+          <IconButton
+            aria-label="Dismiss voice call error"
+            size="300"
+            radii="300"
+            onClick={() => setDismissedEventId(visibleFailure.eventId)}
+          >
+            <Icon src={Icons.Cross} size="100" />
+          </IconButton>
+        </Box>
+      )}
       <Box grow="Yes" ref={containerRef} />
       {callEmbed && joined && <CallControls callEmbed={callEmbed} />}
     </Box>
