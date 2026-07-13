@@ -4,20 +4,23 @@
 
 ### Keep agent model badges on the standard message grid (2026-07-13)
 
-- Status: implementation, validation, live diagnosis, and independent review
-  complete.
+- Status: implementation, live diagnosis, independent review, PR review
+  remediation, and final local validation complete on PR #145.
 - Root cause: the model badge is visually centered under its avatar, but the
   avatar stack is forced to the badge's 64 px maximum width. Folds' `size="300"`
   message avatar is only 36 px wide, so AI-run messages widen the leading
   column by 28 px and push the sender header and message body off the normal
   room timeline grid.
 - Fix: keep the avatar stack at the standard 36 px column width and allow the
-  wider badge to overflow symmetrically under it. Cap the badge at 60 px so its
-  12 px overflow on each side ends exactly at the Modern and Bubble layout
+  wider badge to overflow symmetrically under it. Derive the badge cap from the
+  same Folds gap token used by Modern and Bubble layouts; with the current token
+  it evaluates to 60 px, so its 12 px overflow on each side ends exactly at the
   content gap instead of overlapping the content column.
-- Coverage: a focused layout-contract test pins the `size="300"` avatar, centered
-  36 px stack, wider badge behavior, and 60 px non-overlap bound. It and the
-  existing message integration suite pass (2 files / 5 tests).
+- Coverage: shared typed layout constants now bind the `size="300"` avatar, its
+  36 px column, both layout gaps, and the badge-width calculation. The focused
+  layout test imports that contract directly, while the existing rendered
+  message test scopes the size assertion to the AI-run avatar stack. Both pass
+  (2 files / 5 tests).
 - Live validation: browser geometry on the affected production thread measured
   ordinary message columns at 36 px with content beginning at x=386.55, while
   the 64 px AI-run column pushed content to x=414.54. The 28 px discrepancy
@@ -26,9 +29,14 @@
   the content column after restoring the 36 px wrapper. The confirmed fix caps
   the badge at 60 px; re-review found no remaining correctness, accessibility,
   responsive, Modern-layout, or Bubble-layout findings.
-- Validation: the full Vitest suite passes (412 files / 3,155 tests), as do
-  typecheck, the production/PWA build, touched-file Prettier, `git diff --check`,
-  and full ESLint (0 errors / 17 pre-existing warnings).
+- PR review hardening: Gemini and Greptile correctly flagged that the first
+  regression test parsed source with formatting-sensitive regexes, used a
+  disconnected 12 px constant, and did not scope its avatar-size regex to the
+  AI-run branch. The replacement uses imported production constants, derives
+  the CSS cap from the real gap token, and checks the rendered AI-run subtree.
+- Validation after PR review: the full Vitest suite passes (412 files / 3,155
+  tests), as do typecheck, the production/PWA build, touched-file Prettier,
+  `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings).
 
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 

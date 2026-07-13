@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, ContainerColor, as, color } from 'folds';
 import * as css from './layout.css';
+import { MESSAGE_LAYOUT_GAP } from './config';
 
 type BubbleArrowProps = {
   variant: ContainerColor;
@@ -34,7 +35,7 @@ type BubbleLayoutProps = {
 
 export const BubbleLayout = as<'div', BubbleLayoutProps>(
   ({ hideBubble, before, header, children, ...props }, ref) => (
-    <Box gap="300" {...props} ref={ref}>
+    <Box gap={MESSAGE_LAYOUT_GAP} {...props} ref={ref}>
       <Box className={css.BubbleBefore} shrink="No">
         {before}
       </Box>
