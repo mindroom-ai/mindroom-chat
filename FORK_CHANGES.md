@@ -137,16 +137,18 @@
   images emitted `{"version":"unknown"}` even though direct/Netlify builds
   exposed the correct commit. The Dockerfile now accepts an explicit
   `MINDROOM_BUILD_VERSION`; branch-push, release, and PR workflows pass the
-  exact GitHub commit. Docker CI reads `/app/version.json` from the built image,
-  while a focused source contract keeps both publishing workflows wired to the
-  commit, preventing the packaging path from silently regressing again.
-  Validation: focused build-version tests (7), full Vitest suite (416 files,
-  3178 tests), typecheck, production build, ESLint (0 errors; 17 existing
-  warnings), Prettier, workflow YAML parsing, and diff checks passed. Independent
-  review found missing release-workflow coverage and incomplete Docker CI path
-  triggers; both were fixed, and re-review found no remaining issue. A local
-  container build reached Vite compilation but exhausted Colima memory; Docker
-  CI performs the exact image assertion.
+  exact GitHub commit. Docker CI reads `/app/version.json` from the built image
+  and runs a dedicated publisher-workflow validation script, preventing the
+  packaging path from silently regressing again even on workflow-only changes.
+  Validation: focused build-version tests (6), full Vitest suite (416 files,
+  3177 tests), typecheck, production build, ESLint (0 errors; 17 existing
+  warnings), Prettier, dedicated publisher-workflow validation, workflow YAML
+  parsing, and diff checks passed. Independent review found missing
+  release-workflow coverage and incomplete Docker CI path triggers; both were
+  fixed. AI review then found that a unit source contract might not run for a
+  workflow-only change, so the check moved into Docker CI; final independent
+  re-review found no issue. A local container build reached Vite compilation but
+  exhausted Colima memory; Docker CI performs the exact image assertion.
 
 ### Update repository-local review skills for MindRoom Chat (2026-07-12)
 
