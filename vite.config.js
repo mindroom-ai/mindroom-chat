@@ -10,11 +10,20 @@ import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
 import buildConfig from './build.config';
+import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
 
 export const copyFiles = {
   targets: [
     {
-      src: 'node_modules/@element-hq/element-call-embedded/dist/*',
+      src: 'node_modules/@element-hq/element-call-embedded/dist/index.html',
+      dest: 'public/element-call',
+      transform: injectElementCallTransparentBackground,
+    },
+    {
+      src: [
+        'node_modules/@element-hq/element-call-embedded/dist/*',
+        '!node_modules/@element-hq/element-call-embedded/dist/index.html',
+      ],
       dest: 'public/element-call',
     },
     {

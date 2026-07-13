@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Animated agent-call background (2026-07-12)
+
+- Status: implementation, post-conflict validation, and review complete.
+- Root cause: embedded Element Call paints its own opaque canvas, leaving the
+  newly added agent-call surface as a giant white frame during startup when the
+  app is dark but the device color scheme is light.
+- Fix: reuse the theme-aware MindRoom WebGL particle animation from login behind
+  the visible call iframe. The vendored Element Call document and iframe are
+  made transparent so the animation remains visible, with the particle theme's
+  solid color as a first-frame fallback. Hidden calls do not run WebGL.
+- Coverage: focused tests pin animation visibility, iframe layering, the exact
+  Vite copy transform, and the pre-stylesheet transparency override against the
+  real vendored Element Call `index.html`; an upstream missing `<head>` now
+  fails the build instead of silently restoring the opaque canvas.
+- AI-review hardening: the production build now verifies the final copied
+  Element Call output, so a copy-order or glob regression cannot overwrite the
+  transformed `index.html` without failing the build. Gemini's Buffer and
+  stacking suggestions were validated as already satisfied by the copy
+  plugin's UTF-8 transform contract and the particle root's existing z-index.
+  All three PR review threads have evidence-backed replies and are resolved;
+  Greptile's final review rates the updated implementation 5/5 with no further
+  findings.
+- Validation: focused tests pass (3 files / 7 tests), as do typecheck, production
+  build, touched-file Prettier, ESLint (0 errors / 2 pre-existing `CallEmbed.ts`
+  console warnings), and `git diff --check` after merging current `dev`. The
+  full suite passes 403 files / 3,117 tests, with one unrelated existing failure in
+  `virtualizerIOSScrollContract.test.ts:251` that reproduces alone. Independent
+  self-review of the final diff found no remaining layering, visibility,
+  placement, React ownership, resource-lifecycle, copy-pipeline, merge-conflict,
+  or test-coverage defects.
+
 ### Open threads from call-room side chat (2026-07-12)
 
 - Status: implementation, local validation, and independent review complete.
