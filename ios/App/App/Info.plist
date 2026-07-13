@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>MindRoom</string>
+	<string>MindRoom Chat</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -75,18 +75,18 @@
 	</dict>
 	<!-- Local network access prompt -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>MindRoom needs to connect to your local Matrix homeserver.</string>
+	<string>MindRoom Chat needs to connect to your local Matrix homeserver.</string>
 	<!-- Microphone access for voice messages and voice calls -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>MindRoom needs microphone access to record voice messages and talk in voice calls.</string>
+	<string>MindRoom Chat needs microphone access to record voice messages and talk in voice calls.</string>
 	<!-- Camera access for capturing attachments -->
 	<key>NSCameraUsageDescription</key>
-	<string>MindRoom needs camera access to capture photos and videos to send in chats.</string>
+	<string>MindRoom Chat needs camera access to capture photos and videos to send in chats.</string>
 	<!-- Photo Library access for sending media attachments -->
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>MindRoom needs photo library access so you can share photos and videos in chats.</string>
+	<string>MindRoom Chat needs photo library access so you can share photos and videos in chats.</string>
 	<!-- Photo Library add access for saving media generated in chat flows -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>MindRoom needs permission to save images and videos from chats to your photo library.</string>
+	<string>MindRoom Chat needs permission to save images and videos from chats to your photo library.</string>
 </dict>
 </plist>

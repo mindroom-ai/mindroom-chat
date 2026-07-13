@@ -1,8 +1,8 @@
-# AGENTS: MindRoom Cinny Fork
+# AGENTS: MindRoom Chat
 
 ## Mission
 
-This fork exists to provide a Matrix client optimized for MindRoom AI agent workflows.
+MindRoom Chat is built on Cinny to provide a Matrix client optimized for MindRoom AI agent workflows.
 
 MindRoom depends on rapid message edits for streaming. Reliable edit rendering is mandatory. In addition, thread UX and tool-call visibility are core to product usability.
 

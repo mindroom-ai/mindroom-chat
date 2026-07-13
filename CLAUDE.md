@@ -1,12 +1,13 @@
-# MindRoom Cinny Fork: Agent Guide
+# MindRoom Chat: Agent Guide
 
 ## Why this fork exists
 
-This repository is a MindRoom-focused fork of Cinny.
+MindRoom Chat is a MindRoom-focused Matrix client built on Cinny.
 
 MindRoom streams AI responses over Matrix by sending frequent `m.replace` edits. The prior Element-based fork had stale-edit rendering failures that break streaming UX. Cinny is being adopted because its edit rendering is more reliable and its codebase is smaller/easier to evolve.
 
 Primary product goals in this fork:
+
 1. Thread-first UX (agent conversations happen in threads and must be first-class).
 2. MindRoom tool-trace rendering (`<tool>`, `<tool-group>`, `<think>`, etc.).
 3. MindRoom `!` command autocomplete that sends plain text.
@@ -24,6 +25,7 @@ The Runbook section in `FORK_CHANGES.md` is the canonical, living implementation
 ## Required delivery process
 
 For each logical implementation step:
+
 1. Implement one bounded step only.
 2. Update the Runbook section in `FORK_CHANGES.md` with what changed and what is next.
 3. Validate with:

@@ -110,7 +110,7 @@ login = request(
         "type": "m.login.password",
         "identifier": {"type": "m.id.user", "user": username},
         "password": password,
-        "initial_device_display_name": "MindRoom iOS Sim",
+        "initial_device_display_name": "MindRoom Chat iOS Sim",
     },
 )
 

@@ -56,10 +56,10 @@ const bootstrap = async () => {
     navigator.storage
       .persist()
       .then((granted) => {
-        console.log(`[Cinny] Persistent storage: ${granted ? 'granted' : 'denied'}`);
+        console.log(`[MindRoom Chat] Persistent storage: ${granted ? 'granted' : 'denied'}`);
       })
       .catch((err) => {
-        console.warn('[Cinny] Persistent storage request failed:', err);
+        console.warn('[MindRoom Chat] Persistent storage request failed:', err);
       });
   }
 

@@ -1,5 +1,4 @@
 import { Icons, type IconSrc } from 'folds';
-import { MINDROOM_APP_NAME } from '../branding/branding';
 import { LOCAL_MINDROOM_SETTINGS_PAGE, type LocalMindroomSettingsPage } from './settingsPage';
 
 export type LocalMindroomSettingsMenuItem = {
@@ -10,7 +9,8 @@ export type LocalMindroomSettingsMenuItem = {
 
 export const getLocalMindroomSettingsMenuItem = (): LocalMindroomSettingsMenuItem => ({
   page: LOCAL_MINDROOM_SETTINGS_PAGE,
-  name: `Local ${MINDROOM_APP_NAME}`,
+  // This names the paired local runtime, not the MindRoom Chat client.
+  name: 'Local MindRoom',
   icon: Icons.Link,
 });
 

@@ -1,6 +1,6 @@
 # more info: https://caddyserver.com/docs/caddyfile/patterns#single-page-apps-spas
-cinny.domain.tld {
-  root * /path/to/cinny/dist
+chat.domain.tld {
+  root * /path/to/mindroom-chat/dist
   try_files {path} / index.html
   file_server
 }

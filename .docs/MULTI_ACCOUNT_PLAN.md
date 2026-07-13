@@ -3,7 +3,7 @@
 ## Purpose
 
 This document is the detailed design reference for adding multi-account support
-to the MindRoom Cinny fork.
+to MindRoom Chat.
 
 This feature is large and invasive. The goal of this document is to make the
 scope explicit before implementation so we do not drift into an accidental
