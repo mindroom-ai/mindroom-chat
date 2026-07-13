@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Update repository-local review skills for MindRoom Chat (2026-07-12)
+
+- Status: implementation, local validation, and publication complete on
+  `caveman/mindroom-chat-migration`; PR #143 tracks the change.
+- Problem: two repository-local review skill descriptions still called the
+  product the MindRoom Cinny fork after the repository and product rename.
+- Change: describe both review workflows as applying to MindRoom Chat while
+  leaving compatibility-sensitive Cinny identifiers and historical runbook
+  entries unchanged.
+- Validation: the full Vitest suite passes (407 files / 3,129 tests), as do
+  typecheck, production/PWA build, touched-file Prettier, ESLint (0 errors / 17
+  pre-existing warnings), and `git diff --check`. The repository-wide Prettier
+  check still reports the existing formatting backlog outside this change.
+
 ### Clarify the README comparison with upstream Cinny (2026-07-12)
 
 - Status: implementation, local validation, and publication complete on

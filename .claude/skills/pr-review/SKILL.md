@@ -1,11 +1,12 @@
 ---
 name: pr-review
-description: Zero-tolerance pull request review for the MindRoom Cinny fork. Every issue is a blocker. Use when reviewing PRs for merge readiness.
+description: Zero-tolerance pull request review for MindRoom Chat. Every issue is a blocker. Use when reviewing PRs for merge readiness.
 ---
 
 Review the pull request with a **zero-tolerance standard**. Every issue you find is a blocker — there is no such thing as a "minor issue" or "non-blocking suggestion". Either the PR is flawless and ready to merge, or it has problems that MUST be fixed before merging. Do not approve a PR with caveats like "ready to merge but consider..." or "minor nit:". If you would mention it, it must be fixed.
 
 **Your verdict must be one of**:
+
 - ✅ **APPROVE** — The code is near-perfect. No issues found. Merge immediately.
 - ❌ **CHANGES REQUIRED** — Issues found. List every one. All must be fixed before re-review.
 
