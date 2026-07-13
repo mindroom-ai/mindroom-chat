@@ -50,7 +50,8 @@
 - Review hardening: the persistent canvas sits below transparent hosted surfaces, empty splash/auth
   space passes pointer hits through to WebGL, and explicit controls plus the auth card/footer opt
   back into hit testing. This preserves desktop interaction while keeping every form/recovery action
-  clickable.
+  clickable. Hit-target assertions are scoped per exported style without depending on property
+  order, and the splash pass-through selector excludes `tabindex="-1"` focus-management elements.
 - Coverage and validation: lifecycle tests prove keyed handoffs and a delayed initial router
   redirect retain one renderer, then release it after the final surface. Hit-target and SplashScreen
   coverage pin transparent hosting plus control interaction. Full Vitest passes (403 files / 3,117
