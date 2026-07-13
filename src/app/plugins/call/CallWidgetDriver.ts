@@ -267,12 +267,13 @@ export class CallWidgetDriver extends WidgetDriver {
       );
       if (pendingRecipients.length === 0) return [];
 
+      this.prepareRoomEncryption(crypto);
       let batch: EncryptedToDeviceBatch;
       try {
         // For tracked users this waits for an in-flight key query. Avoid
         // downloadUncached: that API's returned map does not populate the Rust
         // store used by encryptToDeviceMessages.
-        await crypto.getUserDeviceInfo(
+        const deviceInfo = await crypto.getUserDeviceInfo(
           Array.from(new Set(pendingRecipients.map(({ userId }) => userId)))
         );
         pendingRecipients = this.currentEncryptionRecipients(
@@ -281,7 +282,11 @@ export class CallWidgetDriver extends WidgetDriver {
           generation
         );
         if (pendingRecipients.length === 0) return [];
-        batch = await crypto.encryptToDeviceMessages(eventType, pendingRecipients, content);
+        const knownRecipients = pendingRecipients.filter((recipient) =>
+          deviceInfo.get(recipient.userId)?.has(recipient.deviceId)
+        );
+        if (knownRecipients.length === 0) continue;
+        batch = await crypto.encryptToDeviceMessages(eventType, knownRecipients, content);
         pendingRecipients = this.currentEncryptionRecipients(
           eventType,
           pendingRecipients,
@@ -321,6 +326,17 @@ export class CallWidgetDriver extends WidgetDriver {
     }
 
     return pendingRecipients;
+  }
+
+  private prepareRoomEncryption(crypto: MatrixCrypto): void {
+    const room = this.mx.getRoom(this.inRoomId);
+    if (!room) return;
+    // Call-only rooms may never encrypt an ordinary timeline event. Start the
+    // SDK's supported preparation on every timed attempt: this lets a room
+    // that was initially absent recover and lets Rust's serialized preparation
+    // chain restart after an earlier failure. The exact-device polling below
+    // bridges the API's intentionally non-awaitable completion.
+    crypto.prepareToEncrypt(room);
   }
 
   private async retryEncryptedToDeviceInBackground(
