@@ -5,12 +5,21 @@ export const getLivekitServiceUrl = (autoDiscoveryInfo: AutoDiscoveryInfo): stri
   const rtcFoci = autoDiscoveryInfo['org.matrix.msc4143.rtc_foci'];
   if (!Array.isArray(rtcFoci)) return undefined;
 
-  return rtcFoci.find(
-    (info) =>
+  for (const value of rtcFoci as unknown[]) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+
+    const info = value as Record<string, unknown>;
+    const livekitServiceUrl = info.livekit_service_url;
+    if (
       info.type === 'livekit' &&
-      typeof info.livekit_service_url === 'string' &&
-      isAllowedHomeserverBaseUrl(info.livekit_service_url)
-  )?.livekit_service_url;
+      typeof livekitServiceUrl === 'string' &&
+      isAllowedHomeserverBaseUrl(livekitServiceUrl)
+    ) {
+      return livekitServiceUrl;
+    }
+  }
+
+  return undefined;
 };
 
 export const livekitSupport = (autoDiscoveryInfo: AutoDiscoveryInfo): boolean => {

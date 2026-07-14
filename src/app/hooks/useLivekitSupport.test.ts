@@ -34,4 +34,14 @@ describe('getLivekitServiceUrl', () => {
       'http://localhost:7880/jwt'
     );
   });
+
+  it('ignores malformed focus entries', () => {
+    const discovery = {
+      'm.homeserver': { base_url: 'https://matrix.example.com' },
+      'org.matrix.msc4143.rtc_foci': [null, 'invalid'],
+    } as unknown as AutoDiscoveryInfo;
+
+    expect(getLivekitServiceUrl(discovery)).toBeUndefined();
+    expect(livekitSupport(discovery)).toBe(false);
+  });
 });

@@ -11,7 +11,7 @@
   The selected, validated MatrixRTC focus is passed to embedded Element Call in the iframe fragment; an injected pre-module bridge serves that metadata to Element Call's internal discovery request without sending the request over the network.
   Homeservers without matching configuration keep existing Matrix auto-discovery behavior unchanged.
 - Security: configuration contains connection metadata only; no access token, client secret, or other credential is introduced.
-- Coverage: 3,194 tests pass across 419 files, including server-name normalization, active-session base-URL authority, malformed-entry isolation, network-request suppression, MatrixRTC metadata preservation, embedded-call handoff, and rejection of insecure configured endpoints.
+- Coverage: 3,195 tests pass across 419 files, including server-name normalization, active-session base-URL authority, malformed-entry isolation, network-request suppression, MatrixRTC metadata preservation, embedded-call handoff, and rejection of insecure configured endpoints.
   Typecheck, production build with transformed-output verification, full lint (zero errors; 17 existing warnings), and independent review also pass.
 
 ### Expose the WebGL background behind active calls (2026-07-13)
