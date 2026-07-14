@@ -54,9 +54,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
-import {
-  MindroomCommandPaletteHeaderButton,
-} from '../command-palette/MindroomCommandPaletteHeaderButton';
+import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -74,10 +72,12 @@ import type { RoomViewMode } from './roomViewMode';
 import { useRoomViewMode } from './useRoomViewMode';
 
 type RoomMenuProps = {
+  hasMindroomAgents?: boolean;
   room: Room;
   requestClose: () => void;
 };
-const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose }, ref) => {
+const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>((props, ref) => {
+  const { hasMindroomAgents = true, room, requestClose } = props;
   const mx = useMatrixClient();
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
@@ -87,7 +87,9 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const notificationMode = getRoomNotificationMode(notificationPreferences, room.roomId);
   const { navigateRoom } = useRoomNavigate();
-  const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
+  const { isHumanDirectMessage, setViewMode, viewMode } = useRoomViewMode(room.roomId, {
+    hasMindroomAgents,
+  });
   const simpleMode = useSimpleMode();
 
   const [invitePrompt, setInvitePrompt] = useState(false);
@@ -150,7 +152,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           )}
         </RoomNotificationModeSwitcher>
       </Box>
-      {!simpleMode && (
+      {!simpleMode && !isHumanDirectMessage && (
         <>
           <Line variant="Surface" size="300" />
           <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
@@ -293,9 +295,11 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  hasMindroomAgents = true,
   threadId,
 }: {
   callView?: boolean;
+  hasMindroomAgents?: boolean;
   threadId?: string;
 }) {
   const navigate = useNavigate();
@@ -563,7 +567,11 @@ export function RoomViewHeader({
                   escapeDeactivates: stopPropagation,
                 }}
               >
-                <RoomMenu room={room} requestClose={() => setMenuAnchor(undefined)} />
+                <RoomMenu
+                  hasMindroomAgents={hasMindroomAgents}
+                  room={room}
+                  requestClose={() => setMenuAnchor(undefined)}
+                />
               </FocusTrap>
             }
           />

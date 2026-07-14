@@ -4,7 +4,10 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from '../commandPaletteState';
 
-const { encryptionState, screenSizeState } = vi.hoisted(() => ({
+const { directRoomState, encryptionState, screenSizeState } = vi.hoisted(() => ({
+  directRoomState: {
+    value: false,
+  },
   encryptionState: {
     value: undefined as unknown,
   },
@@ -26,9 +29,12 @@ vi.mock('folds', async (importOriginal) => {
 
   return {
     ...actual,
-    Avatar: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
-    Badge: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
-    Box: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Avatar: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Badge: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Box: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     config: {
       ...actual.config,
       space: {
@@ -55,23 +61,33 @@ vi.mock('folds', async (importOriginal) => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Menu: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     MenuItem: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('button', { type: 'button' }, children),
-    Overlay: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Overlay: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     OverlayBackdrop: () => reactModule.createElement('div'),
     OverlayCenter: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
-    PopOut: () => null,
+    PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+      anchor ? content : null,
     Spinner: () => reactModule.createElement('div'),
-    Text: ({ children }: { children: React.ReactNode }) => reactModule.createElement('span', null, children),
+    Text: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('span', null, children),
     toRem: (value: number) => `${value}rem`,
-    Tooltip: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     TooltipProvider: ({
       children,
     }: {
       children: (triggerRef: React.Ref<HTMLButtonElement>) => React.ReactNode;
-    }) => reactModule.createElement(reactModule.Fragment, null, children(() => undefined)),
+    }) =>
+      reactModule.createElement(
+        reactModule.Fragment,
+        null,
+        children(() => undefined)
+      ),
   };
 });
 
@@ -88,7 +104,8 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../../../components/page', () => ({
-  PageHeader: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  PageHeader: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../../styles/ContainerColor.css', () => ({
@@ -141,7 +158,18 @@ vi.mock('../../../hooks/useRoom', () => ({
     roomId: '!room:example.org',
     getJoinRule: () => undefined,
   }),
-  useIsDirectRoom: () => false,
+  useIsDirectRoom: () => directRoomState.value,
+}));
+
+vi.mock('../../threads/useRoomViewMode', () => ({
+  useRoomViewMode: (
+    _roomId: string,
+    { hasMindroomAgents = true }: { hasMindroomAgents?: boolean } = {}
+  ) => ({
+    isHumanDirectMessage: directRoomState.value && !hasMindroomAgents,
+    setViewMode: vi.fn(),
+    viewMode: directRoomState.value && !hasMindroomAgents ? 'classic' : 'compact',
+  }),
 }));
 
 vi.mock('../../../state/hooks/settings', () => ({
@@ -276,14 +304,14 @@ vi.mock('../../../hooks/useRoomPermissions', () => ({
   }),
 }));
 
-const renderHeader = async () => {
+const renderHeader = async ({ hasMindroomAgents = true } = {}) => {
   const store = createStore();
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
     React.createElement(
       Provider,
       { store },
-      React.createElement(RoomViewHeader)
+      React.createElement(RoomViewHeader, { hasMindroomAgents })
     )
   );
 
@@ -291,6 +319,7 @@ const renderHeader = async () => {
 };
 
 afterEach(() => {
+  directRoomState.value = false;
   encryptionState.value = undefined;
   screenSizeState.value = 'Desktop';
 });
@@ -314,6 +343,28 @@ describe('RoomViewHeader', () => {
 
     expect(renderer.root.findByProps({ 'aria-label': 'Open command palette' })).toBeDefined();
     expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(0);
-    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(
+      1
+    );
+  });
+
+  it('omits inactive room-mode choices from a human direct message', async () => {
+    directRoomState.value = true;
+    const { renderer } = await renderHeader({ hasMindroomAgents: false });
+    const menuButton = renderer.root.find(
+      (node) =>
+        node.type === 'button' &&
+        node.findAll((child) => child.props?.['data-icon'] === 'VerticalDots').length === 1
+    );
+
+    await act(async () => {
+      menuButton.props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({}) },
+      });
+    });
+
+    expect(renderer.root.findAllByProps({ children: 'Compact' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ children: 'Threads' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ children: 'Classic' })).toHaveLength(0);
   });
 });

@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Human direct messages use the classic timeline (2026-07-14)
+
+- Status: implementation, full local validation, and two self-review passes are complete on `caveman/person-dm-classic-view`; ready for PR review.
+- Problem: one-to-one conversations with people inherited the room's persisted compact/threaded mode, exposing thread navigation and overview UI that add friction to an ordinary chat.
+- Change: project direct rooms with no active MindRoom agent onto Classic mode at the shared room-view policy boundary.
+  The stored per-room preference remains untouched so adding an agent restores the room's previous agent-oriented view.
+  Classic mode owns thread-route cleanup, room-level sends, inline thread replies, hidden thread badges, and hidden overview controls, keeping every consumer on one behavior path.
+  The room header and room settings also omit mode selectors in a human DM so they do not expose controls whose values are intentionally inactive.
+- Coverage: pure policy tests pin Compact, Threads, and Simple Mode inputs resolving to Classic for human DMs without mutating the stored input.
+  Room integration coverage pins thread-route cleanup, timeline coverage pins ordinary DM messages rendering without compact/overview UI, and header coverage pins the inactive mode choices staying hidden.
+  The live DM spec now seeds a stored Compact preference and requires the Classic message timeline with no thread overview or thread-open control; it was not run locally because the two-account credentials are unavailable.
+- Validation: the focused behavior suite passes 7 files / 128 tests, and the full Vitest suite passes 420 files / 3,199 tests.
+  TypeScript, the production/PWA build plus Element Call artifact verification, touched-file Prettier, `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17 pre-existing warnings.
+  The review passes corrected a stale direct-room compact assertion, reduced incidental formatter churn, and found no remaining behavior or architecture issue.
+
 ### Keep call settings above participant tiles (2026-07-14)
 
 - Status: implementation, full local validation, and independent review are complete on `caveman/fix-call-settings-stacking`; ready for PR review.

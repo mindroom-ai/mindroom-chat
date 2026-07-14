@@ -133,7 +133,7 @@ export function RoomView({
 
   return (
     <Page ref={roomViewRef} style={{ height: 'var(--app-height, 100%)' }}>
-      <RoomViewHeader threadId={effectiveThreadId} />
+      <RoomViewHeader hasMindroomAgents={hasMindroomAgents} threadId={effectiveThreadId} />
       {effectiveThreadId && (
         <ThreadContextBanner
           room={room}

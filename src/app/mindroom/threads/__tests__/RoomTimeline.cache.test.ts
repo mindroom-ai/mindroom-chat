@@ -791,9 +791,7 @@ describe('RoomTimeline', () => {
         );
         expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
-        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(
-          quiescenceSettlesBefore + 1
-        );
+        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no
@@ -2557,7 +2555,7 @@ describe('RoomTimeline', () => {
       ]);
     });
 
-    it('does not force direct rooms back to the message timeline in compact mode', async () => {
+    it('renders direct-room messages on the classic timeline without thread overview UI', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const directMessage = makeEvent('$dm-message');
       const room = makeRoom({
@@ -2572,14 +2570,14 @@ describe('RoomTimeline', () => {
         renderer = create(
           React.createElement(ControlledRoomTimeline, {
             room,
-            initialViewMode: 'compact',
+            initialViewMode: 'classic',
             initialThreadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
           })
         );
         await flushAsyncWork(2);
       });
 
-      expect(getRenderedEventIds(renderer!)).toEqual([]);
+      expect(getRenderedEventIds(renderer!)).toEqual(['$dm-message']);
       expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
       expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
     });

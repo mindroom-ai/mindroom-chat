@@ -28,6 +28,7 @@ const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, 
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
+      direct: false,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
@@ -125,7 +126,12 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../useRoomViewMode', () => ({
-  useRoomViewMode: () => ({ viewMode: 'threaded' }),
+  useRoomViewMode: (
+    _roomId: string,
+    { hasMindroomAgents = true }: { hasMindroomAgents?: boolean } = {}
+  ) => ({
+    viewMode: roomState.direct && !hasMindroomAgents ? 'classic' : 'threaded',
+  }),
 }));
 
 vi.mock('../../../hooks/useRoomMembers', () => ({
@@ -177,6 +183,7 @@ describe('Room', () => {
     roomState.callChat = false;
     roomState.callChatViewProps = undefined;
     roomState.callRoom = false;
+    roomState.direct = false;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
@@ -226,6 +233,25 @@ describe('Room', () => {
 
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
     expect(navigateRoomMock).not.toHaveBeenCalled();
+  });
+
+  it('projects a human direct message onto the classic timeline and removes its thread route', async () => {
+    roomState.direct = true;
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@bob:example.org' },
+    ];
+    roomState.search = '?threadId=%24explicit';
+    const { Room } = await import('../../../features/room/Room');
+
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+
+    expect(roomState.roomViewProps?.threadId).toBeUndefined();
+    expect(navigateRoomMock).toHaveBeenCalledWith('!room:example.org', '$explicit', {
+      replace: true,
+    });
   });
 
   it('does not navigate when returning to a room after leaving a thread', async () => {

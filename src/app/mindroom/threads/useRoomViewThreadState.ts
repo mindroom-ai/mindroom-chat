@@ -89,7 +89,9 @@ export const useRoomViewThreadState = ({
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
   const { navigatePath, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
 
-  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
+  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, {
+    hasMindroomAgents,
+  });
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]

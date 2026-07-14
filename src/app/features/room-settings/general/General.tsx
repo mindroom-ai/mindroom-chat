@@ -1,8 +1,10 @@
 import React from 'react';
 import { Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRoom } from '../../../hooks/useRoom';
+import { useRoomMembers } from '../../../hooks/useRoomMembers';
 import {
   RoomProfile,
   RoomEncryption,
@@ -17,6 +19,7 @@ import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import type { RoomViewMode } from '../../../mindroom/threads/roomViewMode';
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
+import { hasActiveMindroomAgent } from '../../../mindroom/matrix/agentIdentity';
 
 const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
   compact: 'Compact',
@@ -26,7 +29,16 @@ const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
 
 function RoomTimelineMode() {
   const room = useRoom();
-  const { setViewMode, storedViewMode: viewMode } = useRoomViewMode(room.roomId);
+  const mx = useMatrixClient();
+  const members = useRoomMembers(mx, room.roomId);
+  const hasMindroomAgents = hasActiveMindroomAgent(members);
+  const {
+    isHumanDirectMessage,
+    setViewMode,
+    storedViewMode: viewMode,
+  } = useRoomViewMode(room.roomId, { hasMindroomAgents });
+
+  if (isHumanDirectMessage) return null;
 
   return (
     <Box direction="Column" gap="200">
