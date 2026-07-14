@@ -161,8 +161,6 @@ export class CloudflareAccessController {
 
   private readonly allowedScopes = new Set<string>();
 
-  private readonly suppressedScopes = new Set<string>();
-
   private requirement: CloudflareAccessRequirement | undefined;
 
   constructor({
@@ -190,24 +188,12 @@ export class CloudflareAccessController {
     if (!cached && !this.allowedScopes.has(pathParts.scope)) {
       return this.baseFetch(input, init);
     }
-    if (this.suppressedScopes.has(pathParts.scope)) {
-      return this.baseFetch(input, init);
-    }
-
-    let state: AccessState;
-    try {
-      const interactive =
-        this.interactiveScopes.has(pathParts.scope) &&
-        !cached?.token &&
-        !this.requirement &&
-        this.isVisible();
-      state = await this.ensureState(url, interactive, false);
-    } catch (error) {
-      if (getPluginErrorCode(error) === 'ACCESS_DISCOVERY_FAILED') {
-        return this.baseFetch(input, init);
-      }
-      throw error;
-    }
+    const interactive =
+      this.interactiveScopes.has(pathParts.scope) &&
+      !cached?.token &&
+      !this.requirement &&
+      this.isVisible();
+    const state = await this.ensureState(url, interactive, false);
 
     if (!state.protected || !state.token) return this.baseFetch(input, init);
 
@@ -270,7 +256,6 @@ export class CloudflareAccessController {
         this.allowedScopes.add(parts.scope);
         if (interactive) {
           this.interactiveScopes.add(parts.scope);
-          this.suppressedScopes.delete(parts.scope);
         }
       }
     } catch {
@@ -301,16 +286,8 @@ export class CloudflareAccessController {
     const requirement = this.requirement;
     if (!requirement) return;
     const url = new URL(requirement.url);
-    this.suppressedScopes.delete(requirement.scope);
     await this.ensureState(url, true, false);
     this.onAuthentication();
-  };
-
-  dismissRequirement = (): void => {
-    const requirement = this.requirement;
-    if (!requirement) return;
-    this.suppressedScopes.add(requirement.scope);
-    this.setRequirement(undefined);
   };
 
   private async ensureState(
@@ -378,7 +355,6 @@ export class CloudflareAccessController {
         );
       }
       this.states.set(scope, state);
-      if (state.protected && state.token) this.suppressedScopes.delete(scope);
       if (this.requirement?.scope === scope) this.setRequirement(undefined);
       return state;
     } catch (error) {
@@ -439,8 +415,4 @@ export const subscribeToCloudflareAccessRequirement = (listener: () => void): ((
 
 export const retryCloudflareAccessAuthentication = async (): Promise<void> => {
   await installedController?.retryAuthentication();
-};
-
-export const dismissCloudflareAccessRequirement = (): void => {
-  installedController?.dismissRequirement();
 };

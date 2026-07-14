@@ -210,6 +210,25 @@ describe('AuthLayout organization authentication recovery', () => {
     expect(hasText(renderer!, 'login-loader-ready')).toBe(true);
   });
 
+  it('allows an approved Matrix server to delegate to a different HTTPS origin', async () => {
+    mocks.autoDiscovery.mockResolvedValue([
+      undefined,
+      {
+        'm.homeserver': {
+          base_url: 'https://delegated.example.test/matrix',
+        },
+      },
+    ]);
+
+    await renderLayout();
+
+    expect(mocks.allowCloudflareAccessForHomeserver).toHaveBeenCalledWith(
+      'https://delegated.example.test/matrix'
+    );
+    expect(mocks.specVersionsLoader).toHaveBeenCalledWith('https://delegated.example.test/matrix');
+    expect(mocks.probeCloudflareAccessHomeserver).not.toHaveBeenCalled();
+  });
+
   it('preserves the ordinary discovery error when the direct host is not Access-protected', async () => {
     mocks.autoDiscovery.mockResolvedValue(discoveryFailure());
     mocks.probeCloudflareAccessHomeserver.mockResolvedValue(undefined);

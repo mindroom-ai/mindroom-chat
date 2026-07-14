@@ -309,7 +309,7 @@ describe('CloudflareAccessController', () => {
     expect(onAuthentication).toHaveBeenCalledTimes(1);
   });
 
-  it('lets Not now suppress repeated prompts for the same scope', async () => {
+  it('keeps protected requests blocked locally until explicit authentication succeeds', async () => {
     const plugin = makePlugin(async () => {
       throw pluginError('ACCESS_AUTH_REQUIRED');
     });
@@ -320,15 +320,18 @@ describe('CloudflareAccessController', () => {
     await expect(
       controller.fetch('https://chat.example/_matrix/client/v3/sync')
     ).rejects.toMatchObject({ code: 'ACCESS_AUTH_REQUIRED' });
-    controller.dismissRequirement();
-    await controller.fetch('https://chat.example/_matrix/client/v3/sync');
+    await expect(
+      controller.fetch('https://chat.example/_matrix/client/v3/sync')
+    ).rejects.toMatchObject({ code: 'ACCESS_AUTH_REQUIRED' });
 
-    expect(controller.getRequirement()).toBeUndefined();
+    expect(controller.getRequirement()).toMatchObject({
+      scope: 'https://chat.example/_matrix',
+    });
     expect(plugin.cloudflareAccessToken).toHaveBeenCalledTimes(1);
-    expect(baseFetch).toHaveBeenCalledTimes(1);
+    expect(baseFetch).not.toHaveBeenCalled();
   });
 
-  it('falls back to ordinary fetch when native Access discovery is unavailable', async () => {
+  it('fails closed when native Access discovery is unavailable', async () => {
     const plugin = makePlugin(async () => {
       throw pluginError('ACCESS_DISCOVERY_FAILED');
     });
@@ -336,10 +339,37 @@ describe('CloudflareAccessController', () => {
     const controller = new CloudflareAccessController({ baseFetch, plugin, now: () => NOW });
     controller.allowHomeserver('https://chat.example');
 
-    await controller.fetch('https://chat.example/_matrix/client/versions');
+    await expect(
+      controller.fetch('https://chat.example/_matrix/client/versions')
+    ).rejects.toMatchObject({ code: 'ACCESS_DISCOVERY_FAILED' });
 
+    expect(baseFetch).not.toHaveBeenCalled();
+  });
+
+  it('fails closed if token refresh cannot rediscover Access protection', async () => {
+    let now = NOW;
+    const plugin = makePlugin(
+      vi
+        .fn()
+        .mockResolvedValueOnce(accessResult('first', NOW + 61_000))
+        .mockRejectedValueOnce(pluginError('ACCESS_DISCOVERY_FAILED'))
+    );
+    const baseFetch = vi.fn(async () => new Response('{}'));
+    const controller = new CloudflareAccessController({ baseFetch, plugin, now: () => now });
+    controller.allowHomeserver('https://chat.example');
+
+    await controller.fetch('https://chat.example/_matrix/client/v3/sync');
+    now += 2_000;
+    await expect(
+      controller.fetch('https://chat.example/_matrix/client/v3/sync')
+    ).rejects.toMatchObject({ code: 'ACCESS_DISCOVERY_FAILED' });
+
+    expect(plugin.cloudflareAccessToken).toHaveBeenNthCalledWith(2, {
+      forceRefresh: false,
+      interactive: false,
+      url: 'https://chat.example/_matrix/client/versions',
+    });
     expect(baseFetch).toHaveBeenCalledTimes(1);
-    expect(new Headers(baseFetch.mock.calls[0]?.[1]?.headers).has('Cf-Access-Token')).toBe(false);
   });
 
   it('does not consume a Request body when the approved server is unprotected', async () => {

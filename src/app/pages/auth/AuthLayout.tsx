@@ -34,6 +34,8 @@ import {
   probeCloudflareAccessHomeserver,
 } from '../../mindroom/native/cloudflareAccess';
 
+const EMPTY_SERVER_LIST: string[] = [];
+
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
     <Box justifyContent="Center" alignItems="Center" gap="200">
@@ -65,7 +67,7 @@ export function AuthLayout() {
   const registrationAllowed = clientConfig.auth?.allowRegistration !== false;
 
   const defaultServer = clientDefaultServer(clientConfig);
-  const serverList = clientConfig.homeserverList ?? [];
+  const serverList = clientConfig.homeserverList ?? EMPTY_SERVER_LIST;
   const approvedServers = useRef(new Set<string>([defaultServer, ...serverList]));
   useEffect(() => {
     approvedServers.current.add(defaultServer);
@@ -82,6 +84,9 @@ export function AuthLayout() {
       const response = await autoDiscovery(fetch, serverName);
       const [discoveryError, info] = response;
       if (info && approvedServers.current.has(serverName)) {
+        // Matrix discovery deliberately permits a different homeserver origin.
+        // Native Access still binds any token to that exact origin, path, and
+        // audience, then validates it against the Matrix versions endpoint.
         allowCloudflareAccessForHomeserver(info['m.homeserver'].base_url);
       } else if (discoveryError && approvedServers.current.has(serverName)) {
         const protectedBaseUrl = await probeCloudflareAccessHomeserver(serverName);

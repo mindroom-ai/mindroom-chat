@@ -16,6 +16,9 @@
 - Scope: token discovery accepts only a real HTTPS Cloudflare login redirect with an audience identifier whose application domain exactly matches the requested origin, port, and `/_matrix` path scope.
   Exact trusted origins constrain redirect cookies; every application token must also pass a no-redirect authenticated Matrix versions request before storage or return; and no deployment-specific hostname or organization identity is embedded.
 - Media: authenticated Matrix SDK media requests disable redirects on Capacitor iOS, while direct image and video elements use a secure, HttpOnly `CF_Authorization` cookie scoped to the matching `/_matrix` path.
+  Because WKWebView media elements cannot set a Matrix `Authorization` header and iOS has no service worker, authenticated native media URLs carry the Matrix access token in the query string after exact same-homeserver media validation.
+  This exposes that token to trusted homeserver and terminating-proxy request logs, which must redact query strings and restrict retention; it never exposes the Cloudflare organization token.
+  Redirects are disabled to prevent forwarding the URL, and browser builds remain query-token-free.
   The native media URL also overrides the SDK-generated `allow_redirect` query to false after same-homeserver media validation.
   Physical-device staging must confirm WebKit sends that scoped cookie for direct media before release.
 - Uploads: Matrix SDK uploads normally use `XMLHttpRequest`, which bypasses custom fetch authentication.
@@ -24,7 +27,7 @@
 - Dependency: encrypted token transfer uses the exact Swift-Sodium `0.11.0` package version.
   The workspace commits its resolved revision, which full Xcode must verify while compiling the native target.
 - Infrastructure contract: apply this token flow only to `/_matrix/*`, enable and verify Cloudflare's Path Cookie Attribute for that application, leave Matrix well-known handling unchanged and outside this feature, never attach an Access token there, allow the Capacitor origin and `Cf-Access-Token` through Access CORS handling, and keep cookie binding disabled for this application-token flow.
-- Coverage: focused tests verify approved-origin gating, path-scoped probes, Access and Matrix header coexistence, manual redirects, POST replay, single refresh, 60-second expiry skew, prompt suppression, cancellation recovery, active-login loader recovery, media redirect policy, native upload authentication despite available XHR, native security contracts, and generic source identity.
+- Coverage: focused tests verify approved-origin gating, standard cross-origin Matrix delegation, path-scoped probes, Access and Matrix header coexistence, manual redirects, POST replay, single refresh, 60-second expiry skew, fail-closed discovery and reauthentication, cancellation recovery, active-login loader recovery, media redirect policy, native upload authentication despite available XHR, native security contracts, and generic source identity.
 
 ### Keep call settings above participant tiles (2026-07-14)
 

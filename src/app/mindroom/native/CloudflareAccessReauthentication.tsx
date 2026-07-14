@@ -2,7 +2,6 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { Box, Button, Dialog, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import {
-  dismissCloudflareAccessRequirement,
   getCloudflareAccessRequirement,
   retryCloudflareAccessAuthentication,
   subscribeToCloudflareAccessRequirement,
@@ -56,13 +55,6 @@ export function CloudflareAccessReauthentication() {
                   )}
                 </Box>
                 <Box direction="Row" gap="200" justifyContent="End">
-                  <Button
-                    variant="Secondary"
-                    disabled={pending}
-                    onClick={dismissCloudflareAccessRequirement}
-                  >
-                    Not now
-                  </Button>
                   <Button
                     variant="Primary"
                     fill="Solid"
