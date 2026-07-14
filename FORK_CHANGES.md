@@ -4,7 +4,7 @@
 
 ### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
 
-- Status: implementation, automated validation, independent review, and confirmed PR review remediation are complete on PR #152; automated PR review is in progress.
+- Status: implementation, automated validation, independent review, and PR review remediation are complete on PR #152; the PR is ready for review.
 - Symptom: the `VertexAI / claude-fable-5` model badge says `Fable` but shows the generic sparkle icon.
 - Root cause: badge icon selection only considers the provider string, so a Claude model routed through `vertexai` cannot resolve to the Anthropic brand.
 - Fix: recognize Claude model IDs independently of their routing provider and render the Anthropic mark while preserving the existing compact label and full tooltip.
@@ -14,6 +14,8 @@
 - PR review hardening: Gemini correctly noted that publisher-prefixed Claude model IDs would bypass a start-only check.
   A namespace-aware `claude-` model prefix match now covers Vertex AI publisher paths and Bedrock-style IDs without treating arbitrary delimited words containing `claude` as Anthropic models.
   Independent re-review caught the first boundary matcher accepting values such as `anti-claude-detector`; negative regressions now keep those IDs on the generic provider icon.
+- Final PR review: Greptile rated the current head 5/5 and safe to merge with no findings.
+  The confirmed Gemini thread is resolved; CodeRabbit and Sourcery reported rate limits, while Qodo reported paused reviews rather than code findings.
 
 ### Expose the WebGL background behind active calls (2026-07-13)
 
