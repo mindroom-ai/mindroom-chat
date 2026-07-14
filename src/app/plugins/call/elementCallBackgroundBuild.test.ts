@@ -3,7 +3,9 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { copyFiles } from '../../../../vite.config';
 import {
+  assertElementCallDiscoveryBridge,
   assertElementCallTransparentBackground,
+  elementCallDiscoveryBridge,
   injectElementCallTransparentBackground,
 } from '../../../../scripts/element-call-background.mjs';
 
@@ -27,6 +29,9 @@ describe('Element Call background build', () => {
 
     expect(html).toContain(`<head>${override}`);
     expect(html.indexOf(override)).toBeLessThan(html.indexOf('<link rel="stylesheet"'));
+    expect(html.indexOf(elementCallDiscoveryBridge)).toBeLessThan(
+      html.indexOf('<script type="module"')
+    );
   });
 
   it('resets the complete Element Call background so its image cannot cover the animation', () => {
@@ -50,6 +55,20 @@ describe('Element Call background build', () => {
 
     expect(() =>
       assertElementCallTransparentBackground(
+        injectElementCallTransparentBackground('<html><head></head></html>')
+      )
+    ).not.toThrow();
+
+    expect(() => assertElementCallDiscoveryBridge('<html><head></head></html>')).toThrow(
+      'Built Element Call index is missing its configured discovery bridge'
+    );
+    expect(() =>
+      assertElementCallDiscoveryBridge(
+        '<html><head><script data-cinny-discovery-bridge></script></head></html>'
+      )
+    ).toThrow('Built Element Call index is missing its configured discovery bridge');
+    expect(() =>
+      assertElementCallDiscoveryBridge(
         injectElementCallTransparentBackground('<html><head></head></html>')
       )
     ).not.toThrow();

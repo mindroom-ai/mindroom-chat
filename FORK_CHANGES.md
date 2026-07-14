@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Use configured homeserver discovery without a network probe (2026-07-14)
+
+- Status: implementation, automated validation, and independent review are complete on `feat/configured-homeserver-discovery`; the branch is ready for review.
+- Need: native and self-hosted clients can already know a homeserver's client URL and optional MatrixRTC focus, so requiring a successful `/.well-known/matrix/client` request adds an unnecessary connection dependency.
+- Design: optional `homeserverDiscovery` entries in `config.json` use the standard Matrix discovery shape and are selected by server name before login or authoritative homeserver base URL after login.
+  Matching configuration goes through the same base-URL safety checks and normalization as network discovery, then reaches authentication and post-login call capability consumers without a discovery request.
+  The selected, validated MatrixRTC focus is passed to embedded Element Call in the iframe fragment; an injected pre-module bridge serves that metadata to Element Call's internal discovery request without sending the request over the network.
+  Homeservers without matching configuration keep existing Matrix auto-discovery behavior unchanged.
+- Security: configuration contains connection metadata only; no access token, client secret, or other credential is introduced.
+- Coverage: 3,194 tests pass across 419 files, including server-name normalization, active-session base-URL authority, malformed-entry isolation, network-request suppression, MatrixRTC metadata preservation, embedded-call handoff, and rejection of insecure configured endpoints.
+  Typecheck, production build with transformed-output verification, full lint (zero errors; 17 existing warnings), and independent review also pass.
+
 ### Expose the WebGL background behind active calls (2026-07-13)
 
 - Status: implementation, cleanup, automated validation, and live joined-call verification are complete on `caveman/fix-call-embed-placement`; PR #146 is open against `dev`, mergeable, and ready for review.
