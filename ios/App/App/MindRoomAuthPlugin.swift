@@ -123,6 +123,61 @@ private func isCloudflareAccessPath(_ path: String, endpoint: String) -> Bool {
     path == endpoint || path.hasPrefix("\(endpoint)/")
 }
 
+@MainActor
+private func setCloudflareAccessCookie(
+    value: String,
+    expiresAt: Date,
+    host: String,
+    path: String
+) async {
+    guard let cookie = HTTPCookie(properties: [
+        .domain: host,
+        .path: path,
+        .name: cloudflareAccessCookieName,
+        .value: value,
+        .secure: "TRUE",
+        .expires: expiresAt,
+        HTTPCookiePropertyKey("HttpOnly"): "TRUE",
+        HTTPCookiePropertyKey("SameSite"): "None",
+    ]) else { return }
+
+    HTTPCookieStorage.shared.setCookie(cookie)
+    await withCheckedContinuation { continuation in
+        WKWebsiteDataStore.default().httpCookieStore.setCookie(cookie) {
+            continuation.resume()
+        }
+    }
+}
+
+@MainActor
+private func deleteCloudflareAccessCookie(host: String, path: String) async {
+    for cookie in HTTPCookieStorage.shared.cookies ?? []
+        where cookie.name == cloudflareAccessCookieName &&
+            cookie.domain == host && cookie.path == path {
+        HTTPCookieStorage.shared.deleteCookie(cookie)
+    }
+
+    await withCheckedContinuation { continuation in
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        store.getAllCookies { cookies in
+            let matching = cookies.filter {
+                $0.name == cloudflareAccessCookieName &&
+                    $0.domain == host && $0.path == path
+            }
+            guard !matching.isEmpty else {
+                continuation.resume()
+                return
+            }
+            let group = DispatchGroup()
+            for cookie in matching {
+                group.enter()
+                store.delete(cookie) { group.leave() }
+            }
+            group.notify(queue: .main) { continuation.resume() }
+        }
+    }
+}
+
 private final class CloudflareAccessKeychain {
     private let service = "\(Bundle.main.bundleIdentifier ?? "app.mindroom.chat").cloudflare-access"
 
@@ -797,54 +852,18 @@ private actor CloudflareAccessManager {
     }
 
     private func installAccessCookie(_ token: CloudflareAccessToken, for url: URL) async {
-        guard let host = url.host,
-              let cookie = HTTPCookie(properties: [
-                  .domain: host,
-                  .path: mediaCookiePath(for: url),
-                  .name: cloudflareAccessCookieName,
-                  .value: token.value,
-                  .secure: "TRUE",
-                  .expires: token.expiresAt,
-                  HTTPCookiePropertyKey("HttpOnly"): "TRUE",
-                  HTTPCookiePropertyKey("SameSite"): "None",
-              ]) else { return }
-
-        HTTPCookieStorage.shared.setCookie(cookie)
-        await withCheckedContinuation { continuation in
-            WKWebsiteDataStore.default().httpCookieStore.setCookie(cookie) {
-                continuation.resume()
-            }
-        }
+        guard let host = url.host else { return }
+        await setCloudflareAccessCookie(
+            value: token.value,
+            expiresAt: token.expiresAt,
+            host: host,
+            path: mediaCookiePath(for: url)
+        )
     }
 
     private func removeAccessCookie(for url: URL) async {
         guard let host = url.host else { return }
-        let path = mediaCookiePath(for: url)
-        for cookie in HTTPCookieStorage.shared.cookies ?? []
-            where cookie.name == cloudflareAccessCookieName &&
-                cookie.domain == host && cookie.path == path {
-            HTTPCookieStorage.shared.deleteCookie(cookie)
-        }
-
-        await withCheckedContinuation { continuation in
-            let store = WKWebsiteDataStore.default().httpCookieStore
-            store.getAllCookies { cookies in
-                let matching = cookies.filter {
-                    $0.name == cloudflareAccessCookieName &&
-                        $0.domain == host && $0.path == path
-                }
-                guard !matching.isEmpty else {
-                    continuation.resume()
-                    return
-                }
-                let group = DispatchGroup()
-                for cookie in matching {
-                    group.enter()
-                    store.delete(cookie) { group.leave() }
-                }
-                group.notify(queue: .global()) { continuation.resume() }
-            }
-        }
+        await deleteCloudflareAccessCookie(host: host, path: mediaCookiePath(for: url))
     }
 }
 
@@ -859,6 +878,8 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
     ]
 
     private let cloudflareAccessManager = CloudflareAccessManager()
+    // Capacitor invokes @objc plugin methods on its bridge queue. Each entrypoint
+    // hops to the main queue before reading or mutating this UI/authentication state.
     private var authSession: ASWebAuthenticationSession?
     private var appleSignInCall: CAPPluginCall?
     private var appleSignInNonce: String?
@@ -867,11 +888,6 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
     private var cloudflareSessionFinishing = false
 
     @objc func authenticate(_ call: CAPPluginCall) {
-        guard authSession == nil else {
-            call.reject("An authentication session is already in progress", "AUTH_IN_PROGRESS")
-            return
-        }
-
         guard let urlString = call.getString("url"),
               let url = URL(string: urlString),
               let scheme = url.scheme?.lowercased(),
@@ -883,44 +899,82 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
         let callbackScheme = call.getString("callbackScheme")
 
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            self?.beginAuthentication(call: call, url: url, callbackScheme: callbackScheme)
+        }
+    }
 
-            let session = ASWebAuthenticationSession(
-                url: url,
-                callbackURLScheme: callbackScheme
-            ) { [weak self] callbackUrl, error in
-                DispatchQueue.main.async {
-                    defer {
-                        self?.authSession = nil
-                    }
+    @MainActor
+    private func beginAuthentication(
+        call: CAPPluginCall,
+        url: URL,
+        callbackScheme: String?
+    ) {
+        guard authSession == nil else {
+            call.reject("An authentication session is already in progress", "AUTH_IN_PROGRESS")
+            return
+        }
 
-                    if let callbackUrl = callbackUrl {
-                        call.resolve(["url": callbackUrl.absoluteString])
-                        return
-                    }
-
-                    if let authError = error as? ASWebAuthenticationSessionError,
-                       authError.code == .canceledLogin {
-                        call.reject("Authentication cancelled", "AUTH_CANCELLED", authError)
-                        return
-                    }
-
-                    call.reject(error?.localizedDescription ?? "Authentication failed", "AUTH_FAILED", error)
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: callbackScheme
+        ) { [weak self] callbackUrl, error in
+            DispatchQueue.main.async {
+                defer {
+                    self?.authSession = nil
                 }
-            }
 
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            self.authSession = session
+                if let callbackUrl = callbackUrl {
+                    call.resolve(["url": callbackUrl.absoluteString])
+                    return
+                }
 
-            if !session.start() {
-                self.authSession = nil
-                call.reject("Unable to start authentication session", "AUTH_START_FAILED")
+                if let authError = error as? ASWebAuthenticationSessionError,
+                   authError.code == .canceledLogin {
+                    call.reject("Authentication cancelled", "AUTH_CANCELLED", authError)
+                    return
+                }
+
+                call.reject(error?.localizedDescription ?? "Authentication failed", "AUTH_FAILED", error)
             }
+        }
+
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        authSession = session
+
+        if !session.start() {
+            authSession = nil
+            call.reject("Unable to start authentication session", "AUTH_START_FAILED")
         }
     }
 
     @objc func cloudflareAccessToken(_ call: CAPPluginCall) {
+        guard let urlString = call.getString("url"),
+              let requestedURL = URL(string: urlString),
+              let url = cloudflareMatrixProbeURL(requestedURL) else {
+            call.reject("Must provide an HTTPS Matrix client URL", "INVALID_URL")
+            return
+        }
+
+        let forceRefresh = call.getBool("forceRefresh") ?? false
+        let interactive = call.getBool("interactive") ?? false
+        DispatchQueue.main.async { [weak self] in
+            self?.beginCloudflareAccess(
+                call: call,
+                url: url,
+                forceRefresh: forceRefresh,
+                interactive: interactive
+            )
+        }
+    }
+
+    @MainActor
+    private func beginCloudflareAccess(
+        call: CAPPluginCall,
+        url: URL,
+        forceRefresh: Bool,
+        interactive: Bool
+    ) {
         guard cloudflareAccessCall == nil, cloudflareAccessTask == nil else {
             call.reject(
                 "Organization authentication is already in progress",
@@ -935,17 +989,9 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
             )
             return
         }
-        guard let urlString = call.getString("url"),
-              let requestedURL = URL(string: urlString),
-              let url = cloudflareMatrixProbeURL(requestedURL) else {
-            call.reject("Must provide an HTTPS Matrix client URL", "INVALID_URL")
-            return
-        }
 
-        let forceRefresh = call.getBool("forceRefresh") ?? false
-        let interactive = call.getBool("interactive") ?? false
         cloudflareAccessCall = call
-        cloudflareAccessTask = Task { [weak self] in
+        cloudflareAccessTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
                 let preparation = try await cloudflareAccessManager.prepare(
@@ -954,9 +1000,9 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
                 )
                 switch preparation {
                 case .unprotected:
-                    await finishCloudflareAccess(call: call, result: ["protected": false])
+                    finishCloudflareAccess(call: call, result: ["protected": false])
                 case let .token(token):
-                    await finishCloudflareAccess(call: call, result: cloudflareResult(token))
+                    finishCloudflareAccess(call: call, result: cloudflareResult(token))
                 case let .interactive(context):
                     guard interactive else {
                         throw CloudflareAccessFailure(
@@ -964,16 +1010,13 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
                             message: "Organization sign-in is required"
                         )
                     }
-                    let appIsActive = await MainActor.run {
-                        UIApplication.shared.applicationState == .active
-                    }
-                    guard appIsActive else {
+                    guard UIApplication.shared.applicationState == .active else {
                         throw CloudflareAccessFailure(
                             code: "ACCESS_AUTH_REQUIRED",
                             message: "Return to the app to continue organization sign-in"
                         )
                     }
-                    let started = await startCloudflareAccessSession(context.browserURL)
+                    let started = startCloudflareAccessSession(context.browserURL)
                     guard started else {
                         throw CloudflareAccessFailure(
                             code: "AUTH_START_FAILED",
@@ -981,25 +1024,25 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
                         )
                     }
                     let token = try await cloudflareAccessManager.completeTransfer(context)
-                    await closeCloudflareAccessSession()
-                    await finishCloudflareAccess(call: call, result: cloudflareResult(token))
+                    closeCloudflareAccessSession()
+                    finishCloudflareAccess(call: call, result: cloudflareResult(token))
                 }
             } catch {
-                await closeCloudflareAccessSession()
+                closeCloudflareAccessSession()
                 if Task.isCancelled || (error as? URLError)?.code == .cancelled {
                     let failure = CloudflareAccessFailure(
                         code: "ACCESS_AUTH_CANCELLED",
                         message: "Organization authentication cancelled"
                     )
-                    await finishCloudflareAccess(call: call, failure: failure)
+                    finishCloudflareAccess(call: call, failure: failure)
                 } else if let failure = error as? CloudflareAccessFailure {
-                    await finishCloudflareAccess(call: call, failure: failure)
+                    finishCloudflareAccess(call: call, failure: failure)
                 } else {
                     let failure = CloudflareAccessFailure(
                         code: "ACCESS_AUTH_FAILED",
                         message: "Organization authentication failed"
                     )
-                    await finishCloudflareAccess(call: call, failure: failure)
+                    finishCloudflareAccess(call: call, failure: failure)
                 }
             }
         }
@@ -1071,6 +1114,13 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
     }
 
     @objc func signInWithApple(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            self?.beginSignInWithApple(call)
+        }
+    }
+
+    @MainActor
+    private func beginSignInWithApple(_ call: CAPPluginCall) {
         guard appleSignInCall == nil else {
             call.reject("A Sign in with Apple request is already in progress", "APPLE_AUTH_IN_PROGRESS")
             return
@@ -1084,14 +1134,10 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
         appleSignInCall = call
         appleSignInNonce = nonce
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            let controller = ASAuthorizationController(authorizationRequests: [request])
-            controller.delegate = self
-            controller.presentationContextProvider = self
-            controller.performRequests()
-        }
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        controller.performRequests()
     }
 
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -1116,6 +1162,13 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        DispatchQueue.main.async { [weak self] in
+            self?.completeSignInWithApple(authorization)
+        }
+    }
+
+    @MainActor
+    private func completeSignInWithApple(_ authorization: ASAuthorization) {
         guard let call = appleSignInCall else { return }
 
         defer {
@@ -1164,6 +1217,13 @@ public class MindRoomAuthPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticatio
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        DispatchQueue.main.async { [weak self] in
+            self?.completeSignInWithApple(error: error)
+        }
+    }
+
+    @MainActor
+    private func completeSignInWithApple(error: Error) {
         guard let call = appleSignInCall else { return }
 
         defer {
