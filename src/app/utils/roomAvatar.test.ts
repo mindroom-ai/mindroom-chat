@@ -84,7 +84,7 @@ describe('room avatar urls', () => {
     } as any;
 
     expect(getRoomAvatarUrl(mx, room, 96, true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/room-avatar?width=96&height=96&access_token=client-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/room-avatar?width=96&height=96&allow_redirect=false&access_token=client-token'
     );
   });
 
@@ -139,7 +139,7 @@ describe('room avatar urls', () => {
     } as any;
 
     expect(getDirectRoomAvatarUrl(mx, room, 96, true)).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/direct-avatar?width=96&height=96&access_token=client-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/direct-avatar?width=96&height=96&allow_redirect=false&access_token=client-token'
     );
   });
 });

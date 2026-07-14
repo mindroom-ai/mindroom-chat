@@ -5,8 +5,13 @@ const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
 const SUPPORTED_NATIVE_APP_PLATFORMS = new Set(['android', 'ios']);
 type StandaloneNavigator = Navigator & { standalone?: boolean };
-type MindRoomAuthPlugin = {
+export type MindRoomAuthPlugin = {
   authenticate(options: { url: string; callbackScheme: string }): Promise<{ url?: string }>;
+  cloudflareAccessToken(options: {
+    forceRefresh: boolean;
+    interactive: boolean;
+    url: string;
+  }): Promise<{ expiresAtMs?: number; protected: boolean; token?: string }>;
   signInWithApple(options?: Record<string, never>): Promise<NativeAppleCredential>;
 };
 type NativeSsoAppPlugin = {
@@ -42,7 +47,7 @@ type NativeAppleLoginOptions = {
 
 const normalizePath = (path: string): string => path.replace(/\/{2,}/g, '/');
 
-const getMindRoomAuthPlugin = (): MindRoomAuthPlugin => {
+export const getMindRoomAuthPlugin = (): MindRoomAuthPlugin => {
   if (!mindRoomAuthPlugin) {
     mindRoomAuthPlugin = registerPlugin<MindRoomAuthPlugin>('MindRoomAuth');
   }

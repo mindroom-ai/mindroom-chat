@@ -31,20 +31,21 @@ export const mxcUrlToHttp = (
   allowDirectLinks?: boolean,
   allowRedirects?: boolean
 ): string | null => {
+  const isCapacitor = typeof window !== 'undefined' && window.location?.protocol === 'capacitor:';
+  const effectiveAllowRedirects = isCapacitor && useAuthentication ? false : allowRedirects;
   const rawMediaUrl = mx.mxcUrlToHttp(
     mxcUrl,
     width,
     height,
     resizeMethod,
     allowDirectLinks,
-    allowRedirects,
+    effectiveAllowRedirects,
     useAuthentication
   );
   const mediaUrl = rawMediaUrl ? rebaseMediaUrlToHomeserverPath(mx, rawMediaUrl) : rawMediaUrl;
 
   if (!mediaUrl || !useAuthentication) return mediaUrl;
   if (typeof window === 'undefined') return mediaUrl;
-  const isCapacitor = window.location?.protocol === 'capacitor:';
 
   // Browser URLs stay token-free even before service-worker takeover. Startup
   // waits briefly for control, and a failed media request is preferable to
@@ -57,8 +58,11 @@ export const mxcUrlToHttp = (
 
   // Capacitor iOS lacks service workers, so native media elements cannot receive
   // Authorization headers. Use a query token fallback for authenticated media.
+  // The Matrix SDK currently forces allow_redirect=true whenever authenticated
+  // media is requested, so override the resulting query as well as its input.
   // validMediaRequest already ruled out unparseable URLs.
   const urlObj = new URL(mediaUrl);
+  urlObj.searchParams.set('allow_redirect', 'false');
   urlObj.searchParams.set('access_token', accessToken);
   return urlObj.toString();
 };

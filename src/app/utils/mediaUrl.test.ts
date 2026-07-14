@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mxcUrlToHttp } from './mediaUrl';
 
 describe('mxcUrlToHttp', () => {
@@ -98,15 +98,27 @@ describe('mxcUrlToHttp', () => {
       configurable: true,
     });
 
+    const nativeMediaUrl = vi.fn(
+      () =>
+        'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&allow_redirect=true'
+    );
     const mx = {
       getHomeserverUrl: () => 'https://mindroom.chat',
       getAccessToken: () => 'client-token',
-      mxcUrlToHttp: () =>
-        'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96',
+      mxcUrlToHttp: nativeMediaUrl,
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true, 96, 96, 'crop')).toBe(
-      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&access_token=client-token'
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96&allow_redirect=false&access_token=client-token'
+    );
+    expect(nativeMediaUrl).toHaveBeenCalledWith(
+      'mxc://server/id',
+      96,
+      96,
+      'crop',
+      undefined,
+      false,
+      true
     );
   });
 

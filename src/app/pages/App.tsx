@@ -14,6 +14,7 @@ import { useCompositionEndTracking } from '../hooks/useComposingCheck';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { ReactQueryDevtoolsToggle } from '../components/ReactQueryDevtoolsToggle';
 import { PersistentParticleBackgroundProvider } from '../components/particle-background';
+import { CloudflareAccessReauthentication } from '../mindroom/native/CloudflareAccessReauthentication';
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function App() {
       <TooltipContainerProvider value={portalContainer}>
         <PopOutContainerProvider value={portalContainer}>
           <OverlayContainerProvider value={portalContainer}>
+            <CloudflareAccessReauthentication />
             <ScreenSizeProvider value={screenSize}>
               <FeatureCheck>
                 <ClientConfigLoader

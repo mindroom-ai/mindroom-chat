@@ -1,0 +1,103 @@
+diff --git a/node_modules/matrix-js-sdk/lib/client.d.ts b/node_modules/matrix-js-sdk/lib/client.d.ts
+index 9df5083..8539aed 100644
+--- a/node_modules/matrix-js-sdk/lib/client.d.ts
++++ b/node_modules/matrix-js-sdk/lib/client.d.ts
+@@ -106,6 +106,11 @@ export interface ICreateClientOpts {
+      * Most supported environments have a global `fetch` registered to which this will fall back.
+      */
+     fetchFn?: typeof globalThis.fetch;
++    /**
++     * Use the fetch HTTP path for media uploads even when XMLHttpRequest is available.
++     * This preserves custom fetch authentication in native web views.
++     */
++    useFetchForUploads?: boolean;
+     userId?: string;
+     /**
+      * A unique identifier for this device; used for tracking things like crypto
+diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
+index bc4e623..0196bae 100644
+--- a/node_modules/matrix-js-sdk/lib/client.js
++++ b/node_modules/matrix-js-sdk/lib/client.js
+@@ -490,6 +490,7 @@ export class MatrixClient extends TypedEventEmitter {
+     };
+     this.http = new MatrixHttpApi(this, {
+       fetchFn: opts.fetchFn,
++      useFetchForUploads: opts.useFetchForUploads,
+       baseUrl: opts.baseUrl,
+       idBaseUrl: opts.idBaseUrl,
+       accessToken: opts.accessToken,
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/index.js b/node_modules/matrix-js-sdk/lib/http-api/index.js
+index 7d54441..0496bc3 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/index.js
++++ b/node_modules/matrix-js-sdk/lib/http-api/index.js
+@@ -60,7 +60,7 @@ export class MatrixHttpApi extends FetchHttpApi {
+       abortController
+     };
+     var uploadResolvers = Promise.withResolvers();
+-    if (globalThis.XMLHttpRequest) {
++    if (globalThis.XMLHttpRequest && !this.opts.useFetchForUploads) {
+       var xhr = new globalThis.XMLHttpRequest();
+       var timeoutFn = function timeoutFn() {
+         xhr.abort();
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts b/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
+index ffab146..bad663c 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
++++ b/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
+@@ -31,6 +31,7 @@ export type TokenRefreshFunction = (refreshToken: string) => Promise<AccessToken
+ /** Options object for `FetchHttpApi` and {@link MatrixHttpApi}. */
+ export interface IHttpOpts {
+     fetchFn?: typeof globalThis.fetch;
++    useFetchForUploads?: boolean;
+     baseUrl: string;
+     idBaseUrl?: string;
+     prefix: string;
+diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
+index 80ea382..6607d0d 100644
+--- a/node_modules/matrix-js-sdk/src/client.ts
++++ b/node_modules/matrix-js-sdk/src/client.ts
+@@ -310,6 +310,12 @@ export interface ICreateClientOpts {
+      */
+     fetchFn?: typeof globalThis.fetch;
+ 
++    /**
++     * Use the fetch HTTP path for media uploads even when XMLHttpRequest is available.
++     * This preserves custom fetch authentication in native web views.
++     */
++    useFetchForUploads?: boolean;
++
+     userId?: string;
+ 
+     /**
+@@ -1352,6 +1358,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+ 
+         this.http = new MatrixHttpApi(this as ConstructorParameters<typeof MatrixHttpApi>[0], {
+             fetchFn: opts.fetchFn,
++            useFetchForUploads: opts.useFetchForUploads,
+             baseUrl: opts.baseUrl,
+             idBaseUrl: opts.idBaseUrl,
+             accessToken: opts.accessToken,
+diff --git a/node_modules/matrix-js-sdk/src/http-api/index.ts b/node_modules/matrix-js-sdk/src/http-api/index.ts
+index b0f54b2..20d8168 100644
+--- a/node_modules/matrix-js-sdk/src/http-api/index.ts
++++ b/node_modules/matrix-js-sdk/src/http-api/index.ts
+@@ -67,7 +67,7 @@ export class MatrixHttpApi<O extends IHttpOpts> extends FetchHttpApi<O> {
+         } as Upload;
+         const uploadResolvers = Promise.withResolvers<UploadResponse>();
+ 
+-        if (globalThis.XMLHttpRequest) {
++        if (globalThis.XMLHttpRequest && !this.opts.useFetchForUploads) {
+             const xhr = new globalThis.XMLHttpRequest();
+ 
+             const timeoutFn = function (): void {
+diff --git a/node_modules/matrix-js-sdk/src/http-api/interface.ts b/node_modules/matrix-js-sdk/src/http-api/interface.ts
+index 3b11584..cf58499 100644
+--- a/node_modules/matrix-js-sdk/src/http-api/interface.ts
++++ b/node_modules/matrix-js-sdk/src/http-api/interface.ts
+@@ -51,6 +51,7 @@ export type TokenRefreshFunction = (refreshToken: string) => Promise<AccessToken
+ /** Options object for `FetchHttpApi` and {@link MatrixHttpApi}. */
+ export interface IHttpOpts {
+     fetchFn?: typeof globalThis.fetch;
++    useFetchForUploads?: boolean;
+ 
+     baseUrl: string;
+     idBaseUrl?: string;

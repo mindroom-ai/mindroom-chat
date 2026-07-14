@@ -13,6 +13,7 @@ import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
 import { isNativeApp, registerNativeSsoCallbacks } from './app/mindroom/native/nativeSso';
+import { installCloudflareAccessFetch } from './app/mindroom/native/cloudflareAccess';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -32,6 +33,8 @@ applyThemeToDom(resolveInitialTheme());
 // recorder (persisted; `?ridetrace=0` disarms). Read here because the
 // router drops query params on navigation.
 bootstrapRideTraceFlagFromUrl();
+
+installCloudflareAccessFetch();
 
 if (isNativeApp()) {
   registerNativeSsoCallbacks(CapacitorApp);
