@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Keep call settings above participant tiles (2026-07-14)
+
+- Status: implementation, full local validation, and independent review are complete on `caveman/fix-call-settings-stacking`; ready for PR review.
+- Reproduction: in a live staging call with two participants, the Element Call settings dialog remained active, visible, and fully sized in the iframe DOM, but the participant surface was the topmost element at the dialog center and completely hid it.
+  Body-layer inspection showed the MindRoom background integration had changed Element Call's `#root` to `position: relative; z-index: 1`, while Element Call portaled settings directly under `body` with an automatic stacking level.
+- Root cause: the positive root stacking context lifted the complete Element Call application above its body-level settings portal once participant media rendered.
+  This regression came from the interactive WebGL call-background change rather than LiveKit participant handling.
+- Fix: keep the prepended background portal and the later application root at stack level zero instead of lifting the root to level one.
+  The root remains a stacking context that contains positive participant layers, while equal-level DOM order paints the background first, the application next, and later Element Call settings and menu portals last.
+- Coverage: the focused portal suite now uses a production-shaped root containing a positive-level participant tile, appends a body-level settings dialog, and requires the background integration to contain that tile in a zero-level root below the dialog.
+  Existing inline root position and stacking values are restored during cleanup.
+- Validation: the focused call/background suite passes (7 files / 19 tests), and the full Vitest suite passes (420 files / 3,196 tests).
+  Typecheck, the production/PWA build plus Element Call artifact verification, touched-file Prettier, `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review confirmed the zero-level application root contains positive participant layers, preserves the background paint order, leaves later body-level settings and menu portals above it, and restores prior inline styles during cleanup.
+  No actionable findings remain.
+
 ### Keep the PWA app shell away from sibling applications (2026-07-14)
 
 - Status: implementation, automated validation, and self-review complete; ready for PR review.
