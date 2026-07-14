@@ -15,6 +15,7 @@ import * as css from './MindroomModelBadge.css';
 
 const ANTHROPIC_ICON_PATH =
   'M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z';
+const CLAUDE_MODEL_ID_PATTERN = /(?:^|[./:])claude-/;
 
 function AnthropicIcon({ className, size }: { className?: string; size: number }) {
   return (
@@ -36,7 +37,9 @@ const isAnthropicModel = (info: MindroomAiRunInfo): boolean => {
   const provider = info.modelProvider?.toLowerCase() ?? '';
   const modelId = info.modelId?.toLowerCase() ?? '';
   return (
-    provider.includes('anthropic') || provider.includes('claude') || modelId.startsWith('claude-')
+    provider.includes('anthropic') ||
+    provider.includes('claude') ||
+    CLAUDE_MODEL_ID_PATTERN.test(modelId)
   );
 };
 
