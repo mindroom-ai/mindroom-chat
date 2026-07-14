@@ -28,6 +28,7 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../components/particle-background';
+import { HostedDeploymentLauncher } from './HostedDeploymentLauncher';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -162,6 +163,7 @@ export function AuthLayout() {
                 Back to current account
               </Button>
             )}
+            <HostedDeploymentLauncher />
             {!hideServerPicker && (
               <Box direction="Column" gap="100">
                 <Text as="label" size="L400" priority="300">

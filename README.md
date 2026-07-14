@@ -109,6 +109,20 @@ npx cap open ios
 
 Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
 
+### Organization-hosted deployments on iOS
+
+The native iOS login screen can open an organization-hosted MindRoom Chat deployment from a URL
+supplied at runtime. The URL is not part of `config.json` or the app bundle. The hosted deployment
+opens in the full-screen system browser so its frontend, runtime config, identity-provider redirects,
+and Matrix API remain in one browser security context.
+
+Only HTTPS URLs without embedded credentials are accepted. Query strings and fragments are removed
+before opening or remembering the address. The last address is stored only on the device; **Clear
+URL** removes that address but does not clear the hosted site's cookies or login session.
+
+Hosted deployments run as web clients and do not receive the Capacitor bridge. Native-only features,
+including native push notification registration, remain available only to the bundled client.
+
 ## iOS Push Notifications (APNs + Matrix)
 
 Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher
