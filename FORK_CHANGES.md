@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
+
+- Status: implementation, automated validation, independent review, and PR review remediation are complete on PR #152; the PR is ready for review.
+- Symptom: the `VertexAI / claude-fable-5` model badge says `Fable` but shows the generic sparkle icon.
+- Root cause: badge icon selection only considers the provider string, so a Claude model routed through `vertexai` cannot resolve to the Anthropic brand.
+- Fix: recognize Claude model IDs independently of their routing provider and render the Anthropic mark while preserving the existing compact label and full tooltip.
+- Coverage: a focused rendered-badge regression uses the production-shaped `vertexai` and `claude-fable-5` metadata and verifies the Anthropic mark and `Fable` label together.
+- Validation after merging current `dev` and hardening prefixed-ID detection: the full Vitest suite passes (418 files / 3,187 tests), as do typecheck, the production/PWA build, focused Prettier, `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings).
+- Review: independent review found no actionable issues, confirmed non-Claude provider routing is unchanged, and verified the embedded mark against the CC0 Simple Icons Anthropic asset.
+- PR review hardening: Gemini correctly noted that publisher-prefixed Claude model IDs would bypass a start-only check.
+  A namespace-aware `claude-` model prefix match now covers Vertex AI publisher paths and Bedrock-style IDs without treating arbitrary delimited words containing `claude` as Anthropic models.
+  Independent re-review caught the first boundary matcher accepting values such as `anti-claude-detector`; negative regressions now keep those IDs on the generic provider icon.
+- Final PR review: Greptile rated the current head 5/5 and safe to merge with no findings.
+  The confirmed Gemini thread is resolved; CodeRabbit and Sourcery reported rate limits, while Qodo reported paused reviews rather than code findings.
+
 ### Expose the WebGL background behind active calls (2026-07-13)
 
 - Status: implementation, cleanup, automated validation, and live joined-call verification are complete on `caveman/fix-call-embed-placement`; PR #146 is open against `dev`, mergeable, and ready for review.
