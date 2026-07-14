@@ -311,7 +311,8 @@
   Repository-wide Prettier remains blocked by pre-existing/generated Android assets and unrelated docs.
 - A same-homeserver `mindroom_` agent profile now shows a **Call** action only when its presence advertises `📞 Voice calls`, MatrixRTC and WebRTC are available, and no other call is active.
 - The action creates a private audio-only Matrix call room, follows the configured default-encryption policy, tags it with `io.mindroom.agent_call`, invites exactly that agent, waits for the room to arrive through sync, opens it, and joins immediately.
-- Ending or closing the call kicks the invited agent, leaves, and forgets creator-owned tagged rooms. The MindRoom backend removes kicked ad-hoc rooms from the agent's persisted invite set, so a temporary call room is not rejoined after restart.
+- Ending or closing the call kicks the invited agent, leaves, and forgets creator-owned tagged rooms.
+  The MindRoom backend removes kicked ad-hoc rooms from the agent's persisted invite set, so a temporary call room is not rejoined after restart.
 - Backend compatibility: calls-enabled agents now recognize authorized ad-hoc invited rooms in addition to rooms listed in static agent config; ambiguity across two invited calls-enabled agents still fails closed.
 - Coverage: room creation/signaling metadata, sync wait, cleanup ownership, profile eligibility, one-click start flow, backend ad-hoc room resolution, ambiguity, media teardown, and persisted-invite cleanup.
 - Independent self-review caught and fixed duplicate hangup/close cleanup plus orphaned rooms after a post-create startup failure; cleanup is now idempotent and failure-safe.
@@ -937,7 +938,8 @@ An independent adversarial reviewer walked the full diff hunk-by-hunk (with spec
 
 `dev` advanced again with #118 (reconciler shortfall drain healing a missing thread middle) and #119 (direction-aware ledger boundary guard preserving iOS momentum), both written against pre-PR architecture.
 After the rebase (one conflict stop, resolutions kept the fork's extraction), both were ported semantically: the shortfall guard, max-of-sources expected reply count, `isRawThreadReply`, exhaustion-driven `beforeTokenForEarliest: null` persists (including the phantom-count no-divergence persist), and the `reconcileShortfallPagesPastOverlap` probe now live inside the fork's phase/continuation reconciler, with exhaustion claims gated to fresh-head phases; the six-test shortfall suite was adapted to the injectable `persistRepair` seam and reason-free API.
-The direction-aware boundary guard, settle-write baseline read-back, and view-reset baseline clear were ported into `timelineScrollLedgerController`, and upstream's three direction tests replaced the two earlier settle tests. #118's pagination flag-latch fix and #119's `shouldSettleLedgerAtBoundary` predicate merged cleanly.
+The direction-aware boundary guard, settle-write baseline read-back, and view-reset baseline clear were ported into `timelineScrollLedgerController`, and upstream's three direction tests replaced the two earlier settle tests.
+#118's pagination flag-latch fix and #119's `shouldSettleLedgerAtBoundary` predicate merged cleanly.
 Validation: 390 files / 3,014 tests, typecheck, lint at baseline, production + PWA builds.
 
 ### Review round 2: sweep regressions and residual dead weight (2026-07-11)
@@ -963,7 +965,8 @@ The independent reviewer confirmed one defect in the first debounce implementati
 
 ### Fork hardening review remediation (2026-07-09, superseded)
 
-The initial review was developed in parallel session/security, cache/engine, UI/state, timeline, settings, and test-architecture streams. Its broad session-lifecycle design was later removed by the reduction pass above.
+The initial review was developed in parallel session/security, cache/engine, UI/state, timeline, settings, and test-architecture streams.
+Its broad session-lifecycle design was later removed by the reduction pass above.
 The retained work is limited to reproduced streaming-edit, thread-cache, scroll, account-isolation, storage-scope, settings, palette, locale, and startup issues.
 See the current reduction entry rather than this historical checkpoint for the merge contract and validation status.
 
