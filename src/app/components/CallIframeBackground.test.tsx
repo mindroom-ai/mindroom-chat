@@ -19,7 +19,7 @@ describe('mountCallBackgroundPortal', () => {
     document.body.replaceChildren();
   });
 
-  it('mounts behind the Element Call root without replacing its stacking level', () => {
+  it('mounts behind the Element Call root and restores its stacking level', () => {
     const iframe = document.createElement('iframe');
     document.body.append(iframe);
 
@@ -41,7 +41,7 @@ describe('mountCallBackgroundPortal', () => {
     expect(portalStyles?.textContent).toContain('(prefers-reduced-motion: reduce)');
     expect(portalStyles?.textContent).toContain('canvas { display: none !important; }');
     expect(appRoot.style.position).toBe('relative');
-    expect(appRoot.style.zIndex).toBe('4');
+    expect(appRoot.style.zIndex).toBe('0');
 
     mounted.cleanup();
 
@@ -58,11 +58,16 @@ describe('mountCallBackgroundPortal', () => {
     const callDocument = iframe.contentDocument!;
     const appRoot = callDocument.createElement('div');
     appRoot.id = 'root';
+    const participantTile = callDocument.createElement('div');
+    participantTile.style.position = 'absolute';
+    participantTile.style.zIndex = '1';
+    appRoot.append(participantTile);
     callDocument.body.append(appRoot);
 
     const mounted = mountCallBackgroundPortal(iframe)!;
     const settingsPortal = callDocument.createElement('div');
     settingsPortal.setAttribute('role', 'dialog');
+    settingsPortal.style.position = 'fixed';
     callDocument.body.append(settingsPortal);
 
     expect(Array.from(callDocument.body.children)).toEqual([
@@ -72,7 +77,9 @@ describe('mountCallBackgroundPortal', () => {
     ]);
     expect(callDocument.body.firstElementChild).toBe(mounted.portalRoot);
     expect(appRoot.style.position).toBe('relative');
-    expect(appRoot.style.zIndex).toBe('');
+    expect(appRoot.style.zIndex).toBe('0');
+    expect(participantTile.style.zIndex).toBe('1');
+    expect(settingsPortal.style.position).toBe('fixed');
     expect(settingsPortal.style.zIndex).toBe('');
 
     mounted.cleanup();
