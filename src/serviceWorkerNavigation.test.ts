@@ -19,6 +19,8 @@ describe('service worker navigation fallback exclusions', () => {
         '/with?query',
         '/with#fragment',
         '/another\\origin',
+        '/nested/..',
+        '/\u0000',
         42,
       ])
     ).toEqual(['/other-app', '/control.panel']);

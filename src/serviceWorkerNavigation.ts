@@ -1,4 +1,4 @@
-const MAX_EXCLUDE_PATHS = 32;
+const MAX_EXCLUDE_PATHS = 8;
 const MAX_EXCLUDE_PATH_LENGTH = 256;
 const NORMALIZATION_ORIGIN = 'https://service-worker.invalid';
 
@@ -25,7 +25,7 @@ export const normalizeNavigationFallbackExcludePaths = (value: unknown): string[
     }
 
     const normalizedPath = new URL(path, NORMALIZATION_ORIGIN).pathname.replace(/\/+$/, '');
-    if (normalizedPath.length > MAX_EXCLUDE_PATH_LENGTH) continue;
+    if (normalizedPath.length === 0 || normalizedPath.length > MAX_EXCLUDE_PATH_LENGTH) continue;
 
     paths.add(normalizedPath);
     if (paths.size === MAX_EXCLUDE_PATHS) break;

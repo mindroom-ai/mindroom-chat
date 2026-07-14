@@ -4,8 +4,7 @@
 
 ### Keep the PWA app shell away from sibling applications (2026-07-14)
 
-- Status: implementation, automated validation, and two-pass self-review complete; ready for PR
-  review.
+- Status: implementation, automated validation, and self-review complete; ready for PR review.
 - Problem: the browser router intentionally accepts dynamic first path segments for Matrix spaces.
   A static service-worker denylist therefore cannot distinguish every client route from a sibling
   application mounted on the same origin. The Workbox navigation fallback can answer an unknown
