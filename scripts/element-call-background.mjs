@@ -35,7 +35,8 @@ export const installElementCallDiscoveryBridge = (
   windowObject.fetch = (input, init) => {
     let requestedUrl;
     try {
-      const value = typeof input === 'string' ? input : input?.url;
+      const value =
+        typeof input === 'string' ? input : input instanceof Url ? input.href : input?.url;
       requestedUrl = new Url(value, currentUrl).href;
     } catch {
       return originalFetch(input, init);

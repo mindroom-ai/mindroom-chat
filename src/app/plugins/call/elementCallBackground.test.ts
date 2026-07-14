@@ -55,7 +55,9 @@ describe('Element Call background', () => {
     };
     installElementCallDiscoveryBridge(bridgeWindow, URL, URLSearchParams, Response);
 
-    const response = await bridgeWindow.fetch('https://example.com/.well-known/matrix/client');
+    const response = await bridgeWindow.fetch(
+      new URL('https://example.com/.well-known/matrix/client')
+    );
     expect(await response.json()).toEqual({
       'm.homeserver': { base_url: 'https://matrix.example.com' },
       'org.matrix.msc4143.rtc_foci': [
