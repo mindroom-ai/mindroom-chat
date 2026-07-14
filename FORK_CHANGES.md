@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Authenticate long-response sidecars without service-worker dependence (2026-07-14)
+
+- Status: production diagnosis, implementation, focused validation, and typecheck are complete; full validation and independent review are in progress.
+- Symptom: an expanded MindRoom response showed raw tool markers, Markdown, and large blank gaps instead of formatted prose and tool cards.
+- Root cause: the Matrix event's long-text sidecar contains the correct `formatted_body` and tool trace, but programmatic sidecar downloads relied entirely on the service worker to add Matrix authentication.
+  Production temporarily serves a cleanup-only worker, so the browser's repeated unauthenticated media requests receive HTTP 401 and the client silently keeps the raw preview.
+- Fix: add the Matrix bearer header directly to long-text media downloads after validating that the resolved URL belongs to the configured homeserver media endpoint.
+  Existing service-worker authentication remains compatible, and cross-origin URLs never receive the token.
+- Coverage: focused downloader regressions require direct authentication for a production-shaped client-media URL and prove that an off-homeserver URL stays unauthenticated.
+- Validation so far: the focused long-text and media-URL suite passes (2 files / 26 tests), as do typecheck, touched-file ESLint and Prettier, and `git diff --check`.
+
 ### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
 
 - Status: implementation, automated validation, independent review, and PR review remediation are complete on PR #152; the PR is ready for review.
