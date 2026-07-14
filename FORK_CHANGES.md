@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Keep the PWA app shell away from sibling applications (2026-07-14)
+
+- Status: implementation, automated validation, and two-pass self-review complete; ready for PR
+  review.
+- Problem: the browser router intentionally accepts dynamic first path segments for Matrix spaces.
+  A static service-worker denylist therefore cannot distinguish every client route from a sibling
+  application mounted on the same origin. The Workbox navigation fallback can answer an unknown
+  sibling path with the cached Chat shell before the request reaches that application.
+- Change: deployments can provide root-relative path prefixes through runtime config. Initial and
+  version-update registrations carry the normalized prefixes in the service-worker script URL, and
+  the worker converts them to boundary-aware, regex-escaped navigation exclusions. Invalid,
+  cross-origin-looking, query-bearing, fragment-bearing, duplicate, and root-wide values are
+  ignored. Static API, Matrix, well-known, and embedded-document exclusions remain unchanged.
+- Privacy: the implementation, examples, tests, and public documentation use generic sibling-app
+  paths only. No downstream hostname, route, organization, infrastructure, or incident detail is
+  included.
+- Coverage: focused tests verify runtime normalization and browser path canonicalization,
+  registration URL propagation, worker URL parsing, regex escaping, exact/descendant matching, and
+  similarly named route preservation. Typecheck, lint, production build, and formatting checks pass.
+  The full suite passes 3191 of 3192 tests; its unrelated existing iOS virtualizer contract failure
+  is in untouched code.
+
 ### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
 
 - Status: implementation, automated validation, independent review, and PR review remediation are complete on PR #152; the PR is ready for review.
