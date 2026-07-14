@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Keep call settings above participant tiles (2026-07-14)
+
+- Status: implementation and full local validation are complete on `caveman/fix-call-settings-stacking`; independent review remains in progress.
+- Reproduction: in a live staging call with two participants, the Element Call settings dialog remained active, visible, and fully sized in the iframe DOM, but the participant surface was the topmost element at the dialog center and completely hid it.
+  Body-layer inspection showed the MindRoom background integration had changed Element Call's `#root` to `position: relative; z-index: 1`, while Element Call portaled settings directly under `body` with an automatic stacking level.
+- Root cause: the positive root stacking context lifted the complete Element Call application above its body-level settings portal once participant media rendered.
+  This regression came from the interactive WebGL call-background change rather than LiveKit participant handling.
+- Fix: keep the prepended background portal at stack level zero and position the later application root without replacing its stacking level.
+  DOM order keeps the background behind the application while later Element Call settings and menu portals remain above it, and any upstream inline root stacking level is preserved.
+- Coverage: the focused portal suite now uses a production-shaped root without an inline `z-index`, appends a body-level settings dialog, and requires the background integration to leave both on their natural stacking level.
+  Existing root stacking is also preserved, and cleanup continues to restore the prior root position.
+- Validation: the focused call/background suite passes (7 files / 19 tests), and the full Vitest suite passes (420 files / 3,196 tests).
+  Typecheck, the production/PWA build plus Element Call artifact verification, touched-file Prettier, `git diff --check`, and full ESLint also pass; ESLint reports 0 errors and 17 pre-existing warnings.
+
 ### Keep the PWA app shell away from sibling applications (2026-07-14)
 
 - Status: implementation, automated validation, and self-review complete; ready for PR review.

@@ -19,7 +19,7 @@ describe('mountCallBackgroundPortal', () => {
     document.body.replaceChildren();
   });
 
-  it('mounts behind the Element Call root and restores its styles on cleanup', () => {
+  it('mounts behind the Element Call root without replacing its stacking level', () => {
     const iframe = document.createElement('iframe');
     document.body.append(iframe);
 
@@ -41,7 +41,7 @@ describe('mountCallBackgroundPortal', () => {
     expect(portalStyles?.textContent).toContain('(prefers-reduced-motion: reduce)');
     expect(portalStyles?.textContent).toContain('canvas { display: none !important; }');
     expect(appRoot.style.position).toBe('relative');
-    expect(appRoot.style.zIndex).toBe('1');
+    expect(appRoot.style.zIndex).toBe('4');
 
     mounted.cleanup();
 
@@ -49,6 +49,33 @@ describe('mountCallBackgroundPortal', () => {
     expect(portalStyles?.isConnected).toBe(false);
     expect(appRoot.style.position).toBe('absolute');
     expect(appRoot.style.zIndex).toBe('4');
+  });
+
+  it('keeps body-level Element Call portals above the production-shaped app root', () => {
+    const iframe = document.createElement('iframe');
+    document.body.append(iframe);
+
+    const callDocument = iframe.contentDocument!;
+    const appRoot = callDocument.createElement('div');
+    appRoot.id = 'root';
+    callDocument.body.append(appRoot);
+
+    const mounted = mountCallBackgroundPortal(iframe)!;
+    const settingsPortal = callDocument.createElement('div');
+    settingsPortal.setAttribute('role', 'dialog');
+    callDocument.body.append(settingsPortal);
+
+    expect(Array.from(callDocument.body.children)).toEqual([
+      mounted.portalRoot,
+      appRoot,
+      settingsPortal,
+    ]);
+    expect(callDocument.body.firstElementChild).toBe(mounted.portalRoot);
+    expect(appRoot.style.position).toBe('relative');
+    expect(appRoot.style.zIndex).toBe('');
+    expect(settingsPortal.style.zIndex).toBe('');
+
+    mounted.cleanup();
   });
 
   it('retries on iframe load and cleans up when the call becomes hidden', () => {

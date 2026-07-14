@@ -35,9 +35,9 @@ export function mountCallBackgroundPortal(
   `;
 
   const previousAppRootPosition = appRoot.style.position;
-  const previousAppRootZIndex = appRoot.style.zIndex;
+  // Keep the root in the same stacking layer as body-level Element Call portals.
+  // The prepended background still paints first, while later settings and menu portals paint last.
   appRoot.style.position = 'relative';
-  appRoot.style.zIndex = '1';
   callDocument.head.append(portalStyles);
   callDocument.body.prepend(portalRoot);
 
@@ -47,7 +47,6 @@ export function mountCallBackgroundPortal(
       portalRoot.remove();
       portalStyles.remove();
       appRoot.style.position = previousAppRootPosition;
-      appRoot.style.zIndex = previousAppRootZIndex;
     },
   };
 }
