@@ -87,6 +87,16 @@ Containerized runtime also supports:
 
 - `APP_ENABLE_SERVICE_WORKER` (enabled by default in container runtime config)
 
+When the client shares an origin with sibling applications, add their root-relative path prefixes
+to the runtime config so the PWA app-shell fallback leaves those navigations to the network:
+
+```js
+window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = ['/other-app'];
+```
+
+Only root-relative paths without a query or fragment are accepted. Each prefix excludes its exact
+path and descendants without excluding similarly named client routes.
+
 ### Optional build-time base path
 
 - `APP_BUILD_BASE_PATH=/mindroom npm run build`
