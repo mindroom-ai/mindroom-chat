@@ -16,10 +16,7 @@ const readStoredDeploymentUrl = (): string => {
 
 const storeDeploymentUrl = (value: string): void => {
   try {
-    const storedUrl = new URL(value);
-    storedUrl.search = '';
-    storedUrl.hash = '';
-    globalThis.localStorage?.setItem(HOSTED_DEPLOYMENT_URL_KEY, storedUrl.toString());
+    globalThis.localStorage?.setItem(HOSTED_DEPLOYMENT_URL_KEY, value);
   } catch {
     // Storage can be unavailable without preventing the deployment from opening.
   }
@@ -112,6 +109,7 @@ function HostedDeploymentForm({ onBack }: { onBack: () => void }) {
             fill="None"
             aria-label="Back to server sign-in"
             onClick={onBack}
+            disabled={opening}
           >
             <Text size="B300">Back</Text>
           </Button>
@@ -131,6 +129,7 @@ function HostedDeploymentForm({ onBack }: { onBack: () => void }) {
           variant="Background"
           outlined
           size="500"
+          disabled={opening}
         />
         <Text size="T200" priority="300">
           Enter the secure app URL supplied by your organization.
@@ -146,7 +145,13 @@ function HostedDeploymentForm({ onBack }: { onBack: () => void }) {
           <Text size="B400">{opening ? 'Opening...' : 'Open deployment'}</Text>
         </Button>
         {deploymentUrl && (
-          <Button type="button" variant="Secondary" fill="Soft" onClick={handleForget}>
+          <Button
+            type="button"
+            variant="Secondary"
+            fill="Soft"
+            onClick={handleForget}
+            disabled={opening}
+          >
             <Text size="B400">Clear URL</Text>
           </Button>
         )}

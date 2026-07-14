@@ -178,7 +178,7 @@ describe('HostedDeploymentLauncher', () => {
     }
   );
 
-  it('prevents duplicate opens while the first browser request is pending', async () => {
+  it('locks the form and prevents duplicate opens while the browser request is pending', async () => {
     let resolveOpen: (() => void) | undefined;
     vi.mocked(Browser.open).mockReturnValue(
       new Promise<void>((resolve) => {
@@ -199,11 +199,24 @@ describe('HostedDeploymentLauncher', () => {
     });
 
     expect(Browser.open).toHaveBeenCalledTimes(1);
+    expect(
+      renderer.root.findByProps({ 'aria-label': 'Organization deployment URL' }).props.disabled
+    ).toBe(true);
+    expect(findButtonByText(renderer, 'Back')?.props.disabled).toBe(true);
+    expect(findButtonByText(renderer, 'Opening...')?.props.disabled).toBe(true);
+    expect(findButtonByText(renderer, 'Clear URL')?.props.disabled).toBe(true);
 
     resolveOpen?.();
     await act(async () => {
       await Promise.all([firstOpen!, secondOpen!]);
     });
+
+    expect(
+      renderer.root.findByProps({ 'aria-label': 'Organization deployment URL' }).props.disabled
+    ).toBe(false);
+    expect(findButtonByText(renderer, 'Back')?.props.disabled).toBe(false);
+    expect(findButtonByText(renderer, 'Open deployment')?.props.disabled).toBe(false);
+    expect(findButtonByText(renderer, 'Clear URL')?.props.disabled).toBe(false);
   });
 
   it('still opens when device storage is unavailable', async () => {

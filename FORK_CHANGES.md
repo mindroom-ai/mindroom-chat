@@ -16,7 +16,7 @@
   The locally remembered address can be cleared without claiming to clear browser cookies or the hosted login session.
 - Scope: hosted mode deliberately provides the web client inside the native app.
   Native-only integrations such as APNs registration remain limited to the bundled client.
-- Coverage: focused tests cover URL normalization, unsafe input rejection, iOS-only rendering, the full-screen browser handoff, duplicate-open suppression, local persistence and clearing, and unavailable device storage.
+- Coverage: focused tests cover URL normalization, unsafe input rejection, iOS-only rendering, the full-screen browser handoff, pending-open control locking, duplicate-open suppression, local persistence and clearing, and unavailable device storage.
 
 ### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
 
