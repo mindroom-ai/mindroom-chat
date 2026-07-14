@@ -84,7 +84,8 @@ export class CallEmbed {
     mx: MatrixClient,
     room: Room,
     intent: ElementCallIntent,
-    themeKind: ElementCallThemeKind
+    themeKind: ElementCallThemeKind,
+    livekitServiceUrl?: string
   ): Widget {
     const userId = mx.getSafeUserId();
     const deviceId = mx.getDeviceId() ?? '';
@@ -118,6 +119,11 @@ export class CallEmbed {
       window.location.origin
     );
     widgetUrl.search = params.toString();
+    if (livekitServiceUrl) {
+      const fragmentParams = new URLSearchParams(widgetUrl.hash.slice(1));
+      fragmentParams.set('livekitServiceUrl', livekitServiceUrl);
+      widgetUrl.hash = fragmentParams.toString();
+    }
 
     const options: IWidget = {
       id: widgetId,

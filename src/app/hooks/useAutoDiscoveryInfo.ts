@@ -5,8 +5,12 @@ const AutoDiscoverInfoContext = createContext<AutoDiscoveryInfo | null>(null);
 
 export const AutoDiscoveryInfoProvider = AutoDiscoverInfoContext.Provider;
 
+export const useOptionalAutoDiscoveryInfo = (): AutoDiscoveryInfo | undefined => {
+  return useContext(AutoDiscoverInfoContext) ?? undefined;
+};
+
 export const useAutoDiscoveryInfo = (): AutoDiscoveryInfo => {
-  const autoDiscoveryInfo = useContext(AutoDiscoverInfoContext);
+  const autoDiscoveryInfo = useOptionalAutoDiscoveryInfo();
   if (!autoDiscoveryInfo) {
     throw new Error('Auto Discovery Info not loaded');
   }
