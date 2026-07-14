@@ -26,7 +26,8 @@
   Standard WebKit fetch exposes no upload-progress events, so native iOS progress remains indeterminate until completion; user cancellation remains wired through the SDK's `AbortController`.
 - Dependency: encrypted token transfer uses the exact Swift-Sodium `0.11.0` package version.
   The workspace commits its resolved revision, which full Xcode must verify while compiling the native target.
-- Infrastructure contract: apply this token flow only to `/_matrix/*`, enable and verify Cloudflare's Path Cookie Attribute for that application, leave Matrix well-known handling unchanged and outside this feature, never attach an Access token there, allow the Capacitor origin and `Cf-Access-Token` through Access CORS handling, and keep cookie binding disabled for this application-token flow.
+- Infrastructure contract: apply this token flow only to `/_matrix/*`, leave Matrix well-known handling unchanged and outside this feature, never attach an Access token there, allow the Capacitor origin and `Cf-Access-Token` through Access CORS handling, and keep cookie binding disabled for this application-token flow.
+  Native code installs the application JWT into WebKit itself with an exact `/_matrix` cookie path for direct media, so Cloudflare's application-level Path Cookie Attribute is not required.
 - Coverage: focused tests verify approved-origin gating, standard cross-origin Matrix delegation, path-scoped probes, Access and Matrix header coexistence, manual redirects, POST replay, single refresh, 60-second expiry skew, fail-closed discovery and reauthentication, cancellation recovery, active-login loader recovery, media redirect policy, native upload authentication despite available XHR, native security contracts, and generic source identity.
 
 ### Keep call settings above participant tiles (2026-07-14)
