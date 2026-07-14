@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import classNames from 'classnames';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -23,12 +23,11 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
 import { resolveAddAccountReturnPath } from './addAccount';
-import { MINDROOM_AUTH_BRANDING, isNativeIOS } from '../../mindroom/auth/authUi';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../components/particle-background';
-import { HostedDeploymentButton, HostedDeploymentLauncher } from './HostedDeploymentLauncher';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -56,8 +55,6 @@ export function AuthLayout() {
   const location = useLocation();
   const { server: urlEncodedServer } = useParams();
   const activeSession = useActiveSession();
-  const [hostedDeploymentMode, setHostedDeploymentMode] = useState(false);
-  const nativeIOS = isNativeIOS();
 
   const clientConfig = useClientConfig();
   const registrationAllowed = clientConfig.auth?.allowRegistration !== false;
@@ -165,84 +162,71 @@ export function AuthLayout() {
                 Back to current account
               </Button>
             )}
-            {hostedDeploymentMode ? (
-              <HostedDeploymentLauncher onBack={() => setHostedDeploymentMode(false)} />
-            ) : (
-              <>
-                {!hideServerPicker ? (
-                  <Box direction="Column" gap="100">
-                    <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-                      <Text as="label" size="L400" priority="300">
-                        Server
-                      </Text>
-                      <HostedDeploymentButton onClick={() => setHostedDeploymentMode(true)} />
-                    </Box>
-                    <ServerPicker
-                      server={server}
-                      serverList={serverList}
-                      allowCustomServer={clientConfig.allowCustomHomeservers}
-                      onServerChange={selectServer}
-                    />
-                  </Box>
-                ) : nativeIOS ? (
-                  <Box justifyContent="End">
-                    <HostedDeploymentButton onClick={() => setHostedDeploymentMode(true)} />
-                  </Box>
-                ) : null}
-                {discoveryState.status === AsyncStatus.Loading && (
-                  <AuthLayoutLoading message="Looking for server..." />
-                )}
-                {discoveryState.status === AsyncStatus.Error && (
-                  <AuthLayoutError message="Failed to find server." />
-                )}
-                {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_PROMPT && (
-                  <AuthLayoutError
-                    message={`Failed to connect. Server configuration found with ${autoDiscoveryError.host} appears unusable.`}
-                  />
-                )}
-                {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_ERROR && (
-                  <AuthLayoutError message="Failed to connect. Server configuration base_url appears invalid." />
-                )}
-                {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_INSECURE && (
-                  <AuthLayoutError message="Only HTTPS servers are allowed. HTTP is supported for local-network servers only." />
-                )}
-                {discoveryState.status === AsyncStatus.Success && autoDiscoveryInfo && (
-                  <AuthServerProvider value={discoveryState.data.serverName}>
-                    <AutoDiscoveryInfoProvider value={autoDiscoveryInfo}>
-                      <SpecVersionsLoader
-                        baseUrl={autoDiscoveryInfo['m.homeserver'].base_url}
-                        fallback={() => (
-                          <AuthLayoutLoading
-                            message={`Connecting to ${autoDiscoveryInfo['m.homeserver'].base_url}`}
-                          />
-                        )}
-                        error={() => (
-                          <AuthLayoutError message="Failed to connect. Either server is unavailable at this moment or does not exist." />
-                        )}
-                      >
-                        {(specVersions) => (
-                          <SpecVersionsProvider value={specVersions}>
-                            <AuthFlowsLoader
-                              fallback={() => (
-                                <AuthLayoutLoading message="Loading authentication flow..." />
-                              )}
-                              error={() => (
-                                <AuthLayoutError message="Failed to get authentication flow information." />
-                              )}
-                            >
-                              {(authFlows) => (
-                                <AuthFlowsProvider value={authFlows}>
-                                  <Outlet />
-                                </AuthFlowsProvider>
-                              )}
-                            </AuthFlowsLoader>
-                          </SpecVersionsProvider>
-                        )}
-                      </SpecVersionsLoader>
-                    </AutoDiscoveryInfoProvider>
-                  </AuthServerProvider>
-                )}
-              </>
+            {!hideServerPicker && (
+              <Box direction="Column" gap="100">
+                <Text as="label" size="L400" priority="300">
+                  Server
+                </Text>
+                <ServerPicker
+                  server={server}
+                  serverList={serverList}
+                  allowCustomServer={clientConfig.allowCustomHomeservers}
+                  onServerChange={selectServer}
+                />
+              </Box>
+            )}
+            {discoveryState.status === AsyncStatus.Loading && (
+              <AuthLayoutLoading message="Looking for server..." />
+            )}
+            {discoveryState.status === AsyncStatus.Error && (
+              <AuthLayoutError message="Failed to find server." />
+            )}
+            {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_PROMPT && (
+              <AuthLayoutError
+                message={`Failed to connect. Server configuration found with ${autoDiscoveryError.host} appears unusable.`}
+              />
+            )}
+            {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_ERROR && (
+              <AuthLayoutError message="Failed to connect. Server configuration base_url appears invalid." />
+            )}
+            {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_INSECURE && (
+              <AuthLayoutError message="Only HTTPS servers are allowed. HTTP is supported for local-network servers only." />
+            )}
+            {discoveryState.status === AsyncStatus.Success && autoDiscoveryInfo && (
+              <AuthServerProvider value={discoveryState.data.serverName}>
+                <AutoDiscoveryInfoProvider value={autoDiscoveryInfo}>
+                  <SpecVersionsLoader
+                    baseUrl={autoDiscoveryInfo['m.homeserver'].base_url}
+                    fallback={() => (
+                      <AuthLayoutLoading
+                        message={`Connecting to ${autoDiscoveryInfo['m.homeserver'].base_url}`}
+                      />
+                    )}
+                    error={() => (
+                      <AuthLayoutError message="Failed to connect. Either server is unavailable at this moment or does not exist." />
+                    )}
+                  >
+                    {(specVersions) => (
+                      <SpecVersionsProvider value={specVersions}>
+                        <AuthFlowsLoader
+                          fallback={() => (
+                            <AuthLayoutLoading message="Loading authentication flow..." />
+                          )}
+                          error={() => (
+                            <AuthLayoutError message="Failed to get authentication flow information." />
+                          )}
+                        >
+                          {(authFlows) => (
+                            <AuthFlowsProvider value={authFlows}>
+                              <Outlet />
+                            </AuthFlowsProvider>
+                          )}
+                        </AuthFlowsLoader>
+                      </SpecVersionsProvider>
+                    )}
+                  </SpecVersionsLoader>
+                </AutoDiscoveryInfoProvider>
+              </AuthServerProvider>
             )}
           </Box>
         </Box>
