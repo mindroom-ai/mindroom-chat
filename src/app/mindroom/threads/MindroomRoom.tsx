@@ -36,7 +36,7 @@ export function Room() {
   const members = useRoomMembers(mx, room.roomId);
   const hasMindroomAgents = hasActiveMindroomAgent(members);
   const chat = useAtomValue(callChatAtom);
-  const { viewMode } = useRoomViewMode(room.roomId);
+  const { viewMode } = useRoomViewMode(room.roomId, { hasMindroomAgents });
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
   const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -53,7 +53,7 @@ export function Room() {
       <Box grow="Yes">
         {callView && (screenSize === ScreenSize.Desktop || !chat) && (
           <Box grow="Yes" direction="Column">
-            <RoomViewHeader callView />
+            <RoomViewHeader callView hasMindroomAgents={hasMindroomAgents} />
             <Box grow="Yes">
               <CallView />
             </Box>

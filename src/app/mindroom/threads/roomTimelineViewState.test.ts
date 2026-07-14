@@ -7,7 +7,7 @@ import {
 } from './roomTimelineViewState';
 
 describe('resolveRoomTimelineViewState', () => {
-  it('preserves compact mode and overview controls for direct rooms', () => {
+  it('preserves compact mode after the effective room policy has been resolved', () => {
     const requested = createDefaultThreadFilterState();
 
     expect(
