@@ -137,13 +137,9 @@ vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
 }));
 
-vi.mock('../../hooks/useClientConfig', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../hooks/useClientConfig')>();
-  return {
-    ...actual,
-    useClientConfig: vi.fn(() => ({})),
-  };
-});
+vi.mock('../../hooks/useClientConfig', () => ({
+  useClientConfig: vi.fn(() => ({})),
+}));
 
 let currentSession: StoredSession | undefined;
 

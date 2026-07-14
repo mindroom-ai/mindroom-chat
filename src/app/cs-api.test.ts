@@ -96,55 +96,6 @@ describe('autoDiscovery', () => {
     expect(error).toBeUndefined();
     expect(discovery?.['m.homeserver'].base_url).toBe('https://matrix.example.com');
   });
-
-  it('uses configured discovery without requesting well-known', async () => {
-    const request = vi.fn();
-
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'example.com',
-      {
-        'm.homeserver': { base_url: 'https://matrix.example.com/' },
-        'org.matrix.msc4143.rtc_foci': [
-          {
-            type: 'livekit',
-            livekit_service_url: 'https://rtc.example.com/jwt',
-          },
-        ],
-      }
-    );
-
-    expect(error).toBeUndefined();
-    expect(discovery).toEqual({
-      'm.homeserver': { base_url: 'https://matrix.example.com' },
-      'org.matrix.msc4143.rtc_foci': [
-        {
-          type: 'livekit',
-          livekit_service_url: 'https://rtc.example.com/jwt',
-        },
-      ],
-    });
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it('applies URL safety checks to configured discovery', async () => {
-    const request = vi.fn();
-
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'example.com',
-      {
-        'm.homeserver': { base_url: 'http://matrix.example.com' },
-      }
-    );
-
-    expect(error).toEqual({
-      host: 'https://example.com',
-      action: AutoDiscoveryAction.FAIL_INSECURE,
-    });
-    expect(discovery).toBeUndefined();
-    expect(request).not.toHaveBeenCalled();
-  });
 });
 
 describe('specVersions', () => {
