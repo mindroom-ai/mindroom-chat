@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
+
+- Status: implementation, automated validation, and independent review are complete on `fix/fable-anthropic-icon`; the branch is ready for review.
+- Symptom: the `VertexAI / claude-fable-5` model badge says `Fable` but shows the generic sparkle icon.
+- Root cause: badge icon selection only considers the provider string, so a Claude model routed through `vertexai` cannot resolve to the Anthropic brand.
+- Fix: recognize Claude model IDs independently of their routing provider and render the Anthropic mark while preserving the existing compact label and full tooltip.
+- Coverage: a focused rendered-badge regression uses the production-shaped `vertexai` and `claude-fable-5` metadata and verifies the Anthropic mark and `Fable` label together.
+- Validation: the full Vitest suite passes (420 files / 3,196 tests), as do typecheck, the production/PWA build, focused Prettier, `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings).
+- Review: independent review found no actionable issues, confirmed non-Claude provider routing is unchanged, and verified the embedded mark against the CC0 Simple Icons Anthropic asset.
+
 ### Use configured homeserver discovery without a network probe (2026-07-14)
 
 - Status: implementation, automated validation, and independent review are complete on `feat/configured-homeserver-discovery`; the branch is ready for review.
