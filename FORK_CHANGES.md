@@ -4,7 +4,7 @@
 
 ### Authenticate long-response sidecars without service-worker dependence (2026-07-14)
 
-- Status: production diagnosis, implementation, full validation, and independent review are complete; the fix is ready for PR review.
+- Status: production diagnosis, implementation, full validation, independent review, and PR review are complete on PR #154; the fix is ready for human review.
 - Symptom: an expanded MindRoom response showed raw tool markers, Markdown, and large blank gaps instead of formatted prose and tool cards.
 - Root cause: the Matrix event's long-text sidecar contains the correct `formatted_body` and tool trace, but programmatic sidecar downloads relied entirely on the service worker to add Matrix authentication.
   Production temporarily serves a cleanup-only worker, so the browser's repeated unauthenticated media requests receive HTTP 401 and the client silently keeps the raw preview.
@@ -14,6 +14,10 @@
 - Validation: the focused long-text and media-URL suite passes (2 files / 26 tests), and the full Vitest suite passes (418 files / 3,189 tests).
   Typecheck, the production/PWA build, touched-file Prettier, `git diff --check`, and full ESLint (0 errors / 17 pre-existing warnings) also pass.
 - Review: independent review found no actionable issues and confirmed direct authentication is limited to the configured homeserver's exact media endpoint for both encrypted and unencrypted sidecars.
+- PR review: Gemini, Greptile, and CodeRabbit suggested passing explicit `undefined` instead of preserving the existing one-argument unauthenticated calls.
+  The suggestion was validated and rejected because it breaks four existing call-contract regressions; the focused suite remains green with the current branches.
+  Gemini's nullable homeserver claim does not apply to the installed Matrix SDK, whose implementation and declaration both return `string`; strict typecheck confirms the usage.
+  All actionable CI checks pass; Sourcery and Qodo reported quota/seat limits rather than code findings.
 
 ### Use the Anthropic mark for Claude models routed through Vertex AI (2026-07-14)
 
