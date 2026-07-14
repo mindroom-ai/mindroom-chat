@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isNativeIOS } from '../../mindroom/auth/authUi';
 import {
   HOSTED_DEPLOYMENT_URL_KEY,
+  HostedDeploymentButton,
   HostedDeploymentLauncher,
   normalizeHostedDeploymentUrl,
 } from './HostedDeploymentLauncher';
@@ -73,6 +74,8 @@ const submitDeployment = async (renderer: ReturnType<typeof create>): Promise<vo
   });
 };
 
+const createLauncher = (onBack = vi.fn()) => create(<HostedDeploymentLauncher onBack={onBack} />);
+
 describe('normalizeHostedDeploymentUrl', () => {
   it('adds HTTPS when the user enters a bare host and preserves a deployment path', () => {
     expect(normalizeHostedDeploymentUrl(' chat.example.com/team ')).toBe(
@@ -112,15 +115,41 @@ describe('HostedDeploymentLauncher', () => {
   it('stays hidden outside the native iOS app', () => {
     vi.mocked(isNativeIOS).mockReturnValue(false);
 
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
 
     expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('keeps the organization action hidden outside the native iOS app', () => {
+    vi.mocked(isNativeIOS).mockReturnValue(false);
+
+    const renderer = create(<HostedDeploymentButton onClick={vi.fn()} />);
+
+    expect(renderer.toJSON()).toBeNull();
+  });
+
+  it('opens hosted mode from the compact organization action', () => {
+    const onClick = vi.fn();
+    const renderer = create(<HostedDeploymentButton onClick={onClick} />);
+
+    act(() => findButtonByText(renderer, 'Organization')?.props.onClick());
+
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it('returns to normal server sign-in', () => {
+    const onBack = vi.fn();
+    const renderer = createLauncher(onBack);
+
+    act(() => findButtonByText(renderer, 'Back')?.props.onClick());
+
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it('opens a valid deployment in the full-screen native browser without URL secrets', async () => {
     const storage = createStorage();
     vi.stubGlobal('localStorage', storage);
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
     setDeploymentUrl(renderer, 'https://chat.example.com/team?invite=secret#login');
 
     await submitDeployment(renderer);
@@ -138,7 +167,7 @@ describe('HostedDeploymentLauncher', () => {
   it.each(['http://chat.example.com', 'https://user:secret@chat.example.com'])(
     'rejects %s before opening the browser',
     async (value) => {
-      const renderer = create(<HostedDeploymentLauncher />);
+      const renderer = createLauncher();
       setDeploymentUrl(renderer, value);
 
       await submitDeployment(renderer);
@@ -156,7 +185,7 @@ describe('HostedDeploymentLauncher', () => {
         resolveOpen = resolve;
       })
     );
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
     setDeploymentUrl(renderer, 'https://chat.example.com');
     const form = renderer.root.findByProps({ 'data-testid': 'hosted-deployment-form' });
     const preventDefault = vi.fn();
@@ -183,7 +212,7 @@ describe('HostedDeploymentLauncher', () => {
       throw new Error('storage unavailable');
     });
     vi.stubGlobal('localStorage', storage);
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
     setDeploymentUrl(renderer, 'https://chat.example.com');
 
     await submitDeployment(renderer);
@@ -196,7 +225,7 @@ describe('HostedDeploymentLauncher', () => {
     const storage = createStorage();
     vi.stubGlobal('localStorage', storage);
     vi.mocked(Browser.open).mockRejectedValue(new Error('browser unavailable'));
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
     setDeploymentUrl(renderer, 'https://chat.example.com');
 
     await submitDeployment(renderer);
@@ -209,7 +238,7 @@ describe('HostedDeploymentLauncher', () => {
   it('clears a previously saved deployment URL', () => {
     const storage = createStorage('https://saved.example.com/');
     vi.stubGlobal('localStorage', storage);
-    const renderer = create(<HostedDeploymentLauncher />);
+    const renderer = createLauncher();
     const forgetButton = findButtonByText(renderer, 'Clear URL');
 
     act(() => forgetButton?.props.onClick());

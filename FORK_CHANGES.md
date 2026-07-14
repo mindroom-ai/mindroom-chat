@@ -7,7 +7,7 @@
 - Status: implementation and automated validation are complete; physical-iPhone verification of the complete access-gateway and Matrix SSO redirect flow remains required before release.
 - Problem: the bundled client runs from a local Capacitor origin, while browser-oriented access gateways authenticate a protected hosted deployment with cookies scoped to that deployment.
   Treating the protected Matrix API as a cross-origin homeserver would separate those browser credentials from the client requests.
-- Change: add an iOS-only organization-deployment launcher to the login screen.
+- Change: add a small iOS-only **Organization** action beside the normal server picker; selecting it swaps the normal sign-in controls for an organization-deployment launcher, and **Back** restores them.
   Users enter an HTTPS URL supplied by their organization, and MindRoom Chat opens the existing hosted client in Capacitor Browser's full-screen system browser.
   The hosted frontend, runtime config, authentication redirects, and Matrix API therefore remain in one top-level browser context.
 - Security: no deployment address is compiled into the public app or its `config.json`.

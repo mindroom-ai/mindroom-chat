@@ -3,7 +3,6 @@ import React, { FormEvent, useRef, useState } from 'react';
 import { Box, Button, Input, Text, color } from 'folds';
 
 import { isNativeIOS } from '../../mindroom/auth/authUi';
-import { OrDivider } from './OrDivider';
 
 export const HOSTED_DEPLOYMENT_URL_KEY = 'mindroom_hosted_deployment_url';
 
@@ -54,7 +53,7 @@ export const normalizeHostedDeploymentUrl = (value: string): string => {
   return parsedUrl.toString();
 };
 
-function HostedDeploymentForm() {
+function HostedDeploymentForm({ onBack }: { onBack: () => void }) {
   const [deploymentUrl, setDeploymentUrl] = useState(readStoredDeploymentUrl);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
@@ -94,61 +93,87 @@ function HostedDeploymentForm() {
   };
 
   return (
-    <>
-      <Box
-        as="form"
-        onSubmit={handleOpen}
-        direction="Column"
-        gap="200"
-        data-testid="hosted-deployment-form"
-      >
-        <Box direction="Column" gap="100">
+    <Box
+      as="form"
+      onSubmit={handleOpen}
+      direction="Column"
+      gap="200"
+      data-testid="hosted-deployment-form"
+    >
+      <Box direction="Column" gap="100">
+        <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
           <Text as="label" htmlFor="hostedDeploymentUrl" size="L400" priority="300">
             Organization deployment
           </Text>
-          <Input
-            id="hostedDeploymentUrl"
-            aria-label="Organization deployment URL"
-            name="hostedDeploymentUrl"
-            type="text"
-            inputMode="url"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="https://chat.example.com"
-            value={deploymentUrl}
-            onChange={(event) => setDeploymentUrl(event.currentTarget.value)}
-            variant="Background"
-            outlined
-            size="500"
-          />
-          <Text size="T200" priority="300">
-            Enter the secure app URL supplied by your organization.
-          </Text>
-        </Box>
-        {error && (
-          <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-            {error}
-          </Text>
-        )}
-        <Box gap="200">
-          <Button type="submit" variant="Primary" disabled={opening} style={{ flexGrow: 1 }}>
-            <Text size="B400">{opening ? 'Opening...' : 'Open deployment'}</Text>
+          <Button
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="None"
+            aria-label="Back to server sign-in"
+            onClick={onBack}
+          >
+            <Text size="B300">Back</Text>
           </Button>
-          {deploymentUrl && (
-            <Button type="button" variant="Secondary" fill="Soft" onClick={handleForget}>
-              <Text size="B400">Clear URL</Text>
-            </Button>
-          )}
         </Box>
+        <Input
+          id="hostedDeploymentUrl"
+          aria-label="Organization deployment URL"
+          name="hostedDeploymentUrl"
+          type="text"
+          inputMode="url"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="https://chat.example.com"
+          value={deploymentUrl}
+          onChange={(event) => setDeploymentUrl(event.currentTarget.value)}
+          variant="Background"
+          outlined
+          size="500"
+        />
+        <Text size="T200" priority="300">
+          Enter the secure app URL supplied by your organization.
+        </Text>
       </Box>
-      <OrDivider />
-    </>
+      {error && (
+        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+          {error}
+        </Text>
+      )}
+      <Box gap="200">
+        <Button type="submit" variant="Primary" disabled={opening} style={{ flexGrow: 1 }}>
+          <Text size="B400">{opening ? 'Opening...' : 'Open deployment'}</Text>
+        </Button>
+        {deploymentUrl && (
+          <Button type="button" variant="Secondary" fill="Soft" onClick={handleForget}>
+            <Text size="B400">Clear URL</Text>
+          </Button>
+        )}
+      </Box>
+    </Box>
   );
 }
 
-export function HostedDeploymentLauncher() {
+export function HostedDeploymentButton({ onClick }: { onClick: () => void }) {
   if (!isNativeIOS()) return null;
 
-  return <HostedDeploymentForm />;
+  return (
+    <Button
+      type="button"
+      size="300"
+      variant="Secondary"
+      fill="None"
+      aria-label="Use organization deployment"
+      onClick={onClick}
+    >
+      <Text size="B300">Organization</Text>
+    </Button>
+  );
+}
+
+export function HostedDeploymentLauncher({ onBack }: { onBack: () => void }) {
+  if (!isNativeIOS()) return null;
+
+  return <HostedDeploymentForm onBack={onBack} />;
 }
