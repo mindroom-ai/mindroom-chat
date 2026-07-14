@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Open organization-hosted deployments from the native iOS app (2026-07-14)
+
+- Status: implementation and automated validation are complete; physical-iPhone verification of the complete access-gateway and Matrix SSO redirect flow remains required before release.
+- Problem: the bundled client runs from a local Capacitor origin, while browser-oriented access gateways authenticate a protected hosted deployment with cookies scoped to that deployment.
+  Treating the protected Matrix API as a cross-origin homeserver would separate those browser credentials from the client requests.
+- Change: add a small iOS-only **Organization** action beside the normal server picker; selecting it swaps the normal sign-in controls for an organization-deployment launcher, and **Back** restores them.
+  Users enter an HTTPS URL supplied by their organization, and MindRoom Chat opens the existing hosted client in Capacitor Browser's full-screen system browser.
+  The hosted frontend, runtime config, authentication redirects, and Matrix API therefore remain in one top-level browser context.
+- Security: no deployment address is compiled into the public app or its `config.json`.
+  URLs with non-HTTPS schemes or embedded credentials are rejected, and query strings and fragments are removed before the address is opened or stored.
+  Hosted content receives no Capacitor bridge or native plugin access.
+  The locally remembered address can be cleared without claiming to clear browser cookies or the hosted login session.
+- Scope: hosted mode deliberately provides the web client inside the native app.
+  Native-only integrations such as APNs registration remain limited to the bundled client.
+- Coverage: focused tests cover URL normalization, unsafe input rejection, iOS-only rendering, the full-screen browser handoff, pending-open control locking, duplicate-open suppression, local persistence and clearing, and unavailable device storage.
+
 ### Keep the PWA app shell away from sibling applications (2026-07-14)
 
 - Status: implementation, automated validation, and self-review complete; ready for PR review.
