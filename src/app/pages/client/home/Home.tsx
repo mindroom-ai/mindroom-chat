@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, forwardRef, useMemo, useRef, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, forwardRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Avatar,
@@ -8,21 +8,19 @@ import {
   IconButton,
   Icons,
   Menu,
+  MenuItem,
   PopOut,
   RectCords,
   Text,
   config,
   toRem,
 } from 'folds';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { factoryRoomIdByActivity, factoryRoomIdByAtoZ } from '../../../utils/sort';
 import {
   NavButton,
   NavCategory,
-  NavCategoryHeader,
   NavEmptyCenter,
   NavEmptyLayout,
   NavItem,
@@ -32,57 +30,108 @@ import {
 import {
   encodeSearchParamValueArray,
   getExplorePath,
+  getCreatePath,
   getHomeCreatePath,
   getHomeRoomPath,
   getHomeSearchPath,
   withSearchParam,
 } from '../../pathUtils';
-import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
 import {
   useHomeCreateSelected,
   useHomeSearchSelected,
 } from '../../../hooks/router/useHomeSelected';
-import { useHomeRooms } from './useHomeRooms';
-import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { VirtualTile } from '../../../components/virtualizer';
-import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
-import { makeNavCategoryId } from '../../../state/closedNavCategories';
+import { useHomeNavigationRooms } from './useHomeRooms';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
-import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { PageNav, PageNavHeader, PageNavContent } from '../../../components/page';
-import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { stopPropagation } from '../../../utils/keyboard';
-import {
-  getRoomNotificationMode,
-  useRoomsNotificationPreferencesContext,
-} from '../../../hooks/useRoomsNotificationPreferences';
+import { useRoomsNotificationPreferencesContext } from '../../../hooks/useRoomsNotificationPreferences';
 import { UseStateProvider } from '../../../components/UseStateProvider';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
 import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
+import { RoomFolderNav } from '../../../mindroom/room-folders/RoomFolderNav';
+import { useRoomFolders } from '../../../mindroom/room-folders/RoomFoldersProvider';
+import { RoomFolderPrompt } from '../../../mindroom/room-folders/RoomFolderPrompt';
 
 type HomeMenuProps = {
   requestClose: () => void;
 };
 const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, ref) => {
-  const orphanRooms = useHomeRooms();
+  const { roomIds } = useHomeNavigationRooms();
 
   return (
     <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-        <MindroomMarkRoomsReadMenuItem roomIds={orphanRooms} onClose={requestClose} />
+        <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={requestClose} />
       </Box>
     </Menu>
   );
 });
 
-function HomeHeader() {
+type HomeCreateMenuProps = {
+  requestClose: () => void;
+  onCreateFolder: () => void;
+  simpleMode: boolean;
+};
+const HomeCreateMenu = forwardRef<HTMLDivElement, HomeCreateMenuProps>(
+  ({ requestClose, onCreateFolder, simpleMode }, ref) => {
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const open = (path: string) => {
+      requestClose();
+      navigate(path);
+    };
+
+    return (
+      <Menu ref={ref} style={{ maxWidth: toRem(180), width: '100vw' }}>
+        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+          <MenuItem size="300" radii="300" onClick={() => open(getHomeCreatePath())}>
+            <Icon size="100" src={Icons.Hash} />
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+              {t('nav.createRoom')}
+            </Text>
+          </MenuItem>
+          <MenuItem
+            size="300"
+            radii="300"
+            onClick={() => {
+              requestClose();
+              onCreateFolder();
+            }}
+          >
+            <Icon size="100" src={Icons.Category} />
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+              {t('nav.createRoomFolder')}
+            </Text>
+          </MenuItem>
+          {!simpleMode && (
+            <MenuItem size="300" radii="300" onClick={() => open(getCreatePath())}>
+              <Icon size="100" src={Icons.Space} />
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                {t('nav.createSpace')}
+              </Text>
+            </MenuItem>
+          )}
+        </Box>
+      </Menu>
+    );
+  }
+);
+
+function HomeHeader({
+  onCreateFolder,
+  simpleMode,
+}: {
+  onCreateFolder: () => void;
+  simpleMode: boolean;
+}) {
   const { t } = useTranslation();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const [createMenuAnchor, setCreateMenuAnchor] = useState<RectCords>();
 
   const handleOpenMenu: MouseEventHandler<HTMLButtonElement> = (evt) => {
     const cords = evt.currentTarget.getBoundingClientRect();
@@ -102,34 +151,76 @@ function HomeHeader() {
             </Text>
           </Box>
           <Box>
-            <IconButton aria-pressed={!!menuAnchor} variant="Background" onClick={handleOpenMenu}>
+            <IconButton
+              aria-label={t('nav.create')}
+              aria-pressed={!!createMenuAnchor}
+              variant="Background"
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                const anchor = event.currentTarget.getBoundingClientRect();
+                setCreateMenuAnchor((currentAnchor) => (currentAnchor ? undefined : anchor));
+              }}
+            >
+              <Icon src={Icons.Plus} size="200" />
+            </IconButton>
+            <IconButton
+              aria-label={t('nav.homeOptions')}
+              aria-pressed={!!menuAnchor}
+              variant="Background"
+              onClick={handleOpenMenu}
+            >
               <Icon src={Icons.VerticalDots} size="200" />
             </IconButton>
           </Box>
         </Box>
       </PageNavHeader>
-      <PopOut
-        anchor={menuAnchor}
-        position="Bottom"
-        align="End"
-        offset={6}
-        content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              onDeactivate: () => setMenuAnchor(undefined),
-              clickOutsideDeactivates: true,
-              isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
-              isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
-              escapeDeactivates: stopPropagation,
-            }}
-          >
-            <HomeMenu requestClose={() => setMenuAnchor(undefined)} />
-          </FocusTrap>
-        }
-      />
+      <HomeHeaderPopOutMenu
+        anchor={createMenuAnchor}
+        onDeactivate={() => setCreateMenuAnchor(undefined)}
+      >
+        <HomeCreateMenu
+          requestClose={() => setCreateMenuAnchor(undefined)}
+          onCreateFolder={onCreateFolder}
+          simpleMode={simpleMode}
+        />
+      </HomeHeaderPopOutMenu>
+      <HomeHeaderPopOutMenu anchor={menuAnchor} onDeactivate={() => setMenuAnchor(undefined)}>
+        <HomeMenu requestClose={() => setMenuAnchor(undefined)} />
+      </HomeHeaderPopOutMenu>
     </>
+  );
+}
+
+function HomeHeaderPopOutMenu({
+  anchor,
+  onDeactivate,
+  children,
+}: {
+  anchor?: RectCords;
+  onDeactivate: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <PopOut
+      anchor={anchor}
+      position="Bottom"
+      align="End"
+      offset={6}
+      content={
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            returnFocusOnDeactivate: false,
+            onDeactivate,
+            clickOutsideDeactivates: true,
+            isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
+            isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
+            escapeDeactivates: stopPropagation,
+          }}
+        >
+          {children}
+        </FocusTrap>
+      }
+    />
   );
 }
 
@@ -175,13 +266,11 @@ function HomeEmpty() {
   );
 }
 
-const DEFAULT_CATEGORY_ID = makeNavCategoryId('home', 'room');
-export function Home() {
+export function HomeContent() {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
   useNavToActivePathMapper('home');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const rooms = useHomeRooms();
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  const { roomIds: rooms, spaceIds } = useHomeNavigationRooms();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const roomToUnread = useAtomValue(roomToUnreadAtom);
   const navigate = useNavigate();
@@ -190,40 +279,21 @@ export function Home() {
   const simpleMode = useSimpleMode();
   const createRoomSelected = useHomeCreateSelected();
   const searchSelected = useHomeSearchSelected();
-  const noRoomToDisplay = rooms.length === 0;
-  const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
-
-  const sortedRooms = useMemo(() => {
-    const items = Array.from(rooms).sort(
-      closedCategories.has(DEFAULT_CATEGORY_ID)
-        ? factoryRoomIdByActivity(mx)
-        : factoryRoomIdByAtoZ(mx)
-    );
-    if (closedCategories.has(DEFAULT_CATEGORY_ID)) {
-      return items.filter((rId) => roomToUnread.has(rId) || rId === selectedRoomId);
-    }
-    return items;
-  }, [mx, rooms, closedCategories, roomToUnread, selectedRoomId]);
-
-  const virtualizer = useVirtualizer({
-    count: sortedRooms.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 38,
-    overscan: 10,
-  });
-
-  const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId) =>
-    closedCategories.has(categoryId)
-  );
+  const { folders, createFolder } = useRoomFolders();
+  const noRoomToDisplay = rooms.length === 0 && spaceIds.length === 0 && folders.length === 0;
+  const [createFolderPrompt, setCreateFolderPrompt] = useState(false);
 
   return (
     <PageNav>
-      <HomeHeader />
+      <HomeHeader onCreateFolder={() => setCreateFolderPrompt(true)} simpleMode={simpleMode} />
+      {createFolderPrompt && (
+        <RoomFolderPrompt onSubmit={createFolder} onCancel={() => setCreateFolderPrompt(false)} />
+      )}
       <RecentThreadsPageNav>
         {noRoomToDisplay ? (
           <HomeEmpty />
         ) : (
-          <PageNavContent scrollRef={scrollRef}>
+          <PageNavContent scrollRef={setScrollElement}>
             <Box direction="Column" gap="300">
               <NavCategory>
                 {!simpleMode && (
@@ -301,52 +371,22 @@ export function Home() {
                   </NavLink>
                 </NavItem>
               </NavCategory>
-              <NavCategory>
-                <NavCategoryHeader>
-                  <RoomNavCategoryButton
-                    closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
-                    data-category-id={DEFAULT_CATEGORY_ID}
-                    onClick={handleCategoryClick}
-                  >
-                    {t('nav.rooms')}
-                  </RoomNavCategoryButton>
-                </NavCategoryHeader>
-                <div
-                  style={{
-                    position: 'relative',
-                    height: virtualizer.getTotalSize(),
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((vItem) => {
-                    const roomId = sortedRooms[vItem.index];
-                    const room = mx.getRoom(roomId);
-                    if (!room) return null;
-                    const selected = selectedRoomId === roomId;
-
-                    return (
-                      <VirtualTile
-                        virtualItem={vItem}
-                        key={vItem.index}
-                        ref={virtualizer.measureElement}
-                      >
-                        <RoomNavItem
-                          room={room}
-                          selected={selected}
-                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
-                      </VirtualTile>
-                    );
-                  })}
-                </div>
-              </NavCategory>
+              <RoomFolderNav
+                roomIds={rooms}
+                spaceIds={spaceIds}
+                selectedRoomId={selectedRoomId}
+                notificationPreferences={notificationPreferences}
+                roomToUnread={roomToUnread}
+                scrollElement={scrollElement}
+              />
             </Box>
           </PageNavContent>
         )}
       </RecentThreadsPageNav>
     </PageNav>
   );
+}
+
+export function Home() {
+  return <HomeContent />;
 }

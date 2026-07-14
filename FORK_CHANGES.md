@@ -89,6 +89,77 @@
   A dependency-level contract test opens the pinned `matrix-sdk-crypto-wasm` store against a fresh IndexedDB implementation and proves that no metadata database is created without a password or storage key.
   The full Vitest suite passes (412 files / 3,165 tests), as do typecheck, touched-file ESLint and Prettier, `git diff --check`, the production/PWA build, and the Element Call background-build verification.
 
+### Unified room, Space, and personal-folder navigation (2026-07-12)
+
+- Status: Home room reordering is implemented, locally validated, independently re-reviewed, AI-reviewed, deployed to `chat.lab.mindroom.chat`, and live-validated on desktop and mobile.
+  PR #135 is rebased onto `origin/dev` at `fdcd9ca35`, including the container-version, call-embed placement, and runbook-format updates.
+  Post-rebase validation is complete; publication and the repeat CI/AI review cycle are in progress.
+- Follow-up (2026-07-13): Home's grouped overview is adopting the same whole-row sortable room component already used by Space navigation for mouse, touch long-press, and keyboard input.
+  Expanded personal-folder, Space, and Rooms groups each keep a private order in the existing `io.mindroom.room_folders` Matrix account-data event; collapsed groups remain activity-sorted.
+- Home and Space now share the same sortable row implementation, Matrix-native `m.space.child` fallback order, and `space:<room-id>` account-data override.
+  Whole-row mouse/touch dragging is retained while a separate labelled keyboard handle keeps nested room links and menus accessible.
+  Space categories disable sorting when collapsed and announce their supported same-group keyboard reorder targets/results accurately.
+- Live desktop validation caught the important nuance: collapsed Home groups render activity-sorted preview rows with sorting disabled, while expanded groups expose the `Move ...` handles and account-data order.
+  After expanding the `MINDROOM` group on `chat.lab.mindroom.chat`, dragging `Mind-Fable` below `Personal` updated the order, a reload preserved it, and a cleanup drag plus reload restored the original order.
+  Mobile-width validation (393 px) shows the same expanded Home tree without the previous blank-scrollbar failure.
+- Post-merge live validation repeated that complete workflow on the exact reconciled PR head: whole-row pointer drag changed `Mind-Fable → Personal` to `Personal → Mind-Fable`, reload preserved the account-data order, and two cleanup drags plus reload restored `Mind-Fable → Personal → Mindroom-Dev`.
+  The 393 × 852 viewport still exposes the same expanded groups and room order.
+- The shared sortable row now re-registers the row as the pointer/touch activator for gestures that begin on the row, while keeping the labelled keyboard handle as the keyboard activator.
+  This keeps the accessible handle behavior and makes the whole-row drag contract explicit.
+- All folder/order mutations queue until the initial Matrix sync catch-up completes, then serialize against freshly synced account data.
+  This prevents a cached-shell drag or one-time legacy localStorage migration from overwriting changes made by another device; successful migration deletes the legacy key so stale local order cannot reappear.
+- Live validation found that Home's room virtualizer could mount before the ancestor-owned scroll ref was attached.
+  With no later render, it reserved the full list height but rendered zero rows, producing the reported long blank scrollbar.
+  Home now captures the mounted scroll element with a callback ref and only enables the virtualizer once that element exists.
+- Home now renders personal folders, every joined Matrix Space, and orphaned rooms in one flattened, expandable, virtualized tree.
+  A room with multiple Space parents can appear under each Space, and opening any room keeps the unified Home tree mounted; the Space arrow explicitly opens the legacy Space lobby when needed.
+- A single **+** menu creates rooms, personal folders, or Spaces.
+  Each Space header also creates a child room directly.
+  Folder/Space/Rooms icons and separate actions keep the personal and shared organization models visually distinct.
+- Entire room rows are draggable with mouse, 200 ms touch long-press, or keyboard.
+  Dropping on a personal folder or Rooms only updates private account data.
+  Dropping on a Matrix Space never masquerades as a personal move: it opens a permission-aware confirmation before writing shared `m.space.child` state, and existing membership is a no-op.
+  Overflow menus remain the accessible fallback for personal-folder moves.
+- Review hardening uses a dedicated labelled drag handle so room links and menu controls remain independent, rejects impossible Space-child-to-Rooms drops with a truthful no-change announcement, moves focus into the shared-state confirmation, and preflights `m.space.child` permission before room creation so a denied link cannot strand an orphan room.
+  The Matrix parent cache now removes one invalidated parent instead of erasing every parent of a multi-parent room.
+- PR review hardening catches rejected drag-and-drop persistence writes after the provider exposes their visible error state, captures the create-menu anchor before entering React's state updater, keeps provider deletion naming consistent, and uses a generic localized Save label in folder prompts.
+  Greptile follow-up also consolidates duplicate navigation imports.
+- Final Greptile follow-up clears a pending shared-Space drop when either side is no longer in the joined room/Space lists, even while matrix-js-sdk retains its stale `Room` object, so a hidden confirmation cannot remain actionable or reopen after leave/rejoin.
+  Its isolated lifecycle regression covers the retained-object membership transition, state cleanup, and rejoin; independent re-review found no remaining P0–P2 lifecycle or stale-membership issue.
+- Final CodeRabbit follow-up compares parent relationships only with currently rendered Spaces, so leaving a Space cannot hide its former child from Rooms.
+  Simple Mode now deliberately supplies no Space headers or Create Space menu entry; together those behaviors flatten every non-direct joined room without making Space children unreachable.
+  Focused row and Home-source regressions cover both sides of that contract.
+- Optimistic account-data writes now track pending mutations explicitly.
+  Remote echoes are rebased through the pending queue, and a failed write removes and rolls back only its own mutation before replaying newer queued changes over the latest account data.
+  Since matrix-js-sdk resolves `setAccountData` after any same-type echo, successful writes also settle from the actual echoed state before replaying remaining pending mutations.
+  Dedicated provider regressions cover both an intervening external echo and a failed-first/successful-second write sequence.
+- CodeRabbit's suggestion to retain a pending Space drop when `mx.getRoom()` disappears was rejected after independent validation: a drag can only begin with both SDK objects present, and retaining a hidden unusable confirmation would recreate the ghost-reopen risk.
+  An explicit object-removal lifecycle regression documents the safety behavior.
+  Home prompt/empty-state and routed-room provider integration tests fill the two requested coverage gaps; Space-child writes now use the SDK's typed `EventType.SpaceChild`, and the duplicated Home-header popout wiring is shared.
+- Home rooms can be grouped into personal named folders without changing Matrix Spaces or room state.
+  Folder create/rename/delete lives in the Home sidebar, and each room's overflow menu can move it to a folder or back to the unfiled Rooms section.
+- Folder order, names, and room membership roam through defensive `io.mindroom.room_folders` Matrix account data.
+  Writes are serialized, re-read the latest sync echo, preserve unknown fields, update optimistically, and roll back with a visible error when persistence fails.
+- Folder groups retain the existing alphabetical/open and activity/unread/selected collapsed-room behavior in one virtualized list.
+  Empty folders remain manageable, and deleting a folder never leaves or modifies its rooms.
+- Review hardening preserves newer schema-version markers, no-ops a queued move when its target was deleted on another device, captures one stable ID across optimistic/persisted folder creation, and gives dialogs, async errors, and folder-choice groups complete accessible names/state.
+- Focused unified-navigation, folder, shared-Space confirmation, route-scope, existing room-row, and scroll-ref lifecycle tests pass.
+  The lifecycle regression uses the production virtualizer to prove disabled/null/zero rows becomes enabled/mounted/three rows and cleans up on unmount.
+  After merging current `dev`, the full suite passes (416 files / 3,147 tests), as do typecheck, production build, touched-file ESLint, Prettier, and `git diff --check`.
+  Independent post-fix review found no remaining P0–P2 correctness, permissions, input, accessibility, ref-compatibility, virtualizer, or lifecycle findings.
+- The room-order follow-up adds migration/catch-up, account schema, shared ordering, whole-row pointer, keyboard-handle, collapsed-group, placement, and shared-Space confirmation coverage.
+  Focused tests pass (10 files / 41 tests).
+  After reconciling with current `dev`, the full suite passes (425 files / 3,208 tests), and typecheck, production/PWA build, touched-file ESLint, Prettier, and `git diff --check` are clean.
+  Independent final review found no remaining actionable correctness, persistence, cross-surface, input, accessibility, synchronization, migration, or test-coverage findings; both independent post-merge reviews likewise found no P0–P2 issue, crypto/startup interaction, or merge regression.
+- After the final CodeRabbit follow-up, the affected navigation/persistence/Home suites pass (8 files / 36 tests), the latest merged `dev` tree passes (430 files / 3,228 tests), and typecheck, production/PWA build, touched-file ESLint, Prettier, and `git diff --check` are clean.
+  Independent finding validation confirmed the stale-parent, queued-optimistic-state, and Simple Mode issues, found the SDK-object invalidation behavior intentional, and caught the authoritative-echo and Simple Mode menu gaps before publication.
+  Its final re-review found no remaining P0–P2 issue or adverse interaction among the combined fixes.
+- Rebase follow-up (2026-07-13): all implementation commits replayed without code conflicts; the only conflicts came from `FORK_CHANGES.md` moving to one sentence per line.
+  Focused navigation coverage passes (17 files / 59 tests), and the full suite passes (432 files / 3,233 tests).
+  Typecheck, the production/PWA build, the exact changed-file Prettier gate, and `git diff --check` pass.
+  Full ESLint reports 0 errors and the same 17 pre-existing warnings.
+  Independent rebase review found no P0–P2 issue and verified that the implementation and test delta is byte-for-byte identical to the previously reviewed branch.
+
 ### Automatically activate published web builds without breaking offline use (2026-07-12)
 
 - Status: implementation and local validation complete.

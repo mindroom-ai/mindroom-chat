@@ -5,6 +5,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from './utils/atomWithLocalStorage';
+import { getSafeLocalStorage, removeStorageItemSafe } from '../utils/safeLocalStorage';
 
 export type SpaceOrderState = string[];
 export type RoomOrderBySpaceState = Record<string, string[]>;
@@ -56,7 +57,8 @@ const uniqueStrings = (value: unknown): string[] => {
   });
 };
 
-const readStringArray = (key: string): string[] => uniqueStrings(getLocalStorageItem<unknown>(key, []));
+const readStringArray = (key: string): string[] =>
+  uniqueStrings(getLocalStorageItem<unknown>(key, []));
 
 const writeStringArray = (key: string, value: string[]) => {
   setLocalStorageItem(key, uniqueStrings(value));
@@ -72,6 +74,12 @@ const readRoomOrderBySpace = (key: string): RoomOrderBySpaceState => {
     return orderBySpace;
   }, {});
 };
+
+export const readLegacyRoomOrderBySpace = (userId: string): RoomOrderBySpaceState =>
+  readRoomOrderBySpace(`${ROOM_ORDER_STORAGE_KEY_PREFIX}${userId}`);
+
+export const clearLegacyRoomOrderBySpace = (userId: string): boolean =>
+  removeStorageItemSafe(getSafeLocalStorage(), `${ROOM_ORDER_STORAGE_KEY_PREFIX}${userId}`);
 
 const writeRoomOrderBySpace = (key: string, value: RoomOrderBySpaceState) => {
   const sanitized = Object.entries(value).reduce<RoomOrderBySpaceState>(

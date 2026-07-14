@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ROOM_ORDER_STORAGE_KEY_PREFIX,
   SPACE_ORDER_STORAGE_KEY_PREFIX,
+  clearLegacyRoomOrderBySpace,
   makeRoomOrderBySpaceAtom,
   makeSpaceOrderAtom,
+  readLegacyRoomOrderBySpace,
 } from './sidebarOrder';
 
 type StorageListener = (event: StorageEvent) => void;
@@ -102,6 +104,19 @@ describe('sidebarOrder', () => {
     );
 
     unmount();
+  });
+
+  it('exposes the sanitized legacy room order for Matrix account-data migration', () => {
+    storageState.set(
+      `${ROOM_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`,
+      '{"!space-a":["!room-b","!room-a","!room-b"],"invalid":"nope"}'
+    );
+
+    expect(readLegacyRoomOrderBySpace('@alice:example.org')).toEqual({
+      '!space-a': ['!room-b', '!room-a'],
+    });
+    expect(clearLegacyRoomOrderBySpace('@alice:example.org')).toBe(true);
+    expect(storageState.has(`${ROOM_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`)).toBe(false);
   });
 
   it('removes a room from one parent space order only', () => {

@@ -76,11 +76,41 @@ export const SidebarDragSource = style({
 });
 
 export const SidebarRowDragSource = style({
+  position: 'relative',
   touchAction: 'pan-y',
   WebkitTouchCallout: 'none',
   WebkitUserSelect: 'none',
   userSelect: 'none',
   ...webkitUserDrag,
+});
+
+export const SidebarRowKeyboardDragHandle = style({
+  border: 0,
+  clip: 'rect(0 0 0 0)',
+  height: '1px',
+  margin: '-1px',
+  overflow: 'hidden',
+  padding: 0,
+  position: 'absolute',
+  whiteSpace: 'nowrap',
+  width: '1px',
+
+  selectors: {
+    '&:focus': {
+      clip: 'auto',
+      width: 'auto',
+      height: 'auto',
+      margin: 0,
+      padding: config.space.S100,
+      insetBlockStart: config.space.S100,
+      insetInlineEnd: config.space.S100,
+      zIndex: 1,
+      borderRadius: config.radii.R300,
+      backgroundColor: color.Surface.Container,
+      color: color.Surface.OnContainer,
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+    },
+  },
 });
 
 const PUSH_X = 2;

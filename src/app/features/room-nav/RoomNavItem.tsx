@@ -59,14 +59,16 @@ import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
+import { RoomFolderMenuItems } from '../../mindroom/room-folders/RoomFolderMenuItems';
 
 type RoomNavItemMenuProps = {
   room: Room;
   requestClose: () => void;
   notificationMode?: RoomNotificationMode;
+  manageRoomFolders?: boolean;
 };
 const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
-  ({ room, requestClose, notificationMode }, ref) => {
+  ({ room, requestClose, notificationMode, manageRoomFolders }, ref) => {
     const mx = useMatrixClient();
     const powerLevels = usePowerLevels(room);
     const creators = useRoomCreators(room);
@@ -130,6 +132,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
           </RoomNotificationModeSwitcher>
         </Box>
         <Line variant="Surface" size="300" />
+        {manageRoomFolders && <RoomFolderMenuItems room={room} requestClose={requestClose} />}
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
           <MenuItem
             onClick={handleInvite}
@@ -225,6 +228,7 @@ type RoomNavItemProps = {
   notificationMode?: RoomNotificationMode;
   showAvatar?: boolean;
   direct?: boolean;
+  manageRoomFolders?: boolean;
 };
 
 const getRoomNavAvatarUrl = (
@@ -247,6 +251,7 @@ export function RoomNavItem({
   direct,
   notificationMode,
   linkPath,
+  manageRoomFolders,
 }: RoomNavItemProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -423,6 +428,7 @@ export function RoomNavItem({
                   room={room}
                   requestClose={() => setMenuAnchor(undefined)}
                   notificationMode={notificationMode}
+                  manageRoomFolders={manageRoomFolders}
                 />
               </FocusTrap>
             }
