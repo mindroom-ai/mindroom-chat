@@ -25,13 +25,13 @@ export type AutoDiscoveryInfo = Record<string, unknown> & {
     account?: string;
     issuer?: string;
   };
-  'org.matrix.msc4143.rtc_foci'?: Array<{
-    livekit_service_url: string;
-    type: 'livekit';
-  }>;
+  'org.matrix.msc4143.rtc_foci'?: [
+    {
+      livekit_service_url: string;
+      type: 'livekit';
+    }
+  ];
 };
-
-type AutoDiscoveryResult = [AutoDiscoveryError, undefined] | [undefined, AutoDiscoveryInfo];
 
 const IPV4_PARTS = 4;
 const IPV4_OCTET_MAX = 255;
@@ -84,8 +84,37 @@ export const isAllowedHomeserverBaseUrl = (baseUrl: string): boolean => {
   return isLocalHost(parsedUrl.hostname);
 };
 
-const normalizeDiscoveryInfo = (host: string, value: unknown): AutoDiscoveryResult => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+export const autoDiscovery = async (
+  request: typeof fetch,
+  server: string
+): Promise<[AutoDiscoveryError, undefined] | [undefined, AutoDiscoveryInfo]> => {
+  const host = /^https?:\/\//.test(server) ? trimTrailingSlash(server) : `https://${server}`;
+  if (!isAllowedHomeserverBaseUrl(host)) {
+    return [
+      {
+        host,
+        action: AutoDiscoveryAction.FAIL_INSECURE,
+      },
+      undefined,
+    ];
+  }
+  const autoDiscoveryUrl = `${host}/.well-known/matrix/client`;
+
+  const [err, response] = await to(request(autoDiscoveryUrl, { method: 'GET' }));
+
+  if (err || response.status === 404) {
+    // AutoDiscoveryAction.IGNORE
+    // We will use default value for IGNORE action
+    return [
+      undefined,
+      {
+        'm.homeserver': {
+          base_url: host,
+        },
+      },
+    ];
+  }
+  if (response.status !== 200) {
     return [
       {
         host,
@@ -95,9 +124,9 @@ const normalizeDiscoveryInfo = (host: string, value: unknown): AutoDiscoveryResu
     ];
   }
 
-  const content = value as Record<string, unknown>;
-  const homeserver = content['m.homeserver'];
-  if (!homeserver || typeof homeserver !== 'object' || Array.isArray(homeserver)) {
+  const [contentErr, content] = await to<AutoDiscoveryInfo>(response.json());
+
+  if (contentErr || typeof content !== 'object') {
     return [
       {
         host,
@@ -107,7 +136,7 @@ const normalizeDiscoveryInfo = (host: string, value: unknown): AutoDiscoveryResu
     ];
   }
 
-  const baseUrl = (homeserver as Record<string, unknown>).base_url;
+  const baseUrl = content['m.homeserver']?.base_url;
   if (typeof baseUrl !== 'string') {
     return [
       {
@@ -138,86 +167,14 @@ const normalizeDiscoveryInfo = (host: string, value: unknown): AutoDiscoveryResu
     ];
   }
 
-  const normalizedContent: Record<string, unknown> = {
-    ...content,
-    'm.homeserver': {
-      ...homeserver,
-      base_url: trimTrailingSlash(baseUrl),
-    },
-  };
-  const identityServer = content['m.identity_server'];
-  if (identityServer && typeof identityServer === 'object' && !Array.isArray(identityServer)) {
-    const identityServerBaseUrl = (identityServer as Record<string, unknown>).base_url;
-    if (typeof identityServerBaseUrl === 'string') {
-      normalizedContent['m.identity_server'] = {
-        ...identityServer,
-        base_url: trimTrailingSlash(identityServerBaseUrl),
-      };
-    }
+  content['m.homeserver'].base_url = trimTrailingSlash(baseUrl);
+  if (content['m.identity_server']) {
+    content['m.identity_server'].base_url = trimTrailingSlash(
+      content['m.identity_server'].base_url
+    );
   }
 
-  return [undefined, normalizedContent as AutoDiscoveryInfo];
-};
-
-export const autoDiscovery = async (
-  request: typeof fetch,
-  server: string,
-  configuredDiscovery?: AutoDiscoveryInfo
-): Promise<AutoDiscoveryResult> => {
-  const host = /^https?:\/\//.test(server) ? trimTrailingSlash(server) : `https://${server}`;
-  if (!isAllowedHomeserverBaseUrl(host)) {
-    return [
-      {
-        host,
-        action: AutoDiscoveryAction.FAIL_INSECURE,
-      },
-      undefined,
-    ];
-  }
-
-  if (configuredDiscovery) {
-    return normalizeDiscoveryInfo(host, configuredDiscovery);
-  }
-
-  const autoDiscoveryUrl = `${host}/.well-known/matrix/client`;
-
-  const [err, response] = await to(request(autoDiscoveryUrl, { method: 'GET' }));
-
-  if (err || response.status === 404) {
-    // AutoDiscoveryAction.IGNORE
-    // We will use default value for IGNORE action
-    return [
-      undefined,
-      {
-        'm.homeserver': {
-          base_url: host,
-        },
-      },
-    ];
-  }
-  if (response.status !== 200) {
-    return [
-      {
-        host,
-        action: AutoDiscoveryAction.FAIL_PROMPT,
-      },
-      undefined,
-    ];
-  }
-
-  const [contentErr, content] = await to<AutoDiscoveryInfo>(response.json());
-
-  if (contentErr) {
-    return [
-      {
-        host,
-        action: AutoDiscoveryAction.FAIL_PROMPT,
-      },
-      undefined,
-    ];
-  }
-
-  return normalizeDiscoveryInfo(host, content);
+  return [undefined, content];
 };
 
 export type SpecVersions = {
@@ -233,8 +190,7 @@ const requestWithTimeout = async (
   timeoutMs: number
 ): Promise<Response> => {
   const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
-  const abortController =
-    typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  const abortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {

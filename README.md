@@ -65,39 +65,11 @@ Main runtime config file:
 Notable options:
 
 - homeserver defaults and allowed-server policy,
-- optional configured homeserver discovery,
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
 - sidebar entry points including `sidebar.showThreads`,
 - welcome-page behavior.
-
-### Configured homeserver discovery
-
-Clients that already know their connection metadata can provide the Matrix discovery response in `config.json` instead of requesting `/.well-known/matrix/client`:
-
-```json
-{
-  "homeserverList": ["example.com"],
-  "homeserverDiscovery": {
-    "example.com": {
-      "m.homeserver": {
-        "base_url": "https://matrix.example.com"
-      },
-      "org.matrix.msc4143.rtc_foci": [
-        {
-          "type": "livekit",
-          "livekit_service_url": "https://rtc.example.com/jwt"
-        }
-      ]
-    }
-  }
-}
-```
-
-The entry key identifies the selected server.
-Configured discovery is validated like a network response and contains connection metadata only, never credentials.
-Servers without a matching entry keep normal Matrix auto-discovery.
 
 ## Self-Hosting
 

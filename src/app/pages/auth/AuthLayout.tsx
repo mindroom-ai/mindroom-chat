@@ -7,13 +7,12 @@ import { AuthFooter } from './AuthFooter';
 import * as css from './styles.css';
 import {
   clientAllowedServer,
-  clientAutoDiscovery,
   clientDefaultServer,
   useClientConfig,
 } from '../../hooks/useClientConfig';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { ServerPicker } from './ServerPicker';
-import { AutoDiscoveryAction } from '../../cs-api';
+import { AutoDiscoveryAction, autoDiscovery } from '../../cs-api';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
@@ -68,16 +67,13 @@ export function AuthLayout() {
   }
 
   const [discoveryState, discoverServer] = useAsyncCallback(
-    useCallback(
-      async (serverName: string) => {
-        const response = await clientAutoDiscovery(clientConfig, fetch, serverName);
-        return {
-          serverName,
-          response,
-        };
-      },
-      [clientConfig]
-    )
+    useCallback(async (serverName: string) => {
+      const response = await autoDiscovery(fetch, serverName);
+      return {
+        serverName,
+        response,
+      };
+    }, [])
   );
 
   useEffect(() => {

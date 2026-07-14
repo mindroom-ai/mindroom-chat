@@ -1,12 +1,8 @@
 import to from 'await-to-js';
 import { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
 import { useMemo } from 'react';
-import {
-  ClientConfig,
-  clientAllowedServer,
-  clientAutoDiscovery,
-} from '../../../hooks/useClientConfig';
-import { specVersions } from '../../../cs-api';
+import { ClientConfig, clientAllowedServer } from '../../../hooks/useClientConfig';
+import { autoDiscovery, specVersions } from '../../../cs-api';
 import { ErrorCode } from '../../../cs-errorcode';
 import { useSessionCompletion } from '../sessionCompletion';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
@@ -21,7 +17,7 @@ export const factoryGetBaseUrl = (clientConfig: ClientConfig, server: string) =>
       throw new Error(GetBaseUrlError.NotAllow);
     }
 
-    const [, discovery] = await to(clientAutoDiscovery(clientConfig, fetch, server));
+    const [, discovery] = await to(autoDiscovery(fetch, server));
 
     let mxIdBaseUrl: string | undefined;
     const [, discoveryInfo] = discovery ?? [];
