@@ -20,6 +20,7 @@
   Physical-device staging must confirm WebKit sends that scoped cookie for direct media before release.
 - Uploads: Matrix SDK uploads normally use `XMLHttpRequest`, which bypasses custom fetch authentication.
   A version-pinned SDK patch adds a fetch-upload option that the client enables only on native iOS, preserving browser upload progress while routing native uploads through both Matrix and Access authentication.
+  Standard WebKit fetch exposes no upload-progress events, so native iOS progress remains indeterminate until completion; user cancellation remains wired through the SDK's `AbortController`.
 - Dependency: encrypted token transfer uses the exact Swift-Sodium `0.11.0` package version.
   The workspace commits its resolved revision, which full Xcode must verify while compiling the native target.
 - Infrastructure contract: apply this token flow only to `/_matrix/*`, enable and verify Cloudflare's Path Cookie Attribute for that application, leave Matrix well-known handling unchanged and outside this feature, never attach an Access token there, allow the Capacitor origin and `Cf-Access-Token` through Access CORS handling, and keep cookie binding disabled for this application-token flow.

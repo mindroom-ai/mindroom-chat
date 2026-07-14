@@ -122,6 +122,22 @@ describe('createMatrixFetchFn', () => {
       expect(headers.get('Authorization')).toBe('Bearer matrix-token');
       expect(headers.get('Cf-Access-Token')).toBe('access-jwt');
       expect(init?.redirect).toBe('manual');
+
+      baseFetch.mockImplementationOnce(
+        (_input, pendingInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            pendingInit?.signal?.addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true }
+            );
+          })
+      );
+      const cancelledUpload = client.uploadContent(new Blob(['cancel me']));
+      await vi.waitFor(() => expect(baseFetch).toHaveBeenCalledTimes(2));
+
+      expect(client.cancelUpload(cancelledUpload)).toBe(true);
+      await expect(cancelledUpload).rejects.toMatchObject({ name: 'AbortError' });
     } finally {
       vi.restoreAllMocks();
       globalThis.fetch = originalFetch;

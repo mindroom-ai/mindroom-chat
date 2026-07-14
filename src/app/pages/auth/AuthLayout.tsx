@@ -66,9 +66,11 @@ export function AuthLayout() {
 
   const defaultServer = clientDefaultServer(clientConfig);
   const serverList = clientConfig.homeserverList ?? [];
-  const approvedServers = useRef(new Set<string>());
-  approvedServers.current.add(defaultServer);
-  serverList.forEach((trustedServer) => approvedServers.current.add(trustedServer));
+  const approvedServers = useRef(new Set<string>([defaultServer, ...serverList]));
+  useEffect(() => {
+    approvedServers.current.add(defaultServer);
+    serverList.forEach((trustedServer) => approvedServers.current.add(trustedServer));
+  }, [defaultServer, serverList]);
   let server: string = urlEncodedServer ? tryDecodeURIComponent(urlEncodedServer) : defaultServer;
 
   if (!clientAllowedServer(clientConfig, server)) {
