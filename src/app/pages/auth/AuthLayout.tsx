@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import classNames from 'classnames';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -12,7 +12,7 @@ import {
 } from '../../hooks/useClientConfig';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { ServerPicker } from './ServerPicker';
-import { AutoDiscoveryAction, autoDiscovery } from '../../cs-api';
+import { AutoDiscoveryAction, autoDiscovery, type AutoDiscoveryInfo } from '../../cs-api';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { AutoDiscoveryInfoProvider } from '../../hooks/useAutoDiscoveryInfo';
@@ -28,6 +28,13 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../components/particle-background';
+import {
+  allowCloudflareAccessForHomeserver,
+  CLOUDFLARE_ACCESS_AUTHENTICATED_EVENT,
+  probeCloudflareAccessHomeserver,
+} from '../../mindroom/native/cloudflareAccess';
+
+const EMPTY_SERVER_LIST: string[] = [];
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -60,6 +67,12 @@ export function AuthLayout() {
   const registrationAllowed = clientConfig.auth?.allowRegistration !== false;
 
   const defaultServer = clientDefaultServer(clientConfig);
+  const serverList = clientConfig.homeserverList ?? EMPTY_SERVER_LIST;
+  const approvedServers = useRef(new Set<string>([defaultServer, ...serverList]));
+  useEffect(() => {
+    approvedServers.current.add(defaultServer);
+    serverList.forEach((trustedServer) => approvedServers.current.add(trustedServer));
+  }, [defaultServer, serverList]);
   let server: string = urlEncodedServer ? tryDecodeURIComponent(urlEncodedServer) : defaultServer;
 
   if (!clientAllowedServer(clientConfig, server)) {
@@ -69,6 +82,24 @@ export function AuthLayout() {
   const [discoveryState, discoverServer] = useAsyncCallback(
     useCallback(async (serverName: string) => {
       const response = await autoDiscovery(fetch, serverName);
+      const [discoveryError, info] = response;
+      if (info && approvedServers.current.has(serverName)) {
+        // Matrix discovery deliberately permits a different homeserver origin.
+        // Native Access still binds any token to that exact origin, path, and
+        // audience, then validates it against the Matrix versions endpoint.
+        allowCloudflareAccessForHomeserver(info['m.homeserver'].base_url);
+      } else if (discoveryError && approvedServers.current.has(serverName)) {
+        const protectedBaseUrl = await probeCloudflareAccessHomeserver(serverName);
+        if (protectedBaseUrl) {
+          const directInfo: AutoDiscoveryInfo = {
+            'm.homeserver': { base_url: protectedBaseUrl },
+          };
+          return {
+            serverName,
+            response: [undefined, directInfo] as [undefined, AutoDiscoveryInfo],
+          };
+        }
+      }
       return {
         serverName,
         response,
@@ -78,6 +109,18 @@ export function AuthLayout() {
 
   useEffect(() => {
     if (server) discoverServer(server);
+  }, [discoverServer, server]);
+
+  useEffect(() => {
+    const retryAfterOrganizationSignIn = () => {
+      if (server) discoverServer(server);
+    };
+    window.addEventListener(CLOUDFLARE_ACCESS_AUTHENTICATED_EVENT, retryAfterOrganizationSignIn);
+    return () =>
+      window.removeEventListener(
+        CLOUDFLARE_ACCESS_AUTHENTICATED_EVENT,
+        retryAfterOrganizationSignIn
+      );
   }, [discoverServer, server]);
 
   // if server is mismatches with path server, update path
@@ -98,6 +141,7 @@ export function AuthLayout() {
 
   const selectServer = useCallback(
     (newServer: string) => {
+      approvedServers.current.add(newServer);
       if (newServer === server) {
         if (discoveryState.status === AsyncStatus.Loading) return;
         discoverServer(server);
@@ -119,7 +163,6 @@ export function AuthLayout() {
   const [autoDiscoveryError, autoDiscoveryInfo] =
     discoveryState.status === AsyncStatus.Success ? discoveryState.data.response : [];
 
-  const serverList = clientConfig.homeserverList ?? [];
   const hideServerPicker =
     clientConfig.auth?.hideServerPickerWhenSingle === true &&
     !clientConfig.allowCustomHomeservers &&

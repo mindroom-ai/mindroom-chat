@@ -1,4 +1,5 @@
 import { createClient, type ICreateClientOpts } from 'matrix-js-sdk';
+import { isNativeIOS } from '../native/nativeSso';
 
 type MindroomCreateClientOpts = ICreateClientOpts & {
   threadSupport?: boolean;
@@ -33,18 +34,19 @@ const isSameOriginRequest = (input: Parameters<typeof fetch>[0]): boolean => {
   return url.origin === origin;
 };
 
-export const createMatrixFetchFn = (
-  baseFetch: typeof globalThis.fetch = globalThis.fetch
-): typeof globalThis.fetch => (input, init) =>
-  !isSameOriginRequest(input)
-    ? baseFetch(input, init)
-    : baseFetch(input, {
-        ...init,
-        credentials: 'include',
-      });
+export const createMatrixFetchFn =
+  (baseFetch: typeof globalThis.fetch = globalThis.fetch): typeof globalThis.fetch =>
+  (input, init) =>
+    !isSameOriginRequest(input)
+      ? baseFetch(input, init)
+      : baseFetch(input, {
+          ...init,
+          credentials: 'include',
+        });
 
 export const createMatrixClient = (options: MindroomCreateClientOpts) =>
   createClient({
     ...options,
     fetchFn: createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
+    useFetchForUploads: isNativeIOS(),
   } as ICreateClientOpts);

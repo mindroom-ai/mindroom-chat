@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Use Cloudflare Access-protected Matrix homeservers from iOS (2026-07-14)
+
+- Status: generic iOS implementation, focused web tests, typecheck, lint, formatting, static Swift parsing, and independent security review are complete.
+  Full native compilation and physical-device validation remain required because this machine has Command Line Tools but no full Xcode installation.
+- Flow: ordinary homeserver discovery stays unchanged and well-known requests never start this Access token flow.
+  When an explicitly configured or user-selected homeserver exposes an Access-protected `/_matrix/*` endpoint, the iOS app opens a short system authentication session, completes the identity-provider flow, receives an encrypted Cloudflare token transfer, and returns to the login screen.
+  If well-known discovery is itself unavailable, the app uses the entered HTTPS URL directly only after native Access discovery confirms protection and an authenticated Matrix versions probe succeeds.
+- Requests: the app stores application and organization tokens in device-only Keychain entries, adds `Cf-Access-Token` beside Matrix authorization on approved Matrix API requests, and forces manual redirect handling so credentials cannot follow a redirect to another origin.
+  Request bodies are cloned for one safe replay after an Access rejection, and a second rejection stops automatic retry and presents an explicit reauthentication prompt.
+- Expiry: both native and web layers read the JWT `exp` claim and treat the token as expired 60 seconds early.
+  The app first exchanges the stored organization token silently for a new application token, then requires explicit foreground authentication if silent renewal fails.
+- Scope: token discovery accepts only a real HTTPS Cloudflare login redirect with an audience identifier whose application domain exactly matches the requested origin, port, and `/_matrix` path scope.
+  Exact trusted origins constrain redirect cookies; every application token must also pass a no-redirect authenticated Matrix versions request before storage or return; and no deployment-specific hostname or organization identity is embedded.
+- Media: authenticated Matrix SDK media requests disable redirects on Capacitor iOS, while direct image and video elements use a secure, HttpOnly `CF_Authorization` cookie scoped to the matching `/_matrix` path.
+  Because WKWebView media elements cannot set a Matrix `Authorization` header and iOS has no service worker, authenticated native media URLs carry the Matrix access token in the query string after exact same-homeserver media validation.
+  This exposes that token to trusted homeserver and terminating-proxy request logs, which must redact query strings and restrict retention; it never exposes the Cloudflare organization token.
+  Redirects are disabled to prevent forwarding the URL, and browser builds remain query-token-free.
+  The native media URL also overrides the SDK-generated `allow_redirect` query to false after same-homeserver media validation.
+  Physical-device staging must confirm WebKit sends that scoped cookie for direct media before release.
+- Uploads: Matrix SDK uploads normally use `XMLHttpRequest`, which bypasses custom fetch authentication.
+  A version-pinned SDK patch adds a fetch-upload option that the client enables only on native iOS, preserving browser upload progress while routing native uploads through both Matrix and Access authentication.
+  Standard WebKit fetch exposes no upload-progress events, so native iOS progress remains indeterminate until completion; user cancellation remains wired through the SDK's `AbortController`.
+- Dependency: encrypted token transfer uses the exact Swift-Sodium `0.11.0` package version.
+  The workspace commits its resolved revision, which full Xcode must verify while compiling the native target.
+- Infrastructure contract: apply this token flow only to `/_matrix/*`, leave Matrix well-known handling unchanged and outside this feature, never attach an Access token there, allow the Capacitor origin and `Cf-Access-Token` through Access CORS handling, and keep cookie binding disabled for this application-token flow.
+  Native code installs the application JWT into WebKit itself with an exact `/_matrix` cookie path for direct media. If a path-specific Access application shares a hostname with a host-wide application, also enable Cloudflare's Cookie Path Attribute on the path application so their browser-issued `CF_Authorization` cookies cannot overwrite each other.
+- Coverage: focused tests verify approved-origin gating, standard cross-origin Matrix delegation, path-scoped probes, Access and Matrix header coexistence, manual redirects, POST replay, single refresh, 60-second expiry skew, fail-closed discovery and reauthentication, cancellation recovery, active-login loader recovery, media redirect policy, native upload authentication despite available XHR, native security contracts, and generic source identity.
+
 ### Keep call settings above participant tiles (2026-07-14)
 
 - Status: implementation, full local validation, and independent review are complete on `caveman/fix-call-settings-stacking`; ready for PR review.

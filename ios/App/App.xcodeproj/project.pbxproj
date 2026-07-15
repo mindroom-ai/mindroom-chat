@@ -15,6 +15,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
+		CFACC0010000000000000001 /* Sodium in Frameworks */ = {isa = PBXBuildFile; productRef = CFACC0010000000000000003 /* Sodium */; };
 		C0DEC0DE0000000000000002 /* MindRoomAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */; };
 		C0DEC0DE0000000000000004 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
 		C0DEC0DE0000000000000007 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000006 /* Localizable.strings */; };
@@ -44,6 +45,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
+				CFACC0010000000000000001 /* Sodium in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +123,9 @@
 			dependencies = (
 			);
 			name = App;
+			packageProductDependencies = (
+				CFACC0010000000000000003 /* Sodium */,
+			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
 			productType = "com.apple.product-type.application";
@@ -156,6 +161,7 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
+				CFACC0010000000000000002 /* XCRemoteSwiftPackageReference "swift-sodium" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -436,6 +442,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CFACC0010000000000000002 /* XCRemoteSwiftPackageReference "swift-sodium" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jedisct1/swift-sodium.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.11.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CFACC0010000000000000003 /* Sodium */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CFACC0010000000000000002 /* XCRemoteSwiftPackageReference "swift-sodium" */;
+			productName = Sodium;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }
