@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { Box, Button, Dialog, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { removeSessionAndReload } from '../../../client/initMatrix';
+import { useActiveSession } from '../../hooks/useSessionStore';
 import {
   getCloudflareAccessRequirement,
   retryCloudflareAccessAuthentication,
@@ -13,7 +15,8 @@ export function CloudflareAccessReauthentication() {
     getCloudflareAccessRequirement,
     () => undefined
   );
-  const [pending, setPending] = useState(false);
+  const activeSession = useActiveSession();
+  const [pendingAction, setPendingAction] = useState<'authenticate' | 'logout'>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -23,7 +26,7 @@ export function CloudflareAccessReauthentication() {
   if (!requirement) return null;
 
   const handleContinue = async () => {
-    setPending(true);
+    setPendingAction('authenticate');
     setError(undefined);
     try {
       await retryCloudflareAccessAuthentication();
@@ -32,7 +35,19 @@ export function CloudflareAccessReauthentication() {
         authError instanceof Error ? authError.message : 'Organization sign-in could not finish.'
       );
     } finally {
-      setPending(false);
+      setPendingAction(undefined);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (!activeSession) return;
+    setPendingAction('logout');
+    setError(undefined);
+    try {
+      await removeSessionAndReload(activeSession);
+    } catch (logoutError) {
+      setError(logoutError instanceof Error ? logoutError.message : 'Logout could not finish.');
+      setPendingAction(undefined);
     }
   };
 
@@ -55,13 +70,23 @@ export function CloudflareAccessReauthentication() {
                   )}
                 </Box>
                 <Box direction="Row" gap="200" justifyContent="End">
+                  {activeSession && (
+                    <Button
+                      variant="Secondary"
+                      fill="Soft"
+                      disabled={pendingAction !== undefined}
+                      onClick={handleLogout}
+                    >
+                      {pendingAction === 'logout' ? 'Logging out…' : 'Logout'}
+                    </Button>
+                  )}
                   <Button
                     variant="Primary"
                     fill="Solid"
-                    disabled={pending}
+                    disabled={pendingAction !== undefined}
                     onClick={handleContinue}
                   >
-                    {pending ? 'Opening sign-in…' : 'Continue'}
+                    {pendingAction === 'authenticate' ? 'Opening sign-in…' : 'Continue'}
                   </Button>
                 </Box>
               </Box>
