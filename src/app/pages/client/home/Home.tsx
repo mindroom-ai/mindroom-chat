@@ -63,7 +63,6 @@ import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
 import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
-import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 type HomeMenuProps = {
   requestClose: () => void;
@@ -152,23 +151,59 @@ function HomeEmpty() {
           </Text>
         }
         options={
-          <>
-            <Button onClick={() => navigate(getHomeCreatePath())} variant="Secondary" size="300">
-              <Text size="B300" truncate>
-                {t('nav.createRoom')}
-              </Text>
-            </Button>
-            <Button
-              onClick={() => navigate(getExplorePath())}
-              variant="Secondary"
-              fill="Soft"
-              size="300"
-            >
-              <Text size="B300" truncate>
-                {t('nav.exploreCommunityRooms')}
-              </Text>
-            </Button>
-          </>
+          <UseStateProvider initial={false}>
+            {(joinPromptOpen, setJoinPromptOpen) => (
+              <>
+                <Button
+                  onClick={() => navigate(getHomeCreatePath())}
+                  variant="Secondary"
+                  size="300"
+                  data-home-room-action="create"
+                >
+                  <Text size="B300" truncate>
+                    {t('nav.createRoom')}
+                  </Text>
+                </Button>
+                <Button
+                  onClick={() => setJoinPromptOpen(true)}
+                  variant="Secondary"
+                  fill="Soft"
+                  size="300"
+                  data-home-room-action="join"
+                >
+                  <Text size="B300" truncate>
+                    {t('nav.joinWithAddress')}
+                  </Text>
+                </Button>
+                <Button
+                  onClick={() => navigate(getExplorePath())}
+                  variant="Secondary"
+                  fill="Soft"
+                  size="300"
+                >
+                  <Text size="B300" truncate>
+                    {t('nav.exploreCommunityRooms')}
+                  </Text>
+                </Button>
+                {joinPromptOpen && (
+                  <JoinAddressPrompt
+                    onCancel={() => setJoinPromptOpen(false)}
+                    onOpen={(roomIdOrAlias, viaServers, eventId) => {
+                      setJoinPromptOpen(false);
+                      const path = getHomeRoomPath(roomIdOrAlias, eventId);
+                      navigate(
+                        viaServers
+                          ? withSearchParam<_RoomSearchParams>(path, {
+                              viaServers: encodeSearchParamValueArray(viaServers),
+                            })
+                          : path
+                      );
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </UseStateProvider>
         }
       />
     </NavEmptyCenter>
@@ -187,7 +222,6 @@ export function Home() {
   const navigate = useNavigate();
 
   const selectedRoomId = useSelectedRoom();
-  const simpleMode = useSimpleMode();
   const createRoomSelected = useHomeCreateSelected();
   const searchSelected = useHomeSearchSelected();
   const noRoomToDisplay = rooms.length === 0;
@@ -226,64 +260,63 @@ export function Home() {
           <PageNavContent scrollRef={scrollRef}>
             <Box direction="Column" gap="300">
               <NavCategory>
-                {!simpleMode && (
-                  <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
-                    <NavButton onClick={() => navigate(getHomeCreatePath())}>
-                      <NavItemContent>
-                        <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                          <Avatar size="200" radii="400">
-                            <Icon src={Icons.Plus} size="100" />
-                          </Avatar>
-                          <Box as="span" grow="Yes">
-                            <Text as="span" size="Inherit" truncate>
-                              {t('nav.createRoom')}
-                            </Text>
-                          </Box>
+                <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
+                  <NavButton
+                    onClick={() => navigate(getHomeCreatePath())}
+                    data-home-room-action="create"
+                  >
+                    <NavItemContent>
+                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                        <Avatar size="200" radii="400">
+                          <Icon src={Icons.Plus} size="100" />
+                        </Avatar>
+                        <Box as="span" grow="Yes">
+                          <Text as="span" size="Inherit" truncate>
+                            {t('nav.createRoom')}
+                          </Text>
                         </Box>
-                      </NavItemContent>
-                    </NavButton>
-                  </NavItem>
-                )}
-                {!simpleMode && (
-                  <UseStateProvider initial={false}>
-                    {(open, setOpen) => (
-                      <>
-                        <NavItem variant="Background" radii="400">
-                          <NavButton onClick={() => setOpen(true)}>
-                            <NavItemContent>
-                              <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                                <Avatar size="200" radii="400">
-                                  <Icon src={Icons.Link} size="100" />
-                                </Avatar>
-                                <Box as="span" grow="Yes">
-                                  <Text as="span" size="Inherit" truncate>
-                                    {t('nav.joinWithAddress')}
-                                  </Text>
-                                </Box>
+                      </Box>
+                    </NavItemContent>
+                  </NavButton>
+                </NavItem>
+                <UseStateProvider initial={false}>
+                  {(open, setOpen) => (
+                    <>
+                      <NavItem variant="Background" radii="400">
+                        <NavButton onClick={() => setOpen(true)} data-home-room-action="join">
+                          <NavItemContent>
+                            <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                              <Avatar size="200" radii="400">
+                                <Icon src={Icons.Link} size="100" />
+                              </Avatar>
+                              <Box as="span" grow="Yes">
+                                <Text as="span" size="Inherit" truncate>
+                                  {t('nav.joinWithAddress')}
+                                </Text>
                               </Box>
-                            </NavItemContent>
-                          </NavButton>
-                        </NavItem>
-                        {open && (
-                          <JoinAddressPrompt
-                            onCancel={() => setOpen(false)}
-                            onOpen={(roomIdOrAlias, viaServers, eventId) => {
-                              setOpen(false);
-                              const path = getHomeRoomPath(roomIdOrAlias, eventId);
-                              navigate(
-                                viaServers
-                                  ? withSearchParam<_RoomSearchParams>(path, {
-                                      viaServers: encodeSearchParamValueArray(viaServers),
-                                    })
-                                  : path
-                              );
-                            }}
-                          />
-                        )}
-                      </>
-                    )}
-                  </UseStateProvider>
-                )}
+                            </Box>
+                          </NavItemContent>
+                        </NavButton>
+                      </NavItem>
+                      {open && (
+                        <JoinAddressPrompt
+                          onCancel={() => setOpen(false)}
+                          onOpen={(roomIdOrAlias, viaServers, eventId) => {
+                            setOpen(false);
+                            const path = getHomeRoomPath(roomIdOrAlias, eventId);
+                            navigate(
+                              viaServers
+                                ? withSearchParam<_RoomSearchParams>(path, {
+                                    viaServers: encodeSearchParamValueArray(viaServers),
+                                  })
+                                : path
+                            );
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                </UseStateProvider>
                 <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
                   <NavLink to={getHomeSearchPath()}>
                     <NavItemContent>

@@ -31,7 +31,7 @@ import {
   isOrModeStatusChip,
   normalizeThreadSearchText,
 } from './roomThreadOverviewModel';
-import type { RoomViewMode } from './roomViewMode';
+import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   applyParsedThreadFilterQuery,
@@ -703,6 +703,44 @@ function RoomViewModeButton({
   );
 }
 
+function RoomViewModeControls({
+  viewMode,
+  onViewModeChange,
+  showClassic = true,
+}: {
+  viewMode?: RoomViewMode;
+  onViewModeChange?: (mode: RoomViewMode) => void;
+  showClassic?: boolean;
+}) {
+  return (
+    <div className={css.ToggleGroup} role="group" aria-label="Room view mode">
+      <RoomViewModeButton
+        mode="compact"
+        active={viewMode === 'compact'}
+        onChange={onViewModeChange}
+      >
+        <IconLayoutRows size={14} stroke={1.8} aria-hidden="true" />
+      </RoomViewModeButton>
+      <RoomViewModeButton
+        mode="threaded"
+        active={viewMode === 'threaded'}
+        onChange={onViewModeChange}
+      >
+        <Icon size="50" src={Icons.Thread} />
+      </RoomViewModeButton>
+      {showClassic && (
+        <RoomViewModeButton
+          mode="classic"
+          active={viewMode === 'classic'}
+          onChange={onViewModeChange}
+        >
+          <IconLayoutList size={14} stroke={1.8} aria-hidden="true" />
+        </RoomViewModeButton>
+      )}
+    </div>
+  );
+}
+
 export function RoomThreadOverview({
   hasMindroomAgents,
   threadCount,
@@ -866,46 +904,54 @@ export function RoomThreadOverview({
     </div>
   );
 
-  // Simple mode: the count plus one binary toggle — hide resolved threads or
-  // show everything. The upstream filter state is already projected onto this
-  // subspace, so state.resolved is the only dimension that can be active here.
+  // Simple mode keeps only the compact/threaded view choice plus one agent-room
+  // filter: hide resolved threads or show everything. The upstream filter state
+  // is already projected onto this subspace, so state.resolved is the only
+  // dimension that can be active here.
   if (simpleMode) {
-    if (!hasMindroomAgents) return null;
-
     const unresolvedOnly = state.resolved === 'exclude';
     return (
       <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
         {liveRegion}
         <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
-          {countBadge}
-          <TooltipProvider
-            position="Bottom"
-            align="Center"
-            tooltip={
-              <Tooltip style={{ maxWidth: toRem(220) }}>
-                <Text size="T200">
-                  {unresolvedOnly
-                    ? t('thread.simpleFilter.showingUnresolved')
-                    : t('thread.simpleFilter.showingAll')}
-                </Text>
-              </Tooltip>
-            }
-          >
-            {(triggerRef) => (
-              <button
-                ref={triggerRef}
-                type="button"
-                className={classNames(css.SortButton, unresolvedOnly && css.SortButtonActive)}
-                aria-pressed={unresolvedOnly}
-                onClick={onToggleUnresolvedOnly}
-                data-simple-unresolved-toggle="true"
+          {hasMindroomAgents && (
+            <>
+              {countBadge}
+              <TooltipProvider
+                position="Bottom"
+                align="Center"
+                tooltip={
+                  <Tooltip style={{ maxWidth: toRem(220) }}>
+                    <Text size="T200">
+                      {unresolvedOnly
+                        ? t('thread.simpleFilter.showingUnresolved')
+                        : t('thread.simpleFilter.showingAll')}
+                    </Text>
+                  </Tooltip>
+                }
               >
-                <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
-              </button>
-            )}
-          </TooltipProvider>
+                {(triggerRef) => (
+                  <button
+                    ref={triggerRef}
+                    type="button"
+                    className={classNames(css.SortButton, unresolvedOnly && css.SortButtonActive)}
+                    aria-pressed={unresolvedOnly}
+                    onClick={onToggleUnresolvedOnly}
+                    data-simple-unresolved-toggle="true"
+                  >
+                    <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
+                  </button>
+                )}
+              </TooltipProvider>
+            </>
+          )}
+          <RoomViewModeControls
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            showClassic={isRoomViewModeAvailable('classic', simpleMode)}
+          />
         </div>
-        {emptyFilteredState}
+        {hasMindroomAgents && emptyFilteredState}
       </Box>
     );
   }
@@ -996,29 +1042,7 @@ export function RoomThreadOverview({
         />
 
         {/* View mode */}
-        <div className={css.ToggleGroup} role="group" aria-label="Room view mode">
-          <RoomViewModeButton
-            mode="compact"
-            active={viewMode === 'compact'}
-            onChange={onViewModeChange}
-          >
-            <IconLayoutRows size={14} stroke={1.8} aria-hidden="true" />
-          </RoomViewModeButton>
-          <RoomViewModeButton
-            mode="threaded"
-            active={viewMode === 'threaded'}
-            onChange={onViewModeChange}
-          >
-            <Icon size="50" src={Icons.Thread} />
-          </RoomViewModeButton>
-          <RoomViewModeButton
-            mode="classic"
-            active={viewMode === 'classic'}
-            onChange={onViewModeChange}
-          >
-            <IconLayoutList size={14} stroke={1.8} aria-hidden="true" />
-          </RoomViewModeButton>
-        </div>
+        <RoomViewModeControls viewMode={viewMode} onViewModeChange={onViewModeChange} />
         <TooltipProvider
           position="Bottom"
           align="Center"

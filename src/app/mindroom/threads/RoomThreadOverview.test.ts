@@ -191,7 +191,7 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('does not expose disabled full-mode controls in an agentless simple-mode room', () => {
+  it('keeps only compact and threaded view controls in an agentless simple-mode room', () => {
     simpleModeState.enabled = true;
     const renderer = create(
       React.createElement(RoomThreadOverview, {
@@ -201,7 +201,49 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    expect(renderer.toJSON()).toBeNull();
+    const viewToggles = renderer.root.findAll(
+      (node) => node.props['data-view-mode-toggle'] === 'true'
+    );
+    expect(viewToggles.map((button) => button.props['data-view-mode'])).toEqual([
+      'compact',
+      'threaded',
+    ]);
+    expect(renderer.root.findAll((node) => node.props['data-filter-key'])).toHaveLength(0);
+    expect(
+      renderer.root.findAll((node) => node.props['data-simple-unresolved-toggle'] === 'true')
+    ).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('keeps compact, threaded, and unresolved controls in a simple-mode agent room', () => {
+    simpleModeState.enabled = true;
+    const onViewModeChange = vi.fn();
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        onViewModeChange,
+        state: makeDefaultState({ resolved: 'exclude' }),
+      })
+    );
+
+    const viewToggles = renderer.root.findAll(
+      (node) => node.props['data-view-mode-toggle'] === 'true'
+    );
+    expect(viewToggles.map((button) => button.props['data-view-mode'])).toEqual([
+      'compact',
+      'threaded',
+    ]);
+    expect(viewToggles.map((button) => button.props['aria-pressed'])).toEqual([false, true]);
+    expect(
+      renderer.root.findAll((node) => node.props['data-simple-unresolved-toggle'] === 'true')
+    ).toHaveLength(1);
+
+    act(() => {
+      viewToggles[0].props.onClick();
+    });
+
+    expect(onViewModeChange).toHaveBeenCalledWith('compact');
 
     renderer.unmount();
   });
