@@ -4,7 +4,7 @@
 
 ### Simple Mode room access and view choice (2026-07-15)
 
-- Status: implementation, validation, and independent review are complete locally on `feature/simple-mode-room-controls`.
+- Status: implementation, validation, independent review, and PR review remediation are complete on PR #160; ready for review.
 - Simple Mode keeps Create Room and Join with Address visible in Home.
 - The same actions stay available in the zero-room empty state, and both paths use the existing create and join navigation flows.
 - Room view selection in Simple Mode supports Compact and Threaded while Classic remains an advanced-mode-only choice.
@@ -13,6 +13,7 @@
 - Regression coverage pins working Home actions, the two-choice room toolbar for agent and agentless rooms, the absence of Classic, and effective view-mode resolution.
 - Validation: 59 focused tests and the full Vitest suite pass (421 files / 3,201 tests); typecheck and production build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
 - Independent review caught the room-settings Classic leak and weak Home interaction assertions; both were fixed, and final re-review approved with no findings.
+- PR review: Greptile rated the change safe to merge and suggested making the Simple Mode Classic gate explicit and removing an obsolete Simple Mode test mock; both cosmetic cleanups were applied before final CI.
 
 ### Keep call settings above participant tiles (2026-07-14)
 

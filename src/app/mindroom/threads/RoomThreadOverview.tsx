@@ -31,7 +31,7 @@ import {
   isOrModeStatusChip,
   normalizeThreadSearchText,
 } from './roomThreadOverviewModel';
-import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
+import { type RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   applyParsedThreadFilterQuery,
@@ -948,7 +948,7 @@ export function RoomThreadOverview({
           <RoomViewModeControls
             viewMode={viewMode}
             onViewModeChange={onViewModeChange}
-            showClassic={isRoomViewModeAvailable('classic', simpleMode)}
+            showClassic={false}
           />
         </div>
         {hasMindroomAgents && emptyFilteredState}

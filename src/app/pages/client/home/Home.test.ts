@@ -159,9 +159,6 @@ vi.mock('../../../mindroom/recent-threads/RecentThreadsPanel', async () => {
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
 }));
-vi.mock('../../../mindroom/settings/useMindroomAccountSettings', () => ({
-  useSimpleMode: () => true,
-}));
 
 const expectRoomActionsWork = (renderer: ReactTestRenderer) => {
   const createButton = renderer.root.find(
@@ -195,7 +192,7 @@ describe('Home', () => {
     navigate.mockReset();
   });
 
-  it('keeps create and join actions visible in Simple Mode when rooms exist', () => {
+  it('keeps create and join actions available when rooms exist', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
@@ -203,7 +200,7 @@ describe('Home', () => {
     renderer.unmount();
   });
 
-  it('keeps create and join actions visible in the Simple Mode empty state', () => {
+  it('keeps create and join actions available in the empty state', () => {
     homeRoomsState.roomIds = [];
     const renderer = create(React.createElement(Home));
 
