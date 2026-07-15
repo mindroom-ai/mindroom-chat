@@ -5,6 +5,7 @@ import { createSessionId } from '../../state/sessions';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   DEFAULT_ROOM_VIEW_MODE,
+  isRoomViewModeAvailable,
   roomViewModeAtomFamily,
   type RoomViewMode,
 } from './roomViewMode';
@@ -12,16 +13,14 @@ import {
 export const resolveEffectiveRoomViewMode = (
   storedViewMode: RoomViewMode,
   simpleMode: boolean
-): RoomViewMode => (simpleMode ? DEFAULT_ROOM_VIEW_MODE : storedViewMode);
+): RoomViewMode =>
+  isRoomViewModeAvailable(storedViewMode, simpleMode) ? storedViewMode : DEFAULT_ROOM_VIEW_MODE;
 
 /** One account-scoped source for persisted and effective room view modes. */
 export const useRoomViewMode = (roomId: string) => {
   const mx = useMatrixClient();
   const simpleMode = useSimpleMode();
-  const sessionId = useMemo(
-    () => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
-    [mx]
-  );
+  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
   const atom = useMemo(() => roomViewModeAtomFamily(sessionId, roomId), [roomId, sessionId]);
   const [storedViewMode, setViewMode] = useAtom(atom);
   const viewMode = resolveEffectiveRoomViewMode(storedViewMode, simpleMode);

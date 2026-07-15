@@ -54,9 +54,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
-import {
-  MindroomCommandPaletteHeaderButton,
-} from '../command-palette/MindroomCommandPaletteHeaderButton';
+import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -70,7 +68,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
-import type { RoomViewMode } from './roomViewMode';
+import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
 import { useRoomViewMode } from './useRoomViewMode';
 
 type RoomMenuProps = {
@@ -150,46 +148,44 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           )}
         </RoomNotificationModeSwitcher>
       </Box>
-      {!simpleMode && (
-        <>
-          <Line variant="Surface" size="300" />
-          <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-            <MenuItem
-              onClick={() => handleViewMode('compact')}
-              size="300"
-              after={<Icon size="100" src={Icons.Category} />}
-              radii="300"
-              aria-pressed={viewMode === 'compact'}
-            >
-              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Compact
-              </Text>
-            </MenuItem>
-            <MenuItem
-              onClick={() => handleViewMode('threaded')}
-              size="300"
-              after={<Icon size="100" src={Icons.Thread} />}
-              radii="300"
-              aria-pressed={viewMode === 'threaded'}
-            >
-              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Threads
-              </Text>
-            </MenuItem>
-            <MenuItem
-              onClick={() => handleViewMode('classic')}
-              size="300"
-              after={<Icon size="100" src={Icons.Message} />}
-              radii="300"
-              aria-pressed={viewMode === 'classic'}
-            >
-              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Classic
-              </Text>
-            </MenuItem>
-          </Box>
-        </>
-      )}
+      <Line variant="Surface" size="300" />
+      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+        <MenuItem
+          onClick={() => handleViewMode('compact')}
+          size="300"
+          after={<Icon size="100" src={Icons.Category} />}
+          radii="300"
+          aria-pressed={viewMode === 'compact'}
+        >
+          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            Compact
+          </Text>
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleViewMode('threaded')}
+          size="300"
+          after={<Icon size="100" src={Icons.Thread} />}
+          radii="300"
+          aria-pressed={viewMode === 'threaded'}
+        >
+          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+            Threads
+          </Text>
+        </MenuItem>
+        {isRoomViewModeAvailable('classic', simpleMode) && (
+          <MenuItem
+            onClick={() => handleViewMode('classic')}
+            size="300"
+            after={<Icon size="100" src={Icons.Message} />}
+            radii="300"
+            aria-pressed={viewMode === 'classic'}
+          >
+            <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+              Classic
+            </Text>
+          </MenuItem>
+        )}
+      </Box>
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
         <MenuItem
@@ -291,13 +287,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   );
 });
 
-export function RoomViewHeader({
-  callView,
-  threadId,
-}: {
-  callView?: boolean;
-  threadId?: string;
-}) {
+export function RoomViewHeader({ callView, threadId }: { callView?: boolean; threadId?: string }) {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
