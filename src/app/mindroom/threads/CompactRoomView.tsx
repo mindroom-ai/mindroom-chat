@@ -14,6 +14,12 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
 };
 
+type ScrollRestoreState = {
+  roomId: string;
+  targetScrollTop: number;
+  lastAppliedScrollTop: number;
+};
+
 export function CompactRoomView({
   room,
   threadRootIds,
@@ -22,6 +28,7 @@ export function CompactRoomView({
   compactRoomScrollStateRef,
 }: CompactRoomViewProps) {
   const viewRef = useRef<HTMLDivElement>(null);
+  const scrollRestoreStateRef = useRef<ScrollRestoreState>();
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds,
@@ -48,14 +55,38 @@ export function CompactRoomView({
 
   useLayoutEffect(() => {
     const view = viewRef.current;
+    if (!view || cardViewModels.length === 0) return;
+
+    const restoreState = scrollRestoreStateRef.current;
+    if (restoreState?.roomId === room.roomId) {
+      const restoreWasClamped = restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
+      const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
+      if (restoreWasClamped && scrollHasNotMoved) {
+        view.scrollTop = restoreState.targetScrollTop;
+        restoreState.lastAppliedScrollTop = view.scrollTop;
+      }
+      return;
+    }
+
+    const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
+    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+    scrollRestoreStateRef.current = {
+      roomId: room.roomId,
+      targetScrollTop: savedScrollTop ?? view.scrollTop,
+      lastAppliedScrollTop: view.scrollTop,
+    };
+  }, [cardViewModels.length, compactRoomScrollStateRef, room.roomId]);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
     if (!view) return undefined;
     const scrollState = compactRoomScrollStateRef.current;
-
-    const savedScrollTop = scrollState.get(room.roomId);
-    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+    const roomId = room.roomId;
 
     return () => {
-      scrollState.set(room.roomId, view.scrollTop);
+      if (scrollRestoreStateRef.current?.roomId === roomId) {
+        scrollState.set(roomId, view.scrollTop);
+      }
     };
   }, [compactRoomScrollStateRef, room.roomId]);
 
