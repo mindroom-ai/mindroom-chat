@@ -65,13 +65,9 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function MindroomSidebarNav() {
+function PersistedMindroomSidebarNav({ userId }: { userId: string }) {
   const screenSize = useScreenSizeContext();
-  const activeSession = useActiveSession();
-  const hiddenAtom = useMemo(
-    () => makeDesktopSidebarHiddenAtom(activeSession?.userId ?? 'anonymous'),
-    [activeSession?.userId]
-  );
+  const hiddenAtom = useMemo(() => makeDesktopSidebarHiddenAtom(userId), [userId]);
   const [hidden, setHidden] = useAtom(hiddenAtom);
   const desktop = screenSize === ScreenSize.Desktop;
 
@@ -87,4 +83,18 @@ export function MindroomSidebarNav() {
       <SidebarNav footer={desktop ? <HideSidebarButton onClick={hideSidebar} /> : undefined} />
     </MobileFriendlyClientNav>
   );
+}
+
+export function MindroomSidebarNav() {
+  const activeSession = useActiveSession();
+
+  if (!activeSession) {
+    return (
+      <MobileFriendlyClientNav>
+        <SidebarNav />
+      </MobileFriendlyClientNav>
+    );
+  }
+
+  return <PersistedMindroomSidebarNav userId={activeSession.userId} />;
 }

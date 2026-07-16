@@ -6,6 +6,9 @@ import { getDesktopSidebarHiddenStorageKey } from './desktopSidebarState';
 import { MindroomSidebarNav } from './MindroomSidebarNav';
 
 const screenSizeState = { value: ScreenSize.Desktop };
+const activeSessionState: { value: { userId: string } | undefined } = {
+  value: { userId: '@alice:example.org' },
+};
 const storageState = new Map<string, string>();
 
 vi.mock('folds', () => ({
@@ -45,7 +48,7 @@ vi.mock('../../hooks/useScreenSize', async (importOriginal) => {
 });
 
 vi.mock('../../hooks/useSessionStore', () => ({
-  useActiveSession: () => ({ userId: '@alice:example.org' }),
+  useActiveSession: () => activeSessionState.value,
 }));
 
 vi.mock('../../components/sidebar', () => ({
@@ -95,6 +98,7 @@ describe('MindroomSidebarNav', () => {
 
   beforeEach(() => {
     screenSizeState.value = ScreenSize.Desktop;
+    activeSessionState.value = { userId: '@alice:example.org' };
     storageState.clear();
     vi.stubGlobal('localStorage', {
       clear: vi.fn(() => storageState.clear()),
@@ -138,6 +142,30 @@ describe('MindroomSidebarNav', () => {
 
     expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
     expect(localStorage.getItem(storageKey)).toBe('false');
+
+    act(() => renderer.unmount());
+  });
+
+  it('ignores malformed persisted hidden values', () => {
+    localStorage.setItem(storageKey, JSON.stringify('true'));
+
+    const renderer = renderSidebar();
+
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(findButtons(renderer, 'Hide sidebar')).toHaveLength(1);
+
+    act(() => renderer.unmount());
+  });
+
+  it('keeps navigation visible without writing a shared fallback key before session restore', () => {
+    activeSessionState.value = undefined;
+
+    const renderer = renderSidebar();
+
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(findButtons(renderer, 'Hide sidebar')).toHaveLength(0);
+    expect(findButtons(renderer, 'Show sidebar')).toHaveLength(0);
+    expect(storageState.size).toBe(0);
 
     act(() => renderer.unmount());
   });

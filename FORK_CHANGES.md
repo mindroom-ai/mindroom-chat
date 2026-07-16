@@ -4,14 +4,16 @@
 
 ### Desktop sidebar collapse control (2026-07-15)
 
-- Status: implementation, validation, and independent review are complete on `desktop-sidebar-toggle`; ready for PR review.
+- Status: implementation, PR review remediation, validation, and independent re-review are complete on PR #161; ready for review.
 - Desktop users can hide the left client sidebar from a new footer control and restore it from a small fixed control at the left viewport edge.
 - The fixed reveal control has no intrinsic layout width, so the main client content reclaims the complete sidebar slot while the sidebar is hidden.
 - The hidden choice is stored per Matrix user and restored on later mounts.
 - Tablet and mobile keep their existing responsive navigation behavior and do not show desktop collapse controls.
 - Both controls expose matching tooltips and accessible Hide sidebar and Show sidebar names.
-- Validation: 6 focused sidebar tests and the full Vitest suite pass (422 files / 3,205 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
-- Independent review found no actionable issues and confirmed layout-width reclamation, responsive behavior, persistence, Jotai lifecycle, accessibility, reveal-control placement, fork ownership, and test coverage.
+- Validation: 8 focused sidebar tests and the full Vitest suite pass (422 files / 3,207 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Independent review and re-review found no actionable issues and confirmed layout-width reclamation, responsive behavior, per-session persistence, Jotai lifecycle, accessibility, reveal-control placement, fork ownership, and test coverage.
+- PR review: the shared anonymous preference fallback was confirmed and removed, so navigation stays visible without persistence until an active session is restored; malformed persisted values now have regression coverage.
+- PR review: the window listener stub remains necessary because Vitest runs in the Node environment, and strict runtime boolean validation remains necessary because the local-storage helper generic performs only a TypeScript cast.
 
 ### Simple Mode room access and view choice (2026-07-15)
 
