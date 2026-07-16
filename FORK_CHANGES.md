@@ -12,7 +12,7 @@
 - The native picker resolves both successful saves and user cancellation cleanly, rejects overlapping prompts, sanitizes the temporary filename, and removes its private staging directory after the picker closes.
 - Failed save operations enter the existing async error state instead of leaving rejected event promises; image, PDF, file, and long-response actions visibly offer a retry.
 - Coverage pins native iOS bridge selection, stable per-page session ownership, reload recovery, bounded ordered chunk transfer, cleanup on failure, cancellation, object-URL loading, unchanged browser fallback behavior, duplicate-click suppression, and viewer/file retry behavior without redundant media downloads.
-- Validation: 14 focused tests and the full Vitest suite pass (423 files / 3,215 tests), as do typecheck, the production/PWA build, Capacitor iOS sync, an unsigned iOS Simulator workspace build, touched-file Prettier, and `git diff --check`.
+- Validation after merging current `dev`: 14 focused tests and the full Vitest suite pass (425 files / 3,221 tests), as do typecheck, the production/PWA build, Capacitor iOS sync, an unsigned iOS Simulator workspace build, touched-file Prettier, and `git diff --check`.
   Full ESLint reports 0 errors and 17 pre-existing warnings.
 - Review: independent review caught full-file base64 copies that could exhaust iOS memory on large attachments and save failures without visible retry feedback.
   Re-review then caught a rejected UIKit presentation leaving the session active and three retry paths fetching the same bytes again.
@@ -26,6 +26,23 @@
   Final Greptile re-review rated the remediated code 5/5 and safe to merge with no blocking findings.
   Its encrypted-info reference-equality observation can only cause an extra download if a caller replaces the event-owned object, and its picker-verification timing observation was already covered by the independent UIKit race audit.
   Web, Android, and container checks pass on remediation commit `fb0169aa1`; CodeRabbit, Sourcery, and Qodo reported quota or seat limits rather than new findings.
+
+### Desktop page-navigation collapse control (2026-07-15)
+
+- Status: implementation, persistent-icon-rail adjustment, visual verification, cleanup audit, validation, and independent re-review are complete on PR #161; ready for review.
+- Desktop users can hide the contextual room, space, or section panel while the narrow icon rail remains available for primary navigation.
+- The bottom rail control switches between left and right chevrons, so the main content reclaims the contextual panel slot without requiring a floating viewport-edge button.
+- The collapsed choice is stored per Matrix user and restored on later mounts.
+- Tablet and mobile keep their existing responsive navigation behavior and do not show desktop collapse controls.
+- The toggle exposes matching tooltips and accessible Collapse navigation panel and Expand navigation panel names for its expanded and collapsed states.
+- Validation: 14 focused layout and sidebar tests and the full Vitest suite pass (423 files / 3,207 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Focused coverage verifies icon-rail preservation, contextual navigation and divider removal, main-content preservation, restoration, persistence, malformed storage, and tablet/mobile behavior.
+- Visual validation against the disposable Matrix stack confirms that collapsing page navigation removes the rooms/recent-threads panel, keeps the icon rail visible, and expands the main content beside that rail.
+- Independent reviews caught missing chevron-direction and tooltip assertions, then an unreachable no-session fallback with a silent no-op context. Coverage and provider wiring were tightened, and both re-reviews completed with no findings remaining.
+- PR review: the shared anonymous preference fallback was removed; the final provider reads the guaranteed user ID from its in-scope Matrix client and has no anonymous or no-session state, while malformed persisted values have regression coverage.
+- PR review: the window listener stub remains necessary because Vitest runs in the Node environment, and strict runtime boolean validation remains necessary because the local-storage helper generic performs only a TypeScript cast.
+- User review clarified that the useful final behavior is to keep the narrow primary-navigation rail visible and collapse only the wider contextual page navigation.
+- Cleanup audit removed the obsolete full-sidebar vocabulary and storage key, unreachable session fallback, and silent no-op context; it also narrowed the state API to one boolean setter, restored the required `PageRoot.nav` contract, and consolidated repeated assertions. Reference and lint scans found no orphaned feature code or imports.
 
 ### Simple Mode room access and view choice (2026-07-15)
 
