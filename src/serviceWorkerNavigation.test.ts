@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   NAVIGATION_FALLBACK_EXCLUDE_PARAM,
+  fetchNavigationWithShellFallback,
   navigationFallbackExcludePathPattern,
   normalizeNavigationFallbackExcludePaths,
   readNavigationFallbackExcludePaths,
@@ -53,5 +54,40 @@ describe('service worker navigation fallback exclusions', () => {
     expect(controlPanel.test('/control.panel/users')).toBe(true);
     expect(controlPanel.test('/controlXpanel/users')).toBe(false);
     expect(otherApp.test('/home/some-room')).toBe(false);
+  });
+});
+
+describe('service worker navigation responses', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('uses a fresh network document before the precached shell', async () => {
+    const request = new Request('https://chat.example.com/home/room');
+    const networkResponse = new Response('new shell');
+    const fetchMock = vi.fn().mockResolvedValue(networkResponse);
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      networkResponse
+    );
+    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
+    expect(loadCachedShell).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['network failure', () => Promise.reject(new Error('offline'))],
+    ['unsuccessful response', () => Promise.resolve(new Response('missing', { status: 404 }))],
+  ])('falls back to the precached shell after %s', async (_label, fetchResult) => {
+    const request = new Request('https://chat.example.com/home/room');
+    const cachedResponse = new Response('cached shell');
+    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(fetchResult));
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      cachedResponse
+    );
+    expect(loadCachedShell).toHaveBeenCalledOnce();
   });
 });

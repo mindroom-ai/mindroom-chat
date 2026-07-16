@@ -2,8 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('workbox-precaching', () => ({
   cleanupOutdatedCaches: vi.fn(),
-  createHandlerBoundToURL: vi.fn(),
-  precacheAndRoute: vi.fn(),
+  PrecacheController: class PrecacheController {
+    strategy = { cacheName: 'test-precache' };
+
+    activate = vi.fn().mockResolvedValue(undefined);
+
+    addToCacheList = vi.fn();
+
+    createHandlerBoundToURL = vi.fn(() => vi.fn());
+
+    install = vi.fn().mockResolvedValue(undefined);
+  },
+  PrecacheRoute: class PrecacheRoute {},
 }));
 
 vi.mock('workbox-routing', () => ({
@@ -40,7 +50,8 @@ const loadServiceWorker = async () => {
   };
   const scope = {
     __WB_MANIFEST: [],
-    location: { origin: APP_ORIGIN },
+    location: { href: `${APP_ORIGIN}/sw.js`, origin: APP_ORIGIN },
+    registration: { active: null, scope: `${APP_ORIGIN}/` },
     clients,
     addEventListener: (type: string, listener: CapturedListener) => {
       const typeListeners = listeners.get(type) ?? new Set();

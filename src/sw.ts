@@ -2,15 +2,18 @@
 
 import {
   cleanupOutdatedCaches,
-  createHandlerBoundToURL,
-  precacheAndRoute,
+  PrecacheController,
+  PrecacheRoute,
   type PrecacheEntry,
 } from 'workbox-precaching';
+import type { RouteHandlerCallback } from 'workbox-core/types';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 import {
+  fetchNavigationWithShellFallback,
   navigationFallbackExcludePathPattern,
+  NON_DISRUPTIVE_UPDATE_PARAM,
   readNavigationFallbackExcludePaths,
 } from './serviceWorkerNavigation';
 
@@ -20,12 +23,12 @@ declare const self: ServiceWorkerGlobalScope & {
 };
 
 const precacheManifest = self.__WB_MANIFEST;
-precacheAndRoute(precacheManifest);
+const precacheController = new PrecacheController();
+precacheController.addToCacheList(precacheManifest);
 cleanupOutdatedCaches();
 
-const UPDATE_MARKER_CACHE = 'mindroom-service-worker-update';
-const getUpdateMarkerUrl = () =>
-  new URL('__mindroom_service_worker_update__', self.registration.scope).href;
+const supportsNonDisruptiveUpdates =
+  new URL(self.location.href).searchParams.get(NON_DISRUPTIVE_UPDATE_PARAM) === '1';
 
 const navigationFallbackDenylist = [
   /^\/api(?:\/|$)/,
@@ -52,12 +55,18 @@ const precachesAppShell = precacheManifest.some(
   (entry) => (typeof entry === 'string' ? entry : entry.url) === 'index.html'
 );
 if (precachesAppShell) {
+  const loadCachedAppShell = precacheController.createHandlerBoundToURL('index.html');
+  const navigationHandler: RouteHandlerCallback = (options) =>
+    fetchNavigationWithShellFallback(options.request, () => loadCachedAppShell(options));
   registerRoute(
-    new NavigationRoute(createHandlerBoundToURL('index.html'), {
+    new NavigationRoute(navigationHandler, {
       denylist: navigationFallbackDenylist,
     })
   );
 }
+// Navigation must be registered first so explicit reloads and visits check the
+// network before Workbox's cache-first precache route matches index.html.
+registerRoute(new PrecacheRoute(precacheController));
 
 type SessionInfo = {
   accessToken: string;
@@ -151,26 +160,23 @@ const requestSession = async (
 };
 
 self.addEventListener('install', (event: ExtendableEvent) => {
-  // The page running during the first deployment of the version monitor is
-  // necessarily an older bundle and cannot reload itself on controllerchange.
-  // Persist whether this is an upgrade so activation can refresh that page
-  // from the new worker's already-precached shell. First installs intentionally
-  // skip the marker and therefore do not cause a gratuitous second page load.
-  const isUpgrade = precachesAppShell && Boolean(self.registration.active);
   event.waitUntil(
     (async () => {
-      try {
-        if (isUpgrade) {
-          const cache = await caches.open(UPDATE_MARKER_CACHE);
-          await cache.put(getUpdateMarkerUrl(), new Response('pending'));
-        } else {
-          await caches.delete(UPDATE_MARKER_CACHE);
-        }
-      } catch {
-        // Cache metadata is an enhancement. Never strand a worker install if
-        // storage is unavailable or full.
+      if (!supportsNonDisruptiveUpdates) {
+        // The deployed predecessor monitor reloads as soon as the worker it
+        // registered activates. Unregister instead: the current document
+        // remains controlled until it unloads, while its next navigation goes
+        // to the network and boots the new, marked registration.
+        // unregister() is itself a queued service-worker job. Awaiting it from
+        // this install event deadlocks that job behind the current update in
+        // Chromium, so start it and let install settle first.
+        void self.registration.unregister().catch(() => undefined);
+        return;
       }
-      await self.skipWaiting();
+
+      await precacheController.install(event);
+
+      if (!self.registration.active) await self.skipWaiting();
     })()
   );
 });
@@ -178,37 +184,9 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 self.addEventListener('activate', (event: ExtendableEvent) => {
   event.waitUntil(
     (async () => {
-      const existingClients = (await self.clients.matchAll({
-        type: 'window',
-        includeUncontrolled: true,
-      })) as WindowClient[];
-      let shouldReloadExistingClients = false;
-      try {
-        const cache = await caches.open(UPDATE_MARKER_CACHE);
-        shouldReloadExistingClients = Boolean(await cache.match(getUpdateMarkerUrl()));
-        await caches.delete(UPDATE_MARKER_CACHE);
-      } catch {
-        // Activation and normal offline use must not depend on metadata I/O.
-      }
-
+      await precacheController.activate(event);
       await self.clients.claim();
       await cleanupDeadClients();
-
-      if (!shouldReloadExistingClients || !precachesAppShell) return;
-      await Promise.allSettled(
-        existingClients.map(async (client) => {
-          if (client.frameType !== 'top-level') return;
-          try {
-            if (new URL(client.url).origin !== self.location.origin) return;
-            // clients.claim() makes this navigation use the newly activated
-            // worker, whose app shell was precached during install. It remains
-            // safe if connectivity disappears between install and activation.
-            await client.navigate(client.url);
-          } catch {
-            // A closed or mid-navigation tab is harmless.
-          }
-        })
-      );
     })()
   );
 });
@@ -253,12 +231,10 @@ const fetchAuthenticatedMediaWithFallback = async (
 };
 
 /**
- * Legacy token request/response flow. Kept for one release cycle: after a
- * deploy, skipWaiting + clients.claim puts this worker in control of tabs
- * still running the previous client bundle, which answers `type: 'token'`
- * but ignores `type: 'requestSession'` — without this fallback those tabs
- * serve unauthenticated (404ing) media until reloaded. Delete once no
- * pre-requestSession bundles remain in the wild.
+ * Legacy token request/response flow for tabs first controlled by updater
+ * releases that claimed pages running the previous client bundle.
+ * Those bundles answer `type: 'token'` but ignore `type: 'requestSession'`.
+ * Delete once no pre-requestSession bundles remain in the wild.
  */
 async function askForAccessToken(client: Client): Promise<string | undefined> {
   return new Promise((resolve) => {
