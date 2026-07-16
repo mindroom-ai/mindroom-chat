@@ -16,6 +16,7 @@ type MockPageProps = React.ComponentProps<'div'>;
 
 const {
   bumpRecentThreadMock,
+  compactRoomTimelineState,
   edgeSwipeBackState,
   edgeSwipeForwardState,
   historyBackMock,
@@ -33,6 +34,11 @@ const {
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
+  compactRoomTimelineState: {
+    enabled: false,
+    onThreadClick: vi.fn(),
+    threadRootIds: ['$thread'],
+  },
   edgeSwipeBackState: {
     enabled: undefined as boolean | undefined,
     onBack: undefined as (() => void) | undefined,
@@ -198,9 +204,71 @@ vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
   RoomInputPlaceholder: passthrough,
 }));
 
-vi.mock('../MindroomRoomTimeline', () => ({
-  RoomTimeline: roomTimelineType,
+vi.mock('../compactThreadCardViewModel', () => ({
+  useCompactThreadCardViewModels: ({
+    room,
+    threadRootIds,
+  }: {
+    room: { roomId: string };
+    threadRootIds: string[];
+  }) =>
+    threadRootIds.map((threadRootId) => ({
+      id: { roomId: room.roomId, threadRootId },
+      recentThreadSummaryText: `Summary for ${threadRootId}`,
+    })),
 }));
+
+vi.mock('../CompactThreadCard', () => ({
+  CompactThreadCard: ({
+    viewModel,
+    onClick,
+  }: {
+    viewModel: { id: { threadRootId: string } };
+    onClick: (threadRootId: string) => void;
+  }) =>
+    React.createElement(
+      'button',
+      {
+        'data-thread-root-id': viewModel.id.threadRootId,
+        onClick: () => onClick(viewModel.id.threadRootId),
+        type: 'button',
+      },
+      viewModel.id.threadRootId
+    ),
+}));
+
+vi.mock('../CompactRoomView.css', () => ({
+  EmptyState: 'EmptyState',
+  View: 'View',
+}));
+
+vi.mock('../MindroomRoomTimeline', async () => {
+  const ReactModule = await import('react');
+  const { CompactRoomView } = await import('../CompactRoomView');
+
+  type MockRoomTimelineProps = {
+    compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
+    room: { roomId: string };
+    threadId?: string;
+  };
+
+  return {
+    RoomTimeline: (props: MockRoomTimelineProps) =>
+      ReactModule.createElement(
+        roomTimelineType,
+        props,
+        compactRoomTimelineState.enabled && !props.threadId
+          ? ReactModule.createElement(CompactRoomView, {
+              compactRoomScrollStateRef: props.compactRoomScrollStateRef,
+              onThreadClick: compactRoomTimelineState.onThreadClick,
+              room: props.room as never,
+              threadRecordMap: new Map(),
+              threadRootIds: compactRoomTimelineState.threadRootIds,
+            })
+          : null
+      ),
+  };
+});
 
 vi.mock('../../../features/room/RoomViewTyping', () => ({
   RoomViewTyping: passthrough,
@@ -350,6 +418,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       onSortDirectionChange: () => void;
       onToggleThreadSortFreeze: () => void;
       onReset: () => void;
+      compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
       threadId?: string;
       threadFilterState: {
         resolved: string;
@@ -374,6 +443,9 @@ describe('RoomView', () => {
     vi.useRealTimers();
     storageState.clear();
     bumpRecentThreadMock.mockReset();
+    compactRoomTimelineState.enabled = false;
+    compactRoomTimelineState.onThreadClick.mockReset();
+    compactRoomTimelineState.threadRootIds = ['$thread'];
     edgeSwipeBackState.enabled = undefined;
     edgeSwipeBackState.onBack = undefined;
     edgeSwipeForwardState.enabled = undefined;
@@ -429,6 +501,144 @@ describe('RoomView', () => {
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+  });
+
+  it('restores compact scroll after a card open and history-back thread exit', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    compactRoomTimelineState.enabled = true;
+    compactRoomTimelineState.onThreadClick.mockImplementation((threadRootId: string) => {
+      navigateRoomThreadMock(room.roomId, threadRootId);
+    });
+    let scrollElement = { scrollTop: 0 };
+    const createNodeMock = (element: React.ReactElement) => {
+      if (element.props['data-compact-room-view'] === 'true') return scrollElement;
+      return {};
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: room as never }), {
+        createNodeMock,
+      });
+    });
+
+    scrollElement.scrollTop = 418;
+    await act(async () => {
+      renderer?.root.findByProps({ 'data-thread-root-id': '$thread' }).props.onClick();
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$thread');
+
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: true,
+        },
+      },
+    };
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+
+    scrollElement = { scrollTop: 0 };
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never }));
+    });
+
+    expect(scrollElement.scrollTop).toBe(418);
+  });
+
+  it('restores compact scroll after a native-iOS replacement thread exit', async () => {
+    isNativeIOSMock.mockReturnValue(true);
+    compactRoomTimelineState.enabled = true;
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
+    let scrollElement = { scrollTop: 0 };
+    const createNodeMock = (element: React.ReactElement) => {
+      if (element.props['data-compact-room-view'] === 'true') return scrollElement;
+      return {};
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: room as never }), {
+        createNodeMock,
+      });
+    });
+
+    scrollElement.scrollTop = 512;
+    await act(async () => {
+      renderer?.root.findByProps({ 'data-thread-root-id': '$thread' }).props.onClick();
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath,
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: false,
+        },
+      },
+    };
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
+
+    scrollElement = { scrollTop: 0 };
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never }));
+    });
+
+    expect(scrollElement.scrollTop).toBe(512);
+  });
+
+  it('does not restore one room compact scroll position into another room', async () => {
+    compactRoomTimelineState.enabled = true;
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const roomA = makeRoom(nextRoomId('room-a'));
+    const roomB = makeRoom(nextRoomId('room-b'));
+    let scrollElement = { scrollTop: 0 };
+    const createNodeMock = (element: React.ReactElement) => {
+      if (element.props['data-compact-room-view'] === 'true') return scrollElement;
+      return {};
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: roomA as never }), {
+        createNodeMock,
+      });
+    });
+
+    scrollElement.scrollTop = 733;
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: roomA as never, threadId: '$thread' })
+      );
+    });
+
+    scrollElement = { scrollTop: 0 };
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
+    });
+
+    expect(scrollElement.scrollTop).toBe(0);
   });
 
   it('keeps thread filter state isolated per room when switching rooms', async () => {

@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Restore compact thread-list scroll position (2026-07-15)
+
+- Status: implementation, behavioral regression coverage, latest `dev` merge, full local validation, independent re-review, confirmed PR review remediation, final PR checks, and bot re-review are complete on PR #165; ready for human review.
+- Symptom: opening a thread from a scrolled compact room overview remounts the keyed room timeline, so exiting the thread creates a fresh compact scroll container at the top.
+- Fix: the room view now owns compact scroll offsets across thread timeline remounts, while the compact overview captures its offset during layout cleanup and restores it during layout setup before paint.
+- Scope: offsets are keyed by room inside the mounted room view, so thread enter/exit preserves the same room position without leaking an offset into another room or persisting stale layout state across app sessions.
+- Coverage: focused compact-view tests verify capture and restoration across populated and delayed component remounts, browser-style scroll clamping, safe retries as cards load, manual-scroll cancellation, and unloaded cleanup, while room-view behavioral tests scroll the compact overview, open a card, traverse the keyed thread timeline, invoke real history-back and native replacement exit callbacks, restore before paint, and prevent cross-room offset leakage.
+- Validation: 40 focused CompactRoomView and RoomView tests and the full Vitest suite pass after merging current `dev` (425 files / 3,232 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review found that the first tests proved only direct remount and ref identity rather than the complete navigation lifecycle.
+  Populated-card entry, keyed cleanup, history and native exit behavior, and room isolation are now covered; independent re-review found no remaining findings.
+  Gemini found that an initially empty or incomplete card list could clamp the one-shot restore and erase the saved position.
+  Restoration now waits for cards and retries a clamped target only while the scroll position remains at the last programmatic value, so manual scrolling cancels further retries and unloaded cleanup preserves the prior offset.
+  AgentCLI with Claude Fable 5 independently traced the scroll owner, keyed remount lifecycle, all compact thread exit paths, delayed card loading, incremental clamp retries, manual-scroll cancellation, and cleanup; final re-review found no actionable issues.
+  Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings.
+  Android, web, Docker, and PR-title checks pass; CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than findings.
+
 ### Simple Mode thread sorting (2026-07-15)
 
 - Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
