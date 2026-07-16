@@ -2,7 +2,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import FileSaver from 'file-saver';
 
 type MindRoomFileSavePlugin = {
-  beginSave(options: { fileName: string }): Promise<{ id: string }>;
+  beginSave(options: { fileName: string; pageId: string }): Promise<{ id: string }>;
   appendSave(options: { id: string; data: string }): Promise<void>;
   presentSave(options: { id: string }): Promise<{ saved: boolean }>;
   abortSave(options: { id: string }): Promise<void>;
@@ -11,6 +11,7 @@ type MindRoomFileSavePlugin = {
 const NATIVE_SAVE_CHUNK_SIZE = 256 * 1024;
 
 let mindRoomFileSavePlugin: MindRoomFileSavePlugin | undefined;
+let nativeSavePageId: string | undefined;
 
 const getMindRoomFileSavePlugin = (): MindRoomFileSavePlugin => {
   if (!mindRoomFileSavePlugin) {
@@ -18,6 +19,22 @@ const getMindRoomFileSavePlugin = (): MindRoomFileSavePlugin => {
   }
 
   return mindRoomFileSavePlugin;
+};
+
+const getNativeSavePageId = (): string => {
+  if (!nativeSavePageId) {
+    const bytes = new Uint8Array(16);
+    if (typeof globalThis.crypto?.getRandomValues === 'function') {
+      globalThis.crypto.getRandomValues(bytes);
+    } else {
+      bytes.forEach((_, index) => {
+        bytes[index] = Math.floor(Math.random() * 256);
+      });
+    }
+    nativeSavePageId = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  return nativeSavePageId;
 };
 
 const isNativeIOSFileSaveAvailable = (): boolean =>
@@ -70,7 +87,7 @@ export const saveFile = async (source: Blob | string, fileName: string): Promise
   let saveId: string | undefined;
 
   try {
-    const session = await plugin.beginSave({ fileName });
+    const session = await plugin.beginSave({ fileName, pageId: getNativeSavePageId() });
     saveId = session.id;
 
     for (let offset = 0; offset < blob.size; offset += NATIVE_SAVE_CHUNK_SIZE) {

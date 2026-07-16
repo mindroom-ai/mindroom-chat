@@ -259,6 +259,7 @@ export const MindroomDownloadOriginalMenuItem = as<
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const downloadedFileRef = useRef<{ identity: string; blob: Blob }>();
+  const downloadInProgressRef = useRef(false);
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
@@ -268,12 +269,18 @@ export const MindroomDownloadOriginalMenuItem = as<
         blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
         downloadedFileRef.current = { identity, blob };
       }
-      await saveFile(blob, getMindroomLongTextDownloadName(source));
-      onClose?.();
+      const saved = await saveFile(blob, getMindroomLongTextDownloadName(source));
+      if (saved) onClose?.();
     }, [mx, source, useAuthentication, onClose])
   );
   const handleDownload = () => {
-    void download().catch(() => undefined);
+    if (downloadState.status === AsyncStatus.Loading || downloadInProgressRef.current) return;
+    downloadInProgressRef.current = true;
+    void download()
+      .catch(() => undefined)
+      .finally(() => {
+        downloadInProgressRef.current = false;
+      });
   };
 
   return (
@@ -291,6 +298,7 @@ export const MindroomDownloadOriginalMenuItem = as<
       }
       radii="300"
       onClick={handleDownload}
+      disabled={downloadState.status === AsyncStatus.Loading}
       aria-disabled={downloadState.status === AsyncStatus.Loading}
       {...props}
       ref={ref}

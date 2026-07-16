@@ -324,4 +324,66 @@ describe('attachment viewer downloads', () => {
     expect(saveFileMock).toHaveBeenCalledTimes(2);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the long-response menu open when the native save picker is cancelled', async () => {
+    saveFileMock.mockResolvedValueOnce(false);
+    const { MindroomDownloadOriginalMenuItem } = await import(
+      '../mindroom/messages/MindroomMessageControls'
+    );
+    const onClose = vi.fn();
+    const renderer = create(
+      React.createElement(MindroomDownloadOriginalMenuItem, {
+        source: {
+          previewContent: {},
+          mxcUri: 'mxc://example.test/response',
+          isV2ContentJson: true,
+        },
+        onClose,
+      })
+    );
+
+    await act(async () => {
+      findButtonByText(renderer, 'Download Original')?.props.onClick();
+      await flushAsyncState();
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(findButtonByText(renderer, 'Download Original')).toBeDefined();
+  });
+
+  it('ignores repeated long-response clicks while a save is active', async () => {
+    let finishSave: ((saved: boolean) => void) | undefined;
+    saveFileMock.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishSave = resolve;
+      })
+    );
+    const { MindroomDownloadOriginalMenuItem } = await import(
+      '../mindroom/messages/MindroomMessageControls'
+    );
+    const renderer = create(
+      React.createElement(MindroomDownloadOriginalMenuItem, {
+        source: {
+          previewContent: {},
+          mxcUri: 'mxc://example.test/response',
+          isV2ContentJson: true,
+        },
+      })
+    );
+    const downloadButton = findButtonByText(renderer, 'Download Original');
+
+    await act(async () => {
+      downloadButton?.props.onClick();
+      downloadButton?.props.onClick();
+      await flushAsyncState();
+    });
+
+    expect(downloadSidecarMock).toHaveBeenCalledTimes(1);
+    expect(saveFileMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishSave?.(true);
+      await flushAsyncState();
+    });
+  });
 });

@@ -58,6 +58,7 @@ describe('saveFile', () => {
     expect(registerPlugin).toHaveBeenCalledWith('MindRoomFileSave');
     expect(nativePlugin.beginSave).toHaveBeenCalledWith({
       fileName: 'agent-output.txt',
+      pageId: expect.stringMatching(/^[0-9a-f]{32}$/),
     });
     expect(nativePlugin.appendSave).toHaveBeenCalledWith({
       id: 'save-1',
@@ -65,6 +66,26 @@ describe('saveFile', () => {
     });
     expect(nativePlugin.presentSave).toHaveBeenCalledWith({ id: 'save-1' });
     expect(FileSaver.saveAs).not.toHaveBeenCalled();
+  });
+
+  it('uses one owner id per page so native code can replace sessions abandoned by a reload', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+
+    await saveFile(new Blob(['first']), 'first.txt');
+    await saveFile(new Blob(['second']), 'second.txt');
+
+    const firstPageId = nativePlugin.beginSave.mock.calls[0][0].pageId;
+    const secondPageId = nativePlugin.beginSave.mock.calls[1][0].pageId;
+    expect(firstPageId).toMatch(/^[0-9a-f]{32}$/);
+    expect(secondPageId).toBe(firstPageId);
+
+    vi.resetModules();
+    const { saveFile: saveFileAfterReload } = await import('./nativeFileSave');
+    await saveFileAfterReload(new Blob(['third']), 'third.txt');
+
+    expect(nativePlugin.beginSave.mock.calls[2][0].pageId).not.toBe(firstPageId);
   });
 
   it('reports cancellation without treating it as a failed download', async () => {

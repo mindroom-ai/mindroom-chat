@@ -15,6 +15,7 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
 
     private struct ExportSession {
         let id: String
+        let pageID: String
         let directory: URL
         let fileURL: URL
     }
@@ -26,6 +27,10 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
     private var activePickerSessionID: String?
 
     @objc func beginSave(_ call: CAPPluginCall) {
+        guard let pageID = call.getString("pageId"), !pageID.isEmpty else {
+            call.reject("Save page is missing", "INVALID_PAGE")
+            return
+        }
         let fileName = safeFileName(call.getString("fileName"))
 
         saveQueue.async { [weak self] in
@@ -33,9 +38,16 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                 call.reject("Unable to start save prompt", "PLUGIN_UNAVAILABLE")
                 return
             }
-            guard self.activeSession == nil, self.pickerCall == nil else {
+            guard self.pickerCall == nil else {
                 call.reject("A save prompt is already open", "SAVE_IN_PROGRESS")
                 return
+            }
+            if let activeSession = self.activeSession {
+                guard activeSession.pageID != pageID else {
+                    call.reject("A save prompt is already open", "SAVE_IN_PROGRESS")
+                    return
+                }
+                self.cleanupActiveSession()
             }
 
             let id = UUID().uuidString
@@ -55,7 +67,12 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                 return
             }
 
-            self.activeSession = ExportSession(id: id, directory: directory, fileURL: fileURL)
+            self.activeSession = ExportSession(
+                id: id,
+                pageID: pageID,
+                directory: directory,
+                fileURL: fileURL
+            )
             call.resolve(["id": id])
         }
     }
@@ -133,7 +150,6 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                 )
                 picker.delegate = self
                 picker.shouldShowFileExtensions = true
-                picker.presentationController?.delegate = self
                 self.activePicker = picker
                 self.activePickerSessionID = session.id
                 viewController.present(picker, animated: true)
