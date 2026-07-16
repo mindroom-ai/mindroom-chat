@@ -1,0 +1,178 @@
+import React from 'react';
+import { createStore, Provider } from 'jotai';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { MemoryRouter } from 'react-router-dom';
+import { enableMapSet } from 'immer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
+import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
+import {
+  getCrossRoomThreadIndexKey,
+  type CrossRoomThreadIndexEntry,
+} from '../cross-room-threads/crossRoomThreadIndex';
+import { THREAD_NAV_CATEGORY_ID, ThreadNavCategory } from './ThreadNavCategory';
+import { clearThreadSidebarPreferencesStore } from './threadSidebarPreferences';
+
+const { indexSnapshotMock } = vi.hoisted(() => ({ indexSnapshotMock: vi.fn() }));
+
+enableMapSet();
+
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return { useTranslation: () => ({ t: translateFromEn }) };
+});
+vi.mock('folds', () => ({
+  Text: ({
+    as: asElement = 'span',
+    children,
+    ...props
+  }: {
+    as?: string;
+    children?: React.ReactNode;
+  }) => React.createElement(asElement, props, children),
+}));
+vi.mock('../../components/nav', () => ({
+  NavCategory: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement('section', props, children),
+  NavCategoryHeader: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('header', null, children),
+}));
+vi.mock('../../features/room-nav', () => ({
+  RoomNavCategoryButton: ({
+    children,
+    closed,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { closed?: boolean }) =>
+    React.createElement('button', { ...props, 'aria-expanded': !closed }, children),
+}));
+vi.mock('../../hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
+}));
+vi.mock('../../hooks/router/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
+vi.mock('../cross-room-threads/useCrossRoomThreadIndex', () => ({
+  useCrossRoomThreadIndex: indexSnapshotMock,
+}));
+vi.mock('./ThreadNavItem', () => ({
+  ThreadNavItem: ({
+    entry,
+    pinned,
+    onTogglePin,
+  }: {
+    entry: CrossRoomThreadIndexEntry;
+    pinned: boolean;
+    onTogglePin: () => void;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-thread-key': entry.key, 'data-pinned': pinned },
+      entry.summaryText,
+      React.createElement('button', { 'aria-label': `pin-${entry.key}`, onClick: onTogglePin })
+    ),
+}));
+vi.mock('./threadNav.css', () => ({ CategoryState: 'CategoryState' }));
+
+const USER_ID = '@me:example.org';
+const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number) =>
+  ({
+    key: getCrossRoomThreadIndexKey(roomId, threadRootId),
+    roomId,
+    roomName: roomId,
+    threadRootId,
+    lastActivityTs,
+    isInvolved: true,
+    isUnread: false,
+    summaryText: threadRootId,
+  } as CrossRoomThreadIndexEntry);
+
+const older = makeEntry('!room:example.org', '$older', 10);
+const newer = makeEntry('!room:example.org', '$newer', 20);
+
+describe('ThreadNavCategory', () => {
+  let renderer: ReactTestRenderer | undefined;
+  let store: ReturnType<typeof createStore>;
+
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    clearThreadSidebarPreferencesStore(USER_ID);
+    indexSnapshotMock.mockReturnValue({
+      bootstrapped: true,
+      entries: new Map([
+        [older.key, older],
+        [newer.key, newer],
+      ]),
+    });
+    store = createStore();
+  });
+
+  afterEach(() => {
+    if (renderer) act(() => renderer?.unmount());
+    renderer = undefined;
+    clearThreadSidebarPreferencesStore(USER_ID);
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const renderCategory = () => {
+    const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            ClosedNavCategoriesProvider,
+            { value: closedCategoriesAtom },
+            React.createElement(MemoryRouter, null, React.createElement(ThreadNavCategory))
+          )
+        )
+      );
+    });
+    return closedCategoriesAtom;
+  };
+
+  it('renders as a peer collapsible nav category in activity order', () => {
+    renderCategory();
+    const category = renderer!.root.findByProps({ 'data-testid': 'thread-nav-category' });
+    expect(
+      category
+        .findByProps({ 'data-category-id': THREAD_NAV_CATEGORY_ID })
+        .findAll(() => true)
+        .some((node) => node.children.includes('Threads'))
+    ).toBe(true);
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([newer.key, older.key]);
+  });
+
+  it('collapses exactly like the room category', () => {
+    const closedCategoriesAtom = renderCategory();
+
+    act(() => {
+      renderer!.root.findByProps({ 'data-category-id': THREAD_NAV_CATEGORY_ID }).props.onClick({
+        currentTarget: { getAttribute: () => THREAD_NAV_CATEGORY_ID },
+      });
+    });
+
+    expect(store.get(closedCategoriesAtom)).toContain(THREAD_NAV_CATEGORY_ID);
+    expect(renderer!.root.findAllByProps({ 'data-testid': 'thread-nav-list' })).toHaveLength(0);
+  });
+
+  it('moves a pinned thread above newer activity', () => {
+    renderCategory();
+
+    act(() => renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick());
+
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([older.key, newer.key]);
+  });
+});

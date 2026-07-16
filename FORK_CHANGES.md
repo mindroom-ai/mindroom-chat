@@ -4,11 +4,18 @@
 
 ### Thread-first sidebar (2026-07-15)
 
-- Status: state and ordering foundation complete; sidebar UI implementation is next.
-- The compact sidebar list will use the canonical cross-room thread index so unpinned threads sort by live last activity instead of the time a thread was last opened.
-- Added per-account sidebar preferences for a fully collapsed room list and up to 50 pinned threads.
-- Pinned threads remain visible at the top in saved order, while uninvolved unpinned threads stay out of the personal sidebar list.
-- Focused state and ordering tests cover corrupt storage sanitization, persistence, pin precedence, activity sorting, involvement filtering, and the compact-list cap.
+- Status: implementation and local validation are complete; final self-review and PR review are in progress.
+- Threads now render as a collapsible navigation category directly beside Rooms in the Home, Direct, and Space sidebars.
+- The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
+- Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
+- Unpinned threads sort by last activity, and per-account pins remain at the top in saved order.
+- Compact rows show the summary, unread state, pin state, and relative activity time.
+- A delayed hover card adds the room, participating MindRoom agents, message count, and last activity.
+- The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.
+- Pin preferences are removed with the account's other MindRoom UI state during logout and cache cleanup.
+- The existing full Threads page remains available for search and advanced filters.
+- Validation: 78 focused tests and the full Vitest suite pass (421 files / 3,081 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
 
 ### Simple Mode room access and view choice (2026-07-15)
 

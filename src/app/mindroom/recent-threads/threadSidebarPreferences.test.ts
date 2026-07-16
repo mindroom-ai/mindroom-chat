@@ -36,32 +36,26 @@ describe('thread sidebar preferences', () => {
     expect(
       sanitizeThreadSidebarPreferences({
         v: 1,
-        roomsCollapsed: true,
         pinnedThreadKeys: [THREAD_KEY, 'invalid', THREAD_KEY],
       })
     ).toEqual({
-      roomsCollapsed: true,
       pinnedThreadKeys: [THREAD_KEY],
     });
     expect(sanitizeThreadSidebarPreferences({ v: 2 })).toEqual({
-      roomsCollapsed: false,
       pinnedThreadKeys: [],
     });
   });
 
-  it('persists room-list collapse and pin toggles per account', () => {
+  it('persists pin toggles per account', () => {
     const store = createStore();
     const preferencesAtom = makeThreadSidebarPreferencesAtom(USER_ID);
 
-    store.set(preferencesAtom, { type: 'SET_ROOMS_COLLAPSED', collapsed: true });
     store.set(preferencesAtom, { type: 'TOGGLE_PIN', threadKey: THREAD_KEY });
 
     expect(store.get(preferencesAtom)).toEqual({
-      roomsCollapsed: true,
       pinnedThreadKeys: [THREAD_KEY],
     });
     expect(JSON.parse(storage.get(getThreadSidebarPreferencesStoreKey(USER_ID)) ?? '{}')).toEqual({
-      roomsCollapsed: true,
       pinnedThreadKeys: [THREAD_KEY],
       v: 1,
     });

@@ -14,22 +14,16 @@ const MAX_PINNED_SIDEBAR_THREADS = 50;
 
 export type ThreadSidebarPreferences = {
   pinnedThreadKeys: string[];
-  roomsCollapsed: boolean;
 };
 
 type ThreadSidebarPreferencesStore = ThreadSidebarPreferences & {
   v: typeof THREAD_SIDEBAR_PREFERENCES_VERSION;
 };
 
-export type ThreadSidebarPreferencesAction =
-  | {
-      type: 'SET_ROOMS_COLLAPSED';
-      collapsed: boolean;
-    }
-  | {
-      type: 'TOGGLE_PIN';
-      threadKey: string;
-    };
+export type ThreadSidebarPreferencesAction = {
+  type: 'TOGGLE_PIN';
+  threadKey: string;
+};
 
 type ThreadSidebarPreferencesAtom = WritableAtom<
   ThreadSidebarPreferences,
@@ -39,7 +33,6 @@ type ThreadSidebarPreferencesAtom = WritableAtom<
 
 export const DEFAULT_THREAD_SIDEBAR_PREFERENCES: ThreadSidebarPreferences = {
   pinnedThreadKeys: [],
-  roomsCollapsed: false,
 };
 
 const isValidThreadKey = (value: unknown): value is string =>
@@ -53,18 +46,17 @@ export const sanitizeThreadSidebarPreferences = (value: unknown): ThreadSidebarP
   const pinnedThreadKeys = Array.isArray(value.pinnedThreadKeys)
     ? Array.from(new Set(value.pinnedThreadKeys.filter(isValidThreadKey))).slice(
         0,
-        MAX_PINNED_SIDEBAR_THREADS,
+        MAX_PINNED_SIDEBAR_THREADS
       )
     : [];
 
   return {
     pinnedThreadKeys,
-    roomsCollapsed: value.roomsCollapsed === true,
   };
 };
 
 const serializeThreadSidebarPreferences = (
-  preferences: ThreadSidebarPreferences,
+  preferences: ThreadSidebarPreferences
 ): ThreadSidebarPreferencesStore => ({
   ...preferences,
   v: THREAD_SIDEBAR_PREFERENCES_VERSION,
@@ -78,7 +70,7 @@ const createThreadSidebarPreferencesAtom = (userId: string): ThreadSidebarPrefer
   const persistedAtom = atomWithLocalStorage<ThreadSidebarPreferences>(
     storeKey,
     (key) => sanitizeThreadSidebarPreferences(getLocalStorageItem<unknown | null>(key, null)),
-    (key, preferences) => setLocalStorageItem(key, serializeThreadSidebarPreferences(preferences)),
+    (key, preferences) => setLocalStorageItem(key, serializeThreadSidebarPreferences(preferences))
   );
 
   return atom<ThreadSidebarPreferences, [ThreadSidebarPreferencesAction], undefined>(
@@ -86,19 +78,13 @@ const createThreadSidebarPreferencesAtom = (userId: string): ThreadSidebarPrefer
     (get, set, action) => {
       const current = get(persistedAtom);
 
-      if (action.type === 'SET_ROOMS_COLLAPSED') {
-        if (current.roomsCollapsed === action.collapsed) return;
-        set(persistedAtom, { ...current, roomsCollapsed: action.collapsed });
-        return;
-      }
-
       if (!isValidThreadKey(action.threadKey)) return;
       const isPinned = current.pinnedThreadKeys.includes(action.threadKey);
       const pinnedThreadKeys = isPinned
         ? current.pinnedThreadKeys.filter((threadKey) => threadKey !== action.threadKey)
         : [action.threadKey, ...current.pinnedThreadKeys].slice(0, MAX_PINNED_SIDEBAR_THREADS);
       set(persistedAtom, { ...current, pinnedThreadKeys });
-    },
+    }
   );
 };
 
@@ -106,7 +92,7 @@ const threadSidebarPreferencesRegistry = createUserScopedAtomRegistry<ThreadSide
   {
     create: createThreadSidebarPreferencesAtom,
     getStorageKey: getThreadSidebarPreferencesStoreKey,
-  },
+  }
 );
 
 export const makeThreadSidebarPreferencesAtom = threadSidebarPreferencesRegistry.getOrCreate;

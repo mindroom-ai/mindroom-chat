@@ -107,7 +107,7 @@ import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
 import { useCallEmbed } from '../../../hooks/useCallEmbed';
-import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
+import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
 import { applyOrderOverride } from '../../../state/utils/applyOrderOverride';
@@ -579,168 +579,167 @@ export function Space() {
   return (
     <PageNav>
       <SpaceHeader />
-      <RecentThreadsPageNav>
-        <PageNavContent scrollRef={scrollRef}>
-          <Box direction="Column" gap="300">
-            {tombstoneEvent && (
-              <SpaceTombstone
-                roomId={space.roomId}
-                replacementRoomId={tombstoneEvent.getContent().replacement_room}
-              />
-            )}
-            <NavCategory>
-              <NavItem variant="Background" radii="400" aria-selected={lobbySelected}>
-                <NavLink to={getSpaceLobbyPath(getCanonicalAliasOrRoomId(mx, space.roomId))}>
-                  <NavItemContent>
-                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                      <Avatar size="200" radii="400">
-                        <Icon src={Icons.Flag} size="100" filled={lobbySelected} />
-                      </Avatar>
-                      <Box as="span" grow="Yes">
-                        <Text as="span" size="Inherit" truncate>
-                          Lobby
-                        </Text>
-                      </Box>
+      <PageNavContent scrollRef={scrollRef}>
+        <Box direction="Column" gap="300">
+          {tombstoneEvent && (
+            <SpaceTombstone
+              roomId={space.roomId}
+              replacementRoomId={tombstoneEvent.getContent().replacement_room}
+            />
+          )}
+          <NavCategory>
+            <NavItem variant="Background" radii="400" aria-selected={lobbySelected}>
+              <NavLink to={getSpaceLobbyPath(getCanonicalAliasOrRoomId(mx, space.roomId))}>
+                <NavItemContent>
+                  <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                    <Avatar size="200" radii="400">
+                      <Icon src={Icons.Flag} size="100" filled={lobbySelected} />
+                    </Avatar>
+                    <Box as="span" grow="Yes">
+                      <Text as="span" size="Inherit" truncate>
+                        Lobby
+                      </Text>
                     </Box>
-                  </NavItemContent>
-                </NavLink>
-              </NavItem>
-              <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
-                <NavLink to={getSpaceSearchPath(getCanonicalAliasOrRoomId(mx, space.roomId))}>
-                  <NavItemContent>
-                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                      <Avatar size="200" radii="400">
-                        <Icon src={Icons.Search} size="100" filled={searchSelected} />
-                      </Avatar>
-                      <Box as="span" grow="Yes">
-                        <Text as="span" size="Inherit" truncate>
-                          Message Search
-                        </Text>
-                      </Box>
+                  </Box>
+                </NavItemContent>
+              </NavLink>
+            </NavItem>
+            <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
+              <NavLink to={getSpaceSearchPath(getCanonicalAliasOrRoomId(mx, space.roomId))}>
+                <NavItemContent>
+                  <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                    <Avatar size="200" radii="400">
+                      <Icon src={Icons.Search} size="100" filled={searchSelected} />
+                    </Avatar>
+                    <Box as="span" grow="Yes">
+                      <Text as="span" size="Inherit" truncate>
+                        Message Search
+                      </Text>
                     </Box>
-                  </NavItemContent>
-                </NavLink>
-              </NavItem>
-            </NavCategory>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleRoomDragEnd}
-              onDragCancel={handleRoomDragCancel}
-              accessibility={{
-                announcements: {
-                  onDragStart({ active }) {
-                    const activeData = active.data.current as SortableRoomNavItemData | undefined;
-                    const roomId =
-                      activeData?.roomId ??
-                      parseRoomSortableId(active.id.toString())?.roomId ??
-                      active.id.toString();
-                    const label = mx.getRoom(roomId)?.name ?? roomId;
-                    return `Picked up Room ${label}. Use arrow keys to reorder. Press space to drop.`;
-                  },
-                  onDragOver() {
-                    return undefined;
-                  },
-                  onDragEnd() {
-                    return undefined;
-                  },
-                  onDragCancel() {
-                    return undefined;
-                  },
+                  </Box>
+                </NavItemContent>
+              </NavLink>
+            </NavItem>
+          </NavCategory>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleRoomDragEnd}
+            onDragCancel={handleRoomDragCancel}
+            accessibility={{
+              announcements: {
+                onDragStart({ active }) {
+                  const activeData = active.data.current as SortableRoomNavItemData | undefined;
+                  const roomId =
+                    activeData?.roomId ??
+                    parseRoomSortableId(active.id.toString())?.roomId ??
+                    active.id.toString();
+                  const label = mx.getRoom(roomId)?.name ?? roomId;
+                  return `Picked up Room ${label}. Use arrow keys to reorder. Press space to drop.`;
                 },
+                onDragOver() {
+                  return undefined;
+                },
+                onDragEnd() {
+                  return undefined;
+                },
+                onDragCancel() {
+                  return undefined;
+                },
+              },
+            }}
+          >
+            <NavCategory
+              style={{
+                height: virtualizer.getTotalSize(),
+                position: 'relative',
               }}
             >
-              <NavCategory
-                style={{
-                  height: virtualizer.getTotalSize(),
-                  position: 'relative',
-                }}
-              >
-                {(() => {
-                  const nonRoomTiles: React.ReactNode[] = [];
-                  const roomTilesByParentSpace = new Map<string, React.ReactNode[]>();
+              {(() => {
+                const nonRoomTiles: React.ReactNode[] = [];
+                const roomTilesByParentSpace = new Map<string, React.ReactNode[]>();
 
-                  virtualizer.getVirtualItems().forEach((vItem) => {
-                    const hierarchyItem = orderedHierarchy[vItem.index];
-                    const { roomId } = hierarchyItem ?? {};
-                    const room = mx.getRoom(roomId);
-                    if (!room || !hierarchyItem) return;
+                virtualizer.getVirtualItems().forEach((vItem) => {
+                  const hierarchyItem = orderedHierarchy[vItem.index];
+                  const { roomId } = hierarchyItem ?? {};
+                  const room = mx.getRoom(roomId);
+                  if (!room || !hierarchyItem) return;
 
-                    if (room.isSpaceRoom()) {
-                      const categoryId = makeNavCategoryId(space.roomId, roomId);
+                  if (room.isSpaceRoom()) {
+                    const categoryId = makeNavCategoryId(space.roomId, roomId);
 
-                      nonRoomTiles.push(
-                        <VirtualTile
-                          virtualItem={vItem}
-                          key={vItem.index}
-                          ref={virtualizer.measureElement}
-                        >
-                          <div
-                            style={{
-                              paddingTop: vItem.index === 0 ? undefined : config.space.S400,
-                            }}
-                          >
-                            <NavCategoryHeader>
-                              <RoomNavCategoryButton
-                                data-category-id={categoryId}
-                                onClick={handleCategoryClick}
-                                closed={closedCategories.has(categoryId)}
-                              >
-                                {roomId === space.roomId ? 'Rooms' : room?.name}
-                              </RoomNavCategoryButton>
-                            </NavCategoryHeader>
-                          </div>
-                        </VirtualTile>
-                      );
-                      return;
-                    }
-
-                    if (!isHierarchyRoom(hierarchyItem)) return;
-
-                    const roomTiles = roomTilesByParentSpace.get(hierarchyItem.parentId) ?? [];
-                    roomTiles.push(
+                    nonRoomTiles.push(
                       <VirtualTile
                         virtualItem={vItem}
                         key={vItem.index}
                         ref={virtualizer.measureElement}
                       >
-                        <SortableRoomNavItem
-                          parentSpaceId={hierarchyItem.parentId}
-                          room={room}
-                          selected={selectedRoomId === roomId}
-                          showAvatar={mDirects.has(roomId)}
-                          direct={mDirects.has(roomId)}
-                          linkPath={getToLink(roomId)}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
+                        <div
+                          style={{
+                            paddingTop: vItem.index === 0 ? undefined : config.space.S400,
+                          }}
+                        >
+                          <NavCategoryHeader>
+                            <RoomNavCategoryButton
+                              data-category-id={categoryId}
+                              onClick={handleCategoryClick}
+                              closed={closedCategories.has(categoryId)}
+                            >
+                              {roomId === space.roomId ? 'Rooms' : room?.name}
+                            </RoomNavCategoryButton>
+                          </NavCategoryHeader>
+                        </div>
                       </VirtualTile>
                     );
-                    roomTilesByParentSpace.set(hierarchyItem.parentId, roomTiles);
-                  });
+                    return;
+                  }
 
-                  return (
-                    <>
-                      {nonRoomTiles}
-                      {Array.from(roomTilesByParentSpace, ([parentSpaceId, roomTiles]) => (
-                        <SortableContext
-                          key={parentSpaceId}
-                          items={roomDndIdsByParentSpace.get(parentSpaceId) ?? []}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          {roomTiles}
-                        </SortableContext>
-                      ))}
-                    </>
+                  if (!isHierarchyRoom(hierarchyItem)) return;
+
+                  const roomTiles = roomTilesByParentSpace.get(hierarchyItem.parentId) ?? [];
+                  roomTiles.push(
+                    <VirtualTile
+                      virtualItem={vItem}
+                      key={vItem.index}
+                      ref={virtualizer.measureElement}
+                    >
+                      <SortableRoomNavItem
+                        parentSpaceId={hierarchyItem.parentId}
+                        room={room}
+                        selected={selectedRoomId === roomId}
+                        showAvatar={mDirects.has(roomId)}
+                        direct={mDirects.has(roomId)}
+                        linkPath={getToLink(roomId)}
+                        notificationMode={getRoomNotificationMode(
+                          notificationPreferences,
+                          room.roomId
+                        )}
+                      />
+                    </VirtualTile>
                   );
-                })()}
-              </NavCategory>
-            </DndContext>
-          </Box>
-        </PageNavContent>
-      </RecentThreadsPageNav>
+                  roomTilesByParentSpace.set(hierarchyItem.parentId, roomTiles);
+                });
+
+                return (
+                  <>
+                    {nonRoomTiles}
+                    {Array.from(roomTilesByParentSpace, ([parentSpaceId, roomTiles]) => (
+                      <SortableContext
+                        key={parentSpaceId}
+                        items={roomDndIdsByParentSpace.get(parentSpaceId) ?? []}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {roomTiles}
+                      </SortableContext>
+                    ))}
+                  </>
+                );
+              })()}
+            </NavCategory>
+          </DndContext>
+          <ThreadNavCategory />
+        </Box>
+      </PageNavContent>
     </PageNav>
   );
 }
