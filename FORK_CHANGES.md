@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Native iOS attachment save prompt (2026-07-15)
+
+- Status: implementation, full local validation, and independent review are complete on `fix/ios-attachment-download`; ready for PR review.
+- Symptom: attachment download actions fetch or decrypt the file, but the browser-oriented `file-saver` handoff does not open a usable download destination in the Capacitor iOS app.
+- Root cause: the native app renders inside `WKWebView`, where a browser download initiated after an asynchronous media request cannot present iOS's file destination picker.
+- Fix: attachment, image, PDF, audio/file-header, and MindRoom long-response download paths now share a platform save helper.
+  Web and Android retain the existing `file-saver` path; native iOS streams the downloaded bytes in bounded chunks to a temporary file through a Capacitor bridge, then presents `UIDocumentPickerViewController` in export-as-copy mode.
+- The native picker resolves both successful saves and user cancellation cleanly, rejects overlapping prompts, sanitizes the temporary filename, and removes its private staging directory after the picker closes.
+- Failed save operations enter the existing async error state instead of leaving rejected event promises; image, PDF, file, and long-response actions visibly offer a retry.
+- Coverage pins native iOS bridge selection, bounded ordered chunk transfer, cleanup on failure, cancellation, object-URL loading, unchanged browser fallback behavior, and viewer/file retry behavior without redundant media downloads.
+- Validation: 11 focused tests and the full Vitest suite pass (423 files / 3,212 tests), as do typecheck, the production/PWA build, Capacitor iOS sync, an unsigned iOS Simulator workspace build, touched-file Prettier, and `git diff --check`.
+  Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review caught full-file base64 copies that could exhaust iOS memory on large attachments and save failures without visible retry feedback.
+  Re-review then caught a rejected UIKit presentation leaving the session active and three retry paths fetching the same bytes again.
+  A final audit also caught weak failed-presentation verification and a cache missing source identity.
+  Chunked staging, verified picker presentation and dismissal cleanup, async-state retry handling, and source-keyed blob reuse now address all findings; final independent re-review found no actionable issues.
+
 ### Simple Mode room access and view choice (2026-07-15)
 
 - Status: implementation, validation, independent review, and PR review remediation are complete on PR #160; ready for review.

@@ -1,4 +1,4 @@
-import React, { ComponentProps, ReactNode, useCallback, useState } from 'react';
+import React, { ComponentProps, ReactNode, useCallback, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -14,7 +14,6 @@ import {
   TooltipProvider,
   as,
 } from 'folds';
-import FileSaver from 'file-saver';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import FocusTrap from 'focus-trap-react';
 import { IFileInfo } from '../../../../types/matrix/common';
@@ -36,6 +35,7 @@ import {
   mxcUrlToHttp,
 } from '../../../utils/matrix';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { saveFile } from '../../../mindroom/native/nativeFileSave';
 import { ModalWide } from '../../../styles/Modal.css';
 
 const renderErrorButton = (retry: () => void, text: string) => (
@@ -279,25 +279,43 @@ export function DownloadFile({
 }: DownloadFileProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const downloadedFileRef = useRef<{
+    url: string;
+    mimeType: string;
+    encInfo?: EncryptedAttachmentInfo;
+    blob: Blob;
+  }>();
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
+      const cachedFile = downloadedFileRef.current;
+      let fileContent =
+        cachedFile?.url === url &&
+        cachedFile.mimeType === mimeType &&
+        cachedFile.encInfo === encInfo
+          ? cachedFile.blob
+          : undefined;
+      if (!fileContent) {
+        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
+        if (!mediaUrl) throw new Error('Invalid media URL');
+        fileContent = encInfo
+          ? await downloadEncryptedMedia(mediaUrl, (encBuf) =>
+              decryptFile(encBuf, mimeType, encInfo)
+            )
+          : await downloadMedia(mediaUrl);
+        downloadedFileRef.current = { url, mimeType, encInfo, blob: fileContent };
+      }
 
-      const fileURL = URL.createObjectURL(fileContent);
-      FileSaver.saveAs(fileURL, body);
-      return fileURL;
+      await saveFile(fileContent, body);
+      return fileContent;
     }, [mx, url, useAuthentication, mimeType, encInfo, body])
   );
-  useBlobUrlCleanup(downloadState);
-
+  const handleDownload = () => {
+    void download().catch(() => undefined);
+  };
   return downloadState.status === AsyncStatus.Error ? (
     renderErrorButton(
-      download,
+      handleDownload,
       errorButtonText ?? `Retry Download (${bytesToSize(info.size ?? 0)})`
     )
   ) : (
@@ -306,11 +324,7 @@ export function DownloadFile({
       fill="Soft"
       radii="300"
       size={buttonSize}
-      onClick={() =>
-        downloadState.status === AsyncStatus.Success
-          ? FileSaver.saveAs(downloadState.data, body)
-          : download()
-      }
+      onClick={handleDownload}
       disabled={downloadState.status === AsyncStatus.Loading}
       before={
         downloadState.status === AsyncStatus.Loading ? (

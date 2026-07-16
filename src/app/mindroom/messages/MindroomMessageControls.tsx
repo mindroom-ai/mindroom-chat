@@ -16,7 +16,6 @@ import {
 } from 'folds';
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import FileSaver from 'file-saver';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -34,11 +33,16 @@ import {
   getMindroomAiRunUsageCacheLabel,
   getMindroomAiRunUsageLabel,
 } from './aiRunDisplay';
-import { MindroomLongTextSource, getMindroomLongTextSource } from './longText';
+import {
+  MindroomLongTextSource,
+  getMindroomLongTextSource,
+  getMindroomLongTextSourceIdentity,
+} from './longText';
 import {
   downloadMindroomLongTextSidecarBlob,
   getMindroomLongTextDownloadName,
 } from './longTextDownload';
+import { saveFile } from '../native/nativeFileSave';
 import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
 
@@ -254,14 +258,23 @@ export const MindroomDownloadOriginalMenuItem = as<
 >(({ source, onClose, ...props }, ref) => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const downloadedFileRef = useRef<{ identity: string; blob: Blob }>();
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
-      const blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
-      FileSaver.saveAs(blob, getMindroomLongTextDownloadName(source));
+      const identity = getMindroomLongTextSourceIdentity(source);
+      let blob = downloadedFileRef.current?.identity === identity && downloadedFileRef.current.blob;
+      if (!blob) {
+        blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
+        downloadedFileRef.current = { identity, blob };
+      }
+      await saveFile(blob, getMindroomLongTextDownloadName(source));
       onClose?.();
     }, [mx, source, useAuthentication, onClose])
   );
+  const handleDownload = () => {
+    void download().catch(() => undefined);
+  };
 
   return (
     <MenuItem
@@ -270,11 +283,14 @@ export const MindroomDownloadOriginalMenuItem = as<
         downloadState.status === AsyncStatus.Loading ? (
           <Spinner fill="Soft" size="100" />
         ) : (
-          <Icon size="100" src={Icons.Download} />
+          <Icon
+            size="100"
+            src={downloadState.status === AsyncStatus.Error ? Icons.Warning : Icons.Download}
+          />
         )
       }
       radii="300"
-      onClick={download}
+      onClick={handleDownload}
       aria-disabled={downloadState.status === AsyncStatus.Loading}
       {...props}
       ref={ref}
@@ -282,6 +298,8 @@ export const MindroomDownloadOriginalMenuItem = as<
       <Text className={css.MenuItemText} as="span" size="T300" truncate>
         {downloadState.status === AsyncStatus.Loading
           ? 'Downloading Original...'
+          : downloadState.status === AsyncStatus.Error
+          ? 'Retry Download Original'
           : 'Download Original'}
       </Text>
     </MenuItem>
