@@ -86,6 +86,22 @@ describe('fork feature ownership edges', () => {
     expect(resolvedDependencies(consumer)).toContain(owner);
   });
 
+  it('owns cross-room thread indexing at persistent client scope', () => {
+    const controller = mindroomFile('cross-room-threads/useCrossRoomThreadIndex.ts');
+    const index = mindroomFile('cross-room-threads/crossRoomThreadIndex.ts');
+
+    expect(resolvedDependencies(mindroomFile('client/MindroomClientNonUIFeatures.tsx'))).toContain(
+      controller
+    );
+    [
+      mindroomFile('recent-threads/ThreadNavCategory.tsx'),
+      appFile('pages/client/threads/Threads.tsx'),
+    ].forEach((consumer) => {
+      expect(resolvedDependencies(consumer)).toContain(index);
+      expect(resolvedDependencies(consumer)).not.toContain(controller);
+    });
+  });
+
   it('keeps mark-read behavior behind MindRoom notification components', () => {
     const consumers = [
       'features/room-nav/RoomNavItem.tsx',

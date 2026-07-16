@@ -164,9 +164,8 @@ export function Direct() {
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
 
   const sortedDirects = useMemo(() => {
-    const items = Array.from(directs).sort(factoryRoomIdByActivity(mx));
     if (closedCategories.has(DEFAULT_CATEGORY_ID)) return [];
-    return items;
+    return Array.from(directs).sort(factoryRoomIdByActivity(mx));
   }, [mx, directs, closedCategories]);
 
   const virtualizer = useVirtualizer({

@@ -67,7 +67,6 @@ import { useSpace } from '../../../hooks/useSpace';
 import { VirtualTile } from '../../../components/virtualizer';
 import { RoomNavCategoryButton } from '../../../features/room-nav';
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
-import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { useRoomName } from '../../../hooks/useRoomMeta';
@@ -106,7 +105,6 @@ import { ContainerColor } from '../../../styles/ContainerColor.css';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
-import { useCallEmbed } from '../../../hooks/useCallEmbed';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
@@ -452,7 +450,6 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mDirects = useAtomValue(mDirectAtom);
-  const roomToUnread = useAtomValue(roomToUnreadAtom);
   const allRooms = useAtomValue(allRoomsAtom);
   const allJoinedRooms = useMemo(() => new Set(allRooms), [allRooms]);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
@@ -462,7 +459,6 @@ export function Space() {
   const selectedRoomId = useSelectedRoom();
   const lobbySelected = useSpaceLobbySelected(spaceIdOrAlias);
   const searchSelected = useSpaceSearchSelected(spaceIdOrAlias);
-  const callEmbed = useCallEmbed();
 
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
 
@@ -480,15 +476,8 @@ export function Space() {
     space.roomId,
     getRoom,
     useCallback(
-      (parentId, roomId) => {
-        if (!closedCategories.has(makeNavCategoryId(space.roomId, parentId))) {
-          return false;
-        }
-        const showRoomAnyway =
-          roomToUnread.has(roomId) || roomId === selectedRoomId || callEmbed?.roomId === roomId;
-        return !showRoomAnyway;
-      },
-      [space.roomId, closedCategories, roomToUnread, selectedRoomId, callEmbed]
+      (parentId) => closedCategories.has(makeNavCategoryId(space.roomId, parentId)),
+      [space.roomId, closedCategories]
     ),
     useCallback(
       (sId) => closedCategories.has(makeNavCategoryId(space.roomId, sId)),

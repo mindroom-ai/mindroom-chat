@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Text } from 'folds';
@@ -10,7 +10,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { makeNavCategoryId } from '../../state/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
-import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
+import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
 import { buildSidebarThreadEntries } from './threadNavCategoryUtils';
 import { ThreadNavItem } from './ThreadNavItem';
 import { makeThreadSidebarPreferencesAtom } from './threadSidebarPreferences';
@@ -25,7 +25,7 @@ export function ThreadNavCategory() {
   const selectedRoomId = useSelectedRoom();
   const [searchParams] = useSearchParams();
   const selectedThreadId = searchParams.get('threadId');
-  const indexSnapshot = useCrossRoomThreadIndex();
+  const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const preferencesAtom = useMemo(() => makeThreadSidebarPreferencesAtom(userId), [userId]);
   const [preferences, setPreferences] = useAtom(preferencesAtom);

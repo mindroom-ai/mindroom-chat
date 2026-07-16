@@ -7,13 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import {
+  crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../cross-room-threads/crossRoomThreadIndex';
 import { THREAD_NAV_CATEGORY_ID, ThreadNavCategory } from './ThreadNavCategory';
 import { clearThreadSidebarPreferencesStore } from './threadSidebarPreferences';
-
-const { indexSnapshotMock } = vi.hoisted(() => ({ indexSnapshotMock: vi.fn() }));
 
 enableMapSet();
 
@@ -49,9 +48,6 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
 }));
 vi.mock('../../hooks/router/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
-vi.mock('../cross-room-threads/useCrossRoomThreadIndex', () => ({
-  useCrossRoomThreadIndex: indexSnapshotMock,
-}));
 vi.mock('./ThreadNavItem', () => ({
   ThreadNavItem: ({
     entry,
@@ -99,14 +95,16 @@ describe('ThreadNavCategory', () => {
     });
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
     clearThreadSidebarPreferencesStore(USER_ID);
-    indexSnapshotMock.mockReturnValue({
+    store = createStore();
+    store.set(crossRoomThreadIndexAtom, {
+      version: 1,
       bootstrapped: true,
+      eventIdToThreadRoots: new Map(),
       entries: new Map([
         [older.key, older],
         [newer.key, newer],
       ]),
     });
-    store = createStore();
   });
 
   afterEach(() => {

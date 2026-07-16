@@ -18,7 +18,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { factoryRoomIdByActivity, factoryRoomIdByAtoZ } from '../../../utils/sort';
+import { factoryRoomIdByAtoZ } from '../../../utils/sort';
 import {
   NavButton,
   NavCategory,
@@ -226,13 +226,8 @@ export function Home() {
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
 
   const sortedRooms = useMemo(() => {
-    const items = Array.from(rooms).sort(
-      closedCategories.has(DEFAULT_CATEGORY_ID)
-        ? factoryRoomIdByActivity(mx)
-        : factoryRoomIdByAtoZ(mx)
-    );
     if (closedCategories.has(DEFAULT_CATEGORY_ID)) return [];
-    return items;
+    return Array.from(rooms).sort(factoryRoomIdByAtoZ(mx));
   }, [mx, rooms, closedCategories]);
 
   const virtualizer = useVirtualizer({
