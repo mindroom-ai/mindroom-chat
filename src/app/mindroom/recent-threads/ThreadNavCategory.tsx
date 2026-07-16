@@ -10,6 +10,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { makeNavCategoryId } from '../../state/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
+import { mDirectAtom } from '../../state/mDirectList';
 import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
 import { buildSidebarThreadEntries } from './threadNavCategoryUtils';
 import { ThreadNavItem } from './ThreadNavItem';
@@ -26,12 +27,18 @@ export function ThreadNavCategory() {
   const [searchParams] = useSearchParams();
   const selectedThreadId = searchParams.get('threadId');
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const preferencesAtom = useMemo(() => makeThreadSidebarPreferencesAtom(userId), [userId]);
   const [preferences, setPreferences] = useAtom(preferencesAtom);
   const entries = useMemo(
-    () => buildSidebarThreadEntries(indexSnapshot.entries.values(), preferences.pinnedThreadKeys),
-    [indexSnapshot.entries, preferences.pinnedThreadKeys]
+    () =>
+      buildSidebarThreadEntries(
+        indexSnapshot.entries.values(),
+        preferences.pinnedThreadKeys,
+        directRoomIds
+      ),
+    [directRoomIds, indexSnapshot.entries, preferences.pinnedThreadKeys]
   );
   const closed = closedCategories.has(THREAD_NAV_CATEGORY_ID);
   const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId) =>

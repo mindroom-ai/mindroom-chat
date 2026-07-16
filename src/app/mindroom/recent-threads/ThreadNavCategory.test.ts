@@ -6,6 +6,7 @@ import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
+import { mDirectAtom } from '../../state/mDirectList';
 import {
   crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
@@ -81,7 +82,7 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
   } as CrossRoomThreadIndexEntry);
 
 const older = makeEntry('!room:example.org', '$older', 10);
-const newer = makeEntry('!room:example.org', '$newer', 20);
+const newer = makeEntry('!newer-room:example.org', '$newer', 20);
 
 describe('ThreadNavCategory', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -172,5 +173,17 @@ describe('ThreadNavCategory', () => {
         .findAll((node) => node.props['data-thread-key'])
         .map((node) => node.props['data-thread-key'])
     ).toEqual([older.key, newer.key]);
+  });
+
+  it('does not render threads from direct-message rooms', () => {
+    store.set(mDirectAtom, { type: 'UPDATE', rooms: new Set([newer.roomId]) });
+
+    renderCategory();
+
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([older.key]);
   });
 });

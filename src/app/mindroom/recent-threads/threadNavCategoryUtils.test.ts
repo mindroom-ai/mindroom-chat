@@ -7,14 +7,17 @@ const makeEntry = ({
   lastActivityTs,
   isInvolved = true,
   isResolved = false,
+  roomId = key,
 }: {
   key: string;
   lastActivityTs: number;
   isInvolved?: boolean;
   isResolved?: boolean;
+  roomId?: string;
 }): CrossRoomThreadIndexEntry =>
   ({
     key,
+    roomId,
     lastActivityTs,
     isInvolved,
     isUnread: false,
@@ -58,11 +61,25 @@ describe('buildSidebarThreadEntries', () => {
     ).toEqual(['unresolved']);
   });
 
+  it('excludes threads from direct-message rooms even when they are pinned', () => {
+    const roomThread = makeEntry({ key: 'room', lastActivityTs: 10, roomId: '!room' });
+    const directThread = makeEntry({ key: 'direct', lastActivityTs: 20, roomId: '!direct' });
+
+    expect(
+      buildSidebarThreadEntries([roomThread, directThread], ['direct'], new Set(['!direct'])).map(
+        (entry) => entry.key
+      )
+    ).toEqual(['room']);
+  });
+
   it('caps the compact sidebar list after sorting', () => {
     const entries = Array.from({ length: 5 }, (_, index) =>
       makeEntry({ key: `${index}`, lastActivityTs: index })
     );
 
-    expect(buildSidebarThreadEntries(entries, [], 2).map((entry) => entry.key)).toEqual(['4', '3']);
+    expect(buildSidebarThreadEntries(entries, [], new Set(), 2).map((entry) => entry.key)).toEqual([
+      '4',
+      '3',
+    ]);
   });
 });
