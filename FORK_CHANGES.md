@@ -4,7 +4,7 @@
 
 ### Guarded App Store review release (2026-07-15)
 
-- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, and independent self-review are complete on PR #166; CI and AI review remain.
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, and confirmed PR review remediation are complete on PR #166; final CI and bot re-review remain.
 - Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
 - A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
 - A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
@@ -17,6 +17,10 @@
 - Full validation after rebasing latest `dev` passes the complete Vitest suite with 426 files and 3,241 tests, typecheck, the production and PWA build, the App Store preflight, Fastfile Ruby syntax, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent self-review caught metadata failure paths that could leave Apple's demo-account-required flag disabled when a later upload step failed, so both metadata entry points now restore that flag in an `ensure` path and the guarded release revalidates all review access before screenshot upload or submission.
+- PR review: Gemini caught undefined validation input producing a raw JavaScript error, a missing App Store app guard in final verification, and a fragile Fastfile source-text assertion.
+  Defaults now produce aggregated validation failures, the lane reports a direct missing-app error, and the formatting-coupled test is replaced by a missing-input behavior regression.
+  Greptile caught a short fixed review-state polling window and screenshot digest tracking wider than the documented per-device invariant.
+  Polling now defaults to almost four minutes with validated environment overrides, and digest tracking resets for each device class.
 
 ### Restore compact thread-list scroll position (2026-07-15)
 

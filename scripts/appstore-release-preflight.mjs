@@ -49,7 +49,12 @@ export function expectedReleaseConfirmation(appVersion, buildNumber) {
   return `submit ${appVersion} (${buildNumber}) for review`;
 }
 
-export function validateReleaseInput({ appVersion, buildNumber, confirmation, releaseNotes }) {
+export function validateReleaseInput({
+  appVersion = '',
+  buildNumber = '',
+  confirmation = '',
+  releaseNotes = '',
+} = {}) {
   const failures = [];
   const expectedConfirmation = expectedReleaseConfirmation(appVersion, buildNumber);
 
@@ -119,8 +124,8 @@ export function validateScreenshotSet(screenshotDir) {
     failures.push(`Unexpected screenshots: ${unexpectedFilenames.join(', ')}.`);
   }
 
-  const digests = new Map();
   APP_STORE_SCREENSHOT_SETS.forEach((device) => {
+    const digests = new Map();
     device.filenames.forEach((filename) => {
       const filePath = path.join(screenshotDir, filename);
       if (!fs.existsSync(filePath)) return;

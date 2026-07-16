@@ -100,6 +100,8 @@ The lane performs these checks before submission:
 The lane intentionally does not build or upload a new binary.
 The reviewed binary must be the already processed Xcode Cloud build from the intended `dev` commit.
 The lane can safely stop after a validation or upload error, but inspect App Store Connect before rerunning because metadata or screenshots may already have been updated.
+Post-submission verification polls 24 times at 10-second intervals by default, allowing almost four minutes for App Store Connect to expose the new review state.
+Set positive integer `APP_STORE_REVIEW_POLL_ATTEMPTS` or `APP_STORE_REVIEW_POLL_INTERVAL_SECONDS` values only when Apple latency requires a different window.
 
 ## Lanes
 

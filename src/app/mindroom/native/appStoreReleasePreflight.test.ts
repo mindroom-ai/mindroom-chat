@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -77,6 +77,10 @@ describe('validateReleaseInput', () => {
       })
     ).toThrow(expectedError);
   });
+
+  it('reports validation failures instead of crashing when called without input', () => {
+    expect(() => validateReleaseInput()).toThrowError(/APP_STORE_VERSION/);
+  });
 });
 
 describe('validateScreenshotSet', () => {
@@ -106,19 +110,5 @@ describe('Fastlane App Store release contract', () => {
     expect(existsSync(join(process.cwd(), 'ios/App/fastlane/metadata/primary_category.txt'))).toBe(
       false
     );
-  });
-
-  it('requires review access before the guarded lane can submit with manual release', async () => {
-    const fastfile = await readFile(join(process.cwd(), 'ios/App/fastlane/Fastfile'), 'utf8');
-    const strictReviewGuard = fastfile.indexOf(
-      'ensure_review_access(\n      app_version: app_version'
-    );
-    const submission = fastfile.indexOf('submit_for_review: true');
-
-    expect(strictReviewGuard).toBeGreaterThan(0);
-    expect(submission).toBeGreaterThan(strictReviewGuard);
-    expect(fastfile).toContain('demo_account_required: true');
-    expect(fastfile).toContain('automatic_release: false');
-    expect(fastfile).not.toContain('automatic_release: true');
   });
 });

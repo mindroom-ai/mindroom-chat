@@ -278,6 +278,18 @@ platform :ios do
     app_version = options[:app_version]
     platform = Spaceship::ConnectAPI::Platform::IOS
     app = Spaceship::ConnectAPI::App.find("chat.mindroom.app")
+    UI.user_error!("Could not find chat.mindroom.app in App Store Connect.") unless app
+
+    poll_attempts_value = ENV.fetch("APP_STORE_REVIEW_POLL_ATTEMPTS", "24")
+    poll_interval_value = ENV.fetch("APP_STORE_REVIEW_POLL_INTERVAL_SECONDS", "10")
+    unless poll_attempts_value.match?(/\A[1-9][0-9]*\z/) && poll_interval_value.match?(/\A[1-9][0-9]*\z/)
+      UI.user_error!(
+        "APP_STORE_REVIEW_POLL_ATTEMPTS and APP_STORE_REVIEW_POLL_INTERVAL_SECONDS must be positive integers."
+      )
+    end
+    poll_attempts = poll_attempts_value.to_i
+    poll_interval = poll_interval_value.to_i
+
     accepted_states = [
       Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::WAITING_FOR_REVIEW,
       Spaceship::ConnectAPI::ReviewSubmission::ReviewSubmissionState::IN_REVIEW,
@@ -285,14 +297,14 @@ platform :ios do
     version = nil
     submission = nil
 
-    12.times do |attempt|
-      version = app&.get_edit_app_store_version(platform: platform)
-      submission = app&.get_in_progress_review_submission(platform: platform)
+    poll_attempts.times do |attempt|
+      version = app.get_edit_app_store_version(platform: platform)
+      submission = app.get_in_progress_review_submission(platform: platform)
       break if version&.version_string == app_version && accepted_states.include?(submission&.state)
 
-      if attempt < 11
+      if attempt < poll_attempts - 1
         UI.message("Waiting for App Store Connect to confirm the review submission...")
-        sleep(5)
+        sleep(poll_interval)
       end
     end
 
