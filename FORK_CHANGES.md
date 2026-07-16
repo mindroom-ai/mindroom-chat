@@ -4,7 +4,7 @@
 
 ### Guarded App Store review release (2026-07-15)
 
-- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, and confirmed PR review remediation are complete on PR #166; final CI and bot re-review remain.
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, final CI, and bot re-review are complete on PR #166; ready for human review.
 - Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
 - A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
 - A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
@@ -21,6 +21,9 @@
   Defaults now produce aggregated validation failures, the lane reports a direct missing-app error, and the formatting-coupled test is replaced by a missing-input behavior regression.
   Greptile caught a short fixed review-state polling window and screenshot digest tracking wider than the documented per-device invariant.
   Polling now defaults to almost four minutes with validated environment overrides, and digest tracking resets for each device class.
+- Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings, and every inline review thread is resolved.
+  Web, Android, Docker, lockfile, and PR build checks pass on the remediation commit.
+  CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than additional findings.
 
 ### Restore compact thread-list scroll position (2026-07-15)
 
