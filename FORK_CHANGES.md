@@ -4,7 +4,7 @@
 
 ### Native iOS attachment save prompt (2026-07-15)
 
-- Status: implementation, full local validation, and independent review are complete on `fix/ios-attachment-download`; ready for PR review.
+- Status: implementation, full local validation, and independent review are complete on PR #162; ready for PR review.
 - Symptom: attachment download actions fetch or decrypt the file, but the browser-oriented `file-saver` handoff does not open a usable download destination in the Capacitor iOS app.
 - Root cause: the native app renders inside `WKWebView`, where a browser download initiated after an asynchronous media request cannot present iOS's file destination picker.
 - Fix: attachment, image, PDF, audio/file-header, and MindRoom long-response download paths now share a platform save helper.
