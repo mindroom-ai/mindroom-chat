@@ -6,7 +6,7 @@ import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 
 type PageRootProps = {
-  nav?: ReactNode;
+  nav: ReactNode;
   children: ReactNode;
 };
 

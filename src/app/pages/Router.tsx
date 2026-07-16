@@ -71,8 +71,8 @@ import {
 import {
   MindroomPageRoot,
   MindroomSidebarNav,
-  MindroomSidebarProvider,
-} from '../mindroom/sidebar/MindroomSidebarNav';
+  MindroomNavigationProvider,
+} from '../mindroom/sidebar/MindroomNavigation';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -131,11 +131,11 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
                   <ClientBindAtoms>
                     <ClientNonUIFeatures>
                       <CallEmbedProvider>
-                        <MindroomSidebarProvider>
+                        <MindroomNavigationProvider>
                           <ClientLayout nav={<MindroomSidebarNav />}>
                             <Outlet />
                           </ClientLayout>
-                        </MindroomSidebarProvider>
+                        </MindroomNavigationProvider>
                         <CallStatusRenderer />
                         <UserRoomProfileRenderer />
                       </CallEmbedProvider>

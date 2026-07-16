@@ -2,21 +2,22 @@
 
 ## Runbook
 
-### Desktop sidebar collapse control (2026-07-15)
+### Desktop page-navigation collapse control (2026-07-15)
 
-- Status: the persistent-icon-rail adjustment, visual verification, validation, and independent re-review are complete on PR #161; ready for review.
+- Status: implementation, persistent-icon-rail adjustment, visual verification, cleanup audit, validation, and independent re-review are complete on PR #161; ready for review.
 - Desktop users can hide the contextual room, space, or section panel while the narrow icon rail remains available for primary navigation.
 - The bottom rail control switches between left and right chevrons, so the main content reclaims the contextual panel slot without requiring a floating viewport-edge button.
-- The hidden choice is stored per Matrix user and restored on later mounts.
+- The collapsed choice is stored per Matrix user and restored on later mounts.
 - Tablet and mobile keep their existing responsive navigation behavior and do not show desktop collapse controls.
-- The toggle exposes matching tooltips and accessible Hide sidebar and Show sidebar names for its expanded and collapsed states.
-- Validation: 15 focused layout and sidebar tests and the full Vitest suite pass (423 files / 3,208 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
-- Focused coverage verifies icon-rail preservation, contextual navigation and divider removal, main-content preservation, restoration, persistence, malformed storage, session restoration, and tablet/mobile behavior.
-- Visual validation against the disposable Matrix stack confirms that hiding the sidebar removes the rooms/recent-threads panel, keeps the icon rail visible, and expands the main content beside that rail.
-- Independent review found no implementation issues, caught missing chevron-direction and tooltip assertions, and approved after coverage pinned both toggle states with no findings remaining.
-- PR review: the shared anonymous preference fallback was confirmed and removed, so navigation stays visible without persistence until an active session is restored; malformed persisted values now have regression coverage.
+- The toggle exposes matching tooltips and accessible Collapse navigation panel and Expand navigation panel names for its expanded and collapsed states.
+- Validation: 14 focused layout and sidebar tests and the full Vitest suite pass (423 files / 3,207 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Focused coverage verifies icon-rail preservation, contextual navigation and divider removal, main-content preservation, restoration, persistence, malformed storage, and tablet/mobile behavior.
+- Visual validation against the disposable Matrix stack confirms that collapsing page navigation removes the rooms/recent-threads panel, keeps the icon rail visible, and expands the main content beside that rail.
+- Independent reviews caught missing chevron-direction and tooltip assertions, then an unreachable no-session fallback with a silent no-op context. Coverage and provider wiring were tightened, and both re-reviews completed with no findings remaining.
+- PR review: the shared anonymous preference fallback was removed; the final provider reads the guaranteed user ID from its in-scope Matrix client and has no anonymous or no-session state, while malformed persisted values have regression coverage.
 - PR review: the window listener stub remains necessary because Vitest runs in the Node environment, and strict runtime boolean validation remains necessary because the local-storage helper generic performs only a TypeScript cast.
 - User review clarified that the useful final behavior is to keep the narrow primary-navigation rail visible and collapse only the wider contextual page navigation.
+- Cleanup audit removed the obsolete full-sidebar vocabulary and storage key, unreachable session fallback, and silent no-op context; it also narrowed the state API to one boolean setter, restored the required `PageRoot.nav` contract, and consolidated repeated assertions. Reference and lint scans found no orphaned feature code or imports.
 
 ### Simple Mode room access and view choice (2026-07-15)
 

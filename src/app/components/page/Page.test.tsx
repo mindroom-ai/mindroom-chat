@@ -37,7 +37,7 @@ vi.mock('../../hooks/useScreenSize', () => ({
 }));
 
 describe('PageRoot', () => {
-  it('removes the desktop navigation divider when navigation is hidden', () => {
+  it('removes the desktop navigation divider when navigation is absent', () => {
     const visible = create(
       <PageRoot nav={<nav data-testid="page-nav" />}>
         <main data-testid="page-content" />
@@ -47,14 +47,14 @@ describe('PageRoot', () => {
     expect(visible.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
     expect(visible.root.findAllByProps({ 'data-testid': 'page-nav-divider' })).toHaveLength(1);
 
-    const hidden = create(
+    const absent = create(
       <PageRoot nav={null}>
         <main data-testid="page-content" />
       </PageRoot>
     );
 
-    expect(hidden.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
-    expect(hidden.root.findAllByProps({ 'data-testid': 'page-nav-divider' })).toHaveLength(0);
-    expect(hidden.root.findAllByProps({ 'data-testid': 'page-content' })).toHaveLength(1);
+    expect(absent.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
+    expect(absent.root.findAllByProps({ 'data-testid': 'page-nav-divider' })).toHaveLength(0);
+    expect(absent.root.findAllByProps({ 'data-testid': 'page-content' })).toHaveLength(1);
   });
 });

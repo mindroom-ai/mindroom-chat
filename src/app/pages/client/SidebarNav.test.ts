@@ -81,10 +81,12 @@ describe('SidebarNav', () => {
   it('renders an optional footer below the sticky navigation stack', () => {
     const renderer = renderSidebarNav(
       {},
-      React.createElement('button', { 'aria-label': 'Hide sidebar' })
+      React.createElement('button', { 'aria-label': 'Collapse navigation panel' })
     );
 
-    expect(renderer.root.findAllByProps({ 'aria-label': 'Hide sidebar' })).toHaveLength(1);
+    expect(
+      renderer.root.findAllByProps({ 'aria-label': 'Collapse navigation panel' })
+    ).toHaveLength(1);
 
     renderer.unmount();
   });
