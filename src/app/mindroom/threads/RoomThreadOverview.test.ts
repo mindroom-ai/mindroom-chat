@@ -191,12 +191,15 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('keeps only compact and threaded view controls in an agentless simple-mode room', () => {
+  it('keeps compact, threaded, and sort controls in an agentless simple-mode room', () => {
     simpleModeState.enabled = true;
+    const onSortDirectionChange = vi.fn();
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
         hasMindroomAgents: false,
+        onSortDirectionChange,
+        state: makeDefaultState({ sortBy: 'natural' }),
         viewMode: 'compact',
       })
     );
@@ -212,11 +215,19 @@ describe('RoomThreadOverview', () => {
     expect(
       renderer.root.findAll((node) => node.props['data-simple-unresolved-toggle'] === 'true')
     ).toHaveLength(0);
+    const sortButton = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
+    expect(sortButton.props['data-sort-by']).toBe('natural');
+
+    act(() => {
+      sortButton.props.onClick();
+    });
+
+    expect(onSortDirectionChange).toHaveBeenCalledTimes(1);
 
     renderer.unmount();
   });
 
-  it('keeps compact, threaded, and unresolved controls in a simple-mode agent room', () => {
+  it('keeps compact, threaded, unresolved, and sort controls in a simple-mode agent room', () => {
     simpleModeState.enabled = true;
     const onViewModeChange = vi.fn();
     const renderer = create(
@@ -238,6 +249,12 @@ describe('RoomThreadOverview', () => {
     expect(
       renderer.root.findAll((node) => node.props['data-simple-unresolved-toggle'] === 'true')
     ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.props['data-sort-by'] !== undefined)).toHaveLength(
+      1
+    );
+    expect(
+      renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
+    ).toHaveLength(0);
 
     act(() => {
       viewToggles[0].props.onClick();

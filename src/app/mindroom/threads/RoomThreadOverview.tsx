@@ -741,6 +741,60 @@ function RoomViewModeControls({
   );
 }
 
+function ThreadSortControl({
+  state,
+  active,
+  onChange,
+}: {
+  state: ThreadFilterState;
+  active: boolean;
+  onChange: () => void;
+}) {
+  const sortLabel =
+    state.sortBy === 'natural'
+      ? 'Threads in timeline order'
+      : state.sortDirection === 'desc'
+      ? 'Sort threads by last reply, newest first'
+      : 'Sort threads by last reply, oldest first';
+
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(220) }}>
+          <Text size="T200">{sortLabel}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(css.SortButton, active && css.SortButtonActive)}
+          onClick={onChange}
+          aria-label={sortLabel}
+          data-sort-by={state.sortBy}
+          data-sort-direction={state.sortDirection}
+        >
+          {state.sortBy === 'natural' ? (
+            <Text size="T200">Natural</Text>
+          ) : (
+            <>
+              <Text size="T200">Last Reply</Text>
+              {state.sortDirection === 'desc' ? (
+                <IconSortDescending size={14} stroke={1.8} aria-hidden="true" />
+              ) : (
+                <IconSortAscending size={14} stroke={1.8} aria-hidden="true" />
+              )}
+            </>
+          )}
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
+
 export function RoomThreadOverview({
   hasMindroomAgents,
   threadCount,
@@ -779,13 +833,6 @@ export function RoomThreadOverview({
     pendingSearchCanonicalRef.current = undefined;
     setSearchQueryDraft(canonicalSearchQuery);
   }, [canonicalSearchQuery]);
-  const sortLabel =
-    state.sortBy === 'natural'
-      ? 'Threads in timeline order'
-      : state.sortDirection === 'desc'
-      ? 'Sort threads by last reply, newest first'
-      : 'Sort threads by last reply, oldest first';
-
   const handleToggleWithPresetClear = useCallback(
     (key: ThreadFilterKey) => {
       setLastAppliedPreset(null);
@@ -904,10 +951,9 @@ export function RoomThreadOverview({
     </div>
   );
 
-  // Simple mode keeps only the compact/threaded view choice plus one agent-room
-  // filter: hide resolved threads or show everything. The upstream filter state
-  // is already projected onto this subspace, so state.resolved is the only
-  // dimension that can be active here.
+  // Simple mode keeps compact/threaded view and sorting choices plus one
+  // agent-room filter: hide resolved threads or show everything. The upstream
+  // filter state is already projected onto this visible subspace.
   if (simpleMode) {
     const unresolvedOnly = state.resolved === 'exclude';
     return (
@@ -949,6 +995,11 @@ export function RoomThreadOverview({
             viewMode={viewMode}
             onViewModeChange={onViewModeChange}
             showClassic={false}
+          />
+          <ThreadSortControl
+            state={state}
+            active={filtersActive}
+            onChange={handleSortWithPresetClear}
           />
         </div>
         {hasMindroomAgents && emptyFilteredState}
@@ -1043,40 +1094,11 @@ export function RoomThreadOverview({
 
         {/* View mode */}
         <RoomViewModeControls viewMode={viewMode} onViewModeChange={onViewModeChange} />
-        <TooltipProvider
-          position="Bottom"
-          align="Center"
-          tooltip={
-            <Tooltip style={{ maxWidth: toRem(220) }}>
-              <Text size="T200">{sortLabel}</Text>
-            </Tooltip>
-          }
-        >
-          {(triggerRef) => (
-            <button
-              ref={triggerRef}
-              type="button"
-              className={classNames(css.SortButton, filtersActive && css.SortButtonActive)}
-              onClick={handleSortWithPresetClear}
-              aria-label={sortLabel}
-              data-sort-by={state.sortBy}
-              data-sort-direction={state.sortDirection}
-            >
-              {state.sortBy === 'natural' ? (
-                <Text size="T200">Natural</Text>
-              ) : (
-                <>
-                  <Text size="T200">Last Reply</Text>
-                  {state.sortDirection === 'desc' ? (
-                    <IconSortDescending size={14} stroke={1.8} aria-hidden="true" />
-                  ) : (
-                    <IconSortAscending size={14} stroke={1.8} aria-hidden="true" />
-                  )}
-                </>
-              )}
-            </button>
-          )}
-        </TooltipProvider>
+        <ThreadSortControl
+          state={state}
+          active={filtersActive}
+          onChange={handleSortWithPresetClear}
+        />
         {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
