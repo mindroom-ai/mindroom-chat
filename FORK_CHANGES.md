@@ -19,13 +19,26 @@
 - The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
 - Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
 - Unpinned threads sort by last activity, and per-account pins remain at the top in saved order.
-- Compact rows show the summary, unread state, pin state, and relative activity time.
+- Compact rows give the summary the full width and keep the pin hidden until hover or keyboard focus, where it appears over a soft right-edge gradient.
 - A delayed hover card adds the room, participating MindRoom agents, message count, and last activity.
 - The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.
 - Pin preferences are removed with the account's other MindRoom UI state during logout and cache cleanup.
 - The existing full Threads page remains available for search and advanced filters.
 - Validation after merging current `dev`: the full Vitest suite passes (425 files / 3,102 tests), as do typecheck, the production/PWA build, and `git diff --check`.
 - Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
+
+### Simple Mode thread sorting (2026-07-15)
+
+- Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
+- Simple Mode now shows the existing thread sort control beside the Compact and Threaded view choices.
+- The control cycles through timeline order, last reply newest first, and last reply oldest first using the same state and interaction path as the full filter bar.
+- Its label and direction icon convey the selected order without toggle-style highlighting.
+- Sorting stays available in both agent and agentless rooms; the unresolved-only control remains agent-room-specific, while advanced filters and sort locking remain hidden and inactive.
+- The Simple Mode state projection now preserves the selected sort and direction while continuing to clear hidden search, status, and tag dimensions, so the visible control always matches the applied ordering.
+- Regression coverage pins both Simple Mode toolbar variants, sort interaction, projection behavior, room-state cycling, agentless transitions, and the absence of sort locking.
+- Validation: 3 focused files / 93 tests and the full Vitest suite pass (423 files / 3,210 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Independent review found no behavior, accessibility, regression, or coverage issues; its only documentation nit was fixed, and final re-review found no remaining findings.
+- PR review: Greptile rated the change safe to merge with no behavioral findings. Gemini suggested localizing the extracted sort strings; the suggestion is outside this PR because the extraction preserves the exact pre-existing strings and localizing the whole sort surface requires a separate locale-wide change.
 
 ### Native iOS attachment save prompt (2026-07-15)
 
