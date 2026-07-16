@@ -81,61 +81,114 @@ const getEntryIndexedEventIds = (entry: CrossRoomThreadIndexEntry): string[] => 
   return Array.from(eventIds);
 };
 
-const addEntryToEventReverseIndex = (
-  reverseIndex: CrossRoomThreadEventReverseIndex,
-  entry: CrossRoomThreadIndexEntry
-): CrossRoomThreadEventReverseIndex => {
-  const eventIds = getEntryIndexedEventIds(entry);
-  if (eventIds.length === 0) return reverseIndex;
-
-  const nextReverseIndex = new Map(reverseIndex);
-  const nextRoomIndex = new Map(nextReverseIndex.get(entry.roomId) ?? new Map());
-
-  eventIds.forEach((eventId) => {
-    const nextThreadRoots = new Set(nextRoomIndex.get(eventId) ?? new Set());
-    nextThreadRoots.add(entry.threadRootId);
-    nextRoomIndex.set(eventId, nextThreadRoots);
-  });
-
-  nextReverseIndex.set(entry.roomId, nextRoomIndex);
-  return nextReverseIndex;
+/**
+ * Copy-on-write view over the reverse index for one batch application.
+ * Maps and sets belonging to the previous published snapshot are never
+ * mutated; each is cloned at most once per batch, no matter how many
+ * entries touch it.
+ */
+type ReverseIndexDraft = {
+  index: CrossRoomThreadEventReverseIndex;
+  outerCloned: boolean;
+  clonedRoomIds: Set<string>;
+  ownedThreadRootSets: Set<Set<string>>;
 };
 
-const removeEntryFromEventReverseIndex = (
-  reverseIndex: CrossRoomThreadEventReverseIndex,
+const createReverseIndexDraft = (
+  reverseIndex: CrossRoomThreadEventReverseIndex
+): ReverseIndexDraft => ({
+  index: reverseIndex,
+  outerCloned: false,
+  clonedRoomIds: new Set(),
+  ownedThreadRootSets: new Set(),
+});
+
+const getMutableReverseIndex = (draft: ReverseIndexDraft): CrossRoomThreadEventReverseIndex => {
+  if (!draft.outerCloned) {
+    draft.index = new Map(draft.index);
+    draft.outerCloned = true;
+  }
+  return draft.index;
+};
+
+const getMutableRoomIndex = (
+  draft: ReverseIndexDraft,
+  roomId: string
+): Map<string, Set<string>> => {
+  const reverseIndex = getMutableReverseIndex(draft);
+  const existing = reverseIndex.get(roomId);
+  if (existing && draft.clonedRoomIds.has(roomId)) return existing;
+
+  const cloned = new Map(existing ?? []);
+  draft.clonedRoomIds.add(roomId);
+  reverseIndex.set(roomId, cloned);
+  return cloned;
+};
+
+const draftAddEntryToEventReverseIndex = (
+  draft: ReverseIndexDraft,
   entry: CrossRoomThreadIndexEntry
-): CrossRoomThreadEventReverseIndex => {
-  const roomIndex = reverseIndex.get(entry.roomId);
-  if (!roomIndex) return reverseIndex;
+) => {
+  const eventIds = getEntryIndexedEventIds(entry);
+  if (eventIds.length === 0) return;
 
-  let nextRoomIndex: Map<string, Set<string>> | undefined;
-
-  getEntryIndexedEventIds(entry).forEach((eventId) => {
-    const threadRoots = (nextRoomIndex ?? roomIndex).get(eventId);
-    if (!threadRoots?.has(entry.threadRootId)) return;
-
-    nextRoomIndex ??= new Map(roomIndex);
-    const nextThreadRoots = new Set(threadRoots);
-    nextThreadRoots.delete(entry.threadRootId);
-
-    if (nextThreadRoots.size > 0) {
-      nextRoomIndex.set(eventId, nextThreadRoots);
+  const roomIndex = getMutableRoomIndex(draft, entry.roomId);
+  eventIds.forEach((eventId) => {
+    const threadRoots = roomIndex.get(eventId);
+    if (!threadRoots) {
+      const created = new Set([entry.threadRootId]);
+      draft.ownedThreadRootSets.add(created);
+      roomIndex.set(eventId, created);
+      return;
+    }
+    if (threadRoots.has(entry.threadRootId)) return;
+    if (draft.ownedThreadRootSets.has(threadRoots)) {
+      threadRoots.add(entry.threadRootId);
       return;
     }
 
-    nextRoomIndex.delete(eventId);
+    const cloned = new Set(threadRoots);
+    cloned.add(entry.threadRootId);
+    draft.ownedThreadRootSets.add(cloned);
+    roomIndex.set(eventId, cloned);
+  });
+};
+
+const draftRemoveEntryFromEventReverseIndex = (
+  draft: ReverseIndexDraft,
+  entry: CrossRoomThreadIndexEntry
+) => {
+  const roomIndex = draft.index.get(entry.roomId);
+  if (!roomIndex) return;
+
+  const eventIds = getEntryIndexedEventIds(entry).filter((eventId) =>
+    roomIndex.get(eventId)?.has(entry.threadRootId)
+  );
+  if (eventIds.length === 0) return;
+
+  const mutableRoomIndex = getMutableRoomIndex(draft, entry.roomId);
+  eventIds.forEach((eventId) => {
+    const threadRoots = mutableRoomIndex.get(eventId);
+    if (!threadRoots?.has(entry.threadRootId)) return;
+    if (threadRoots.size === 1) {
+      mutableRoomIndex.delete(eventId);
+      return;
+    }
+    if (draft.ownedThreadRootSets.has(threadRoots)) {
+      threadRoots.delete(entry.threadRootId);
+      return;
+    }
+
+    const cloned = new Set(threadRoots);
+    cloned.delete(entry.threadRootId);
+    draft.ownedThreadRootSets.add(cloned);
+    mutableRoomIndex.set(eventId, cloned);
   });
 
-  if (!nextRoomIndex) return reverseIndex;
-
-  const nextReverseIndex = new Map(reverseIndex);
-  if (nextRoomIndex.size > 0) {
-    nextReverseIndex.set(entry.roomId, nextRoomIndex);
-  } else {
-    nextReverseIndex.delete(entry.roomId);
+  if (mutableRoomIndex.size === 0) {
+    getMutableReverseIndex(draft).delete(entry.roomId);
+    draft.clonedRoomIds.delete(entry.roomId);
   }
-
-  return nextReverseIndex;
 };
 
 const removeRoomFromEventReverseIndex = (
@@ -382,56 +435,108 @@ const evictOverflowEntries = (
   return { entries: nextEntries, evictedEntries };
 };
 
-export const upsertCrossRoomThreadIndexEntry = (
-  snapshot: CrossRoomThreadIndexSnapshot,
-  entry: CrossRoomThreadIndexEntry
-): CrossRoomThreadIndexSnapshot => {
-  const current = snapshot.entries.get(entry.key);
-  const entries = new Map(snapshot.entries);
-  const nextEntry = {
-    ...entry,
-    generation: current ? current.generation + 1 : entry.generation,
-  };
-  entries.set(entry.key, nextEntry);
+const arePlainValuesEqual = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => arePlainValuesEqual(value, right[index]));
+  }
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null) {
+    return false;
+  }
 
-  let eventIdToThreadRoots = current
-    ? removeEntryFromEventReverseIndex(snapshot.eventIdToThreadRoots, current)
-    : snapshot.eventIdToThreadRoots;
-  eventIdToThreadRoots = addEntryToEventReverseIndex(eventIdToThreadRoots, nextEntry);
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).filter((key) => leftRecord[key] !== undefined);
+  const rightKeys = Object.keys(rightRecord).filter((key) => rightRecord[key] !== undefined);
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every((key) => arePlainValuesEqual(leftRecord[key], rightRecord[key]));
+};
+
+export const areCrossRoomThreadIndexEntriesEquivalent = (
+  left: CrossRoomThreadIndexEntry,
+  right: CrossRoomThreadIndexEntry
+): boolean => {
+  if (left === right) return true;
+
+  const { generation: leftGeneration, ...leftRest } = left;
+  const { generation: rightGeneration, ...rightRest } = right;
+  return arePlainValuesEqual(leftRest, rightRest);
+};
+
+export type CrossRoomThreadIndexBatchRemoval = { roomId: string; threadRootId: string };
+
+export type CrossRoomThreadIndexBatch = {
+  upserts?: CrossRoomThreadIndexEntry[];
+  removals?: CrossRoomThreadIndexBatchRemoval[];
+};
+
+/**
+ * Apply a whole flush of dirty-entry writes as one snapshot transition.
+ * The entries map and reverse-index maps are cloned at most once per
+ * batch, removed keys that are absent and rebuilt entries that are
+ * semantically unchanged are dropped, and when nothing effective
+ * remains the input snapshot is returned unchanged (same reference,
+ * same version).
+ */
+export const applyCrossRoomThreadIndexBatch = (
+  snapshot: CrossRoomThreadIndexSnapshot,
+  { upserts = [], removals = [] }: CrossRoomThreadIndexBatch
+): CrossRoomThreadIndexSnapshot => {
+  let entries: Map<string, CrossRoomThreadIndexEntry> | undefined;
+  const reverseDraft = createReverseIndexDraft(snapshot.eventIdToThreadRoots);
+  const readEntries = () => entries ?? snapshot.entries;
+
+  removals.forEach(({ roomId, threadRootId }) => {
+    const key = getCrossRoomThreadIndexKey(roomId, threadRootId);
+    const current = readEntries().get(key);
+    if (!current) return;
+
+    entries ??= new Map(snapshot.entries);
+    entries.delete(key);
+    draftRemoveEntryFromEventReverseIndex(reverseDraft, current);
+  });
+
+  upserts.forEach((entry) => {
+    const current = readEntries().get(entry.key);
+    if (current && areCrossRoomThreadIndexEntriesEquivalent(current, entry)) return;
+
+    const nextEntry = {
+      ...entry,
+      generation: current ? current.generation + 1 : entry.generation,
+    };
+    entries ??= new Map(snapshot.entries);
+    entries.set(entry.key, nextEntry);
+    if (current) draftRemoveEntryFromEventReverseIndex(reverseDraft, current);
+    draftAddEntryToEventReverseIndex(reverseDraft, nextEntry);
+  });
+
+  if (!entries) return snapshot;
 
   const evicted = evictOverflowEntries(entries);
   evicted.evictedEntries.forEach((evictedEntry) => {
-    eventIdToThreadRoots = removeEntryFromEventReverseIndex(eventIdToThreadRoots, evictedEntry);
+    draftRemoveEntryFromEventReverseIndex(reverseDraft, evictedEntry);
   });
 
   return {
     ...snapshot,
     entries: evicted.entries,
-    eventIdToThreadRoots,
+    eventIdToThreadRoots: reverseDraft.index,
     version: snapshot.version + 1,
   };
 };
+
+export const upsertCrossRoomThreadIndexEntry = (
+  snapshot: CrossRoomThreadIndexSnapshot,
+  entry: CrossRoomThreadIndexEntry
+): CrossRoomThreadIndexSnapshot => applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
 
 export const removeCrossRoomThreadIndexEntry = (
   snapshot: CrossRoomThreadIndexSnapshot,
   roomId: string,
   threadRootId: string
-): CrossRoomThreadIndexSnapshot => {
-  const key = getCrossRoomThreadIndexKey(roomId, threadRootId);
-  if (!snapshot.entries.has(key)) return snapshot;
-
-  const entries = new Map(snapshot.entries);
-  const entry = entries.get(key);
-  entries.delete(key);
-  return {
-    ...snapshot,
-    entries,
-    eventIdToThreadRoots: entry
-      ? removeEntryFromEventReverseIndex(snapshot.eventIdToThreadRoots, entry)
-      : snapshot.eventIdToThreadRoots,
-    version: snapshot.version + 1,
-  };
-};
+): CrossRoomThreadIndexSnapshot =>
+  applyCrossRoomThreadIndexBatch(snapshot, { removals: [{ roomId, threadRootId }] });
 
 export const removeRoomCrossRoomThreadIndexEntries = (
   snapshot: CrossRoomThreadIndexSnapshot,
