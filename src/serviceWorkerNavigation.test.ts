@@ -59,6 +59,7 @@ describe('service worker navigation fallback exclusions', () => {
 
 describe('service worker navigation responses', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -72,8 +73,46 @@ describe('service worker navigation responses', () => {
     await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
       networkResponse
     );
-    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) })
+    );
     expect(loadCachedShell).not.toHaveBeenCalled();
+  });
+
+  it('returns an opaque navigation redirect for the browser to follow', async () => {
+    const request = new Request('https://chat.example.com/home');
+    const redirectResponse = { ok: false, type: 'opaqueredirect' } as Response;
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirectResponse));
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      redirectResponse
+    );
+    expect(loadCachedShell).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stalled navigation before falling back to the precached shell', async () => {
+    vi.useFakeTimers();
+    const request = new Request('https://chat.example.com/home/room');
+    const cachedResponse = new Response('cached shell');
+    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_request: Request, init: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      })
+    );
+
+    const response = fetchNavigationWithShellFallback(request, loadCachedShell, 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(response).resolves.toBe(cachedResponse);
+    expect(loadCachedShell).toHaveBeenCalledOnce();
   });
 
   it.each([

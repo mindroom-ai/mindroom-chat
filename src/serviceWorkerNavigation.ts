@@ -4,6 +4,7 @@ const NORMALIZATION_ORIGIN = 'https://service-worker.invalid';
 
 export const NAVIGATION_FALLBACK_EXCLUDE_PARAM = 'navigation-fallback-exclude';
 export const NON_DISRUPTIVE_UPDATE_PARAM = 'non-disruptive-update';
+export const NAVIGATION_FETCH_TIMEOUT_MS = 5 * 1000;
 
 export const normalizeNavigationFallbackExcludePaths = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -50,13 +51,24 @@ export const navigationFallbackExcludePathPattern = (path: string): RegExp => {
 
 export const fetchNavigationWithShellFallback = async (
   request: Request,
-  loadCachedShell: () => Promise<Response>
+  loadCachedShell: () => Promise<Response>,
+  timeoutMs = NAVIGATION_FETCH_TIMEOUT_MS
 ): Promise<Response> => {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
   try {
-    const response = await fetch(request, { cache: 'no-store' });
-    if (response.ok) return response;
+    const response = await fetch(request, {
+      cache: 'no-store',
+      signal: abortController.signal,
+    });
+    // Navigation requests use manual redirect mode. Returning the opaque
+    // redirect lets the browser continue the navigation instead of replacing
+    // a valid server redirect with the cached SPA shell.
+    if (response.ok || response.type === 'opaqueredirect') return response;
   } catch {
-    // Offline navigation falls through to the precached application shell.
+    // Offline or stalled navigation falls through to the precached shell.
+  } finally {
+    clearTimeout(timeoutId);
   }
   return loadCachedShell();
 };

@@ -50,7 +50,7 @@ const loadServiceWorker = async () => {
   };
   const scope = {
     __WB_MANIFEST: [],
-    location: { href: `${APP_ORIGIN}/sw.js`, origin: APP_ORIGIN },
+    location: { href: `${APP_ORIGIN}/sw.js?non-disruptive-update=1`, origin: APP_ORIGIN },
     registration: { active: null, scope: `${APP_ORIGIN}/` },
     clients,
     addEventListener: (type: string, listener: CapturedListener) => {

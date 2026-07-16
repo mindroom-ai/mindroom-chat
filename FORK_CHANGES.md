@@ -268,7 +268,7 @@
 
 ### Stage published web builds without interrupting active work (2026-07-12; revised 2026-07-16)
 
-- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, full local validation, real-Chrome migration verification, independent re-review, and publication are complete on PR #168; AI review is in progress.
+- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, real-Chrome migration verification, confirmed AI review remediation, full local revalidation, and independent re-review are complete on PR #168; follow-up publication is pending.
   The predecessor updater was deployed to `chat.mindroom.chat` with automatic client reloads after worker activation, so the revised worker includes a one-time retirement path for tabs still running that bundle.
 - Each production build emits an unprecached `version.json` containing the Git commit used for both the manifest and the compiled client constant.
   A cache-busted, `no-store` request checks it at startup, every five minutes, when the tab becomes visible, and when the browser returns online.
@@ -285,6 +285,7 @@
   This is a one-time transition constraint of the already-deployed cache-first worker; after the marked worker is installed, later deployments update on the first manual refresh or visit.
 - Online top-level navigations check the network with `cache: no-store` before the Workbox precache route.
   Under the marked worker, a manual refresh or later visit therefore receives the currently published shell, while a failed or offline request falls back to the precached shell.
+  A stalled network navigation aborts after five seconds and uses the same fallback, while opaque navigation redirects return to the browser so it can follow the server response instead of replacing it with the cached shell.
 - First marked service-worker installs activate immediately and claim the initial page.
   Later marked upgrades use the normal waiting phase until existing clients are gone, then claim clients and prune obsolete precache entries safely.
   No service-worker path calls `WindowClient.navigate()`.
@@ -296,14 +297,16 @@
 - Provider commit variables are validated as hashes.
   Netlify's documented commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`, which is only a fallback when Git metadata is unavailable.
   Startup skips manifest discovery when no active service worker can use its result.
-- Focused tests cover version discovery, failures, timeouts, offline behavior, silent staging, staged-version deduplication, marked registration URLs, network-first navigation with offline fallback, first install, normal waiting activation, predecessor registration retirement without its activation-triggered reload, and the absence of client navigation.
-- Validation: 6 focused files / 27 tests and the full Vitest suite pass (426 files / 3,244 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Focused tests cover version discovery, failures, timeouts, offline behavior, silent staging, staged-version deduplication, marked registration URLs, network-first navigation with timeout and offline fallback, navigation redirects, first install, normal waiting activation, predecessor registration retirement without its activation-triggered reload, and the absence of client navigation.
+- Validation: 6 focused files / 29 tests and the full Vitest suite pass (426 files / 3,246 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
   Full ESLint reports 0 errors and 17 pre-existing warnings.
 - Review: independent review first caught immediate activation pruning old lazy assets and serving the old cached shell on the first explicit navigation.
   The worker now preserves browser-managed activation for later versions and checks the network before its precache navigation route.
   Re-review then caught the exact deployed predecessor monitor reloading on worker activation, so unmarked predecessor registrations retire without activation.
   Real-Chrome verification caught an unregister job deadlock when its promise was awaited from the install event; unregister now starts without extending install, and a regression fails if that promise is awaited.
   Final Chrome verification confirmed no active-tab reload, successful registration retirement, and network loading on the following navigation; final independent re-review found no remaining issues.
+  PR review found that a stalled navigation could delay the cached fallback, manual navigation redirects could be mistaken for failed responses, and one current-worker session mock looked like an incomplete predecessor registration.
+  Navigation now has a bounded network wait, preserves opaque redirects for the browser, and marks the session fixture as the current worker; full revalidation passes and independent re-review found no remaining issues.
 - Container packaging follow-up (2026-07-13, complete): the GHCR build excludes `.git` and did not pass a provider commit into Docker, so published images emitted `{"version":"unknown"}` even though direct/Netlify builds exposed the correct commit.
   The Dockerfile now accepts an explicit `MINDROOM_BUILD_VERSION`; branch-push, release, and PR workflows pass the exact GitHub commit.
   Docker CI reads `/app/version.json` from the built image and runs a dedicated publisher-workflow validation script, preventing the packaging path from silently regressing again even on workflow-only changes.
