@@ -4,7 +4,7 @@
 
 ### Guarded App Store review release (2026-07-15)
 
-- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, and independent self-review are complete on `ios-release-automation`; PR review remains.
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, and independent self-review are complete on PR #166; CI and AI review remain.
 - Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
 - A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
 - A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
