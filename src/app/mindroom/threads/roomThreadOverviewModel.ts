@@ -290,10 +290,10 @@ export const normalizeThreadSearchText = (query: string): string =>
 
 /**
  * Project a persisted filter state onto the subspace reachable in simple
- * mode: defaults everywhere except the resolved dimension, of which only
- * 'exclude' ("unresolved only") survives. Controls for the other dimensions
- * are hidden in simple mode, so their persisted values must not keep
- * influencing which threads are shown. The stored state itself is left
+ * mode: defaults everywhere except sorting and the resolved dimension, of
+ * which only 'exclude' ("unresolved only") survives. Controls for the other
+ * dimensions are hidden in simple mode, so their persisted values must not
+ * keep influencing which threads are shown. The stored state itself is left
  * untouched — leaving simple mode restores the full setup.
  *
  * The query shown by the UI is derived from this canonical projection, so no
@@ -303,8 +303,22 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
   return {
     ...createDefaultThreadFilterState(),
     resolved: state.resolved === 'exclude' ? 'exclude' : 'any',
+    sortBy: state.sortBy,
+    sortDirection: state.sortDirection,
   };
 };
+
+/**
+ * Agentless Simple Mode exposes sorting but not the agent-specific unresolved
+ * filter. Preserve only the visible sort choice while leaving all hidden
+ * filter dimensions inactive.
+ */
+export const simplifyAgentlessSimpleThreadFilterState = (
+  state: ThreadFilterState
+): ThreadFilterState => ({
+  ...simplifyThreadFilterState(state),
+  resolved: 'any',
+});
 
 /**
  * Project a persisted filter state onto the controls that remain available in

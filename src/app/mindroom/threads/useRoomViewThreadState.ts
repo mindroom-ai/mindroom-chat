@@ -23,13 +23,13 @@ import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
 import {
   addTagFilter,
   applyPreset,
-  createDefaultThreadFilterState,
   cycleSortMode,
   cycleTagFilter,
   type FilterPreset,
   normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
+  simplifyAgentlessSimpleThreadFilterState,
   simplifyAgentlessThreadFilterState,
   simplifyThreadFilterState,
   type ThreadFilterKey,
@@ -104,7 +104,7 @@ export const useRoomViewThreadState = ({
     if (simpleMode) {
       return hasMindroomAgents
         ? simplifyThreadFilterState(threadFilterState)
-        : createDefaultThreadFilterState();
+        : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
     }
     return hasMindroomAgents
       ? threadFilterState

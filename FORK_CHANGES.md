@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Simple Mode thread sorting (2026-07-15)
+
+- Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
+- Simple Mode now shows the existing thread sort control beside the Compact and Threaded view choices.
+- The control cycles through timeline order, last reply newest first, and last reply oldest first using the same state and interaction path as the full filter bar.
+- Its label and direction icon convey the selected order without toggle-style highlighting.
+- Sorting stays available in both agent and agentless rooms; the unresolved-only control remains agent-room-specific, while advanced filters and sort locking remain hidden and inactive.
+- The Simple Mode state projection now preserves the selected sort and direction while continuing to clear hidden search, status, and tag dimensions, so the visible control always matches the applied ordering.
+- Regression coverage pins both Simple Mode toolbar variants, sort interaction, projection behavior, room-state cycling, agentless transitions, and the absence of sort locking.
+- Validation: 3 focused files / 93 tests and the full Vitest suite pass (423 files / 3,210 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Independent review found no behavior, accessibility, regression, or coverage issues; its only documentation nit was fixed, and final re-review found no remaining findings.
+- PR review: Greptile rated the change safe to merge with no behavioral findings. Gemini suggested localizing the extracted sort strings; the suggestion is outside this PR because the extraction preserves the exact pre-existing strings and localizing the whole sort surface requires a separate locale-wide change.
+
 ### Native iOS attachment save prompt (2026-07-15)
 
 - Status: implementation, confirmed PR review remediation, full local validation, independent re-review, and final PR checks are complete on PR #162; ready for human review.
