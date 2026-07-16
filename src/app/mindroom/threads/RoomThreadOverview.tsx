@@ -743,11 +743,11 @@ function RoomViewModeControls({
 
 function ThreadSortControl({
   state,
-  active,
+  active = false,
   onChange,
 }: {
   state: ThreadFilterState;
-  active: boolean;
+  active?: boolean;
   onChange: () => void;
 }) {
   const sortLabel =
@@ -996,11 +996,7 @@ export function RoomThreadOverview({
             onViewModeChange={onViewModeChange}
             showClassic={false}
           />
-          <ThreadSortControl
-            state={state}
-            active={state.sortBy !== 'natural'}
-            onChange={handleSortWithPresetClear}
-          />
+          <ThreadSortControl state={state} onChange={handleSortWithPresetClear} />
         </div>
         {hasMindroomAgents && emptyFilteredState}
       </Box>

@@ -264,7 +264,7 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('highlights the simple-mode sort control only for last-reply sorting', () => {
+  it('keeps the simple-mode sort control neutral for last-reply sorting', () => {
     simpleModeState.enabled = true;
     const renderer = create(
       React.createElement(RoomThreadOverview, {
@@ -274,7 +274,7 @@ describe('RoomThreadOverview', () => {
     );
 
     const sortButton = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
-    expect(sortButton.props.className).toContain('SortButtonActive');
+    expect(sortButton.props.className).not.toContain('SortButtonActive');
 
     renderer.unmount();
   });

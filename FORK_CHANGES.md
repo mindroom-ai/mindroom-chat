@@ -7,6 +7,7 @@
 - Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
 - Simple Mode now shows the existing thread sort control beside the Compact and Threaded view choices.
 - The control cycles through timeline order, last reply newest first, and last reply oldest first using the same state and interaction path as the full filter bar.
+- Its label and direction icon convey the selected order without toggle-style highlighting.
 - Sorting stays available in both agent and agentless rooms; the unresolved-only control remains agent-room-specific, while advanced filters and sort locking remain hidden and inactive.
 - The Simple Mode state projection now preserves the selected sort and direction while continuing to clear hidden search, status, and tag dimensions, so the visible control always matches the applied ordering.
 - Regression coverage pins both Simple Mode toolbar variants, sort interaction, projection behavior, room-state cycling, agentless transitions, and the absence of sort locking.
