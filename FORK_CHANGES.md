@@ -4,7 +4,7 @@
 
 ### Guarded App Store review release (2026-07-15)
 
-- Status: release automation, regression coverage, operator notes, full local validation, and independent self-review are complete on `ios-release-automation`; PR review remains.
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, and independent self-review are complete on `ios-release-automation`; PR review remains.
 - Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
 - A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
 - A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
@@ -14,7 +14,7 @@
 - Release notes are supplied through the environment and gitignored instead of being written to a reusable metadata file.
 - The operator guide records the conventional local API-key location, a content-safe key discovery command, Homebrew Fastlane fallback, Xcode Cloud version-number caveat, exact release command, lane guarantees, retry warning, and secret-handling boundary.
 - Focused validation passes nine release-preflight and Fastlane contract regressions, the preflight against the real generated screenshot set, Fastlane lane parsing, and a destructive-confirmation failure run that stopped before authentication.
-- Full validation passes the complete Vitest suite with 426 files and 3,234 tests, typecheck, the production and PWA build, the App Store preflight, Fastfile Ruby syntax, touched-file Prettier, and `git diff --check`.
+- Full validation after rebasing latest `dev` passes the complete Vitest suite with 426 files and 3,241 tests, typecheck, the production and PWA build, the App Store preflight, Fastfile Ruby syntax, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent self-review caught metadata failure paths that could leave Apple's demo-account-required flag disabled when a later upload step failed, so both metadata entry points now restore that flag in an `ensure` path and the guarded release revalidates all review access before screenshot upload or submission.
 
