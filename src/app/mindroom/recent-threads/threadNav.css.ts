@@ -29,6 +29,7 @@ export const EntryPinOptions = style({
   opacity: 0,
   visibility: 'hidden',
   pointerEvents: 'none',
+  borderRadius: 'inherit',
   background: `linear-gradient(to right, transparent, ${color.Background.ContainerHover} 45%)`,
   transition: 'opacity 120ms ease',
 
