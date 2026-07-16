@@ -3,7 +3,11 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { getDesktopSidebarHiddenStorageKey } from './desktopSidebarState';
-import { MindroomSidebarNav } from './MindroomSidebarNav';
+import {
+  MindroomPageRoot,
+  MindroomSidebarNav,
+  MindroomSidebarProvider,
+} from './MindroomSidebarNav';
 
 const screenSizeState = { value: ScreenSize.Desktop };
 const activeSessionState: { value: { userId: string } | undefined } = {
@@ -72,6 +76,11 @@ vi.mock('../../components/sidebar', () => ({
     ),
 }));
 
+vi.mock('../../components/page', () => ({
+  PageRoot: ({ nav, children }: { nav?: React.ReactNode; children: React.ReactNode }) =>
+    React.createElement('section', { 'data-testid': 'page-root' }, nav, children),
+}));
+
 vi.mock('../../pages/MobileFriendly', () => ({
   MobileFriendlyClientNav: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -79,7 +88,7 @@ vi.mock('../../pages/MobileFriendly', () => ({
 
 vi.mock('../../pages/client/SidebarNav', () => ({
   SidebarNav: ({ footer }: { footer?: React.ReactNode }) =>
-    React.createElement('nav', { 'data-testid': 'sidebar' }, footer),
+    React.createElement('nav', { 'data-testid': 'sidebar-rail' }, footer),
 }));
 
 describe('MindroomSidebarNav', () => {
@@ -88,7 +97,14 @@ describe('MindroomSidebarNav', () => {
   const renderSidebar = () => {
     let renderer: ReturnType<typeof create>;
     act(() => {
-      renderer = create(React.createElement(MindroomSidebarNav));
+      renderer = create(
+        <MindroomSidebarProvider>
+          <MindroomSidebarNav />
+          <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
+            <main data-testid="page-content" />
+          </MindroomPageRoot>
+        </MindroomSidebarProvider>
+      );
     });
     return renderer!;
   };
@@ -117,16 +133,19 @@ describe('MindroomSidebarNav', () => {
     storageState.clear();
   });
 
-  it('hides the desktop sidebar, reclaims its layout slot, and remembers the choice', () => {
+  it('hides the complete desktop navigation area and remembers the choice', () => {
     let renderer = renderSidebar();
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
 
     act(() => {
       findButtons(renderer, 'Hide sidebar')[0].props.onClick();
     });
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-content' })).toHaveLength(1);
     expect(findButtons(renderer, 'Show sidebar')).toHaveLength(1);
     expect(findButtons(renderer, 'Show sidebar')[0].props.style.position).toBe('fixed');
     expect(localStorage.getItem(storageKey)).toBe('true');
@@ -134,13 +153,15 @@ describe('MindroomSidebarNav', () => {
     act(() => renderer.unmount());
     renderer = renderSidebar();
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
 
     act(() => {
       findButtons(renderer, 'Show sidebar')[0].props.onClick();
     });
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
     expect(localStorage.getItem(storageKey)).toBe('false');
 
     act(() => renderer.unmount());
@@ -151,7 +172,8 @@ describe('MindroomSidebarNav', () => {
 
     const renderer = renderSidebar();
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
     expect(findButtons(renderer, 'Hide sidebar')).toHaveLength(1);
 
     act(() => renderer.unmount());
@@ -162,7 +184,8 @@ describe('MindroomSidebarNav', () => {
 
     const renderer = renderSidebar();
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
     expect(findButtons(renderer, 'Hide sidebar')).toHaveLength(0);
     expect(findButtons(renderer, 'Show sidebar')).toHaveLength(0);
     expect(storageState.size).toBe(0);
@@ -178,7 +201,8 @@ describe('MindroomSidebarNav', () => {
 
       const renderer = renderSidebar();
 
-      expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar' })).toHaveLength(1);
+      expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
+      expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
       expect(findButtons(renderer, 'Hide sidebar')).toHaveLength(0);
       expect(findButtons(renderer, 'Show sidebar')).toHaveLength(0);
 

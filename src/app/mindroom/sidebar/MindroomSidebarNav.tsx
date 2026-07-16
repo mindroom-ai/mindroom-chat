@@ -1,12 +1,29 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { ReactNode, createContext, useCallback, useContext, useMemo } from 'react';
 import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, config } from 'folds';
 import { useAtom } from 'jotai';
+import { PageRoot } from '../../components/page';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../components/sidebar';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { MobileFriendlyClientNav } from '../../pages/MobileFriendly';
 import { SidebarNav } from '../../pages/client/SidebarNav';
 import { makeDesktopSidebarHiddenAtom } from './desktopSidebarState';
+
+type MindroomDesktopSidebarState = {
+  canToggle: boolean;
+  hidden: boolean;
+  hide: () => void;
+  show: () => void;
+};
+
+const defaultDesktopSidebarState: MindroomDesktopSidebarState = {
+  canToggle: false,
+  hidden: false,
+  hide: () => undefined,
+  show: () => undefined,
+};
+
+const MindroomDesktopSidebarContext = createContext(defaultDesktopSidebarState);
 
 function HideSidebarButton({ onClick }: { onClick: () => void }) {
   return (
@@ -65,7 +82,13 @@ function ShowSidebarButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function PersistedMindroomSidebarNav({ userId }: { userId: string }) {
+function PersistedMindroomSidebarProvider({
+  userId,
+  children,
+}: {
+  userId: string;
+  children: ReactNode;
+}) {
   const screenSize = useScreenSizeContext();
   const hiddenAtom = useMemo(() => makeDesktopSidebarHiddenAtom(userId), [userId]);
   const [hidden, setHidden] = useAtom(hiddenAtom);
@@ -73,28 +96,57 @@ function PersistedMindroomSidebarNav({ userId }: { userId: string }) {
 
   const hideSidebar = useCallback(() => setHidden(true), [setHidden]);
   const showSidebar = useCallback(() => setHidden(false), [setHidden]);
-
-  if (desktop && hidden) {
-    return <ShowSidebarButton onClick={showSidebar} />;
-  }
+  const value = useMemo(
+    () => ({
+      canToggle: desktop,
+      hidden: desktop && hidden,
+      hide: hideSidebar,
+      show: showSidebar,
+    }),
+    [desktop, hidden, hideSidebar, showSidebar]
+  );
 
   return (
-    <MobileFriendlyClientNav>
-      <SidebarNav footer={desktop ? <HideSidebarButton onClick={hideSidebar} /> : undefined} />
-    </MobileFriendlyClientNav>
+    <MindroomDesktopSidebarContext.Provider value={value}>
+      {children}
+    </MindroomDesktopSidebarContext.Provider>
   );
 }
 
-export function MindroomSidebarNav() {
+export function MindroomSidebarProvider({ children }: { children: ReactNode }) {
   const activeSession = useActiveSession();
 
   if (!activeSession) {
     return (
-      <MobileFriendlyClientNav>
-        <SidebarNav />
-      </MobileFriendlyClientNav>
+      <MindroomDesktopSidebarContext.Provider value={defaultDesktopSidebarState}>
+        {children}
+      </MindroomDesktopSidebarContext.Provider>
     );
   }
 
-  return <PersistedMindroomSidebarNav userId={activeSession.userId} />;
+  return (
+    <PersistedMindroomSidebarProvider userId={activeSession.userId}>
+      {children}
+    </PersistedMindroomSidebarProvider>
+  );
+}
+
+export function MindroomSidebarNav() {
+  const { canToggle, hidden, hide, show } = useContext(MindroomDesktopSidebarContext);
+
+  if (hidden) {
+    return <ShowSidebarButton onClick={show} />;
+  }
+
+  return (
+    <MobileFriendlyClientNav>
+      <SidebarNav footer={canToggle ? <HideSidebarButton onClick={hide} /> : undefined} />
+    </MobileFriendlyClientNav>
+  );
+}
+
+export function MindroomPageRoot({ nav, children }: { nav: ReactNode; children: ReactNode }) {
+  const { hidden } = useContext(MindroomDesktopSidebarContext);
+
+  return <PageRoot nav={hidden ? null : nav}>{children}</PageRoot>;
 }

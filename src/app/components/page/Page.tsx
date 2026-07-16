@@ -6,7 +6,7 @@ import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 
 type PageRootProps = {
-  nav: ReactNode;
+  nav?: ReactNode;
   children: ReactNode;
 };
 
@@ -16,7 +16,7 @@ export function PageRoot({ nav, children }: PageRootProps) {
   return (
     <Box grow="Yes" className={ContainerColor({ variant: 'Background' })}>
       {nav}
-      {screenSize !== ScreenSize.Mobile && (
+      {nav && screenSize !== ScreenSize.Mobile && (
         <Line variant="Background" size="300" direction="Vertical" />
       )}
       {children}
