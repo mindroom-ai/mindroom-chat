@@ -998,7 +998,7 @@ export function RoomThreadOverview({
           />
           <ThreadSortControl
             state={state}
-            active={filtersActive}
+            active={state.sortBy !== 'natural'}
             onChange={handleSortWithPresetClear}
           />
         </div>

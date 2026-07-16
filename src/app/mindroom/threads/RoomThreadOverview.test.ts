@@ -249,9 +249,8 @@ describe('RoomThreadOverview', () => {
     expect(
       renderer.root.findAll((node) => node.props['data-simple-unresolved-toggle'] === 'true')
     ).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.props['data-sort-by'] !== undefined)).toHaveLength(
-      1
-    );
+    const sortButton = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
+    expect(sortButton.props.className).not.toContain('SortButtonActive');
     expect(
       renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
     ).toHaveLength(0);
@@ -261,6 +260,21 @@ describe('RoomThreadOverview', () => {
     });
 
     expect(onViewModeChange).toHaveBeenCalledWith('compact');
+
+    renderer.unmount();
+  });
+
+  it('highlights the simple-mode sort control only for last-reply sorting', () => {
+    simpleModeState.enabled = true;
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state: makeDefaultState({ resolved: 'exclude', sortBy: 'lastReply' }),
+      })
+    );
+
+    const sortButton = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
+    expect(sortButton.props.className).toContain('SortButtonActive');
 
     renderer.unmount();
   });
