@@ -16,30 +16,10 @@ const activeSessionState: { value: { userId: string } | undefined } = {
 const storageState = new Map<string, string>();
 
 vi.mock('folds', () => ({
-  Icon: () => React.createElement('span'),
-  IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-    ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
-  ),
+  Icon: ({ src }: { src: string }) => React.createElement('span', { 'data-icon-src': src }),
   Icons: {
     ChevronLeft: 'chevron-left',
     ChevronRight: 'chevron-right',
-  },
-  Text: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('span', null, children),
-  Tooltip: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('span', null, children),
-  TooltipProvider: ({
-    children,
-  }: {
-    children: (ref: React.RefCallback<HTMLButtonElement>) => React.ReactNode;
-  }) =>
-    React.createElement(
-      React.Fragment,
-      null,
-      children(() => undefined)
-    ),
-  config: {
-    zIndex: { Z100: 100 },
   },
 }));
 
@@ -66,12 +46,14 @@ vi.mock('../../components/sidebar', () => ({
     React.createElement('div', null, children),
   SidebarItemTooltip: ({
     children,
+    tooltip,
   }: {
     children: (ref: React.RefCallback<HTMLButtonElement>) => React.ReactNode;
+    tooltip: React.ReactNode;
   }) =>
     React.createElement(
-      React.Fragment,
-      null,
+      'div',
+      { 'data-tooltip': tooltip },
       children(() => undefined)
     ),
 }));
@@ -133,28 +115,32 @@ describe('MindroomSidebarNav', () => {
     storageState.clear();
   });
 
-  it('hides the complete desktop navigation area and remembers the choice', () => {
+  it('keeps the icon rail visible while hiding the desktop page navigation', () => {
     let renderer = renderSidebar();
 
     expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-icon-src': 'chevron-left' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-tooltip': 'Hide sidebar' })).toHaveLength(1);
 
     act(() => {
       findButtons(renderer, 'Hide sidebar')[0].props.onClick();
     });
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-testid': 'page-content' })).toHaveLength(1);
     expect(findButtons(renderer, 'Show sidebar')).toHaveLength(1);
-    expect(findButtons(renderer, 'Show sidebar')[0].props.style.position).toBe('fixed');
+    expect(renderer.root.findAllByProps({ 'data-icon-src': 'chevron-right' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-tooltip': 'Show sidebar' })).toHaveLength(1);
     expect(localStorage.getItem(storageKey)).toBe('true');
 
     act(() => renderer.unmount());
     renderer = renderSidebar();
 
-    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-icon-src': 'chevron-right' })).toHaveLength(1);
 
     act(() => {
       findButtons(renderer, 'Show sidebar')[0].props.onClick();
@@ -162,6 +148,7 @@ describe('MindroomSidebarNav', () => {
 
     expect(renderer.root.findAllByProps({ 'data-testid': 'sidebar-rail' })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-icon-src': 'chevron-left' })).toHaveLength(1);
     expect(localStorage.getItem(storageKey)).toBe('false');
 
     act(() => renderer.unmount());

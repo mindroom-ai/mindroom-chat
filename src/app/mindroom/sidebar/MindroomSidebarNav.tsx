@@ -1,5 +1,5 @@
 import React, { ReactNode, createContext, useCallback, useContext, useMemo } from 'react';
-import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, config } from 'folds';
+import { Icon, Icons } from 'folds';
 import { useAtom } from 'jotai';
 import { PageRoot } from '../../components/page';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../components/sidebar';
@@ -25,60 +25,19 @@ const defaultDesktopSidebarState: MindroomDesktopSidebarState = {
 
 const MindroomDesktopSidebarContext = createContext(defaultDesktopSidebarState);
 
-function HideSidebarButton({ onClick }: { onClick: () => void }) {
+function SidebarToggleButton({ hidden, onClick }: { hidden: boolean; onClick: () => void }) {
+  const label = hidden ? 'Show sidebar' : 'Hide sidebar';
+
   return (
     <SidebarItem>
-      <SidebarItemTooltip tooltip="Hide sidebar">
+      <SidebarItemTooltip tooltip={label}>
         {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            outlined
-            onClick={onClick}
-            aria-label="Hide sidebar"
-          >
-            <Icon src={Icons.ChevronLeft} />
+          <SidebarAvatar as="button" ref={triggerRef} outlined onClick={onClick} aria-label={label}>
+            <Icon src={hidden ? Icons.ChevronRight : Icons.ChevronLeft} />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>
     </SidebarItem>
-  );
-}
-
-function ShowSidebarButton({ onClick }: { onClick: () => void }) {
-  return (
-    <TooltipProvider
-      position="Right"
-      offset={4}
-      tooltip={
-        <Tooltip>
-          <Text>Show sidebar</Text>
-        </Tooltip>
-      }
-    >
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          size="300"
-          variant="Surface"
-          outlined
-          radii="300"
-          onClick={onClick}
-          aria-label="Show sidebar"
-          style={{
-            position: 'fixed',
-            top: '50%',
-            left: 0,
-            zIndex: config.zIndex.Z100,
-            transform: 'translateY(-50%)',
-            borderTopLeftRadius: 0,
-            borderBottomLeftRadius: 0,
-          }}
-        >
-          <Icon src={Icons.ChevronRight} />
-        </IconButton>
-      )}
-    </TooltipProvider>
   );
 }
 
@@ -134,13 +93,15 @@ export function MindroomSidebarProvider({ children }: { children: ReactNode }) {
 export function MindroomSidebarNav() {
   const { canToggle, hidden, hide, show } = useContext(MindroomDesktopSidebarContext);
 
-  if (hidden) {
-    return <ShowSidebarButton onClick={show} />;
-  }
-
   return (
     <MobileFriendlyClientNav>
-      <SidebarNav footer={canToggle ? <HideSidebarButton onClick={hide} /> : undefined} />
+      <SidebarNav
+        footer={
+          canToggle ? (
+            <SidebarToggleButton hidden={hidden} onClick={hidden ? show : hide} />
+          ) : undefined
+        }
+      />
     </MobileFriendlyClientNav>
   );
 }
