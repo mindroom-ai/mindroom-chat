@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef } from 'react';
+import React, { type MutableRefObject, useCallback, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -11,6 +11,7 @@ export type CompactRoomViewProps = {
   threadRootIds: string[];
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
+  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
 };
 
 export function CompactRoomView({
@@ -18,7 +19,9 @@ export function CompactRoomView({
   threadRootIds,
   threadRecordMap,
   onThreadClick,
+  compactRoomScrollStateRef,
 }: CompactRoomViewProps) {
+  const viewRef = useRef<HTMLDivElement>(null);
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds,
@@ -43,9 +46,22 @@ export function CompactRoomView({
     onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
   }, []);
 
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view) return undefined;
+    const scrollState = compactRoomScrollStateRef.current;
+
+    const savedScrollTop = scrollState.get(room.roomId);
+    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+
+    return () => {
+      scrollState.set(room.roomId, view.scrollTop);
+    };
+  }, [compactRoomScrollStateRef, room.roomId]);
+
   if (threadRootIds.length === 0) {
     return (
-      <Box className={css.View} data-compact-room-view="true">
+      <Box ref={viewRef} className={css.View} data-compact-room-view="true">
         <Box className={css.EmptyState}>
           <Text size="T300" priority="300">
             No threads
@@ -56,7 +72,7 @@ export function CompactRoomView({
   }
 
   return (
-    <Box className={css.View} data-compact-room-view="true">
+    <Box ref={viewRef} className={css.View} data-compact-room-view="true">
       {cardViewModels.map((viewModel) => (
         <CompactThreadCard
           key={viewModel.id.threadRootId}

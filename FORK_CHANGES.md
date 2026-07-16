@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Restore compact thread-list scroll position (2026-07-15)
+
+- Status: implementation, behavioral regression coverage, full local validation, and independent re-review are complete; ready for review.
+- Symptom: opening a thread from a scrolled compact room overview remounts the keyed room timeline, so exiting the thread creates a fresh compact scroll container at the top.
+- Fix: the room view now owns compact scroll offsets across thread timeline remounts, while the compact overview captures its offset during layout cleanup and restores it during layout setup before paint.
+- Scope: offsets are keyed by room inside the mounted room view, so thread enter/exit preserves the same room position without leaking an offset into another room or persisting stale layout state across app sessions.
+- Coverage: a focused compact-view test verifies capture and restoration across a populated component remount, while room-view behavioral tests scroll the compact overview, open a card, traverse the keyed thread timeline, invoke real history-back and native replacement exit callbacks, restore before paint, and prevent cross-room offset leakage.
+- Validation: 36 focused CompactRoomView and RoomView tests and the full Vitest suite pass (425 files / 3,225 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review found that the first tests proved only direct remount and ref identity rather than the complete navigation lifecycle.
+  Populated-card entry, keyed cleanup, history and native exit behavior, and room isolation are now covered; independent re-review found no remaining findings.
+
 ### Native iOS attachment save prompt (2026-07-15)
 
 - Status: implementation, confirmed PR review remediation, full local validation, independent re-review, and final PR checks are complete on PR #162; ready for human review.
