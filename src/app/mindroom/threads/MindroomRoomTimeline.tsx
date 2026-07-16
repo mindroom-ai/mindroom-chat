@@ -2,6 +2,7 @@
 import React, {
   Dispatch,
   MouseEventHandler,
+  MutableRefObject,
   RefObject,
   SetStateAction,
   useCallback,
@@ -282,6 +283,7 @@ export type RoomTimelineProps = {
   onViewModeChange?: (viewMode: RoomViewMode) => void;
   onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
+  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
   editor: Editor;
 };
 
@@ -310,6 +312,7 @@ export function RoomTimeline({
   onViewModeChange,
   onThreadLoadError,
   roomInputRef,
+  compactRoomScrollStateRef,
   editor,
 }: RoomTimelineProps) {
   const mx = useMatrixClient();
@@ -3326,6 +3329,7 @@ export function RoomTimeline({
               threadRootIds={overviewThreadRootIds}
               threadRecordMap={threadRecordMap}
               onThreadClick={handleOpenCompactThread}
+              compactRoomScrollStateRef={compactRoomScrollStateRef}
             />
           ) : (
             <>

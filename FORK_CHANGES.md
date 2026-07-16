@@ -28,6 +28,46 @@
 - Validation after merging current `dev`: the full Vitest suite passes (425 files / 3,102 tests), as do typecheck, the production/PWA build, and `git diff --check`.
 - Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
 
+### Guarded App Store review release (2026-07-15)
+
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, and public-document credential-placeholder cleanup are complete on PR #166; final CI and bot re-review gate the authorized squash merge.
+- Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
+- A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
+- A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
+- The release preflight requires nonempty release notes, the complete expected five-scene iPhone and iPad screenshot sets, exact Apple pixel sizes, expected filenames, and byte-distinct images.
+- Stable primary-category metadata is no longer uploaded because App Store Connect rejected the redundant update as a duplicate category selection during the verified release.
+- Metadata upload now restores the demo-account-required flag when saved App Store Connect credentials exist, while the release lane refuses submission if demo credentials, review notes, or reviewer contact fields are missing.
+- Release notes are supplied through the environment and gitignored instead of being written to a reusable metadata file.
+- The operator guide records the conventional local API-key location, a content-safe key discovery command, Homebrew Fastlane fallback, Xcode Cloud version-number caveat, exact release command, lane guarantees, retry warning, and secret-handling boundary.
+- Public authentication examples use unmistakable placeholders rather than actual-looking Apple key or issuer identifiers; no private-key contents, current credentials, reviewer credentials, contact details, or personal filesystem paths are committed.
+- Focused validation passes nine release-preflight and Fastlane contract regressions, the preflight against the real generated screenshot set, Fastlane lane parsing, and a destructive-confirmation failure run that stopped before authentication.
+- Full validation after rebasing latest `dev` and applying the public-document cleanup passes the complete Vitest suite with 426 files and 3,241 tests, typecheck, the production and PWA build, the App Store preflights, Fastfile Ruby syntax and lane parsing, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent self-review caught metadata failure paths that could leave Apple's demo-account-required flag disabled when a later upload step failed, so both metadata entry points now restore that flag in an `ensure` path and the guarded release revalidates all review access before screenshot upload or submission.
+- PR review: Gemini caught undefined validation input producing a raw JavaScript error, a missing App Store app guard in final verification, and a fragile Fastfile source-text assertion.
+  Defaults now produce aggregated validation failures, the lane reports a direct missing-app error, and the formatting-coupled test is replaced by a missing-input behavior regression.
+  Greptile caught a short fixed review-state polling window and screenshot digest tracking wider than the documented per-device invariant.
+  Polling now defaults to almost four minutes with validated environment overrides, and digest tracking resets for each device class.
+- Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings, and every inline review thread is resolved.
+  Web, Android, Docker, lockfile, and PR build checks pass on the remediation commit.
+  CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than additional findings.
+
+### Restore compact thread-list scroll position (2026-07-15)
+
+- Status: implementation, behavioral regression coverage, latest `dev` merge, full local validation, independent re-review, confirmed PR review remediation, final PR checks, and bot re-review are complete on PR #165; ready for human review.
+- Symptom: opening a thread from a scrolled compact room overview remounts the keyed room timeline, so exiting the thread creates a fresh compact scroll container at the top.
+- Fix: the room view now owns compact scroll offsets across thread timeline remounts, while the compact overview captures its offset during layout cleanup and restores it during layout setup before paint.
+- Scope: offsets are keyed by room inside the mounted room view, so thread enter/exit preserves the same room position without leaking an offset into another room or persisting stale layout state across app sessions.
+- Coverage: focused compact-view tests verify capture and restoration across populated and delayed component remounts, browser-style scroll clamping, safe retries as cards load, manual-scroll cancellation, and unloaded cleanup, while room-view behavioral tests scroll the compact overview, open a card, traverse the keyed thread timeline, invoke real history-back and native replacement exit callbacks, restore before paint, and prevent cross-room offset leakage.
+- Validation: 40 focused CompactRoomView and RoomView tests and the full Vitest suite pass after merging current `dev` (425 files / 3,232 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review found that the first tests proved only direct remount and ref identity rather than the complete navigation lifecycle.
+  Populated-card entry, keyed cleanup, history and native exit behavior, and room isolation are now covered; independent re-review found no remaining findings.
+  Gemini found that an initially empty or incomplete card list could clamp the one-shot restore and erase the saved position.
+  Restoration now waits for cards and retries a clamped target only while the scroll position remains at the last programmatic value, so manual scrolling cancels further retries and unloaded cleanup preserves the prior offset.
+  AgentCLI with Claude Fable 5 independently traced the scroll owner, keyed remount lifecycle, all compact thread exit paths, delayed card loading, incremental clamp retries, manual-scroll cancellation, and cleanup; final re-review found no actionable issues.
+  Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings.
+  Android, web, Docker, and PR-title checks pass; CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than findings.
 ### Simple Mode thread sorting (2026-07-15)
 
 - Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.

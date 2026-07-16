@@ -124,6 +124,7 @@ describe('CompactRoomView', () => {
         threadRootIds: [],
         threadRecordMap: new Map(),
         onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
       })
     );
 
@@ -148,6 +149,7 @@ describe('CompactRoomView', () => {
         threadRootIds: ['$thread-1'],
         threadRecordMap,
         onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
       })
     );
 
@@ -172,6 +174,7 @@ describe('CompactRoomView', () => {
         threadRootIds: ['$thread-3'],
         threadRecordMap: new Map([['$thread-3', makeThreadRecord('$thread-3')]]),
         onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
       })
     );
 
@@ -182,5 +185,260 @@ describe('CompactRoomView', () => {
     });
 
     expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Recent sidebar summary');
+  });
+
+  it('restores the room scroll position after the compact view remounts', () => {
+    const room = makeRoom();
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-1')]);
+    const compactRoomScrollStateRef = { current: new Map<string, number>() };
+    let scrollElement = { scrollTop: 0 };
+    const createNodeMock = (element: React.ReactElement) => {
+      if (element.props['data-compact-room-view'] === 'true') return scrollElement;
+      return {};
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1'],
+          threadRecordMap: new Map([['$thread-1', makeThreadRecord('$thread-1')]]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        }),
+        { createNodeMock }
+      );
+    });
+
+    scrollElement.scrollTop = 418;
+    act(() => {
+      renderer?.unmount();
+    });
+
+    expect(compactRoomScrollStateRef.current.get(room.roomId)).toBe(418);
+
+    scrollElement = { scrollTop: 0 };
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1'],
+          threadRecordMap: new Map([['$thread-1', makeThreadRecord('$thread-1')]]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        }),
+        { createNodeMock }
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(418);
+
+    act(() => {
+      renderer?.unmount();
+    });
+  });
+
+  it('waits for thread cards and retries a clamped restore as more cards load', () => {
+    const room = makeRoom();
+    const compactRoomScrollStateRef = {
+      current: new Map<string, number>([[room.roomId, 418]]),
+    };
+    let maxScrollTop = 0;
+    let currentScrollTop = 0;
+    const scrollElement = {
+      get scrollTop() {
+        return currentScrollTop;
+      },
+      set scrollTop(nextScrollTop: number) {
+        currentScrollTop = Math.min(nextScrollTop, maxScrollTop);
+      },
+    };
+    const createNodeMock = (element: React.ReactElement) => {
+      if (element.props['data-compact-room-view'] === 'true') return scrollElement;
+      return {};
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: [],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        }),
+        { createNodeMock }
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(0);
+    expect(compactRoomScrollStateRef.current.get(room.roomId)).toBe(418);
+
+    maxScrollTop = 100;
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-1')]);
+    act(() => {
+      renderer?.update(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1'],
+          threadRecordMap: new Map([['$thread-1', makeThreadRecord('$thread-1')]]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        })
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(100);
+
+    maxScrollTop = 500;
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$thread-1'),
+      makeViewModel('$thread-2'),
+    ]);
+    act(() => {
+      renderer?.update(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1', '$thread-2'],
+          threadRecordMap: new Map([
+            ['$thread-1', makeThreadRecord('$thread-1')],
+            ['$thread-2', makeThreadRecord('$thread-2')],
+          ]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        })
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(418);
+
+    scrollElement.scrollTop = 315;
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$thread-1'),
+      makeViewModel('$thread-2'),
+      makeViewModel('$thread-3'),
+    ]);
+    act(() => {
+      renderer?.update(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1', '$thread-2', '$thread-3'],
+          threadRecordMap: new Map([
+            ['$thread-1', makeThreadRecord('$thread-1')],
+            ['$thread-2', makeThreadRecord('$thread-2')],
+            ['$thread-3', makeThreadRecord('$thread-3')],
+          ]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        })
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(315);
+
+    act(() => {
+      renderer?.unmount();
+    });
+
+    expect(compactRoomScrollStateRef.current.get(room.roomId)).toBe(315);
+  });
+
+  it('does not retry a clamped restore after the user moves the scroll position', () => {
+    const room = makeRoom();
+    const compactRoomScrollStateRef = {
+      current: new Map<string, number>([[room.roomId, 418]]),
+    };
+    let maxScrollTop = 100;
+    let currentScrollTop = 0;
+    const scrollElement = {
+      get scrollTop() {
+        return currentScrollTop;
+      },
+      set scrollTop(nextScrollTop: number) {
+        currentScrollTop = Math.min(nextScrollTop, maxScrollTop);
+      },
+    };
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-1')]);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1'],
+          threadRecordMap: new Map([['$thread-1', makeThreadRecord('$thread-1')]]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        }),
+        {
+          createNodeMock: (element) =>
+            element.props['data-compact-room-view'] === 'true' ? scrollElement : {},
+        }
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(100);
+
+    scrollElement.scrollTop = 50;
+    maxScrollTop = 500;
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$thread-1'),
+      makeViewModel('$thread-2'),
+    ]);
+    act(() => {
+      renderer?.update(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1', '$thread-2'],
+          threadRecordMap: new Map([
+            ['$thread-1', makeThreadRecord('$thread-1')],
+            ['$thread-2', makeThreadRecord('$thread-2')],
+          ]),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        })
+      );
+    });
+
+    expect(scrollElement.scrollTop).toBe(50);
+
+    act(() => {
+      renderer?.unmount();
+    });
+
+    expect(compactRoomScrollStateRef.current.get(room.roomId)).toBe(50);
+  });
+
+  it('keeps the saved position when the empty overview unmounts before cards load', () => {
+    const room = makeRoom();
+    const compactRoomScrollStateRef = {
+      current: new Map<string, number>([[room.roomId, 418]]),
+    };
+    const scrollElement = { scrollTop: 0 };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: [],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef,
+        }),
+        {
+          createNodeMock: (element) =>
+            element.props['data-compact-room-view'] === 'true' ? scrollElement : {},
+        }
+      );
+    });
+
+    act(() => {
+      renderer?.unmount();
+    });
+
+    expect(compactRoomScrollStateRef.current.get(room.roomId)).toBe(418);
   });
 });
