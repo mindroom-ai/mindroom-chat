@@ -14,13 +14,14 @@
   The thread-summary subscription now diffs the immutably replaced summary map and enqueues only threads whose summary actually changed, and the bootstrapped-flag publication is identity-preserving once set.
 - Regression coverage: twelve new tests pin one publication per coalesced flush, identity-preserving no-op batches and upserts, generation-insensitive equivalence, batch removal/eviction reverse-index correctness without mutating prior snapshots, other-user receipt suppression, own threaded-receipt narrowing, own room-level receipt full refresh, and summary-diff narrowing.
   Eleven of the twelve fail on the prior implementation.
-- Validation of the performance fix: the focused cross-room suite passes (5 files / 53 tests) and the full Vitest suite passes (425 files / 3,114 tests); typecheck, the production/PWA build, touched-file ESLint and Prettier, and `git diff --check` pass.
-- Threads now render as a collapsible navigation category directly beside Rooms in the Home, Direct, and Space sidebars.
+- Validation of the performance fix: the focused cross-room suite passes (5 files / 53 tests) and the full Vitest suite passes (425 files / 3,127 tests); typecheck, the production/PWA build, touched-file ESLint and Prettier, and `git diff --check` pass.
+- Threads now render as a collapsible navigation category directly beside Rooms in the Home and Space sidebars.
 - The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
 - Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
 - Resolved threads and threads from direct-message rooms stay out of the sidebar; unpinned unresolved threads sort by last activity, and per-account pins remain at the top in saved order.
-- Compact rows give the summary the full width and keep the pin hidden until hover or keyboard focus, where it appears over a soft right-edge gradient.
-- A delayed hover card adds the room, participating MindRoom agents, message count, and last activity.
+- Compact rows give the summary the full width and reveal resolve and pin actions over a soft right-edge gradient on hover or keyboard focus; the pin fills on direct hover.
+- The hover card appears immediately with the room, participating MindRoom agents, message count, and last activity.
+- Space sidebars show only threads from that Space, while Home keeps the global thread list, and opening a thread preserves the sidebar scroll position.
 - The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.
 - Pin preferences are removed with the account's other MindRoom UI state during logout and cache cleanup.
 - The existing full Threads page remains available for search and advanced filters.

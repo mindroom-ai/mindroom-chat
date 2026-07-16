@@ -1,6 +1,7 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, type MutableRefObject, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
+import type { Room } from 'matrix-js-sdk';
 import { NavButton, NavItem, NavItemContent, NavItemOptions } from '../../components/nav';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -9,7 +10,9 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import type { CrossRoomThreadIndexEntry } from '../cross-room-threads/crossRoomThreadIndex';
 import { isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { buildCompactThreadCardViewModelFromRecord } from '../threads/compactThreadCardViewModel';
+import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
+import { createThreadNavLocationState } from './threadNavCategoryUtils';
 import * as css from './threadNav.css';
 
 type ThreadNavItemProps = {
@@ -17,10 +20,65 @@ type ThreadNavItemProps = {
   onTogglePin: () => void;
   pinned: boolean;
   selected: boolean;
+  sidebarScrollRef?: MutableRefObject<HTMLDivElement | null>;
 };
 
+type ThreadNavActionsProps = {
+  entry: CrossRoomThreadIndexEntry;
+  onTogglePin: () => void;
+  pinned: boolean;
+  room: Room;
+};
+
+function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActionsProps) {
+  const { t } = useTranslation();
+  const { canToggle, setResolved, updating, error } = useToggleThreadResolution(room);
+  const [pinHovered, setPinHovered] = useState(false);
+
+  useEffect(() => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[ThreadNavItem] Resolve failed:', error);
+    }
+  }, [error]);
+
+  return (
+    <NavItemOptions className={css.EntryActions} gap="100">
+      <IconButton
+        type="button"
+        variant="Background"
+        fill="None"
+        size="300"
+        radii="300"
+        aria-label={t('thread.resolve')}
+        disabled={!canToggle || updating}
+        onClick={() => setResolved(entry.threadRootId, true)}
+      >
+        <Icon src={Icons.CheckTwice} size="50" aria-hidden="true" />
+      </IconButton>
+      <IconButton
+        className={pinned ? css.EntryPinButtonPinned : undefined}
+        type="button"
+        variant="Background"
+        fill="None"
+        size="300"
+        radii="300"
+        aria-label={pinned ? t('threadNav.unpin') : t('threadNav.pin')}
+        aria-pressed={pinned}
+        onMouseEnter={() => setPinHovered(true)}
+        onMouseLeave={() => setPinHovered(false)}
+        onFocus={() => setPinHovered(true)}
+        onBlur={() => setPinHovered(false)}
+        onClick={onTogglePin}
+      >
+        <Icon src={Icons.Pin} size="50" filled={pinned || pinHovered} aria-hidden="true" />
+      </IconButton>
+    </NavItemOptions>
+  );
+}
+
 export const ThreadNavItem = memo(
-  ({ entry, onTogglePin, pinned, selected }: ThreadNavItemProps) => {
+  ({ entry, onTogglePin, pinned, selected, sidebarScrollRef }: ThreadNavItemProps) => {
     const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
@@ -64,7 +122,7 @@ export const ThreadNavItem = memo(
       <TooltipProvider
         position="Right"
         align="Center"
-        delay={450}
+        delay={0}
         tooltip={
           <Tooltip className={css.EntryTooltip} style={{ maxWidth: toRem(300) }}>
             <Box direction="Column" gap="200">
@@ -106,11 +164,21 @@ export const ThreadNavItem = memo(
             >
               <NavButton
                 onClick={() => {
+                  const scrollTop = sidebarScrollRef?.current?.scrollTop;
+                  const navigationOptions =
+                    scrollTop === undefined
+                      ? undefined
+                      : { state: createThreadNavLocationState(scrollTop) };
                   if (viewMode === 'classic') {
-                    navigateRoom(room.roomId, viewModel.id.threadRootId);
+                    navigateRoom(room.roomId, viewModel.id.threadRootId, navigationOptions);
                     return;
                   }
-                  navigateRoomThreadDirect(room.roomId, viewModel.id.threadRootId);
+                  navigateRoomThreadDirect(
+                    room.roomId,
+                    viewModel.id.threadRootId,
+                    undefined,
+                    navigationOptions
+                  );
                 }}
                 aria-label={ariaLabel}
               >
@@ -129,21 +197,12 @@ export const ThreadNavItem = memo(
                   </Box>
                 </NavItemContent>
               </NavButton>
-              <NavItemOptions className={css.EntryPinOptions}>
-                <IconButton
-                  className={pinned ? css.EntryPinButtonPinned : undefined}
-                  type="button"
-                  variant="Background"
-                  fill="None"
-                  size="300"
-                  radii="300"
-                  aria-label={pinned ? t('threadNav.unpin') : t('threadNav.pin')}
-                  aria-pressed={pinned}
-                  onClick={onTogglePin}
-                >
-                  <Icon src={Icons.Pin} size="50" filled={pinned} aria-hidden="true" />
-                </IconButton>
-              </NavItemOptions>
+              <ThreadNavActions
+                entry={entry}
+                onTogglePin={onTogglePin}
+                pinned={pinned}
+                room={room}
+              />
             </NavItem>
           </div>
         )}

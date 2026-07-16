@@ -366,7 +366,7 @@ export function Home() {
                 })}
               </div>
             </NavCategory>
-            <ThreadNavCategory />
+            <ThreadNavCategory sidebarScrollRef={scrollRef} />
           </Box>
         </PageNavContent>
       )}

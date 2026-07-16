@@ -4,13 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../cross-room-threads/crossRoomThreadIndex';
 import { ThreadNavItem } from './ThreadNavItem';
 
-const { buildViewModelMock, navigateRoomMock, navigateRoomThreadDirectMock, roomViewModeState } =
-  vi.hoisted(() => ({
-    buildViewModelMock: vi.fn(),
-    navigateRoomMock: vi.fn(),
-    navigateRoomThreadDirectMock: vi.fn(),
-    roomViewModeState: { value: 'compact' },
-  }));
+const {
+  buildViewModelMock,
+  navigateRoomMock,
+  navigateRoomThreadDirectMock,
+  roomViewModeState,
+  setResolvedMock,
+} = vi.hoisted(() => ({
+  buildViewModelMock: vi.fn(),
+  navigateRoomMock: vi.fn(),
+  navigateRoomThreadDirectMock: vi.fn(),
+  roomViewModeState: { value: 'compact' },
+  setResolvedMock: vi.fn(),
+}));
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test-utils/i18n');
@@ -28,7 +34,7 @@ vi.mock('folds', async () => {
       reactModule.createElement('span', { 'data-icon-filled': filled, 'data-icon-src': src }),
     IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
-    Icons: { Pin: 'Pin', Thread: 'Thread' },
+    Icons: { CheckTwice: 'CheckTwice', Pin: 'Pin', Thread: 'Thread' },
     Text: ({
       as: asElement = 'span',
       children,
@@ -41,13 +47,15 @@ vi.mock('folds', async () => {
     TooltipProvider: ({
       children,
       tooltip,
+      delay,
     }: {
       children: (ref: () => undefined) => React.ReactNode;
       tooltip: React.ReactNode;
+      delay?: number;
     }) =>
       reactModule.createElement(
         'div',
-        null,
+        { 'data-tooltip-delay': delay },
         children(() => undefined),
         tooltip
       ),
@@ -98,10 +106,18 @@ vi.mock('../threads/compactThreadCardViewModel', () => ({
 vi.mock('../threads/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomViewModeState.value }),
 }));
+vi.mock('../threads/useRoomThreadTags', () => ({
+  useToggleThreadResolution: () => ({
+    canToggle: true,
+    setResolved: setResolvedMock,
+    updating: false,
+    error: undefined,
+  }),
+}));
 vi.mock('./threadNav.css', () => ({
+  EntryActions: 'EntryActions',
   Entry: 'Entry',
   EntryPinButtonPinned: 'EntryPinButtonPinned',
-  EntryPinOptions: 'EntryPinOptions',
   EntrySummary: 'EntrySummary',
   EntryTooltip: 'EntryTooltip',
   EntryTooltipDetails: 'EntryTooltipDetails',
@@ -149,7 +165,11 @@ describe('ThreadNavItem', () => {
     vi.clearAllMocks();
   });
 
-  const renderItem = (pinned = false, onTogglePin = vi.fn()) => {
+  const renderItem = (
+    pinned = false,
+    onTogglePin = vi.fn(),
+    sidebarScrollRef?: React.MutableRefObject<HTMLDivElement | null>
+  ) => {
     act(() => {
       renderer = create(
         React.createElement(ThreadNavItem, {
@@ -157,6 +177,7 @@ describe('ThreadNavItem', () => {
           onTogglePin,
           pinned,
           selected: false,
+          sidebarScrollRef,
         })
       );
     });
@@ -178,7 +199,12 @@ describe('ThreadNavItem', () => {
 
     act(() => getOpenButton().props.onClick());
 
-    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
+    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(
+      entry.roomId,
+      entry.threadRootId,
+      undefined,
+      undefined
+    );
   });
 
   it('keeps the row summary-first without an inline thread icon or activity time', () => {
@@ -186,7 +212,7 @@ describe('ThreadNavItem', () => {
 
     expect(renderer!.root.findAllByProps({ 'data-icon-src': 'Thread' })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ className: 'EntryMeta' })).toHaveLength(0);
-    expect(renderer!.root.findByProps({ className: 'EntryPinOptions' })).toBeDefined();
+    expect(renderer!.root.findByProps({ className: 'EntryActions' })).toBeDefined();
   });
 
   it('uses room navigation in classic mode', () => {
@@ -195,7 +221,13 @@ describe('ThreadNavItem', () => {
 
     act(() => getOpenButton().props.onClick());
 
-    expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
+    expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId, undefined);
+  });
+
+  it('opens the hover details without a delay', () => {
+    renderItem();
+
+    expect(renderer!.root.findByProps({ 'data-tooltip-delay': 0 })).toBeDefined();
   });
 
   it('shows room, agent, message count, and activity in the hover details', () => {
@@ -216,5 +248,44 @@ describe('ThreadNavItem', () => {
     expect(onTogglePin).toHaveBeenCalledOnce();
     expect(navigateRoomMock).not.toHaveBeenCalled();
     expect(navigateRoomThreadDirectMock).not.toHaveBeenCalled();
+  });
+
+  it('fills the pin while the pin button is hovered', () => {
+    renderItem();
+    const pinButton = renderer!.root.findByProps({ 'aria-label': 'Pin thread' });
+
+    expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(false);
+
+    act(() => pinButton.props.onMouseEnter());
+    expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(true);
+
+    act(() => pinButton.props.onMouseLeave());
+    expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(false);
+  });
+
+  it('resolves without opening the thread', () => {
+    renderItem();
+
+    act(() => renderer!.root.findByProps({ 'aria-label': 'Resolve' }).props.onClick());
+
+    expect(setResolvedMock).toHaveBeenCalledWith(entry.threadRootId, true);
+    expect(navigateRoomMock).not.toHaveBeenCalled();
+    expect(navigateRoomThreadDirectMock).not.toHaveBeenCalled();
+  });
+
+  it('carries the sidebar scroll position into thread navigation', () => {
+    const sidebarScrollRef = {
+      current: { scrollTop: 321 } as HTMLDivElement,
+    };
+    renderItem(false, vi.fn(), sidebarScrollRef);
+
+    act(() => getOpenButton().props.onClick());
+
+    expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(
+      entry.roomId,
+      entry.threadRootId,
+      undefined,
+      { state: { threadNavScrollTop: 321 } }
+    );
   });
 });

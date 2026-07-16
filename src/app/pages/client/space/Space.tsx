@@ -726,7 +726,7 @@ export function Space() {
               })()}
             </NavCategory>
           </DndContext>
-          <ThreadNavCategory />
+          <ThreadNavCategory sidebarScrollRef={scrollRef} spaceId={space.roomId} />
         </Box>
       </PageNavContent>
     </PageNav>

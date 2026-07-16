@@ -22,7 +22,7 @@ export const EntryUnreadDot = style({
   backgroundColor: color.Primary.Main,
 });
 
-export const EntryPinOptions = style({
+export const EntryActions = style({
   position: 'absolute',
   inset: `0 0 0 auto`,
   paddingLeft: config.space.S600,

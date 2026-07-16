@@ -7,12 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { mDirectAtom } from '../../state/mDirectList';
+import { roomToParentsAtom } from '../../state/room/roomToParents';
 import {
   crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../cross-room-threads/crossRoomThreadIndex';
 import { THREAD_NAV_CATEGORY_ID, ThreadNavCategory } from './ThreadNavCategory';
+import { createThreadNavLocationState } from './threadNavCategoryUtils';
 import { clearThreadSidebarPreferencesStore } from './threadSidebarPreferences';
 
 enableMapSet();
@@ -116,7 +118,15 @@ describe('ThreadNavCategory', () => {
     vi.clearAllMocks();
   });
 
-  const renderCategory = () => {
+  const renderCategory = ({
+    initialState,
+    sidebarScrollRef,
+    spaceId,
+  }: {
+    initialState?: unknown;
+    sidebarScrollRef?: React.MutableRefObject<HTMLDivElement | null>;
+    spaceId?: string;
+  } = {}) => {
     const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
     act(() => {
       renderer = create(
@@ -126,7 +136,11 @@ describe('ThreadNavCategory', () => {
           React.createElement(
             ClosedNavCategoriesProvider,
             { value: closedCategoriesAtom },
-            React.createElement(MemoryRouter, null, React.createElement(ThreadNavCategory))
+            React.createElement(
+              MemoryRouter,
+              { initialEntries: [{ pathname: '/', state: initialState }] },
+              React.createElement(ThreadNavCategory, { sidebarScrollRef, spaceId })
+            )
           )
         )
       );
@@ -185,5 +199,36 @@ describe('ThreadNavCategory', () => {
         .findAll((node) => node.props['data-thread-key'])
         .map((node) => node.props['data-thread-key'])
     ).toEqual([older.key]);
+  });
+
+  it('shows only threads from the active Space, including nested rooms', () => {
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        [older.roomId, new Set(['!nested-space:example.org'])],
+        ['!nested-space:example.org', new Set(['!space:example.org'])],
+      ]),
+    });
+
+    renderCategory({ spaceId: '!space:example.org' });
+
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([older.key]);
+  });
+
+  it('restores the sidebar scroll position carried by thread navigation', () => {
+    const sidebarScrollRef = {
+      current: { scrollTop: 0 } as HTMLDivElement,
+    };
+
+    renderCategory({
+      initialState: createThreadNavLocationState(321),
+      sidebarScrollRef,
+    });
+
+    expect(sidebarScrollRef.current.scrollTop).toBe(321);
   });
 });
