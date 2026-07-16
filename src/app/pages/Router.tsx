@@ -42,10 +42,9 @@ import { Threads } from './client/threads';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { Lobby } from '../features/lobby';
 import { WelcomePage } from './client/WelcomePage';
-import { SidebarNav } from './client/SidebarNav';
 import { PageRoot } from '../components/page';
 import { ScreenSize } from '../hooks/useScreenSize';
-import { MobileFriendlyPageNav, MobileFriendlyClientNav } from './MobileFriendly';
+import { MobileFriendlyPageNav } from './MobileFriendly';
 import { ClientInitStorageAtom } from './client/ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './client/ClientNonUIFeatures';
 import { AuthRouteThemeManager, UnAuthRouteThemeManager } from './ThemeManager';
@@ -70,6 +69,7 @@ import {
   resolveProtectedRouteRedirect,
   resolveRootRouteRedirect,
 } from './routeSessionGuards';
+import { MindroomSidebarNav } from '../mindroom/sidebar/MindroomSidebarNav';
 
 export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize) => {
   const { hashRouter } = clientConfig;
@@ -128,13 +128,7 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
                   <ClientBindAtoms>
                     <ClientNonUIFeatures>
                       <CallEmbedProvider>
-                        <ClientLayout
-                          nav={
-                            <MobileFriendlyClientNav>
-                              <SidebarNav />
-                            </MobileFriendlyClientNav>
-                          }
-                        >
+                        <ClientLayout nav={<MindroomSidebarNav />}>
                           <Outlet />
                         </ClientLayout>
                         <CallStatusRenderer />

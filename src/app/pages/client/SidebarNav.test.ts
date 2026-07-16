@@ -45,12 +45,12 @@ vi.mock('../../mindroom/sidebar/MindroomTab', () => ({
   MindroomTab: () => React.createElement('div', { 'data-tab': 'mindroom' }),
 }));
 
-const renderSidebarNav = (clientConfig: ClientConfig = {}) =>
+const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
   create(
     React.createElement(
       ClientConfigProvider,
       { value: clientConfig },
-      React.createElement(SidebarNav)
+      React.createElement(SidebarNav, { footer })
     )
   );
 
@@ -74,6 +74,17 @@ describe('SidebarNav', () => {
     });
 
     expect(hasTab(renderer, 'threads')).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('renders an optional footer below the sticky navigation stack', () => {
+    const renderer = renderSidebarNav(
+      {},
+      React.createElement('button', { 'aria-label': 'Hide sidebar' })
+    );
+
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Hide sidebar' })).toHaveLength(1);
 
     renderer.unmount();
   });
