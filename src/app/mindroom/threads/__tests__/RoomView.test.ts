@@ -27,6 +27,7 @@ const {
   pageState,
   passthrough,
   roomTimelineType,
+  simpleModeState,
   navigateRoomFocusEventMock,
   navigateRoomThreadMock,
   threadContextBannerState,
@@ -56,6 +57,7 @@ const {
   },
   passthrough: 'div',
   roomTimelineType: 'room-timeline',
+  simpleModeState: { enabled: false },
   navigateRoomFocusEventMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   threadContextBannerState: {
@@ -185,6 +187,14 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
     getSafeUserId: () => '@alice:example.org',
   }),
 }));
+
+vi.mock('../../settings/useMindroomAccountSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../settings/useMindroomAccountSettings')>();
+  return {
+    ...actual,
+    useSimpleMode: () => simpleModeState.enabled,
+  };
+});
 
 vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
@@ -450,6 +460,7 @@ describe('RoomView', () => {
     navigateRoomFocusEventMock.mockReset();
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
+    simpleModeState.enabled = false;
     threadContextBannerState.props = undefined;
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
@@ -741,6 +752,46 @@ describe('RoomView', () => {
     });
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
     expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
+  });
+
+  it('cycles and preserves sort modes in Simple Mode, including agentless rooms', async () => {
+    simpleModeState.enabled = true;
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
+      );
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
+    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('desc');
+    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
+
+    await act(async () => {
+      getTimeline(renderer!).props.onSortDirectionChange();
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
+    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('asc');
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
+      );
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
+    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('asc');
+
+    await act(async () => {
+      getTimeline(renderer!).props.onSortDirectionChange();
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('natural');
+    expect(getTimeline(renderer!).props.threadFilterState.sortDirection).toBe('desc');
   });
 
   it('preserves hidden agent filters when searching in an agentless room', async () => {
