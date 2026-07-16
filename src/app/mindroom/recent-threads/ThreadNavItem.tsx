@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
 import { NavButton, NavItem, NavItemContent, NavItemOptions } from '../../components/nav';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -98,6 +98,7 @@ export const ThreadNavItem = memo(
         {(triggerRef) => (
           <div ref={triggerRef} data-sidebar-thread-root-id={entry.threadRootId}>
             <NavItem
+              className={css.Entry}
               variant="Background"
               radii="400"
               highlight={entry.isUnread}
@@ -115,9 +116,6 @@ export const ThreadNavItem = memo(
               >
                 <NavItemContent>
                   <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                    <Avatar size="200" radii="400">
-                      <Icon size="100" src={Icons.Thread} filled={selected} />
-                    </Avatar>
                     <Text
                       className={css.EntrySummary}
                       priority={entry.isUnread ? '500' : '300'}
@@ -128,15 +126,10 @@ export const ThreadNavItem = memo(
                       {summaryText}
                     </Text>
                     {entry.isUnread && <span className={css.EntryUnreadDot} aria-hidden="true" />}
-                    {relativeTime && (
-                      <Text className={css.EntryMeta} as="span" size="T200" priority="400">
-                        {relativeTime}
-                      </Text>
-                    )}
                   </Box>
                 </NavItemContent>
               </NavButton>
-              <NavItemOptions>
+              <NavItemOptions className={css.EntryPinOptions}>
                 <IconButton
                   className={pinned ? css.EntryPinButtonPinned : undefined}
                   type="button"

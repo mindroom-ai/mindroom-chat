@@ -24,8 +24,8 @@ vi.mock('folds', async () => {
   return {
     Avatar: passthrough,
     Box: passthrough,
-    Icon: ({ filled }: { filled?: boolean }) =>
-      reactModule.createElement('span', { 'data-icon-filled': filled }),
+    Icon: ({ filled, src }: { filled?: boolean; src?: string }) =>
+      reactModule.createElement('span', { 'data-icon-filled': filled, 'data-icon-src': src }),
     IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
     Icons: { Pin: 'Pin', Thread: 'Thread' },
@@ -99,8 +99,9 @@ vi.mock('../threads/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomViewModeState.value }),
 }));
 vi.mock('./threadNav.css', () => ({
-  EntryMeta: 'EntryMeta',
+  Entry: 'Entry',
   EntryPinButtonPinned: 'EntryPinButtonPinned',
+  EntryPinOptions: 'EntryPinOptions',
   EntrySummary: 'EntrySummary',
   EntryTooltip: 'EntryTooltip',
   EntryTooltipDetails: 'EntryTooltipDetails',
@@ -178,6 +179,14 @@ describe('ThreadNavItem', () => {
     act(() => getOpenButton().props.onClick());
 
     expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
+  });
+
+  it('keeps the row summary-first without an inline thread icon or activity time', () => {
+    renderItem();
+
+    expect(renderer!.root.findAllByProps({ 'data-icon-src': 'Thread' })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ className: 'EntryMeta' })).toHaveLength(0);
+    expect(renderer!.root.findByProps({ className: 'EntryPinOptions' })).toBeDefined();
   });
 
   it('uses room navigation in classic mode', () => {

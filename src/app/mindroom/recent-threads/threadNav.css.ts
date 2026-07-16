@@ -6,13 +6,12 @@ export const CategoryState = style({
   color: color.Background.OnContainer,
 });
 
-export const EntrySummary = style({
-  minWidth: 0,
+export const Entry = style({
+  position: 'relative',
 });
 
-export const EntryMeta = style({
-  flexShrink: 0,
-  color: color.Background.OnContainer,
+export const EntrySummary = style({
+  minWidth: 0,
 });
 
 export const EntryUnreadDot = style({
@@ -21,6 +20,28 @@ export const EntryUnreadDot = style({
   flexShrink: 0,
   borderRadius: '999px',
   backgroundColor: color.Primary.Main,
+});
+
+export const EntryPinOptions = style({
+  position: 'absolute',
+  inset: `0 0 0 auto`,
+  paddingLeft: config.space.S600,
+  opacity: 0,
+  visibility: 'hidden',
+  pointerEvents: 'none',
+  background: `linear-gradient(to right, transparent, ${color.Background.ContainerHover} 45%)`,
+  transition: 'opacity 120ms ease',
+
+  selectors: {
+    [`.${Entry}:hover &, .${Entry}:focus-within &`]: {
+      opacity: 1,
+      visibility: 'visible',
+      pointerEvents: 'auto',
+    },
+    [`.${Entry}[aria-selected='true'] &`]: {
+      background: `linear-gradient(to right, transparent, ${color.Background.ContainerActive} 45%)`,
+    },
+  },
 });
 
 export const EntryPinButtonPinned = style({
