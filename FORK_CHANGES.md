@@ -4,7 +4,7 @@
 
 ### Guarded App Store review release (2026-07-15)
 
-- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, final CI, and bot re-review are complete on PR #166; ready for human review.
+- Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, and public-document credential-placeholder cleanup are complete on PR #166; final CI and bot re-review gate the authorized squash merge.
 - Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
 - A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
 - A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
@@ -13,8 +13,9 @@
 - Metadata upload now restores the demo-account-required flag when saved App Store Connect credentials exist, while the release lane refuses submission if demo credentials, review notes, or reviewer contact fields are missing.
 - Release notes are supplied through the environment and gitignored instead of being written to a reusable metadata file.
 - The operator guide records the conventional local API-key location, a content-safe key discovery command, Homebrew Fastlane fallback, Xcode Cloud version-number caveat, exact release command, lane guarantees, retry warning, and secret-handling boundary.
+- Public authentication examples use unmistakable placeholders rather than actual-looking Apple key or issuer identifiers; no private-key contents, current credentials, reviewer credentials, contact details, or personal filesystem paths are committed.
 - Focused validation passes nine release-preflight and Fastlane contract regressions, the preflight against the real generated screenshot set, Fastlane lane parsing, and a destructive-confirmation failure run that stopped before authentication.
-- Full validation after rebasing latest `dev` passes the complete Vitest suite with 426 files and 3,241 tests, typecheck, the production and PWA build, the App Store preflight, Fastfile Ruby syntax, touched-file Prettier, and `git diff --check`.
+- Full validation after rebasing latest `dev` and applying the public-document cleanup passes the complete Vitest suite with 426 files and 3,241 tests, typecheck, the production and PWA build, the App Store preflights, Fastfile Ruby syntax and lane parsing, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent self-review caught metadata failure paths that could leave Apple's demo-account-required flag disabled when a later upload step failed, so both metadata entry points now restore that flag in an `ensure` path and the guarded release revalidates all review access before screenshot upload or submission.
 - PR review: Gemini caught undefined validation input producing a raw JavaScript error, a missing App Store app guard in final verification, and a fragile Fastfile source-text assertion.

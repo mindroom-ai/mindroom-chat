@@ -40,10 +40,10 @@ Create an App Store Connect API key in App Store Connect under Users and Access,
 Export the key details before running a lane:
 
 ```bash
-export ASC_KEY_ID="D383SF739"
-export ASC_ISSUER_ID="6053b7fe-68a8-4acb-89be-165aa6465141"
+export ASC_KEY_ID="YOUR_KEY_ID"
+export ASC_ISSUER_ID="YOUR_ISSUER_ID"
 export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-# or, for CI secrets: ASC_KEY_CONTENT="$(base64 -i AuthKey_D383SF739.p8)"
+# or, for CI secrets: export ASC_KEY_CONTENT="$(base64 -i "$ASC_KEY_PATH")"
 ```
 
 API-key auth avoids Apple ID two-factor prompts and works in CI.
