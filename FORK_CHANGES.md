@@ -10,9 +10,34 @@
 - Sorting stays available in both agent and agentless rooms; the unresolved-only control remains agent-room-specific, while advanced filters and sort locking remain hidden and inactive.
 - The Simple Mode state projection now preserves the selected sort and direction while continuing to clear hidden search, status, and tag dimensions, so the visible control always matches the applied ordering.
 - Regression coverage pins both Simple Mode toolbar variants, sort interaction, projection behavior, room-state cycling, agentless transitions, and the absence of sort locking.
-- Validation: 3 focused files / 92 tests and the full Vitest suite pass (423 files / 3,210 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
+- Validation: 3 focused files / 93 tests and the full Vitest suite pass (423 files / 3,210 tests); typecheck and the production/PWA build pass; ESLint reports 0 errors and 17 pre-existing warnings; touched-file Prettier and `git diff --check` pass.
 - Independent review found no behavior, accessibility, regression, or coverage issues; its only documentation nit was fixed, and final re-review found no remaining findings.
 - PR review: Greptile rated the change safe to merge with no behavioral findings. Gemini suggested localizing the extracted sort strings; the suggestion is outside this PR because the extraction preserves the exact pre-existing strings and localizing the whole sort surface requires a separate locale-wide change.
+
+### Native iOS attachment save prompt (2026-07-15)
+
+- Status: implementation, confirmed PR review remediation, full local validation, independent re-review, and final PR checks are complete on PR #162; ready for human review.
+- Symptom: attachment download actions fetch or decrypt the file, but the browser-oriented `file-saver` handoff does not open a usable download destination in the Capacitor iOS app.
+- Root cause: the native app renders inside `WKWebView`, where a browser download initiated after an asynchronous media request cannot present iOS's file destination picker.
+- Fix: attachment, image, PDF, audio/file-header, and MindRoom long-response download paths now share a platform save helper.
+  Web and Android retain the existing `file-saver` path; native iOS streams the downloaded bytes in bounded chunks to a temporary file through a Capacitor bridge, then presents `UIDocumentPickerViewController` in export-as-copy mode.
+- The native picker resolves both successful saves and user cancellation cleanly, rejects overlapping prompts, sanitizes the temporary filename, and removes its private staging directory after the picker closes.
+- Failed save operations enter the existing async error state instead of leaving rejected event promises; image, PDF, file, and long-response actions visibly offer a retry.
+- Coverage pins native iOS bridge selection, stable per-page session ownership, reload recovery, bounded ordered chunk transfer, cleanup on failure, cancellation, object-URL loading, unchanged browser fallback behavior, duplicate-click suppression, and viewer/file retry behavior without redundant media downloads.
+- Validation after merging current `dev`: 14 focused tests and the full Vitest suite pass (425 files / 3,221 tests), as do typecheck, the production/PWA build, Capacitor iOS sync, an unsigned iOS Simulator workspace build, touched-file Prettier, and `git diff --check`.
+  Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review caught full-file base64 copies that could exhaust iOS memory on large attachments and save failures without visible retry feedback.
+  Re-review then caught a rejected UIKit presentation leaving the session active and three retry paths fetching the same bytes again.
+  A final audit also caught weak failed-presentation verification and a cache missing source identity.
+  Chunked staging, verified picker presentation and dismissal cleanup, async-state retry handling, and source-keyed blob reuse now address all findings; final independent re-review found no actionable issues.
+- PR review remediation: Fable found that a WebKit process reload after native staging begins can leave the retained Capacitor plugin session blocking every later save until app relaunch.
+  Each JavaScript page now owns its save sessions with a stable random identifier, so a reloaded page can replace only an abandoned pre-picker session while same-page overlap and active native pickers remain blocked.
+  Gemini and Greptile found a duplicate-click path, cancellation closing the long-response menu, and one redundant pre-presentation delegate assignment.
+  An immediate in-flight guard plus native button disabling now prevent duplicate saves, cancellation keeps the menu available, and the ineffective delegate assignment is removed.
+  AgentCLI with Claude Code Fable independently traced the WebKit, Swift queue, picker callback, retry, and module-lifecycle races after remediation and found no actionable issues.
+  Final Greptile re-review rated the remediated code 5/5 and safe to merge with no blocking findings.
+  Its encrypted-info reference-equality observation can only cause an extra download if a caller replaces the event-owned object, and its picker-verification timing observation was already covered by the independent UIKit race audit.
+  Web, Android, and container checks pass on remediation commit `fb0169aa1`; CodeRabbit, Sourcery, and Qodo reported quota or seat limits rather than new findings.
 
 ### Desktop page-navigation collapse control (2026-07-15)
 
