@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Guarded App Store review release (2026-07-15)
+
+- Status: release automation, regression coverage, operator notes, full local validation, and independent self-review are complete on `ios-release-automation`; PR review remains.
+- Operational baseline: App Store version `4.12.145 (141)` from exact `origin/dev` commit `c3b74bcc18d153de27eee7d171834fab8b2dd100` was submitted successfully and reached `WAITING_FOR_REVIEW` with manual release after approval.
+- A new Fastlane `ios release` lane validates the local release assets and repository, authenticates with the existing App Store Connect API-key path, validates the exact processed Xcode Cloud build, uploads metadata and screenshots, preserves reviewer access, submits the build, and verifies the resulting review state and release policy.
+- A destructive confirmation must exactly name the Apple marketing version and build number, and submission stops before authentication or App Store writes when it does not match.
+- The release preflight requires nonempty release notes, the complete expected five-scene iPhone and iPad screenshot sets, exact Apple pixel sizes, expected filenames, and byte-distinct images.
+- Stable primary-category metadata is no longer uploaded because App Store Connect rejected the redundant update as a duplicate category selection during the verified release.
+- Metadata upload now restores the demo-account-required flag when saved App Store Connect credentials exist, while the release lane refuses submission if demo credentials, review notes, or reviewer contact fields are missing.
+- Release notes are supplied through the environment and gitignored instead of being written to a reusable metadata file.
+- The operator guide records the conventional local API-key location, a content-safe key discovery command, Homebrew Fastlane fallback, Xcode Cloud version-number caveat, exact release command, lane guarantees, retry warning, and secret-handling boundary.
+- Focused validation passes nine release-preflight and Fastlane contract regressions, the preflight against the real generated screenshot set, Fastlane lane parsing, and a destructive-confirmation failure run that stopped before authentication.
+- Full validation passes the complete Vitest suite with 426 files and 3,234 tests, typecheck, the production and PWA build, the App Store preflight, Fastfile Ruby syntax, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent self-review caught metadata failure paths that could leave Apple's demo-account-required flag disabled when a later upload step failed, so both metadata entry points now restore that flag in an `ensure` path and the guarded release revalidates all review access before screenshot upload or submission.
+
 ### Restore compact thread-list scroll position (2026-07-15)
 
 - Status: implementation, behavioral regression coverage, latest `dev` merge, full local validation, independent re-review, confirmed PR review remediation, final PR checks, and bot re-review are complete on PR #165; ready for human review.
@@ -18,7 +34,6 @@
   AgentCLI with Claude Fable 5 independently traced the scroll owner, keyed remount lifecycle, all compact thread exit paths, delayed card loading, incremental clamp retries, manual-scroll cancellation, and cleanup; final re-review found no actionable issues.
   Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings.
   Android, web, Docker, and PR-title checks pass; CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than findings.
-
 ### Simple Mode thread sorting (2026-07-15)
 
 - Status: implementation, full local validation, independent re-review, and PR review are complete on PR #164; ready for review.
