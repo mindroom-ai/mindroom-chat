@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Thread-first sidebar (2026-07-15)
+
+- Status: state and ordering foundation complete; sidebar UI implementation is next.
+- The compact sidebar list will use the canonical cross-room thread index so unpinned threads sort by live last activity instead of the time a thread was last opened.
+- Added per-account sidebar preferences for a fully collapsed room list and up to 50 pinned threads.
+- Pinned threads remain visible at the top in saved order, while uninvolved unpinned threads stay out of the personal sidebar list.
+- Focused state and ordering tests cover corrupt storage sanitization, persistence, pin precedence, activity sorting, involvement filtering, and the compact-list cap.
+
 ### Simple Mode room access and view choice (2026-07-15)
 
 - Status: implementation, validation, independent review, and PR review remediation are complete on PR #160; ready for review.
