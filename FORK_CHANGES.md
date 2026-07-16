@@ -4,7 +4,7 @@
 
 ### Restore compact thread-list scroll position (2026-07-15)
 
-- Status: implementation, behavioral regression coverage, latest `dev` merge, full local validation, independent re-review, and confirmed PR review remediation are complete on PR #165; PR checks and final bot review are in progress.
+- Status: implementation, behavioral regression coverage, latest `dev` merge, full local validation, independent re-review, confirmed PR review remediation, final PR checks, and bot re-review are complete on PR #165; ready for human review.
 - Symptom: opening a thread from a scrolled compact room overview remounts the keyed room timeline, so exiting the thread creates a fresh compact scroll container at the top.
 - Fix: the room view now owns compact scroll offsets across thread timeline remounts, while the compact overview captures its offset during layout cleanup and restores it during layout setup before paint.
 - Scope: offsets are keyed by room inside the mounted room view, so thread enter/exit preserves the same room position without leaking an offset into another room or persisting stale layout state across app sessions.
@@ -16,6 +16,8 @@
   Gemini found that an initially empty or incomplete card list could clamp the one-shot restore and erase the saved position.
   Restoration now waits for cards and retries a clamped target only while the scroll position remains at the last programmatic value, so manual scrolling cancels further retries and unloaded cleanup preserves the prior offset.
   AgentCLI with Claude Fable 5 independently traced the scroll owner, keyed remount lifecycle, all compact thread exit paths, delayed card loading, incremental clamp retries, manual-scroll cancellation, and cleanup; final re-review found no actionable issues.
+  Final Greptile re-review rated the remediated change 5/5 and safe to merge with no findings.
+  Android, web, Docker, and PR-title checks pass; CodeRabbit, Sourcery, and Qodo reported quota, rate, or seat limits rather than findings.
 
 ### Simple Mode thread sorting (2026-07-15)
 
