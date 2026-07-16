@@ -18,7 +18,7 @@
 - Threads now render as a collapsible navigation category directly beside Rooms in the Home, Direct, and Space sidebars.
 - The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
 - Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
-- Unpinned threads sort by last activity, and per-account pins remain at the top in saved order.
+- Resolved threads stay out of the sidebar; unpinned unresolved threads sort by last activity, and per-account pins remain at the top in saved order.
 - Compact rows give the summary the full width and keep the pin hidden until hover or keyboard focus, where it appears over a soft right-edge gradient.
 - A delayed hover card adds the room, participating MindRoom agents, message count, and last activity.
 - The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.

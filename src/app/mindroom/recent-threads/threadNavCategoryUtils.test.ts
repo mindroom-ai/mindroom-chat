@@ -6,10 +6,12 @@ const makeEntry = ({
   key,
   lastActivityTs,
   isInvolved = true,
+  isResolved = false,
 }: {
   key: string;
   lastActivityTs: number;
   isInvolved?: boolean;
+  isResolved?: boolean;
 }): CrossRoomThreadIndexEntry =>
   ({
     key,
@@ -17,7 +19,7 @@ const makeEntry = ({
     isInvolved,
     isUnread: false,
     hasAttention: false,
-    isResolved: false,
+    isResolved,
     roomName: key,
     threadRootId: key,
   } as CrossRoomThreadIndexEntry);
@@ -45,6 +47,15 @@ describe('buildSidebarThreadEntries', () => {
     expect(
       buildSidebarThreadEntries([newest, involved, pinned], ['pinned']).map((entry) => entry.key)
     ).toEqual(['pinned', 'newest', 'involved']);
+  });
+
+  it('excludes resolved threads even when they are pinned', () => {
+    const unresolved = makeEntry({ key: 'unresolved', lastActivityTs: 10 });
+    const resolved = makeEntry({ key: 'resolved', lastActivityTs: 20, isResolved: true });
+
+    expect(
+      buildSidebarThreadEntries([unresolved, resolved], ['resolved']).map((entry) => entry.key)
+    ).toEqual(['unresolved']);
   });
 
   it('caps the compact sidebar list after sorting', () => {

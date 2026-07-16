@@ -13,6 +13,7 @@ export const buildSidebarThreadEntries = (
   );
 
   return Array.from(entries)
+    .filter((entry) => !entry.isResolved)
     .sort((left, right) => {
       const leftPinnedRank = pinnedRanks.get(left.key);
       const rightPinnedRank = pinnedRanks.get(right.key);
