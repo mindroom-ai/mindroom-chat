@@ -4,7 +4,7 @@
 
 ### Native iOS attachment save prompt (2026-07-15)
 
-- Status: implementation, confirmed PR review remediation, full local validation, and independent re-review are complete on PR #162; final CI and AI re-review are pending.
+- Status: implementation, confirmed PR review remediation, full local validation, independent re-review, and final PR checks are complete on PR #162; ready for human review.
 - Symptom: attachment download actions fetch or decrypt the file, but the browser-oriented `file-saver` handoff does not open a usable download destination in the Capacitor iOS app.
 - Root cause: the native app renders inside `WKWebView`, where a browser download initiated after an asynchronous media request cannot present iOS's file destination picker.
 - Fix: attachment, image, PDF, audio/file-header, and MindRoom long-response download paths now share a platform save helper.
@@ -23,6 +23,9 @@
   Gemini and Greptile found a duplicate-click path, cancellation closing the long-response menu, and one redundant pre-presentation delegate assignment.
   An immediate in-flight guard plus native button disabling now prevent duplicate saves, cancellation keeps the menu available, and the ineffective delegate assignment is removed.
   AgentCLI with Claude Code Fable independently traced the WebKit, Swift queue, picker callback, retry, and module-lifecycle races after remediation and found no actionable issues.
+  Final Greptile re-review rated the remediated code 5/5 and safe to merge with no blocking findings.
+  Its encrypted-info reference-equality observation can only cause an extra download if a caller replaces the event-owned object, and its picker-verification timing observation was already covered by the independent UIKit race audit.
+  Web, Android, and container checks pass on remediation commit `fb0169aa1`; CodeRabbit, Sourcery, and Qodo reported quota or seat limits rather than new findings.
 
 ### Simple Mode room access and view choice (2026-07-15)
 
