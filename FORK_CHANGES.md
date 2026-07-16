@@ -268,7 +268,7 @@
 
 ### Stage published web builds without interrupting active work (2026-07-12; revised 2026-07-16)
 
-- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, full local validation, real-Chrome migration verification, and independent re-review are complete; ready for PR review.
+- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, full local validation, real-Chrome migration verification, independent re-review, and publication are complete on PR #168; AI review is in progress.
   The predecessor updater was deployed to `chat.mindroom.chat` with automatic client reloads after worker activation, so the revised worker includes a one-time retirement path for tabs still running that bundle.
 - Each production build emits an unprecached `version.json` containing the Git commit used for both the manifest and the compiled client constant.
   A cache-busted, `no-store` request checks it at startup, every five minutes, when the tab becomes visible, and when the browser returns online.
