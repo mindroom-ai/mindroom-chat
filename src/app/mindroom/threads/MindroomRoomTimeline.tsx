@@ -865,7 +865,10 @@ export function RoomTimeline({
   // meta lastOpenedTs for both the room and thread scopes. Idempotent
   // per-call — safe to fire on every render-relevant change.
   useEffect(() => {
-    syncEngine.noteRoomFocused(room.roomId, threadId);
+    syncEngine.noteRoomFocused(
+      room.roomId,
+      isConfirmedMatrixEventId(threadId) ? threadId : undefined
+    );
   }, [syncEngine, room.roomId, threadId]);
 
   const handleRoomTimelinePagination = useRoomPaginationCommandController({

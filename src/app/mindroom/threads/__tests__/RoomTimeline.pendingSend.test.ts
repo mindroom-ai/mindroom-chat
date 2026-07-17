@@ -8,9 +8,15 @@ import {
   createControlledRoomTimelineHarness,
   editableActiveElementMock,
   flushAsyncWork,
+  getRenderedEventIds,
   keyDownHandlersMock,
   makeEvent,
   makeRoom,
+  matrixClientMock,
+  noteRoomFocusedMock,
+  saveCachedThreadSummaryMock,
+  saveThreadEventsToCacheMock,
+  threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 
 describe('RoomTimeline pending-send wiring', () => {
@@ -73,6 +79,7 @@ describe('RoomTimeline pending-send wiring', () => {
     const room = makeRoom({ liveEvents: [pendingEvent] });
     canEditEventMock.mockReturnValue(true);
     editableActiveElementMock.mockReturnValue({});
+    const previousDocument = globalThis.document;
     vi.stubGlobal('document', {
       activeElement: {
         getAttribute: (name: string) => (name === 'data-editable-name' ? 'RoomInput' : null),
@@ -118,6 +125,41 @@ describe('RoomTimeline pending-send wiring', () => {
     expect(confirmedMessage.props.edit).toBe(true);
     expect(confirmedKeyEvent.preventDefault).toHaveBeenCalled();
 
-    vi.unstubAllGlobals();
+    vi.stubGlobal('document', previousDocument);
+  });
+
+  it('renders a local root route without starting remote or thread-persistence work', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const localEventId = '~!room:example.org:txn-local-route';
+    const localRoot = makeEvent(localEventId, {
+      content: { body: 'optimistic root' },
+      isSending: true,
+      isThreadRoot: true,
+    });
+    const room = makeRoom({ liveEvents: [localRoot] });
+    threadRenderStateMock.threadEvents = [localRoot];
+    const onStoreThreadSummary = vi.fn();
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          threadId: localEventId,
+          onStoreThreadSummary,
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(getRenderedEventIds(renderer!)).toContain(localEventId);
+    expect(matrixClientMock.fetchRelations).not.toHaveBeenCalled();
+    expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+    expect(saveThreadEventsToCacheMock).not.toHaveBeenCalled();
+    expect(saveCachedThreadSummaryMock).not.toHaveBeenCalled();
+    expect(onStoreThreadSummary).not.toHaveBeenCalled();
+    expect(noteRoomFocusedMock).toHaveBeenCalledWith(room.roomId, undefined);
+    expect(noteRoomFocusedMock).not.toHaveBeenCalledWith(room.roomId, localEventId);
   });
 });
