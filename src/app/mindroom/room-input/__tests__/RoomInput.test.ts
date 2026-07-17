@@ -575,6 +575,7 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
           (event) => event.getRoomId() === roomId
         ),
     }),
+    getThreads: () => [],
     relations: {
       getAllChildEventsForEvent: (parentEventId: string) =>
         Array.from(textSendState.localEvents.values()).filter(
