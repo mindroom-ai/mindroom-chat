@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Thread-first sidebar (2026-07-15)
+
+- Status: implementation, local validation, and PR review are complete on PR #163; a follow-up performance fix for the persistent cross-room index is implemented, validated, and independently reviewed on `fix/thread-index-performance`.
+- Performance regression: once `useCrossRoomThreadIndex()` mounted unconditionally, production accounts with many rooms and threads pinned the renderer main thread at 100-200% CPU with unbounded memory growth.
+  Every `RoomEvent.Receipt` and every thread-summary-state notification rebuilt every thread in the room, and each rebuilt thread cloned the full 5,000-entry index map plus reverse maps and published its own snapshot version, so one receipt storm caused thousands of large allocations and re-renders.
+- Fix, index layer: a new pure `applyCrossRoomThreadIndexBatch` applies a whole coalesced flush as one snapshot transition.
+  The entries map and reverse-index maps/sets are cloned at most once per batch through a copy-on-write draft, rebuilt entries that are semantically unchanged (deep compare ignoring `generation`) are dropped, and a batch with no effective changes returns the input snapshot unchanged so the version does not move and subscribers do not re-render.
+  Single upsert/remove operations are now thin wrappers over the batch, and bounded size (5,000 entries plus 250 slack) with reverse-index cleanup is preserved inside the batch.
+- Fix, hook layer: receipts that carry no receipt for the current user are ignored entirely (thread unread state derives only from own receipts); own receipts with a concrete `thread_id` refresh only that thread; own unthreaded or main-timeline receipts keep the full-room refresh so unread state never goes stale.
+  The thread-summary subscription now diffs the immutably replaced summary map and enqueues only threads whose summary actually changed, and the bootstrapped-flag publication is identity-preserving once set.
+- Regression coverage: twelve new tests pin one publication per coalesced flush, identity-preserving no-op batches and upserts, generation-insensitive equivalence, batch removal/eviction reverse-index correctness without mutating prior snapshots, other-user receipt suppression, own threaded-receipt narrowing, own room-level receipt full refresh, and summary-diff narrowing.
+  Eleven of the twelve fail on the prior implementation.
+- Validation of the performance fix: the focused cross-room suite passes (5 files / 53 tests) and the full Vitest suite passes (426 files / 3,143 tests); typecheck, the production/PWA build, touched-file ESLint and Prettier, and `git diff --check` pass.
+- Threads now render as a collapsible navigation category directly beside Rooms in the Home and Space sidebars.
+- The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
+- Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
+- Resolved threads and threads from direct-message rooms stay out of the sidebar; unpinned unresolved threads sort by last activity, and per-account pins remain at the top in saved order.
+- Compact rows give the summary the full width and reveal resolve and pin actions over a soft right-edge gradient on hover or keyboard focus; the pin fills on direct hover.
+- The hover card appears immediately with the room, participating MindRoom agents, message count, and last activity.
+- Space sidebars show only threads from that Space, while Home keeps the global thread list, and opening a thread preserves the sidebar scroll position.
+- The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.
+- Pin preferences are removed with the account's other MindRoom UI state during logout and cache cleanup.
+- The existing full Threads page remains available for search and advanced filters.
+- Validation after merging current `dev`: the full Vitest suite passes (426 files / 3,143 tests), as do typecheck, the production/PWA build, and `git diff --check`.
+- Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
+
 ### Guarded App Store review release (2026-07-15)
 
 - Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, and public-document credential-placeholder cleanup are complete on PR #166; final CI and bot re-review gate the authorized squash merge.

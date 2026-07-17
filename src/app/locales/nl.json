@@ -233,11 +233,19 @@
     "close": "Sluiten",
     "actionError": "Dit account kon niet worden bijgewerkt. Probeer het opnieuw."
   },
-  "recentThreads": {
-    "title": "Recente threads",
-    "empty": "Geen recente threads",
-    "resizeAria": "Formaat van paneel \"Recente threads\" aanpassen",
-    "openedAt": "Geopend {{time}}"
+  "threadNav": {
+    "title": "Threads",
+    "empty": "Nog geen threads",
+    "loading": "Threads laden...",
+    "pin": "Thread vastmaken",
+    "unpin": "Thread losmaken",
+    "pinned": "Vastgemaakt",
+    "room": "Kamer",
+    "agents": "Agenten",
+    "agentsUnknown": "Geen agent herkend",
+    "messages": "Berichten",
+    "lastActivity": "Laatste activiteit",
+    "unknownActivity": "Onbekend"
   },
   "composer": {
     "placeholder": "Stuur een bericht...",
