@@ -170,7 +170,9 @@
 - Round 7 review-fix validation: typecheck passes; the complete serial Vitest run passes 434 files and 3,338 tests; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
 - Round 7 final live acceptance: the hash-verified `b0c0a95c` build passes the tightened Slow-3G scenario in `/tmp/CINNY-121-evidence-r7/fixed-final-b0c0a95c/`.
   With the root released at 15.138 seconds, exactly one reply PUT fired 477 milliseconds later, the server contained exactly one root and one reply with canonical thread and fallback targets, and the central timeline contained exactly one row for each event with the root above its child.
-- Round 7 status: two clean independent re-reviews remain before the branch can be considered ready.
+- Round 7 final review: two fresh independent reviewers approve with no remaining findings.
+  The SDK reviewer confirmed local-dev ancestry, CINNY-122 separation, source/compiled patch parity, safe timeline fallback, patch reversibility, and 94 focused tests; the evidence reviewer confirmed the ordering regression, tightened row-level oracle, server/network/DOM/screenshot agreement, report citations, and corrected timing.
+- Round 7 status: rebase, defect reproduction, primary delivery fix, secondary ordering fix, full validation, live acceptance, and independent re-review are complete on `cinny-121`; do not merge to `dev` as part of this round.
 
 ### Guarded App Store review release (2026-07-15)
 
