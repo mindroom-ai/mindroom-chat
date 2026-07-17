@@ -724,7 +724,7 @@ const createRoomInputTree = (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -750,7 +750,7 @@ const renderRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -771,7 +771,7 @@ const updateRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -1268,6 +1268,7 @@ describe('RoomInput', () => {
     });
     const onRoomMessageSent = vi.fn(() => {
       notificationOrder.push('notify');
+      return true;
     });
     const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
 
@@ -1322,6 +1323,7 @@ describe('RoomInput', () => {
     });
     const onRoomMessageSent = vi.fn(() => {
       order.push('notify');
+      return true;
     });
     const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
     order.length = 0;
@@ -1647,9 +1649,10 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('cancels a terminal failed root before restoring its captured editor fragment', async () => {
+  it('cancels a terminal failed root when the room view declines timeline ownership', async () => {
     const send = createDeferred<{ event_id: string }>();
     const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
+    const onRoomMessageSent = vi.fn(() => false);
     const transferOrder: string[] = [];
     mxState.cancelPendingEvent.mockImplementation(() => {
       transferOrder.push('cancel');
@@ -1666,7 +1669,7 @@ describe('RoomInput', () => {
         customEditorState.props!.onChange?.();
       });
     });
-    const { renderer } = await renderRoomInput();
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
     setEditorContent('Failed root');
     const capturedFragment = structuredClone(customEditorState.editor!.children);
 
@@ -1678,6 +1681,8 @@ describe('RoomInput', () => {
       customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
       await Promise.resolve();
     });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith(getLocalEvent()?.getId());
 
     await act(async () => {
       send.reject(new Error('terminal failure'));
@@ -1698,7 +1703,7 @@ describe('RoomInput', () => {
   it('leaves an auto-published failed root timeline-owned when rejection wins the route render', async () => {
     const send = createDeferred<{ event_id: string }>();
     const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn();
+    const onRoomMessageSent = vi.fn(() => true);
     const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
 
     editorOutputState.plainText = 'Published failed root';
@@ -1725,7 +1730,7 @@ describe('RoomInput', () => {
   it('leaves an auto-published failed root timeline-owned after its local route renders', async () => {
     const send = createDeferred<{ event_id: string }>();
     const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn();
+    const onRoomMessageSent = vi.fn(() => true);
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
 
@@ -2414,6 +2419,7 @@ describe('RoomInput', () => {
         pending: store.get(voiceAutoSendPendingAtom),
         uploads: store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file),
       });
+      return true;
     });
     const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
     await openVoiceRecorder(renderer);

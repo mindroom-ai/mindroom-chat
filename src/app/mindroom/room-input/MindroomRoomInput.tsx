@@ -210,7 +210,7 @@ export interface RoomInputProps {
   room: Room;
   threadId?: string;
   threadingEnabled?: boolean;
-  onRoomMessageSent?: (eventId: string) => void;
+  onRoomMessageSent?: (eventId: string) => boolean;
 }
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   (
@@ -1117,7 +1117,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const localEvent = room.getEventForTxnId(txnId);
         const localEventId = localEvent?.getId();
         const hasVerifiedLocalEcho = localEventId === `~${roomId}:${txnId}`;
-        let roomNotificationDelivered = false;
+        let roomNotificationAttempted = false;
+        let roomTimelineOwnershipAccepted = false;
 
         const clearComposerAndNotify = (eventId: string) => {
           resetEditor(editor);
@@ -1132,9 +1133,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             replyDraft: activeReplyDraft,
             threadId,
           });
-          if (sentEventIdToNotify && !roomNotificationDelivered && onRoomMessageSent) {
-            roomNotificationDelivered = true;
-            onRoomMessageSent(sentEventIdToNotify);
+          if (sentEventIdToNotify && !roomNotificationAttempted && onRoomMessageSent) {
+            roomNotificationAttempted = true;
+            roomTimelineOwnershipAccepted = onRoomMessageSent(sentEventIdToNotify);
           }
         };
         const ownsSubmittedComposer = () =>
@@ -1160,7 +1161,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             try {
               if (
                 hasVerifiedLocalEcho &&
-                !roomNotificationDelivered &&
+                !roomTimelineOwnershipAccepted &&
                 !relation &&
                 !activeReplyDraft &&
                 !threadId &&

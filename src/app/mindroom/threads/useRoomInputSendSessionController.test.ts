@@ -80,7 +80,7 @@ const TestHarness = ({
   threadId,
 }: {
   onReady: (api: HarnessApi) => void;
-  onRoomMessageSent?: (eventId: string) => void;
+  onRoomMessageSent?: (eventId: string) => boolean;
   mx: {
     getRoom: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
@@ -146,7 +146,7 @@ const TestHarness = ({
 const renderHarness = (
   options: {
     encryptedRoom?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean;
     threadId?: string;
   } = {}
 ) => {
@@ -341,6 +341,7 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
             apiRef.current?.selectedFilesRef.current.map((item) => item.file.name) ?? [],
           uploadFiles: apiRef.current?.uploadsRef.current.map((upload) => upload.file.name) ?? [],
         });
+        return true;
       },
     });
     apiRef.current = api;
