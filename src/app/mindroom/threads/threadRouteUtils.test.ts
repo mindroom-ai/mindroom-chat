@@ -38,7 +38,11 @@ const makeRoom = ({
   roomId = '!room:example.org',
 }: {
   events?: ReturnType<typeof makeEvent>[];
-  threads?: Array<{ id?: string; rootEvent?: ReturnType<typeof makeEvent> }>;
+  threads?: Array<{
+    id?: string;
+    rootEvent?: ReturnType<typeof makeEvent>;
+    events: ReturnType<typeof makeEvent>[];
+  }>;
   txnEventById?: Map<string, ReturnType<typeof makeEvent>>;
   roomId?: string;
 } = {}) =>
@@ -50,6 +54,7 @@ const makeRoom = ({
       getEvents: () => events,
     }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
+    getThreads: () => threads,
   } as never);
 
 describe('threadRouteUtils', () => {
@@ -112,6 +117,28 @@ describe('threadRouteUtils', () => {
     });
 
     expect(resolveCanonicalMatrixEventId(room, `~${roomId}:reply-txn`)).toBe('$confirmed-reply');
+  });
+
+  it('resolves a stale local-echo reply id from a loaded thread after its txn entry is evicted', () => {
+    const roomId = '!room:example.org';
+    const confirmedReply = makeEvent('$confirmed-thread-reply', {
+      threadRootId: '$root',
+      txnId: 'thread-reply-txn',
+    });
+    const room = makeRoom({
+      roomId,
+      threads: [
+        {
+          id: '$root',
+          rootEvent: makeEvent('$root'),
+          events: [confirmedReply],
+        },
+      ],
+    });
+
+    expect(resolveCanonicalMatrixEventId(room, `~${roomId}:thread-reply-txn`)).toBe(
+      '$confirmed-thread-reply'
+    );
   });
 
   it('treats pending local-echo thread roots as current activity', () => {

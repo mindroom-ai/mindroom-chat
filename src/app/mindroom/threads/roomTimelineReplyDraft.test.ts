@@ -122,16 +122,17 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
         getUnsigned: () => ({ transaction_id: txnId }),
       } as unknown as MatrixEvent);
     const confirmedByTxn = new Map([
-      ['reply-txn', confirmedEvent('$reply', 'reply-txn')],
       ['root-txn', confirmedEvent('$root', 'root-txn')],
       ['fallback-txn', confirmedEvent('$fallback', 'fallback-txn')],
     ]);
+    const confirmedThreadReply = confirmedEvent('$reply', 'reply-txn');
     const room = {
       roomId,
       getEventForTxnId: (txnId: string) => confirmedByTxn.get(txnId),
       getLiveTimeline: () => ({
         getEvents: () => Array.from(confirmedByTxn.values()),
       }),
+      getThreads: () => [{ events: [confirmedThreadReply] }],
     } as unknown as Room;
 
     expect(

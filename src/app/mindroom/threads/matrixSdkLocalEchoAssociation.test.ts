@@ -236,6 +236,57 @@ describe('matrix-js-sdk local-echo association patch', () => {
     await finishRequest(requests, 0, '$post-remote-echo-reply', replySend);
   });
 
+  it('resolves an evicted transaction target that is loaded only in a thread timeline', async () => {
+    const { client, requests, room } = makeHarness();
+    vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    const root = new MatrixEvent({
+      content: {
+        body: 'root',
+        msgtype: MsgType.Text,
+      },
+      event_id: '$thread-root',
+      origin_server_ts: Date.now(),
+      room_id: ROOM_ID,
+      sender: USER_ID,
+      type: EventType.RoomMessage,
+    });
+    const replyTxnId = 'remote-echo-thread-reply';
+    const localReplyId = `~${ROOM_ID}:${replyTxnId}`;
+    const confirmedReply = new MatrixEvent({
+      content: makeReplyContent('$thread-root'),
+      event_id: '$remote-echo-thread-reply',
+      origin_server_ts: Date.now(),
+      room_id: ROOM_ID,
+      sender: USER_ID,
+      type: EventType.RoomMessage,
+      unsigned: {
+        transaction_id: replyTxnId,
+      },
+    });
+    const thread = room.createThread('$thread-root', root, [confirmedReply], false);
+
+    expect(room.getEventForTxnId(replyTxnId)).toBeUndefined();
+    expect(room.getLiveTimeline().getEvents()).not.toContain(confirmedReply);
+    expect(thread.events).toContain(confirmedReply);
+
+    const send = client.sendMessage(
+      ROOM_ID,
+      makeReplyContent('$thread-root', localReplyId),
+      'reply-to-thread-only-event'
+    );
+
+    await waitForRequestCount(requests, 1);
+    expect(requests[0].content['m.relates_to']).toEqual({
+      event_id: '$thread-root',
+      rel_type: RelationType.Thread,
+      'm.in_reply_to': {
+        event_id: '$remote-echo-thread-reply',
+      },
+    });
+    expect(JSON.stringify(requests[0].content)).not.toContain(localReplyId);
+    await finishRequest(requests, 0, '$reply-to-thread-only-event', send);
+  });
+
   it('rewrites only a local thread root when the explicit reply target is already confirmed', async () => {
     const { client, requests, room } = makeHarness();
     const root = addLocalTarget(room, 'local-thread-root');

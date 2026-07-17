@@ -28,6 +28,11 @@ const getTxnIdFromLocalEchoEventId = (
   return txnId.length > 0 ? txnId : undefined;
 };
 
+const getLoadedRoomAndThreadEvents = (room: Room): MatrixEvent[] => [
+  ...room.getLiveTimeline().getEvents(),
+  ...room.getThreads().flatMap((thread) => thread.events),
+];
+
 const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | undefined => {
   const txnEvent = room.getEventForTxnId?.(txnId);
   const txnEventId = txnEvent?.getId();
@@ -35,7 +40,7 @@ const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | und
     return txnEventId;
   }
 
-  const resolveConfirmedId = buildResolveConfirmedEventId(room, room.getLiveTimeline().getEvents());
+  const resolveConfirmedId = buildResolveConfirmedEventId(room, getLoadedRoomAndThreadEvents(room));
   return resolveConfirmedId(txnId);
 };
 
@@ -94,7 +99,7 @@ const resolveConfirmedEventId = (
   const txnId = getEventTxnId(event);
   if (!txnId) return undefined;
 
-  const resolveConfirmedId = buildResolveConfirmedEventId(room, room.getLiveTimeline().getEvents());
+  const resolveConfirmedId = buildResolveConfirmedEventId(room, getLoadedRoomAndThreadEvents(room));
   return resolveConfirmedId(txnId);
 };
 
