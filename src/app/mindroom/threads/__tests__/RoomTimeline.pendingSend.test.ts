@@ -138,9 +138,8 @@ describe('RoomTimeline pending-send wiring', () => {
     const room = makeRoom({ liveEvents: [localRoot] });
     const onStoreThreadSummary = vi.fn();
 
-    let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
-      renderer = create(
+      create(
         React.createElement(ControlledRoomTimeline, {
           room,
           threadId: localEventId,
