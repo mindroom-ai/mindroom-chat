@@ -167,7 +167,10 @@
   The same reviewer also found that the live ordering oracle used the first root text across the full page, which could come from the Recent Threads sidebar instead of the central timeline.
 - Round 7 review fix: the render merge now preserves an identified thread root as the first event before applying timestamp and event-id ordering, with a focused `NOT_SENT` child regression whose local timestamp predates root confirmation.
   The live harness now counts and compares only central `[data-message-id]` rows, including DOM order and bounding-box order, so sidebar and banner text cannot satisfy the assertion.
-- Round 7 status: rerun full validation and final live evidence before two clean independent re-reviews.
+- Round 7 review-fix validation: typecheck passes; the complete serial Vitest run passes 434 files and 3,338 tests; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
+- Round 7 final live acceptance: the hash-verified `b0c0a95c` build passes the tightened Slow-3G scenario in `/tmp/CINNY-121-evidence-r7/fixed-final-b0c0a95c/`.
+  With the root released at 15.138 seconds, exactly one reply PUT fired 477 milliseconds later, the server contained exactly one root and one reply with canonical thread and fallback targets, and the central timeline contained exactly one row for each event with the root above its child.
+- Round 7 status: two clean independent re-reviews remain before the branch can be considered ready.
 
 ### Guarded App Store review release (2026-07-15)
 
