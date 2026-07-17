@@ -121,7 +121,9 @@ describe('matrix-js-sdk local-echo association patch', () => {
     );
     const replySend = client.sendMessage(ROOM_ID, makeReplyContent(rootLocalId), 'reply');
 
-    expect(room.getEventForTxnId('reply')?.getId()).toBe(`~${ROOM_ID}:reply`);
+    const pendingReply = room.getEventForTxnId('reply');
+    expect(pendingReply?.getId()).toBe(`~${ROOM_ID}:reply`);
+    expect(room.relations.getAllChildEventsForEvent(rootLocalId)).toContain(pendingReply);
     expect(getPendingEvents).not.toHaveBeenCalled();
 
     await waitForRequestCount(requests, 1);
@@ -191,6 +193,47 @@ describe('matrix-js-sdk local-echo association patch', () => {
       })
     );
     await finishRequest(requests, 1, '$late-reply', replySend);
+  });
+
+  it('resolves a stale local target after the remote echo evicts its transaction entry', async () => {
+    const { client, requests, room } = makeHarness();
+    const rootTxnId = 'remote-echo-root';
+    const root = addLocalTarget(room, rootTxnId);
+    const rootLocalId = root.getId()!;
+    const remoteRoot = new MatrixEvent({
+      content: root.getContent(),
+      event_id: '$remote-echo-root',
+      origin_server_ts: Date.now(),
+      room_id: ROOM_ID,
+      sender: USER_ID,
+      type: EventType.RoomMessage,
+      unsigned: {
+        transaction_id: rootTxnId,
+      },
+    });
+
+    room.handleRemoteEcho(remoteRoot, root);
+
+    expect(room.getEventForTxnId(rootTxnId)).toBeUndefined();
+    expect(room.findEventById(rootLocalId)).toBeUndefined();
+    expect(room.findEventById('$remote-echo-root')).toBe(root);
+
+    const replySend = client.sendMessage(
+      ROOM_ID,
+      makeReplyContent(rootLocalId),
+      'post-remote-echo-reply'
+    );
+
+    await waitForRequestCount(requests, 1);
+    expect(requests[0].content['m.relates_to']).toEqual({
+      event_id: '$remote-echo-root',
+      rel_type: RelationType.Thread,
+      'm.in_reply_to': {
+        event_id: '$remote-echo-root',
+      },
+    });
+    expect(JSON.stringify(requests[0].content)).not.toContain(rootLocalId);
+    await finishRequest(requests, 0, '$post-remote-echo-reply', replySend);
   });
 
   it('rewrites only a local thread root when the explicit reply target is already confirmed', async () => {

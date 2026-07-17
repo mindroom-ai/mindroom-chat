@@ -1,8 +1,8 @@
 diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
-index bc4e623..237b77a 100644
+index bc4e623..2817dbd 100644
 --- a/node_modules/matrix-js-sdk/lib/client.js
 +++ b/node_modules/matrix-js-sdk/lib/client.js
-@@ -1882,13 +1882,22 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -1882,13 +1882,29 @@ export class MatrixClient extends TypedEventEmitter {
      // that hasn't been sent yet (e.g. with a local id starting with a ~)
      // then listen for the remote echo of that event so that by the time
      // this event does get sent, we have the correct event_id
@@ -16,6 +16,13 @@ index bc4e623..237b77a 100644
 +      var txnId = targetId.slice(localEventIdPrefix.length);
 +      var _room$getEventForTxn, _room$findEventById;
 +      var target = (_room$getEventForTxn = room === null || room === void 0 ? void 0 : room.getEventForTxnId(txnId)) !== null && _room$getEventForTxn !== void 0 ? _room$getEventForTxn : (_room$findEventById = room === null || room === void 0 ? void 0 : room.findEventById(targetId)) !== null && _room$findEventById !== void 0 ? _room$findEventById : room === null || room === void 0 ? void 0 : room.getPendingEvent(targetId);
++      if (!target) {
++        target = room === null || room === void 0 ? void 0 : room.getLiveTimeline().getEvents().find(event => {
++          var _event$getTxnId;
++          var eventTxnId = (_event$getTxnId = event.getTxnId()) !== null && _event$getTxnId !== void 0 ? _event$getTxnId : event.getUnsigned().transaction_id;
++          return eventTxnId === txnId;
++        });
++      }
 +      var resolvedTargetId = target === null || target === void 0 ? void 0 : target.getId();
 +      if (resolvedTargetId && resolvedTargetId !== targetId) {
 +        localEvent.updateAssociatedId(resolvedTargetId, targetId);
@@ -76,10 +83,10 @@ index 41c0e07..4814216 100644
      if (relation) {
        relation.event_id = eventId;
 diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
-index 80ea382..6d6d32b 100644
+index 80ea382..770964e 100644
 --- a/node_modules/matrix-js-sdk/src/client.ts
 +++ b/node_modules/matrix-js-sdk/src/client.ts
-@@ -2853,11 +2853,25 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -2853,11 +2853,31 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          // that hasn't been sent yet (e.g. with a local id starting with a ~)
          // then listen for the remote echo of that event so that by the time
          // this event does get sent, we have the correct event_id
@@ -96,8 +103,14 @@ index 80ea382..6d6d32b 100644
 +            if (!targetId || !localEventIdPrefix || !targetId.startsWith(localEventIdPrefix)) continue;
 +
 +            const txnId = targetId.slice(localEventIdPrefix.length);
-+            const target =
++            let target =
 +                room?.getEventForTxnId(txnId) ?? room?.findEventById(targetId) ?? room?.getPendingEvent(targetId);
++            if (!target) {
++                target = room?.getLiveTimeline().getEvents().find((event) => {
++                    const eventTxnId = event.getTxnId() ?? event.getUnsigned().transaction_id;
++                    return eventTxnId === txnId;
++                });
++            }
 +            const resolvedTargetId = target?.getId();
 +            if (resolvedTargetId && resolvedTargetId !== targetId) {
 +                localEvent.updateAssociatedId(resolvedTargetId, targetId);
