@@ -178,6 +178,79 @@ describe('matrix-js-sdk local-echo association patch', () => {
     await finishRequest(requests, 1, '$reply', replySend);
   });
 
+  it('keeps a queued reply sendable when the root remote echo beats its held HTTP response', async () => {
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    const { client, requests, room } = makeHarness();
+    const canonicalThreadFetch = makeDeferred<MatrixEvent['event']>();
+    vi.spyOn(client, 'fetchRoomEvent').mockReturnValue(canonicalThreadFetch.promise);
+    const rootTxnId = 'remote-first-held-root';
+    const rootLocalId = `~${ROOM_ID}:${rootTxnId}`;
+    const replyTxnId = 'remote-first-held-reply';
+
+    const rootSend = client.sendMessage(
+      ROOM_ID,
+      { body: 'root', msgtype: MsgType.Text },
+      rootTxnId
+    );
+    const replySend = client.sendMessage(ROOM_ID, makeReplyContent(rootLocalId), replyTxnId);
+    const pendingRoot = room.getEventForTxnId(rootTxnId)!;
+    const pendingReply = room.getEventForTxnId(replyTxnId)!;
+
+    await waitForRequestCount(requests, 1);
+    expect(pendingReply.status).toBe(EventStatus.QUEUED);
+
+    room.handleRemoteEcho(
+      new MatrixEvent({
+        content: { body: 'root', msgtype: MsgType.Text },
+        event_id: '$remote-first-held-root',
+        origin_server_ts: Date.now(),
+        room_id: ROOM_ID,
+        sender: USER_ID,
+        type: EventType.RoomMessage,
+        unsigned: {
+          transaction_id: rootTxnId,
+        },
+      }),
+      pendingRoot
+    );
+
+    expect(pendingReply.status).toBe(EventStatus.QUEUED);
+    expect(pendingRoot).not.toBe(pendingReply);
+    expect(pendingRoot.getId()).toBe('$remote-first-held-root');
+    expect(pendingReply.getId()).toBe(`~${ROOM_ID}:${replyTxnId}`);
+    const canonicalThread = room.getThread('$remote-first-held-root');
+    expect(canonicalThread?.events).toContain(pendingReply);
+    expect(canonicalThread?.events).not.toContain(pendingRoot);
+    expect(
+      room.getUnfilteredTimelineSet().getTimelineForEvent('$remote-first-held-root')
+    ).not.toBeNull();
+    expect(canonicalThread?.timelineSet.getTimelineForEvent('$remote-first-held-root')).toBeNull();
+    expect(room.getTimelineForEvent('$remote-first-held-root')).not.toBeNull();
+    const scheduler = (
+      client as unknown as {
+        scheduler: {
+          getQueueForEvent: (event: MatrixEvent) => MatrixEvent[] | null;
+        };
+      }
+    ).scheduler;
+    expect(scheduler.getQueueForEvent(pendingReply)).toEqual([pendingRoot, pendingReply]);
+
+    await finishRequest(requests, 0, '$remote-first-held-root', rootSend);
+    expect(pendingReply.getId()).toBe(`~${ROOM_ID}:${replyTxnId}`);
+    expect(scheduler.getQueueForEvent(pendingReply)).toEqual([pendingReply]);
+    await waitForRequestCount(requests, 2);
+    expect(requests[1].event).toBe(pendingReply);
+    expect(requests[1].content['m.relates_to']).toEqual({
+      event_id: '$remote-first-held-root',
+      rel_type: RelationType.Thread,
+      'm.in_reply_to': {
+        event_id: '$remote-first-held-root',
+      },
+    });
+
+    await finishRequest(requests, 1, '$remote-first-held-reply', replySend);
+  });
+
   it('keeps dependent replacement working with detached pending ordering', async () => {
     const { client, requests, room } = makeHarness(PendingEventOrdering.Detached);
     const rootTxnId = 'detached-root';

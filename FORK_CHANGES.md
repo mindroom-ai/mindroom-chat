@@ -155,7 +155,12 @@
 - Round 7 pre-fix gates: typecheck passes; the complete Vitest suite passes serially with 434 files and 3,336 tests after a parallel run exposed three isolated RoomTimeline files as suite-resource/order flakes; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
 - Round 7 rebased repro: the hash-verified `16b19049` build under Slow 3G and a 15.157-second root hold reproduced the defect in `/tmp/CINNY-121-evidence-r7/before-fix/`; the reply remained pending through canonicalization, emitted no PUT within 60 seconds, then hit the same SDK non-local-echo status exception about 45 seconds after release.
 - Round 7 rebased repro rendering: the final screenshot shows the failed red reply above its canonical root, so CINNY-122's eager SDK thread creation for confirmed zero-reply roots neither fixes nor masks the pending-local-root migration defect.
-- Round 7 status: trace the provisional-to-canonical migration against the SDK pending-event registration invariant before writing the smallest fix.
+- Round 7 root cause: remote-echo-first canonicalization creates the canonical SDK `Thread` and tags the root with that thread before the thread timeline contains the root.
+  `Room.getTimelineForEvent` then routes the canonical root exclusively to the empty thread timeline even though the same root is already registered in the room timeline, so the delayed root HTTP acknowledgement falls through to a status transition on the status-null remote echo, the scheduler retries the root, and the queued reply never reaches its PUT.
+- Round 7 fix: the SDK room timeline lookup now falls back to the unfiltered room timeline when a classified thread does not yet contain the requested event.
+  The real-SDK regression holds the root request, queues a reply, injects the root remote echo first, proves the temporary room-only root registration, and requires the root acknowledgement to dequeue the still-local reply with canonical relation targets.
+- Round 7 focused validation: all 13 real-SDK local-echo association tests pass, `git diff --check` passes, and both repository patches reverse and reapply cleanly.
+- Round 7 status: run full validation and the fixed live 15-second acceptance harness before the two fresh independent reviews.
 
 ### Guarded App Store review release (2026-07-15)
 

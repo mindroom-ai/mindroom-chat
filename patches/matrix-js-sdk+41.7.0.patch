@@ -125,9 +125,23 @@ index 83c2a44..1e78532 100644
       * Applies an event as a redaction of another event, regardless of whether the redacting
       * event is actually a redaction.
 diff --git a/node_modules/matrix-js-sdk/lib/models/room.js b/node_modules/matrix-js-sdk/lib/models/room.js
-index ac723cf..cc29d7e 100644
+index ac723cf..ad74f88 100644
 --- a/node_modules/matrix-js-sdk/lib/models/room.js
 +++ b/node_modules/matrix-js-sdk/lib/models/room.js
+@@ -1223,10 +1223,10 @@ export class Room extends ReadReceipt {
+     var event = this.findEventById(eventId);
+     var thread = this.findThreadForEvent(event);
+     if (thread) {
+-      return thread.timelineSet.getTimelineForEvent(eventId);
+-    } else {
+-      return this.getUnfilteredTimelineSet().getTimelineForEvent(eventId);
++      var timeline = thread.timelineSet.getTimelineForEvent(eventId);
++      if (timeline) return timeline;
+     }
++    return this.getUnfilteredTimelineSet().getTimelineForEvent(eventId);
+   }
+
+   /**
 @@ -2241,6 +2241,48 @@ export class Room extends ReadReceipt {
      return thread;
    }
@@ -332,9 +346,23 @@ index 19a2f43..e3a0461 100644
          if (relation) {
              relation.event_id = eventId;
 diff --git a/node_modules/matrix-js-sdk/src/models/room.ts b/node_modules/matrix-js-sdk/src/models/room.ts
-index f288f9d..0544cdf 100644
+index f288f9d..8a84122 100644
 --- a/node_modules/matrix-js-sdk/src/models/room.ts
 +++ b/node_modules/matrix-js-sdk/src/models/room.ts
+@@ -1465,10 +1465,10 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+         const event = this.findEventById(eventId);
+         const thread = this.findThreadForEvent(event);
+         if (thread) {
+-            return thread.timelineSet.getTimelineForEvent(eventId);
+-        } else {
+-            return this.getUnfilteredTimelineSet().getTimelineForEvent(eventId);
++            const timeline = thread.timelineSet.getTimelineForEvent(eventId);
++            if (timeline) return timeline;
+         }
++        return this.getUnfilteredTimelineSet().getTimelineForEvent(eventId);
+     }
+
+     /**
 @@ -2577,6 +2577,66 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
          return thread;
      }
