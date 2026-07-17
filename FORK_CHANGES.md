@@ -22,14 +22,41 @@
 - Behavioral regression coverage leaves zero outstanding URLs after upload success, upload metadata failure, image-pack failure, delayed resolution after unmount, pre-publication unmount or replacement, and pre-commit parent removal or request replacement across generic and audio paths.
 - The pre-commit regressions use the production `createRoot` renderer in jsdom and require exactly one revocation when concurrent batching drops the success render.
 - The source-inspection ownership test is removed, and a real encrypted-thumbnail integration test now exercises late-result cleanup through the production component and hooks.
-- Validation passes 18 CINNY-123 regression tests across seven files, the full Vitest suite with 432 files and 3,253 tests, typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Validation after merging current `dev` passes 18 CINNY-123 regression tests across seven files, the full Vitest suite with 432 files and 3,160 tests, typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
+- Current `origin/dev` commit `93fbf317c` merged without a code conflict; the sole Runbook insertion conflict preserves both complete feature sections.
 - The first independent review found the queued-publication ownership gap, duplicate audio helper, and source-inspection test addressed here.
 - The second independent review demonstrated that concurrent React can batch away a queued success before commit, which moved the ownership boundary from state-update scheduling to confirmed commit.
 - Independent pre-PR re-review found no remaining generic ownership gap, double revocation, stale error publication, behavioral coverage, documentation, scope, or half-refactor issue.
 - PR review identified the equivalent audio pre-commit publication race; a production-renderer regression reproduced one outstanding URL before the fix and confirms unmount, replacement, and normal commit ownership after remediation.
 - Independent remediation re-review confirmed exact-once pending disposal, committed cleanup transfer, media-identity handling, regression coverage, and Runbook accuracy with no remaining findings.
 - No crash hook, cache, index, listener, Matrix SDK, or Capacitor change is included.
+
+### Thread-first sidebar (2026-07-15)
+
+- Status: implementation, local validation, and PR review are complete on PR #163; a follow-up performance fix for the persistent cross-room index is implemented, validated, and independently reviewed on `fix/thread-index-performance`.
+- Performance regression: once `useCrossRoomThreadIndex()` mounted unconditionally, production accounts with many rooms and threads pinned the renderer main thread at 100-200% CPU with unbounded memory growth.
+  Every `RoomEvent.Receipt` and every thread-summary-state notification rebuilt every thread in the room, and each rebuilt thread cloned the full 5,000-entry index map plus reverse maps and published its own snapshot version, so one receipt storm caused thousands of large allocations and re-renders.
+- Fix, index layer: a new pure `applyCrossRoomThreadIndexBatch` applies a whole coalesced flush as one snapshot transition.
+  The entries map and reverse-index maps/sets are cloned at most once per batch through a copy-on-write draft, rebuilt entries that are semantically unchanged (deep compare ignoring `generation`) are dropped, and a batch with no effective changes returns the input snapshot unchanged so the version does not move and subscribers do not re-render.
+  Single upsert/remove operations are now thin wrappers over the batch, and bounded size (5,000 entries plus 250 slack) with reverse-index cleanup is preserved inside the batch.
+- Fix, hook layer: receipts that carry no receipt for the current user are ignored entirely (thread unread state derives only from own receipts); own receipts with a concrete `thread_id` refresh only that thread; own unthreaded or main-timeline receipts keep the full-room refresh so unread state never goes stale.
+  The thread-summary subscription now diffs the immutably replaced summary map and enqueues only threads whose summary actually changed, and the bootstrapped-flag publication is identity-preserving once set.
+- Regression coverage: twelve new tests pin one publication per coalesced flush, identity-preserving no-op batches and upserts, generation-insensitive equivalence, batch removal/eviction reverse-index correctness without mutating prior snapshots, other-user receipt suppression, own threaded-receipt narrowing, own room-level receipt full refresh, and summary-diff narrowing.
+  Eleven of the twelve fail on the prior implementation.
+- Validation of the performance fix: the focused cross-room suite passes (5 files / 53 tests) and the full Vitest suite passes (426 files / 3,143 tests); typecheck, the production/PWA build, touched-file ESLint and Prettier, and `git diff --check` pass.
+- Threads now render as a collapsible navigation category directly beside Rooms in the Home and Space sidebars.
+- The category uses the same canonical cross-room index and compact thread-card view model as the full Threads page instead of maintaining a separate recently opened list.
+- Closing Rooms now fully hides its room rows while leaving the sibling Threads category available.
+- Resolved threads and threads from direct-message rooms stay out of the sidebar; unpinned unresolved threads sort by last activity, and per-account pins remain at the top in saved order.
+- Compact rows give the summary the full width and reveal resolve and pin actions over a soft right-edge gradient on hover or keyboard focus; the pin fills on direct hover.
+- The hover card appears immediately with the room, participating MindRoom agents, message count, and last activity.
+- Space sidebars show only threads from that Space, while Home keeps the global thread list, and opening a thread preserves the sidebar scroll position.
+- The obsolete split panel, resize state, mobile expansion state, and layout helpers were removed.
+- Pin preferences are removed with the account's other MindRoom UI state during logout and cache cleanup.
+- The existing full Threads page remains available for search and advanced filters.
+- Validation after merging current `dev`: the full Vitest suite passes (426 files / 3,143 tests), as do typecheck, the production/PWA build, and `git diff --check`.
+- Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
 
 ### Guarded App Store review release (2026-07-15)
 
@@ -295,33 +322,47 @@
   A dependency-level contract test opens the pinned `matrix-sdk-crypto-wasm` store against a fresh IndexedDB implementation and proves that no metadata database is created without a password or storage key.
   The full Vitest suite passes (412 files / 3,165 tests), as do typecheck, touched-file ESLint and Prettier, `git diff --check`, the production/PWA build, and the Element Call background-build verification.
 
-### Automatically activate published web builds without breaking offline use (2026-07-12)
+### Stage published web builds without interrupting active work (2026-07-12; revised 2026-07-16)
 
-- Status: implementation and local validation complete.
-  The equivalent updater code from the predecessor combined branch was deployed atomically to `chat.mindroom.chat`, and live manifest/build checks passed.
+- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, real-Chrome migration verification, confirmed AI review remediation, full local revalidation, independent re-review, and follow-up publication are complete on PR #168; final CI and bot re-review gate human review.
+  The predecessor updater was deployed to `chat.mindroom.chat` with automatic client reloads after worker activation, so the revised worker includes a one-time retirement path for tabs still running that bundle.
 - Each production build emits an unprecached `version.json` containing the Git commit used for both the manifest and the compiled client constant.
   A cache-busted, `no-store` request checks it at startup, every five minutes, when the tab becomes visible, and when the browser returns online.
 - When the published commit differs, MindRoom Chat registers `sw.js` with the commit in its query string and `updateViaCache: none`.
-  The worker already uses `skipWaiting()` and `clients.claim()`; the old client reloads once after the new worker takes control, or after activation if the browser reports no controller change because the worker bytes were already current.
-  The new hashed application assets therefore take over without a manual hard refresh.
-- The first deployment needs a worker-side bootstrap because an older page cannot run updater code it does not contain.
-  During install the new worker records whether an active predecessor exists.
-  On upgrade only, activation claims and navigates existing top-level tabs after the new app shell is precached.
-  First installs do not reload.
-  The navigation remains safe if the network drops between install and activation because the new worker serves its cached shell.
+  Registration stages the new shell and hashed assets but never reloads the active document.
+  Repeated checks deduplicate the already staged version for the lifetime of the page.
+- Registrations made by the revised client carry an explicit non-disruptive-update marker.
+  A worker installed by an unmarked predecessor client unregisters that registration instead of precaching, activating, claiming, or navigating.
+  An already-open predecessor document remains controlled and uninterrupted until it unloads.
+  Once its monitor has retired the registration, its next explicit navigation goes to the network and boots the marked current registration.
+  Repeated checks from a still-open predecessor page create another unmarked registration and retire it the same way instead of reintroducing the activation reload.
+- A browser with no predecessor tab open at deployment can serve that worker's cache-first shell once on its first return, before any document can retire the registration.
+  The loaded predecessor then retires it, so the following explicit navigation gets the current shell.
+  This is a one-time transition constraint of the already-deployed cache-first worker; after the marked worker is installed, later deployments update on the first manual refresh or visit.
+- Online top-level navigations check the network with `cache: no-store` before the Workbox precache route.
+  Under the marked worker, a manual refresh or later visit therefore receives the currently published shell, while a failed or offline request falls back to the precached shell.
+  A stalled network navigation aborts after five seconds and uses the same fallback, while opaque navigation redirects return to the browser so it can follow the server response instead of replacing it with the cached shell.
+- First marked service-worker installs activate immediately and claim the initial page.
+  Later marked upgrades use the normal waiting phase until existing clients are gone, then claim clients and prune obsolete precache entries safely.
+  No service-worker path calls `WindowClient.navigate()`.
 - Version fetches, worker registration, and update failures are deliberately ignored, and a stalled manifest request is aborted after five seconds.
-  No version request or update reload runs while `navigator.onLine` is false.
-  The older service-worker-control recovery reload now additionally requires a successful cache-busted manifest fetch, preventing a nominally online but disconnected browser from refreshing away its loaded tab.
+  No version request runs while `navigator.onLine` is false.
+  The older service-worker-control recovery reload still requires a successful cache-busted manifest fetch, preventing a nominally online but disconnected browser from refreshing away its loaded tab.
 - `version.json` is excluded from Workbox precaching.
-  This is essential: a precached latest-version pointer would permanently report the version of the worker currently controlling the page.
-- Review hardening: the monitor ignores a late worker activation after it has stopped, owns and replaces its stop handle if bootstrap is invoked again, accepts SemVer build metadata, and does not poison its in-memory reload guard when a session guard suppresses a reload.
-  It relies on versioned `serviceWorker.register()` to trigger installation without a redundant immediate `registration.update()` request or unused registration state.
-  Provider commit variables are validated as hashes; Netlify's documented commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`, which is only a fallback when Git metadata is unavailable.
-  Startup also skips manifest discovery when no active service worker can use its result.
-- Validation: updater unit tests cover build-version selection, failure/malformed manifests, stalled requests, current versions, changed versions with one reload, and offline behavior.
-  The full suite passes 411 files / 3,154 tests, as do service worker tests, typecheck, touched-file lint and formatting, and a production build.
-  The live production branch build contains `version.json`, excludes it from `sw.js`, and compiles the matching commit into the client bundle.
-  Cloudflare reports the cache-busted manifest as dynamic.
+  This is essential because a precached latest-version pointer would permanently report the version of the worker currently controlling the page.
+- Provider commit variables are validated as hashes.
+  Netlify's documented commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`, which is only a fallback when Git metadata is unavailable.
+  Startup skips manifest discovery when no active service worker can use its result.
+- Focused tests cover version discovery, failures, timeouts, offline behavior, silent staging, staged-version deduplication, marked registration URLs, network-first navigation with timeout and offline fallback, navigation redirects, first install, normal waiting activation, predecessor registration retirement without its activation-triggered reload, and the absence of client navigation.
+- Validation: 6 focused files / 29 tests and the full Vitest suite pass (426 files / 3,246 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+  Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review first caught immediate activation pruning old lazy assets and serving the old cached shell on the first explicit navigation.
+  The worker now preserves browser-managed activation for later versions and checks the network before its precache navigation route.
+  Re-review then caught the exact deployed predecessor monitor reloading on worker activation, so unmarked predecessor registrations retire without activation.
+  Real-Chrome verification caught an unregister job deadlock when its promise was awaited from the install event; unregister now starts without extending install, and a regression fails if that promise is awaited.
+  Final Chrome verification confirmed no active-tab reload, successful registration retirement, and network loading on the following navigation; final independent re-review found no remaining issues.
+  PR review found that a stalled navigation could delay the cached fallback, manual navigation redirects could be mistaken for failed responses, and one current-worker session mock looked like an incomplete predecessor registration.
+  Navigation now has a bounded network wait, preserves opaque redirects for the browser, and marks the session fixture as the current worker; full revalidation passes and independent re-review found no remaining issues.
 - Container packaging follow-up (2026-07-13, complete): the GHCR build excludes `.git` and did not pass a provider commit into Docker, so published images emitted `{"version":"unknown"}` even though direct/Netlify builds exposed the correct commit.
   The Dockerfile now accepts an explicit `MINDROOM_BUILD_VERSION`; branch-push, release, and PR workflows pass the exact GitHub commit.
   Docker CI reads `/app/version.json` from the built image and runs a dedicated publisher-workflow validation script, preventing the packaging path from silently regressing again even on workflow-only changes.

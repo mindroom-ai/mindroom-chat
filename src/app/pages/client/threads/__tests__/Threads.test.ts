@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import { createStore, Provider } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Threads } from '../Threads';
 import { clearCrossRoomThreadFiltersStore } from '../../../../mindroom/cross-room-threads/crossRoomThreadFilters';
-import type { CrossRoomThreadIndexSnapshot } from '../../../../mindroom/cross-room-threads/crossRoomThreadIndex';
+import {
+  crossRoomThreadIndexAtom,
+  type CrossRoomThreadIndexSnapshot,
+} from '../../../../mindroom/cross-room-threads/crossRoomThreadIndex';
 
-const { matrixClientMock, activeSessionMock, indexSnapshotMock } = vi.hoisted(() => ({
+const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
   activeSessionMock: vi.fn(),
-  indexSnapshotMock: vi.fn(),
 }));
 
 vi.mock('../../../../hooks/useMatrixClient', () => ({
@@ -23,10 +26,6 @@ vi.mock('../../../../hooks/useSessionStore', () => ({
 
 vi.mock('../../../../hooks/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: () => undefined,
-}));
-
-vi.mock('../../../../mindroom/cross-room-threads/useCrossRoomThreadIndex', () => ({
-  useCrossRoomThreadIndex: indexSnapshotMock,
 }));
 
 vi.mock('../../../../components/page', () => ({
@@ -168,12 +167,15 @@ const hasText = (renderer: ReturnType<typeof create>, text: string): boolean =>
     .some(Boolean);
 
 describe('Threads', () => {
+  let store: ReturnType<typeof createStore>;
+
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.clear();
     matrixClientMock.mockReturnValue({ getUserId: () => userId });
     activeSessionMock.mockReturnValue({ userId });
-    indexSnapshotMock.mockReturnValue(makeSnapshot());
+    store = createStore();
+    store.set(crossRoomThreadIndexAtom, makeSnapshot());
   });
 
   afterEach(() => {
@@ -186,7 +188,7 @@ describe('Threads', () => {
   it('clears a search-filtered list and resets the search input', async () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
-      renderer = create(React.createElement(Threads));
+      renderer = create(React.createElement(Provider, { store }, React.createElement(Threads)));
     });
 
     const getSearchInput = () =>

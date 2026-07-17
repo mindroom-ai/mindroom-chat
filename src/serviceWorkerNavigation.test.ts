@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   NAVIGATION_FALLBACK_EXCLUDE_PARAM,
+  fetchNavigationWithShellFallback,
   navigationFallbackExcludePathPattern,
   normalizeNavigationFallbackExcludePaths,
   readNavigationFallbackExcludePaths,
@@ -53,5 +54,79 @@ describe('service worker navigation fallback exclusions', () => {
     expect(controlPanel.test('/control.panel/users')).toBe(true);
     expect(controlPanel.test('/controlXpanel/users')).toBe(false);
     expect(otherApp.test('/home/some-room')).toBe(false);
+  });
+});
+
+describe('service worker navigation responses', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('uses a fresh network document before the precached shell', async () => {
+    const request = new Request('https://chat.example.com/home/room');
+    const networkResponse = new Response('new shell');
+    const fetchMock = vi.fn().mockResolvedValue(networkResponse);
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      networkResponse
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) })
+    );
+    expect(loadCachedShell).not.toHaveBeenCalled();
+  });
+
+  it('returns an opaque navigation redirect for the browser to follow', async () => {
+    const request = new Request('https://chat.example.com/home');
+    const redirectResponse = { ok: false, type: 'opaqueredirect' } as Response;
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirectResponse));
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      redirectResponse
+    );
+    expect(loadCachedShell).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stalled navigation before falling back to the precached shell', async () => {
+    vi.useFakeTimers();
+    const request = new Request('https://chat.example.com/home/room');
+    const cachedResponse = new Response('cached shell');
+    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_request: Request, init: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      })
+    );
+
+    const response = fetchNavigationWithShellFallback(request, loadCachedShell, 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(response).resolves.toBe(cachedResponse);
+    expect(loadCachedShell).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['network failure', () => Promise.reject(new Error('offline'))],
+    ['unsuccessful response', () => Promise.resolve(new Response('missing', { status: 404 }))],
+  ])('falls back to the precached shell after %s', async (_label, fetchResult) => {
+    const request = new Request('https://chat.example.com/home/room');
+    const cachedResponse = new Response('cached shell');
+    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(fetchResult));
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      cachedResponse
+    );
+    expect(loadCachedShell).toHaveBeenCalledOnce();
   });
 });
