@@ -19,7 +19,10 @@ import { useEdgeSwipeForward } from '../native/useEdgeSwipeForward';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { lastExitedThreadAtom } from './lastExitedThread';
-import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
+import {
+  getRoomThreadExitTargetFromHistoryState,
+  withRoomThreadExitTargetState,
+} from './roomNavigateState';
 import {
   addTagFilter,
   applyPreset,
@@ -43,7 +46,7 @@ import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
 import { useThreadRootEvent } from './useThreadRootEvent';
-import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
 import { useRoomViewMode } from './useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
@@ -318,7 +321,7 @@ export const useRoomViewThreadState = ({
   const handleRoomMessageSent = useCallback(
     (sentEventId: string) => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return;
-      if (!isConfirmedMatrixEventId(sentEventId)) return;
+      if (!isConfirmedMatrixEventId(sentEventId) && !isLocalEchoEventId(sentEventId)) return;
 
       navigateRoomThread(roomId, sentEventId);
     },
@@ -357,7 +360,24 @@ export const useRoomViewThreadState = ({
   useEffect(() => {
     if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
 
-    navigateRoomThread(roomId, effectiveThreadId, eventId, { replace: true });
+    const historyState: unknown = window.history.state;
+    const historyExitTarget = getRoomThreadExitTargetFromHistoryState(historyState);
+    let replacementState: Record<string, unknown> | undefined;
+    if (historyExitTarget?.roomId === roomId && historyExitTarget.threadId === threadId) {
+      const historyUserState =
+        typeof historyState === 'object' && historyState !== null && 'usr' in historyState
+          ? historyState.usr
+          : undefined;
+      replacementState = withRoomThreadExitTargetState(historyUserState, {
+        ...historyExitTarget,
+        threadId: effectiveThreadId,
+      });
+    }
+
+    navigateRoomThread(roomId, effectiveThreadId, eventId, {
+      replace: true,
+      ...(replacementState ? { state: replacementState } : {}),
+    });
   }, [effectiveThreadId, eventId, navigateRoomThread, roomId, threadId]);
 
   useEffect(() => {
