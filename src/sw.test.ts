@@ -8,7 +8,9 @@ describe('service worker app shell caching', () => {
 
     expect(swSource).toContain("from 'workbox-precaching'");
     expect(swSource).toContain('const precacheManifest = self.__WB_MANIFEST');
-    expect(swSource).toContain('precacheAndRoute(precacheManifest)');
+    expect(swSource).toContain('new PrecacheController()');
+    expect(swSource).toContain('precacheController.addToCacheList(precacheManifest)');
+    expect(swSource).toContain('new PrecacheRoute(precacheController)');
     expect(swSource).toContain('createHandlerBoundToURL');
     expect(swSource).toContain('new NavigationRoute');
     expect(swSource).toContain('denylist: navigationFallbackDenylist');
@@ -24,19 +26,18 @@ describe('service worker app shell caching', () => {
     expect(viteConfigSource).toContain("'version.json'");
   });
 
-  it('reloads existing clients from the precached shell on upgrades only', () => {
+  it('checks the network before the precache route and never navigates active clients', () => {
     const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
 
-    expect(swSource).toContain("const UPDATE_MARKER_CACHE = 'mindroom-service-worker-update'");
-    expect(swSource).toContain('Boolean(self.registration.active)');
-    expect(swSource).toContain('if (isUpgrade)');
-    expect(swSource).toContain("type: 'window'");
-    expect(swSource).toContain("client.frameType !== 'top-level'");
-    expect(swSource).toContain('await self.clients.claim()');
-    expect(swSource).toContain('await client.navigate(client.url)');
-    expect(swSource.indexOf('await self.clients.claim()')).toBeLessThan(
-      swSource.indexOf('await client.navigate(client.url)')
-    );
+    const navigationRoute = swSource.indexOf('new NavigationRoute');
+    const precacheRoute = swSource.indexOf('new PrecacheRoute(precacheController)');
+
+    expect(navigationRoute).toBeGreaterThan(-1);
+    expect(precacheRoute).toBeGreaterThan(navigationRoute);
+    expect(swSource).toContain('void self.registration.unregister().catch');
+    expect(swSource).toContain('if (!self.registration.active) await self.skipWaiting()');
+    expect(swSource).not.toContain('UPDATE_MARKER_CACHE');
+    expect(swSource).not.toContain('client.navigate(client.url)');
   });
 
   it('does not use the SPA fallback for same-origin backend routes', () => {

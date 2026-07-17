@@ -266,33 +266,47 @@
   A dependency-level contract test opens the pinned `matrix-sdk-crypto-wasm` store against a fresh IndexedDB implementation and proves that no metadata database is created without a password or storage key.
   The full Vitest suite passes (412 files / 3,165 tests), as do typecheck, touched-file ESLint and Prettier, `git diff --check`, the production/PWA build, and the Element Call background-build verification.
 
-### Automatically activate published web builds without breaking offline use (2026-07-12)
+### Stage published web builds without interrupting active work (2026-07-12; revised 2026-07-16)
 
-- Status: implementation and local validation complete.
-  The equivalent updater code from the predecessor combined branch was deployed atomically to `chat.mindroom.chat`, and live manifest/build checks passed.
+- Status: non-disruptive lifecycle implementation, predecessor-migration remediation, real-Chrome migration verification, confirmed AI review remediation, full local revalidation, independent re-review, and follow-up publication are complete on PR #168; final CI and bot re-review gate human review.
+  The predecessor updater was deployed to `chat.mindroom.chat` with automatic client reloads after worker activation, so the revised worker includes a one-time retirement path for tabs still running that bundle.
 - Each production build emits an unprecached `version.json` containing the Git commit used for both the manifest and the compiled client constant.
   A cache-busted, `no-store` request checks it at startup, every five minutes, when the tab becomes visible, and when the browser returns online.
 - When the published commit differs, MindRoom Chat registers `sw.js` with the commit in its query string and `updateViaCache: none`.
-  The worker already uses `skipWaiting()` and `clients.claim()`; the old client reloads once after the new worker takes control, or after activation if the browser reports no controller change because the worker bytes were already current.
-  The new hashed application assets therefore take over without a manual hard refresh.
-- The first deployment needs a worker-side bootstrap because an older page cannot run updater code it does not contain.
-  During install the new worker records whether an active predecessor exists.
-  On upgrade only, activation claims and navigates existing top-level tabs after the new app shell is precached.
-  First installs do not reload.
-  The navigation remains safe if the network drops between install and activation because the new worker serves its cached shell.
+  Registration stages the new shell and hashed assets but never reloads the active document.
+  Repeated checks deduplicate the already staged version for the lifetime of the page.
+- Registrations made by the revised client carry an explicit non-disruptive-update marker.
+  A worker installed by an unmarked predecessor client unregisters that registration instead of precaching, activating, claiming, or navigating.
+  An already-open predecessor document remains controlled and uninterrupted until it unloads.
+  Once its monitor has retired the registration, its next explicit navigation goes to the network and boots the marked current registration.
+  Repeated checks from a still-open predecessor page create another unmarked registration and retire it the same way instead of reintroducing the activation reload.
+- A browser with no predecessor tab open at deployment can serve that worker's cache-first shell once on its first return, before any document can retire the registration.
+  The loaded predecessor then retires it, so the following explicit navigation gets the current shell.
+  This is a one-time transition constraint of the already-deployed cache-first worker; after the marked worker is installed, later deployments update on the first manual refresh or visit.
+- Online top-level navigations check the network with `cache: no-store` before the Workbox precache route.
+  Under the marked worker, a manual refresh or later visit therefore receives the currently published shell, while a failed or offline request falls back to the precached shell.
+  A stalled network navigation aborts after five seconds and uses the same fallback, while opaque navigation redirects return to the browser so it can follow the server response instead of replacing it with the cached shell.
+- First marked service-worker installs activate immediately and claim the initial page.
+  Later marked upgrades use the normal waiting phase until existing clients are gone, then claim clients and prune obsolete precache entries safely.
+  No service-worker path calls `WindowClient.navigate()`.
 - Version fetches, worker registration, and update failures are deliberately ignored, and a stalled manifest request is aborted after five seconds.
-  No version request or update reload runs while `navigator.onLine` is false.
-  The older service-worker-control recovery reload now additionally requires a successful cache-busted manifest fetch, preventing a nominally online but disconnected browser from refreshing away its loaded tab.
+  No version request runs while `navigator.onLine` is false.
+  The older service-worker-control recovery reload still requires a successful cache-busted manifest fetch, preventing a nominally online but disconnected browser from refreshing away its loaded tab.
 - `version.json` is excluded from Workbox precaching.
-  This is essential: a precached latest-version pointer would permanently report the version of the worker currently controlling the page.
-- Review hardening: the monitor ignores a late worker activation after it has stopped, owns and replaces its stop handle if bootstrap is invoked again, accepts SemVer build metadata, and does not poison its in-memory reload guard when a session guard suppresses a reload.
-  It relies on versioned `serviceWorker.register()` to trigger installation without a redundant immediate `registration.update()` request or unused registration state.
-  Provider commit variables are validated as hashes; Netlify's documented commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`, which is only a fallback when Git metadata is unavailable.
-  Startup also skips manifest discovery when no active service worker can use its result.
-- Validation: updater unit tests cover build-version selection, failure/malformed manifests, stalled requests, current versions, changed versions with one reload, and offline behavior.
-  The full suite passes 411 files / 3,154 tests, as do service worker tests, typecheck, touched-file lint and formatting, and a production build.
-  The live production branch build contains `version.json`, excludes it from `sw.js`, and compiles the matching commit into the client bundle.
-  Cloudflare reports the cache-busted manifest as dynamic.
+  This is essential because a precached latest-version pointer would permanently report the version of the worker currently controlling the page.
+- Provider commit variables are validated as hashes.
+  Netlify's documented commit-valued `COMMIT_REF` remains preferred over its non-Git `DEPLOY_ID`, which is only a fallback when Git metadata is unavailable.
+  Startup skips manifest discovery when no active service worker can use its result.
+- Focused tests cover version discovery, failures, timeouts, offline behavior, silent staging, staged-version deduplication, marked registration URLs, network-first navigation with timeout and offline fallback, navigation redirects, first install, normal waiting activation, predecessor registration retirement without its activation-triggered reload, and the absence of client navigation.
+- Validation: 6 focused files / 29 tests and the full Vitest suite pass (426 files / 3,246 tests), as do typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+  Full ESLint reports 0 errors and 17 pre-existing warnings.
+- Review: independent review first caught immediate activation pruning old lazy assets and serving the old cached shell on the first explicit navigation.
+  The worker now preserves browser-managed activation for later versions and checks the network before its precache navigation route.
+  Re-review then caught the exact deployed predecessor monitor reloading on worker activation, so unmarked predecessor registrations retire without activation.
+  Real-Chrome verification caught an unregister job deadlock when its promise was awaited from the install event; unregister now starts without extending install, and a regression fails if that promise is awaited.
+  Final Chrome verification confirmed no active-tab reload, successful registration retirement, and network loading on the following navigation; final independent re-review found no remaining issues.
+  PR review found that a stalled navigation could delay the cached fallback, manual navigation redirects could be mistaken for failed responses, and one current-worker session mock looked like an incomplete predecessor registration.
+  Navigation now has a bounded network wait, preserves opaque redirects for the browser, and marks the session fixture as the current worker; full revalidation passes and independent re-review found no remaining issues.
 - Container packaging follow-up (2026-07-13, complete): the GHCR build excludes `.git` and did not pass a provider commit into Docker, so published images emitted `{"version":"unknown"}` even though direct/Netlify builds exposed the correct commit.
   The Dockerfile now accepts an explicit `MINDROOM_BUILD_VERSION`; branch-push, release, and PR workflows pass the exact GitHub commit.
   Docker CI reads `/app/version.json` from the built image and runs a dedicated publisher-workflow validation script, preventing the packaging path from silently regressing again even on workflow-only changes.
