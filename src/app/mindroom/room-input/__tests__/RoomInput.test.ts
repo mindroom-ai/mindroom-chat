@@ -1478,6 +1478,116 @@ describe('RoomInput', () => {
     expect(onRoomMessageSent).not.toHaveBeenCalled();
   });
 
+  it('does not clear or notify after missing-local fulfillment moves into a thread', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+    const onRoomMessageSent = vi.fn();
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Overview fallback';
+    editorOutputState.customHtml = 'Overview fallback';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    await updateRoomInput(renderer, store, {
+      threadId: '$new-thread',
+      onRoomMessageSent,
+    });
+    setEditorContent('New thread draft');
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+    await act(async () => {
+      send.resolve({ event_id: '$overview-event' });
+      await send.promise;
+    });
+
+    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
+    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+    expect(customEditorState.editor!.children).toEqual([
+      { type: 'paragraph', children: [{ text: 'New thread draft' }] },
+    ]);
+    renderer.unmount();
+  });
+
+  it('does not clear or notify after missing-local fulfillment changes reply context', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+    const onRoomMessageSent = vi.fn();
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Overview fallback';
+    editorOutputState.customHtml = 'Overview fallback';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    const newerReplyDraft = createReplyDraft('$new-reply-target');
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReplyDraft);
+    });
+    setEditorContent('Reply draft');
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+    await act(async () => {
+      send.resolve({ event_id: '$overview-event' });
+      await send.promise;
+    });
+
+    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
+    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReplyDraft);
+    expect(customEditorState.editor!.children).toEqual([
+      { type: 'paragraph', children: [{ text: 'Reply draft' }] },
+    ]);
+    renderer.unmount();
+  });
+
+  it('does not clear or notify after missing-local fulfillment follows a newer edit', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Original fallback';
+    editorOutputState.customHtml = 'Original fallback';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    setEditorContent('Original fallback plus newer text');
+    act(() => {
+      customEditorState.props!.onChange?.();
+    });
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+    await act(async () => {
+      send.resolve({ event_id: '$overview-event' });
+      await send.promise;
+    });
+
+    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
+    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+    expect(customEditorState.editor!.children).toEqual([
+      {
+        type: 'paragraph',
+        children: [{ text: 'Original fallback plus newer text' }],
+      },
+    ]);
+    renderer.unmount();
+  });
+
   it('leaves the composer intact for a synchronous send throw', async () => {
     mxState.sendMessage.mockImplementationOnce(() => {
       throw new Error('synchronous send failure');
@@ -1550,7 +1660,10 @@ describe('RoomInput', () => {
       }
     );
     editorMocks.resetEditor.mockImplementation((targetEditor: { children: Array<unknown> }) => {
-      targetEditor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+      targetEditor.children = [];
+      queueMicrotask(() => {
+        customEditorState.props!.onChange?.();
+      });
     });
     const { renderer } = await renderRoomInput();
     setEditorContent('Failed root');
@@ -1564,7 +1677,6 @@ describe('RoomInput', () => {
       customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
       await Promise.resolve();
     });
-    setEditorContent('Newer draft');
 
     await act(async () => {
       send.reject(new Error('terminal failure'));
@@ -1578,10 +1690,68 @@ describe('RoomInput', () => {
       capturedFragment
     );
     expect(transferOrder).toEqual(['cancel', 'restore']);
+    expect(customEditorState.editor!.children).toEqual(capturedFragment);
+    renderer.unmount();
+  });
+
+  it('leaves a failed room root timeline-owned after a newer edit', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mockDeferredSendWithLocalEcho(send, true);
+    const { renderer } = await renderRoomInput();
+
+    editorOutputState.plainText = 'Failed root';
+    editorOutputState.customHtml = 'Failed root';
+    editorOutputState.htmlEqualsPlainText = true;
+    setEditorContent('Failed root');
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    setEditorContent('Newer draft');
+    act(() => {
+      customEditorState.props!.onChange?.();
+    });
+    await act(async () => {
+      send.reject(new Error('terminal failure'));
+      await Promise.resolve();
+    });
+
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
     expect(customEditorState.editor!.children).toEqual([
-      ...capturedFragment,
       { type: 'paragraph', children: [{ text: 'Newer draft' }] },
     ]);
+    renderer.unmount();
+  });
+
+  it('leaves a failed room root timeline-owned after reply context changes', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mockDeferredSendWithLocalEcho(send, true);
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+
+    editorOutputState.plainText = 'Failed root';
+    editorOutputState.customHtml = 'Failed root';
+    editorOutputState.htmlEqualsPlainText = true;
+    setEditorContent('Failed root');
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    const newerReplyDraft = createReplyDraft('$unrelated-reply');
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReplyDraft);
+    });
+    await act(async () => {
+      send.reject(new Error('terminal failure'));
+      await Promise.resolve();
+    });
+
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReplyDraft);
     renderer.unmount();
   });
 
@@ -1634,6 +1804,9 @@ describe('RoomInput', () => {
     editorOutputState.plainText = 'Second root';
     editorOutputState.customHtml = 'Second root';
     setEditorContent('Second root');
+    act(() => {
+      customEditorState.props!.onChange?.();
+    });
     await act(async () => {
       customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
       await Promise.resolve();
@@ -1896,48 +2069,61 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('cancels and restores each failed standalone root exactly once', async () => {
-    const firstSend = createDeferred<{ event_id: string }>();
-    const secondSend = createDeferred<{ event_id: string }>();
-    const getFirstEvent = mockDeferredSendWithLocalEcho(firstSend, true);
-    const getSecondEvent = mockDeferredSendWithLocalEcho(secondSend, true);
-    const { renderer } = await renderRoomInput();
+  it.each([
+    ['FIFO', ['first', 'second']],
+    ['reverse', ['second', 'first']],
+  ] as const)(
+    'leaves the older concurrent failed root timeline-owned under %s settlement',
+    async (_label, settlementOrder) => {
+      const firstSend = createDeferred<{ event_id: string }>();
+      const secondSend = createDeferred<{ event_id: string }>();
+      const getFirstEvent = mockDeferredSendWithLocalEcho(firstSend, true);
+      const getSecondEvent = mockDeferredSendWithLocalEcho(secondSend, true);
+      const { renderer } = await renderRoomInput();
 
-    editorOutputState.plainText = 'First failed root';
-    editorOutputState.customHtml = 'First failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    setEditorContent('First failed root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
+      editorOutputState.plainText = 'First failed root';
+      editorOutputState.customHtml = 'First failed root';
+      editorOutputState.htmlEqualsPlainText = true;
+      setEditorContent('First failed root');
+      await act(async () => {
+        customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+        await Promise.resolve();
+      });
 
-    editorOutputState.plainText = 'Second failed root';
-    editorOutputState.customHtml = 'Second failed root';
-    setEditorContent('Second failed root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
+      editorOutputState.plainText = 'Second failed root';
+      editorOutputState.customHtml = 'Second failed root';
+      setEditorContent('Second failed root');
+      act(() => {
+        customEditorState.props!.onChange?.();
+      });
+      await act(async () => {
+        customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+        await Promise.resolve();
+      });
 
-    await act(async () => {
-      secondSend.reject(new Error('second failed'));
-      firstSend.reject(new Error('first failed'));
-      await Promise.resolve();
-    });
+      await act(async () => {
+        settlementOrder.forEach((send) => {
+          if (send === 'first') {
+            firstSend.reject(new Error('first failed'));
+          } else {
+            secondSend.reject(new Error('second failed'));
+          }
+        });
+        await Promise.allSettled([firstSend.promise, secondSend.promise]);
+      });
 
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledTimes(2);
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getSecondEvent());
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getFirstEvent());
-    expect(editorMocks.restoreEditorContent).toHaveBeenCalledTimes(2);
-    expect(editorMocks.restoreEditorContent.mock.calls[0][1]).toEqual([
-      { type: 'paragraph', children: [{ text: 'Second failed root' }] },
-    ]);
-    expect(editorMocks.restoreEditorContent.mock.calls[1][1]).toEqual([
-      { type: 'paragraph', children: [{ text: 'First failed root' }] },
-    ]);
-    renderer.unmount();
-  });
+      expect(mxState.cancelPendingEvent).toHaveBeenCalledOnce();
+      expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getSecondEvent());
+      expect(mxState.cancelPendingEvent).not.toHaveBeenCalledWith(getFirstEvent());
+      expect(editorMocks.restoreEditorContent).toHaveBeenCalledOnce();
+      expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(expect.anything(), [
+        { type: 'paragraph', children: [{ text: 'Second failed root' }] },
+      ]);
+      expect(textSendState.localEvents.has(`${ROOM_ID}:txn-1`)).toBe(true);
+      expect(textSendState.localEvents.has(`${ROOM_ID}:txn-2`)).toBe(false);
+      renderer.unmount();
+    }
+  );
 
   it('does not cancel or restore a failed root after its input loses room ownership', async () => {
     const send = createDeferred<{ event_id: string }>();

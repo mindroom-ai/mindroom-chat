@@ -342,6 +342,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const voiceAutoSendClaimedRef = useRef(false);
     const voiceAutoSendInFlightRef = useRef(false);
     const submitInFlightRef = useRef(false);
+    const composerGenerationRef = useRef(0);
 
     // When this room owns a pending failed-send draft (e.g. survived a
     // RoomProvider key remount on real navigation), surface the recorder so
@@ -694,6 +695,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const handleEditorChange = useCallback(() => {
+      composerGenerationRef.current += 1;
       const markerFileNames = getMindroomRoomInputPasteMarkerFileNames(editor.children);
       const orphanPasteUploads = selectedFilesRef.current.filter((fileItem) => {
         const fileName = getPasteUploadFileName(fileItem);
@@ -1102,6 +1104,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
 
         const editorSnapshot = structuredClone(editor.children);
+        const submittedThreadId = threadId;
+        const submittedReplyDraft = replyDraft;
+        let settlementComposerGeneration = composerGenerationRef.current;
         const txnId = mx.makeTxnId();
         let sendPromise: ReturnType<typeof mx.sendMessage>;
         try {
@@ -1117,6 +1122,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const clearComposerAndNotify = (eventId: string) => {
           resetEditor(editor);
           resetEditorHistory(editor);
+          composerGenerationRef.current += 1;
           setReplyDraft(undefined);
           sendTypingStatus(false);
 
@@ -1131,12 +1137,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onRoomMessageSent?.(sentEventIdToNotify);
           }
         };
+        const ownsSubmittedComposer = () =>
+          mountedRef.current &&
+          roomIdRef.current === roomId &&
+          threadIdRef.current === submittedThreadId &&
+          replyDraftRef.current === submittedReplyDraft &&
+          composerGenerationRef.current === settlementComposerGeneration;
 
         const sendCompletion = sendPromise.then(
           (response) => {
             if (!hasVerifiedLocalEcho) {
               try {
-                if (mountedRef.current && roomIdRef.current === roomId) {
+                if (ownsSubmittedComposer()) {
                   clearComposerAndNotify(response.event_id);
                 }
               } finally {
@@ -1151,11 +1163,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 !relation &&
                 !activeReplyDraft &&
                 !threadId &&
-                !threadIdRef.current &&
+                ownsSubmittedComposer() &&
                 room.relations.getAllChildEventsForEvent(localEventId).length === 0 &&
-                localEvent?.status === EventStatus.NOT_SENT &&
-                mountedRef.current &&
-                roomIdRef.current === roomId
+                localEvent?.status === EventStatus.NOT_SENT
               ) {
                 mx.cancelPendingEvent(localEvent);
                 restoreEditorContent(editor, editorSnapshot);
@@ -1179,6 +1189,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
 
         clearComposerAndNotify(localEventId);
+        settlementComposerGeneration = composerGenerationRef.current;
+        // Slate reports reset operations in a microtask, before later user input can occur.
+        queueMicrotask(() => {
+          settlementComposerGeneration = composerGenerationRef.current;
+        });
         guardRelease = 'microtask';
       } finally {
         if (guardRelease === 'microtask') {
