@@ -22,9 +22,13 @@ import {
   RoomInputSendSessionState,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from './roomMessageSent';
+import { getMessageRelation, hasLocalEchoMessageRelationTarget } from './composeMessageRelation';
+import { resolveCanonicalMatrixEventId } from './threadRouteUtils';
+import { resolveMindroomReplyDraftEventIds } from './roomTimelineReplyDraft';
 
 type SendSession = RoomInputSendSessionState & {
   roomId: string;
+  room: Room;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
@@ -169,11 +173,29 @@ export const useRoomInputSendSessionController = ({
     [setReplyDraft]
   );
 
+  const refreshSessionContext = useCallback(
+    (session: SendSession): Room => {
+      const liveRoom = mx.getRoom(session.roomId) ?? session.room;
+      session.room = liveRoom;
+      session.signalBridgedRoom = isSignalBridgeRoom(liveRoom);
+      session.threadId = resolveCanonicalMatrixEventId(liveRoom, session.threadId);
+      if (session.replyDraft) {
+        session.replyDraft = resolveMindroomReplyDraftEventIds(liveRoom, session.replyDraft);
+      }
+      return liveRoom;
+    },
+    [mx]
+  );
+
   const sendSessionText = useCallback(
     async (session: SendSession) => {
       if (!session.textContent) return;
 
+      const liveRoom = refreshSessionContext(session);
       const relation = getTextRelationForSendSession(session);
+      if (liveRoom.hasEncryptionStateEvent() && hasLocalEchoMessageRelationTarget(relation)) {
+        throw new Error('Encrypted send target is still pending.');
+      }
       const content: IContent = relation
         ? {
             ...session.textContent,
@@ -194,7 +216,7 @@ export const useRoomInputSendSessionController = ({
         onRoomMessageSent?.(sentEventIdToNotify);
       }
     },
-    [mx, clearReplyDraftForSession, onRoomMessageSent]
+    [mx, clearReplyDraftForSession, onRoomMessageSent, refreshSessionContext]
   );
 
   const sendSessionUpload = useCallback(
@@ -206,8 +228,13 @@ export const useRoomInputSendSessionController = ({
         throw new Error('Missing upload item for send session.');
       }
 
+      refreshSessionContext(session);
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
+      const liveRoom = refreshSessionContext(session);
       const relation = getUploadRelationForSendSession(session, isRoot);
+      if (liveRoom.hasEncryptionStateEvent() && hasLocalEchoMessageRelationTarget(relation)) {
+        throw new Error('Encrypted send target is still pending.');
+      }
       const contentWithRelation: IContent = relation
         ? {
             ...content,
@@ -241,6 +268,7 @@ export const useRoomInputSendSessionController = ({
       clearReplyDraftForSession,
       onRoomMessageSent,
       removeUploadsFromBoard,
+      refreshSessionContext,
     ]
   );
 
@@ -358,6 +386,32 @@ export const useRoomInputSendSessionController = ({
         : selectedSendItems.map((fileItem) => fileItem.file);
       if (sendFiles.length === 0 && !textContent) return;
       if (hasFailedPasteMarkerInText(textContent, selectedFilesRef.current)) return;
+      const sessionRoomId = context ? context.roomId : roomId;
+      const contextRoom = context ? context.room : room;
+      const sessionRoom = mx.getRoom(sessionRoomId) ?? contextRoom;
+      const sessionThreadId = resolveCanonicalMatrixEventId(
+        sessionRoom,
+        context ? context.threadId : threadId
+      );
+      const contextReplyDraft = context ? context.replyDraft : replyDraft;
+      const sessionReplyDraft = contextReplyDraft
+        ? resolveMindroomReplyDraftEventIds(sessionRoom, contextReplyDraft)
+        : undefined;
+      const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
+      const signalBridgedRoom = isSignalBridgeRoom(sessionRoom);
+      const contextRelation = getMessageRelation(
+        sessionReplyDraft?.eventId,
+        sessionReplyDraft?.relation,
+        sessionThreadId,
+        { allowThreadRelation: sessionThreadingEnabled }
+      );
+      if (
+        sessionRoom.hasEncryptionStateEvent() &&
+        hasLocalEchoMessageRelationTarget(contextRelation)
+      ) {
+        return;
+      }
+
       if (sendSessionUploadItemsRef) {
         sendSessionUploadItemsRef.current = selectedSendItems.filter((item) =>
           sendFiles.includes(item.file)
@@ -370,14 +424,9 @@ export const useRoomInputSendSessionController = ({
         setSendSessionFiles?.(sendFiles);
       }
 
-      const sessionRoomId = context ? context.roomId : roomId;
-      const sessionThreadId = context ? context.threadId : threadId;
-      const sessionReplyDraft = context ? context.replyDraft : replyDraft;
-      const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
-      const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
-
       sendSessionRef.current = {
         roomId: sessionRoomId,
+        room: sessionRoom,
         threadId: sessionThreadId,
         replyDraft: sessionReplyDraft,
         threadingEnabled: sessionThreadingEnabled,
@@ -410,6 +459,7 @@ export const useRoomInputSendSessionController = ({
       replyDraft,
       threadingEnabled,
       room,
+      mx,
       editor,
       sendTypingStatus,
       selectedFilesRef,

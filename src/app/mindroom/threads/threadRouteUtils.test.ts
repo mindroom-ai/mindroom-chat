@@ -4,6 +4,7 @@ import {
   isConfirmedMatrixEventId,
   isPendingLocalEchoThreadRoot,
   isPendingLocalEchoThreadRootEvent,
+  resolveCanonicalMatrixEventId,
   resolveCanonicalThreadRootId,
 } from './threadRouteUtils';
 
@@ -28,7 +29,7 @@ const makeEvent = (
         : {},
     isSending: () => options?.isSending ?? false,
     threadRootId: options?.threadRootId,
-  }) as never;
+  } as never);
 
 const makeRoom = ({
   events = [],
@@ -49,7 +50,7 @@ const makeRoom = ({
       getEvents: () => events,
     }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
-  }) as never;
+  } as never);
 
 describe('threadRouteUtils', () => {
   it('recognizes only confirmed Matrix event ids as persistable ids', () => {
@@ -98,6 +99,19 @@ describe('threadRouteUtils', () => {
     });
 
     expect(resolveCanonicalThreadRootId(room, `~${roomId}:m1775932488410.3`)).toBe('$confirmed');
+  });
+
+  it('resolves any stale local-echo event id through the live event transaction id', () => {
+    const roomId = '!room:example.org';
+    const confirmedReply = makeEvent('$confirmed-reply', {
+      txnId: 'reply-txn',
+    });
+    const room = makeRoom({
+      roomId,
+      events: [confirmedReply],
+    });
+
+    expect(resolveCanonicalMatrixEventId(room, `~${roomId}:reply-txn`)).toBe('$confirmed-reply');
   });
 
   it('treats pending local-echo thread roots as current activity', () => {

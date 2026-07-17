@@ -8,7 +8,9 @@ export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
 export const isConfirmedMatrixEventId = (eventId: unknown): eventId is string =>
   typeof eventId === 'string' && eventId.startsWith('$');
 
-const getEventTxnId = (event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>): string | undefined => {
+const getEventTxnId = (
+  event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>
+): string | undefined => {
   const txnId = event.getTxnId?.() ?? event.getUnsigned()?.transaction_id;
   return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;
 };
@@ -35,6 +37,16 @@ const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | und
 
   const resolveConfirmedId = buildResolveConfirmedEventId(room, room.getLiveTimeline().getEvents());
   return resolveConfirmedId(txnId);
+};
+
+export const resolveCanonicalMatrixEventId = (
+  room: Room,
+  eventId: string | undefined
+): string | undefined => {
+  const txnId = getTxnIdFromLocalEchoEventId(room, eventId);
+  if (!txnId) return eventId;
+
+  return resolveConfirmedEventIdByTxnId(room, txnId) ?? eventId;
 };
 
 export const isPendingLocalEchoThreadRootEvent = (
@@ -98,10 +110,7 @@ export const resolveCanonicalThreadRootId = (
 
   const event = room.findEventById(threadId);
   if (!event) {
-    const txnId = getTxnIdFromLocalEchoEventId(room, threadId);
-    if (!txnId) return threadId;
-
-    return resolveConfirmedEventIdByTxnId(room, txnId) ?? threadId;
+    return resolveCanonicalMatrixEventId(room, threadId);
   }
 
   const eventId = event.getId();

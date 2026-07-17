@@ -2,7 +2,7 @@ import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EventStatus, RelationType, Room } from 'matrix-js-sdk';
+import { EventStatus, RelationType, Room, RoomEvent } from 'matrix-js-sdk';
 import { createMindroomRoomUploadItems, RoomInput } from '../MindroomRoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../../../types/matrix/common';
 import {
@@ -30,6 +30,7 @@ const {
   editorOutputState,
   encryptionState,
   mxState,
+  roomEventState,
   textSendState,
   voiceRecorderState,
 } = vi.hoisted(() => ({
@@ -90,6 +91,9 @@ const {
     sendMessage: vi.fn(),
     uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
   },
+  roomEventState: {
+    localEchoUpdatedListeners: new Set<(...args: unknown[]) => void>(),
+  },
   textSendState: {
     getEventForTxnId: vi.fn(),
     localEvents: new Map<
@@ -99,6 +103,7 @@ const {
         getRoomId: () => string;
         getRelation: () => { event_id?: string } | undefined;
         getTxnId: () => string;
+        getUnsigned: () => { transaction_id: string };
         status: EventStatus;
       }
     >(),
@@ -439,22 +444,17 @@ vi.mock('../../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
+vi.mock('../../voice/VoiceRecorderDialog', () => ({
+  VoiceRecorderComposer: () => null,
+}));
+
 vi.mock('../RoomInputMindroomExtensions', async () => {
-  const { useRoomInputSendSessionController } = await vi.importActual<
-    typeof import('../../threads/useRoomInputSendSessionController')
-  >('../../threads/useRoomInputSendSessionController');
-  const {
-    createRoomInputSendSessionState,
-    getUploadRelationForSendSession,
-    hasMatchingReplyDraftContext,
-  } = await vi.importActual<typeof import('../../threads/roomInputSendSession')>(
-    '../../threads/roomInputSendSession'
+  const actual = await vi.importActual<typeof import('../RoomInputMindroomExtensions')>(
+    '../RoomInputMindroomExtensions'
   );
-  const { getMessageRelation } = await vi.importActual<
-    typeof import('../../threads/composeMessageRelation')
-  >('../../threads/composeMessageRelation');
 
   return {
+    ...actual,
     createMindroomRoomInputPasteMarkerElement: (marker: {
       id: string;
       chars: number;
@@ -497,97 +497,6 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       );
     },
     getMindroomRoomInputAutocompleteQuery: () => undefined,
-    getMindroomRoomInputMessageRelation: (
-      replyDraft: IReplyDraft | undefined,
-      threadId: string | undefined,
-      threadingEnabled = true
-    ) =>
-      getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId, {
-        allowThreadRelation: threadingEnabled,
-      }),
-    getMindroomRoomInputVoiceSendContext: ({
-      ownerSessionId,
-      roomId,
-      room,
-      threadId,
-      replyDraft,
-      threadingEnabled = true,
-    }: {
-      ownerSessionId: string;
-      roomId: string;
-      room: unknown;
-      threadId: string | undefined;
-      replyDraft: IReplyDraft | undefined;
-      threadingEnabled?: boolean;
-    }) => ({
-      ownerSessionId,
-      roomId,
-      room,
-      threadId,
-      replyDraft,
-      threadingEnabled,
-      signalBridgedRoom: false,
-    }),
-    refreshMindroomRoomInputVoiceSendContext: (
-      mxClient: { getRoom: (roomId: string) => unknown },
-      context: {
-        ownerSessionId: string;
-        roomId: string;
-        threadId: string | undefined;
-        replyDraft: IReplyDraft | undefined;
-        threadingEnabled: boolean;
-      }
-    ) => {
-      const liveRoom = mxClient.getRoom(context.roomId) as
-        | { getMyMembership?: () => string }
-        | undefined;
-      if (!liveRoom || liveRoom.getMyMembership?.() !== 'join') return null;
-      return {
-        ...context,
-        room: liveRoom,
-        signalBridgedRoom: false,
-      };
-    },
-    getMindroomRoomInputVoiceUploadRelation: (
-      context: {
-        threadId: string | undefined;
-        replyDraft: IReplyDraft | undefined;
-      },
-      file: File
-    ) =>
-      getUploadRelationForSendSession(
-        {
-          threadId: context.threadId,
-          replyDraft: context.replyDraft,
-          ...createRoomInputSendSessionState({
-            files: [file],
-            hasText: false,
-            threadId: context.threadId,
-            replyDraft: context.replyDraft,
-          }),
-        },
-        false
-      ),
-    hasMatchingMindroomRoomInputVoiceReplyContext: (
-      context: {
-        roomId: string;
-        threadId: string | undefined;
-        replyDraft: IReplyDraft | undefined;
-      },
-      currentReplyDraft: IReplyDraft | undefined
-    ) =>
-      hasMatchingReplyDraftContext(
-        {
-          roomId: context.roomId,
-          threadId: context.threadId,
-          replyDraft: context.replyDraft,
-        },
-        {
-          roomId: context.roomId,
-          threadId: context.threadId,
-          replyDraft: currentReplyDraft,
-        }
-      ),
     isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     MindroomRoomInputAutocomplete: () => null,
     MindroomRoomInputReplyContext: ({ children }: { children?: React.ReactNode }) => {
@@ -626,7 +535,6 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       };
       return React.createElement('div');
     },
-    useRoomInputSendSessionController,
   };
 });
 
@@ -661,6 +569,12 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     roomId,
     name: roomId,
     getEventForTxnId: (txnId: string) => textSendState.getEventForTxnId(roomId, txnId),
+    getLiveTimeline: () => ({
+      getEvents: () =>
+        Array.from(textSendState.localEvents.values()).filter(
+          (event) => event.getRoomId() === roomId
+        ),
+    }),
     relations: {
       getAllChildEventsForEvent: (parentEventId: string) =>
         Array.from(textSendState.localEvents.values()).filter(
@@ -671,6 +585,16 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     getMember: () => undefined,
     getMembers: () => [],
     getMyMembership: () => 'join',
+    on: (event: RoomEvent, listener: (...args: unknown[]) => void) => {
+      if (event === RoomEvent.LocalEchoUpdated) {
+        roomEventState.localEchoUpdatedListeners.add(listener);
+      }
+    },
+    removeListener: (event: RoomEvent, listener: (...args: unknown[]) => void) => {
+      if (event === RoomEvent.LocalEchoUpdated) {
+        roomEventState.localEchoUpdatedListeners.delete(listener);
+      }
+    },
   } as never);
 
 const createEditor = () => {
@@ -736,6 +660,7 @@ const registerLocalEcho = (roomId: string, txnId: string, content?: unknown) => 
     getRoomId: () => roomId,
     getRelation: () => relation,
     getTxnId: () => txnId,
+    getUnsigned: () => ({ transaction_id: txnId }),
     status: EventStatus.SENDING,
   };
   textSendState.localEvents.set(`${roomId}:${txnId}`, localEvent);
@@ -871,6 +796,7 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 };
 
 afterEach(() => {
+  roomEventState.localEchoUpdatedListeners.clear();
   voiceRecorderState.props = undefined;
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
@@ -1671,7 +1597,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('also gates an encrypted local explicit-reply target when thread relations are disabled', async () => {
+  it('unblocks an encrypted explicit reply when its draft target canonicalizes', async () => {
     const store = createStore();
     store.set(
       roomIdToReplyDraftAtomFamily(ROOM_ID),
@@ -1696,6 +1622,44 @@ describe('RoomInput', () => {
     expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))?.eventId).toBe(
       `~${ROOM_ID}:local-explicit-target`
     );
+
+    const confirmedTarget = {
+      getId: () => '$confirmed-explicit-target',
+      getTxnId: () => 'local-explicit-target',
+      getUnsigned: () => ({ transaction_id: 'local-explicit-target' }),
+    };
+    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
+      txnId === 'local-explicit-target'
+        ? confirmedTarget
+        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
+    );
+    await act(async () => {
+      roomEventState.localEchoUpdatedListeners.forEach((listener) => {
+        listener(
+          confirmedTarget,
+          undefined,
+          `~${ROOM_ID}:local-explicit-target`,
+          EventStatus.SENDING
+        );
+      });
+    });
+
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))?.eventId).toBe(
+      '$confirmed-explicit-target'
+    );
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': {
+        'm.in_reply_to': {
+          event_id: '$confirmed-explicit-target',
+        },
+      },
+    });
     renderer.unmount();
   });
 
@@ -3031,6 +2995,123 @@ describe('RoomInput', () => {
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     consoleError.mockRestore();
 
+    renderer.unmount();
+  });
+
+  it('keeps encrypted voice unsent until its captured local thread canonicalizes', async () => {
+    const localThreadId = `~${ROOM_ID}:voice-root`;
+    const liveRoom = createRoom(ROOM_ID, true);
+    mxState.getRoom.mockReturnValue(liveRoom);
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, {
+      threadId: localThreadId,
+      encryptedRoom: true,
+    });
+    await openVoiceRecorder(renderer);
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const capturedContext = voiceRecorderState.props!.getSendContext();
+
+    await act(async () => {
+      await expect(
+        voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext)
+      ).rejects.toThrow();
+    });
+
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    const confirmedRoot = {
+      getId: () => '$voice-root',
+      getTxnId: () => 'voice-root',
+      getUnsigned: () => ({ transaction_id: 'voice-root' }),
+    };
+    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
+      txnId === 'voice-root'
+        ? confirmedRoot
+        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
+    );
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': {
+        event_id: '$voice-root',
+        rel_type: RelationType.Thread,
+      },
+    });
+    renderer.unmount();
+  });
+
+  it('rechecks an encrypted local voice target after a deferred upload', async () => {
+    const localThreadId = `~${ROOM_ID}:deferred-voice-root`;
+    let encrypted = false;
+    const liveRoom = {
+      ...createRoom(ROOM_ID),
+      hasEncryptionStateEvent: () => encrypted,
+    } as unknown as Room;
+    mxState.getRoom.mockReturnValue(liveRoom);
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, {
+      threadId: localThreadId,
+    });
+    await openVoiceRecorder(renderer);
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const capturedContext = voiceRecorderState.props!.getSendContext();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let sendPromise!: Promise<void>;
+
+    await act(async () => {
+      sendPromise = voiceRecorderState.props!.onSendRecording(
+        file,
+        1100,
+        undefined,
+        capturedContext
+      );
+      await Promise.resolve();
+    });
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+
+    encrypted = true;
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/deferred-voice' });
+      await expect(sendPromise).rejects.toThrow();
+    });
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    const confirmedRoot = {
+      getId: () => '$deferred-voice-root',
+      getTxnId: () => 'deferred-voice-root',
+      getUnsigned: () => ({ transaction_id: 'deferred-voice-root' }),
+    };
+    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
+      txnId === 'deferred-voice-root'
+        ? confirmedRoot
+        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
+    );
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
+    });
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': {
+        event_id: '$deferred-voice-root',
+        rel_type: RelationType.Thread,
+      },
+    });
+    consoleError.mockRestore();
     renderer.unmount();
   });
 

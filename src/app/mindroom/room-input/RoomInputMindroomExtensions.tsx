@@ -20,6 +20,8 @@ import {
 } from '../threads/roomInputSendSession';
 import type { TUploadContent } from '../../utils/matrix';
 import type { MindroomPasteMarker } from '../messages/pasteAttachmentMarker';
+import { resolveCanonicalMatrixEventId } from '../threads/threadRouteUtils';
+import { resolveMindroomReplyDraftEventIds } from '../threads/roomTimelineReplyDraft';
 
 export { useRoomInputSendSessionController } from '../threads/useRoomInputSendSessionController';
 
@@ -112,6 +114,10 @@ export const refreshMindroomRoomInputVoiceSendContext = (
   return {
     ...context,
     room: liveRoom,
+    threadId: resolveCanonicalMatrixEventId(liveRoom, context.threadId),
+    replyDraft: context.replyDraft
+      ? resolveMindroomReplyDraftEventIds(liveRoom, context.replyDraft)
+      : undefined,
     signalBridgedRoom: isSignalBridgeRoom(liveRoom),
   };
 };

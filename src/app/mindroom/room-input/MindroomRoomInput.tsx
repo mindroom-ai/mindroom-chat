@@ -12,7 +12,7 @@ import React, {
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { isKeyHotkey } from 'is-hotkey';
-import { EventStatus, EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
+import { EventStatus, EventType, IContent, MsgType, Room, RoomEvent } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Editor, Transforms } from 'slate';
 import {
@@ -148,7 +148,9 @@ import {
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
-import { isLocalEchoEventId } from '../threads/threadRouteUtils';
+import { hasLocalEchoMessageRelationTarget } from '../threads/composeMessageRelation';
+import { resolveCanonicalMatrixEventId } from '../threads/threadRouteUtils';
+import { resolveMindroomReplyDraftEventIds } from '../threads/roomTimelineReplyDraft';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -250,6 +252,25 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     threadIdRef.current = threadId;
     const replyDraftRef = useRef(replyDraft);
     replyDraftRef.current = replyDraft;
+
+    useEffect(() => {
+      const replyDraftAtom = roomIdToReplyDraftAtomFamily(roomId);
+      const refreshReplyDraft = () => {
+        const currentDraft = store.get(replyDraftAtom);
+        if (!currentDraft) return;
+
+        const resolvedDraft = resolveMindroomReplyDraftEventIds(room, currentDraft);
+        if (resolvedDraft !== currentDraft) {
+          store.set(replyDraftAtom, resolvedDraft);
+        }
+      };
+
+      refreshReplyDraft();
+      room.on(RoomEvent.LocalEchoUpdated, refreshReplyDraft);
+      return () => {
+        room.removeListener(RoomEvent.LocalEchoUpdated, refreshReplyDraft);
+      };
+    }, [room, roomId, store]);
 
     const powerLevelTags = usePowerLevelTags(room, powerLevels);
     const creatorsTag = useRoomCreatorsTag();
@@ -735,8 +756,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const sendVoiceItem = useCallback(
       async (context: MindroomVoiceSendContext, fileItem: TUploadItem, mxc: string) => {
-        const content = await buildUploadMessageContent(fileItem, mxc, context.signalBridgedRoom);
-        const relation = getMindroomRoomInputVoiceUploadRelation(context, fileItem.file);
+        const contentContext = refreshMindroomRoomInputVoiceSendContext(mx, context);
+        if (!contentContext) {
+          throw new Error(t('composer.voiceRoomUnavailable'));
+        }
+        const content = await buildUploadMessageContent(
+          fileItem,
+          mxc,
+          contentContext.signalBridgedRoom
+        );
+        const sendContext = refreshMindroomRoomInputVoiceSendContext(mx, contentContext);
+        if (!sendContext) {
+          throw new Error(t('composer.voiceRoomUnavailable'));
+        }
+        const relation = getMindroomRoomInputVoiceUploadRelation(sendContext, fileItem.file);
+        if (
+          sendContext.room.hasEncryptionStateEvent() &&
+          hasLocalEchoMessageRelationTarget(relation)
+        ) {
+          throw new Error(t('composer.voiceStillSending'));
+        }
         const contentWithRelation: IContent = relation
           ? {
               ...content,
@@ -744,15 +783,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             }
           : content;
 
-        const response = await mx.sendMessage(context.roomId, contentWithRelation as any);
-        return getRoomMessageSentNotificationEventId({
-          eventId: response.event_id,
-          relation,
-          replyDraft: context.replyDraft,
-          threadId: context.threadId,
-        });
+        const response = await mx.sendMessage(sendContext.roomId, contentWithRelation as any);
+        return {
+          context: sendContext,
+          eventIdToNotify: getRoomMessageSentNotificationEventId({
+            eventId: response.event_id,
+            relation,
+            replyDraft: sendContext.replyDraft,
+            threadId: sendContext.threadId,
+          }),
+        };
       },
-      [mx, buildUploadMessageContent]
+      [mx, buildUploadMessageContent, t]
     );
 
     const clearReplyDraftForVoiceContext = useCallback(
@@ -879,6 +921,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           if (!liveContext) {
             throw new Error(t('composer.voiceRoomUnavailable'));
           }
+          const voiceRelation = getMindroomRoomInputVoiceUploadRelation(liveContext, file);
+          if (
+            liveContext.room.hasEncryptionStateEvent() &&
+            hasLocalEchoMessageRelationTarget(voiceRelation)
+          ) {
+            throw new Error(t('composer.voiceStillSending'));
+          }
 
           if (
             store.get(voiceAutoSendPendingAtom) &&
@@ -913,7 +962,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             return logAndThrowUploadError(err, 'upload');
           }
           try {
-            sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc);
+            const result = await sendVoiceItem(liveContext, fileItem, mxc);
+            liveContext = result.context;
+            sentEventIdToNotify = result.eventIdToNotify;
           } catch (err) {
             return logAndThrowUploadError(err, 'send');
           }
@@ -999,6 +1050,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const hasText = plainText !== '';
         const hasUploads = selectedFilesRef.current.length > 0;
         if (!hasText && !hasUploads) return;
+        const activeReplyDraft = replyDraft
+          ? resolveMindroomReplyDraftEventIds(room, replyDraft)
+          : undefined;
 
         let content: IContent | undefined;
         if (hasText) {
@@ -1011,14 +1065,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             body,
           };
 
-          if (replyDraft && replyDraft.userId !== mx.getUserId()) {
-            mentionData.users.add(replyDraft.userId);
+          if (activeReplyDraft && activeReplyDraft.userId !== mx.getUserId()) {
+            mentionData.users.add(activeReplyDraft.userId);
           }
 
           const mMentions = getMentionContent(Array.from(mentionData.users), mentionData.room);
           content['m.mentions'] = mMentions;
 
-          if (replyDraft || !customHtmlEqualsPlainText(formattedBody, body)) {
+          if (activeReplyDraft || !customHtmlEqualsPlainText(formattedBody, body)) {
             content.format = 'org.matrix.custom.html';
             content.formatted_body = formattedBody;
           }
@@ -1032,8 +1086,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (!content) return;
 
         const relation = getMindroomRoomInputMessageRelation(
-          replyDraft,
-          threadId,
+          activeReplyDraft,
+          resolveCanonicalMatrixEventId(room, threadId),
           threadingEnabled
         );
         if (relation) {
@@ -1043,12 +1097,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // Rust crypto snapshots the clear content before awaiting encryption.
         // Keep a related encrypted draft in the composer until its local root has
         // canonicalized so a stale local relation can never reach the wire.
-        if (
-          room.hasEncryptionStateEvent() &&
-          relation &&
-          (isLocalEchoEventId(relation.event_id) ||
-            isLocalEchoEventId(relation['m.in_reply_to']?.event_id))
-        ) {
+        if (room.hasEncryptionStateEvent() && hasLocalEchoMessageRelationTarget(relation)) {
           return;
         }
 
@@ -1074,7 +1123,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
             eventId,
             relation,
-            replyDraft,
+            replyDraft: activeReplyDraft,
             threadId,
           });
           if (sentEventIdToNotify && !roomNotificationDelivered) {
@@ -1098,7 +1147,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               if (
                 hasVerifiedLocalEcho &&
                 !relation &&
-                !replyDraft &&
+                !activeReplyDraft &&
                 !threadId &&
                 threadIdRef.current !== localEventId &&
                 room.relations.getAllChildEventsForEvent(localEventId).length === 0 &&

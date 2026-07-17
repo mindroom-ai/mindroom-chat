@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { getEditedEvent } from '../../utils/room';
-import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
+import {
+  buildMindroomRoomTimelineReplyDraft,
+  resolveMindroomReplyDraftEventIds,
+} from './roomTimelineReplyDraft';
 
 vi.mock('../../utils/room', () => ({
   getEditedEvent: vi.fn(),
@@ -23,13 +26,13 @@ const event = ({
     getSender: () => sender,
     getWireContent: () => wireContent,
     threadRootId,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const roomWithEvent = (replyEvent: MatrixEvent | undefined) =>
   ({
     findEventById: vi.fn(() => replyEvent),
     getUnfilteredTimelineSet: vi.fn(() => ({})),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('buildMindroomRoomTimelineReplyDraft', () => {
   beforeEach(() => {
@@ -44,16 +47,18 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
       wireContent: { 'm.relates_to': relation },
     });
 
-    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual({
-      draft: {
-        userId: '@sender:server',
-        eventId: '$reply',
-        body: 'hello',
-        formattedBody: '<b>hello</b>',
-        relation,
-      },
-      threadRootId: '$reply',
-    });
+    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual(
+      {
+        draft: {
+          userId: '@sender:server',
+          eventId: '$reply',
+          body: 'hello',
+          formattedBody: '<b>hello</b>',
+          relation,
+        },
+        threadRootId: '$reply',
+      }
+    );
   });
 
   it('uses edited message content when an edit exists', () => {
@@ -106,5 +111,53 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
         false
       )
     ).toBe(undefined);
+  });
+
+  it('canonicalizes every local target retained by a reply draft', () => {
+    const roomId = '!room:example.org';
+    const confirmedEvent = (eventId: string, txnId: string): MatrixEvent =>
+      ({
+        getId: () => eventId,
+        getTxnId: () => txnId,
+        getUnsigned: () => ({ transaction_id: txnId }),
+      } as unknown as MatrixEvent);
+    const confirmedByTxn = new Map([
+      ['reply-txn', confirmedEvent('$reply', 'reply-txn')],
+      ['root-txn', confirmedEvent('$root', 'root-txn')],
+      ['fallback-txn', confirmedEvent('$fallback', 'fallback-txn')],
+    ]);
+    const room = {
+      roomId,
+      getEventForTxnId: (txnId: string) => confirmedByTxn.get(txnId),
+      getLiveTimeline: () => ({
+        getEvents: () => Array.from(confirmedByTxn.values()),
+      }),
+    } as unknown as Room;
+
+    expect(
+      resolveMindroomReplyDraftEventIds(room, {
+        userId: '@sender:server',
+        eventId: `~${roomId}:reply-txn`,
+        body: 'reply',
+        relation: {
+          rel_type: 'm.thread',
+          event_id: `~${roomId}:root-txn`,
+          'm.in_reply_to': {
+            event_id: `~${roomId}:fallback-txn`,
+          },
+        },
+      })
+    ).toEqual({
+      userId: '@sender:server',
+      eventId: '$reply',
+      body: 'reply',
+      relation: {
+        rel_type: 'm.thread',
+        event_id: '$root',
+        'm.in_reply_to': {
+          event_id: '$fallback',
+        },
+      },
+    });
   });
 });
