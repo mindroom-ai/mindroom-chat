@@ -39,6 +39,9 @@ const {
   matrixClientMock,
   navigateRoomMock,
   navigateRoomThreadMock,
+  keyDownHandlersMock,
+  canEditEventMock,
+  editableActiveElementMock,
   threadRenderStateMock,
   threadLastActivityTsMapMock,
   threadStreamingStateMock,
@@ -91,6 +94,9 @@ const {
   },
   navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
+  keyDownHandlersMock: [] as Array<(event: KeyboardEvent) => void>,
+  canEditEventMock: vi.fn(() => false),
+  editableActiveElementMock: vi.fn((): unknown => null),
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [],
@@ -524,7 +530,9 @@ vi.mock('../useStateEvents', () => ({
 }));
 
 vi.mock('../../../hooks/useKeyDown', () => ({
-  useKeyDown: vi.fn(),
+  useKeyDown: vi.fn((_target: unknown, handler: (event: KeyboardEvent) => void) => {
+    keyDownHandlersMock.push(handler);
+  }),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -571,7 +579,7 @@ vi.mock('../../../utils/matrix', () => ({
 }));
 
 vi.mock('../../../utils/room', () => ({
-  canEditEvent: () => false,
+  canEditEvent: canEditEventMock,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEventReactions: () => undefined,
@@ -581,7 +589,10 @@ vi.mock('../../../utils/room', () => ({
   ) => editedEvent?.getContent?.() ?? event?.getContent?.(),
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
     edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
-  getLatestEditableEvt: () => undefined,
+  getLatestEditableEvt: (
+    timeline: { getEvents: () => unknown[] },
+    predicate: (event: unknown) => boolean
+  ) => [...timeline.getEvents()].reverse().find(predicate),
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
   isMembershipChanged: isMembershipChangedMock,
@@ -748,7 +759,7 @@ vi.mock('../../notifications/readReceipts', () => ({
 }));
 
 vi.mock('../../../utils/dom', () => ({
-  editableActiveElement: () => null,
+  editableActiveElement: editableActiveElementMock,
   scrollToBottom: vi.fn(),
 }));
 
@@ -1503,6 +1514,9 @@ const emitClientSync = (current = 'SYNCING', previous = 'SYNCING') => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  keyDownHandlersMock.length = 0;
+  canEditEventMock.mockReturnValue(false);
+  editableActiveElementMock.mockReturnValue(null);
   clearThreadOpenSeedSnapshotsForTests();
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
@@ -1838,6 +1852,9 @@ export {
   getRenderedEventIds,
   getThreadOpenSeedSnapshot,
   ignoredUsersMock,
+  keyDownHandlersMock,
+  canEditEventMock,
+  editableActiveElementMock,
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,

@@ -73,7 +73,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     const [toolbar, setToolbar] = useState(globalToolbar);
     const isComposing = useComposingCheck();
     const durableEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
-    const editTargetReady = !room.hasEncryptionStateEvent() || durableEventActionsAllowed;
+    const editTargetReady = durableEventActionsAllowed;
 
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<AutocompletePrefix>>();

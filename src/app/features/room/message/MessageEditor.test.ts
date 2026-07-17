@@ -155,73 +155,76 @@ const getSaveButton = (renderer: ReactTestRenderer): ReactTestInstance => {
   return saveButton;
 };
 
-describe('MessageEditor encrypted local-echo target', () => {
+describe('MessageEditor local-echo target', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     matrixMocks.sendMessage.mockResolvedValue({ event_id: '$edit' });
   });
 
-  it('blocks a pending-root edit until the target id is confirmed', async () => {
-    let eventId = '~!room:example.org:txn-root';
-    const room = {
-      getTimelineForEvent: () => undefined,
-      hasEncryptionStateEvent: () => true,
-    } as unknown as Room;
-    const mEvent = {
-      getContent: () => ({
-        body: 'Original root',
-        msgtype: 'm.text',
-      }),
-      getId: () => eventId,
-    } as unknown as MatrixEvent;
-    const props = {
-      roomId: '!room:example.org',
-      room,
-      mEvent,
-      onCancel: vi.fn(),
-    };
-    let renderer!: ReactTestRenderer;
+  it.each([false, true])(
+    'blocks a pending-root edit until the target id is confirmed when encryption is %s',
+    async (encrypted) => {
+      let eventId = '~!room:example.org:txn-root';
+      const room = {
+        getTimelineForEvent: () => undefined,
+        hasEncryptionStateEvent: () => encrypted,
+      } as unknown as Room;
+      const mEvent = {
+        getContent: () => ({
+          body: 'Original root',
+          msgtype: 'm.text',
+        }),
+        getId: () => eventId,
+      } as unknown as MatrixEvent;
+      const props = {
+        roomId: '!room:example.org',
+        room,
+        mEvent,
+        onCancel: vi.fn(),
+      };
+      let renderer!: ReactTestRenderer;
 
-    await act(async () => {
-      renderer = create(
-        React.createElement((await import('./MessageEditor')).MessageEditor, props)
-      );
-    });
+      await act(async () => {
+        renderer = create(
+          React.createElement((await import('./MessageEditor')).MessageEditor, props)
+        );
+      });
 
-    expect(getSaveButton(renderer).props.disabled).toBe(true);
-    await act(async () => {
-      getSaveButton(renderer).props.onClick();
-      eventId = '$confirmed-root';
-      await Promise.resolve();
-    });
-    expect(matrixMocks.sendMessage).not.toHaveBeenCalled();
+      expect(getSaveButton(renderer).props.disabled).toBe(true);
+      await act(async () => {
+        getSaveButton(renderer).props.onClick();
+        eventId = '$confirmed-root';
+        await Promise.resolve();
+      });
+      expect(matrixMocks.sendMessage).not.toHaveBeenCalled();
 
-    await act(async () => {
-      renderer.update(
-        React.createElement((await import('./MessageEditor')).MessageEditor, {
-          ...props,
-          mEvent,
+      await act(async () => {
+        renderer.update(
+          React.createElement((await import('./MessageEditor')).MessageEditor, {
+            ...props,
+            mEvent,
+          })
+        );
+      });
+
+      expect(getSaveButton(renderer).props.disabled).toBe(false);
+      await act(async () => {
+        await getSaveButton(renderer).props.onClick();
+      });
+
+      expect(matrixMocks.sendMessage).toHaveBeenCalledOnce();
+      expect(matrixMocks.sendMessage).toHaveBeenCalledWith(
+        '!room:example.org',
+        expect.objectContaining({
+          'm.relates_to': {
+            event_id: '$confirmed-root',
+            rel_type: 'm.replace',
+          },
         })
       );
-    });
-
-    expect(getSaveButton(renderer).props.disabled).toBe(false);
-    await act(async () => {
-      await getSaveButton(renderer).props.onClick();
-    });
-
-    expect(matrixMocks.sendMessage).toHaveBeenCalledOnce();
-    expect(matrixMocks.sendMessage).toHaveBeenCalledWith(
-      '!room:example.org',
-      expect.objectContaining({
-        'm.relates_to': {
-          event_id: '$confirmed-root',
-          rel_type: 'm.replace',
-        },
-      })
-    );
-    expect(JSON.stringify(matrixMocks.sendMessage.mock.calls[0]?.[1])).not.toContain(
-      '~!room:example.org:txn-root'
-    );
-  });
+      expect(JSON.stringify(matrixMocks.sendMessage.mock.calls[0]?.[1])).not.toContain(
+        '~!room:example.org:txn-root'
+      );
+    }
+  );
 });

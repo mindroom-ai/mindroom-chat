@@ -1,11 +1,14 @@
 import { EventStatus } from 'matrix-js-sdk';
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  canEditEventMock,
   create,
   createControlledRoomTimelineHarness,
+  editableActiveElementMock,
   flushAsyncWork,
+  keyDownHandlersMock,
   makeEvent,
   makeRoom,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -60,5 +63,61 @@ describe('RoomTimeline pending-send wiring', () => {
         { body: 'confirmed', pendingSend: false, failedSend: false },
       ])
     );
+  });
+
+  it('does not enter edit mode from ArrowUp until the target id is confirmed', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const localEventId = '~!room:example.org:txn-pending-root';
+    const pendingEvent = makeEvent(localEventId, { content: { body: 'pending root' } });
+    const room = makeRoom({ liveEvents: [pendingEvent] });
+    canEditEventMock.mockReturnValue(true);
+    editableActiveElementMock.mockReturnValue({});
+    vi.stubGlobal('document', {
+      activeElement: {
+        getAttribute: (name: string) => (name === 'data-editable-name' ? 'RoomInput' : null),
+      },
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(1);
+    });
+
+    const localMessage = () =>
+      renderer!.root.find(
+        (node) => node.props.eventId === localEventId && typeof node.props.edit === 'boolean'
+      );
+    const pendingKeyEvent = { key: 'ArrowUp', preventDefault: vi.fn() } as unknown as KeyboardEvent;
+    await act(async () => {
+      keyDownHandlersMock.forEach((handler) => handler(pendingKeyEvent));
+    });
+
+    expect(localMessage().props.edit).toBe(false);
+    expect(pendingKeyEvent.preventDefault).not.toHaveBeenCalled();
+
+    const confirmedEventId = '$confirmed-root';
+    const confirmedEvent = makeEvent(confirmedEventId, { content: { body: 'confirmed root' } });
+    const confirmedRoom = makeRoom({ liveEvents: [confirmedEvent] });
+    await act(async () => {
+      renderer!.update(React.createElement(ControlledRoomTimeline, { room: confirmedRoom }));
+      await flushAsyncWork(1);
+    });
+    const confirmedKeyEvent = {
+      key: 'ArrowUp',
+      preventDefault: vi.fn(),
+    } as unknown as KeyboardEvent;
+    await act(async () => {
+      keyDownHandlersMock.forEach((handler) => handler(confirmedKeyEvent));
+    });
+
+    const confirmedMessage = renderer!.root.find(
+      (node) => node.props.eventId === confirmedEventId && typeof node.props.edit === 'boolean'
+    );
+    expect(confirmedMessage.props.edit).toBe(true);
+    expect(confirmedKeyEvent.preventDefault).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 });

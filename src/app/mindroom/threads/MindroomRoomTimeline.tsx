@@ -126,6 +126,7 @@ import { Event, Message } from '../messages/MindroomMessage';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { useMindroomLongTextPrewarm } from '../messages/longTextPrewarm';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
@@ -1708,8 +1709,9 @@ export function RoomTimeline({
           document.activeElement?.getAttribute('data-editable-name') === 'RoomInput' &&
           isEmptyEditor(editor)
         ) {
-          const editableEvt = getLatestEditableEvt(room.getLiveTimeline(), (mEvt) =>
-            canEditEvent(mx, mEvt)
+          const editableEvt = getLatestEditableEvt(
+            room.getLiveTimeline(),
+            (mEvt) => isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt)
           );
           const editableEvtId = editableEvt?.getId();
           if (!editableEvtId) return;
