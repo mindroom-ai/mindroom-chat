@@ -157,6 +157,7 @@ const renderHarness = (
     getLiveTimeline: () => ({
       getEvents: () => [],
     }),
+    getThreads: () => [],
     getMembers: () => [],
     hasEncryptionStateEvent: () => options.encryptedRoom ?? false,
   };

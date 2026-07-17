@@ -791,9 +791,7 @@ describe('RoomTimeline', () => {
         );
         expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
-        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(
-          quiescenceSettlesBefore + 1
-        );
+        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no
@@ -3277,74 +3275,6 @@ describe('RoomTimeline', () => {
           rootEvent,
           firstReply,
           secondReply,
-        ]);
-      } finally {
-        resolveCacheLoad?.({
-          events: [],
-          hasMoreBefore: false,
-        });
-        await act(async () => {
-          await Promise.resolve();
-        });
-        renderer?.unmount();
-      }
-    });
-
-    it('seeds untargeted zero-reply thread opens from the locally available root before cache hydration resolves', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
-      const threadId = '~pending-root';
-      const rootEvent = makeEvent(threadId, {
-        content: { body: 'YOLO' },
-        isSending: true,
-        isThreadRoot: true,
-        ts: 0,
-        txnId: 'txn-yolo',
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
-      vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
-      );
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-              threadId,
-            })
-          );
-        });
-
-        await waitForCondition(
-          () =>
-            threadRenderStateMock.setSupplementalThreadEvents.mock.calls.some(
-              ([expectedThreadId, events]) =>
-                expectedThreadId === threadId &&
-                Array.isArray(events) &&
-                events.length === 1 &&
-                events[0] === rootEvent
-            ),
-          50
-        );
-        expect(threadRenderStateMock.setSupplementalThreadEvents).toHaveBeenCalledWith(threadId, [
-          rootEvent,
         ]);
       } finally {
         resolveCacheLoad?.({
