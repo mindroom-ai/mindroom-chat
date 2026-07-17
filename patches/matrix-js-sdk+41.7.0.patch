@@ -1,0 +1,140 @@
+diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
+index bc4e623..237b77a 100644
+--- a/node_modules/matrix-js-sdk/lib/client.js
++++ b/node_modules/matrix-js-sdk/lib/client.js
+@@ -1882,13 +1882,22 @@ export class MatrixClient extends TypedEventEmitter {
+     // that hasn't been sent yet (e.g. with a local id starting with a ~)
+     // then listen for the remote echo of that event so that by the time
+     // this event does get sent, we have the correct event_id
+-    var targetId = localEvent.getAssociatedId();
+-    if (targetId !== null && targetId !== void 0 && targetId.startsWith("~")) {
+-      var target = room === null || room === void 0 ? void 0 : room.getPendingEvents().find(e => e.getId() === targetId);
++    var localEventIdPrefix = room ? "~".concat(room.roomId, ":") : undefined;
++    var targetIds = new Set([localEvent.relationEventId, localEvent.replyEventId, localEvent.isRedaction() ? localEvent.event.redacts : undefined]);
++    targetIds.forEach(targetId => {
++      if (!targetId || !localEventIdPrefix || !targetId.startsWith(localEventIdPrefix)) return;
++      var txnId = targetId.slice(localEventIdPrefix.length);
++      var _room$getEventForTxn, _room$findEventById;
++      var target = (_room$getEventForTxn = room === null || room === void 0 ? void 0 : room.getEventForTxnId(txnId)) !== null && _room$getEventForTxn !== void 0 ? _room$getEventForTxn : (_room$findEventById = room === null || room === void 0 ? void 0 : room.findEventById(targetId)) !== null && _room$findEventById !== void 0 ? _room$findEventById : room === null || room === void 0 ? void 0 : room.getPendingEvent(targetId);
++      var resolvedTargetId = target === null || target === void 0 ? void 0 : target.getId();
++      if (resolvedTargetId && resolvedTargetId !== targetId) {
++        localEvent.updateAssociatedId(resolvedTargetId, targetId);
++        return;
++      }
+       target === null || target === void 0 || target.once(MatrixEventEvent.LocalEventIdReplaced, () => {
+-        localEvent.updateAssociatedId(target.getId());
++        localEvent.updateAssociatedId(target.getId(), targetId);
+       });
+-    }
++    });
+     var type = localEvent.getType();
+     this.logger.debug("sendEvent of type ".concat(type, " in ").concat(roomId, " with txnId ").concat(txnId).concat(delayOpts ? " (delayed event)" : "").concat(queryDict ? " query params: " + JSON.stringify(queryDict) : ""));
+     localEvent.setTxnId(txnId);
+diff --git a/node_modules/matrix-js-sdk/lib/models/event.d.ts b/node_modules/matrix-js-sdk/lib/models/event.d.ts
+index ef37343..2db4551 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/event.d.ts
+@@ -761,8 +761,9 @@ export declare class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEve
+      * an event with a related id.
+      *
+      * @param eventId - the new event id
++     * @param originalEventId - the original local event id to replace
+      */
+-    updateAssociatedId(eventId: string): void;
++    updateAssociatedId(eventId: string, originalEventId?: string): void;
+     /**
+      * Flags an event as cancelled due to future conditions. For example, a verification
+      * request event in the same sync transaction may be flagged as cancelled to warn
+diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
+index 41c0e07..4814216 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event.js
++++ b/node_modules/matrix-js-sdk/lib/models/event.js
+@@ -1417,8 +1417,23 @@ export class MatrixEvent extends TypedEventEmitter {
+    * an event with a related id.
+    *
+    * @param eventId - the new event id
+-   */
+-  updateAssociatedId(eventId) {
++   * @param originalEventId - the original local event id to replace
++   */
++  updateAssociatedId(eventId, originalEventId) {
++    if (originalEventId !== undefined) {
++      var _relatesTo$mIn_reply;
++      var relatesTo = this.getWireContent()["m.relates_to"];
++      if ((relatesTo === null || relatesTo === void 0 ? void 0 : relatesTo.event_id) === originalEventId) {
++        relatesTo.event_id = eventId;
++      }
++      if ((relatesTo === null || relatesTo === void 0 || (_relatesTo$mIn_reply = relatesTo["m.in_reply_to"]) === null || _relatesTo$mIn_reply === void 0 ? void 0 : _relatesTo$mIn_reply.event_id) === originalEventId) {
++        relatesTo["m.in_reply_to"].event_id = eventId;
++      }
++      if (this.isRedaction() && this.event.redacts === originalEventId) {
++        this.event.redacts = eventId;
++      }
++      return;
++    }
+     var relation = this.getRelation();
+     if (relation) {
+       relation.event_id = eventId;
+diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
+index 80ea382..6d6d32b 100644
+--- a/node_modules/matrix-js-sdk/src/client.ts
++++ b/node_modules/matrix-js-sdk/src/client.ts
+@@ -2853,11 +2853,25 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+         // that hasn't been sent yet (e.g. with a local id starting with a ~)
+         // then listen for the remote echo of that event so that by the time
+         // this event does get sent, we have the correct event_id
+-        const targetId = localEvent.getAssociatedId();
+-        if (targetId?.startsWith("~")) {
+-            const target = room?.getPendingEvents().find((e) => e.getId() === targetId);
++        const localEventIdPrefix = room ? `~${room.roomId}:` : undefined;
++        const targetIds = new Set([
++            localEvent.relationEventId,
++            localEvent.replyEventId,
++            localEvent.isRedaction() ? localEvent.event.redacts : undefined,
++        ]);
++        for (const targetId of targetIds) {
++            if (!targetId || !localEventIdPrefix || !targetId.startsWith(localEventIdPrefix)) continue;
++
++            const txnId = targetId.slice(localEventIdPrefix.length);
++            const target =
++                room?.getEventForTxnId(txnId) ?? room?.findEventById(targetId) ?? room?.getPendingEvent(targetId);
++            const resolvedTargetId = target?.getId();
++            if (resolvedTargetId && resolvedTargetId !== targetId) {
++                localEvent.updateAssociatedId(resolvedTargetId, targetId);
++                continue;
++            }
+             target?.once(MatrixEventEvent.LocalEventIdReplaced, () => {
+-                localEvent.updateAssociatedId(target.getId()!);
++                localEvent.updateAssociatedId(target.getId()!, targetId);
+             });
+         }
+ 
+diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
+index 19a2f43..e3a0461 100644
+--- a/node_modules/matrix-js-sdk/src/models/event.ts
++++ b/node_modules/matrix-js-sdk/src/models/event.ts
+@@ -1623,8 +1623,23 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+      * an event with a related id.
+      *
+      * @param eventId - the new event id
++     * @param originalEventId - the original local event id to replace
+      */
+-    public updateAssociatedId(eventId: string): void {
++    public updateAssociatedId(eventId: string, originalEventId?: string): void {
++        if (originalEventId !== undefined) {
++            const relatesTo = this.getWireContent()["m.relates_to"];
++            if (relatesTo?.event_id === originalEventId) {
++                relatesTo.event_id = eventId;
++            }
++            if (relatesTo?.["m.in_reply_to"]?.event_id === originalEventId) {
++                relatesTo["m.in_reply_to"].event_id = eventId;
++            }
++            if (this.isRedaction() && this.event.redacts === originalEventId) {
++                this.event.redacts = eventId;
++            }
++            return;
++        }
++
+         const relation = this.getRelation();
+         if (relation) {
+             relation.event_id = eventId;
