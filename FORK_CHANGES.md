@@ -28,6 +28,15 @@
 - The second independent review demonstrated that concurrent React can batch away a queued success before commit, which moved the ownership boundary from state-update scheduling to confirmed commit.
 - Independent re-review found no remaining ownership gap, double revocation, stale error publication, behavioral coverage, documentation, scope, or half-refactor issue.
 - No crash hook, cache, index, listener, Matrix SDK, or Capacitor change is included.
+### CINNY-120 instant cached first paint on warm startup (2026-07-16)
+
+- Status: round-one review remediation, focused validation, full local validation, and independent re-review are complete on `cinny-120`; ready for review.
+- Scope: cache successful Matrix `/versions` responses per homeserver and user, render authenticated content from the last-known-good response, and seed matrix-js-sdk startup so IndexedDB sync replay is not queued behind another `/versions` request.
+- Guardrails: no SDK patch, ClientRoot gating change, empty-versions fallback, live cache swap, feature flag, or new startup state machine.
+- Coverage: cache round-trip, invalid-entry removal, empty-response rejection, homeserver and account isolation, authenticated cache population, synchronous cached rendering, silent single refresh, loader success write-through, ignored-error fallback rejection, logout cleanup, real-SDK no-`/versions` startup, feature-support seeding, unseeded startup, and token-only saved-sync behavior.
+- Validation: typecheck, 427 Vitest files with 3,259 tests, the production and PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check` pass.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Review: round one identified missing cache shape validation, divergent empty-response handling, unauthenticated cache population, and logout cache retention; the fixes were verified by 68 focused tests, and independent re-review found no implementation, test, scope, or half-refactor findings.
 
 ### Guarded App Store review release (2026-07-15)
 

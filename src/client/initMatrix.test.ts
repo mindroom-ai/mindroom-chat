@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
+import { createClient as createSdkClient } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
@@ -46,6 +47,7 @@ import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentTh
 import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
+import { readCachedSpecVersions, writeCachedSpecVersions } from '../app/state/cachedSpecVersions';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -883,11 +885,45 @@ describe('initClient', () => {
 describe('startClient', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('seeds SDK versions and feature support without requesting /versions', async () => {
+    const { storage } = createStorageMock();
+    vi.stubGlobal('localStorage', storage);
+    writeCachedSpecVersions('https://example.com', '@user:example.com', {
+      versions: ['v1.4'],
+      unstable_features: {},
+    });
+    const fetchFn = vi.fn(
+      () =>
+        new Promise<Response>(() => {
+          // Keep unrelated startup requests pending until the client stops.
+        })
+    );
+    const mx = createSdkClient({
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    try {
+      await startClient(mx);
+
+      expect(
+        fetchFn.mock.calls.some(([input]) => String(input).includes('/_matrix/client/versions'))
+      ).toBe(false);
+      expect(mx.canSupport.get(Feature.ThreadUnreadNotifications)).toBe(ServerSupport.Stable);
+    } finally {
+      mx.stopClient();
+    }
   });
 
   it('starts syncing with a bounded timeline filter and lazy-loaded members', async () => {
     const matrixStartClient = vi.fn().mockResolvedValue(undefined);
     const mx = {
+      baseUrl: 'https://example.com',
       canSupport: new Map([[Feature.ThreadUnreadNotifications, ServerSupport.Stable]]),
       getUserId: vi.fn(() => '@user:example.com'),
       startClient: matrixStartClient,
@@ -912,6 +948,32 @@ describe('startClient', () => {
         },
       },
     });
+  });
+
+  it('does not seed another account versions on the same homeserver', async () => {
+    const { storage } = createStorageMock();
+    vi.stubGlobal('localStorage', storage);
+    writeCachedSpecVersions('https://example.com', '@alice:example.com', {
+      versions: ['v1.4'],
+    });
+    const matrixStartClient = vi.fn().mockResolvedValue(undefined);
+    const existingSupport = new Map([
+      [Feature.ThreadUnreadNotifications, ServerSupport.Unsupported],
+    ]);
+    const mx = {
+      baseUrl: 'https://example.com',
+      canSupport: existingSupport,
+      getUserId: vi.fn(() => '@bob:example.com'),
+      startClient: matrixStartClient,
+    } as unknown as Parameters<typeof startClient>[0];
+
+    await startClient(mx);
+
+    expect(mx.canSupport).toBe(existingSupport);
+    expect(matrixStartClient).toHaveBeenCalledTimes(1);
+    expect(
+      (mx as unknown as { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise
+    ).toBeUndefined();
   });
 });
 
@@ -1609,6 +1671,12 @@ describe('logoutClient', () => {
       value: localStorageMock,
       configurable: true,
     });
+    writeCachedSpecVersions(mountedSession.baseUrl, mountedSession.userId, {
+      versions: ['v1.10'],
+    });
+    writeCachedSpecVersions(activeSession.baseUrl, activeSession.userId, {
+      versions: ['v1.11'],
+    });
     Object.defineProperty(globalThis, 'indexedDB', {
       value: {
         databases: vi.fn().mockResolvedValue([]),
@@ -1646,6 +1714,10 @@ describe('logoutClient', () => {
       activeSession.sessionId,
     ]);
     expect(getSessionStore(localStorageMock).activeSessionId).toBe(activeSession.sessionId);
+    expect(readCachedSpecVersions(mountedSession.baseUrl, mountedSession.userId)).toBeUndefined();
+    expect(readCachedSpecVersions(activeSession.baseUrl, activeSession.userId)).toEqual({
+      versions: ['v1.11'],
+    });
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
