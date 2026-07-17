@@ -39,20 +39,26 @@
 - Review: round one identified missing cache shape validation, divergent empty-response handling, unauthenticated cache population, and logout cache retention; the fixes were verified by 68 focused tests, and independent re-review found no implementation, test, scope, or half-refactor findings.
 ### Create SDK models for zero-reply standalone thread opens (2026-07-16)
 
-- Status: the one-line SDK bootstrap fix, two review-fix rounds, focused contract coverage, full local validation, and independent re-review are complete.
+- Status: PR review and independent review identified the SDK initialization races plus cancellation, first-load backfill, and test-global cleanup gaps; all are remediated with regression coverage, full local validation, and final independent approval.
 - Symptom: Bas reported, "sometimes there is just a single message and I click I to it, I send a message and it doesn't show up. I have to click out of the thread first and then back. Only then it shows."
 - Root cause: the zero-reply standalone-root fast-open path skipped SDK `Thread` creation, so an own first reply was excluded from the room timeline as thread-only and both its local echo and transaction-deduplicated remote echo had no thread timeline to enter.
-- Fix: the existing guarded zero-reply branch now calls `room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false)` before its repaint calls.
-- Coverage: the focused bootstrap contract now requires exact local SDK thread creation while preserving the no-context/no-relations fast open, proves the created model is immediately discoverable, and prevents duplicate creation on a second bootstrap or when the SDK thread already exists.
+- Fix: the existing guarded zero-reply branch calls `room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false)` before its repaint calls, then prevents the constructor-started metadata request from resetting a racing first reply.
+- That first-open branch now continues through the established SDK timeline bootstrap, so a stale or gappy local standalone root still loads replies that already exist on the server instead of treating local shape as authoritative emptiness.
+- The open-thread render state also consumes direct `Room.localEchoUpdated` thread replies immediately instead of waiting for the SDK's metadata-gated `Thread.newReply`, while removing canceled echoes, ignoring edits and unrelated threads, and removing the listener on cleanup.
+- Coverage: the focused bootstrap contract requires exact local SDK thread creation and first-open timeline bootstrap, proves the created model is immediately discoverable and initialized, and prevents duplicate creation on a second bootstrap or when the SDK thread already exists.
+- A real matrix-js-sdk `Room` and `Thread` regression holds the constructor root fetch open, injects an existing reply through the first-open bootstrap, inserts a racing first reply, releases metadata initialization, and proves both replies survive without constructor back-pagination.
+- Render-state coverage proves a room local echo appears before the SDK thread emits `Thread.newReply`, cancellation and a delayed post-cancellation `Thread.newReply` leave it absent, unrelated threads and edits remain excluded, and the room listener is removed on unmount.
 - The global cross-room Threads page excludes viewed roots with zero replies unless they have a pending send; the in-room compact overview and Recents continue to show their intentional root-only cards.
 - Intrinsic cross-room entry eligibility is applied before the global Threads empty-state decision, so an index containing only viewed zero-reply roots shows the base empty state instead of an ineffective Clear filters action.
 - A pending own first reply is derived from the room-shared SDK relation store, so it remains eligible when the global Threads route mounts after the send and before the SDK reply count catches up.
 - Pending relation history is scanned only for zero-reply records, and the pending timestamp overrides the original activity fallback chain only while that pending first reply is active.
-- Reopening a retained still-zero-reply root leaves the first-open fast path and runs the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work in the background after cache-first paint.
-- Validation: the combined focused cross-room, Threads-page, and bootstrap suites pass 11 files / 63 tests, the full Vitest suite passes 426 files / 3,246 tests, and typecheck, the production/PWA build with Element Call verification, touched-file ESLint and Prettier, and `git diff --check` pass.
-- Review: the two review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost; final independent re-review found no actionable code findings or scope violations.
-- Risk: local-echo latency remains unbounded when the background root GET hangs because the SDK local-echo metadata gate has no timeout, while the remote-echo path is ungated and remains the fallback.
-- Risk: a remote echo racing the constructor metadata initialization can be wiped by `resetLiveTimeline`; a successful late root GET restores it through back-pagination, while a failed GET can leave the SDK thread timeline missing it until the next thread fetch even though the open view and cache already received it.
+- Both first-open creation and reopening a retained still-zero-reply root run the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work after cache-first paint.
+- Final validation passes the focused SDK-bootstrap and render-state suites with 2 files / 20 tests, the full Vitest suite with 432 files / 3,275 tests, typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Review: the original review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost.
+- PR review then identified the SDK metadata gate and timeline-reset race described above.
+- Independent review found that the first remediation skipped stale-root backfill, retained canceled echoes, and restored SDK support through a globally latching setter; first-open bootstrap now remains active, cancellation removes fallback state, and the real-SDK test mutates and restores only the support field.
+- Final independent re-review traced first-open backfill, the constructor metadata race, local and remote echo convergence, cancellation followed by delayed `Thread.newReply`, listener cleanup, and SDK-global restoration and found no remaining issues.
 
 ### Guarded App Store review release (2026-07-15)
 
