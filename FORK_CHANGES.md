@@ -116,7 +116,7 @@
 - Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
 ### CINNY-121 — Optimistic Simple Mode text sends (2026-07-16)
 
-- Status: all five planned changes plus Round 1 through Round 5 review remediation, focused regression coverage, full local validation, patch-package verification, and independent review are complete on `cinny-121`.
+- Status: all five planned changes plus Round 1 through Round 5 review remediation, focused regression coverage, full local validation, patch-package verification, and independent review are complete on `cinny-121`, but the final live throttled-browser acceptance gate failed and merge preparation is blocked.
 - Symptom: a slow room-level text send left the submitted content and pending clock in the composer, delayed the local thread view, and could later show both the new thread and the stale composer state.
 - SDK fix: the existing `matrix-js-sdk@41.7.0` patch-package workflow now resolves chronological, detached, acknowledged, and post-sync-echo local relation targets through transaction metadata across every loaded room and thread timeline, rewrites thread, reply, and redaction associations independently, and preserves the one-argument association API.
   Pending replies enter a provisional local-root thread, then migrate their aggregation and timeline ownership into the canonical thread while the SDK replay set preserves them through acknowledgement and hydration.
@@ -143,7 +143,16 @@
 - Round 4 review: both reviewers found that optimistic navigation made terminal root failure visually dishonest and exposed pending roots through ArrowUp, while further review identified thread-only historical timeline resolution and premature pending-route remote and persistence work.
 - Round 5 review: one reviewer found that a pending reply had no renderable thread timeline before its root settled and that callback invocation was mistaken for accepted navigation ownership; the second reviewer approved with only deferred follow-up suggestions.
 - Review outcome: pending replies migrate from a disposable provisional thread into the canonical SDK thread without a render gap, compact navigation explicitly accepts ownership, classic mode explicitly declines it, and independent review approves both Round 5 logical fixes.
-- Documentation hygiene: the ticket plan and implementation report moved under `docs/superpowers`; the review archive remains untouched and no process artifact remains at the repository root.
+- Live acceptance: commit `31c28623` passed immediate local-root navigation, composer clearing, timeline and overview pending clocks, pending-root durable-action gating, and pre-confirmation ArrowUp gating against the existing local Tuwunel under CDP Slow 3G.
+  The root and its local reply were both visible before release, but after the held root `PUT` returned HTTP 200 and remote-echoed to a canonical id, the reply remained SDK-queued and issued no message `PUT` within four minutes.
+  `LIVE-TEST.md` records the failed scenario and evidence; later canonicalization, terminal-failure, retry, and post-confirmation ArrowUp scenarios were not run because the gate stopped at the first product failure.
+- Before/after evidence (2026-07-17): paired negative-control runs of an identical throttled held-`PUT` harness against baseline `dev` `5bf08b66` and tip `31c28623` (evidence in `/tmp/CINNY-121-evidence-beforeafter/`, table in `.claude/EVIDENCE-BEFOREAFTER.md`, dated section appended to the openclaw CINNY-121 report).
+  The baseline reproduced the reported symptom exactly (text held in the composer for the full 8.5 s flight beside an already-visible thread card, navigation only after the `PUT`, and a thread reply that is silently dropped and then destroyed), while the tip cleared the composer and navigated to the local thread at 99 ms and rendered the optimistic reply through a 15 s held root.
+  The known queued-reply stall reproduced with new diagnostics: it is hold-duration dependent (a ~0.7 s hold delivers with canonical `$` ids on the wire; a 15 s hold never sends), and the stalled send dies ~45 s after release in `updatePendingEventStatus called on an event which is not a local echo`, flipping the reply to the failed state rendered above its root.
+- Next step: diagnose the SDK queued-dependent-send stall only after an explicit implementation mandate; do not merge the current head based on automated review alone.
+- Documentation hygiene: the ticket plan and implementation report moved under `docs/superpowers`; the review archive remains untouched, and the requested failed-gate record `LIVE-TEST.md` is the only new root-level process artifact.
+- Round 7 (2026-07-17): rebased the 33 CINNY-121 commits onto local `dev` at `97b6ee36`, preserving the CINNY-123, CINNY-120, CINNY-122, and CINNY-121 runbook sections through the only conflict.
+- Round 7 status: the rebased pre-fix tip is `c88f4b33`; the mandatory pre-fix typecheck, full Vitest, production build, and full lint gates are next, before reproducing or changing the delivery defect.
 
 ### Guarded App Store review release (2026-07-15)
 
