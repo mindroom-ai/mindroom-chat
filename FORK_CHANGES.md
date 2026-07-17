@@ -160,7 +160,10 @@
 - Round 7 fix: the SDK room timeline lookup now falls back to the unfiltered room timeline when a classified thread does not yet contain the requested event.
   The real-SDK regression holds the root request, queues a reply, injects the root remote echo first, proves the temporary room-only root registration, and requires the root acknowledgement to dequeue the still-local reply with canonical relation targets.
 - Round 7 focused validation: all 13 real-SDK local-echo association tests pass, `git diff --check` passes, and both repository patches reverse and reapply cleanly.
-- Round 7 status: run full validation and the fixed live 15-second acceptance harness before the two fresh independent reviews.
+- Round 7 full validation: typecheck passes; the complete serial Vitest run passes 434 files and 3,337 tests; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
+- Round 7 fixed live acceptance: the hash-verified `f53e3c27` build passes the asserted Slow-3G scenario in `/tmp/CINNY-121-evidence-r7/fixed/`.
+  With the root held for 15.169 seconds, exactly one reply PUT fired 453 milliseconds after release, the server contained exactly one root and one reply with canonical thread and fallback targets, the final DOM had zero pending clocks and exactly one reply below its root, and the final screenshot confirms the ordering.
+- Round 7 status: two fresh independent reviews remain before the branch can be considered ready.
 
 ### Guarded App Store review release (2026-07-15)
 
