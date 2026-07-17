@@ -24,6 +24,7 @@ import * as css from './styles.css';
 import { ReactionViewer } from '../reaction-viewer';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
+import { isConfirmedMatrixEventId } from '../../../mindroom/threads/threadRouteUtils';
 
 export type ReactionsProps = {
   room: Room;
@@ -57,6 +58,7 @@ export const Reactions = as<'div', ReactionsProps>(
     const useAuthentication = useMediaAuthentication();
     const [viewer, setViewer] = useState<boolean | string>(false);
     const myUserId = mx.getUserId();
+    const targetAllowsReactionToggle = canSendReaction && isConfirmedMatrixEventId(mEventId);
     const reactions = useRelations(
       relations,
       useCallback((rel) => getRenderableAnnotationsByKey(rel, targetEvent), [targetEvent])
@@ -83,6 +85,8 @@ export const Reactions = as<'div', ReactionsProps>(
           if (rEvents.length === 0 || typeof key !== 'string') return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();
+          const reactionToggleAllowed =
+            targetAllowsReactionToggle && (!myREvent || isConfirmedMatrixEventId(myREvent.getId()));
 
           return (
             <TooltipProvider
@@ -106,12 +110,12 @@ export const Reactions = as<'div', ReactionsProps>(
                   reaction={key}
                   count={events.size}
                   onClick={
-                    canSendReaction
+                    reactionToggleAllowed
                       ? () => onReactionToggle(mEventId, key, undefined, relations)
                       : undefined
                   }
                   onContextMenu={handleViewReaction}
-                  aria-disabled={!canSendReaction}
+                  aria-disabled={!reactionToggleAllowed}
                   useAuthentication={useAuthentication}
                 />
               )}

@@ -91,6 +91,7 @@ class MockRelations {
           '🔄',
           new Set([
             {
+              getId: () => '$reaction',
               getSender: () => '@bas:mindroom.chat',
               getRelation: () => ({ rel_type: 'm.annotation' }),
               isRedacted: () => false,
@@ -137,6 +138,7 @@ describe('Reactions', () => {
         '🛑',
         new Set([
           {
+            getId: () => '$redacted-stop',
             getSender: () => '@bas:mindroom.chat',
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => true,
@@ -185,6 +187,7 @@ describe('Reactions', () => {
         '👍',
         new Set([
           {
+            getId: () => '$thumbs-up',
             getSender: () => '@bas:mindroom.chat',
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
@@ -244,5 +247,73 @@ describe('Reactions', () => {
     expect(reactionRenderSpy).toHaveBeenCalledWith(
       expect.objectContaining({ reaction: '🛑', count: 1 })
     );
+  });
+
+  it('keeps pending-target reaction chips read-only until the event id confirms', () => {
+    const relations = new MockRelations();
+    const onReactionToggle = vi.fn();
+
+    const renderer = create(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '~!room:example.org:txn-root',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle,
+      })
+    );
+
+    const button = renderer.root.findByType('button');
+
+    expect(button.props.onClick).toBeUndefined();
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        props: expect.objectContaining({
+          'aria-disabled': true,
+          onContextMenu: expect.any(Function),
+        }),
+      })
+    );
+    expect(onReactionToggle).not.toHaveBeenCalled();
+  });
+
+  it('keeps a pending own reaction read-only until its redaction target confirms', () => {
+    const relations = new MockRelations([
+      [
+        '👍',
+        new Set([
+          {
+            getId: () => '~!room:example.org:txn-reaction',
+            getSender: () => '@bas:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+    const onReactionToggle = vi.fn();
+
+    const renderer = create(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$confirmed-root',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle,
+      })
+    );
+
+    expect(renderer.root.findByType('button').props.onClick).toBeUndefined();
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        props: expect.objectContaining({
+          'aria-disabled': true,
+          'aria-pressed': true,
+        }),
+      })
+    );
+    expect(onReactionToggle).not.toHaveBeenCalled();
   });
 });

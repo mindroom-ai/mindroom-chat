@@ -20,6 +20,9 @@ const longTextMocks = vi.hoisted(() => ({
   getMindroomLongTextSource: vi.fn(() => undefined),
   useMindroomLongTextResolvedContent: vi.fn(() => undefined),
 }));
+const roomUtilsMocks = vi.hoisted(() => ({
+  canEditEvent: vi.fn(() => false),
+}));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../../../features/room/message/styles.css', () => ({
@@ -219,7 +222,7 @@ vi.mock('../../../components/message', () => ({
 }));
 
 vi.mock('../../../utils/room', () => ({
-  canEditEvent: () => false,
+  canEditEvent: roomUtilsMocks.canEditEvent,
   getEventEdits: () => undefined,
   getEditedEvent: () => undefined,
   getLatestMessageContent: (mEvent: { getContent: () => Record<string, unknown> }) =>
@@ -346,18 +349,32 @@ const getMessageComponent = async () =>
 beforeEach(() => {
   lastMessageBaseNode = undefined;
   vi.clearAllMocks();
+  roomUtilsMocks.canEditEvent.mockReturnValue(false);
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
 });
 
-const createMessageEvent = (content: Record<string, unknown>) =>
+const createMessageEvent = (
+  content: Record<string, unknown>,
+  {
+    eventId = '$event',
+    senderId = '@alice:example.org',
+  }: {
+    eventId?: string;
+    senderId?: string;
+  } = {}
+) =>
   ({
+    event: {},
     threadRootId: undefined,
     getContent: () => content,
-    getId: () => '$event',
-    getSender: () => '@alice:example.org',
+    getId: () => eventId,
+    getSender: () => senderId,
     getTs: () => 1,
+    getType: () => 'm.room.message',
+    isEncrypted: () => false,
     isRedacted: () => false,
+    replacingEvent: () => undefined,
   } as const);
 
 const createRoom = () =>
@@ -373,7 +390,21 @@ type RenderedMessage = {
 
 const renderMessage = async (
   content: Record<string, unknown>,
-  { collapse = true }: { collapse?: boolean } = {}
+  {
+    collapse = true,
+    eventId,
+    senderId,
+    ...messageProps
+  }: {
+    collapse?: boolean;
+    eventId?: string;
+    senderId?: string;
+    canDelete?: boolean;
+    canPinEvent?: boolean;
+    canSendReaction?: boolean;
+    onEditId?: (eventId?: string) => void;
+    showDeveloperTools?: boolean;
+  } = {}
 ): Promise<RenderedMessage> => {
   const Message = await getMessageComponent();
   let renderer!: ReactTestRenderer;
@@ -385,7 +416,7 @@ const renderMessage = async (
         Message,
         {
           room: createRoom(),
-          mEvent: createMessageEvent(content),
+          mEvent: createMessageEvent(content, { eventId, senderId }),
           collapse,
           highlight: false,
           messageLayout: 'Modern',
@@ -396,6 +427,7 @@ const renderMessage = async (
           onReactionToggle: vi.fn(),
           hour24Clock: false,
           dateFormatString: 'MMM D',
+          ...messageProps,
         },
         React.createElement('div', null, 'message body')
       )
@@ -505,6 +537,86 @@ const mindroomAiRunContent = {
     },
   },
 } as const;
+
+describe('Message pending local-echo durable actions', () => {
+  it('withholds durable actions while keeping local-only and deferred reply actions available', async () => {
+    roomUtilsMocks.canEditEvent.mockReturnValue(true);
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Pending root',
+      },
+      {
+        eventId: '~!room:example.org:txn-1',
+        canDelete: true,
+        canPinEvent: true,
+        canSendReaction: true,
+        onEditId: vi.fn(),
+        showDeveloperTools: true,
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Add Reaction')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Edit Message')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Copy Link')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Pin Message')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Delete')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'SmilePlus')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'Pencil')).toBeUndefined();
+
+    expect(getButtonByText(renderer, 'Reply')).toBeDefined();
+    expect(getButtonByText(renderer, 'Reply in Thread')).toBeDefined();
+    expect(getButtonByText(renderer, 'Read Receipts')).toBeDefined();
+    expect(getButtonByText(renderer, 'View Source')).toBeDefined();
+    expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+  });
+
+  it('withholds report for a pending event owned by another user', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Pending remote-shaped event',
+      },
+      {
+        eventId: '~!room:example.org:txn-2',
+        senderId: '@bob:example.org',
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Copy Link')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Report')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Reply')).toBeDefined();
+  });
+
+  it('restores durable actions after the event id is confirmed', async () => {
+    roomUtilsMocks.canEditEvent.mockReturnValue(true);
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Confirmed root',
+      },
+      {
+        eventId: '$confirmed-root',
+        canDelete: true,
+        canPinEvent: true,
+        canSendReaction: true,
+        onEditId: vi.fn(),
+      }
+    );
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Add Reaction')).toBeDefined();
+    expect(getButtonByText(renderer, 'Edit Message')).toBeDefined();
+    expect(getButtonByText(renderer, 'Copy Link')).toBeDefined();
+    expect(getButtonByText(renderer, 'Pin Message')).toBeDefined();
+    expect(getButtonByText(renderer, 'Delete')).toBeDefined();
+  });
+});
 
 describe('Message token usage menu item', () => {
   it('does not render Token usage in the context menu for messages without ai_run metadata', async () => {
