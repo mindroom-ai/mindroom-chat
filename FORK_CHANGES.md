@@ -55,12 +55,13 @@
 - A pending own first reply is derived from the room-shared SDK relation store, so it remains eligible when the global Threads route mounts after the send and before the SDK reply count catches up.
 - Pending relation history is scanned only for zero-reply records, and the pending timestamp overrides the original activity fallback chain only while that pending first reply is active.
 - Both first-open creation and reopening a retained still-zero-reply root run the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work after cache-first paint.
-- Final validation passes the focused SDK-bootstrap and render-state suites with 2 files / 20 tests, the full Vitest suite with 432 files / 3,275 tests, typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, touched-file Prettier, and `git diff --check`.
+- Final validation after merging the current stacked base passes the focused SDK-bootstrap, render-state, spec-version-cache, and SDK-startup suites with 4 files / 63 tests, the full Vitest suite with 432 files / 3,276 tests, typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Review: the original review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost.
 - PR review then identified the SDK metadata gate and timeline-reset race described above.
 - Independent review found that the first remediation skipped stale-root backfill, retained canceled echoes, and restored SDK support through a globally latching setter; first-open bootstrap now remains active, cancellation removes fallback state, and the real-SDK test mutates and restores only the support field.
 - Final independent re-review traced first-open backfill, the constructor metadata race, local and remote echo convergence, cancellation followed by delayed `Thread.newReply`, listener cleanup, and SDK-global restoration and found no remaining issues.
+- The current stacked base was merged without rewriting history; its four code and test files match the base exactly, and the only conflict was the shared Runbook insertion point where both feature sections are preserved.
 
 ### Guarded App Store review release (2026-07-15)
 
