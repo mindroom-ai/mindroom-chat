@@ -46,6 +46,15 @@ const getStoredRoomThreadExitTarget = (entryKey: string): RoomThreadExitTarget |
   }
 };
 
+const removeStoredRoomThreadExitTarget = (entryKey: string): void => {
+  roomThreadExitTargetMemory.delete(entryKey);
+  try {
+    window.sessionStorage?.removeItem(`${ROOM_THREAD_EXIT_TARGET_STORAGE_PREFIX}${entryKey}`);
+  } catch {
+    // Best-effort cache only.
+  }
+};
+
 export const setRoomThreadExitTargetForHistoryState = (
   historyState: unknown,
   target: RoomThreadExitTarget
@@ -66,6 +75,23 @@ export const setRoomThreadExitTargetForHistoryState = (
   return true;
 };
 
+export const moveRoomThreadExitTargetBetweenHistoryStates = (
+  previousHistoryState: unknown,
+  nextHistoryState: unknown,
+  target: RoomThreadExitTarget
+): boolean => {
+  const nextEntryKey = getHistoryEntryKey(nextHistoryState);
+  if (!nextEntryKey || !setRoomThreadExitTargetForHistoryState(nextHistoryState, target)) {
+    return false;
+  }
+
+  const previousEntryKey = getHistoryEntryKey(previousHistoryState);
+  if (previousEntryKey && previousEntryKey !== nextEntryKey) {
+    removeStoredRoomThreadExitTarget(previousEntryKey);
+  }
+  return true;
+};
+
 export const withRoomThreadExitTargetState = (
   state: unknown,
   target: RoomThreadExitTarget
@@ -74,25 +100,28 @@ export const withRoomThreadExitTargetState = (
   [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: target,
 });
 
+export const getRoomThreadExitTargetFromState = (
+  state: unknown
+): RoomThreadExitTarget | undefined => {
+  if (!isRecord(state)) return undefined;
+
+  const target = state[ROOM_THREAD_EXIT_TARGET_STATE_KEY];
+  if (!isRecord(target)) return undefined;
+  const roomId = target.roomId;
+  const threadId = target.threadId;
+  if (typeof roomId !== 'string' || typeof threadId !== 'string') return undefined;
+
+  const exitPath = typeof target.exitPath === 'string' ? target.exitPath : undefined;
+  const useHistoryBack = typeof target.useHistoryBack === 'boolean' ? target.useHistoryBack : true;
+  return { roomId, threadId, exitPath, useHistoryBack };
+};
+
 export const getRoomThreadExitTargetFromHistoryState = (
   historyState: unknown
 ): RoomThreadExitTarget | undefined => {
   if (isRecord(historyState)) {
-    const userState = historyState.usr;
-    if (isRecord(userState)) {
-      const target = userState[ROOM_THREAD_EXIT_TARGET_STATE_KEY];
-      if (isRecord(target)) {
-        const roomId = target.roomId;
-        const threadId = target.threadId;
-        const exitPath = typeof target.exitPath === 'string' ? target.exitPath : undefined;
-        const useHistoryBack =
-          typeof target.useHistoryBack === 'boolean' ? target.useHistoryBack : true;
-
-        if (typeof roomId === 'string' && typeof threadId === 'string') {
-          return { roomId, threadId, exitPath, useHistoryBack };
-        }
-      }
-    }
+    const explicitTarget = getRoomThreadExitTargetFromState(historyState.usr);
+    if (explicitTarget) return explicitTarget;
   }
 
   const entryKey = getHistoryEntryKey(historyState);
