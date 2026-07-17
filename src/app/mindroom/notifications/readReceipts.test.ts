@@ -1,11 +1,7 @@
 import { Direction, MatrixEvent, RelationType, ReceiptType } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  markMainTimelineAsRead,
-  markRoomAndThreadsAsRead,
-  markThreadAsRead,
-} from './readReceipts';
+import { markMainTimelineAsRead, markRoomAndThreadsAsRead, markThreadAsRead } from './readReceipts';
 
 const ROOM_ID = '!room:example.org';
 const USER_ID = '@alice:example.org';
@@ -45,28 +41,26 @@ const makeThreadReplyEvent = (eventId: string, ts = 1) =>
     type: 'm.room.message',
   });
 
-const makeRoom = (events: MatrixEvent[]) =>
-  ({
-    roomId: ROOM_ID,
-    findEventById: vi.fn(),
-    getEventReadUpTo: vi.fn(() => null),
-    getLiveTimeline: vi.fn(() => ({
-      getEvents: () => events,
-    })),
-    getThread: vi.fn(() => null),
-  });
+const makeRoom = (events: MatrixEvent[]) => ({
+  roomId: ROOM_ID,
+  findEventById: vi.fn(),
+  getEventReadUpTo: vi.fn(() => null),
+  getLiveTimeline: vi.fn(() => ({
+    getEvents: () => events,
+  })),
+  getThread: vi.fn(() => null),
+});
 
-const makeClient = (room: ReturnType<typeof makeRoom>) =>
-  ({
-    fetchRelations: vi.fn(),
-    getEventMapper: vi.fn(() => (rawEvent: ConstructorParameters<typeof MatrixEvent>[0]) =>
-      new MatrixEvent(rawEvent)
-    ),
-    getRoom: vi.fn(() => room),
-    getUserId: vi.fn(() => USER_ID),
-    sendReadReceipt: vi.fn(),
-    sendReceipt: vi.fn(),
-  });
+const makeClient = (room: ReturnType<typeof makeRoom>) => ({
+  fetchRelations: vi.fn(),
+  getEventMapper: vi.fn(
+    () => (rawEvent: ConstructorParameters<typeof MatrixEvent>[0]) => new MatrixEvent(rawEvent)
+  ),
+  getRoom: vi.fn(() => room),
+  getUserId: vi.fn(() => USER_ID),
+  sendReadReceipt: vi.fn(),
+  sendReceipt: vi.fn(),
+});
 
 describe('markMainTimelineAsRead', () => {
   it('filters hidden thread replies and sends a main-timeline receipt', async () => {
@@ -85,6 +79,16 @@ describe('markMainTimelineAsRead', () => {
 });
 
 describe('markThreadAsRead', () => {
+  it('does not fetch relations or send a receipt for a local thread id', async () => {
+    const room = makeRoom([]);
+    const mx = makeClient(room);
+
+    await markThreadAsRead(mx as never, ROOM_ID, `~${ROOM_ID}:txn-local`, false);
+
+    expect(mx.fetchRelations).not.toHaveBeenCalled();
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+  });
+
   it('sends a thread-scoped receipt for the latest loaded thread reply', async () => {
     const latestReply = makeThreadReplyEvent('$reply-2', 2);
     const room = {
