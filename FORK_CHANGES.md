@@ -37,6 +37,8 @@
 - Validation: typecheck, 427 Vitest files with 3,259 tests, the production and PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check` pass.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Review: round one identified missing cache shape validation, divergent empty-response handling, unauthenticated cache population, and logout cache retention; the fixes were verified by 68 focused tests, and independent re-review found no implementation, test, scope, or half-refactor findings.
+- PR review remediation: cache validation now rejects non-boolean unstable feature values, and removing one homeserver session always removes its endpoint-scoped versions cache when the same Matrix user remains signed in through another homeserver URL.
+- PR review remediation validation passes 53 focused tests, the full Vitest suite with 432 files and 3,269 tests, typecheck, the production and PWA build with Element Call artifact verification, full ESLint with zero errors and 17 pre-existing warnings, and `git diff --check`.
 ### Create SDK models for zero-reply standalone thread opens (2026-07-16)
 
 - Status: PR review and independent review identified the SDK initialization races plus cancellation, first-load backfill, and test-global cleanup gaps; all are remediated with regression coverage, full local validation, and final independent approval.

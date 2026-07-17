@@ -597,9 +597,9 @@ const clearSessionScopedUiState = (
   clearUserScopedState = true
 ): void => {
   const { sessionId, baseUrl, userId } = session;
+  removeCachedSpecVersions(baseUrl, userId);
   if (clearUserScopedState) {
     try {
-      removeCachedSpecVersions(baseUrl, userId);
       clearNavToActivePathStore(userId);
       clearMindroomUserUiState(userId);
     } catch {
