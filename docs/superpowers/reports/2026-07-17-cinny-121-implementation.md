@@ -2,7 +2,7 @@
 
 ## Outcome
 
-All five planned changes are implemented in ship order, and every confirmed Round 1 through Round 4 review finding is fixed at its owning boundary.
+All five planned changes are implemented in ship order, and every confirmed Round 1 through Round 5 review finding is fixed at its owning boundary.
 
 The implementation reuses matrix-js-sdk transaction ids, synchronous local echoes, relation aggregation, pending statuses, and `RoomEvent.LocalEchoUpdated`.
 
@@ -13,7 +13,8 @@ No new application store, send queue, or abstraction was added.
 ## Changes by file
 
 - `patches/matrix-js-sdk+41.7.0.patch` updates the SDK source, compiled runtime, and declarations so relation, reply, and redaction local ids resolve independently through transaction lookup, old-id lookup, detached pending lookup, or transaction metadata across every loaded room and thread timeline after remote-echo eviction.
-- `src/app/mindroom/room-input/MindroomRoomInput.tsx` performs direct text dispatch and verified local-echo lookup synchronously, canonicalizes live reply drafts, gates every encrypted related text or voice boundary, permits late settlement mutations only while the exact submitted room, thread, reply draft, and editor generation remain owned, and transfers ownership permanently to the timeline before invoking Simple Mode navigation.
+  Pending replies are inserted into a provisional thread, reaggregated and migrated when their local root canonicalizes, replayed through canonical SDK hydration, and detached from the discarded provisional thread's listeners and re-emitter.
+- `src/app/mindroom/room-input/MindroomRoomInput.tsx` performs direct text dispatch and verified local-echo lookup synchronously, canonicalizes live reply drafts, gates every encrypted related text or voice boundary, permits late settlement mutations only while the exact submitted room, thread, reply draft, and editor generation remain owned, and transfers ownership to the timeline only when Simple Mode navigation explicitly accepts the local root.
 - `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` removes the composer-owned pending clock and pending banner prop while refreshing captured voice thread and reply targets against the live room.
 - `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` covers same-turn ordering, exceptional lookup paths, full settlement ownership, FIFO and reverse concurrent failures, sequential and duplicate sends, relation construction, reply-draft canonicalization, encrypted text and voice boundaries, composer rendering, terminal ownership, and rejection before and after an auto-navigated route renders.
 - `src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` covers the remaining reply, voice, and children extension surfaces without a pending prop.
@@ -25,8 +26,8 @@ No new application store, send queue, or abstraction was added.
 - `src/app/mindroom/threads/roomTimelineReplyDraft.test.ts` covers independent reply, relation-root, and fallback-target canonicalization.
 - `src/app/mindroom/threads/useRoomInputSendSessionController.ts` resolves live room, thread, reply, encryption, and bridge state before attachment, caption, and upload sends and preserves composer or board ownership while an encrypted target is local.
 - `src/app/mindroom/threads/useRoomInputSendSessionController.test.ts` covers attachment-only and caption-plus-attachment ownership for encrypted local roots.
-- `src/app/mindroom/threads/useRoomViewThreadState.ts` accepts a local root id in the compact room overview and replaces the local route with its confirmed id while translating the saved exit target.
-- `src/app/mindroom/threads/__tests__/RoomView.test.ts` covers immediate local navigation, canonical replacement, recents exclusion, browser history, and explicit iOS exit behavior.
+- `src/app/mindroom/threads/useRoomViewThreadState.ts` accepts a local root id in the compact room overview, returns whether that navigation handoff occurred, and replaces the local route with its confirmed id while translating the saved exit target.
+- `src/app/mindroom/threads/__tests__/RoomView.test.ts` covers accepted compact and declined classic or already-threaded handoffs, immediate local navigation, canonical replacement, recents exclusion, browser history, and explicit iOS exit behavior.
 - `src/app/mindroom/threads/threadNavigation.ts` persists a translated exit target after replacement navigation creates its new keyed history entry.
 - `src/app/mindroom/threads/threadNavigation.test.ts` covers pushed persistence, targetless replacement, and carried-target migration.
 - `src/app/mindroom/threads/roomNavigateState.ts` moves the keyed memory and session-storage exit target to the replacement entry and removes the dead keyed cache.
@@ -52,13 +53,14 @@ No new application store, send queue, or abstraction was added.
 - `src/app/mindroom/threads/MindroomRoomTimeline.tsx` excludes local ids from ArrowUp editing and withholds thread-scoped focus work for a pending local route.
 - `src/app/mindroom/threads/threadOpenLifecycleController.ts` short-circuits remote thread-open work for a pending local route.
 - `src/app/mindroom/threads/threadSummaryPublishController.ts` withholds thread-summary persistence until the route id is confirmed.
-- `src/app/mindroom/threads/useThreadRenderState.ts` renders a room-owned pending root immediately in live mode without entering cache hydration.
-- `src/app/mindroom/threads/useThreadRenderState.test.ts` covers the real pending-root render path while preserving ordinary confirmed-thread loading behavior.
+- `src/app/mindroom/threads/useThreadRenderState.ts` renders a room-owned pending root immediately and retains an SDK local-echo seed through root canonicalization, child acknowledgement, and canonical SDK hydration without waiting for app-cache hydration.
+- `src/app/mindroom/threads/useThreadRenderState.test.ts` covers the installed-SDK pending root and reply render path under local and canonical routes, including completed SDK hydration while app-cache hydration remains unresolved, while preserving ordinary confirmed-thread loading behavior.
 - `src/app/mindroom/threads/__tests__/RoomTimeline.pendingSend.test.ts` covers message failure state, ArrowUp before and after confirmation, and the absence of remote, cache, summary, or thread-focus effects on a pending route.
 - `src/app/mindroom/threads/__tests__/RoomTimeline.cache.test.ts` removes the obsolete expectation that pending routes start cache hydration.
 - `src/app/mindroom/threads/test-utils/RoomTimeline.test.shared.ts`, `src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`, and `src/app/mindroom/threads/useThreadRootEvent.test.ts` model the loaded-thread SDK surface required by the tightened route boundary.
-- `PLAN.md` remains available for the orchestrator as explicitly requested and is not deleted during review remediation.
-- `FORK_CHANGES.md` records the implementation, all four review rounds, scope, validation, SDK patch maintenance note, and current status in the fork Runbook.
+- `docs/superpowers/plans/2026-07-16-cinny-121-optimistic-send.md` retains the orchestrator-requested ticket plan outside the product root.
+- `docs/superpowers/reports/2026-07-17-cinny-121-implementation.md` retains this implementation and validation report outside the product root.
+- `FORK_CHANGES.md` records the implementation, all five review rounds, scope, validation, SDK patch maintenance note, and current status in the fork Runbook.
 
 ## Round 1 fixes
 
@@ -69,7 +71,7 @@ No new application store, send queue, or abstraction was added.
 - B3/B4 exposed composer ownership races, so terminal root restoration requires the room overview and exceptional late fulfillment requires the still-mounted originating room.
 - B6 is pinned against the installed SDK by asserting that a chronological pending child is aggregated under its local parent before confirmation.
 - B7 is fixed in the navigation persistence owner by moving the translated exit target to the replacement history key after navigation.
-- The review-artifact cleanup request was intentionally limited to documentation updates because the orchestrator explicitly retained `PLAN.md`; no review archive or unrelated working-tree file is committed.
+- The later Round 5 cleanup moves the retained plan and report under `docs/superpowers` without touching the review archive or unrelated working-tree files.
 
 ## Round 2 fixes
 
@@ -103,6 +105,18 @@ No new application store, send queue, or abstraction was added.
 - Independent review found that the first pending-route integration test mocked away the real render state and that the first canonicalization fallback inspected only live timelines; both half-refactors were replaced at their owning boundaries before final review.
 - Two independent final re-reviews report no remaining findings across terminal ownership, edit gates, all-loaded-timeline canonicalization, pending-route rendering, side-effect suppression, cleanup, and CINNY-122 scope isolation.
 
+## Round 5 fixes
+
+- A1 exposed an SDK render-ownership invariant: a pending reply sent against a pending root must remain represented by one renderable thread model before root acknowledgement, after root canonicalization, after child acknowledgement, and through canonical SDK hydration without waiting for a remote echo or app-cache hydration.
+- The SDK patch now creates a provisional local-root thread when `Room.addPendingEvent` rejects the threaded child from the room timeline, moves the child from the local aggregation and provisional timeline into the canonical aggregation and thread, and retains it in the SDK replay set while canonical hydration resets the live timeline.
+- The discarded provisional `Thread` is removed from Room re-emission and detaches its room and timeline listeners before the canonical thread takes ownership, preventing a per-send stale listener and object leak.
+- The render owner treats transaction-backed SDK events and pending replay events as a live local-echo seed, so acknowledgement or hydration cannot temporarily blank the already-visible root and reply.
+- A2 exposed an application ownership-handoff invariant: invoking the room-message callback is not itself a transfer; the parent must explicitly return that compact navigation accepted the root.
+- `handleRoomMessageSent` now returns `true` only after compact-overview navigation and returns `false` for classic mode, an active route or effective thread, and invalid ids.
+- Direct text settlement records timeline ownership only from that `true` return, so compact failures remain visibly event-owned in both settlement orderings while an unchanged classic standalone failure cancels its echo and restores its captured editor fragment.
+- The ticket plan and report moved from the repository root into `docs/superpowers`; `.review-archive` remains untouched.
+- Independent reviews approved both logical fixes after regressions closed SDK hydration, listener teardown, compact acceptance, and classic decline behavior.
+
 ## Automated test plan and results
 
 ### Direct composer behavior
@@ -112,6 +126,7 @@ No new application store, send queue, or abstraction was added.
 - Verify later fulfillment neither clears nor navigates a second time.
 - Verify a missing synchronous local echo retains the composer and guard until fulfillment, then clears and emits the confirmed id once.
 - Verify a synchronous send throw and a missing-local-echo rejection retain the composer and emit no navigation callback.
+- Verify callback invocation alone does not transfer ownership: a declined classic-mode handoff cancels an otherwise unchanged failed root and restores its structured fragment.
 - Verify an auto-published root remains timeline-owned when rejection settles before the route render and when it settles after the route render.
 - Verify both settlement orderings retain the failed event, do not restore it into the routed composer, and expose `NOT_SENT` to message rendering.
 - Verify an unowned standalone `NOT_SENT` root cancels before its structured editor fragment is restored.
@@ -139,8 +154,8 @@ No new application store, send queue, or abstraction was added.
 
 ### Navigation and history
 
-- Verify both confirmed and local ids open a new compact-overview thread.
-- Verify classic mode, an existing route thread, and an existing effective thread suppress new-root navigation.
+- Verify both confirmed and local ids open a new compact-overview thread and return an accepted ownership handoff.
+- Verify classic mode, an existing route thread, and an existing effective thread suppress new-root navigation and return a declined ownership handoff.
 - Verify unresolved local ids are excluded from recent-thread persistence.
 - Verify local-to-confirmed canonicalization uses replacement rather than push.
 - Verify canonicalization translates the stored exit target without nesting React Router's history wrapper.
@@ -156,6 +171,10 @@ No new application store, send queue, or abstraction was added.
 - Verify an acknowledgement that wins the listener race triggers immediate association replacement.
 - Verify a dependent send started after `Room.handleRemoteEcho` removed the transaction-map entry resolves the canonical live event through retained transaction metadata.
 - Verify the real chronological SDK relations container indexes a pending reply under its local root before confirmation.
+- Verify the pending reply is present in a provisional local-root thread before acknowledgement.
+- Verify root canonicalization removes the child from the local aggregation, reaggregates it under the confirmed root, and moves it into the canonical thread before any remote echo or relation fetch.
+- Verify the provisional thread is removed from Room re-emission and has detached room and timeline listeners after migration.
+- Verify the child remains replay-owned and renderable after its own acknowledgement, after canonical fetch and pagination complete, and while app-cache hydration remains unresolved.
 - Verify ordinary thread replies rewrite both `m.relates_to.event_id` and `m.in_reply_to.event_id`.
 - Verify an explicit confirmed reply target remains unchanged while a different local thread root is rewritten.
 - Verify distinct local relation and reply targets resolve independently in both confirmation orders.
@@ -199,17 +218,24 @@ No new application store, send queue, or abstraction was added.
 - Verify ordinary confirmed thread routes and existing send-session behavior remain unchanged.
 - Result: the final independent focused union passes 13 files and 153 tests, and the second targeted re-review passes 8 files and 137 tests after the two half-refactor corrections.
 
+### Round 5 focused regression union
+
+- Verify an installed-SDK pending reply renders under the local route, migrates to the canonical aggregation and thread, survives child acknowledgement and completed SDK hydration, and does not retain provisional listeners.
+- Verify the compact parent accepts ownership for confirmed and local roots while classic, active-route, and effective-thread contexts decline it.
+- Verify compact navigation retains a terminal failed echo in both settlement orderings while a declined unchanged standalone root cancels before restoring its captured editor fragment.
+- Result: the Round 5 focused union passes 5 files and 138 tests, and independent review approves both logical fixes.
+
 ### Combined and repository gates
 
-- The final Round 4 independent focused union passes 13 files and 153 tests.
+- The Round 5 focused union passes 5 files and 138 tests.
 - `npm run typecheck` passes.
-- `npm test` passes twice on the final implementation with 428 files and 3,303 tests.
+- `npm test` passes on the final implementation with 428 files and 3,304 tests.
 - `npm run build` passes for the production application, PWA service worker, and Element Call background verification.
 - `npm run lint` passes with zero errors and 17 pre-existing warnings.
-- The Round 4 touched files pass focused formatting and lint checks.
+- The Round 5 touched files pass focused formatting and lint checks.
 - `git diff --check` passes.
 - Patch-package reverse and clean reapplication pass for `@tanstack/virtual-core@3.17.3` and `matrix-js-sdk@41.7.0`.
-- Both independent Round 4 implementation re-reviews report no remaining finding.
+- Independent Round 5 implementation reviews approve both logical fixes after their first-pass findings were resolved.
 - The pre-existing `SettingsModalRenderer.test.ts` load-sensitive flake noted by the Round 4 reviewer did not reproduce in either final full-suite run and was not changed.
 
 ## Live throttled-browser acceptance script
@@ -221,8 +247,8 @@ No new application store, send queue, or abstraction was added.
 5. Verify the pending clock appears on the timeline message and nowhere in the composer or its context banner.
 6. Navigate back and verify the pending root card appears immediately in the room overview without waiting for acknowledgement.
 7. Return to the pending thread in an unencrypted room, send a follow-up reply before the root settles, and verify it clears immediately, renders as a second local echo, and does not throw.
-8. Inspect the eventual follow-up request and verify neither its thread relation nor its reply fallback contains a `~` target.
-9. Release the root and reply requests and verify each local id canonicalizes to one `$` event with no duplicate message, duplicate navigation, or pending clock after acknowledgement.
+8. Release only the root request, keep the reply and thread hydration requests delayed, and verify the route canonicalizes while both the root and reply remain visible in the canonical thread.
+9. Inspect the eventual follow-up request and verify neither relation target contains a `~` id, then release the reply and hydration requests and verify each local id canonicalizes to one `$` event with no blank interval, duplicate message, duplicate navigation, or pending clock.
 10. Verify URL canonicalization replaces the local entry and browser Back returns to the original overview without an extra history entry.
 11. Repeat the exit check through the explicit close or back control in iOS standalone mode before and after acknowledgement.
 12. While the local route is open, verify no relation fetch or read receipt is sent with a `~` thread id and no thread cache, summary, or opened-thread metadata is written for that id.
@@ -249,9 +275,9 @@ The live script is documented for manual acceptance and was not executed because
 
 ## Plan alignment and deviations
 
-There is no deviation from the final Round 4 mandate.
+There is no deviation from the final Round 5 mandate.
 
-Relative to the original PLAN.md implementation-file list, review-required fixes add the existing attachment-session controller, reply-draft resolver, shared relation and route utilities, and navigation persistence owner.
+Relative to the original implementation plan, review-required fixes add the existing attachment-session controller, reply-draft resolver, shared relation and route utilities, navigation persistence owner, and SDK thread migration lifecycle.
 
 Those additions do not change attachment or voice product semantics; they apply the same local-target safety invariant at the send boundaries that already own those paths.
 
@@ -262,6 +288,8 @@ Round 2 further tightened that same single-owner requirement so newer content or
 Round 3 adds only confirmed-id gates at the action and encrypted-editor boundaries and reuses the existing shared predicate without adding state, queues, retry UI, or a new abstraction.
 
 Round 4 makes the automatically published root explicitly timeline-owned, adds a message-owned terminal-failure indicator without retry or cancel controls, closes the ArrowUp editor entry point, searches existing loaded SDK timelines, and suppresses pending-route durable side effects without adding state or a new lifecycle.
+
+Round 5 makes pending reply ownership explicit across provisional and canonical SDK threads and makes the application navigation handoff an explicit boolean contract without adding a store, queue, or retry surface.
 
 The terminal failure choice is the minimal single-owner option: once Simple Mode receives the local root id, the timeline owns both content and failure state.
 

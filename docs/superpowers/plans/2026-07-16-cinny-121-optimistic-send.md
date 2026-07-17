@@ -1,5 +1,7 @@
 # CINNY-121 — Optimistic text-send implementation plan
 
+This ticket-scoped planning artifact is retained under `docs/`; `FORK_CHANGES.md` remains the live fork Runbook.
+
 ## Outcome
 
 For a direct text send from the compact Simple Mode room overview, Cinny will create and render the Matrix SDK local echo, clear the composer, and navigate to the local-echo thread route in the same JavaScript turn.
