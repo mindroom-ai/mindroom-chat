@@ -6,13 +6,9 @@ import { Membership } from '../../../types/matrix/room';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../../components/editor/slate';
 import { BlockType } from '../../components/editor/types';
-import type {
-  IReplyDraft,
-  PendingVoiceSendContext,
-} from '../../state/room/roomInputDrafts';
+import type { IReplyDraft, PendingVoiceSendContext } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
-import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
@@ -52,7 +48,6 @@ export type MindroomVoiceSendContext = PendingVoiceSendContext;
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
   leading?: React.ReactNode;
-  pendingSend?: boolean;
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
 };
@@ -168,14 +163,10 @@ export const createMindroomRoomInputPasteMarkerElement = (
   children: [{ text: '' }],
 });
 
-export const isMindroomRoomInputPasteMarkerElement = (
-  node: unknown
-): node is PasteMarkerElement =>
+export const isMindroomRoomInputPasteMarkerElement = (node: unknown): node is PasteMarkerElement =>
   Element.isElement(node) && node.type === BlockType.PasteMarker;
 
-export const getMindroomRoomInputPasteMarkerFileNames = (
-  nodes: Descendant[]
-): Set<string> => {
+export const getMindroomRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<string> => {
   const fileNames = new Set<string>();
 
   const visit = (node: Descendant) => {
@@ -200,8 +191,7 @@ export const removeMindroomRoomInputPasteMarkerElements = (
 
   Transforms.removeNodes(editor, {
     at: [],
-    match: (node) =>
-      isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
+    match: (node) => isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
   });
 };
 
@@ -227,11 +217,10 @@ export function MindroomRoomInputThreadIndicator({
 export function MindroomRoomInputReplyContext({
   children,
   leading,
-  pendingSend,
   relation,
   room,
 }: MindroomRoomInputReplyContextProps) {
-  if (!leading && !children && !pendingSend) return null;
+  if (!leading && !children) return null;
 
   return (
     <Box
@@ -243,7 +232,6 @@ export function MindroomRoomInputReplyContext({
       <Box direction="Row" gap="200" alignItems="Center">
         <MindroomRoomInputThreadIndicator room={room} relation={relation} />
         {children}
-        {pendingSend && <PendingSendIndicator />}
       </Box>
     </Box>
   );

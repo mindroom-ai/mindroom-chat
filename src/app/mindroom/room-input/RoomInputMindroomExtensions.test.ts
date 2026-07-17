@@ -24,10 +24,6 @@ vi.mock('../threads/ThreadIndicator', () => ({
   ThreadIndicator: () => null,
 }));
 
-vi.mock('../messages/PendingSendIndicator.css', () => ({
-  Container: 'PendingSendIndicator',
-}));
-
 vi.mock('../voice/VoiceRecorderDialog', () => ({
   VoiceRecorderComposer: () => null,
 }));
@@ -98,7 +94,7 @@ describe('RoomInputMindroomExtensions', () => {
     ).not.toBeNull();
   });
 
-  it('renders the composer context only for replies or pending sends', () => {
+  it('renders the composer context only when reply content or a leading action exists', () => {
     expect(
       MindroomRoomInputReplyContext({
         room: {} as never,
@@ -108,7 +104,7 @@ describe('RoomInputMindroomExtensions', () => {
 
     expect(
       MindroomRoomInputReplyContext({
-        pendingSend: true,
+        leading: 'close',
         room: {} as never,
         relation: undefined,
       })
@@ -133,16 +129,14 @@ describe('RoomInputMindroomExtensions', () => {
       raw: marker,
     });
 
-    expect(element).toEqual(
-      {
-        type: BlockType.PasteMarker,
-        id: 'paste-a3f19c',
-        chars: 11,
-        fileName: 'mindroom-paste-a3f19c.txt',
-        marker,
-        children: [{ text: '' }],
-      }
-    );
+    expect(element).toEqual({
+      type: BlockType.PasteMarker,
+      id: 'paste-a3f19c',
+      chars: 11,
+      fileName: 'mindroom-paste-a3f19c.txt',
+      marker,
+      children: [{ text: '' }],
+    });
 
     expect(
       getMindroomRoomInputPasteMarkerFileNames([
@@ -161,10 +155,7 @@ describe('RoomInputMindroomExtensions', () => {
       },
     ];
 
-    removeMindroomRoomInputPasteMarkerElements(
-      editor,
-      new Set(['mindroom-paste-a3f19c.txt'])
-    );
+    removeMindroomRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
 
     expect(getMindroomRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
   });

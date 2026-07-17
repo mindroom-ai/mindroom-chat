@@ -12,7 +12,7 @@ import React, {
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { isKeyHotkey } from 'is-hotkey';
-import { EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
+import { EventStatus, EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Editor, Transforms } from 'slate';
 import {
@@ -49,6 +49,7 @@ import {
   createEmoticonElement,
   moveCursor,
   resetEditorHistory,
+  restoreEditorContent,
   customHtmlEqualsPlainText,
   trimCustomHtml,
   isEmptyEditor,
@@ -147,6 +148,7 @@ import {
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
+import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -299,7 +301,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<RoomInputAutocompletePrefix>>();
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
-    const [submitPending, setSubmitPending] = useState(false);
     const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
     const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
     const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
@@ -948,7 +949,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const submit = useCallback(async () => {
       if (submitInFlightRef.current) return;
       submitInFlightRef.current = true;
-      let submitPendingStarted = false;
+      let guardRelease: 'finally' | 'microtask' | 'promise' = 'finally';
 
       try {
         if (store.get(voiceAutoSendPendingAtom)) return;
@@ -1038,32 +1039,106 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (relation) {
           content['m.relates_to'] = relation;
         }
-        submitPendingStarted = true;
-        setSubmitPending(true);
-        const response = await mx.sendMessage(roomId, content as any);
-        const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
-          eventId: response.event_id,
-          relation,
-          replyDraft,
-          threadId,
+
+        // Rust crypto snapshots the clear content before awaiting encryption.
+        // Keep a related encrypted draft in the composer until its local root has
+        // canonicalized so a stale local relation can never reach the wire.
+        if (
+          room.hasEncryptionStateEvent() &&
+          relation &&
+          (isLocalEchoEventId(relation.event_id) ||
+            isLocalEchoEventId(relation['m.in_reply_to']?.event_id))
+        ) {
+          return;
+        }
+
+        const editorSnapshot = structuredClone(editor.children);
+        const txnId = mx.makeTxnId();
+        let sendPromise: ReturnType<typeof mx.sendMessage>;
+        try {
+          sendPromise = mx.sendMessage(roomId, content as any, txnId);
+        } catch {
+          return;
+        }
+        const localEvent = room.getEventForTxnId(txnId);
+        const localEventId = localEvent?.getId();
+        const hasVerifiedLocalEcho = localEventId === `~${roomId}:${txnId}`;
+        let roomNotificationDelivered = false;
+
+        const clearComposerAndNotify = (eventId: string) => {
+          resetEditor(editor);
+          resetEditorHistory(editor);
+          setReplyDraft(undefined);
+          sendTypingStatus(false);
+
+          const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+            eventId,
+            relation,
+            replyDraft,
+            threadId,
+          });
+          if (sentEventIdToNotify && !roomNotificationDelivered) {
+            roomNotificationDelivered = true;
+            onRoomMessageSent?.(sentEventIdToNotify);
+          }
+        };
+
+        const sendCompletion = sendPromise.then(
+          (response) => {
+            if (!hasVerifiedLocalEcho) {
+              try {
+                clearComposerAndNotify(response.event_id);
+              } finally {
+                submitInFlightRef.current = false;
+              }
+            }
+          },
+          () => {
+            try {
+              if (
+                hasVerifiedLocalEcho &&
+                !relation &&
+                !replyDraft &&
+                !threadId &&
+                localEvent?.status === EventStatus.NOT_SENT &&
+                mountedRef.current &&
+                roomIdRef.current === roomId
+              ) {
+                mx.cancelPendingEvent(localEvent);
+                restoreEditorContent(editor, editorSnapshot);
+              }
+            } finally {
+              if (!hasVerifiedLocalEcho) {
+                submitInFlightRef.current = false;
+              }
+            }
+          }
+        );
+        void sendCompletion.catch(() => {
+          if (!hasVerifiedLocalEcho) {
+            submitInFlightRef.current = false;
+          }
         });
-        resetEditor(editor);
-        resetEditorHistory(editor);
-        setReplyDraft(undefined);
-        sendTypingStatus(false);
-        setSubmitPending(false);
-        submitPendingStarted = false;
-        if (sentEventIdToNotify) {
-          onRoomMessageSent?.(sentEventIdToNotify);
+
+        if (!hasVerifiedLocalEcho || !localEventId) {
+          guardRelease = 'promise';
+          return;
         }
+
+        clearComposerAndNotify(localEventId);
+        guardRelease = 'microtask';
       } finally {
-        if (submitPendingStarted) {
-          setSubmitPending(false);
+        if (guardRelease === 'microtask') {
+          queueMicrotask(() => {
+            submitInFlightRef.current = false;
+          });
+        } else if (guardRelease === 'finally') {
+          submitInFlightRef.current = false;
         }
-        submitInFlightRef.current = false;
       }
     }, [
       mx,
+      room,
       roomId,
       editor,
       replyDraft,
@@ -1277,47 +1352,39 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onKeyUp={handleKeyUp}
           onPaste={handlePaste}
           top={
-            (replyDraft ||
-              (!!threadId && submitPending) ||
-              voiceRecorderOpen ||
-              ownsPendingVoiceDraft) && (
+            (replyDraft || voiceRecorderOpen || ownsPendingVoiceDraft) && (
               <div>
-                {(replyDraft || (!!threadId && submitPending)) && (
+                {replyDraft && (
                   <MindroomRoomInputReplyContext
                     room={room}
-                    relation={replyDraft?.relation}
-                    pendingSend={!!threadId && submitPending}
+                    relation={replyDraft.relation}
                     leading={
-                      replyDraft && (
-                        <IconButton
-                          onClick={() => setReplyDraft(undefined)}
-                          variant="SurfaceVariant"
-                          size="300"
-                          radii="300"
-                        >
-                          <Icon src={Icons.Cross} size="50" />
-                        </IconButton>
-                      )
+                      <IconButton
+                        onClick={() => setReplyDraft(undefined)}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                      >
+                        <Icon src={Icons.Cross} size="50" />
+                      </IconButton>
                     }
                   >
-                    {replyDraft && (
-                      <ReplyLayout
-                        userColor={replyUsernameColor}
-                        username={
-                          <Text size="T300" truncate>
-                            <b>
-                              {getMemberDisplayName(room, replyDraft.userId) ??
-                                getMxIdLocalPart(replyDraft.userId) ??
-                                replyDraft.userId}
-                            </b>
-                          </Text>
-                        }
-                      >
+                    <ReplyLayout
+                      userColor={replyUsernameColor}
+                      username={
                         <Text size="T300" truncate>
-                          {trimReplyFromBody(replyDraft.body)}
+                          <b>
+                            {getMemberDisplayName(room, replyDraft.userId) ??
+                              getMxIdLocalPart(replyDraft.userId) ??
+                              replyDraft.userId}
+                          </b>
                         </Text>
-                      </ReplyLayout>
-                    )}
+                      }
+                    >
+                      <Text size="T300" truncate>
+                        {trimReplyFromBody(replyDraft.body)}
+                      </Text>
+                    </ReplyLayout>
                   </MindroomRoomInputReplyContext>
                 )}
                 {(voiceRecorderOpen || ownsPendingVoiceDraft) && (
