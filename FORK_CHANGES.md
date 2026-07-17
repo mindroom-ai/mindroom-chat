@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### CINNY-123 evidence-named blob URL cleanup (2026-07-17)
+
+- Status: the two Phase 0 evidence-named cleanup defects and both reviewed async-publication ownership gaps are fixed with full local validation and independent re-review complete.
+- The original random iOS application termination and desktop Chrome tab crash remain unexplained, and neither occurred during the local investigation.
+- A 75.05-minute production Chromium workload completed 12 active cycles without a crash; its retained-JavaScript-heap result remained inconclusive at a final delta of 2.560 MiB, a robust slope of 0.215 MiB per cycle, and no retained-size dominator analysis.
+- A separate 60.03-minute idle workload refuted retained-JavaScript-heap growth on that measured path with a final heap below baseline and a robust slope of 0.293 MiB per hour.
+- Listener, DOM-node, and object-URL counts plateaued at cycle checkpoints, and natural heap samples returned to post-GC floors.
+- Renderer OOM is not confirmed as the cause of either reported termination, and the Chromium proxy does not cover decoded media, GPU, browser-process, WKWebView, native-bridge, or operating-system memory pressure.
+- The two confirmed cleanup defects are not presented as the cause of either reported termination without a reproduction or crash artifact connecting them.
+- Upload image and video metadata paths now own their temporary object URLs through all metadata and thumbnail work and revoke them in `finally`.
+- Image-pack upload metadata uses the same local `try/finally` ownership in a small adjacent reader.
+- `useAsyncCallback` accepts an optional synchronous result disposer and retains each disposable success until an effect confirms that the exact success state committed.
+- A replacement or unmount disposes a still-pending success exactly once when React batches away its state update, while a committed success transfers to the existing state cleanup owner.
+- Request currency and component liveness are checked in the scheduled success and error publication turns, and a superseded request retains the existing replacement rejection contract.
+- Only encrypted image, encrypted thumbnail, video, and PDF blob-producing paths pass the guarded blob URL revoker.
+- Successfully published blob URLs remain owned by the existing state cleanup hook, and HTTP media URLs remain untouched.
+- Audio media cleanup imports the same canonical guarded revoker instead of maintaining a duplicate implementation.
+- Behavioral regression coverage leaves zero outstanding URLs after upload success, upload metadata failure, image-pack failure, delayed resolution after unmount, pre-publication unmount or replacement, and pre-commit parent removal or request replacement.
+- The pre-commit regressions use the production `createRoot` renderer in jsdom and require exactly one revocation when concurrent batching drops the success render.
+- The source-inspection ownership test is removed, and a real encrypted-thumbnail integration test now exercises late-result cleanup through the production component and hooks.
+- Validation passes 15 CINNY-123 regression tests across six files, the full Vitest suite with 431 files and 3,250 tests, typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- The first independent review found the queued-publication ownership gap, duplicate audio helper, and source-inspection test addressed here.
+- The second independent review demonstrated that concurrent React can batch away a queued success before commit, which moved the ownership boundary from state-update scheduling to confirmed commit.
+- Independent re-review found no remaining ownership gap, double revocation, stale error publication, behavioral coverage, documentation, scope, or half-refactor issue.
+- No crash hook, cache, index, listener, Matrix SDK, or Capacitor change is included.
+
 ### Guarded App Store review release (2026-07-15)
 
 - Status: release automation, regression coverage, operator notes, latest `dev` rebase, full local validation, independent self-review, confirmed PR review remediation, and public-document credential-placeholder cleanup are complete on PR #166; final CI and bot re-review gate the authorized squash merge.

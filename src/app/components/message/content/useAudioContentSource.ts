@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../../../hooks/useAsyncCallback';
-import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
+import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import {
   decryptFile,
   downloadEncryptedMedia,
@@ -16,14 +16,6 @@ type AudioContentSourceOptions = {
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
-};
-
-const isBlobUrl = (url: string) => url.startsWith('blob:');
-
-const revokeBlobUrl = (url: string) => {
-  if (isBlobUrl(url)) {
-    URL.revokeObjectURL(url);
-  }
 };
 
 export const getAudioContentSourceIdentity = ({
