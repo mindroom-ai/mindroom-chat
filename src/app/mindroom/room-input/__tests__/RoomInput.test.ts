@@ -97,6 +97,7 @@ const {
       {
         getId: () => string;
         getRoomId: () => string;
+        getRelation: () => { event_id?: string } | undefined;
         getTxnId: () => string;
         status: EventStatus;
       }
@@ -660,6 +661,12 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     roomId,
     name: roomId,
     getEventForTxnId: (txnId: string) => textSendState.getEventForTxnId(roomId, txnId),
+    relations: {
+      getAllChildEventsForEvent: (parentEventId: string) =>
+        Array.from(textSendState.localEvents.values()).filter(
+          (event) => event.getRoomId() === roomId && event.getRelation()?.event_id === parentEventId
+        ),
+    },
     hasEncryptionStateEvent: () => encrypted,
     getMember: () => undefined,
     getMembers: () => [],
@@ -719,11 +726,15 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject };
 };
 
-const registerLocalEcho = (roomId: string, txnId: string) => {
+const registerLocalEcho = (roomId: string, txnId: string, content?: unknown) => {
   const localId = `~${roomId}:${txnId}`;
+  const relation = (content as { 'm.relates_to'?: { event_id?: string } } | undefined)?.[
+    'm.relates_to'
+  ];
   const localEvent = {
     getId: () => localId,
     getRoomId: () => roomId,
+    getRelation: () => relation,
     getTxnId: () => txnId,
     status: EventStatus.SENDING,
   };
@@ -742,8 +753,8 @@ const configureDefaultTextSendMocks = () => {
     return `txn-${textSendState.nextTxn}`;
   });
   mxState.sendMessage.mockImplementation(
-    async (roomId: string, _content: unknown, txnId?: string) => {
-      if (txnId) registerLocalEcho(roomId, txnId);
+    async (roomId: string, content: unknown, txnId?: string) => {
+      if (txnId) registerLocalEcho(roomId, txnId, content);
       return { event_id: '$sent' };
     }
   );
@@ -765,18 +776,16 @@ const mockDeferredSendWithLocalEcho = <T extends { event_id: string }>(
       }
     | undefined;
 
-  mxState.sendMessage.mockImplementationOnce(
-    (roomId: string, _content: unknown, txnId?: string) => {
-      if (!txnId) return send.promise;
-      localEvent = registerLocalEcho(roomId, txnId);
-      if (markNotSentOnReject) {
-        void send.promise.then(undefined, () => {
-          if (localEvent) localEvent.status = EventStatus.NOT_SENT;
-        });
-      }
-      return send.promise;
+  mxState.sendMessage.mockImplementationOnce((roomId: string, content: unknown, txnId?: string) => {
+    if (!txnId) return send.promise;
+    localEvent = registerLocalEcho(roomId, txnId, content);
+    if (markNotSentOnReject) {
+      void send.promise.then(undefined, () => {
+        if (localEvent) localEvent.status = EventStatus.NOT_SENT;
+      });
     }
-  );
+    return send.promise;
+  });
 
   return () => localEvent;
 };
@@ -1777,7 +1786,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('leaves a failed active root and its failed local reply owned by the timeline', async () => {
+  it('leaves a failed root and its local reply timeline-owned after exiting the thread', async () => {
     const rootSend = createDeferred<{ event_id: string }>();
     const replySend = createDeferred<{ event_id: string }>();
     const getRootEvent = mockDeferredSendWithLocalEcho(rootSend, true);
@@ -1803,6 +1812,7 @@ describe('RoomInput', () => {
       await Promise.resolve();
     });
 
+    await updateRoomInput(renderer, store);
     await act(async () => {
       rootSend.reject(new Error('root failed'));
       replySend.reject(new Error('reply failed'));
