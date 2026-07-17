@@ -2,7 +2,7 @@
 
 ## Outcome
 
-All five planned changes are implemented in ship order: the SDK patch, direct text submit reordering, composer pending-clock removal, optimistic navigation and exit preservation, and the local-id read-receipt guard.
+All five planned changes are implemented in ship order, and every confirmed Round 1 review finding is fixed at its owning boundary.
 
 The implementation reuses matrix-js-sdk transaction ids, synchronous local echoes, relation aggregation, pending statuses, and `RoomEvent.LocalEchoUpdated`.
 
@@ -12,17 +12,39 @@ No new application store, send queue, or abstraction was added.
 
 ## Changes by file
 
-- `patches/matrix-js-sdk+41.7.0.patch` updates the SDK source, compiled runtime, and declarations so relation, reply, and redaction local ids resolve independently through transaction lookup, timeline lookup, or detached pending lookup and are rewritten immediately or on local-id replacement.
-- `src/app/mindroom/room-input/MindroomRoomInput.tsx` performs the direct text-only send and verified local-echo lookup synchronously, attaches completion ownership before clearing, clears and navigates in the same turn, gates related encrypted drafts until their target is confirmed, and transfers only unowned failed roots back to the composer.
-- `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` removes the composer-owned pending clock and pending banner prop while preserving reply, voice, and child rendering.
-- `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` covers same-turn ordering, exceptional lookup paths, failures, sequential and duplicate sends, relation construction, encryption gating, composer rendering, and terminal ownership.
+- `patches/matrix-js-sdk+41.7.0.patch` updates the SDK source, compiled runtime, and declarations so relation, reply, and redaction local ids resolve independently through transaction lookup, old-id lookup, detached pending lookup, or live transaction metadata after remote-echo eviction.
+- `src/app/mindroom/room-input/MindroomRoomInput.tsx` performs direct text dispatch and verified local-echo lookup synchronously, canonicalizes live reply drafts, gates every encrypted related text or voice boundary, and limits late settlement mutations to the still-mounted owning room-overview composer.
+- `src/app/mindroom/room-input/RoomInputMindroomExtensions.tsx` removes the composer-owned pending clock and pending banner prop while refreshing captured voice thread and reply targets against the live room.
+- `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` covers same-turn ordering, exceptional lookup paths, failures, sequential and duplicate sends, relation construction, reply-draft canonicalization, encrypted text and voice boundaries, composer rendering, room and mount ownership, and terminal ownership.
 - `src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts` covers the remaining reply, voice, and children extension surfaces without a pending prop.
+- `src/app/mindroom/threads/composeMessageRelation.ts` provides the shared narrow predicate for local relation and reply targets.
+- `src/app/mindroom/threads/threadRouteUtils.ts` resolves any encoded local event id through transaction lookup or live transaction metadata.
+- `src/app/mindroom/threads/threadRouteUtils.test.ts` covers post-transaction-map local-id resolution independently from thread-root routing.
+- `src/app/mindroom/threads/roomTimelineReplyDraft.ts` canonicalizes every event id retained by a reply draft while preserving the original object when nothing changes.
+- `src/app/mindroom/threads/roomTimelineReplyDraft.test.ts` covers independent reply, relation-root, and fallback-target canonicalization.
+- `src/app/mindroom/threads/useRoomInputSendSessionController.ts` resolves live room, thread, reply, encryption, and bridge state before attachment, caption, and upload sends and preserves composer or board ownership while an encrypted target is local.
+- `src/app/mindroom/threads/useRoomInputSendSessionController.test.ts` covers attachment-only and caption-plus-attachment ownership for encrypted local roots.
 - `src/app/mindroom/threads/useRoomViewThreadState.ts` accepts a local root id in the compact room overview and replaces the local route with its confirmed id while translating the saved exit target.
 - `src/app/mindroom/threads/__tests__/RoomView.test.ts` covers immediate local navigation, canonical replacement, recents exclusion, browser history, and explicit iOS exit behavior.
+- `src/app/mindroom/threads/threadNavigation.ts` persists a translated exit target after replacement navigation creates its new keyed history entry.
+- `src/app/mindroom/threads/threadNavigation.test.ts` covers pushed persistence, targetless replacement, and carried-target migration.
+- `src/app/mindroom/threads/roomNavigateState.ts` moves the keyed memory and session-storage exit target to the replacement entry and removes the dead keyed cache.
+- `src/app/mindroom/threads/roomNavigateState.test.ts` covers replacement-key migration and the existing explicit and fallback state contracts.
 - `src/app/mindroom/notifications/readReceipts.ts` returns before any room lookup, relation fetch, or receipt send for a local thread id.
 - `src/app/mindroom/notifications/readReceipts.test.ts` covers the local-id no-op and retains loaded and fetched confirmed-thread behavior.
-- `src/app/mindroom/threads/matrixSdkLocalEchoAssociation.test.ts` exercises the installed patched SDK under chronological and detached ordering, acknowledgement races, dual targets, redaction, encryption, and compatibility behavior.
-- `FORK_CHANGES.md` records the implementation, scope, validation, review findings, and current status in the fork Runbook.
+- `src/app/mindroom/threads/matrixSdkLocalEchoAssociation.test.ts` exercises the installed patched SDK under chronological and detached ordering, acknowledgement and post-remote-echo races, real pending relation aggregation, dual targets, redaction, encryption, and compatibility behavior.
+- `FORK_CHANGES.md` records the implementation, Round 1 remediation, scope, validation, review findings, and current status in the fork Runbook.
+
+## Round 1 fixes
+
+- A1/B5 exposed one violated send-boundary invariant: every related send must refresh its live Matrix context and either canonicalize or withhold an encrypted local target before the final `sendMessage`.
+- Direct text, attachment-only, caption-plus-attachment, and voice now share that invariant without sharing a new queue, store, or send framework.
+- A2/B1 exposed stale draft identity ownership, so the reply-draft atom now follows `RoomEvent.LocalEchoUpdated` and all retained ids are re-resolved again at send time.
+- A3/B2 exposed the SDK as the final wire owner after `Room.handleRemoteEcho` evicts its transaction map, so the patch falls back to matching live events by `getTxnId()` or `unsigned.transaction_id`.
+- B3/B4 exposed composer ownership races, so terminal root restoration requires the room overview and exceptional late fulfillment requires the still-mounted originating room.
+- B6 is pinned against the installed SDK by asserting that a chronological pending child is aggregated under its local parent before confirmation.
+- B7 is fixed in the navigation persistence owner by moving the translated exit target to the replacement history key after navigation.
+- The review-artifact cleanup request was intentionally limited to documentation updates because the orchestrator explicitly retained `PLAN.md`; no review archive or unrelated working-tree file is committed.
 
 ## Automated test plan and results
 
@@ -44,9 +66,15 @@ No new application store, send queue, or abstraction was added.
 - Verify rapid duplicate Enter handling produces one send.
 - Verify a thread reply clears immediately without invoking room-level navigation.
 - Verify an explicit reply inside a thread retains the existing thread-root and reply-target relation construction.
-- Verify related encrypted drafts do not send while either thread or reply target is local and can send after canonicalization.
-- Verify text-plus-upload, voice, sticker, command, and paste paths remain on their existing ownership paths.
-- Result: all 51 focused `RoomInput.test.ts` tests and all 6 `RoomInputMindroomExtensions.test.ts` tests pass.
+- Verify a reply draft captured against a pending event rewrites its explicit reply, thread root, and fallback target when the event canonicalizes.
+- Verify related encrypted text does not send while either thread or reply target is local and can send after canonicalization.
+- Verify attachment-only and caption-plus-attachment sessions retain the upload board and composer while an encrypted relation target is local.
+- Verify voice is blocked before upload when its encrypted target is known local and is checked again after a deferred upload before the final send.
+- Verify the same captured voice context can retry with confirmed ids after canonicalization.
+- Verify a failed room root never restores into a different thread composer.
+- Verify exceptional missing-local fulfillment cannot clear or navigate after room switch or unmount and always releases the submit guard.
+- Verify sticker, command, and paste paths remain on their existing ownership paths.
+- Result: all 56 focused `RoomInput.test.ts`, 9 send-session controller tests, 6 extension tests, 5 reply-draft tests, 7 route-resolution tests, and 6 message-relation tests pass.
 
 ### Navigation and history
 
@@ -55,15 +83,18 @@ No new application store, send queue, or abstraction was added.
 - Verify unresolved local ids are excluded from recent-thread persistence.
 - Verify local-to-confirmed canonicalization uses replacement rather than push.
 - Verify canonicalization translates the stored exit target without nesting React Router's history wrapper.
+- Verify replacement navigation moves the translated exit target from the dead local-route history key to the confirmed-route key.
 - Verify browser Back returns to the original compact overview after a pre-ack open.
 - Verify the explicit iOS exit path returns to the original overview before and after canonicalization.
-- Result: the 35 focused `RoomView.test.ts` tests pass, and the 4 `threadNavigation.test.ts`, 4 `roomNavigateState.test.ts`, and 5 `useThreadRootEvent.test.ts` tests remain green.
+- Result: the 35 focused `RoomView.test.ts`, 5 `threadNavigation.test.ts`, 5 `roomNavigateState.test.ts`, and 5 `useThreadRootEvent.test.ts` tests pass.
 
 ### SDK patch
 
 - Verify chronological pending ordering creates the reply local echo without calling the invalid `getPendingEvents()` path.
 - Verify detached ordering retains pending-target replacement.
 - Verify an acknowledgement that wins the listener race triggers immediate association replacement.
+- Verify a dependent send started after `Room.handleRemoteEcho` removed the transaction-map entry resolves the canonical live event through retained transaction metadata.
+- Verify the real chronological SDK relations container indexes a pending reply under its local root before confirmation.
 - Verify ordinary thread replies rewrite both `m.relates_to.event_id` and `m.in_reply_to.event_id`.
 - Verify an explicit confirmed reply target remains unchanged while a different local thread root is rewritten.
 - Verify distinct local relation and reply targets resolve independently in both confirmation orders.
@@ -71,7 +102,7 @@ No new application store, send queue, or abstraction was added.
 - Verify the existing one-argument `updateAssociatedId` behavior remains compatible.
 - Verify lifted relation fields are rewritten after encryption and document the Rust encryption snapshot boundary that requires the composer release gate.
 - Verify the patch cleanly reverses and reapplies through the repository's existing patch-package workflow.
-- Result: all 10 installed-SDK association tests pass, and both repository patches reverse and reapply successfully.
+- Result: all 11 installed-SDK association tests pass, and both repository patches reverse and reapply successfully.
 
 ### Read receipts and pending rendering
 
@@ -82,12 +113,12 @@ No new application store, send queue, or abstraction was added.
 
 ### Combined and repository gates
 
-- The 12-file focused PLAN union passes 137 tests.
+- The 16-file focused plan and Round 1 union passes 172 tests.
 - `npm run typecheck` passes.
-- `npm test` passes with 427 files and 3,266 tests.
+- `npm test` passes with 427 files and 3,278 tests.
 - `npm run build` passes for the production application, PWA service worker, and Element Call background verification.
 - `npm run lint` passes with zero errors and 17 pre-existing warnings.
-- Touched TypeScript files pass Prettier.
+- All Round 1 TS/TSX files pass Prettier, while the minimized receipt-guard files retain their pre-existing `origin/dev` formatting.
 - `git diff --check` passes.
 - Patch-package reverse and clean reapplication pass for `@tanstack/virtual-core@3.17.3` and `matrix-js-sdk@41.7.0`.
 - Independent final re-review reports no remaining findings.
@@ -107,20 +138,31 @@ No new application store, send queue, or abstraction was added.
 11. Repeat the exit check through the explicit close or back control in iOS standalone mode before and after acknowledgement.
 12. While the local route is open, verify no relation fetch or read receipt is sent with a `~` thread id.
 13. Repeat in an encrypted room and verify Enter retains a related draft while the target is local, then press Enter after canonicalization and verify the encrypted request contains only the confirmed `$` target.
-14. In a separate standalone-root case with no child, return to the overview before terminal rejection and verify the failed echo disappears, the original structured content returns once, and newer typed content remains after it.
-15. In a root-plus-local-reply case, leave the thread before both requests reject and verify both `NOT_SENT` events remain timeline-owned with no composer restoration or orphaned reply.
-16. Restore the network and retry the restored standalone text from the overview, then verify it creates one new transaction and one local echo through the normal path.
-17. Regression-check a reply in an already confirmed thread, an explicit reply, a text-plus-attachment send, voice, sticker, command execution, compact mode, and classic mode.
-18. Inspect the transient local-root thread header and verify it upgrades cleanly when the confirmed event arrives.
+14. While that encrypted root is local, try attachment-only, caption-plus-attachment, and voice sends and verify no related event reaches the wire, the attachment board or caption remains owned by its composer surface, and voice remains retryable.
+15. After the root canonicalizes, retry each captured surface and verify every relation and reply fallback uses the confirmed `$` id.
+16. Capture an explicit reply draft against a pending event, wait through its sync echo, and verify the draft remains selected but sends with the canonical event and thread ids.
+17. Repeat the voice case with the upload request delayed, let the root canonicalize during upload, and verify the final send rebuilds its relation from the live context.
+18. In a separate standalone-root case with no child, return to the overview before terminal rejection and verify the failed echo disappears, the original structured content returns once, and newer typed content remains after it.
+19. Repeat the terminal rejection while viewing a different thread and verify the failed room root remains timeline-owned and its text is not inserted into that thread composer.
+20. In a root-plus-local-reply case, leave the thread before both requests reject and verify both `NOT_SENT` events remain timeline-owned with no composer restoration or orphaned reply.
+21. Restore the network and retry the restored standalone text from the overview, then verify it creates one new transaction and one local echo through the normal path.
+22. Regression-check a reply in an already confirmed thread, an explicit reply, a sticker, command execution, compact mode, and classic mode.
+23. Inspect the transient local-root thread header and verify it upgrades cleanly when the confirmed event arrives.
 
 The live script is documented for manual acceptance and was not executed because this worktree does not include a live Matrix test account or a controllable send endpoint.
 
 ## Plan alignment and deviations
 
-There are no scope deviations and no source changes outside the files allowed by PLAN.md.
+There is no deviation from the final Round 1 mandate.
+
+Relative to the original PLAN.md implementation-file list, review-required fixes add the existing attachment-session controller, reply-draft resolver, shared relation and route utilities, and navigation persistence owner.
+
+Those additions do not change attachment or voice product semantics; they apply the same local-target safety invariant at the send boundaries that already own those paths.
 
 Required independent review tightened one literal terminal-failure example: a root with an SDK-tracked local child remains timeline-owned instead of being cancelled and restored, because cancelling it would orphan the child.
 
 This correction preserves the plan's single-owner requirement, uses the existing SDK relations container, and adds no state, queue, abstraction, retry row, locale, or dependency framework.
 
 The PLAN-defined encrypted-send release gate was used exactly after the real Rust encryption snapshot test demonstrated that in-flight clear-content mutation cannot safely change the encrypted request.
+
+`threadOpenSdkBootstrap.ts` and all CINNY-122 thread-creation logic remain untouched.
