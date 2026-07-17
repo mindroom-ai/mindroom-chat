@@ -827,6 +827,8 @@ export const mergeThreadRenderEvents = (
   }
 
   const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {
+    // A failed child can retain a pre-confirmation local timestamp, but the thread root stays first.
+    if (a.isThreadRoot !== b.isThreadRoot) return a.isThreadRoot ? -1 : 1;
     const tsDiff = a.getTs() - b.getTs();
     if (tsDiff !== 0) return tsDiff;
     return (a.getId() ?? '').localeCompare(b.getId() ?? '');

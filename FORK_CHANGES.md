@@ -153,7 +153,7 @@
 - Documentation hygiene: the ticket plan and implementation report moved under `docs/superpowers`; the review archive remains untouched, and the requested failed-gate record `LIVE-TEST.md` is the only new root-level process artifact.
 - Round 7 (2026-07-17): rebased the 33 CINNY-121 commits onto local `dev` at `97b6ee36`, preserving the CINNY-123, CINNY-120, CINNY-122, and CINNY-121 runbook sections through the only conflict.
 - Round 7 pre-fix gates: typecheck passes; the complete Vitest suite passes serially with 434 files and 3,336 tests after a parallel run exposed three isolated RoomTimeline files as suite-resource/order flakes; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
-- Round 7 rebased repro: the hash-verified `16b19049` build under Slow 3G and a 15.157-second root hold reproduced the defect in `/tmp/CINNY-121-evidence-r7/before-fix/`; the reply remained pending through canonicalization, emitted no PUT within 60 seconds, then hit the same SDK non-local-echo status exception about 45 seconds after release.
+- Round 7 rebased repro: the hash-verified `16b19049` build under Slow 3G and a 15.157-second root hold reproduced the defect in `/tmp/CINNY-121-evidence-r7/before-fix/`; the reply remained pending through canonicalization, emitted no PUT within 60 seconds, then hit the same SDK non-local-echo status exception about 30 seconds after release and 45 seconds after root entry.
 - Round 7 rebased repro rendering: the final screenshot shows the failed red reply above its canonical root, so CINNY-122's eager SDK thread creation for confirmed zero-reply roots neither fixes nor masks the pending-local-root migration defect.
 - Round 7 root cause: remote-echo-first canonicalization creates the canonical SDK `Thread` and tags the root with that thread before the thread timeline contains the root.
   `Room.getTimelineForEvent` then routes the canonical root exclusively to the empty thread timeline even though the same root is already registered in the room timeline, so the delayed root HTTP acknowledgement falls through to a status transition on the status-null remote echo, the scheduler retries the root, and the queued reply never reaches its PUT.
@@ -163,7 +163,11 @@
 - Round 7 full validation: typecheck passes; the complete serial Vitest run passes 434 files and 3,337 tests; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
 - Round 7 fixed live acceptance: the hash-verified `f53e3c27` build passes the asserted Slow-3G scenario in `/tmp/CINNY-121-evidence-r7/fixed/`.
   With the root held for 15.169 seconds, exactly one reply PUT fired 453 milliseconds after release, the server contained exactly one root and one reply with canonical thread and fallback targets, the final DOM had zero pending clocks and exactly one reply below its root, and the final screenshot confirms the ordering.
-- Round 7 status: two fresh independent reviews remain before the branch can be considered ready.
+- Round 7 first independent review: the SDK-focused reviewer approved with no findings, while the evidence-focused reviewer confirmed that a genuinely failed child PUT could retain its earlier local timestamp and still sort above the canonical root.
+  The same reviewer also found that the live ordering oracle used the first root text across the full page, which could come from the Recent Threads sidebar instead of the central timeline.
+- Round 7 review fix: the render merge now preserves an identified thread root as the first event before applying timestamp and event-id ordering, with a focused `NOT_SENT` child regression whose local timestamp predates root confirmation.
+  The live harness now counts and compares only central `[data-message-id]` rows, including DOM order and bounding-box order, so sidebar and banner text cannot satisfy the assertion.
+- Round 7 status: rerun full validation and final live evidence before two clean independent re-reviews.
 
 ### Guarded App Store review release (2026-07-15)
 
