@@ -88,6 +88,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     zeroReplyStandaloneRootEvent &&
     isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
   ) {
+    room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false);
     setThreadTailLoaded(true);
     setTimeline((ct) => ({ ...ct }));
     setThreadTimelineTick((val) => val + 1);

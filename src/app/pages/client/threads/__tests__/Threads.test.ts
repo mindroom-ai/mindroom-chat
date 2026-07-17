@@ -142,6 +142,9 @@ const makeSnapshot = (): CrossRoomThreadIndexSnapshot =>
           roomName: 'Room',
           parentSpaceIds: [],
           threadRootId: '$root',
+          threadRecord: {
+            status: { hasPendingSend: false, replyCount: 1 },
+          },
           lastActivityTs: Date.now(),
           isUnread: false,
           isResolved: false,

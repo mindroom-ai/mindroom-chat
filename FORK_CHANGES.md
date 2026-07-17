@@ -37,6 +37,22 @@
 - Validation: typecheck, 427 Vitest files with 3,259 tests, the production and PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check` pass.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Review: round one identified missing cache shape validation, divergent empty-response handling, unauthenticated cache population, and logout cache retention; the fixes were verified by 68 focused tests, and independent re-review found no implementation, test, scope, or half-refactor findings.
+### Create SDK models for zero-reply standalone thread opens (2026-07-16)
+
+- Status: the one-line SDK bootstrap fix, two review-fix rounds, focused contract coverage, full local validation, and independent re-review are complete.
+- Symptom: Bas reported, "sometimes there is just a single message and I click I to it, I send a message and it doesn't show up. I have to click out of the thread first and then back. Only then it shows."
+- Root cause: the zero-reply standalone-root fast-open path skipped SDK `Thread` creation, so an own first reply was excluded from the room timeline as thread-only and both its local echo and transaction-deduplicated remote echo had no thread timeline to enter.
+- Fix: the existing guarded zero-reply branch now calls `room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false)` before its repaint calls.
+- Coverage: the focused bootstrap contract now requires exact local SDK thread creation while preserving the no-context/no-relations fast open, proves the created model is immediately discoverable, and prevents duplicate creation on a second bootstrap or when the SDK thread already exists.
+- The global cross-room Threads page excludes viewed roots with zero replies unless they have a pending send; the in-room compact overview and Recents continue to show their intentional root-only cards.
+- Intrinsic cross-room entry eligibility is applied before the global Threads empty-state decision, so an index containing only viewed zero-reply roots shows the base empty state instead of an ineffective Clear filters action.
+- A pending own first reply is derived from the room-shared SDK relation store, so it remains eligible when the global Threads route mounts after the send and before the SDK reply count catches up.
+- Pending relation history is scanned only for zero-reply records, and the pending timestamp overrides the original activity fallback chain only while that pending first reply is active.
+- Reopening a retained still-zero-reply root leaves the first-open fast path and runs the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work in the background after cache-first paint.
+- Validation: the combined focused cross-room, Threads-page, and bootstrap suites pass 11 files / 63 tests, the full Vitest suite passes 426 files / 3,246 tests, and typecheck, the production/PWA build with Element Call verification, touched-file ESLint and Prettier, and `git diff --check` pass.
+- Review: the two review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost; final independent re-review found no actionable code findings or scope violations.
+- Risk: local-echo latency remains unbounded when the background root GET hangs because the SDK local-echo metadata gate has no timeout, while the remote-echo path is ungated and remains the fallback.
+- Risk: a remote echo racing the constructor metadata initialization can be wiped by `resetLiveTimeline`; a successful late root GET restores it through back-pagination, while a failed GET can leave the SDK thread timeline missing it until the next thread fetch even though the open view and cache already received it.
 
 ### Guarded App Store review release (2026-07-15)
 

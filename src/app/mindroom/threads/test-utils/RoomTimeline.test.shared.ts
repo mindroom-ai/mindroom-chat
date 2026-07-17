@@ -1405,6 +1405,44 @@ const makeRoom = ({
     ).getTimelineSet = () => timelineSet;
   });
   const listeners = new Map<string | symbol, (...args: unknown[]) => void>();
+  const createThread = vi.fn(
+    (
+      threadId: string,
+      rootEvent: ReturnType<typeof makeEvent> | undefined,
+      events: ReturnType<typeof makeEvent>[] = []
+    ) => {
+      const existingThread = threads.find((thread) => thread.id === threadId);
+      if (existingThread) return existingThread;
+
+      const threadEvents = [...events];
+      const threadLiveTimeline = makeTimeline(threadEvents);
+      const threadTimelineSet = {
+        getLiveTimeline: () => threadLiveTimeline,
+      };
+      const thread = {
+        id: threadId,
+        rootEvent,
+        events: threadEvents,
+        timeline: threadEvents,
+        get length() {
+          return threadEvents.length;
+        },
+        addEvents: vi.fn((newEvents: ReturnType<typeof makeEvent>[], toStart: boolean) => {
+          if (toStart) {
+            threadEvents.unshift(...newEvents);
+            return;
+          }
+          threadEvents.push(...newEvents);
+        }),
+        getUnfilteredTimelineSet: () => threadTimelineSet,
+        lastReply: () => threadEvents.at(-1) ?? null,
+        on: vi.fn(),
+        removeListener: vi.fn(),
+      };
+      threads.push(thread);
+      return thread;
+    }
+  );
 
   return {
     __listeners: listeners,
@@ -1412,6 +1450,7 @@ const makeRoom = ({
     addLiveEvents: vi.fn(async (events: ReturnType<typeof makeEvent>[]) => {
       currentLiveEvents.push(...events);
     }),
+    createThread,
     roomId: '!room:example.org',
     client: {
       getUserId: () => '@alice:example.org',

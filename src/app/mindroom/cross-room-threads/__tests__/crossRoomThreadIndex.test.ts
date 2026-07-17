@@ -127,6 +127,25 @@ describe('crossRoomThreadIndex', () => {
     expect(entry?.searchableText).not.toContain('reply-only-secret-token');
   });
 
+  it('does not promote a later summary generation time over real reply activity', () => {
+    const root = makeEvent({ id: '$root', body: 'Root preview', ts: 100 });
+    const reply = makeEvent({
+      id: '$reply',
+      body: 'Reply',
+      ts: 150,
+      threadRootId: '$root',
+    });
+
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ root, replies: [reply] }),
+      threadRootId: '$root',
+      summaryInfo: { summaryText: 'Summary text', generatedTs: 300, messageCount: 1 },
+      tagSnapshot,
+    });
+
+    expect(entry?.lastActivityTs).toBe(150);
+  });
+
   it('computes involvement from root sender, visible reply sender, and direct mentions', () => {
     const ownRoot = makeEvent({ id: '$own-root', sender: '@me:example.org', body: 'Root' });
     expect(
