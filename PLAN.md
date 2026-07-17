@@ -154,6 +154,15 @@ Add an early `isLocalEchoEventId(threadId)` return in `markThreadAsRead` at `src
 Do not fetch relations and do not send a receipt until the route has canonicalized to a server id.
 The existing confirmed-thread behavior remains unchanged.
 
+### Round 3 review hardening — Gate durable actions on confirmed ids
+
+Reuse `isConfirmedMatrixEventId` at the message action, inline reaction, and encrypted editor boundaries.
+While a message id is local, withhold reaction creation, edit, copy-link, pin, delete, and report actions, and keep existing reaction chips read-only while preserving their inspection menu.
+When the current user's reaction event is itself local, keep its chip read-only so removing it cannot redact a transient id.
+Keep reply and reply-in-thread available because the existing send boundary defers or canonicalizes them, and keep read-only source, receipt, reaction, and text inspection available.
+In an encrypted room, disable and recheck `MessageEditor` save while the replacement target is local, then build the replacement relation from the live confirmed id after canonicalization.
+Do not add state, a queue, an action registry, or a new durability abstraction.
+
 ## Edge cases
 
 ### Send failure
@@ -197,8 +206,8 @@ Fulfillment does not issue a second navigation callback.
 
 ### Attachments, voice, stickers, and commands
 
-Text bundled with uploads still enters `startSendSession` at `src/app/mindroom/room-input/MindroomRoomInput.tsx:1026-1029` and remains unchanged.
-Voice uses its existing upload and retry ownership path around lines 714-945 and remains unchanged.
+Text bundled with uploads still enters `startSendSession` at `src/app/mindroom/room-input/MindroomRoomInput.tsx:1026-1029`, while its existing send-session controller refreshes relation targets and keeps encrypted local-target sessions composer-owned.
+Voice keeps its existing upload and retry ownership path around lines 714-945, while refreshing and checking encrypted relation targets again at the final send boundary.
 Sticker sends use the separate `sendEvent` path at lines 1156-1169 and remain unchanged.
 Local commands that execute without sending and reset at lines 984-995 remain unchanged.
 
@@ -266,6 +275,12 @@ Extend `src/app/mindroom/notifications/readReceipts.test.ts` to verify that `mar
 Keep `src/app/mindroom/threads/__tests__/RoomTimeline.pendingSend.test.ts`, `src/app/mindroom/threads/CompactThreadCard.test.tsx`, `src/app/mindroom/messages/pendingSendIndicator.test.ts`, and message-state suffix tests green to prove the clock remains message-owned.
 Keep the focused root canonicalization and compact render tests green.
 
+### Durable event-id actions
+
+Extend `src/app/mindroom/messages/__tests__/Message.test.ts` to prove pending ids withhold reaction, edit, copy-link, pin, delete, and report actions while preserving safe inspection and deferred reply actions, then prove confirmed ids restore the actions.
+Extend `src/app/features/room/message/Reactions.test.ts` to prove a pending message target and a pending current-user reaction remain visible and inspectable but cannot toggle.
+Add `src/app/features/room/message/MessageEditor.test.ts` to drive an encrypted pending-root edit race, prove the blocked attempt sends nothing, and prove the post-canonicalization replacement contains only the confirmed id.
+
 ### Repository validation
 
 After each logical implementation step, update the CINNY-121 Runbook entry in `FORK_CHANGES.md`, run the focused tests, and perform the required independent review.
@@ -286,13 +301,16 @@ Review the final patch to confirm there are no source changes outside the files 
 10. Verify the URL replacement does not add a duplicate history entry and that browser Back returns to the original room overview.
 11. Repeat the exit check through the explicit close or back control in iOS standalone mode and verify it returns to the originating overview both before and after acknowledgement.
 12. While the local route is open, verify no `fetchRelations` request or read receipt is sent with a `~` id.
-13. Repeat the root plus pending follow-up flow in an encrypted room and verify the outgoing encrypted send path never transmits a local relation target.
-14. Simulate a terminal offline standalone-root failure after the SDK retries while the overview composer remains unchanged and verify the failed local echo disappears and the original structured content returns once.
-15. Repeat after typing newer text, selecting an unrelated reply, entering another thread, and changing rooms, and verify the failed root remains timeline-owned without composer mutation or stale navigation.
-16. Send two standalone roots before either settles, reject them in FIFO and reverse order, and verify only the newest unchanged root may return while the older root remains timeline-owned.
-17. Restore the network, press Enter to retry restored text from the room overview, and verify it creates one new transaction and local echo through the normal path.
-18. Regression-check a reply in an already confirmed thread, an explicit reply, a text-plus-attachment send, voice, sticker, command execution, compact mode, and classic mode.
-19. Eyeball the transient thread header for a local root and confirm it upgrades cleanly when the confirmed event arrives.
+13. Open the pending-root menu and verify durable-id actions are absent while read-only inspection and deferred reply actions remain available.
+14. Verify existing reaction chips remain visible and inspectable but cannot toggle while the message or current-user reaction id is local.
+15. Repeat the root plus pending follow-up flow in an encrypted room and verify the outgoing encrypted send path never transmits a local relation target.
+16. Open the encrypted pending root editor, verify Save is disabled, then verify the post-canonicalization replacement contains only the confirmed id.
+17. Simulate a terminal offline standalone-root failure after the SDK retries while the overview composer remains unchanged and verify the failed local echo disappears and the original structured content returns once.
+18. Repeat after typing newer text, selecting an unrelated reply, entering another thread, and changing rooms, and verify the failed root remains timeline-owned without composer mutation or stale navigation.
+19. Send two standalone roots before either settles, reject them in FIFO and reverse order, and verify only the newest unchanged root may return while the older root remains timeline-owned.
+20. Restore the network, press Enter to retry restored text from the room overview, and verify it creates one new transaction and local echo through the normal path.
+21. Regression-check a reply in an already confirmed thread, an explicit reply, a text-plus-attachment send, voice, sticker, command execution, compact mode, and classic mode.
+22. Eyeball the transient thread header for a local root and confirm it upgrades cleanly when the confirmed event arrives.
 
 ## Intended implementation files
 
@@ -302,8 +320,26 @@ Review the final patch to confirm there are no source changes outside the files 
 - `src/app/mindroom/room-input/RoomInputMindroomExtensions.test.ts`
 - `src/app/mindroom/threads/useRoomViewThreadState.ts`
 - `src/app/mindroom/threads/__tests__/RoomView.test.ts`
+- `src/app/mindroom/threads/threadNavigation.ts`
+- `src/app/mindroom/threads/threadNavigation.test.ts`
+- `src/app/mindroom/threads/roomNavigateState.ts`
+- `src/app/mindroom/threads/roomNavigateState.test.ts`
+- `src/app/mindroom/threads/threadRouteUtils.ts`
+- `src/app/mindroom/threads/threadRouteUtils.test.ts`
+- `src/app/mindroom/threads/composeMessageRelation.ts`
+- `src/app/mindroom/threads/composeMessageRelation.test.ts`
+- `src/app/mindroom/threads/roomTimelineReplyDraft.ts`
+- `src/app/mindroom/threads/roomTimelineReplyDraft.test.ts`
+- `src/app/mindroom/threads/useRoomInputSendSessionController.ts`
+- `src/app/mindroom/threads/useRoomInputSendSessionController.test.ts`
 - `src/app/mindroom/notifications/readReceipts.ts`
 - `src/app/mindroom/notifications/readReceipts.test.ts`
+- `src/app/mindroom/messages/MindroomMessage.tsx`
+- `src/app/mindroom/messages/__tests__/Message.test.ts`
+- `src/app/features/room/message/Reactions.tsx`
+- `src/app/features/room/message/Reactions.test.ts`
+- `src/app/features/room/message/MessageEditor.tsx`
+- `src/app/features/room/message/MessageEditor.test.ts`
 - `patches/matrix-js-sdk+41.7.0.patch`
 - `src/app/mindroom/threads/matrixSdkLocalEchoAssociation.test.ts`
 - `FORK_CHANGES.md` for implementation status and validation evidence
@@ -317,10 +353,13 @@ Existing navigation and pending-render tests may need expectation-only updates i
 - A new app-owned send queue, pending-message store, navigation store, event ownership store, or orchestration abstraction.
 - An inline retry or cancel row, cross-message dependency controls, new failure copy, locale changes, or a dependency matrix.
 - Automatic route exit after terminal root failure.
+- Mount-time recovery for a dead local route after reload or a PWA process kill.
+- Encrypted-gate auto-resubmission, additional user-facing copy, or locale changes.
+- A broad settlement-handler refactor.
 - Returning older concurrent failed roots to separate composer rows instead of leaving them timeline-owned.
 - Persisting chronological pending events across reloads.
 - Persisting `~` ids in recent threads or changing the pre-existing recent-card behavior for manually opened local ids.
 - General upstream SDK refactoring beyond the narrow pending-target lookup and association rewrite patch.
 - Changing attachment, voice, sticker, upload-session, or command send semantics.
 - Thread header design changes beyond verifying its existing transient fallback.
-- Any source change belonging to CINNY-122; if its parallel fix touches `useThreadRootEvent.ts`, thread timeline code, or shared tests, coordinate the overlap and keep this issue's changes limited to the route, composer, SDK patch, and receipt guard described above.
+- Any source change belonging to CINNY-122; if its parallel fix touches `useThreadRootEvent.ts`, thread timeline code, or shared tests, coordinate the overlap and keep this issue's changes limited to the CINNY-121 files and boundaries listed above.

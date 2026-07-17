@@ -2,7 +2,7 @@
 
 ## Outcome
 
-All five planned changes are implemented in ship order, and every confirmed Round 1 and Round 2 review finding is fixed at its owning boundary.
+All five planned changes are implemented in ship order, and every confirmed Round 1, Round 2, and Round 3 review finding is fixed at its owning boundary.
 
 The implementation reuses matrix-js-sdk transaction ids, synchronous local echoes, relation aggregation, pending statuses, and `RoomEvent.LocalEchoUpdated`.
 
@@ -34,8 +34,14 @@ No new application store, send queue, or abstraction was added.
 - `src/app/mindroom/notifications/readReceipts.ts` returns before any room lookup, relation fetch, or receipt send for a local thread id.
 - `src/app/mindroom/notifications/readReceipts.test.ts` covers the local-id no-op and retains loaded and fetched confirmed-thread behavior.
 - `src/app/mindroom/threads/matrixSdkLocalEchoAssociation.test.ts` exercises the installed patched SDK under chronological and detached ordering, acknowledgement and post-remote-echo races, real pending relation aggregation, dual targets, redaction, encryption, and compatibility behavior.
-- `PLAN.md` retains the implementation plan for the orchestrator while aligning its terminal-failure ownership and tests with the Round 2 behavior.
-- `FORK_CHANGES.md` records the implementation, both review rounds, scope, validation, SDK patch maintenance note, and current status in the fork Runbook.
+- `src/app/mindroom/messages/MindroomMessage.tsx` requires a confirmed event id before exposing reaction, edit, permalink, pin, delete, or report actions for message and generic-event menus.
+- `src/app/mindroom/messages/__tests__/Message.test.ts` proves pending local echoes withhold durable actions, retain local-only inspection and deferred replies, and restore the actions after confirmation.
+- `src/app/features/room/message/Reactions.tsx` renders pending-target and pending-owned-reaction chips as read-only so neither reaction creation nor redaction receives a local id.
+- `src/app/features/room/message/Reactions.test.ts` covers pending message targets, pending owned-reaction redaction targets, confirmed toggles, and read-only context inspection.
+- `src/app/features/room/message/MessageEditor.tsx` disables and rechecks encrypted replacement sends until the edited event id is confirmed.
+- `src/app/features/room/message/MessageEditor.test.ts` drives the pending-root edit race and proves the eventual replacement relation contains only the live confirmed id.
+- `PLAN.md` retains the implementation plan for the orchestrator while aligning its review hardening and tests with the final behavior.
+- `FORK_CHANGES.md` records the implementation, all three review rounds, scope, validation, SDK patch maintenance note, and current status in the fork Runbook.
 
 ## Round 1 fixes
 
@@ -56,6 +62,16 @@ No new application store, send queue, or abstraction was added.
 - A3 exposed reverse restoration under FIFO rejection, so each later direct send now invalidates older transfer ownership and only the newest unchanged root may restore while older failures remain timeline-owned.
 - B6 is addressed by optional-chaining the reply fallback event id, with a malformed-relation regression at the shared predicate boundary.
 - The encrypted-gate call sites were not consolidated because the ownership fix did not touch those flows, and auto-resubmission UX, broader SDK-upgrade automation, and fail-fast unresolved-target behavior remain follow-up work.
+
+## Round 3 fixes
+
+- A1 exposed a durable-id ownership invariant at the message action boundary: no action that persists, transmits, or redacts an event id may receive a local echo id.
+- `MindroomMessage` now uses the existing shared confirmed-id predicate to withhold reaction, edit, permalink, pin, delete, and report actions while the target is local, while reply, reply-in-thread, read receipts, source inspection, reaction inspection, and text copy retain their existing safe behavior.
+- The inline `Reactions` surface applies the same boundary to both the message target and the current user's reaction event, so neither a new reaction nor a reaction redaction can consume a local id.
+- A2 exposed the same invariant at the replacement-send owner, so encrypted `MessageEditor` saves remain disabled and are rechecked until the edited event exposes its confirmed id.
+- The menu audit found no forward or read-until action on this surface and no additional durable local-id consumer after the inline reaction fix.
+- The independent re-review found one incomplete test double for the new reaction-id check, which was corrected without weakening production behavior, and then found no remaining durable-action surface.
+- Dead-local-route reload recovery, encrypted-gate copy or auto-resubmission, SDK upgrade automation beyond the existing Runbook note, unresolved-target fail-fast behavior, and settlement refactoring remain explicit follow-up work.
 
 ## Automated test plan and results
 
@@ -124,17 +140,28 @@ No new application store, send queue, or abstraction was added.
 - Verify pending status still reaches timeline messages, compact cards, pending-indicator helpers, and message-state suffix rendering.
 - Result: all 5 receipt tests pass, and the focused timeline, compact-card, pending-indicator, and suffix tests pass.
 
+### Durable event-id actions
+
+- Verify a pending local root withholds hover and menu reactions, edit, copy-link, pin, delete, and report actions while preserving reply, reply-in-thread, read receipts, view source, copy text, and reaction inspection.
+- Verify a confirmed event id exposes the durable actions.
+- Verify an existing reaction chip remains visible, pressed, readable, and context-viewable while a local message target prevents toggling.
+- Verify a current-user reaction with its own local id cannot be toggled off because that would redact the transient reaction id.
+- Verify confirmed message and reaction ids retain their existing toggle behavior.
+- Verify an encrypted pending-root editor cannot save before canonicalization even if the event id changes immediately after the blocked click.
+- Verify rerendering the editor after confirmation enables save and emits an `m.replace` relation containing the live `$` id and no `~` id.
+- Result: the 7 message-menu, 6 reaction, and 1 encrypted-editor tests pass.
+
 ### Combined and repository gates
 
-- The 16-file focused plan and review union passes 179 tests.
+- The 19-file focused plan and review union passes 193 tests.
 - `npm run typecheck` passes.
-- `npm test` passes with 427 files and 3,285 tests.
+- `npm test` passes with 428 files and 3,291 tests.
 - `npm run build` passes for the production application, PWA service worker, and Element Call background verification.
 - `npm run lint` passes with zero errors and 17 pre-existing warnings.
-- All Round 2 touched TS/TSX files pass Prettier.
+- All Round 3 touched TS/TSX files pass Prettier.
 - `git diff --check` passes.
 - Patch-package reverse and clean reapplication pass for `@tanstack/virtual-core@3.17.3` and `matrix-js-sdk@41.7.0`.
-- Independent Round 2 re-review reports no remaining findings.
+- Independent Round 3 implementation re-review reports no remaining durable-action finding.
 
 ## Live throttled-browser acceptance script
 
@@ -150,25 +177,28 @@ No new application store, send queue, or abstraction was added.
 10. Verify URL canonicalization replaces the local entry and browser Back returns to the original overview without an extra history entry.
 11. Repeat the exit check through the explicit close or back control in iOS standalone mode before and after acknowledgement.
 12. While the local route is open, verify no relation fetch or read receipt is sent with a `~` thread id.
-13. Repeat in an encrypted room and verify Enter retains a related draft while the target is local, then press Enter after canonicalization and verify the encrypted request contains only the confirmed `$` target.
-14. While that encrypted root is local, try attachment-only, caption-plus-attachment, and voice sends and verify no related event reaches the wire, the attachment board or caption remains owned by its composer surface, and voice remains retryable.
-15. After the root canonicalizes, retry each captured surface and verify every relation and reply fallback uses the confirmed `$` id.
-16. Capture an explicit reply draft against a pending event, wait through its sync echo, and verify the draft remains selected but sends with the canonical event and thread ids.
-17. Repeat the voice case with the upload request delayed, let the root canonicalize during upload, and verify the final send rebuilds its relation from the live context.
-18. In a separate standalone-root case with no child, remain in the unchanged overview before terminal rejection and verify the failed echo disappears and the original structured content returns once.
-19. Repeat after typing newer text, selecting an unrelated reply, entering another thread, and changing rooms, and verify the failed root remains timeline-owned without clearing, navigation, cancellation, or composer injection.
-20. Send two standalone roots before either settles, reject them in FIFO order, and verify the older root remains timeline-owned while only the newest unchanged root may return to the composer.
-21. Repeat the two-root rejection in reverse order and verify the same ownership result.
-22. In a root-plus-local-reply case, leave the thread before both requests reject and verify both `NOT_SENT` events remain timeline-owned with no composer restoration or orphaned reply.
-23. Restore the network and retry the restored standalone text from the overview, then verify it creates one new transaction and one local echo through the normal path.
-24. Regression-check a reply in an already confirmed thread, an explicit reply, a sticker, command execution, compact mode, and classic mode.
-25. Inspect the transient local-root thread header and verify it upgrades cleanly when the confirmed event arrives.
+13. Open the pending root menu and verify reaction, edit, copy-link, pin, delete, and report actions are absent while reply, reply-in-thread, read receipts, view source, copy text, and reaction inspection remain available.
+14. Verify existing reaction chips on the pending root remain visible and inspectable but cannot be added, removed, or toggled until both target ids are confirmed.
+15. Repeat in an encrypted room and verify Enter retains a related draft while the target is local, then press Enter after canonicalization and verify the encrypted request contains only the confirmed `$` target.
+16. While the encrypted root is local, open its editor and verify Save is disabled and no replacement request is sent, then confirm the root and verify Save emits one `m.replace` relation containing only the `$` id.
+17. While that encrypted root is local, try attachment-only, caption-plus-attachment, and voice sends and verify no related event reaches the wire, the attachment board or caption remains owned by its composer surface, and voice remains retryable.
+18. After the root canonicalizes, retry each captured surface and verify every relation and reply fallback uses the confirmed `$` id.
+19. Capture an explicit reply draft against a pending event, wait through its sync echo, and verify the draft remains selected but sends with the canonical event and thread ids.
+20. Repeat the voice case with the upload request delayed, let the root canonicalize during upload, and verify the final send rebuilds its relation from the live context.
+21. In a separate standalone-root case with no child, remain in the unchanged overview before terminal rejection and verify the failed echo disappears and the original structured content returns once.
+22. Repeat after typing newer text, selecting an unrelated reply, entering another thread, and changing rooms, and verify the failed root remains timeline-owned without clearing, navigation, cancellation, or composer injection.
+23. Send two standalone roots before either settles, reject them in FIFO order, and verify the older root remains timeline-owned while only the newest unchanged root may return to the composer.
+24. Repeat the two-root rejection in reverse order and verify the same ownership result.
+25. In a root-plus-local-reply case, leave the thread before both requests reject and verify both `NOT_SENT` events remain timeline-owned with no composer restoration or orphaned reply.
+26. Restore the network and retry the restored standalone text from the overview, then verify it creates one new transaction and one local echo through the normal path.
+27. Regression-check a reply in an already confirmed thread, an explicit reply, a sticker, command execution, compact mode, and classic mode.
+28. Inspect the transient local-root thread header and verify it upgrades cleanly when the confirmed event arrives.
 
 The live script is documented for manual acceptance and was not executed because this worktree does not include a live Matrix test account or a controllable send endpoint.
 
 ## Plan alignment and deviations
 
-There is no deviation from the final Round 2 mandate.
+There is no deviation from the final Round 3 mandate.
 
 Relative to the original PLAN.md implementation-file list, review-required fixes add the existing attachment-session controller, reply-draft resolver, shared relation and route utilities, and navigation persistence owner.
 
@@ -177,6 +207,8 @@ Those additions do not change attachment or voice product semantics; they apply 
 Required independent review tightened one literal terminal-failure example: a root with an SDK-tracked local child remains timeline-owned instead of being cancelled and restored, because cancelling it would orphan the child.
 
 Round 2 further tightened that same single-owner requirement so newer content or any room, thread, or reply-context change leaves the failed event timeline-owned instead of transferring it into a composer it no longer owns.
+
+Round 3 adds only confirmed-id gates at the action and encrypted-editor boundaries and reuses the existing shared predicate without adding state, queues, retry UI, or a new abstraction.
 
 The implementation uses one component-local generation ref and the existing SDK relations container, with no store, queue, retry row, locale, dependency framework, or encrypted-send refactor.
 
