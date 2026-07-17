@@ -1,8 +1,8 @@
 diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
-index bc4e623..338e768 100644
+index bc4e623..48329d9 100644
 --- a/node_modules/matrix-js-sdk/lib/client.js
 +++ b/node_modules/matrix-js-sdk/lib/client.js
-@@ -1882,13 +1882,30 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -1882,13 +1882,38 @@ export class MatrixClient extends TypedEventEmitter {
      // that hasn't been sent yet (e.g. with a local id starting with a ~)
      // then listen for the remote echo of that event so that by the time
      // this event does get sent, we have the correct event_id
@@ -11,6 +11,7 @@ index bc4e623..338e768 100644
 -      var target = room === null || room === void 0 ? void 0 : room.getPendingEvents().find(e => e.getId() === targetId);
 +    var localEventIdPrefix = room ? "~".concat(room.roomId, ":") : undefined;
 +    var targetIds = new Set([localEvent.relationEventId, localEvent.replyEventId, localEvent.isRedaction() ? localEvent.event.redacts : undefined]);
++    var pendingThreadRoot;
 +    targetIds.forEach(targetId => {
 +      if (!targetId || !localEventIdPrefix || !targetId.startsWith(localEventIdPrefix)) return;
 +      var txnId = targetId.slice(localEventIdPrefix.length);
@@ -24,6 +25,10 @@ index bc4e623..338e768 100644
 +          return eventTxnId === txnId;
 +        });
 +      }
++      var replacesThreadRoot = localEvent.isRelation(THREAD_RELATION_TYPE.name) && localEvent.relationEventId === targetId;
++      if (replacesThreadRoot) {
++        pendingThreadRoot = target;
++      }
 +      var resolvedTargetId = target === null || target === void 0 ? void 0 : target.getId();
 +      if (resolvedTargetId && resolvedTargetId !== targetId) {
 +        localEvent.updateAssociatedId(resolvedTargetId, targetId);
@@ -32,12 +37,30 @@ index bc4e623..338e768 100644
        target === null || target === void 0 || target.once(MatrixEventEvent.LocalEventIdReplaced, () => {
 -        localEvent.updateAssociatedId(target.getId());
 +        localEvent.updateAssociatedId(target.getId(), targetId);
++        if (replacesThreadRoot) {
++          room === null || room === void 0 || room.updatePendingEventRelationTarget(localEvent, targetId, target);
++        }
        });
 -    }
 +    });
      var type = localEvent.getType();
      this.logger.debug("sendEvent of type ".concat(type, " in ").concat(roomId, " with txnId ").concat(txnId).concat(delayOpts ? " (delayed event)" : "").concat(queryDict ? " query params: " + JSON.stringify(queryDict) : ""));
      localEvent.setTxnId(txnId);
+@@ -1898,6 +1923,14 @@ export class MatrixClient extends TypedEventEmitter {
+     if (!delayOpts) {
+       // add this event immediately to the local store as 'sending'.
+       room === null || room === void 0 || room.addPendingEvent(localEvent, txnId);
++      if (pendingThreadRoot && localEvent.isRelation(THREAD_RELATION_TYPE.name) && localEvent.threadRootId === pendingThreadRoot.getId()) {
++        var _room$getThread;
++        var threadRootId = pendingThreadRoot.getId();
++        var pendingThread = (_room$getThread = room === null || room === void 0 ? void 0 : room.getThread(threadRootId)) !== null && _room$getThread !== void 0 ? _room$getThread : room === null || room === void 0 ? void 0 : room.createThread(threadRootId, pendingThreadRoot, [], false);
++        if (pendingThread && !pendingThread.findEventById(localEvent.getId())) {
++          pendingThread.addEvent(localEvent, false);
++        }
++      }
+
+       // addPendingEvent can change the state to NOT_SENT if it believes
+       // that there's other events that have failed. We won't bother to
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.d.ts b/node_modules/matrix-js-sdk/lib/models/event.d.ts
 index ef37343..2db4551 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.d.ts
@@ -83,11 +106,134 @@ index 41c0e07..4814216 100644
      var relation = this.getRelation();
      if (relation) {
        relation.event_id = eventId;
+diff --git a/node_modules/matrix-js-sdk/lib/models/room.d.ts b/node_modules/matrix-js-sdk/lib/models/room.d.ts
+index 83c2a44..1e78532 100644
+--- a/node_modules/matrix-js-sdk/lib/models/room.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/room.d.ts
+@@ -902,6 +902,13 @@ export declare class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandle
+     private updateThreadRootEvents;
+     private updateThreadRootEvent;
+     createThread(threadId: string, rootEvent: MatrixEvent | undefined, events: MatrixEvent[] | undefined, toStartOfTimeline: boolean): Thread;
++    /**
++     * Reaggregate a pending relation after its local thread-root id is replaced
++     * and move any provisional thread events to the canonical thread.
++     *
++     * @internal
++     */
++    updatePendingEventRelationTarget(event: MatrixEvent, oldTargetId: string, targetEvent: MatrixEvent): void;
+     /**
+      * Applies an event as a redaction of another event, regardless of whether the redacting
+      * event is actually a redaction.
+diff --git a/node_modules/matrix-js-sdk/lib/models/room.js b/node_modules/matrix-js-sdk/lib/models/room.js
+index ac723cf..cc29d7e 100644
+--- a/node_modules/matrix-js-sdk/lib/models/room.js
++++ b/node_modules/matrix-js-sdk/lib/models/room.js
+@@ -2241,6 +2241,48 @@ export class Room extends ReadReceipt {
+     return thread;
+   }
+
++  /**
++   * Reaggregate a pending relation after its local thread-root id is replaced
++   * and move any provisional thread events to the canonical thread.
++   *
++   * @internal
++   */
++  updatePendingEventRelationTarget(event, oldTargetId, targetEvent) {
++    var relation = event.getRelation();
++    var targetEventId = targetEvent.getId();
++    if (!(relation !== null && relation !== void 0 && relation.rel_type) || !targetEventId || relation.event_id !== targetEventId) return;
++    var previousRelations = this.relations.getChildEventsForEvent(oldTargetId, relation.rel_type, event.getType());
++    if (previousRelations) {
++      void previousRelations.removeEvent(event);
++    }
++    this.relations.aggregateChildEvent(event);
++    if (!event.isRelation(THREAD_RELATION_TYPE.name) || oldTargetId === targetEventId) return;
++    var provisionalThread = this.getThread(oldTargetId);
++    var threadEvents = [...(provisionalThread ? provisionalThread.events : [])];
++    if (!threadEvents.includes(event)) {
++      threadEvents.push(event);
++    }
++    if (provisionalThread) {
++      this.threads.delete(oldTargetId);
++      this.reEmitter.stopReEmitting(provisionalThread, [ThreadEvent.Delete, ThreadEvent.Update, ThreadEvent.NewReply, RoomEvent.Timeline, RoomEvent.TimelineReset]);
++      provisionalThread.dispose();
++      for (var timelineSet of this.threadsTimelineSets) {
++        timelineSet.removeEvent(oldTargetId);
++      }
++    }
++    var canonicalThread = this.getThread(targetEventId) || this.createThread(targetEventId, targetEvent, [], false);
++    for (var threadEvent of threadEvents) {
++      var _canonicalThread$repl;
++      if (!canonicalThread.initialEventsFetched && !((_canonicalThread$repl = canonicalThread.replayEvents) !== null && _canonicalThread$repl !== void 0 && _canonicalThread$repl.includes(threadEvent))) {
++        var _canonicalThread$repl2;
++        (_canonicalThread$repl2 = canonicalThread.replayEvents) === null || _canonicalThread$repl2 === void 0 || _canonicalThread$repl2.push(threadEvent);
++      }
++      if (!canonicalThread.findEventById(threadEvent.getId())) {
++        canonicalThread.addEvent(threadEvent, false);
++      }
++    }
++  }
++
+   /**
+    * Applies an event as a redaction of another event, regardless of whether the redacting
+    * event is actually a redaction.
+diff --git a/node_modules/matrix-js-sdk/lib/models/thread.d.ts b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
+index 6933b26..f34b7ea 100644
+--- a/node_modules/matrix-js-sdk/lib/models/thread.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
+@@ -98,6 +98,12 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
+      */
+     replayEvents: MatrixEvent[] | null;
+     constructor(id: string, rootEvent: MatrixEvent | undefined, opts: IThreadOpts);
++    /**
++     * Detach this thread from its room and timeline sources.
++     *
++     * @internal
++     */
++    dispose(): void;
+     private onTimelineReset;
+     private fetchRootEvent;
+     static setServerSideSupport(status: FeatureSupport): void;
+diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
+index b02b81f..2a3de10 100644
+--- a/node_modules/matrix-js-sdk/lib/models/thread.js
++++ b/node_modules/matrix-js-sdk/lib/models/thread.js
+@@ -216,6 +216,19 @@ export class Thread extends ReadReceipt {
+     this.updateThreadMetadata();
+     this.setEventMetadata(this.rootEvent);
+   }
++  /**
++   * Detach this thread from its room and timeline sources.
++   *
++   * @internal
++   */
++  dispose() {
++    this.reEmitter.stopReEmitting(this.timelineSet, [RoomEvent.Timeline, RoomEvent.TimelineReset]);
++    this.room.off(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++    this.room.off(RoomEvent.Redaction, this.onRedaction);
++    this.room.off(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
++    this.room.off(RoomEvent.TimelineReset, this.onTimelineReset);
++    this.timelineSet.off(RoomEvent.Timeline, this.onTimelineEvent);
++  }
+   fetchRootEvent() {
+     var _this2 = this;
+     return _asyncToGenerator(function* () {
+@@ -549,6 +562,10 @@ export class Thread extends ReadReceipt {
+     var _this7 = this;
+     return _asyncToGenerator(function* () {
+       _this7.updatePendingReplyCount();
++      if (_this7.id.startsWith("~".concat(_this7.roomId, ":"))) {
++        _this7.emit(ThreadEvent.Update, _this7);
++        return;
++      }
+       if (!_this7.processRootEventPromise) {
+         // We only want to do this once otherwise we end up rolling back to the last unsigned summary we have for the thread
+         _this7.processRootEventPromise = _this7.updateThreadFromRootEvent();
 diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
-index 80ea382..97248c2 100644
+index 80ea382..caa022b 100644
 --- a/node_modules/matrix-js-sdk/src/client.ts
 +++ b/node_modules/matrix-js-sdk/src/client.ts
-@@ -2853,10 +2853,35 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -2853,11 +2853,45 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          // that hasn't been sent yet (e.g. with a local id starting with a ~)
          // then listen for the remote echo of that event so that by the time
          // this event does get sent, we have the correct event_id
@@ -100,6 +246,7 @@ index 80ea382..97248c2 100644
 +            localEvent.replyEventId,
 +            localEvent.isRedaction() ? localEvent.event.redacts : undefined,
 +        ]);
++        let pendingThreadRoot: MatrixEvent | undefined;
 +        for (const targetId of targetIds) {
 +            if (!targetId || !localEventIdPrefix || !targetId.startsWith(localEventIdPrefix)) continue;
 +
@@ -117,6 +264,11 @@ index 80ea382..97248c2 100644
 +                    return eventTxnId === txnId;
 +                });
 +            }
++            const replacesThreadRoot =
++                localEvent.isRelation(THREAD_RELATION_TYPE.name) && localEvent.relationEventId === targetId;
++            if (replacesThreadRoot) {
++                pendingThreadRoot = target;
++            }
 +            const resolvedTargetId = target?.getId();
 +            if (resolvedTargetId && resolvedTargetId !== targetId) {
 +                localEvent.updateAssociatedId(resolvedTargetId, targetId);
@@ -125,8 +277,31 @@ index 80ea382..97248c2 100644
              target?.once(MatrixEventEvent.LocalEventIdReplaced, () => {
 -                localEvent.updateAssociatedId(target.getId()!);
 +                localEvent.updateAssociatedId(target.getId()!, targetId);
++                if (replacesThreadRoot) {
++                    room?.updatePendingEventRelationTarget(localEvent, targetId, target);
++                }
              });
          }
+
+@@ -2873,6 +2907,18 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+         if (!delayOpts) {
+             // add this event immediately to the local store as 'sending'.
+             room?.addPendingEvent(localEvent, txnId);
++            if (
++                pendingThreadRoot &&
++                localEvent.isRelation(THREAD_RELATION_TYPE.name) &&
++                localEvent.threadRootId === pendingThreadRoot.getId()
++            ) {
++                const threadRootId = pendingThreadRoot.getId()!;
++                const pendingThread =
++                    room?.getThread(threadRootId) ?? room?.createThread(threadRootId, pendingThreadRoot, [], false);
++                if (pendingThread && !pendingThread.findEventById(localEvent.getId()!)) {
++                    pendingThread.addEvent(localEvent, false);
++                }
++            }
+
+             // addPendingEvent can change the state to NOT_SENT if it believes
+             // that there's other events that have failed. We won't bother to
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
 index 19a2f43..e3a0461 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
@@ -156,3 +331,111 @@ index 19a2f43..e3a0461 100644
          const relation = this.getRelation();
          if (relation) {
              relation.event_id = eventId;
+diff --git a/node_modules/matrix-js-sdk/src/models/room.ts b/node_modules/matrix-js-sdk/src/models/room.ts
+index f288f9d..0544cdf 100644
+--- a/node_modules/matrix-js-sdk/src/models/room.ts
++++ b/node_modules/matrix-js-sdk/src/models/room.ts
+@@ -2577,6 +2577,66 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+         return thread;
+     }
+
++    /**
++     * Reaggregate a pending relation after its local thread-root id is replaced
++     * and move any provisional thread events to the canonical thread.
++     *
++     * @internal
++     */
++    public updatePendingEventRelationTarget(
++        event: MatrixEvent,
++        oldTargetId: string,
++        targetEvent: MatrixEvent,
++    ): void {
++        const relation = event.getRelation();
++        const targetEventId = targetEvent.getId();
++        if (!relation?.rel_type || !targetEventId || relation.event_id !== targetEventId) return;
++
++        const previousRelations = this.relations.getChildEventsForEvent(
++            oldTargetId,
++            relation.rel_type,
++            event.getType(),
++        );
++        void previousRelations?.removeEvent(event);
++        this.relations.aggregateChildEvent(event);
++
++        if (!event.isRelation(THREAD_RELATION_TYPE.name) || oldTargetId === targetEventId) return;
++
++        const provisionalThread = this.getThread(oldTargetId);
++        const threadEvents = [...(provisionalThread?.events ?? [])];
++        if (!threadEvents.includes(event)) {
++            threadEvents.push(event);
++        }
++        if (provisionalThread) {
++            this.threads.delete(oldTargetId);
++            this.reEmitter.stopReEmitting(provisionalThread, [
++                ThreadEvent.Delete,
++                ThreadEvent.Update,
++                ThreadEvent.NewReply,
++                RoomEvent.Timeline,
++                RoomEvent.TimelineReset,
++            ]);
++            provisionalThread.dispose();
++            for (const timelineSet of this.threadsTimelineSets) {
++                timelineSet.removeEvent(oldTargetId);
++            }
++        }
++
++        const canonicalThread =
++            this.getThread(targetEventId) ?? this.createThread(targetEventId, targetEvent, [], false);
++        for (const threadEvent of threadEvents) {
++            if (
++                !canonicalThread.initialEventsFetched &&
++                !canonicalThread.replayEvents?.includes(threadEvent)
++            ) {
++                canonicalThread.replayEvents?.push(threadEvent);
++            }
++            if (!canonicalThread.findEventById(threadEvent.getId()!)) {
++                canonicalThread.addEvent(threadEvent, false);
++            }
++        }
++    }
++
+     /**
+      * Applies an event as a redaction of another event, regardless of whether the redacting
+      * event is actually a redaction.
+diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
+index 871875d..4d3fecd 100644
+--- a/node_modules/matrix-js-sdk/src/models/thread.ts
++++ b/node_modules/matrix-js-sdk/src/models/thread.ts
+@@ -185,6 +185,20 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+         this.setEventMetadata(this.rootEvent);
+     }
+
++    /**
++     * Detach this thread from its room and timeline sources.
++     *
++     * @internal
++     */
++    public dispose(): void {
++        this.reEmitter.stopReEmitting(this.timelineSet, [RoomEvent.Timeline, RoomEvent.TimelineReset]);
++        this.room.off(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++        this.room.off(RoomEvent.Redaction, this.onRedaction);
++        this.room.off(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
++        this.room.off(RoomEvent.TimelineReset, this.onTimelineReset);
++        this.timelineSet.off(RoomEvent.Timeline, this.onTimelineEvent);
++    }
++
+     private onTimelineReset = async (): Promise<void> => {
+         // We hit a gappy sync, ask the server for an update
+         await this.processRootEventPromise;
+@@ -600,6 +614,11 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+     private async updateThreadMetadata(): Promise<void> {
+         this.updatePendingReplyCount();
+
++        if (this.id.startsWith(`~${this.roomId}:`)) {
++            this.emit(ThreadEvent.Update, this);
++            return;
++        }
++
+         if (!this.processRootEventPromise) {
+             // We only want to do this once otherwise we end up rolling back to the last unsigned summary we have for the thread
+             this.processRootEventPromise = this.updateThreadFromRootEvent();

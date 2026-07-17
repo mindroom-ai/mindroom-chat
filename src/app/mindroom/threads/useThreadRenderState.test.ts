@@ -3,14 +3,19 @@ import { EventEmitter } from 'events';
 import {
   EventStatus,
   EventTimelineSet,
+  FeatureSupport,
   MatrixEvent,
+  MsgType,
+  PendingEventOrdering,
+  RelationType,
   Room,
   RoomEvent,
   Thread,
   ThreadEvent,
+  createClient,
 } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
 
 const makeMessageEvent = (
@@ -158,6 +163,14 @@ const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): MockThread =
     events,
   }) as MockThread;
 
+const makeDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+};
+
 const renderHookHarness = (
   props: Omit<HarnessProps, 'onRender'>
 ): {
@@ -195,7 +208,180 @@ const renderHookHarness = (
   };
 };
 
+afterEach(() => {
+  Thread.hasServerSideSupport = FeatureSupport.None;
+});
+
 describe('useThreadRenderState', () => {
+  it('keeps an SDK pending reply visible across local-root canonicalization', async () => {
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    const roomId = '!sdk-room:example.org';
+    const userId = '@alice:example.org';
+    const client = createClient({
+      accessToken: 'token',
+      baseUrl: 'https://matrix.example.org',
+      timelineSupport: true,
+      userId,
+    });
+    vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    const canonicalRootFetch = makeDeferred<MatrixEvent['event']>();
+    const canonicalThreadPagination = makeDeferred<boolean>();
+    const fetchRoomEvent = vi
+      .spyOn(client, 'fetchRoomEvent')
+      .mockReturnValue(canonicalRootFetch.promise);
+    const paginateEventTimeline = vi
+      .spyOn(client, 'paginateEventTimeline')
+      .mockReturnValue(canonicalThreadPagination.promise);
+    const room = new Room(roomId, client, userId, {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+      timelineSupport: true,
+    });
+    client.store.storeRoom(room);
+
+    const requests: Array<{
+      event: MatrixEvent;
+      resolve: (response: { event_id: string }) => void;
+    }> = [];
+    (
+      client as unknown as {
+        sendEventHttpRequest: (event: MatrixEvent) => Promise<{ event_id: string }>;
+      }
+    ).sendEventHttpRequest = (event) =>
+      new Promise((resolve) => {
+        requests.push({ event, resolve });
+      });
+
+    const rootTxnId = 'visible-root';
+    const rootLocalId = `~${roomId}:${rootTxnId}`;
+    const replyTxnId = 'visible-reply';
+    const replyLocalId = `~${roomId}:${replyTxnId}`;
+    const rootSend = client.sendMessage(roomId, { body: 'root', msgtype: MsgType.Text }, rootTxnId);
+    const replySend = client.sendMessage(
+      roomId,
+      {
+        body: 'reply',
+        msgtype: MsgType.Text,
+        'm.relates_to': {
+          event_id: rootLocalId,
+          rel_type: RelationType.Thread,
+          'm.in_reply_to': { event_id: rootLocalId },
+        },
+      },
+      replyTxnId
+    );
+
+    const localThread = room.getThread(rootLocalId);
+    expect(localThread).not.toBeNull();
+    const { getSnapshot, update, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet: room.getUnfilteredTimelineSet(),
+      threadTimelineSet: localThread?.getUnfilteredTimelineSet(),
+      threadId: rootLocalId,
+      thread: localThread,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      rootLocalId,
+      replyLocalId,
+    ]);
+
+    await vi.waitFor(() => {
+      expect(requests).toHaveLength(1);
+    });
+    requests[0].resolve({ event_id: '$visible-root' });
+    await rootSend;
+    await vi.waitFor(() => {
+      expect(room.getThread('$visible-root')).not.toBeNull();
+      expect(requests).toHaveLength(2);
+    });
+
+    const canonicalThread = room.getThread('$visible-root');
+    update({
+      room,
+      roomTimelineSet: room.getUnfilteredTimelineSet(),
+      threadTimelineSet: canonicalThread?.getUnfilteredTimelineSet(),
+      threadId: '$visible-root',
+      thread: canonicalThread,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$visible-root',
+      replyLocalId,
+    ]);
+    expect(room.relations.getAllChildEventsForEvent('$visible-root')).toContain(
+      room.getEventForTxnId(replyTxnId)
+    );
+
+    requests[1].resolve({ event_id: '$visible-reply' });
+    await replySend;
+    update({
+      room,
+      roomTimelineSet: room.getUnfilteredTimelineSet(),
+      threadTimelineSet: canonicalThread?.getUnfilteredTimelineSet(),
+      threadId: '$visible-root',
+      thread: canonicalThread,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(fetchRoomEvent).toHaveBeenCalledWith(roomId, '$visible-root');
+    expect(paginateEventTimeline).not.toHaveBeenCalled();
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$visible-root',
+      '$visible-reply',
+    ]);
+
+    canonicalRootFetch.resolve({
+      content: { body: 'root', msgtype: MsgType.Text },
+      event_id: '$visible-root',
+      origin_server_ts: 1,
+      room_id: roomId,
+      sender: userId,
+      type: 'm.room.message',
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 1,
+            current_user_participated: true,
+            latest_event: {
+              content: { body: 'reply', msgtype: MsgType.Text },
+              event_id: '$visible-reply',
+              origin_server_ts: 2,
+              room_id: roomId,
+              sender: userId,
+              type: 'm.room.message',
+            },
+          },
+        },
+      },
+    });
+    await vi.waitFor(() => {
+      expect(paginateEventTimeline).toHaveBeenCalled();
+    });
+    canonicalThreadPagination.resolve(false);
+    await vi.waitFor(() => {
+      expect(canonicalThread?.initialEventsFetched).toBe(true);
+    });
+    update({
+      room,
+      roomTimelineSet: room.getUnfilteredTimelineSet(),
+      threadTimelineSet: canonicalThread?.getUnfilteredTimelineSet(),
+      threadId: '$visible-root',
+      thread: canonicalThread,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$visible-root',
+      '$visible-reply',
+    ]);
+    renderer.unmount();
+  });
+
   it('renders a pending local root from the room without waiting for cache hydration', () => {
     const localRoot = makeMessageEvent('~!room:example.org:txn-local-root', 1);
     localRoot.setTxnId('txn-local-root');

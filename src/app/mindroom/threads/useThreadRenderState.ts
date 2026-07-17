@@ -56,12 +56,14 @@ const getThreadRenderStateInitialMode = ({
   threadId,
   initialCacheHydrated,
   fallbackEventCount,
+  hasLocalEchoSeed,
 }: {
   threadId?: string;
   initialCacheHydrated: boolean;
   fallbackEventCount: number;
+  hasLocalEchoSeed: boolean;
 }): ThreadInitialRenderMode =>
-  isLocalEchoEventId(threadId)
+  isLocalEchoEventId(threadId) || hasLocalEchoSeed
     ? 'live'
     : getThreadInitialRenderMode({
         threadId,
@@ -90,6 +92,14 @@ const buildThreadEvents = ({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
     fallbackEventCount: fallbackEvents.length,
+    hasLocalEchoSeed:
+      thread?.events.some(
+        (mEvent) =>
+          mEvent.status !== null ||
+          isLocalEchoEventId(mEvent.getId()) ||
+          mEvent.getTxnId() !== undefined
+      ) ||
+      (!thread?.initialEventsFetched && (thread?.replayEvents?.length ?? 0) > 0),
   });
 
   const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
@@ -106,6 +116,7 @@ const buildThreadEvents = ({
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
       thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+      thread?.replayEvents?.forEach((mEvent) => addThreadEvent(mEvent, false));
     }
   }
 
@@ -326,6 +337,14 @@ export const useThreadRenderState = ({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
     fallbackEventCount: fallbackEvents.length,
+    hasLocalEchoSeed:
+      thread?.events.some(
+        (mEvent) =>
+          mEvent.status !== null ||
+          isLocalEchoEventId(mEvent.getId()) ||
+          mEvent.getTxnId() !== undefined
+      ) ||
+      (!thread?.initialEventsFetched && (thread?.replayEvents?.length ?? 0) > 0),
   });
 
   useEffect(() => {

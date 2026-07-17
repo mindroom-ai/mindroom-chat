@@ -1,14 +1,18 @@
 import {
   EventStatus,
   EventType,
+  FeatureSupport,
   MatrixEvent,
   MsgType,
   PendingEventOrdering,
   RelationType,
   Room,
+  RoomEvent,
+  Thread,
+  ThreadEvent,
   createClient,
 } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const ROOM_ID = '!room:example.org';
 const USER_ID = '@user:example.org';
@@ -42,6 +46,7 @@ const makeHarness = (ordering = PendingEventOrdering.Chronological) => {
     pendingEventOrdering: ordering,
     timelineSupport: true,
   });
+  vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
   client.store.storeRoom(room);
 
   const requests: PendingRequest[] = [];
@@ -109,9 +114,21 @@ const finishRequest = async (
   await sendPromise;
 };
 
+afterEach(() => {
+  Thread.hasServerSideSupport = FeatureSupport.None;
+});
+
 describe('matrix-js-sdk local-echo association patch', () => {
   it('queues a chronological reply without calling getPendingEvents and rewrites both targets', async () => {
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
     const { client, requests, room } = makeHarness();
+    const canonicalThreadFetch = makeDeferred<MatrixEvent['event']>();
+    const fetchRoomEvent = vi
+      .spyOn(client, 'fetchRoomEvent')
+      .mockReturnValue(canonicalThreadFetch.promise);
+    const paginateEventTimeline = vi
+      .spyOn(client, 'paginateEventTimeline')
+      .mockResolvedValue(false);
     const getPendingEvents = vi.spyOn(room, 'getPendingEvents');
     const rootTxnId = 'root';
     const rootLocalId = `~${ROOM_ID}:${rootTxnId}`;
@@ -126,12 +143,30 @@ describe('matrix-js-sdk local-echo association patch', () => {
     const pendingReply = room.getEventForTxnId('reply');
     expect(pendingReply?.getId()).toBe(`~${ROOM_ID}:reply`);
     expect(room.relations.getAllChildEventsForEvent(rootLocalId)).toContain(pendingReply);
+    expect(room.eventShouldLiveIn(pendingReply!)).toEqual({
+      shouldLiveInRoom: false,
+      shouldLiveInThread: true,
+      threadId: rootLocalId,
+    });
+    const provisionalThread = room.getThread(rootLocalId);
+    expect(provisionalThread?.events).toContain(pendingReply);
+    expect(fetchRoomEvent).not.toHaveBeenCalled();
+    expect(paginateEventTimeline).not.toHaveBeenCalled();
     expect(getPendingEvents).not.toHaveBeenCalled();
 
     await waitForRequestCount(requests, 1);
     await finishRequest(requests, 0, '$root', rootSend);
     await waitForRequestCount(requests, 2);
 
+    expect(room.relations.getAllChildEventsForEvent(rootLocalId)).not.toContain(pendingReply);
+    expect(room.relations.getAllChildEventsForEvent('$root')).toContain(pendingReply);
+    expect(room.getThread(rootLocalId)).toBeNull();
+    expect(room.getThread('$root')?.events).toContain(pendingReply);
+    expect(room.getThread('$root')?.replayEvents).toContain(pendingReply);
+    expect(provisionalThread?.listenerCount(ThreadEvent.Update)).toBe(0);
+    expect(provisionalThread?.timelineSet.listenerCount(RoomEvent.Timeline)).toBe(0);
+    expect(fetchRoomEvent).toHaveBeenCalledWith(ROOM_ID, '$root');
+    expect(paginateEventTimeline).not.toHaveBeenCalled();
     expect(requests[1].content['m.relates_to']).toEqual({
       event_id: '$root',
       rel_type: RelationType.Thread,
