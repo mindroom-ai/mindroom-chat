@@ -152,7 +152,8 @@
 - Next step: diagnose the SDK queued-dependent-send stall only after an explicit implementation mandate; do not merge the current head based on automated review alone.
 - Documentation hygiene: the ticket plan and implementation report moved under `docs/superpowers`; the review archive remains untouched, and the requested failed-gate record `LIVE-TEST.md` is the only new root-level process artifact.
 - Round 7 (2026-07-17): rebased the 33 CINNY-121 commits onto local `dev` at `97b6ee36`, preserving the CINNY-123, CINNY-120, CINNY-122, and CINNY-121 runbook sections through the only conflict.
-- Round 7 status: the rebased pre-fix tip is `c88f4b33`; the mandatory pre-fix typecheck, full Vitest, production build, and full lint gates are next, before reproducing or changing the delivery defect.
+- Round 7 pre-fix gates: typecheck passes; the complete Vitest suite passes serially with 434 files and 3,336 tests after a parallel run exposed three isolated RoomTimeline files as suite-resource/order flakes; the production/PWA build plus Element Call verification passes; and full ESLint reports zero errors and 17 established warnings.
+- Round 7 status: the rebased pre-fix checkpoint is `16b19049`; reproduce scenario 2 with a root hold of at least 15 seconds and preserve its failure evidence before changing the delivery path.
 
 ### Guarded App Store review release (2026-07-15)
 
