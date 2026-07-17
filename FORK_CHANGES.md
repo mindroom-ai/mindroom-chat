@@ -4,7 +4,7 @@
 
 ### CINNY-123 evidence-named blob URL cleanup (2026-07-17)
 
-- Status: the two Phase 0 evidence-named cleanup defects and both reviewed async-publication ownership gaps are fixed with full local validation and independent re-review complete.
+- Status: the two Phase 0 evidence-named cleanup defects, both reviewed generic async-publication ownership gaps, and the review-confirmed audio publication gap are fixed with full local validation and independent re-review complete.
 - The original random iOS application termination and desktop Chrome tab crash remain unexplained, and neither occurred during the local investigation.
 - A 75.05-minute production Chromium workload completed 12 active cycles without a crash; its retained-JavaScript-heap result remained inconclusive at a final delta of 2.560 MiB, a robust slope of 0.215 MiB per cycle, and no retained-size dominator analysis.
 - A separate 60.03-minute idle workload refuted retained-JavaScript-heap growth on that measured path with a final heap below baseline and a robust slope of 0.293 MiB per hour.
@@ -16,17 +16,19 @@
 - `useAsyncCallback` accepts an optional synchronous result disposer and retains each disposable success until an effect confirms that the exact success state committed.
 - A replacement or unmount disposes a still-pending success exactly once when React batches away its state update, while a committed success transfers to the existing state cleanup owner.
 - Request currency and component liveness are checked in the scheduled success and error publication turns, and a superseded request retains the existing replacement rejection contract.
-- Only encrypted image, encrypted thumbnail, video, and PDF blob-producing paths pass the guarded blob URL revoker.
+- Encrypted image, encrypted thumbnail, video, and PDF blob-producing paths pass the guarded blob URL revoker.
 - Successfully published blob URLs remain owned by the existing state cleanup hook, and HTTP media URLs remain untouched.
-- Audio media cleanup imports the same canonical guarded revoker instead of maintaining a duplicate implementation.
-- Behavioral regression coverage leaves zero outstanding URLs after upload success, upload metadata failure, image-pack failure, delayed resolution after unmount, pre-publication unmount or replacement, and pre-commit parent removal or request replacement.
+- Audio media cleanup imports the same canonical guarded revoker instead of maintaining a duplicate implementation, and its identity-aware source hook now retains each new URL until the success state commits.
+- Behavioral regression coverage leaves zero outstanding URLs after upload success, upload metadata failure, image-pack failure, delayed resolution after unmount, pre-publication unmount or replacement, and pre-commit parent removal or request replacement across generic and audio paths.
 - The pre-commit regressions use the production `createRoot` renderer in jsdom and require exactly one revocation when concurrent batching drops the success render.
 - The source-inspection ownership test is removed, and a real encrypted-thumbnail integration test now exercises late-result cleanup through the production component and hooks.
-- Validation passes 15 CINNY-123 regression tests across six files, the full Vitest suite with 431 files and 3,250 tests, typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
+- Validation passes 18 CINNY-123 regression tests across seven files, the full Vitest suite with 432 files and 3,253 tests, typecheck, the production/PWA build, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - The first independent review found the queued-publication ownership gap, duplicate audio helper, and source-inspection test addressed here.
 - The second independent review demonstrated that concurrent React can batch away a queued success before commit, which moved the ownership boundary from state-update scheduling to confirmed commit.
-- Independent re-review found no remaining ownership gap, double revocation, stale error publication, behavioral coverage, documentation, scope, or half-refactor issue.
+- Independent pre-PR re-review found no remaining generic ownership gap, double revocation, stale error publication, behavioral coverage, documentation, scope, or half-refactor issue.
+- PR review identified the equivalent audio pre-commit publication race; a production-renderer regression reproduced one outstanding URL before the fix and confirms unmount, replacement, and normal commit ownership after remediation.
+- Independent remediation re-review confirmed exact-once pending disposal, committed cleanup transfer, media-identity handling, regression coverage, and Runbook accuracy with no remaining findings.
 - No crash hook, cache, index, listener, Matrix SDK, or Capacitor change is included.
 
 ### Guarded App Store review release (2026-07-15)
