@@ -11,7 +11,7 @@ export type MessageRelation = {
 
 export const hasLocalEchoMessageRelationTarget = (relation: MessageRelation | undefined): boolean =>
   relation?.event_id?.startsWith('~') === true ||
-  relation?.['m.in_reply_to']?.event_id.startsWith('~') === true;
+  relation?.['m.in_reply_to']?.event_id?.startsWith('~') === true;
 
 export const getMessageRelation = (
   replyEventId?: string,
