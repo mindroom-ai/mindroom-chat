@@ -85,4 +85,23 @@ describe('CompactThreadCard', () => {
 
     renderer.unmount();
   });
+
+  it('renders terminal failure instead of pending state beside compact preview text', () => {
+    const renderer = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({ hasPendingSend: true, hasFailedSend: true })}
+        onClick={vi.fn()}
+      />
+    );
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Me: Pending reply body');
+    expect(rendered).toContain('Message failed to send');
+    expect(rendered).toContain('Not sent');
+    expect(rendered).toContain('data-failed-send-icon');
+    expect(rendered).not.toContain('data-pending-send-icon');
+
+    renderer.unmount();
+  });
 });

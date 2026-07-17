@@ -1694,6 +1694,65 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('leaves an auto-published failed root timeline-owned when rejection wins the route render', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Published failed root';
+    editorOutputState.customHtml = 'Published failed root';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith(getLocalEvent()?.getId());
+
+    await act(async () => {
+      send.reject(new Error('terminal failure before route render'));
+      await Promise.resolve();
+    });
+
+    expect(getLocalEvent()?.status).toBe(EventStatus.NOT_SENT);
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('leaves an auto-published failed root timeline-owned after its local route renders', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
+    const onRoomMessageSent = vi.fn();
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+
+    editorOutputState.plainText = 'Rendered failed root';
+    editorOutputState.customHtml = 'Rendered failed root';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    const localEventId = getLocalEvent()?.getId();
+    expect(localEventId).toBeTruthy();
+    await updateRoomInput(renderer, store, {
+      threadId: localEventId,
+      onRoomMessageSent,
+    });
+    await act(async () => {
+      send.reject(new Error('terminal failure after route render'));
+      await Promise.resolve();
+    });
+
+    expect(getLocalEvent()?.status).toBe(EventStatus.NOT_SENT);
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
   it('leaves a failed room root timeline-owned after a newer edit', async () => {
     const send = createDeferred<{ event_id: string }>();
     mockDeferredSendWithLocalEcho(send, true);

@@ -12,3 +12,9 @@ export const isPendingLocalEchoStatus = (status: unknown): boolean =>
 
 export const isPendingLocalEchoEvent = (event?: Pick<MatrixEvent, 'status'> | null): boolean =>
   isPendingLocalEchoStatus(event?.status);
+
+export const isFailedLocalEchoStatus = (status: unknown): boolean =>
+  status === EventStatus.NOT_SENT;
+
+export const isFailedLocalEchoEvent = (event?: Pick<MatrixEvent, 'status'> | null): boolean =>
+  isFailedLocalEchoStatus(event?.status);

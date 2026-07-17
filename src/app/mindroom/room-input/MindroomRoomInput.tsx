@@ -1132,9 +1132,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             replyDraft: activeReplyDraft,
             threadId,
           });
-          if (sentEventIdToNotify && !roomNotificationDelivered) {
+          if (sentEventIdToNotify && !roomNotificationDelivered && onRoomMessageSent) {
             roomNotificationDelivered = true;
-            onRoomMessageSent?.(sentEventIdToNotify);
+            onRoomMessageSent(sentEventIdToNotify);
           }
         };
         const ownsSubmittedComposer = () =>
@@ -1160,6 +1160,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             try {
               if (
                 hasVerifiedLocalEcho &&
+                !roomNotificationDelivered &&
                 !relation &&
                 !activeReplyDraft &&
                 !threadId &&

@@ -374,4 +374,23 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     expect(model.previewText).toBe('Me: Pending reply body');
     expect((model as { hasPendingSend?: boolean }).hasPendingSend).toBe(true);
   });
+
+  it('marks compact models failed while a zero-reply root local echo is not sent', () => {
+    const rootEvent = makeEvent({
+      eventId: '~root',
+      sender: '@me:server',
+      body: 'Failed root body',
+      status: EventStatus.NOT_SENT,
+    });
+    const room = makeRoom({ rootEvent });
+
+    const model = buildModel(room, {
+      threadRootId: '~root',
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: 0,
+    });
+
+    expect(model.hasFailedSend).toBe(true);
+    expect(model.hasPendingSend).toBe(false);
+  });
 });

@@ -27,6 +27,7 @@ export type ThreadStatusSnapshot = {
   isUnread: boolean;
   isStreaming: boolean;
   hasPendingSend?: boolean;
+  hasFailedSend?: boolean;
   scheduledTaskCount: number;
   nextScheduledTs?: number;
   lastActivityTs?: number;
@@ -121,6 +122,7 @@ export type CompactThreadCardViewModel = {
   isUnread: boolean;
   isStreaming: boolean;
   hasPendingSend?: boolean;
+  hasFailedSend?: boolean;
   scheduledDisplayText?: string;
   scheduledTaskLabel?: string;
   lastActivityTs?: number;
