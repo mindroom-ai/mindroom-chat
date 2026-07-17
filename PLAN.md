@@ -113,16 +113,16 @@ If the transaction lookup unexpectedly did not produce the local echo, retain th
 If `sendMessage` throws before returning or the exceptional no-local-echo promise rejects, leave the composer and reply context untouched.
 
 For a normal terminal rejection, inspect the captured local event.
-For a standalone room-level root only, if it still exists with `EventStatus.NOT_SENT` and this input remains mounted for the same room, call the existing `mx.cancelPendingEvent(localEvent)` to remove the failed room-timeline echo, then call the existing `restoreEditorContent(editor, snapshot)` so content typed after the send remains after the restored content.
-Use the existing `mountedRef` and `roomIdRef` guards, and leave the `NOT_SENT` echo as the owner when the originating input no longer owns that room instead of cancelling it and mutating a stale editor.
+For a standalone room-level root only, if it still exists with `EventStatus.NOT_SENT`, has no SDK-tracked children, and this input still owns the exact submitted room, thread, reply draft, and editor generation, call the existing `mx.cancelPendingEvent(localEvent)` to remove the failed room-timeline echo, then call the existing `restoreEditorContent(editor, snapshot)`.
+Track editor changes with one component-local generation ref, adopt Slate's reset-driven microtask generation after an immediate clear, and leave the `NOT_SENT` echo as the owner after any later content or context change.
 For a thread reply or explicit reply, leave the `NOT_SENT` event as the sole owner and do not restore it into the composer, because the SDK cancellation path does not reliably remove supplemental or thread-timeline copies in this fork.
 Do not cancel `SENDING` events, because matrix-js-sdk only permits cancellation from its cancellable pending statuses.
-Each send handles only its own event and snapshot, with no cross-event dependency policy.
+Each send handles only its own event and snapshot, and each later direct send advances the generation so an older concurrent failure remains timeline-owned without cross-event dependency state.
 
 ### Terminal-failure UX choice
 
 While a request is in flight, the SDK local echo is the sole owner of the submitted content.
-On terminal standalone-root failure, cancelling the `NOT_SENT` echo before restoring its captured editor fragment transfers ownership back to the composer, where retry uses the existing exit action followed by Enter if the local thread route is still open.
+On terminal standalone-root failure, cancelling the `NOT_SENT` echo before restoring its captured editor fragment transfers ownership back only when that exact composer context remains unchanged; otherwise the event stays timeline-owned.
 This intentionally chooses the smaller existing-primitives option from the critique disagreement; visible retry or cancel controls and dependency policy belong in a follow-up ticket.
 
 ### Change 3 — Remove the composer-owned pending indicator
@@ -159,22 +159,21 @@ The existing confirmed-thread behavior remains unchanged.
 ### Send failure
 
 A synchronous pre-local-echo failure leaves the composer and reply draft untouched.
-A terminal standalone-root failure after local insertion cancels only that send's `NOT_SENT` event and restores only that send's captured fragment.
-If the user typed newer content while the request was pending, `restoreEditorContent` preserves it after the restored fragment.
-If a root and queued replies fail terminally together, restore the standalone root once and leave each reply in its existing `NOT_SENT` event so no reply fragment is duplicated into the composer.
-If several standalone roots fail terminally together, each handler restores only its own fragment in SDK rejection-callback order, without attempting to reconstruct a cross-send draft or dependency graph.
-This minimal fallback guarantees that each standalone fragment is restored once but does not promise to preserve separate composer rows or natural ordering across that rare batch failure.
+A terminal standalone-root failure after local insertion cancels only that send's `NOT_SENT` event and restores only that send's captured fragment when the exact submitted room, thread, reply draft, and editor generation remain owned and the event has no SDK-tracked children.
+If the user typed newer content or changed composer context while the request was pending, leave the failed event timeline-owned and do not inject its fragment into the composer.
+If a root and queued replies fail terminally together, leave the root and each reply in their existing `NOT_SENT` events so cancellation cannot orphan the child.
+If several standalone roots fail terminally together, only the newest unchanged root may transfer back, while older roots remain timeline-owned under either FIFO or reverse settlement.
 For a thread reply or explicit reply failure, retain the original event and relation context in the timeline and do not overwrite a newer composer or reply draft.
-Exact multi-root failure ordering and visible message-owned retry or cancel controls require product policy and belong in the failure-UX follow-up.
-If the input has unmounted or changed rooms, do not cancel the event or mutate the stale editor, so the SDK event remains the single owner.
-If the failed root was open, the view may temporarily be an empty local thread after cancellation, and the existing exit action remains available.
+Visible message-owned retry or cancel controls require product policy and belong in the failure-UX follow-up.
+If the input has unmounted or changed rooms, threads, reply targets, or editor generation, do not cancel the event or mutate the stale editor, so the SDK event remains the single owner.
+If the failed root is open as the current thread, its route change means the event remains timeline-owned.
 Automatic route exit and visible retry or cancel actions are deliberately not part of this fix.
 
 ### Offline send
 
 The SDK remains responsible for retry timing and pending statuses while the device is offline.
 The message owns the pending clock for as long as the SDK considers it pending.
-Only the terminal standalone-root rejection path returns text to the composer.
+Only the terminal standalone-root rejection path with unchanged full composer ownership returns text to the composer.
 
 ### Room-level send versus thread reply
 
@@ -188,6 +187,7 @@ An explicit reply whose reply target differs from its local thread root retains 
 The same synchronous re-entry guard still prevents duplicate submission from repeated Enter events in one invocation.
 The guard is released after verified local dispatch, so a later message can obtain a distinct transaction id and local echo while the earlier request is unresolved.
 Each promise handler closes over its own event and editor snapshot.
+Each immediate clear advances the editor generation, so a later send invalidates an older handler's right to transfer content back.
 
 ### Local-to-confirmed transition
 
@@ -214,11 +214,12 @@ Extend `src/app/mindroom/room-input/__tests__/RoomInput.test.ts` with focused de
 - Verify that the exceptional missing-local-echo path keeps the composer and guard until fulfillment, then clears and emits the confirmed id exactly once.
 - Verify that a synchronous throw and a missing-local-echo rejection leave the composer intact and emit no callback.
 - Verify that terminal `NOT_SENT` rejection for a standalone room-level root calls `cancelPendingEvent` before `restoreEditorContent`, removes the local room-timeline ghost, and restores the captured fragment once.
-- Verify that content typed after the immediate clear remains after the restored fragment.
-- Verify that a pending root and pending reply rejected together restore the root once, leave the reply event owned by the timeline, and never duplicate the reply fragment into the composer.
-- Verify that two standalone roots rejected by the scheduler each cancel and restore exactly once without dropping or duplicating either fragment, while pinning the documented callback-order behavior rather than adding cross-send ordering state.
+- Verify that Slate's reset-driven microtask still permits an otherwise untouched standalone root to restore.
+- Verify that newer content or a changed reply context invalidates transfer and leaves the failed root timeline-owned.
+- Verify that a pending root and pending reply rejected together remain owned by the timeline and never duplicate either fragment into the composer.
+- Verify that two standalone roots rejected in FIFO and reverse order leave the older root timeline-owned while only the newest unchanged root may cancel and restore.
 - Verify that a failed thread reply and failed explicit reply call neither `cancelPendingEvent` nor `restoreEditorContent`, preserving their original event relation while leaving a newer composer and reply draft untouched.
-- Verify that a rejection after unmount or room ownership change neither cancels the only failed echo nor mutates the stale editor.
+- Verify that a rejection after unmount or room, thread, reply, or editor-generation ownership change neither cancels the only failed echo nor mutates the stale editor.
 - Verify that two sequential sends made before the first settles receive distinct transaction ids, create distinct local echoes, and retain independent handlers and snapshots.
 - Verify that rapid duplicate Enter handling still produces one send.
 - Verify that a thread reply clears immediately but never invokes the room-level navigation callback.
@@ -286,11 +287,12 @@ Review the final patch to confirm there are no source changes outside the files 
 11. Repeat the exit check through the explicit close or back control in iOS standalone mode and verify it returns to the originating overview both before and after acknowledgement.
 12. While the local route is open, verify no `fetchRelations` request or read receipt is sent with a `~` id.
 13. Repeat the root plus pending follow-up flow in an encrypted room and verify the outgoing encrypted send path never transmits a local relation target.
-14. Simulate a terminal offline standalone-root failure after the SDK retries and verify the failed local echo disappears, the original structured content returns to the composer once, and any newer typed content remains after it.
-15. Verify the failed-root route has a working exit and does not show a ghost message or composer clock.
-16. Restore the network, exit the empty local-root route, press Enter to retry the restored text from the room overview, and verify it creates one new transaction and local echo through the normal path.
-17. Regression-check a reply in an already confirmed thread, an explicit reply, a text-plus-attachment send, voice, sticker, command execution, compact mode, and classic mode.
-18. Eyeball the transient thread header for a local root and confirm it upgrades cleanly when the confirmed event arrives.
+14. Simulate a terminal offline standalone-root failure after the SDK retries while the overview composer remains unchanged and verify the failed local echo disappears and the original structured content returns once.
+15. Repeat after typing newer text, selecting an unrelated reply, entering another thread, and changing rooms, and verify the failed root remains timeline-owned without composer mutation or stale navigation.
+16. Send two standalone roots before either settles, reject them in FIFO and reverse order, and verify only the newest unchanged root may return while the older root remains timeline-owned.
+17. Restore the network, press Enter to retry restored text from the room overview, and verify it creates one new transaction and local echo through the normal path.
+18. Regression-check a reply in an already confirmed thread, an explicit reply, a text-plus-attachment send, voice, sticker, command execution, compact mode, and classic mode.
+19. Eyeball the transient thread header for a local root and confirm it upgrades cleanly when the confirmed event arrives.
 
 ## Intended implementation files
 
@@ -315,7 +317,7 @@ Existing navigation and pending-render tests may need expectation-only updates i
 - A new app-owned send queue, pending-message store, navigation store, event ownership store, or orchestration abstraction.
 - An inline retry or cancel row, cross-message dependency controls, new failure copy, locale changes, or a dependency matrix.
 - Automatic route exit after terminal root failure.
-- Preserving separate composer rows or natural ordering when several standalone roots fail terminally together.
+- Returning older concurrent failed roots to separate composer rows instead of leaving them timeline-owned.
 - Persisting chronological pending events across reloads.
 - Persisting `~` ids in recent threads or changing the pre-existing recent-card behavior for manually opened local ids.
 - General upstream SDK refactoring beyond the narrow pending-target lookup and association rewrite patch.

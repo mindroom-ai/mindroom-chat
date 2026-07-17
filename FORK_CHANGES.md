@@ -116,7 +116,7 @@
 - Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
 ### CINNY-121 — Optimistic Simple Mode text sends (2026-07-16)
 
-- Status: all five planned changes, Round 1 review remediation, focused regression coverage, full local validation, patch-package verification, and independent re-review are complete on `cinny-121`.
+- Status: all five planned changes, Round 1 and Round 2 review remediation, focused regression coverage, full local validation, patch-package verification, and independent re-review are complete on `cinny-121`.
 - Symptom: a slow room-level text send left the submitted content and pending clock in the composer, delayed the local thread view, and could later show both the new thread and the stale composer state.
 - SDK fix: the existing `matrix-js-sdk@41.7.0` patch-package workflow now resolves chronological, detached, acknowledged, and post-sync-echo local relation targets through transaction metadata, rewrites thread, reply, and redaction associations independently, and preserves the one-argument association API.
 - Composer fix: the direct text-only submit path now allocates a transaction id, calls `sendMessage`, verifies the synchronously registered local echo, attaches completion handlers, clears the editor and reply context, and notifies Simple Mode navigation in the same JavaScript turn without awaiting the network.
@@ -125,13 +125,16 @@
 - Pending ownership: the composer clock and banner contract are removed, while the existing timeline message and compact thread-card pending indicators remain the only pending surfaces.
 - Navigation fix: the compact overview accepts a verified local-echo id immediately, replaces it with the confirmed id without adding history, moves browser and iOS exit-target persistence to the replacement history key, and keeps unresolved ids out of recent-thread persistence.
 - Receipt fix: thread read-receipt work returns before lookup, relation fetch, or receipt transmission when the active thread id is local.
-- Failure ownership: an unowned standalone `NOT_SENT` root transfers back only into its still-mounted room-overview composer, while an active local root, any current thread composer, or a root with SDK-tracked child relations remains timeline-owned so no pending reply can be orphaned or retargeted.
+- Failure ownership: a standalone `NOT_SENT` root transfers back only when the mounted composer still owns the exact submitted room, thread, reply draft, and editor generation, while any ownership change or SDK-tracked child leaves the event timeline-owned.
+- Concurrent failure ownership: every direct send advances the editor generation, so only the newest still-owned standalone root can transfer back and older failures remain timeline-owned under FIFO or reverse settlement without a queue.
+- SDK maintenance: a matrix-js-sdk upgrade must regenerate the existing patch-package patch and rerun `matrixSdkLocalEchoAssociation.test.ts` against the installed SDK.
 - Scope: stickers, commands, SDK encryption internals, new queues or stores, visible retry controls, and CINNY-122 thread-creation logic remain unchanged.
-- Coverage: the 16-file focused union passes 172 tests across composer timing and ownership, all related send surfaces, reply-draft canonicalization, SDK association races, navigation and exit history, receipt guards, and message-owned pending indicators.
-- Validation: patch-package reverse and clean reapplication pass for both repository patches, typecheck passes, the full Vitest suite passes with 427 files and 3,278 tests, and the production/PWA build passes.
-- Lint and hygiene: full ESLint reports zero errors and 17 pre-existing warnings, all Round 1 TS/TSX files pass Prettier, the minimized receipt-guard files retain their `origin/dev` formatting, `git diff --check` passes, and `threadOpenSdkBootstrap.ts` is unchanged.
+- Coverage: the 16-file focused union passes 179 tests across composer timing and full ownership, FIFO and reverse failures, all related send surfaces, reply-draft canonicalization, SDK association races, navigation and exit history, receipt guards, and message-owned pending indicators.
+- Validation: patch-package reverse and clean reapplication pass for both repository patches, typecheck passes, the full Vitest suite passes with 427 files and 3,285 tests, and the production/PWA build passes.
+- Lint and hygiene: full ESLint reports zero errors and 17 pre-existing warnings, all Round 2 TS/TSX files pass Prettier, `git diff --check` passes, and `threadOpenSdkBootstrap.ts` is unchanged.
 - Round 1 review: both reviewers identified the same three boundary violations in send-surface coverage, reply-draft identity, and post-remote-echo SDK lookup, while the second reviewer also found two composer-ownership races, an unpinned SDK aggregation assumption, and replacement-history persistence cleanup.
-- Review outcome: the fixes reuse live Matrix room state, transaction metadata, SDK relations, and the existing navigation cache without adding application state, and independent re-review after each logical step found no remaining issues.
+- Round 2 review: one reviewer found that the exceptional fulfillment and terminal-transfer paths still lacked thread, reply, and editor-generation ownership and that concurrent restoration reversed FIFO send order, while the other approved with only follow-up suggestions.
+- Review outcome: settlement now has one full ownership predicate at the direct-submit boundary, older concurrent failures remain SDK-owned, malformed reply fallback inspection is safe, and independent re-review found no remaining issues.
 
 ### Guarded App Store review release (2026-07-15)
 
