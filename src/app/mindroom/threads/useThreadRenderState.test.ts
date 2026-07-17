@@ -196,6 +196,28 @@ const renderHookHarness = (
 };
 
 describe('useThreadRenderState', () => {
+  it('renders a pending local root from the room without waiting for cache hydration', () => {
+    const localRoot = makeMessageEvent('~!room:example.org:txn-local-root', 1);
+    localRoot.setTxnId('txn-local-root');
+    const room = makeRoom(localRoot);
+    const roomTimelineSet = makeTimelineSet();
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: localRoot.getId(),
+      thread: null,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+    expect(getSnapshot().threadEvents).toEqual([localRoot]);
+    expect(getSnapshot().threadEventIndexMapRef.current.get(localRoot.getId()!)).toBe(0);
+
+    renderer.unmount();
+  });
+
   it('renders cached fallback events before initial cache hydration finishes', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const replyEvent = makeMessageEvent('$reply', 2);

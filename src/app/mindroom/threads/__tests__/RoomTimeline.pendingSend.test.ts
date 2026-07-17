@@ -8,7 +8,6 @@ import {
   createControlledRoomTimelineHarness,
   editableActiveElementMock,
   flushAsyncWork,
-  getRenderedEventIds,
   keyDownHandlersMock,
   makeEvent,
   makeRoom,
@@ -16,7 +15,6 @@ import {
   noteRoomFocusedMock,
   saveCachedThreadSummaryMock,
   saveThreadEventsToCacheMock,
-  threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 
 describe('RoomTimeline pending-send wiring', () => {
@@ -128,7 +126,7 @@ describe('RoomTimeline pending-send wiring', () => {
     vi.stubGlobal('document', previousDocument);
   });
 
-  it('renders a local root route without starting remote or thread-persistence work', async () => {
+  it('does not start remote or thread-persistence work for a local root route', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const localEventId = '~!room:example.org:txn-local-route';
@@ -138,7 +136,6 @@ describe('RoomTimeline pending-send wiring', () => {
       isThreadRoot: true,
     });
     const room = makeRoom({ liveEvents: [localRoot] });
-    threadRenderStateMock.threadEvents = [localRoot];
     const onStoreThreadSummary = vi.fn();
 
     let renderer: ReturnType<typeof create> | undefined;
@@ -153,7 +150,6 @@ describe('RoomTimeline pending-send wiring', () => {
       await flushAsyncWork();
     });
 
-    expect(getRenderedEventIds(renderer!)).toContain(localEventId);
     expect(matrixClientMock.fetchRelations).not.toHaveBeenCalled();
     expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
     expect(saveThreadEventsToCacheMock).not.toHaveBeenCalled();
