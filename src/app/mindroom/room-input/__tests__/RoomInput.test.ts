@@ -1402,6 +1402,82 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('does not clear or notify after missing-local fulfillment loses room ownership', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+    const onRoomMessageSent = vi.fn();
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+
+    editorOutputState.plainText = 'Old room fallback';
+    editorOutputState.customHtml = 'Old room fallback';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    await updateRoomInput(renderer, store, {
+      roomId: OTHER_ROOM_ID,
+      onRoomMessageSent,
+    });
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+    await act(async () => {
+      send.resolve({ event_id: '$old-room-event' });
+      await send.promise;
+    });
+
+    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
+    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+
+    editorOutputState.plainText = 'New room message';
+    editorOutputState.customHtml = 'New room message';
+    setEditorContent('New room message');
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[1][0]).toBe(OTHER_ROOM_ID);
+    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it('does not clear or notify after missing-local fulfillment unmounts', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+    const onRoomMessageSent = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+
+    editorOutputState.plainText = 'Unmounted fallback';
+    editorOutputState.customHtml = 'Unmounted fallback';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+    act(() => {
+      renderer.unmount();
+    });
+    editorMocks.resetEditor.mockClear();
+    editorMocks.resetEditorHistory.mockClear();
+    await act(async () => {
+      send.resolve({ event_id: '$unmounted-event' });
+      await send.promise;
+    });
+
+    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
+    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
+
   it('leaves the composer intact for a synchronous send throw', async () => {
     mxState.sendMessage.mockImplementationOnce(() => {
       throw new Error('synchronous send failure');
@@ -1505,6 +1581,36 @@ describe('RoomInput', () => {
     expect(customEditorState.editor!.children).toEqual([
       ...capturedFragment,
       { type: 'paragraph', children: [{ text: 'Newer draft' }] },
+    ]);
+    renderer.unmount();
+  });
+
+  it('does not restore a failed room root into a different thread composer', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mockDeferredSendWithLocalEcho(send, true);
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+
+    editorOutputState.plainText = 'Room root';
+    editorOutputState.customHtml = 'Room root';
+    editorOutputState.htmlEqualsPlainText = true;
+    setEditorContent('Room root');
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    await updateRoomInput(renderer, store, { threadId: '$different-thread' });
+    setEditorContent('Different thread draft');
+    await act(async () => {
+      send.reject(new Error('late root failure'));
+      await Promise.resolve();
+    });
+
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(customEditorState.editor!.children).toEqual([
+      { type: 'paragraph', children: [{ text: 'Different thread draft' }] },
     ]);
     renderer.unmount();
   });

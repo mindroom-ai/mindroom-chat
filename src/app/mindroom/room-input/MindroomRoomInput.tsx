@@ -1136,7 +1136,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           (response) => {
             if (!hasVerifiedLocalEcho) {
               try {
-                clearComposerAndNotify(response.event_id);
+                if (mountedRef.current && roomIdRef.current === roomId) {
+                  clearComposerAndNotify(response.event_id);
+                }
               } finally {
                 submitInFlightRef.current = false;
               }
@@ -1149,7 +1151,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 !relation &&
                 !activeReplyDraft &&
                 !threadId &&
-                threadIdRef.current !== localEventId &&
+                !threadIdRef.current &&
                 room.relations.getAllChildEventsForEvent(localEventId).length === 0 &&
                 localEvent?.status === EventStatus.NOT_SENT &&
                 mountedRef.current &&
