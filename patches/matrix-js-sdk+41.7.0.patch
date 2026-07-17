@@ -1,5 +1,5 @@
 diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
-index bc4e623..698dc3d 100644
+index bc4e623..338e768 100644
 --- a/node_modules/matrix-js-sdk/lib/client.js
 +++ b/node_modules/matrix-js-sdk/lib/client.js
 @@ -1882,13 +1882,30 @@ export class MatrixClient extends TypedEventEmitter {
@@ -17,7 +17,7 @@ index bc4e623..698dc3d 100644
 +      var _room$getEventForTxn, _room$findEventById;
 +      var target = (_room$getEventForTxn = room === null || room === void 0 ? void 0 : room.getEventForTxnId(txnId)) !== null && _room$getEventForTxn !== void 0 ? _room$getEventForTxn : (_room$findEventById = room === null || room === void 0 ? void 0 : room.findEventById(targetId)) !== null && _room$findEventById !== void 0 ? _room$findEventById : room === null || room === void 0 ? void 0 : room.getPendingEvent(targetId);
 +      if (!target) {
-+        var loadedEvents = room ? [...room.getLiveTimeline().getEvents(), ...room.getThreads().flatMap(thread => thread.events)] : [];
++        var loadedEvents = room ? [room.getUnfilteredTimelineSet(), ...room.getThreads().map(thread => thread.getUnfilteredTimelineSet())].flatMap(timelineSet => timelineSet.getTimelines()).flatMap(timeline => timeline.getEvents()) : [];
 +        target = loadedEvents.find(event => {
 +          var _event$getTxnId;
 +          var eventTxnId = (_event$getTxnId = event.getTxnId()) !== null && _event$getTxnId !== void 0 ? _event$getTxnId : event.getUnsigned().transaction_id;
@@ -84,10 +84,10 @@ index 41c0e07..4814216 100644
      if (relation) {
        relation.event_id = eventId;
 diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
-index 80ea382..5911210 100644
+index 80ea382..97248c2 100644
 --- a/node_modules/matrix-js-sdk/src/client.ts
 +++ b/node_modules/matrix-js-sdk/src/client.ts
-@@ -2853,10 +2853,36 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -2853,10 +2853,35 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          // that hasn't been sent yet (e.g. with a local id starting with a ~)
          // then listen for the remote echo of that event so that by the time
          // this event does get sent, we have the correct event_id
@@ -108,10 +108,9 @@ index 80ea382..5911210 100644
 +                room?.getEventForTxnId(txnId) ?? room?.findEventById(targetId) ?? room?.getPendingEvent(targetId);
 +            if (!target) {
 +                const loadedEvents = room
-+                    ? [
-+                          ...room.getLiveTimeline().getEvents(),
-+                          ...room.getThreads().flatMap((thread) => thread.events),
-+                      ]
++                    ? [room.getUnfilteredTimelineSet(), ...room.getThreads().map((thread) => thread.getUnfilteredTimelineSet())]
++                          .flatMap((timelineSet) => timelineSet.getTimelines())
++                          .flatMap((timeline) => timeline.getEvents())
 +                    : [];
 +                target = loadedEvents.find((event) => {
 +                    const eventTxnId = event.getTxnId() ?? event.getUnsigned().transaction_id;

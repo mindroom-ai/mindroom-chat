@@ -132,7 +132,17 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
       getLiveTimeline: () => ({
         getEvents: () => Array.from(confirmedByTxn.values()),
       }),
-      getThreads: () => [{ events: [confirmedThreadReply] }],
+      getThreads: () => [
+        {
+          events: [],
+          getUnfilteredTimelineSet: () => ({
+            getTimelines: () => [
+              { getEvents: () => [] },
+              { getEvents: () => [confirmedThreadReply] },
+            ],
+          }),
+        },
+      ],
     } as unknown as Room;
 
     expect(

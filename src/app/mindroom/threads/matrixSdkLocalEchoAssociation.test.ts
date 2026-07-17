@@ -35,10 +35,12 @@ const makeHarness = (ordering = PendingEventOrdering.Chronological) => {
   const client = createClient({
     accessToken: 'token',
     baseUrl: 'https://matrix.example.org',
+    timelineSupport: true,
     userId: USER_ID,
   });
   const room = new Room(ROOM_ID, client, USER_ID, {
     pendingEventOrdering: ordering,
+    timelineSupport: true,
   });
   client.store.storeRoom(room);
 
@@ -236,7 +238,7 @@ describe('matrix-js-sdk local-echo association patch', () => {
     await finishRequest(requests, 0, '$post-remote-echo-reply', replySend);
   });
 
-  it('resolves an evicted transaction target that is loaded only in a thread timeline', async () => {
+  it('resolves an evicted transaction target loaded only in a non-live thread timeline', async () => {
     const { client, requests, room } = makeHarness();
     vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
     const root = new MatrixEvent({
@@ -263,11 +265,18 @@ describe('matrix-js-sdk local-echo association patch', () => {
         transaction_id: replyTxnId,
       },
     });
-    const thread = room.createThread('$thread-root', root, [confirmedReply], false);
+    const thread = room.createThread('$thread-root', root, [], false);
+    const threadTimelineSet = thread.getUnfilteredTimelineSet();
+    const historicalTimeline = threadTimelineSet.addTimeline();
+    threadTimelineSet.addEventToTimeline(confirmedReply, historicalTimeline, {
+      addToState: false,
+      toStartOfTimeline: false,
+    });
 
     expect(room.getEventForTxnId(replyTxnId)).toBeUndefined();
     expect(room.getLiveTimeline().getEvents()).not.toContain(confirmedReply);
-    expect(thread.events).toContain(confirmedReply);
+    expect(thread.events).not.toContain(confirmedReply);
+    expect(historicalTimeline.getEvents()).toContain(confirmedReply);
 
     const send = client.sendMessage(
       ROOM_ID,

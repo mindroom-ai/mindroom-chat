@@ -42,6 +42,9 @@ const makeRoom = ({
     id?: string;
     rootEvent?: ReturnType<typeof makeEvent>;
     events: ReturnType<typeof makeEvent>[];
+    getUnfilteredTimelineSet?: () => {
+      getTimelines: () => Array<{ getEvents: () => ReturnType<typeof makeEvent>[] }>;
+    };
   }>;
   txnEventById?: Map<string, ReturnType<typeof makeEvent>>;
   roomId?: string;
@@ -119,7 +122,7 @@ describe('threadRouteUtils', () => {
     expect(resolveCanonicalMatrixEventId(room, `~${roomId}:reply-txn`)).toBe('$confirmed-reply');
   });
 
-  it('resolves a stale local-echo reply id from a loaded thread after its txn entry is evicted', () => {
+  it('resolves a stale local-echo reply id from a loaded non-live thread timeline after txn eviction', () => {
     const roomId = '!room:example.org';
     const confirmedReply = makeEvent('$confirmed-thread-reply', {
       threadRootId: '$root',
@@ -131,7 +134,10 @@ describe('threadRouteUtils', () => {
         {
           id: '$root',
           rootEvent: makeEvent('$root'),
-          events: [confirmedReply],
+          events: [],
+          getUnfilteredTimelineSet: () => ({
+            getTimelines: () => [{ getEvents: () => [] }, { getEvents: () => [confirmedReply] }],
+          }),
         },
       ],
     });

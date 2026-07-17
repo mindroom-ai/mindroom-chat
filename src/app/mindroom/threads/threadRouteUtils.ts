@@ -1,3 +1,4 @@
+import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { buildResolveConfirmedEventId } from './threadRenderUtils';
@@ -28,10 +29,21 @@ const getTxnIdFromLocalEchoEventId = (
   return txnId.length > 0 ? txnId : undefined;
 };
 
-const getLoadedRoomAndThreadEvents = (room: Room): MatrixEvent[] => [
-  ...room.getLiveTimeline().getEvents(),
-  ...room.getThreads().flatMap((thread) => thread.events),
-];
+const getLoadedTimelineEvents = (timelineSet: EventTimelineSet): MatrixEvent[] =>
+  timelineSet.getTimelines().flatMap((timeline) => timeline.getEvents());
+
+const getLoadedRoomAndThreadEvents = (room: Room): MatrixEvent[] => {
+  const roomTimelineSet = room.getUnfilteredTimelineSet?.();
+  const roomEvents = roomTimelineSet
+    ? getLoadedTimelineEvents(roomTimelineSet)
+    : room.getLiveTimeline().getEvents();
+  const threadEvents = room.getThreads().flatMap((thread) => {
+    const threadTimelineSet = thread.getUnfilteredTimelineSet?.();
+    return threadTimelineSet ? getLoadedTimelineEvents(threadTimelineSet) : thread.events;
+  });
+
+  return [...roomEvents, ...threadEvents];
+};
 
 const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | undefined => {
   const txnEvent = room.getEventForTxnId?.(txnId);
