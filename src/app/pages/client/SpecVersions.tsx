@@ -5,10 +5,60 @@ import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
 import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { specVersions, type SpecVersions as SpecVersionsResponse } from '../../cs-api';
+import { readCachedSpecVersions, writeCachedSpecVersions } from '../../state/cachedSpecVersions';
+
+function LoadedSpecVersions({
+  baseUrl,
+  userId,
+  versions,
+  children,
+}: {
+  baseUrl: string;
+  userId?: string;
+  versions: SpecVersionsResponse;
+  children: ReactNode;
+}) {
+  React.useEffect(() => {
+    if (!userId) return;
+    writeCachedSpecVersions(baseUrl, userId, versions);
+  }, [baseUrl, userId, versions]);
+
+  return <SpecVersionsProvider value={versions}>{children}</SpecVersionsProvider>;
+}
 
 export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
   const activeSession = useActiveSession();
+  const userId = activeSession?.userId;
+  const accessToken = activeSession?.accessToken;
+  const request = React.useCallback<typeof fetch>(
+    (input, init) =>
+      fetch(
+        input,
+        accessToken
+          ? {
+              ...init,
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          : init
+      ),
+    [accessToken]
+  );
+  const cachedVersions = React.useMemo(
+    () => (userId ? readCachedSpecVersions(baseUrl, userId) : undefined),
+    [baseUrl, userId]
+  );
   const [clearing, setClearing] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!cachedVersions || !userId) return;
+
+    specVersions(request, baseUrl)
+      .then((versions) => writeCachedSpecVersions(baseUrl, userId, versions))
+      .catch(() => undefined);
+  }, [baseUrl, cachedVersions, request, userId]);
 
   const handleClearCache = async () => {
     if (clearing) return;
@@ -22,9 +72,14 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
     }
   };
 
+  if (cachedVersions) {
+    return <SpecVersionsProvider value={cachedVersions}>{children}</SpecVersionsProvider>;
+  }
+
   return (
     <SpecVersionsLoader
       baseUrl={baseUrl}
+      request={request}
       fallback={() => (
         <MindRoomSplashScreen message="Connecting to server">
           <Button
@@ -50,7 +105,8 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
             <Dialog>
               <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
                 <Text>
-                  Unable to connect to the homeserver. The homeserver or your internet connection may be down.
+                  Unable to connect to the homeserver. The homeserver or your internet connection
+                  may be down.
                 </Text>
                 <Button variant="Critical" onClick={retry}>
                   <Text as="span" size="B400">
@@ -79,7 +135,11 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
         </SplashScreen>
       )}
     >
-      {(versions) => <SpecVersionsProvider value={versions}>{children}</SpecVersionsProvider>}
+      {(versions) => (
+        <LoadedSpecVersions baseUrl={baseUrl} userId={userId} versions={versions}>
+          {children}
+        </LoadedSpecVersions>
+      )}
     </SpecVersionsLoader>
   );
 }
