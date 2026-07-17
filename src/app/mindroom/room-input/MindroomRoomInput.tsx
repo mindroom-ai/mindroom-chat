@@ -1100,6 +1100,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 !relation &&
                 !replyDraft &&
                 !threadId &&
+                threadIdRef.current !== localEventId &&
                 localEvent?.status === EventStatus.NOT_SENT &&
                 mountedRef.current &&
                 roomIdRef.current === roomId

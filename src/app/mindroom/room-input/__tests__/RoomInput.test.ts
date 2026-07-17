@@ -1777,7 +1777,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('restores a failed root once while leaving its failed local reply in the timeline', async () => {
+  it('leaves a failed active root and its failed local reply owned by the timeline', async () => {
     const rootSend = createDeferred<{ event_id: string }>();
     const replySend = createDeferred<{ event_id: string }>();
     const getRootEvent = mockDeferredSendWithLocalEcho(rootSend, true);
@@ -1809,10 +1809,10 @@ describe('RoomInput', () => {
       await Promise.resolve();
     });
 
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledTimes(1);
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getRootEvent());
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalledWith(getReplyEvent());
-    expect(editorMocks.restoreEditorContent).toHaveBeenCalledTimes(1);
+    expect(getRootEvent()?.status).toBe(EventStatus.NOT_SENT);
+    expect(getReplyEvent()?.status).toBe(EventStatus.NOT_SENT);
+    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
     renderer.unmount();
   });
 

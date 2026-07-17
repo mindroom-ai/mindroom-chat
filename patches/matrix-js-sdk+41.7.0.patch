@@ -108,7 +108,7 @@ index 80ea382..6d6d32b 100644
 +                localEvent.updateAssociatedId(target.getId()!, targetId);
              });
          }
- 
+
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
 index 19a2f43..e3a0461 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
