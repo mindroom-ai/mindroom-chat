@@ -114,6 +114,22 @@
 - The existing full Threads page remains available for search and advanced filters.
 - Validation after merging current `dev`: the full Vitest suite passes (426 files / 3,143 tests), as do typecheck, the production/PWA build, and `git diff --check`.
 - Live validation: the Docker-Matrix Playwright spec passes at desktop, tablet, and two mobile widths (4/4), covering peer category placement, full room collapse, thread-category collapse, rich hover details, and pin persistence across reload.
+### CINNY-121 — Optimistic Simple Mode text sends (2026-07-16)
+
+- Status: all five planned changes, focused regression coverage, full local validation, patch-package verification, and independent re-review are complete on `cinny-121`.
+- Symptom: a slow room-level text send left the submitted content and pending clock in the composer, delayed the local thread view, and could later show both the new thread and the stale composer state.
+- SDK fix: the existing `matrix-js-sdk@41.7.0` patch-package workflow now resolves chronological and detached local relation targets without the throwing pending-events lookup, rewrites thread, reply, and redaction associations independently, and preserves the one-argument association API.
+- Composer fix: the direct text-only submit path now allocates a transaction id, calls `sendMessage`, verifies the synchronously registered local echo, attaches completion handlers, clears the editor and reply context, and notifies Simple Mode navigation in the same JavaScript turn without awaiting the network.
+- Encryption boundary: related encrypted drafts remain in the composer while either relation target is local because Rust crypto snapshots clear content before the SDK association update can safely rewrite the encrypted payload.
+- Pending ownership: the composer clock and banner contract are removed, while the existing timeline message and compact thread-card pending indicators remain the only pending surfaces.
+- Navigation fix: the compact overview accepts a verified local-echo id immediately, replaces it with the confirmed id without adding history, preserves browser and iOS exit targets, and keeps unresolved ids out of recent-thread persistence.
+- Receipt fix: thread read-receipt work returns before lookup, relation fetch, or receipt transmission when the active thread id is local.
+- Failure ownership: an unowned standalone `NOT_SENT` root still transfers back to the composer through the existing cancel-then-restore primitives, while an active local root or a root with SDK-tracked child relations remains timeline-owned so no pending reply can be orphaned.
+- Scope: text-plus-upload sessions, voice, stickers, commands, SDK encryption internals, new queues or stores, visible retry controls, and CINNY-122 thread-creation logic remain unchanged.
+- Coverage: the 12-file focused plan union passes 137 tests across composer timing and failures, SDK association races, navigation and exit history, receipt guards, and message-owned pending indicators.
+- Validation: patch-package reverse and clean reapplication pass for both repository patches, typecheck passes, the full Vitest suite passes with 427 files and 3,266 tests, and the production/PWA build passes.
+- Lint and hygiene: full ESLint reports zero errors and 17 pre-existing warnings, touched files pass Prettier, `git diff --check` passes, and `threadOpenSdkBootstrap.ts` is unchanged.
+- Review: independent reviews found the Rust encryption snapshot boundary, the explicit-reply local target, and the failed-parent ownership race after leaving a local thread; the release gate, dual-field check, and existing SDK-relations guard resolve those findings without adding application state, and final re-review found no remaining issues.
 
 ### Guarded App Store review release (2026-07-15)
 
