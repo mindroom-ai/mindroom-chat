@@ -58,6 +58,10 @@ describe('cachedSpecVersions', () => {
     ['a non-array versions field', '{"versions":1}'],
     ['non-string versions', '{"versions":[1]}'],
     ['a non-object unstable_features field', '{"versions":["v1.11"],"unstable_features":[]}'],
+    [
+      'non-boolean unstable feature values',
+      '{"versions":["v1.11"],"unstable_features":{"org.matrix.msc4151":"false"}}',
+    ],
   ])('removes JSON-valid cache entries with %s', (_label, stored) => {
     storageState.set('cinny_spec_versions::https://matrix.example::@alice:example', stored);
 

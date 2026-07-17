@@ -17,12 +17,15 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null;
 };
 
+const isBooleanRecord = (value: unknown): value is Record<string, boolean> =>
+  isPlainObject(value) && Object.values(value).every((item) => typeof item === 'boolean');
+
 const isCacheableSpecVersions = (value: unknown): value is SpecVersions =>
   isPlainObject(value) &&
   Array.isArray(value.versions) &&
   value.versions.length > 0 &&
   value.versions.every((version) => typeof version === 'string') &&
-  (value.unstable_features === undefined || isPlainObject(value.unstable_features));
+  (value.unstable_features === undefined || isBooleanRecord(value.unstable_features));
 
 export const readCachedSpecVersions = (
   baseUrl: string,

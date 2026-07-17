@@ -1645,7 +1645,7 @@ describe('logoutClient', () => {
     const activeSession = putSession(
       {
         baseUrl: 'https://matrix.org',
-        userId: '@bob:matrix.org',
+        userId: mountedSession.userId,
         deviceId: 'DEVICE_B',
         accessToken: 'token-b',
       },
