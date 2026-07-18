@@ -125,7 +125,6 @@ import {
   createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputAutocompleteQuery,
   getMindroomRoomInputPasteMarkerFileNames,
-  getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
@@ -1030,32 +1029,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
         if (!content) return;
 
-        const relation = getMindroomRoomInputMessageRelation(
-          replyDraft,
-          threadId,
-          threadingEnabled
-        );
-        if (relation) {
-          content['m.relates_to'] = relation;
-        }
         submitPendingStarted = true;
         setSubmitPending(true);
-        const response = await mx.sendMessage(roomId, content as any);
-        const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
-          eventId: response.event_id,
-          relation,
-          replyDraft,
-          threadId,
-        });
-        resetEditor(editor);
-        resetEditorHistory(editor);
-        setReplyDraft(undefined);
-        sendTypingStatus(false);
+        await startSendSession({ textContent: content });
         setSubmitPending(false);
         submitPendingStarted = false;
-        if (sentEventIdToNotify) {
-          onRoomMessageSent?.(sentEventIdToNotify);
-        }
       } finally {
         if (submitPendingStarted) {
           setSubmitPending(false);
@@ -1068,14 +1046,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       editor,
       replyDraft,
       sendTypingStatus,
-      setReplyDraft,
       isMarkdown,
       commands,
-      threadId,
-      threadingEnabled,
       startSendSession,
       store,
-      onRoomMessageSent,
     ]);
 
     const handleUploadBoardSend = useCallback(async () => {

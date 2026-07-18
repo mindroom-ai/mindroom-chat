@@ -30,6 +30,7 @@ const {
   editorOutputState,
   encryptionState,
   mxState,
+  typingState,
   voiceRecorderState,
 } = vi.hoisted(() => ({
   editorMocks: {
@@ -85,6 +86,9 @@ const {
     ),
     sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
     uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
+  },
+  typingState: {
+    sendTypingStatus: vi.fn(),
   },
   encryptionState: {
     encryptAttachment: vi.fn(async (data: ArrayBuffer) => ({
@@ -324,7 +328,7 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../../hooks/useTypingStatusUpdater', () => ({
-  useTypingStatusUpdater: () => vi.fn(),
+  useTypingStatusUpdater: () => typingState.sendTypingStatus,
 }));
 
 vi.mock('../../../hooks/useFilePicker', () => ({
@@ -700,6 +704,36 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject };
 };
 
+const setEditorText = (text: string) => {
+  customEditorState.editor!.children = [
+    {
+      type: 'paragraph',
+      children: [{ text }],
+    },
+  ];
+};
+
+const stageComposerText = (text: string) => {
+  editorOutputState.plainText = text;
+  editorOutputState.customHtml = text;
+  editorOutputState.htmlEqualsPlainText = true;
+  setEditorText(text);
+};
+
+const getEditorText = (): string | undefined =>
+  customEditorState.editor!.children[0]?.children?.[0]?.text;
+
+const resetEditorOnNextSend = () => {
+  editorMocks.resetEditor.mockImplementationOnce(() => setEditorText(''));
+};
+
+const submitComposer = async () => {
+  await act(async () => {
+    customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    await Promise.resolve();
+  });
+};
+
 const createRoomInputTree = (
   store: ReturnType<typeof createStore>,
   props?: {
@@ -830,6 +864,8 @@ afterEach(() => {
   editorMocks.moveCursor.mockReset();
   editorMocks.resetEditor.mockReset();
   editorMocks.resetEditorHistory.mockReset();
+  editorMocks.restoreEditorContent.mockReset();
+  typingState.sendTypingStatus.mockReset();
 });
 
 describe('RoomInput', () => {
@@ -1212,6 +1248,67 @@ describe('RoomInput', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('clears submitted text as soon as an unresolved thread send owns the pending local echo', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    stageComposerText('Pending local echo owns this reply');
+    resetEditorOnNextSend();
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledWith(
+      ROOM_ID,
+      expect.objectContaining({
+        body: 'Pending local echo owns this reply',
+        'm.relates_to': expect.objectContaining({
+          event_id: '$thread',
+          rel_type: RelationType.Thread,
+        }),
+      })
+    );
+    expect(getEditorText()).toBe('');
+    expect(editorMocks.resetEditorHistory).toHaveBeenCalled();
+    expect(typingState.sendTypingStatus).toHaveBeenCalledWith(false);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+
+    await act(async () => {
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    renderer.unmount();
+  });
+
+  it('keeps newer composer text and reply context when an earlier send succeeds', async () => {
+    const store = createStore();
+    const originalReply = createReplyDraft('$original-reply');
+    const newerReply = createReplyDraft('$newer-reply');
+    store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), originalReply);
+    const { renderer } = await renderRoomInput(store, { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    stageComposerText('Earlier submitted reply');
+    resetEditorOnNextSend();
+    await submitComposer();
+
+    setEditorText('Newer composer input');
+    typingState.sendTypingStatus.mockClear();
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReply);
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    expect(getEditorText()).toBe('Newer composer input');
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReply);
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(typingState.sendTypingStatus).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
