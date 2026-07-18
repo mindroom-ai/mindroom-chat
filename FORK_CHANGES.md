@@ -211,6 +211,8 @@
 - AI review remediation (2026-07-18): voice and attachment sends now reject plaintext upload items when the live room became encrypted after preparation, the SDK relation owner prunes empty local-target branches and detaches their listeners before reaggregation, cross-room cancellation mocks use the event's owning room, and unexpected optimistic-settlement failures are logged.
 - AI review documentation remediation marks the failed Round 5 gate as historical and distinguishes its 3,304-test snapshot and unexecuted manual checklist from the later 3,338-test automated Slow-3G acceptance and the current PR review state.
 - AI review remediation validation passes the complete Vitest suite with 437 files and 3,261 tests, typecheck, the production/PWA build plus Element Call verification, full ESLint with zero errors and 17 established warnings, patch reversal and reapplication, changed-file Prettier, and `git diff --check`.
+- Final Greptile re-review at `1fd8e3b6` rated the change 5/5 and safe to merge, and its sole maintenance finding was accepted by deriving the local-echo seed once per render and sharing it between event collection and the exported render mode.
+- The focused replay-event regression requires that shared seed to select live mode and collect the same local replay event, and post-Greptile validation passes 437 files and 3,262 tests, typecheck, the production/PWA build plus Element Call verification, full ESLint with zero errors and 17 established warnings, patch reversal and reapplication, changed-file Prettier, and `git diff --check`.
 
 ### Guarded App Store review release (2026-07-15)
 

@@ -404,6 +404,35 @@ describe('useThreadRenderState', () => {
     renderer.unmount();
   });
 
+  it('uses the same replay-event seed for render mode and collected thread events', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replayEvent = makeMessageEvent('~local-reply', 2);
+    replayEvent.setTxnId('txn-local-reply');
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = Object.assign(makeThread(rootEvent, []), {
+      initialEventsFetched: false,
+      replayEvents: [replayEvent],
+    });
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+    });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '~local-reply',
+    ]);
+
+    renderer.unmount();
+  });
+
   it('renders cached fallback events before initial cache hydration finishes', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const replyEvent = makeMessageEvent('$reply', 2);
