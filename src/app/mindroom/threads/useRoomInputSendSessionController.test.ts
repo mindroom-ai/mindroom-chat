@@ -368,6 +368,49 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     mocks.restoreEditorContent.mockReset();
   });
 
+  it('restores the caption to the composer and completes the session when the caption fails', async () => {
+    const { api, mx, editor } = renderHarness();
+    const image = createFile('image.png');
+
+    api.selectedFilesRef.current = [createUploadItem(image)];
+    api.uploadsRef.current = [successUpload(image)];
+
+    mx.sendMessage.mockImplementationOnce(async () => ({ event_id: '$root' }));
+    mx.sendMessage.mockImplementationOnce(async () => {
+      throw new Error('caption send failed');
+    });
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+      });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+      url: 'mxc://mindroom/image.png',
+    });
+    expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
+
+    // The failed caption must not piggyback onto a later unrelated send.
+    const later = createFile('later.txt');
+    api.selectedFilesRef.current = [createUploadItem(later)];
+    api.uploadsRef.current = [successUpload(later)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+    expect(mx.sendMessage.mock.calls[2][1]).toMatchObject({
+      body: 'later.txt',
+      url: 'mxc://mindroom/later.txt',
+    });
+  });
+
   it('restores a failed text snapshot without erasing newer composer input', async () => {
     const { api, mx, editor, sendTypingStatus } = renderHarness();
     const send = createDeferred<{ event_id: string }>();
