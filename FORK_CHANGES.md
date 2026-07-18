@@ -47,7 +47,7 @@
 
 ### Create SDK models for zero-reply standalone thread opens (2026-07-16)
 
-- Status: PR review and independent review identified the SDK initialization races plus cancellation, first-load backfill, and test-global cleanup gaps; all are remediated with regression coverage, full local validation, and final independent approval.
+- Status: PR review and independent review identified the SDK initialization races plus cancellation, first-load backfill, and test-global cleanup gaps; all implementation findings are remediated with regression coverage and full local validation, and the corrected `dev`-based diff is in final PR review.
 - Symptom: Bas reported, "sometimes there is just a single message and I click I to it, I send a message and it doesn't show up. I have to click out of the thread first and then back. Only then it shows."
 - Root cause: the zero-reply standalone-root fast-open path skipped SDK `Thread` creation, so an own first reply was excluded from the room timeline as thread-only and both its local echo and transaction-deduplicated remote echo had no thread timeline to enter.
 - Fix: the existing guarded zero-reply branch calls `room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false)` before its repaint calls, then prevents the constructor-started metadata request from resetting a racing first reply.
@@ -70,6 +70,7 @@
 - Final independent re-review traced first-open backfill, the constructor metadata race, local and remote echo convergence, cancellation followed by delayed `Thread.newReply`, listener cleanup, and SDK-global restoration and found no remaining issues.
 - A final agent-cli Claude Fable review approved the pre-remediation head, but main-thread verification rejected its assumption that another cross-room index trigger fires immediately after relation aggregation; a red-first regression proved the pending entry stayed ineligible until `Room.localEchoUpdated` was subscribed and cleaned up with the other room listeners.
 - The rewritten stacked base at `e320c0725` was merged without rewriting this branch; the only conflict was the shared Runbook insertion point, all incoming feature sections are preserved, and the post-merge PR diff remains limited to the intended 15 feature files.
+- Stacked merge progression: #169 and #170 were squash-merged in order, then #171 was retargeted to `dev` and merged with the updated base without rewriting its review history; #171 is the remaining squash-merge step.
 
 ### Thread-first sidebar (2026-07-15)
 
