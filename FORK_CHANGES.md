@@ -43,7 +43,7 @@
 - PR review remediation: cache validation now rejects non-boolean unstable feature values, and removing one homeserver session always removes its endpoint-scoped versions cache when the same Matrix user remains signed in through another homeserver URL.
 - PR review remediation validation passes 53 focused tests, the full Vitest suite with 432 files and 3,269 tests, typecheck, the production and PWA build with Element Call artifact verification, full ESLint with zero errors and 17 pre-existing warnings, and `git diff --check`.
 - Claude Fable review remediation adds a real cold-start integration regression proving that the authenticated session request reaches the real spec-versions loader and carries the bearer token on the initial cache-populating request.
-- Claude Fable review remediation validation passes 54 focused tests.
+- Claude Fable review remediation validation passes 54 focused tests, the rebased full Vitest suite with 434 files and 3,180 tests, typecheck, the production and PWA build with Element Call artifact verification, touched-file Prettier, full ESLint with zero errors and 17 pre-existing warnings, and `git diff --check`.
 
 ### Thread-first sidebar (2026-07-15)
 
