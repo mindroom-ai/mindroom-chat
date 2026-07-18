@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts } from 'linkifyjs';
+import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 
 const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn((html: string) => html));
 
@@ -44,13 +45,15 @@ import { RenderBody } from './RenderBody';
 const htmlReactParserOptions: HTMLReactParserOptions = {};
 const linkifyOpts: Opts = {};
 
-const renderBody = (body: string, customBody?: string) => (
-  <RenderBody
-    body={body}
-    customBody={customBody}
-    htmlReactParserOptions={htmlReactParserOptions}
-    linkifyOpts={linkifyOpts}
-  />
+const renderBody = (body: string, customBody?: string, clientConfig: ClientConfig = {}) => (
+  <ClientConfigProvider value={clientConfig}>
+    <RenderBody
+      body={body}
+      customBody={customBody}
+      htmlReactParserOptions={htmlReactParserOptions}
+      linkifyOpts={linkifyOpts}
+    />
+  </ClientConfigProvider>
 );
 
 describe('RenderBody', () => {
@@ -66,6 +69,23 @@ describe('RenderBody', () => {
 
     expect(JSON.stringify(renderer?.toJSON())).toContain('world');
     expect(sanitizeCustomHtmlSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes configured custom URI schemes to the message sanitizer', () => {
+    const customBody = '<a href="obsidian://open?vault=notes&file=daily">Daily note</a>';
+    act(() => {
+      create(
+        renderBody('Daily note', customBody, {
+          messageRendering: {
+            additionalAllowedUriSchemes: ['obsidian'],
+          },
+        })
+      );
+    });
+
+    expect(sanitizeCustomHtmlSpy).toHaveBeenCalledWith(customBody, {
+      additionalAllowedUriSchemes: ['obsidian'],
+    });
   });
 
   it('does not re-sanitize or re-parse unchanged custom HTML on re-render', () => {
@@ -152,15 +172,17 @@ describe('RenderBody', () => {
       formatted_body: '<p>streamed <strong>text</strong></p>',
     };
     const renderThroughWrapper = () => (
-      <RenderBody
-        body={content.body as string}
-        customBody={content.formatted_body as string}
-        htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
-          htmlReactParserOptions,
-          content
-        )}
-        linkifyOpts={linkifyOpts}
-      />
+      <ClientConfigProvider value={{}}>
+        <RenderBody
+          body={content.body as string}
+          customBody={content.formatted_body as string}
+          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            content
+          )}
+          linkifyOpts={linkifyOpts}
+        />
+      </ClientConfigProvider>
     );
 
     let renderer: ReactTestRenderer | undefined;

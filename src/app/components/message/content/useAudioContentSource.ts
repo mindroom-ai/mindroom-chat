@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../../../hooks/useAsyncCallback';
@@ -43,19 +43,30 @@ export const useAudioContentSource = ({
   const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
   const mediaIdentityRef = useRef(mediaIdentity);
   const requestRef = useRef(0);
+  const pendingSrcRef = useRef<string>();
   const [srcState, setSrcState] = useState<AsyncState<string>>({
     status: AsyncStatus.Idle,
   });
 
+  const discardPendingSrc = useCallback(() => {
+    const pendingSrc = pendingSrcRef.current;
+    if (!pendingSrc) return;
+
+    pendingSrcRef.current = undefined;
+    revokeBlobUrl(pendingSrc);
+  }, []);
+
   useLayoutEffect(() => {
     if (mediaIdentityRef.current === mediaIdentity) return;
 
+    discardPendingSrc();
     mediaIdentityRef.current = mediaIdentity;
     requestRef.current += 1;
     setSrcState({ status: AsyncStatus.Idle });
-  }, [mediaIdentity]);
+  }, [discardPendingSrc, mediaIdentity]);
 
   const loadSrc = useCallback(async () => {
+    discardPendingSrc();
     const request = requestRef.current + 1;
     requestRef.current = request;
     const requestIdentity = mediaIdentity;
@@ -77,6 +88,7 @@ export const useAudioContentSource = ({
         throw new Error('AudioContentSource: Request replaced!');
       }
 
+      pendingSrcRef.current = blobUrl;
       setSrcState({ status: AsyncStatus.Success, data: blobUrl });
       return blobUrl;
     } catch (error) {
@@ -89,7 +101,20 @@ export const useAudioContentSource = ({
       }
       throw error;
     }
-  }, [alive, encInfo, mediaIdentity, mimeType, mx, url, useAuthentication]);
+  }, [alive, discardPendingSrc, encInfo, mediaIdentity, mimeType, mx, url, useAuthentication]);
+
+  useLayoutEffect(
+    () => () => {
+      discardPendingSrc();
+    },
+    [discardPendingSrc]
+  );
+
+  useEffect(() => {
+    if (srcState.status === AsyncStatus.Success && pendingSrcRef.current === srcState.data) {
+      pendingSrcRef.current = undefined;
+    }
+  }, [srcState]);
 
   useBlobUrlCleanup(srcState);
 

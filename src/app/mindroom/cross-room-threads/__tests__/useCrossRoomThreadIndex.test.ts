@@ -19,8 +19,7 @@ import {
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../threads/threadTags';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
 import { crossRoomThreadIndexAtom, getCrossRoomThreadIndexKey } from '../crossRoomThreadIndex';
-import { applyCrossRoomThreadFilters } from '../crossRoomThreadFilterPipeline';
-import { DEFAULT_CROSS_ROOM_THREAD_FILTERS } from '../crossRoomThreadFilters';
+import { isCrossRoomThreadEntryEligible } from '../crossRoomThreadFilterPipeline';
 
 const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
@@ -354,6 +353,7 @@ describe('useCrossRoomThreadIndex', () => {
       '!space:example.org',
     ]);
     expect(room.on).toHaveBeenCalledWith(RoomEvent.Timeline, expect.any(Function));
+    expect(room.on).toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(ThreadEvent.NewReply, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(RoomEvent.MyMembership, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(MatrixEventEvent.Decrypted, expect.any(Function));
@@ -362,6 +362,10 @@ describe('useCrossRoomThreadIndex', () => {
       renderer?.unmount();
     });
     expect(room.removeListener).toHaveBeenCalledWith(RoomEvent.Timeline, expect.any(Function));
+    expect(room.removeListener).toHaveBeenCalledWith(
+      RoomEvent.LocalEchoUpdated,
+      expect.any(Function)
+    );
     expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
   });
 
@@ -759,6 +763,204 @@ describe('useCrossRoomThreadIndex', () => {
     expect(entry?.searchableText).toContain('cached-only needle');
   });
 
+  it('publishes one snapshot for one coalesced bootstrap flush instead of one per thread', async () => {
+    const { room } = makeRoomWithThreads(
+      '!room:example.org',
+      Array.from({ length: 20 }, (_, index) => ({ id: `$root-${index}`, body: `Root ${index}` }))
+    );
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const snapshot = store.get(crossRoomThreadIndexAtom);
+    expect(snapshot.entries.size).toBe(20);
+    expect(snapshot.version).toBe(1);
+  });
+
+  it('does not publish a new snapshot when a rebuilt thread is semantically unchanged', async () => {
+    const { room, thread } = makeRoom();
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const before = store.get(crossRoomThreadIndexAtom);
+    await act(async () => {
+      room.emit(ThreadEvent.Update, thread);
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(store.get(crossRoomThreadIndexAtom)).toBe(before);
+  });
+
+  it('ignores receipts that carry no receipt for the current user', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 5);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const before = store.get(crossRoomThreadIndexAtom);
+    room.getThread.mockClear();
+
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-other',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-1': { 'm.read': { '@alice:example.org': { ts: 200, thread_id: '$root-1' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(room.getThread).not.toHaveBeenCalled();
+    expect(store.get(crossRoomThreadIndexAtom)).toBe(before);
+  });
+
+  it('refreshes only the receipted thread for an own threaded receipt', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 5);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    room.getThread.mockClear();
+
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-own',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-3': { 'm.read': { '@me:example.org': { ts: 200, thread_id: '$root-3' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    const queriedThreadIds = new Set(room.getThread.mock.calls.map(([threadId]) => threadId));
+    expect(queriedThreadIds).toEqual(new Set(['$root-3']));
+  });
+
+  it('refreshes all room threads for own unthreaded and main-timeline receipts', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 3);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const allRootIds = new Set(['$root-0', '$root-1', '$root-2']);
+
+    room.getThread.mockClear();
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-unthreaded',
+          eventType: 'm.receipt',
+          content: { '$reply-1': { 'm.read': { '@me:example.org': { ts: 200 } } } },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(allRootIds);
+
+    room.getThread.mockClear();
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-main',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-1': { 'm.read': { '@me:example.org': { ts: 300, thread_id: 'main' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(allRootIds);
+  });
+
+  it('rebuilds only the thread whose summary state changed', async () => {
+    const { room } = makeRoomWithThreads(
+      '!room:example.org',
+      Array.from({ length: 5 }, (_, index) => ({ id: `$root-${index}`, body: `Root ${index}` }))
+    );
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    room.getThread.mockClear();
+
+    await act(async () => {
+      storeThreadSummaryInState('session', room.roomId, '$root-2', {
+        summaryText: 'Narrow summary needle',
+        generatedTs: 300,
+        messageCount: 3,
+      });
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(
+      new Set(['$root-2'])
+    );
+    const entry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-2'));
+    expect(entry?.summaryText).toBe('Narrow summary needle');
+  });
+
   it('removes deleted threads from the index instead of re-upserting stale rows', async () => {
     const { room, thread } = makeRoom();
     const mx = makeClient(room);
@@ -1057,8 +1259,9 @@ describe('useCrossRoomThreadIndex', () => {
     expect(entries.has(getCrossRoomThreadIndexKey(room.roomId, '$server-root'))).toBe(true);
   });
 
-  it('keeps an own pending first reply visible before the SDK reply count catches up', async () => {
+  it('promotes an own pending first reply when its local echo arrives before SDK thread events', async () => {
     const roomId = '!room:example.org';
+    const relationEvents: MatrixEvent[] = [];
     const pendingReply = makeEvent({
       id: '~pending-reply',
       body: 'Pending reply',
@@ -1068,7 +1271,7 @@ describe('useCrossRoomThreadIndex', () => {
       threadRootId: '$root',
       ts: Date.now(),
     });
-    const { room, thread } = makeRoom(roomId, { relationEvents: [pendingReply] });
+    const { room, thread } = makeRoom(roomId, { relationEvents });
     const mx = makeClient(room);
     matrixClientMock.mockReturnValue(mx);
     const store = createStore();
@@ -1080,15 +1283,27 @@ describe('useCrossRoomThreadIndex', () => {
     });
     await flushScheduledWork();
 
-    const snapshot = store.get(crossRoomThreadIndexAtom);
-    const entry = snapshot.entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
+    const initialEntry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
+    expect(initialEntry?.threadRecord.status.replyCount).toBe(0);
+    expect(initialEntry?.threadRecord.status.hasPendingSend).toBe(false);
+    expect(isCrossRoomThreadEntryEligible(initialEntry!)).toBe(false);
+
+    await act(async () => {
+      relationEvents.push(pendingReply);
+      room.emit(RoomEvent.LocalEchoUpdated, pendingReply, room);
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    const entry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
     expect(entry?.threadRecord.status.replyCount).toBe(0);
     expect(entry?.threadRecord.status.hasPendingSend).toBe(true);
-    expect(
-      applyCrossRoomThreadFilters(snapshot.entries.values(), DEFAULT_CROSS_ROOM_THREAD_FILTERS).map(
-        (filteredEntry) => filteredEntry.threadRootId
-      )
-    ).toEqual(['$root']);
+    expect(entry?.lastActivityTs).toBe(pendingReply.getTs());
+    expect(isCrossRoomThreadEntryEligible(entry!)).toBe(true);
   });
 
   it('removes a room from the index when membership leaves', async () => {

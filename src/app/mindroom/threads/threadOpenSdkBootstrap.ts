@@ -82,13 +82,22 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     return false;
   }
 
+  let threadModel = room.getThread(threadId);
+  let createdZeroReplyThread = false;
   const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
   if (
-    !room.getThread(threadId) &&
+    !threadModel &&
     zeroReplyStandaloneRootEvent &&
     isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
   ) {
-    room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false);
+    threadModel = room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false);
+    // Stop the constructor-started metadata request from resetting a reply that
+    // arrives in the meantime. The established timeline bootstrap below still
+    // checks the server on this first open, so a stale local root cannot hide
+    // replies that already exist remotely.
+    threadModel.initialEventsFetched = true;
+    threadModel.replayEvents = null;
+    createdZeroReplyThread = true;
     setThreadTailLoaded(true);
     setTimeline((ct) => ({ ...ct }));
     setThreadTimelineTick((val) => val + 1);
@@ -98,10 +107,8 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     if (shouldScrollToLatestOnOpen) {
       pinThreadToBottomOnOpen();
     }
-    return false;
   }
 
-  let threadModel = room.getThread(threadId);
   if (!threadModel) {
     const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
     if (!isMounted()) {
@@ -242,7 +249,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     );
   }
 
-  return true;
+  return !createdZeroReplyThread;
 };
 
 const reconcileCachedThreadBackwardToken = ({

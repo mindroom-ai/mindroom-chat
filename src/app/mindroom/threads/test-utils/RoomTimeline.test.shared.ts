@@ -1423,6 +1423,8 @@ const makeRoom = ({
         id: threadId,
         rootEvent,
         events: threadEvents,
+        initialEventsFetched: false,
+        replayEvents: [] as ReturnType<typeof makeEvent>[] | null,
         timeline: threadEvents,
         get length() {
           return threadEvents.length;
