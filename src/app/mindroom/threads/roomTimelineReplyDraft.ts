@@ -37,7 +37,7 @@ export const resolveMindroomReplyDraftEventIds = (room: Room, draft: IReplyDraft
         ? {
             'm.in_reply_to': {
               ...relation['m.in_reply_to'],
-              event_id: canonicalReplyEventId!,
+              ...(canonicalReplyEventId !== undefined ? { event_id: canonicalReplyEventId } : {}),
             },
           }
         : {}),

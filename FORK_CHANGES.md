@@ -203,6 +203,9 @@
 - Round 7 status: rebase, defect reproduction, primary delivery fix, secondary ordering fix, full validation, live acceptance, and independent re-review are complete on `cinny-121`; do not merge to `dev` as part of this round.
 - PR review baseline merge (2026-07-18): current `origin/dev` commit `f2e9034a` merged without rewriting PR history; the overlapping PR #173 text-session path and composer pending UI were superseded by CINNY-121's synchronous local-echo ownership path, while its editor-restoration regression remains at the upload/caption session boundary.
 - PR review baseline merge validation passes 80 focused tests across four files, typecheck, touched-file Prettier, and `git diff --check`.
+- PR review remediation (2026-07-18): reply-draft canonicalization no longer writes an explicit undefined fallback target when malformed `m.in_reply_to` metadata omits `event_id`, and a focused malformed-metadata regression owns that invariant.
+- PR review triage rejected boolean coercion for the typed `MatrixEvent.isThreadRoot` getter, settlement ownership for callbacks invoked only after confirmed upload or caption sends, and hot-path characterization of the transaction fallback that runs only for local ids after the SDK transaction map misses.
+- PR review remediation validation passes 92 focused tests across reply-draft, receipt, and render-order suites, typecheck, changed-file Prettier, and `git diff --check`.
 
 ### Guarded App Store review release (2026-07-15)
 

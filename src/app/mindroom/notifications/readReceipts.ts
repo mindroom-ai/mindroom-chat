@@ -1,4 +1,11 @@
-import { Direction, MatrixClient, MatrixEvent, RelationType, Room, ReceiptType } from 'matrix-js-sdk';
+import {
+  Direction,
+  MatrixClient,
+  MatrixEvent,
+  RelationType,
+  Room,
+  ReceiptType,
+} from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
@@ -55,10 +62,16 @@ const getLatestThreadReplyTarget = async (
     return getLoadedThreadReplyTarget(room, threadId, readEventId);
   }
 
-  const relationResponse = await mx.fetchRelations(room.roomId, threadId, RelationType.Thread, null, {
-    dir: Direction.Backward,
-    limit: 1,
-  });
+  const relationResponse = await mx.fetchRelations(
+    room.roomId,
+    threadId,
+    RelationType.Thread,
+    null,
+    {
+      dir: Direction.Backward,
+      limit: 1,
+    }
+  );
   const latestReply = relationResponse.chunk?.[0];
   if (!latestReply) {
     return undefined;
@@ -84,8 +97,10 @@ export async function markMainTimelineAsRead(
   const timeline = room.getLiveTimeline().getEvents();
   if (timeline.length === 0) return;
 
-  const latestEvent = getLatestReceiptTarget(timeline, room.getEventReadUpTo(userId), (event) =>
-    !isThreadOnlyRoomActivity(room, event)
+  const latestEvent = getLatestReceiptTarget(
+    timeline,
+    room.getEventReadUpTo(userId),
+    (event) => !isThreadOnlyRoomActivity(room, event)
   );
   if (!latestEvent) return;
 

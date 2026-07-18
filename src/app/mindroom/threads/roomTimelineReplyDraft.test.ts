@@ -171,4 +171,36 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
       },
     });
   });
+
+  it('does not invent an undefined reply target while canonicalizing malformed metadata', () => {
+    const roomId = '!room:example.org';
+    const confirmedRoot = {
+      getId: () => '$root',
+      getTxnId: () => 'root-txn',
+      getUnsigned: () => ({ transaction_id: 'root-txn' }),
+    } as unknown as MatrixEvent;
+    const room = {
+      roomId,
+      getEventForTxnId: (txnId: string) => (txnId === 'root-txn' ? confirmedRoot : undefined),
+      getLiveTimeline: () => ({
+        getEvents: () => [confirmedRoot],
+      }),
+      getThreads: () => [],
+    } as unknown as Room;
+
+    const resolvedDraft = resolveMindroomReplyDraftEventIds(room, {
+      userId: '@sender:server',
+      eventId: '$reply',
+      body: 'reply',
+      relation: {
+        rel_type: 'm.thread',
+        event_id: `~${roomId}:root-txn`,
+        'm.in_reply_to': {},
+      },
+    });
+
+    expect(resolvedDraft.relation?.event_id).toBe('$root');
+    expect(resolvedDraft.relation?.['m.in_reply_to']).toStrictEqual({});
+    expect('event_id' in (resolvedDraft.relation?.['m.in_reply_to'] ?? {})).toBe(false);
+  });
 });
