@@ -134,7 +134,8 @@ const parseAbnormal = (raw: string | null): AbnormalSession | undefined => {
     return Object.keys(abnormal).length === 14 &&
       number(detectedAt) &&
       number(startupGapMs) &&
-      sessionIsValid(value)
+      sessionIsValid(value) &&
+      value.expectedEndAt === null
       ? { ...value, detectedAt, startupGapMs }
       : undefined;
   } catch {
@@ -142,10 +143,11 @@ const parseAbnormal = (raw: string | null): AbnormalSession | undefined => {
   }
 };
 const serialize = (value: FlightRecorderSession | AbnormalSession): string | undefined => {
-  let json = JSON.stringify(value);
-  while (json.length > FLIGHT_RECORDER_MAX_JSON_CHARS && value.events.length) {
-    value.events.shift();
-    json = JSON.stringify(value);
+  const serializable = { ...value, events: [...value.events] };
+  let json = JSON.stringify(serializable);
+  while (json.length > FLIGHT_RECORDER_MAX_JSON_CHARS && serializable.events.length) {
+    serializable.events.shift();
+    json = JSON.stringify(serializable);
   }
   return json.length <= FLIGHT_RECORDER_MAX_JSON_CHARS ? json : undefined;
 };
@@ -205,6 +207,7 @@ export const classifyFlightRecorderRoute = (
   else if (segment && ['login', 'register', 'reset-password'].includes(segment)) route = 'auth';
   else if (
     segment &&
+    // SPACE_PATH owns every non-reserved top-level segment as a Matrix space identifier.
     !['explore', 'create', 'inbox', 'space-settings', 'room-settings'].includes(segment)
   )
     route = 'space';
@@ -279,11 +282,6 @@ export const installFlightRecorder = (
       copiedPrior = true;
       runtime.copiedPriorSessionId = prior.sessionId;
     }
-    if (!flush(runtime)) {
-      if (!copiedPrior) runtime.preserved = prior;
-      return runtime.dispose;
-    }
-    runtime.established = true;
     const checkpoint = (detectGap: boolean) => {
       if (runtime.disabled || !runtime.session) return;
       if (document.visibilityState !== 'visible') {
@@ -352,6 +350,31 @@ export const installFlightRecorder = (
     document.addEventListener('visibilitychange', visibility);
     window.addEventListener('pagehide', pageHide);
     window.addEventListener('pageshow', pageShow);
+    const visibleAfterRegistration = document.visibilityState === 'visible';
+    if (visibleAfterRegistration !== initiallyVisible) {
+      const at = Date.now();
+      if (visibleAfterRegistration) {
+        Object.assign(runtime.session, {
+          visibility: 'visible',
+          expectedEndAt: null,
+          endReason: null,
+        });
+        add(runtime, { at, type: 'lifecycle', state: 'visible' });
+      } else {
+        Object.assign(runtime.session, {
+          visibility: 'hidden',
+          expectedEndAt: at,
+          endReason: 'hidden',
+        });
+        add(runtime, { at, type: 'lifecycle', state: 'hidden' });
+      }
+    }
+    if (!flush(runtime)) {
+      if (!copiedPrior) runtime.preserved = prior;
+      runtime.dispose();
+      return runtime.dispose;
+    }
+    runtime.established = true;
     start();
     return runtime.dispose;
   } catch {

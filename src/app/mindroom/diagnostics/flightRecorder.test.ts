@@ -406,6 +406,37 @@ describe('iOS freeze flight recorder', () => {
     expect(storage.writes).toHaveLength(writesAfterFailure);
   });
 
+  it('does not expose a marker-free session before lifecycle listeners are installed', () => {
+    storage.failRemoveKey = FLIGHT_RECORDER_CURRENT_KEY;
+    vi.spyOn(windowTarget, 'addEventListener').mockImplementationOnce(() => {
+      throw new Error('listener setup failed');
+    });
+
+    dispose = installFlightRecorder(storage);
+
+    expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBeNull();
+    expect(getFlightRecorderStatus()).toBe('unavailable');
+  });
+
+  it('persists an expected end when visibility changes before listener registration', () => {
+    const addDocumentListener = documentTarget.addEventListener.bind(documentTarget);
+    vi.spyOn(documentTarget, 'addEventListener').mockImplementationOnce(
+      (type, listener, options) => {
+        visible = 'hidden';
+        addDocumentListener(type, listener, options);
+      }
+    );
+
+    dispose = installFlightRecorder(storage);
+
+    expect(readCurrent(storage)).toMatchObject({
+      visibility: 'hidden',
+      expectedEndAt: 1000,
+      endReason: 'hidden',
+      events: [{ at: 1000, type: 'lifecycle', state: 'hidden' }],
+    });
+  });
+
   it('restores pre-existing current bytes after a partial setup failure', () => {
     const prior = makePriorSession({ expectedEndAt: 990, endReason: 'hidden' });
     const priorBytes = JSON.stringify(prior);
@@ -588,6 +619,14 @@ describe('iOS freeze flight recorder', () => {
     ['malformed', '{'],
     ['oversized', 'x'.repeat(FLIGHT_RECORDER_MAX_JSON_CHARS + 1)],
     ['free-form', JSON.stringify({ privateText: 'must not persist' })],
+    [
+      'normally ended',
+      JSON.stringify({
+        ...makePriorSession({ expectedEndAt: 990, endReason: 'hidden' }),
+        detectedAt: 1000,
+        startupGapMs: 50,
+      }),
+    ],
   ])('removes %s abnormal-slot data during startup', (_case, abnormalBytes) => {
     storage.values.set(FLIGHT_RECORDER_ABNORMAL_KEY, abnormalBytes);
 

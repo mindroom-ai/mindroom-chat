@@ -192,6 +192,24 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('does not offer a retry when unavailable diagnostics cannot be read', async () => {
+    mocks.getFlightRecorderStatus.mockReturnValue('unavailable');
+    mocks.buildFlightRecorderExport.mockImplementation(() => {
+      throw new Error('Diagnostics storage unavailable');
+    });
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      await diagnosticsButton(renderer).props.onClick();
+    });
+
+    expect(diagnosticsTile(renderer).props['data-description']).toBe(
+      'Diagnostics storage unavailable.'
+    );
+    expect(diagnosticsButton(renderer).props.disabled).toBe(false);
+    renderer.unmount();
+  });
+
   it('treats native picker cancellation as neither success nor failure', async () => {
     mocks.saveFile.mockResolvedValue(false);
     const renderer = create(<About requestClose={vi.fn()} />);

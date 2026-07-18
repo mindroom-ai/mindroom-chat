@@ -174,6 +174,9 @@ type HarnessProps = {
     context: PendingVoiceSendContext
   ) => Promise<void> | void;
   getSendContext?: () => PendingVoiceSendContext;
+  state?: {
+    current: ReturnType<typeof useVoiceRecorder> | undefined;
+  };
 };
 
 const recorderState = {
@@ -187,8 +190,9 @@ function Harness({
   onSendStopFailure,
   onSendRecording,
   getSendContext,
+  state = recorderState,
 }: HarnessProps) {
-  recorderState.current = useVoiceRecorder({
+  state.current = useVoiceRecorder({
     onRecordingStart,
     onSendStopRequest,
     onSendStopFailure,
@@ -412,6 +416,34 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       activeRenderer.unmount();
     });
+  });
+
+  it('keeps another active hook published when one active hook unmounts', async () => {
+    const firstState = {
+      current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
+    };
+    const secondState = {
+      current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
+    };
+    const { renderer: firstRenderer } = await renderHarness({ state: firstState });
+    const { renderer: secondRenderer } = await renderHarness({ state: secondState });
+
+    await act(async () => {
+      await firstState.current?.start();
+      await secondState.current?.start();
+    });
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      firstRenderer.unmount();
+    });
+
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      secondRenderer.unmount();
+    });
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
   it('passes the audio bitrate even when no preferred MIME type is supported', async () => {

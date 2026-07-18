@@ -21,7 +21,7 @@
 
 ### CINNY-124 iOS on-device freeze flight recorder (2026-07-17)
 
-- Status: local implementation, automated validation, and independent re-review are complete for all code changes.
+- Status: PR #175 review remediation, focused and full local validation, and independent self-review are complete; push and final AI review are pending.
 - Real-iPhone acceptance PENDING — release-blocking validation item, requires Bas's device.
 - The pending physical-device work is an explicit post-merge, pre-release validation step for Bas.
 - Scope remains telemetry-only: one bounded native-iOS localStorage recorder, centralized voice-phase wiring, one inline About export tile, focused unit coverage, and one ordinary-Vite Playwright simulation.
@@ -32,9 +32,9 @@
 - The terminal-stall check does not require `heartbeat_gap` because that callback cannot return before the force-close.
 - The remaining performance check must measure serialized size and localStorage flush time on the target phone during active timeline scrolling.
 - Flush p95 at or below 2 ms remains an engineering goal, any visible hitch is a failure, and a materially slower device result requires shrinking the cap first or changing to a five-second heartbeat with a corresponding gap threshold before release.
-- Focused validation passes 83 tests across the recorder, voice hook, About retrieval path, and native-iOS bootstrap contracts plus both ordinary-Vite Playwright simulations.
-- Shuffled validation with seed 124 passes all 32 recorder tests and all 41 voice-hook tests without order-dependent cleanup or singleton identity leakage.
-- Full automated validation passes 435 Vitest files / 3,318 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with the pre-existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Focused validation passes 88 tests across the recorder, voice hook, About retrieval path, and native-iOS bootstrap contracts plus both ordinary-Vite Playwright simulations.
+- Shuffled validation with seed 124 passes all 35 recorder tests and all 42 voice-hook tests without order-dependent cleanup or singleton identity leakage.
+- Full automated validation passes 437 Vitest files / 3,240 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with the pre-existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
 - Independent review found and remediation covered fail-closed startup reads, status/export read failures, runtime voice-enum validation, maximum fixed-shape envelope sizing, expected-end abnormal retention, and a real scheduled-heartbeat browser baseline.
 - The forwarded review round fixed build-version normalization, idempotent generation-scoped installation and disposal, background pageshow semantics, export reentrancy, retained-abnormal status priority, and integration/state-machine coverage at their owning boundaries.
 - The final forwarded review fixed boot isolation, hidden-launch expected-end classification, stale live-looking bytes after established-session write failure, and neutral native picker cancellation at the existing recorder/bootstrap/About boundaries.
@@ -43,8 +43,12 @@
 - Independent re-review approves the final diff with no remaining requirement mismatch, correctness finding, or half-refactor trace.
 - The final finish-the-invariant round scopes unmount `inactive` publication to a hook instance that previously published an active phase and restarts a dead heartbeat on visible `pageshow` without adding lifecycle evidence.
 - The same-session recovery round preserves the first abnormal-detection bytes through replacement-write failure and retry while still replacing unrelated retained evidence with the newly detected marker-free session.
+- PR #175 review found that current-session bytes were persisted before lifecycle-listener ownership was established, concurrent voice hooks shared one unowned diagnostic state, unavailable export failures offered a misleading retry, and a normally ended session could pass abnormal-slot validation.
+- Remediation registers lifecycle listeners before first persistence, reconciles visibility after registration, aggregates voice phase per mounted hook source, keeps export enabled for readable disabled runtimes while suppressing the impossible retry prompt, and requires abnormal evidence to be marker-free.
+- The serializer now trims only a private event copy, and the route classifier documents that the router's dynamic space route intentionally owns every non-reserved top-level segment.
+- Independent self-review found the missed startup-visibility transition and abnormal-slot semantic validation gap included in this remediation and found no remaining blocker after the focused and full gates.
 - Review-directed deviations from the original plan are explicit: build versions are normalized to bounded safe ASCII, hidden launches begin with an expected-end marker, initial or hidden pageshow handling follows actual visibility, established-session write failure removes stale current bytes, valid retained abnormal evidence outranks unavailable status, and the requested bootstrap/About contracts add `src/index.test.ts` and `src/app/features/settings/about/About.test.tsx`.
-- Size deviation: the implementation adds 499 production lines, below the 500-line hard cap but 249 lines above the 250-line target; reaching the target would require aggressive density, weaker validation/failure semantics, or a broader helper refactor outside the mandated file layout.
+- Size deviation: review-confirmed correctness work raises the implementation to 542 added production lines, 42 above the original 500-line hard cap and 292 above the 250-line target; preserving the cap would require aggressive density, weaker failure and ownership semantics, or a broader helper refactor outside the mandated file layout.
 - This Runbook contains the durable implementation, deviation, validation, and acceptance record; the transient `PLAN.md` and `.claude/REPORT.md` artifacts are removed.
 - The pre-existing `package-lock.json` and `.envrc` worktree artifacts remain out of scope and untouched.
 

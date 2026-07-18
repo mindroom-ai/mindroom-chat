@@ -161,7 +161,9 @@ export function About({ requestClose }: AboutProps) {
                     <SettingTile
                       title="On-device diagnostics"
                       description={`${diagnosticsDescription}${
-                        exportError ? ' Export failed. Try again.' : ''
+                        exportError && diagnosticsStatus !== 'unavailable'
+                          ? ' Export failed. Try again.'
+                          : ''
                       }`}
                       after={
                         <Button
