@@ -11,6 +11,8 @@
 - Coverage verifies the settings tile and account-data patch, strict sanitation, baseline changes on mounted messages, timeline-provider wiring, and the collapse-all override from an expanded default.
 - Validation passes all 437 Vitest files with 3,201 tests, TypeScript, ESLint with zero errors and 17 pre-existing warnings, the production/PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check`.
 - Independent second self-review found no account-data compatibility, expansion-precedence, test-strength, or scope issues.
+- Greptile rated the PR 5/5 with no findings.
+- Gemini's request to disable a switch during its pending write was declined because intentional rapid retoggles are protected by per-switch request generations and serialized account-data patches; both dependent review threads were answered and resolved.
 
 ### Retry transient Xcode Cloud Homebrew downloads (2026-07-18)
 
