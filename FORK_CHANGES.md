@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Retry transient Xcode Cloud Homebrew downloads (2026-07-18)
+
+- Status: root cause confirmed from Xcode Cloud build 150; retry hardening, focused regression coverage, full local validation, and independent zero-tolerance review are complete.
+- Xcode Cloud reached `ci_post_clone.sh`, refreshed Homebrew, and failed while downloading the `uvwasi` bottle required by Node 26.5.0 because the GitHub Container Registry connection was reset.
+- The failing `dev` merge changed no dependency, lockfile, Xcode project, or CI bootstrap file, and the same bootstrap passed on the preceding Xcode Cloud build.
+- The shared Xcode Cloud bootstrap now retries each Homebrew formula installation up to three times with bounded backoff so a single transient bottle failure does not abort the archive.
+- Focused tests simulate both a recovered first-attempt download failure and exhaustion of the retry budget.
+- Validation completed with the focused Xcode Cloud and iOS version suites (19 tests), the full Vitest suite (3,195 tests), TypeScript, ESLint, the production build, shell syntax checks, Prettier, and `git diff --check`.
+- Independent review found no blockers and confirmed the strict-shell retry semantics, bounded backoff, preserved terminal failure, and exact scope.
+
 ### Clear submitted composer after local-echo ownership (2026-07-17)
 
 - Status: the minimal production fix, red-first regression coverage, focused validation, independent re-review, and real Docker Matrix plus Chromium validation are complete.
