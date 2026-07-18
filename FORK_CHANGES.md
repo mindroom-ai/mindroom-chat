@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Configurable default for long-message expansion (2026-07-18)
+
+- Status: implementation, focused regression coverage, full local validation, and independent second self-review are complete.
+- Settings → General → Interface now offers an account-level option to expand long messages by default instead of folding them behind Show more.
+- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices and malformed account data keeps the current folded default.
+- The preference supplies the timeline expansion baseline while per-message Show more and Show less choices plus the expand-all control remain higher-priority overrides.
+- Coverage verifies the settings tile and account-data patch, strict sanitation, baseline changes on mounted messages, timeline-provider wiring, and the collapse-all override from an expanded default.
+- Validation passes all 437 Vitest files with 3,201 tests, TypeScript, ESLint with zero errors and 17 pre-existing warnings, the production/PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check`.
+- Independent second self-review found no account-data compatibility, expansion-precedence, test-strength, or scope issues.
+
 ### Retry transient Xcode Cloud Homebrew downloads (2026-07-18)
 
 - Status: root cause confirmed from Xcode Cloud build 150; retry hardening, focused regression coverage, full local validation, independent zero-tolerance review, valid PR review remediation, and independent re-review are complete.

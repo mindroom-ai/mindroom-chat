@@ -195,8 +195,9 @@ export function CollapsibleMessage({
   const gradientRef = useRef<HTMLDivElement>(null);
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
-  const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
+  const previousExpandAllInitRef = useRef(expandAllInit);
+  const needsFocusOnCollapseRef = useRef(false);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const [overflowing, setOverflowing] = useState(() => {
     // forceOverflowing is a prop-driven override (lazily-hydrated
@@ -270,6 +271,14 @@ export function CollapsibleMessage({
     }
     previousCollapseModeRef.current = collapseMode;
   }, [collapseMode]);
+
+  useEffect(() => {
+    if (previousExpandAllInitRef.current === expandAllInit) return;
+    previousExpandAllInitRef.current = expandAllInit;
+    if (isExempt || collapseMode === 'initially-expanded' || expandAllInit === undefined) return;
+    if (expansionKey !== undefined && manualExpansionState?.has(expansionKey)) return;
+    setExpanded(expandAllInit);
+  }, [collapseMode, expandAllInit, expansionKey, isExempt, manualExpansionState]);
 
   // Full long-text sidecars should load before the user expands a visible
   // row, but not for virtualizer overscan rows that never enter the viewport.

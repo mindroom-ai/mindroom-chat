@@ -234,6 +234,7 @@ import {
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 import { useThreadTimelineState } from './useThreadTimelineState';
+import { useExpandLongMessagesByDefault } from '../settings/useMindroomAccountSettings';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -347,6 +348,7 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
+  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
   const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
   const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
@@ -406,6 +408,7 @@ export function RoomTimeline({
   // room:thread, so this state (and the context derived from it) resets on
   // navigation via remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
+  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
   const manualExpansionStateRef = useRef(new Map<string, boolean>());
   const manualExpansionState = manualExpansionStateRef.current;
   const atBottomRef = useRef(atBottom);
@@ -3286,7 +3289,7 @@ export function RoomTimeline({
 
   return (
     <CollapsibleMessageStateProvider
-      expandAllInit={expandAllOverride}
+      expandAllInit={expandAll}
       manualExpansionState={manualExpansionState}
     >
       <Box grow="Yes" direction="Column">
@@ -3361,7 +3364,7 @@ export function RoomTimeline({
                 onClick={(e) => {
                   e.preventDefault();
                   manualExpansionState.clear();
-                  if (expandAllOverride === true) {
+                  if (expandAll) {
                     collapseAllMessages();
                     setExpandAllOverride(false);
                   } else {
@@ -3384,7 +3387,7 @@ export function RoomTimeline({
                   padding: 0,
                 }}
               >
-                {expandAllOverride === true ? '[-all]' : '[+all]'}
+                {expandAll ? '[-all]' : '[+all]'}
               </button>
               <Scroll
                 ref={scrollRef}
