@@ -22,6 +22,8 @@ const runBrewInstall = (failures: number) => {
 
   const attemptsPath = join(directory, 'attempts');
   const sleepsPath = join(directory, 'sleeps');
+  writeFileSync(attemptsPath, '');
+  writeFileSync(sleepsPath, '');
   writeExecutable(
     join(directory, 'brew'),
     [
@@ -63,7 +65,7 @@ const runBrewInstall = (failures: number) => {
 
   return {
     ...result,
-    attempts: readFileSync(attemptsPath, 'utf8').trim().split('\n'),
+    attempts: readFileSync(attemptsPath, 'utf8').trim().split('\n').filter(Boolean),
     sleeps: readFileSync(sleepsPath, 'utf8').trim().split('\n').filter(Boolean),
   };
 };
@@ -75,6 +77,15 @@ afterEach(() => {
 });
 
 describe('Xcode Cloud post-clone Homebrew installs', () => {
+  it('does not retry a successful install', () => {
+    const result = runBrewInstall(0);
+
+    expect(result.status).toBe(0);
+    expect(result.attempts).toEqual(['install node']);
+    expect(result.sleeps).toEqual([]);
+    expect(result.stderr).not.toContain('retrying');
+  });
+
   it('retries a transient bottle download failure', () => {
     const result = runBrewInstall(1);
 
