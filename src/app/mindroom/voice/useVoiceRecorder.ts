@@ -21,6 +21,7 @@ import {
   type PendingVoiceSendInFlight,
 } from '../../state/room/roomInputDrafts';
 import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
+import { setFlightRecorderVoiceCaptureState } from '../diagnostics/flightRecorder';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
@@ -134,6 +135,7 @@ export function useVoiceRecorder({
   const stopResolverRef = useRef<StopResolver>();
   const sessionIdRef = useRef(0);
   const mountedRef = useRef(true);
+  const lastPublishedRef = useRef('inactive');
   const latestOnRecordingStartRef = useRef(onRecordingStart);
   const latestOnSendStopRequestRef = useRef(onSendStopRequest);
   const latestOnSendStopFailureRef = useRef(onSendStopFailure);
@@ -201,7 +203,11 @@ export function useVoiceRecorder({
   }, [getSendContext]);
 
   const safeSetPhase = useCallback((nextPhase: VoiceRecorderPhase) => {
-    if (mountedRef.current) setPhase(nextPhase);
+    if (!mountedRef.current) return;
+    const nextState = nextPhase === 'idle' || nextPhase === 'sending' ? 'inactive' : nextPhase;
+    lastPublishedRef.current = nextState;
+    setFlightRecorderVoiceCaptureState(nextState);
+    setPhase(nextPhase);
   }, []);
 
   const safeSetElapsedMs = useCallback((value: number) => {
@@ -866,6 +872,7 @@ export function useVoiceRecorder({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      if (lastPublishedRef.current !== 'inactive') setFlightRecorderVoiceCaptureState('inactive');
       if (pendingStopActionRef.current === 'send') {
         cleanupUnmountDuringSend();
         return;

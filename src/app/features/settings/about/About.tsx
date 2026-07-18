@@ -11,6 +11,12 @@ import {
   MINDROOM_CLIENT_BRANDING,
   getMindroomWelcomePageContent,
 } from '../../../mindroom/branding/clientBranding';
+import { isNativeIOS } from '../../../mindroom/native/nativeSso';
+import { saveFile } from '../../../mindroom/native/nativeFileSave';
+import {
+  buildFlightRecorderExport,
+  getFlightRecorderStatus,
+} from '../../../mindroom/diagnostics/flightRecorder';
 
 type AboutProps = {
   requestClose: () => void;
@@ -20,6 +26,15 @@ export function About({ requestClose }: AboutProps) {
   const clientConfig = useClientConfig();
   const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome);
   const [clearing, setClearing] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportError, setExportError] = React.useState(false);
+  const nativeIOS = isNativeIOS();
+  const diagnosticsStatus = getFlightRecorderStatus();
+  const diagnosticsDescription = {
+    unexpected: 'Previous session ended unexpectedly.',
+    none: 'No unexpected session retained.',
+    unavailable: 'Diagnostics storage unavailable.',
+  }[diagnosticsStatus];
 
   const handleClearCache = async () => {
     if (clearing) return;
@@ -30,6 +45,22 @@ export function About({ requestClose }: AboutProps) {
       await clearAllCacheAndReload(mx);
     } catch {
       setClearing(false);
+    }
+  };
+
+  const handleExportDiagnostics = async () => {
+    if (exporting) return;
+
+    setExporting(true);
+    setExportError(false);
+
+    try {
+      const { blob, fileName } = buildFlightRecorderExport();
+      await saveFile(blob, fileName);
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -126,6 +157,32 @@ export function About({ requestClose }: AboutProps) {
                       </Button>
                     }
                   />
+                  {nativeIOS && (
+                    <SettingTile
+                      title="On-device diagnostics"
+                      description={`${diagnosticsDescription}${
+                        exportError ? ' Export failed. Try again.' : ''
+                      }`}
+                      after={
+                        <Button
+                          onClick={handleExportDiagnostics}
+                          variant="Secondary"
+                          fill="Soft"
+                          size="300"
+                          radii="300"
+                          outlined
+                          disabled={exporting}
+                          before={
+                            exporting && <Spinner size="200" variant="Secondary" fill="Soft" />
+                          }
+                        >
+                          <Text size="B300">
+                            {exporting ? 'Exporting...' : 'Export diagnostics'}
+                          </Text>
+                        </Button>
+                      }
+                    />
+                  )}
                 </SequenceCard>
               </Box>
               <Box direction="Column" gap="100">

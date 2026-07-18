@@ -22,6 +22,14 @@ import {
   type PendingVoiceSendDraft,
 } from '../../state/room/roomInputDrafts';
 
+const flightRecorderMocks = vi.hoisted(() => ({
+  setVoiceCaptureState: vi.fn(),
+}));
+
+vi.mock('../diagnostics/flightRecorder', () => ({
+  setFlightRecorderVoiceCaptureState: flightRecorderMocks.setVoiceCaptureState,
+}));
+
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: vi.fn(),
@@ -171,6 +179,7 @@ type HarnessProps = {
 const recorderState = {
   current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
 };
+const mountedRenderers = new Set<ReactTestRenderer>();
 
 function Harness({
   onRecordingStart,
@@ -199,6 +208,7 @@ const renderHarness = async (
       React.createElement(Provider, { store }, React.createElement(Harness, props))
     );
   });
+  mountedRenderers.add(renderer);
   return { renderer, store };
 };
 
@@ -225,6 +235,7 @@ describe('useVoiceRecorder', () => {
     MockMediaRecorder.autoStop = true;
     MockMediaRecorder.isTypeSupported.mockReturnValue(true);
     MockAnalyser.sampleIndex = 0;
+    flightRecorderMocks.setVoiceCaptureState.mockReset();
     vi.mocked(Capacitor.isNativePlatform).mockReset();
     vi.mocked(Capacitor.getPlatform).mockReset();
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
@@ -239,7 +250,11 @@ describe('useVoiceRecorder', () => {
     vi.stubGlobal('MediaRecorder', MockMediaRecorder);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => {
+      mountedRenderers.forEach((renderer) => renderer.unmount());
+    });
+    mountedRenderers.clear();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     recorderState.current = undefined;
@@ -296,6 +311,107 @@ describe('useVoiceRecorder', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
 
     renderer.unmount();
+  });
+
+  it('reports every capture phase in order and maps sending, idle, and unmount to inactive', async () => {
+    const onSendRecording = vi.fn();
+    const { renderer } = await renderHarness({ onSendRecording });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    act(() => {
+      recorderState.current?.pause();
+    });
+    act(() => {
+      recorderState.current?.resume();
+    });
+    await act(async () => {
+      await recorderState.current?.send();
+    });
+
+    expect(flightRecorderMocks.setVoiceCaptureState.mock.calls.map(([state]) => state)).toEqual([
+      'requesting',
+      'recording',
+      'paused',
+      'recording',
+      'processing',
+      'inactive',
+      'inactive',
+    ]);
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    act(() => renderer.unmount());
+
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
+  });
+
+  it('does not let a stale delayed stop overwrite a replacement hook recording', async () => {
+    MockMediaRecorder.autoStop = false;
+    const staleSend = vi.fn();
+    const { renderer: firstRenderer } = await renderHarness({ onSendRecording: staleSend });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const staleRecorder = MockMediaRecorder.instances[0];
+    let staleSendPromise!: Promise<boolean>;
+    await act(async () => {
+      staleSendPromise = recorderState.current!.send();
+    });
+    await act(async () => {
+      firstRenderer.unmount();
+    });
+
+    const { renderer: secondRenderer } = await renderHarness();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const callsAfterReplacementStarted = flightRecorderMocks.setVoiceCaptureState.mock.calls.length;
+    expect(recorderState.current?.phase).toBe('recording');
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      staleRecorder.flushStop();
+      await staleSendPromise;
+    });
+
+    expect(staleSend).toHaveBeenCalledOnce();
+    expect(recorderState.current?.phase).toBe('recording');
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenCalledTimes(
+      callsAfterReplacementStarted
+    );
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      secondRenderer.unmount();
+    });
+  });
+
+  it('does not let a concurrently mounted idle hook overwrite an active recording on unmount', async () => {
+    const { renderer: idleRenderer } = await renderHarness();
+    const { renderer: activeRenderer } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const callsAfterRecordingStarted = flightRecorderMocks.setVoiceCaptureState.mock.calls.length;
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      idleRenderer.unmount();
+    });
+
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenCalledTimes(
+      callsAfterRecordingStarted
+    );
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+
+    await act(async () => {
+      activeRenderer.unmount();
+    });
   });
 
   it('passes the audio bitrate even when no preferred MIME type is supported', async () => {
@@ -379,6 +495,10 @@ describe('useVoiceRecorder', () => {
     expect(recorderState.current?.errorMessage).toBe(
       'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
     );
+    expect(flightRecorderMocks.setVoiceCaptureState.mock.calls.map(([state]) => state)).toEqual([
+      'requesting',
+      'inactive',
+    ]);
 
     renderer.unmount();
   });
