@@ -112,7 +112,7 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
         '<a href="file:///etc/passwd">file</a>',
       ].join(''),
       {
-        additionalAllowedUriSchemes: ['Obsidian:', 'javascript', 'data', 'file', 'not a scheme'],
+        additionalAllowedUriSchemes: ['Obsidian://', 'javascript', 'data', 'file', 'not a scheme'],
       }
     );
 

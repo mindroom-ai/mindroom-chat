@@ -83,8 +83,9 @@ Formatted message links can allow additional desktop application URI schemes:
 ```
 
 Use scheme names without `://`.
+Trailing `:` or `://` delimiters are normalized if supplied.
 The configured list is additive to the built-in safe schemes.
-Browser-sensitive schemes such as `javascript`, `data`, `file`, `blob`, and `vbscript` are always ignored.
+Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, `vbscript`, `about`, `chrome`, `chrome-extension`, `filesystem`, `resource`, and `view-source` are always ignored.
 
 ## Self-Hosting
 

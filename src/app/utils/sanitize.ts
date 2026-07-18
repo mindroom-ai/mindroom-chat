@@ -117,7 +117,10 @@ const resolveAllowedUriSchemes = (additionalAllowedUriSchemes: unknown): string[
   additionalAllowedUriSchemes.forEach((candidate) => {
     if (typeof candidate !== 'string') return;
 
-    const normalized = candidate.trim().toLowerCase().replace(/:$/, '');
+    const normalized = candidate
+      .trim()
+      .toLowerCase()
+      .replace(/:\/\/$|:$/, '');
     if (URI_SCHEME_PATTERN.test(normalized) && !UNSAFE_URI_SCHEMES.has(normalized)) {
       allowedSchemes.add(normalized);
     }

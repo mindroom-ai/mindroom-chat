@@ -16,6 +16,8 @@
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent review found that the first implementation missed the fork-owned shipped config and trusted unchecked runtime values.
 - Both findings were fixed with regressions, and independent re-review found no remaining blockers.
+- PR review found that a trailing `://` prefix delimiter was rejected despite the existing trailing-colon normalization and that the README named only part of the permanent browser-sensitive scheme blocklist.
+- Scheme normalization now accepts both delimiters with regression coverage, and the README lists the complete blocklist.
 
 ### CINNY-123 evidence-named blob URL cleanup (2026-07-17)
 
