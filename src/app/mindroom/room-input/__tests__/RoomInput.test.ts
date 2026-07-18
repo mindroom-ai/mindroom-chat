@@ -479,7 +479,6 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       );
     },
     getMindroomRoomInputAutocompleteQuery: () => undefined,
-    getMindroomRoomInputMessageRelation: () => undefined,
     getMindroomRoomInputVoiceSendContext: ({
       ownerSessionId,
       roomId,
