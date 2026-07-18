@@ -19,8 +19,7 @@ import {
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../threads/threadTags';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
 import { crossRoomThreadIndexAtom, getCrossRoomThreadIndexKey } from '../crossRoomThreadIndex';
-import { applyCrossRoomThreadFilters } from '../crossRoomThreadFilterPipeline';
-import { DEFAULT_CROSS_ROOM_THREAD_FILTERS } from '../crossRoomThreadFilters';
+import { isCrossRoomThreadEntryEligible } from '../crossRoomThreadFilterPipeline';
 
 const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
@@ -354,6 +353,7 @@ describe('useCrossRoomThreadIndex', () => {
       '!space:example.org',
     ]);
     expect(room.on).toHaveBeenCalledWith(RoomEvent.Timeline, expect.any(Function));
+    expect(room.on).toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(ThreadEvent.NewReply, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(RoomEvent.MyMembership, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(MatrixEventEvent.Decrypted, expect.any(Function));
@@ -362,6 +362,10 @@ describe('useCrossRoomThreadIndex', () => {
       renderer?.unmount();
     });
     expect(room.removeListener).toHaveBeenCalledWith(RoomEvent.Timeline, expect.any(Function));
+    expect(room.removeListener).toHaveBeenCalledWith(
+      RoomEvent.LocalEchoUpdated,
+      expect.any(Function)
+    );
     expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
   });
 
@@ -1057,8 +1061,9 @@ describe('useCrossRoomThreadIndex', () => {
     expect(entries.has(getCrossRoomThreadIndexKey(room.roomId, '$server-root'))).toBe(true);
   });
 
-  it('keeps an own pending first reply visible before the SDK reply count catches up', async () => {
+  it('promotes an own pending first reply when its local echo arrives before SDK thread events', async () => {
     const roomId = '!room:example.org';
+    const relationEvents: MatrixEvent[] = [];
     const pendingReply = makeEvent({
       id: '~pending-reply',
       body: 'Pending reply',
@@ -1068,7 +1073,7 @@ describe('useCrossRoomThreadIndex', () => {
       threadRootId: '$root',
       ts: Date.now(),
     });
-    const { room, thread } = makeRoom(roomId, { relationEvents: [pendingReply] });
+    const { room, thread } = makeRoom(roomId, { relationEvents });
     const mx = makeClient(room);
     matrixClientMock.mockReturnValue(mx);
     const store = createStore();
@@ -1080,15 +1085,27 @@ describe('useCrossRoomThreadIndex', () => {
     });
     await flushScheduledWork();
 
-    const snapshot = store.get(crossRoomThreadIndexAtom);
-    const entry = snapshot.entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
+    const initialEntry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
+    expect(initialEntry?.threadRecord.status.replyCount).toBe(0);
+    expect(initialEntry?.threadRecord.status.hasPendingSend).toBe(false);
+    expect(isCrossRoomThreadEntryEligible(initialEntry!)).toBe(false);
+
+    await act(async () => {
+      relationEvents.push(pendingReply);
+      room.emit(RoomEvent.LocalEchoUpdated, pendingReply, room);
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    const entry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root'));
     expect(entry?.threadRecord.status.replyCount).toBe(0);
     expect(entry?.threadRecord.status.hasPendingSend).toBe(true);
-    expect(
-      applyCrossRoomThreadFilters(snapshot.entries.values(), DEFAULT_CROSS_ROOM_THREAD_FILTERS).map(
-        (filteredEntry) => filteredEntry.threadRootId
-      )
-    ).toEqual(['$root']);
+    expect(entry?.lastActivityTs).toBe(pendingReply.getTs());
+    expect(isCrossRoomThreadEntryEligible(entry!)).toBe(true);
   });
 
   it('removes a room from the index when membership leaves', async () => {

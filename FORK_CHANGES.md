@@ -53,14 +53,16 @@
 - The global cross-room Threads page excludes viewed roots with zero replies unless they have a pending send; the in-room compact overview and Recents continue to show their intentional root-only cards.
 - Intrinsic cross-room entry eligibility is applied before the global Threads empty-state decision, so an index containing only viewed zero-reply roots shows the base empty state instead of an ineffective Clear filters action.
 - A pending own first reply is derived from the room-shared SDK relation store, so it remains eligible when the global Threads route mounts after the send and before the SDK reply count catches up.
+- The cross-room index also listens for `Room.localEchoUpdated`, so a first reply sent after the index has already captured the zero-reply root becomes eligible immediately instead of waiting for the SDK's metadata-gated thread update.
 - Pending relation history is scanned only for zero-reply records, and the pending timestamp overrides the original activity fallback chain only while that pending first reply is active.
 - Both first-open creation and reopening a retained still-zero-reply root run the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work after cache-first paint.
-- Final validation after merging the current stacked base passes the focused SDK-bootstrap, render-state, spec-version-cache, and SDK-startup suites with 4 files / 63 tests, the full Vitest suite with 432 files / 3,276 tests, typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, touched-file Prettier, and `git diff --check`.
+- Final validation after merging the current stacked base and remediating the local-echo index invalidation passes the seven focused feature suites with 63 tests, the full Vitest suite with 432 files / 3,276 tests, typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Review: the original review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost.
 - PR review then identified the SDK metadata gate and timeline-reset race described above.
 - Independent review found that the first remediation skipped stale-root backfill, retained canceled echoes, and restored SDK support through a globally latching setter; first-open bootstrap now remains active, cancellation removes fallback state, and the real-SDK test mutates and restores only the support field.
 - Final independent re-review traced first-open backfill, the constructor metadata race, local and remote echo convergence, cancellation followed by delayed `Thread.newReply`, listener cleanup, and SDK-global restoration and found no remaining issues.
+- A final agent-cli Claude Fable review approved the pre-remediation head, but main-thread verification rejected its assumption that another cross-room index trigger fires immediately after relation aggregation; a red-first regression proved the pending entry stayed ineligible until `Room.localEchoUpdated` was subscribed and cleaned up with the other room listeners.
 - The current stacked base was merged without rewriting history; its four code and test files match the base exactly, and the only conflict was the shared Runbook insertion point where both feature sections are preserved.
 
 ### Guarded App Store review release (2026-07-15)
