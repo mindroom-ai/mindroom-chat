@@ -717,7 +717,6 @@ const mockDeferredSendWithLocalEcho = <T extends { event_id: string }>(
 };
 
 configureDefaultTextSendMocks();
-
 const createRoomInputTree = (
   store: ReturnType<typeof createStore>,
   props?: {

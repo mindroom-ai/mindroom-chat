@@ -7,7 +7,6 @@ import {
 import {
   createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputPasteMarkerFileNames,
-  getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
@@ -54,25 +53,6 @@ describe('RoomInputMindroomExtensions', () => {
         requestClose: () => undefined,
       })
     ).toBeNull();
-  });
-
-  it('builds the MindRoom message relation for plain text sends', () => {
-    expect(getMindroomRoomInputMessageRelation(undefined, undefined)).toBeUndefined();
-
-    expect(
-      getMindroomRoomInputMessageRelation(
-        {
-          eventId: '$reply',
-          relation: undefined,
-        },
-        '$thread'
-      )
-    ).toEqual({
-      'm.in_reply_to': { event_id: '$reply' },
-      event_id: '$thread',
-      rel_type: 'm.thread',
-      is_falling_back: false,
-    });
   });
 
   it('renders the thread indicator only for threaded reply drafts', () => {

@@ -34,6 +34,17 @@ type HarnessApi = {
 
 const createFile = (name: string) => new File(['content'], name, { type: 'text/plain' });
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+};
+
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   originalFile: file,
@@ -78,6 +89,7 @@ const TestHarness = ({
   editor,
   room,
   threadId,
+  sendTypingStatus,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean;
@@ -90,6 +102,7 @@ const TestHarness = ({
     roomId: string;
   };
   threadId?: string;
+  sendTypingStatus: ReturnType<typeof vi.fn>;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -104,7 +117,7 @@ const TestHarness = ({
     replyDraft: undefined,
     setReplyDraft: vi.fn(),
     editor: editor as never,
-    sendTypingStatus: vi.fn(),
+    sendTypingStatus,
     selectedFilesRef,
     sendSessionFilesRef,
     sendSessionUploadItemsRef,
@@ -172,6 +185,7 @@ const renderHarness = (
   const editor = {
     children: [{ type: 'paragraph', children: [{ text: 'caption draft' }] }],
   };
+  const sendTypingStatus = vi.fn();
   let api!: HarnessApi;
 
   act(() => {
@@ -181,6 +195,7 @@ const renderHarness = (
         editor,
         room,
         threadId: options.threadId,
+        sendTypingStatus,
         onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
           api = nextApi;
@@ -189,7 +204,7 @@ const renderHarness = (
     );
   });
 
-  return { api, mx, editor };
+  return { api, mx, editor, sendTypingStatus };
 };
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
@@ -447,6 +462,58 @@ describe('useRoomInputSendSessionController caption send failures', () => {
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(3);
     expect(mx.sendMessage.mock.calls[2][1]).toMatchObject({
+      body: 'later.txt',
+      url: 'mxc://mindroom/later.txt',
+    });
+  });
+
+  it('restores a failed text snapshot without erasing newer composer input', async () => {
+    const { api, mx, editor, sendTypingStatus } = renderHarness();
+    const send = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(send.promise);
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+      });
+      await Promise.resolve();
+    });
+
+    expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
+    editor.children = [
+      {
+        type: 'paragraph',
+        children: [{ text: 'newer composer input' }],
+      },
+    ];
+    sendTypingStatus.mockClear();
+    await act(async () => {
+      send.reject(new Error('text send failed'));
+      await sendPromise;
+    });
+
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
+    expect(editor.children).toEqual([
+      {
+        type: 'paragraph',
+        children: [{ text: 'newer composer input' }],
+      },
+    ]);
+    expect(sendTypingStatus).not.toHaveBeenCalled();
+
+    // The failed text must not piggyback onto a later unrelated send.
+    const later = createFile('later.txt');
+    api.selectedFilesRef.current = [createUploadItem(later)];
+    api.uploadsRef.current = [successUpload(later)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[1][1]).toMatchObject({
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });

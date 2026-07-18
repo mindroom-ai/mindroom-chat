@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Clear submitted composer after local-echo ownership (2026-07-17)
+
+- Status: the minimal production fix, red-first regression coverage, focused validation, independent re-review, and real Docker Matrix plus Chromium validation are complete.
+- Symptom: in a zero-reply thread, the pending local echo appeared in the timeline immediately while the identical submitted text remained in the composer until `mx.sendMessage()` resolved.
+- Root cause: text-only submissions bypassed the existing send-session controller and reset the editor, history, reply draft, and typing state only after the send promise succeeded.
+- Fix: text-only submissions now enter the existing send-session controller after the pending indicator starts.
+- The controller snapshots and resets accepted editor content immediately, stops typing immediately, restores a failed snapshot through `restoreEditorContent`, clears only the reply draft whose captured room/thread/reply context still matches, and never resets newer editor or typing state during settlement.
+- Upload-session ordering and PR #171 thread local-echo rendering behavior are unchanged.
+- Red-first evidence: with `mx.sendMessage()` held unresolved, the focused RoomInput suite ran 40 tests with exactly one failure because the editor still contained `Pending local echo owns this reply` instead of the expected empty paragraph after the pending local echo had been accepted.
+- Focused coverage keeps the unresolved-send reset, `m.thread` relation, pending indicator, immediate typing stop, successful-settlement preservation of newer text/reply context/typing, failed-send snapshot recovery handoff, no failed-text piggyback, and real `restoreEditorContent` preservation split across their owning seams.
+- The lean focused suites pass 3 files with 49 tests.
+- Independent review found the initial live submit gesture, thread-relation assertion, pending-evidence timing, and stale typing-settlement gaps.
+- All findings were fixed, the RoomInput test addition was reduced from 189 to 98 lines by consolidating test-only Slate fixtures and moving failed-send recovery to the existing controller seam, and independent re-review found no remaining actionable findings.
+- Live command: `E2E_ENABLE_DEPLOYED_FIXTURE=0 npm run test:e2e:docker-matrix -- e2e/live/clear-submitted-composer.spec.ts`, using a one-off harness removed before commit.
+- The real Tuwunel plus Chromium gate passes 1/1 in 19.6 seconds.
+- Live room: `!9Pf8RWzXc97cXWzS5a:matrix.localhost`.
+- Zero-reply root: `$ht0UOu_fnXlNAi9FDv-Zw05kNesodLndEgIQYddvcPM`.
+- Held send transaction: `m1784351386730.0`.
+- Pending local-echo event: `~!9Pf8RWzXc97cXWzS5a:matrix.localhost:m1784351386730.0`.
+- Confirmed reply event: `$pm_Ea9Cavw41QmzE0ElfUFtc6Bj8ckK2TNYQrFfRqCo`.
+- Pending proof: the reply body appeared in exactly one `[data-message-id]` timeline row while submitted Slate string content was `""` and the delayed Matrix request was still unreleased.
+- Screenshot: `test-results/live-clear-submitted-compo-31ffb-line-with-an-empty-composer-chromium/pending-first-reply-composer-empty.png`.
+- Playwright attachment: `test-results/live-clear-submitted-compo-31ffb-line-with-an-empty-composer-chromium/attachments/pending-first-reply-composer-empty-png-0ca1482c1b8823bbabc7ccb27e0d6efeb30fb80e.png`.
+- Browser diagnostics recorded 19 console errors, 57 warnings, zero page errors, and four request failures, with zero matching the repository critical-diagnostic patterns.
+- Playwright `--trace on` completed every live behavior assertion and printed equivalent exact evidence but exposed a Playwright 1.58.2 delayed-route context-teardown timeout, so the passing required gate preserves screenshot and JSON attachments instead of a trace.
+- Final validation passes all 435 Vitest files with 3,193 tests, typecheck, the production/PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+
 ### CINNY-124 configurable custom application links (2026-07-17)
 
 - Status: implementation, regression coverage, full local validation, independent review remediation, and independent re-review are complete.
@@ -173,6 +201,8 @@
 - Round 7 final review: two fresh independent reviewers approve with no remaining findings.
   The SDK reviewer confirmed local-dev ancestry, CINNY-122 separation, source/compiled patch parity, safe timeline fallback, patch reversibility, and 94 focused tests; the evidence reviewer confirmed the ordering regression, tightened row-level oracle, server/network/DOM/screenshot agreement, report citations, and corrected timing.
 - Round 7 status: rebase, defect reproduction, primary delivery fix, secondary ordering fix, full validation, live acceptance, and independent re-review are complete on `cinny-121`; do not merge to `dev` as part of this round.
+- PR review baseline merge (2026-07-18): current `origin/dev` commit `f2e9034a` merged without rewriting PR history; the overlapping PR #173 text-session path and composer pending UI were superseded by CINNY-121's synchronous local-echo ownership path, while its editor-restoration regression remains at the upload/caption session boundary.
+- PR review baseline merge validation passes 80 focused tests across four files, typecheck, touched-file Prettier, and `git diff --check`.
 
 ### Guarded App Store review release (2026-07-15)
 

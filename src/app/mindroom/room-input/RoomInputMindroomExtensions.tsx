@@ -9,7 +9,6 @@ import { BlockType } from '../../components/editor/types';
 import type { IReplyDraft, PendingVoiceSendContext } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
-import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
@@ -62,15 +61,6 @@ export const getMindroomRoomInputAutocompleteQuery = (
 export const isMindroomRoomInputAutocompleteQuery = (
   query: AutocompleteQuery<string> | undefined
 ): query is MindroomRoomInputAutocompleteQuery => query?.prefix === MINDROOM_COMMAND_PREFIX;
-
-export const getMindroomRoomInputMessageRelation = (
-  replyDraft: Pick<IReplyDraft, 'eventId' | 'relation'> | undefined,
-  threadId: string | undefined,
-  threadingEnabled = true
-) =>
-  getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId, {
-    allowThreadRelation: threadingEnabled,
-  });
 
 export const getMindroomRoomInputVoiceSendContext = ({
   ownerSessionId,

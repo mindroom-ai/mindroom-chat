@@ -126,7 +126,6 @@ import {
   createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputAutocompleteQuery,
   getMindroomRoomInputPasteMarkerFileNames,
-  getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
@@ -148,7 +147,10 @@ import {
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
-import { hasLocalEchoMessageRelationTarget } from '../threads/composeMessageRelation';
+import {
+  getMessageRelation,
+  hasLocalEchoMessageRelationTarget,
+} from '../threads/composeMessageRelation';
 import { resolveCanonicalMatrixEventId } from '../threads/threadRouteUtils';
 import { resolveMindroomReplyDraftEventIds } from '../threads/roomTimelineReplyDraft';
 
@@ -1087,10 +1089,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
         if (!content) return;
 
-        const relation = getMindroomRoomInputMessageRelation(
-          activeReplyDraft,
+        const relation = getMessageRelation(
+          activeReplyDraft?.eventId,
+          activeReplyDraft?.relation,
           resolveCanonicalMatrixEventId(room, threadId),
-          threadingEnabled
+          { allowThreadRelation: threadingEnabled }
         );
         if (relation) {
           content['m.relates_to'] = relation;
