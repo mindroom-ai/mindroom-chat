@@ -13,6 +13,7 @@ import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventStatus, EventType, IContent, MsgType, Room, RoomEvent } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { ReactEditor } from 'slate-react';
 import { Editor, Transforms } from 'slate';
 import {
@@ -773,6 +774,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (!sendContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }
+        if (sendContext.room.hasEncryptionStateEvent() && !fileItem.encInfo) {
+          throw new Error(t('composer.voiceStillSending'));
+        }
         const relation = getMindroomRoomInputVoiceUploadRelation(sendContext, fileItem.file);
         if (
           sendContext.room.hasEncryptionStateEvent() &&
@@ -1182,10 +1186,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             }
           }
         );
-        void sendCompletion.catch(() => {
+        void sendCompletion.catch((error) => {
           if (!hasVerifiedLocalEcho) {
             submitInFlightRef.current = false;
           }
+          logger.error('[MindroomRoomInput] Send settlement failed', error);
         });
 
         if (!hasVerifiedLocalEcho || !localEventId) {

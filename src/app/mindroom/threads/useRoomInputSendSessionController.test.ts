@@ -159,6 +159,7 @@ const TestHarness = ({
 const renderHarness = (
   options: {
     encryptedRoom?: boolean;
+    isEncrypted?: () => boolean;
     onRoomMessageSent?: (eventId: string) => boolean;
     threadId?: string;
   } = {}
@@ -172,7 +173,7 @@ const renderHarness = (
     }),
     getThreads: () => [],
     getMembers: () => [],
-    hasEncryptionStateEvent: () => options.encryptedRoom ?? false,
+    hasEncryptionStateEvent: () => options.isEncrypted?.() ?? options.encryptedRoom ?? false,
   };
   const mx = {
     getRoom: vi.fn(() => room),
@@ -415,6 +416,26 @@ describe('useRoomInputSendSessionController encrypted local-target ownership', (
       expect(mocks.resetEditor).not.toHaveBeenCalled();
     }
   );
+
+  it('keeps a plaintext upload on the board when the room becomes encrypted', async () => {
+    let encrypted = false;
+    const { api, mx } = renderHarness({
+      isEncrypted: () => encrypted,
+    });
+    const file = createFile('plaintext.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [successUpload(file)];
+    encrypted = true;
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(api.selectedFilesRef.current).toEqual([item]);
+    expect(api.uploadsRef.current).toEqual([successUpload(file)]);
+  });
 });
 
 describe('useRoomInputSendSessionController caption send failures', () => {

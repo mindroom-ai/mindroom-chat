@@ -225,11 +225,11 @@ No new application store, send queue, or abstraction was added.
 - Verify compact navigation retains a terminal failed echo in both settlement orderings while a declined unchanged standalone root cancels before restoring its captured editor fragment.
 - Result: the Round 5 focused union passes 5 files and 138 tests, and independent review approves both logical fixes.
 
-### Combined and repository gates
+### Round 5 combined and repository gates
 
 - The Round 5 focused union passes 5 files and 138 tests.
 - `npm run typecheck` passes.
-- `npm test` passes on the final implementation with 428 files and 3,304 tests.
+- At the Round 5 checkpoint, `npm test` passed with 428 files and 3,304 tests.
 - `npm run build` passes for the production application, PWA service worker, and Element Call background verification.
 - `npm run lint` passes with zero errors and 17 pre-existing warnings.
 - The Round 5 touched files pass focused formatting and lint checks.
@@ -271,7 +271,14 @@ No new application store, send queue, or abstraction was added.
 29. Regression-check a reply in an already confirmed thread, an explicit reply, a sticker, command execution, compact mode, and classic mode.
 30. Inspect the transient local-root thread header and verify it upgrades cleanly when the confirmed event arrives.
 
-The live script is documented for manual acceptance and was not executed because this worktree does not include a live Matrix test account or a controllable send endpoint.
+This exact manual checklist was documented but not executed at the Round 5 checkpoint because that worktree did not include a live Matrix test account or a controllable send endpoint.
+
+## Final verification after Round 7 and PR review
+
+- The Round 7 review-fix suite passed 434 files and 3,338 tests.
+- The hash-verified `b0c0a95c` build passed the automated Playwright/CDP Slow-3G scenario with a 15.138-second held root, one reply request 477 milliseconds after release, canonical wire targets, no duplicate rows, and the root above its child in the central timeline.
+- After merging current `dev` and completing AI review remediation, the complete suite passed 437 files and 3,261 tests, typecheck, the production/PWA build plus Element Call verification, full ESLint with zero errors and 17 established warnings, changed-file formatting, patch reversal and reapplication, and `git diff --check`.
+- The post-merge isolated Docker-Matrix Playwright thread-send scenario also passed and kept the route anchored to the canonical thread root.
 
 ## Plan alignment and deviations
 

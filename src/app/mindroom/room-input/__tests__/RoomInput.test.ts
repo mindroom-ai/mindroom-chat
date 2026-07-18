@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventStatus, RelationType, Room, RoomEvent } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { createMindroomRoomUploadItems, RoomInput } from '../MindroomRoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../../../types/matrix/common';
 import {
@@ -684,9 +685,11 @@ const configureDefaultTextSendMocks = () => {
       return { event_id: '$sent' };
     }
   );
-  mxState.cancelPendingEvent.mockImplementation((event: { getTxnId: () => string }) => {
-    textSendState.localEvents.delete(`${ROOM_ID}:${event.getTxnId()}`);
-  });
+  mxState.cancelPendingEvent.mockImplementation(
+    (event: { getRoomId: () => string; getTxnId: () => string }) => {
+      textSendState.localEvents.delete(`${event.getRoomId()}:${event.getTxnId()}`);
+    }
+  );
 };
 
 const mockDeferredSendWithLocalEcho = <T extends { event_id: string }>(
@@ -1696,6 +1699,65 @@ describe('RoomInput', () => {
     );
     expect(transferOrder).toEqual(['cancel', 'restore']);
     expect(customEditorState.editor!.children).toEqual(capturedFragment);
+    renderer.unmount();
+  });
+
+  it('removes a declined terminal root from its actual room event store', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
+    const onRoomMessageSent = vi.fn(() => false);
+    const { renderer } = await renderRoomInput(createStore(), {
+      roomId: OTHER_ROOM_ID,
+      onRoomMessageSent,
+    });
+
+    editorOutputState.plainText = 'Other-room failed root';
+    editorOutputState.customHtml = 'Other-room failed root';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+    });
+
+    expect(textSendState.localEvents.has(`${OTHER_ROOM_ID}:txn-1`)).toBe(true);
+    await act(async () => {
+      send.reject(new Error('terminal failure'));
+      await Promise.resolve();
+    });
+
+    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getLocalEvent());
+    expect(textSendState.localEvents.has(`${OTHER_ROOM_ID}:txn-1`)).toBe(false);
+    renderer.unmount();
+  });
+
+  it('reports an unexpected terminal-transfer failure', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    mockDeferredSendWithLocalEcho(send, true);
+    const transferError = new Error('cancel failed');
+    mxState.cancelPendingEvent.mockImplementation(() => {
+      throw transferError;
+    });
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const { renderer } = await renderRoomInput(createStore(), {
+      onRoomMessageSent: () => false,
+    });
+
+    editorOutputState.plainText = 'Failed transfer';
+    editorOutputState.customHtml = 'Failed transfer';
+    editorOutputState.htmlEqualsPlainText = true;
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+      await Promise.resolve();
+      send.reject(new Error('terminal failure'));
+      await Promise.resolve();
+    });
+
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(loggerError).toHaveBeenCalledWith(
+      '[MindroomRoomInput] Send settlement failed',
+      transferError
+    );
+    loggerError.mockRestore();
     renderer.unmount();
   });
 
@@ -3401,6 +3463,63 @@ describe('RoomInput', () => {
         rel_type: RelationType.Thread,
       },
     });
+    renderer.unmount();
+  });
+
+  it('re-prepares voice when the room becomes encrypted during a plaintext upload', async () => {
+    let encrypted = false;
+    const liveRoom = {
+      ...createRoom(ROOM_ID),
+      hasEncryptionStateEvent: () => encrypted,
+    } as unknown as Room;
+    mxState.getRoom.mockReturnValue(liveRoom);
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const capturedContext = voiceRecorderState.props!.getSendContext();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let sendPromise!: Promise<void>;
+
+    await act(async () => {
+      sendPromise = voiceRecorderState.props!.onSendRecording(
+        file,
+        1100,
+        undefined,
+        capturedContext
+      );
+      await Promise.resolve();
+    });
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(encryptionState.encryptAttachment).not.toHaveBeenCalled();
+
+    encrypted = true;
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/plaintext-voice' });
+      await expect(sendPromise).rejects.toThrow();
+    });
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
+    });
+
+    expect(encryptionState.encryptAttachment).toHaveBeenCalledTimes(1);
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        file: expect.objectContaining({
+          url: 'mxc://mindroom/voice',
+        }),
+      })
+    );
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('url');
+    consoleError.mockRestore();
     renderer.unmount();
   });
 

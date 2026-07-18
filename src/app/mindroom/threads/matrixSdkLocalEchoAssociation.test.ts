@@ -3,6 +3,7 @@ import {
   EventType,
   FeatureSupport,
   MatrixEvent,
+  MatrixEventEvent,
   MsgType,
   PendingEventOrdering,
   RelationType,
@@ -142,6 +143,14 @@ describe('matrix-js-sdk local-echo association patch', () => {
 
     const pendingReply = room.getEventForTxnId('reply');
     expect(pendingReply?.getId()).toBe(`~${ROOM_ID}:reply`);
+    const oldTargetRelations = room.relations.getChildEventsForEvent(
+      rootLocalId,
+      RelationType.Thread,
+      EventType.RoomMessage
+    );
+    expect(oldTargetRelations).toBeDefined();
+    const statusListenerCount = pendingReply!.listenerCount(MatrixEventEvent.Status);
+    const redactionListenerCount = pendingReply!.listenerCount(MatrixEventEvent.BeforeRedaction);
     expect(room.relations.getAllChildEventsForEvent(rootLocalId)).toContain(pendingReply);
     expect(room.eventShouldLiveIn(pendingReply!)).toEqual({
       shouldLiveInRoom: false,
@@ -159,7 +168,15 @@ describe('matrix-js-sdk local-echo association patch', () => {
     await waitForRequestCount(requests, 2);
 
     expect(room.relations.getAllChildEventsForEvent(rootLocalId)).not.toContain(pendingReply);
+    expect(
+      room.relations.getChildEventsForEvent(rootLocalId, RelationType.Thread, EventType.RoomMessage)
+    ).toBeUndefined();
+    expect(oldTargetRelations?.getRelations()).toEqual([]);
     expect(room.relations.getAllChildEventsForEvent('$root')).toContain(pendingReply);
+    expect(pendingReply?.listenerCount(MatrixEventEvent.Status)).toBe(statusListenerCount);
+    expect(pendingReply?.listenerCount(MatrixEventEvent.BeforeRedaction)).toBe(
+      redactionListenerCount
+    );
     expect(room.getThread(rootLocalId)).toBeNull();
     expect(room.getThread('$root')?.events).toContain(pendingReply);
     expect(room.getThread('$root')?.replayEvents).toContain(pendingReply);

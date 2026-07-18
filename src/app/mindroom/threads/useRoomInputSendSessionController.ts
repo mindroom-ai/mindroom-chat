@@ -231,6 +231,9 @@ export const useRoomInputSendSessionController = ({
       refreshSessionContext(session);
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
       const liveRoom = refreshSessionContext(session);
+      if (liveRoom.hasEncryptionStateEvent() && !fileItem.encInfo) {
+        throw new Error('Encrypted room uploads must be prepared again.');
+      }
       const relation = getUploadRelationForSendSession(session, isRoot);
       if (liveRoom.hasEncryptionStateEvent() && hasLocalEchoMessageRelationTarget(relation)) {
         throw new Error('Encrypted send target is still pending.');
