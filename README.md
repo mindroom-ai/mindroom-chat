@@ -68,8 +68,24 @@ Notable options:
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
+- additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
 - sidebar entry points including `sidebar.showThreads`,
 - welcome-page behavior.
+
+Formatted message links can allow additional desktop application URI schemes:
+
+```json
+{
+  "messageRendering": {
+    "additionalAllowedUriSchemes": ["obsidian"]
+  }
+}
+```
+
+Use scheme names without `://`.
+Trailing `:` or `://` delimiters are normalized if supplied.
+The configured list is additive to the built-in safe schemes.
+Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, `vbscript`, `about`, `chrome`, `chrome-extension`, `filesystem`, `resource`, and `view-source` are always ignored.
 
 ## Self-Hosting
 

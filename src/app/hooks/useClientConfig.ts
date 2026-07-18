@@ -41,6 +41,10 @@ export type ClientConfig = {
     thinkingPlaceholderMessages?: string[];
   };
 
+  messageRendering?: {
+    additionalAllowedUriSchemes?: string[];
+  };
+
   sidebar?: {
     showThreads?: boolean;
     showExploreCommunity?: boolean;
