@@ -4,6 +4,7 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { buildThreadRecord } from '../threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../threads/threadTagSnapshots';
 import { getPreferredVisibleThreadReplyEvents } from '../threads/threadUtils';
@@ -274,6 +275,29 @@ const isReplacementEvent = (
   event?.getRelation?.()?.rel_type === RelationType.Replace ||
   getRelationTypeFromContent(content) === RelationType.Replace;
 
+const getPendingOwnThreadReply = (
+  room: Room,
+  threadRootId: string,
+  currentUserId: string | undefined
+): MatrixEvent | undefined => {
+  if (!currentUserId) return undefined;
+
+  return (room.relations?.getAllChildEventsForEvent(threadRootId) ?? [])
+    .filter((event) => {
+      const relation = event.getRelation?.();
+      const isDirectThreadReply =
+        event.threadRootId === threadRootId ||
+        (relation?.rel_type === RelationType.Thread && relation.event_id === threadRootId);
+      return (
+        isDirectThreadReply &&
+        event.getSender?.() === currentUserId &&
+        isPendingLocalEchoEvent(event)
+      );
+    })
+    .sort((left, right) => left.getTs() - right.getTs())
+    .at(-1);
+};
+
 const getMentionSourceContent = (
   event: MatrixEvent | undefined,
   content: Record<string, unknown> | undefined
@@ -337,7 +361,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   const resolvedTagSnapshot = tagSnapshot ?? getRoomThreadTagSnapshotMap(room).get(threadRootId);
   const rootPreviewText =
     getContentText(getEffectiveEventContent(resolvedRootEvent)) ?? summaryInfo?.summaryText ?? '';
-  const threadRecord = buildThreadRecord({
+  let threadRecord = buildThreadRecord({
     room,
     threadRootId,
     threadRootEvent: resolvedRootEvent,
@@ -351,16 +375,34 @@ export const buildCrossRoomThreadIndexEntry = ({
       : undefined,
     currentUserId,
   });
+  const pendingOwnReplyEvent =
+    threadRecord.status.replyCount === 0
+      ? getPendingOwnThreadReply(room, threadRootId, currentUserId)
+      : undefined;
+  const hasPendingOwnReply =
+    threadRecord.status.replyCount === 0 && pendingOwnReplyEvent !== undefined;
+  if (hasPendingOwnReply) {
+    threadRecord = {
+      ...threadRecord,
+      status: {
+        ...threadRecord.status,
+        hasPendingSend: true,
+      },
+    };
+  }
   const summaryText =
     threadRecord.presentation.primarySummaryText ??
     threadRecord.presentation.summaryText ??
     threadRecord.presentation.recentThreadSummaryText ??
     '';
-  const lastActivityTs =
+  const baseLastActivityTs =
     threadRecord.status.lastActivityTs ??
     resolvedRootEvent?.getTs?.() ??
     summaryInfo?.generatedTs ??
     0;
+  const lastActivityTs = hasPendingOwnReply
+    ? Math.max(baseLastActivityTs, pendingOwnReplyEvent.getTs())
+    : baseLastActivityTs;
   const isResolved = threadRecord.status.isResolved;
   const hasAttention =
     !isResolved &&
@@ -389,11 +431,13 @@ export const buildCrossRoomThreadIndexEntry = ({
     isUnread: threadRecord.status.isUnread,
     isResolved,
     hasAttention,
-    isInvolved: isUserInvolvedInThread({
-      rootEvent: resolvedRootEvent,
-      thread,
-      userId: currentUserId,
-    }),
+    isInvolved:
+      hasPendingOwnReply ||
+      isUserInvolvedInThread({
+        rootEvent: resolvedRootEvent,
+        thread,
+        userId: currentUserId,
+      }),
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),

@@ -62,6 +62,33 @@
 - Claude Fable review remediation adds a real cold-start integration regression proving that the authenticated session request reaches the real spec-versions loader and carries the bearer token on the initial cache-populating request.
 - Claude Fable review remediation validation passes 54 focused tests, the rebased full Vitest suite with 434 files and 3,180 tests, typecheck, the production and PWA build with Element Call artifact verification, touched-file Prettier, full ESLint with zero errors and 17 pre-existing warnings, and `git diff --check`.
 
+### Create SDK models for zero-reply standalone thread opens (2026-07-16)
+
+- Status: PR review and independent review identified the SDK initialization races plus cancellation, first-load backfill, and test-global cleanup gaps; all implementation findings are remediated with regression coverage and full local validation, and the corrected `dev`-based diff is in final PR review.
+- Symptom: Bas reported, "sometimes there is just a single message and I click I to it, I send a message and it doesn't show up. I have to click out of the thread first and then back. Only then it shows."
+- Root cause: the zero-reply standalone-root fast-open path skipped SDK `Thread` creation, so an own first reply was excluded from the room timeline as thread-only and both its local echo and transaction-deduplicated remote echo had no thread timeline to enter.
+- Fix: the existing guarded zero-reply branch calls `room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false)` before its repaint calls, then prevents the constructor-started metadata request from resetting a racing first reply.
+- That first-open branch now continues through the established SDK timeline bootstrap, so a stale or gappy local standalone root still loads replies that already exist on the server instead of treating local shape as authoritative emptiness.
+- The open-thread render state also consumes direct `Room.localEchoUpdated` thread replies immediately instead of waiting for the SDK's metadata-gated `Thread.newReply`, while removing canceled echoes, ignoring edits and unrelated threads, and removing the listener on cleanup.
+- Coverage: the focused bootstrap contract requires exact local SDK thread creation and first-open timeline bootstrap, proves the created model is immediately discoverable and initialized, and prevents duplicate creation on a second bootstrap or when the SDK thread already exists.
+- A real matrix-js-sdk `Room` and `Thread` regression holds the constructor root fetch open, injects an existing reply through the first-open bootstrap, inserts a racing first reply, releases metadata initialization, and proves both replies survive without constructor back-pagination.
+- Render-state coverage proves a room local echo appears before the SDK thread emits `Thread.newReply`, cancellation and a delayed post-cancellation `Thread.newReply` leave it absent, unrelated threads and edits remain excluded, and the room listener is removed on unmount.
+- The global cross-room Threads page excludes viewed roots with zero replies unless they have a pending send; the in-room compact overview and Recents continue to show their intentional root-only cards.
+- Intrinsic cross-room entry eligibility is applied before the global Threads empty-state decision, so an index containing only viewed zero-reply roots shows the base empty state instead of an ineffective Clear filters action.
+- A pending own first reply is derived from the room-shared SDK relation store, so it remains eligible when the global Threads route mounts after the send and before the SDK reply count catches up.
+- The cross-room index also listens for `Room.localEchoUpdated`, so a first reply sent after the index has already captured the zero-reply root becomes eligible immediately instead of waiting for the SDK's metadata-gated thread update.
+- Pending relation history is scanned only for zero-reply records, and the pending timestamp overrides the original activity fallback chain only while that pending first reply is active.
+- Both first-open creation and reopening a retained still-zero-reply root run the established-thread `getThreadTimeline` and empty-thread `fetchRelations` work after cache-first paint.
+- Final validation after merging the current stacked base and remediating the local-echo index invalidation passes the seven focused feature suites with 75 tests, the full Vitest suite with 434 files / 3,187 tests, typecheck, the production/PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Review: the original review-fix rounds addressed shared mock fidelity, bootstrap idempotence, the pending-send route lifecycle, truthful empty-state selection, activity timestamp scope, and relation-scan hot-path cost.
+- PR review then identified the SDK metadata gate and timeline-reset race described above.
+- Independent review found that the first remediation skipped stale-root backfill, retained canceled echoes, and restored SDK support through a globally latching setter; first-open bootstrap now remains active, cancellation removes fallback state, and the real-SDK test mutates and restores only the support field.
+- Final independent re-review traced first-open backfill, the constructor metadata race, local and remote echo convergence, cancellation followed by delayed `Thread.newReply`, listener cleanup, and SDK-global restoration and found no remaining issues.
+- A final agent-cli Claude Fable review approved the pre-remediation head, but main-thread verification rejected its assumption that another cross-room index trigger fires immediately after relation aggregation; a red-first regression proved the pending entry stayed ineligible until `Room.localEchoUpdated` was subscribed and cleaned up with the other room listeners.
+- The rewritten stacked base at `e320c0725` was merged without rewriting this branch; the only conflict was the shared Runbook insertion point, all incoming feature sections are preserved, and the post-merge PR diff remains limited to the intended 15 feature files.
+- Stacked merge progression: #169 and #170 were squash-merged in order, then #171 was retargeted to `dev` and merged with the updated base without rewriting its review history; #171 is the remaining squash-merge step.
+
 ### Thread-first sidebar (2026-07-15)
 
 - Status: implementation, local validation, and PR review are complete on PR #163; a follow-up performance fix for the persistent cross-room index is implemented, validated, and independently reviewed on `fix/thread-index-performance`.
