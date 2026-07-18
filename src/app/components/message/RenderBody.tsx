@@ -4,6 +4,7 @@ import { Opts } from 'linkifyjs';
 import { MessageEmptyContent } from './content';
 import { sanitizeCustomHtml } from '../../utils/sanitize';
 import { renderTextWithLatex } from '../../plugins/react-custom-html-parser';
+import { useClientConfig } from '../../hooks/useClientConfig';
 
 type RenderBodyProps = {
   body: string;
@@ -20,12 +21,18 @@ export function RenderBody({
   htmlReactParserOptions,
   linkifyOpts,
 }: RenderBodyProps) {
+  const { messageRendering } = useClientConfig();
+  const additionalAllowedUriSchemes = messageRendering?.additionalAllowedUriSchemes;
+
   // Sanitizing + parsing message HTML is expensive; timeline re-renders (e.g.
   // streaming m.replace bursts) must not re-parse unchanged bodies.
   return useMemo(() => {
     // A formatted body wins even when the plain-text fallback is empty.
     if (customBody) {
-      return parse(sanitizeCustomHtml(customBody), htmlReactParserOptions);
+      return parse(
+        sanitizeCustomHtml(customBody, { additionalAllowedUriSchemes }),
+        htmlReactParserOptions
+      );
     }
     if (body === '') return <MessageEmptyContent />;
     return renderTextWithLatex(body, {
@@ -34,5 +41,12 @@ export function RenderBody({
       highlightRegex,
       keyPrefix: 'body',
     });
-  }, [body, customBody, highlightRegex, htmlReactParserOptions, linkifyOpts]);
+  }, [
+    additionalAllowedUriSchemes,
+    body,
+    customBody,
+    highlightRegex,
+    htmlReactParserOptions,
+    linkifyOpts,
+  ]);
 }

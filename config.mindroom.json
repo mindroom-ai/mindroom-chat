@@ -78,6 +78,10 @@
     ]
   },
 
+  "messageRendering": {
+    "additionalAllowedUriSchemes": ["obsidian"]
+  },
+
   "sidebar": {
     "showThreads": true,
     "showExploreCommunity": false,

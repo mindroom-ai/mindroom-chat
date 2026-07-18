@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### CINNY-124 configurable custom application links (2026-07-17)
+
+- Status: implementation, regression coverage, full local validation, independent review remediation, and independent re-review are complete.
+- Formatted Matrix messages can now preserve links that use deployment-configured application URI schemes.
+- Runtime config accepts additive scheme names through `messageRendering.additionalAllowedUriSchemes`.
+- Both the generic development config and the fork-owned MindRoom build config enable the `obsidian` scheme for desktop note links.
+- Scheme names are trimmed, normalized case-insensitively, validated against URI scheme syntax, and deduplicated with the existing web-safe schemes.
+- Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, and `vbscript` remain blocked even when listed in runtime config.
+- Malformed scheme configuration and non-string entries are ignored instead of breaking formatted-message rendering.
+- Regression coverage proves that the shipped config includes Obsidian, the message renderer forwards runtime configuration, Obsidian anchors survive sanitization, dangerous configured schemes do not, and malformed values remain inert.
+- Validation passes the full Vitest suite with 432 files and 3,163 tests, typecheck, the production and PWA build, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent review found that the first implementation missed the fork-owned shipped config and trusted unchecked runtime values.
+- Both findings were fixed with regressions, and independent re-review found no remaining blockers.
+
 ### CINNY-123 evidence-named blob URL cleanup (2026-07-17)
 
 - Status: the two Phase 0 evidence-named cleanup defects, both reviewed generic async-publication ownership gaps, and the review-confirmed audio publication gap are fixed with full local validation and independent re-review complete.

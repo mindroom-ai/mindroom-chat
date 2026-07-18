@@ -61,12 +61,14 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
         '<p style="color:blue">blocked</p>',
       ].join(''),
       {
-        allowedAttributes: {
-          p: ['style'],
-        },
-        allowedStyles: {
-          '*': {
-            color: [/^red$/],
+        policy: {
+          allowedAttributes: {
+            p: ['style'],
+          },
+          allowedStyles: {
+            '*': {
+              color: [/^red$/],
+            },
           },
         },
       }
@@ -79,15 +81,17 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
 
   it('does not let custom policy replace base security transformers', () => {
     const sanitized = sanitizeCustomHtml('<a href="https://example.com" target="_self">link</a>', {
-      transformTags: {
-        a: (tagName, attribs) => ({
-          tagName,
-          attribs: {
-            ...attribs,
-            rel: 'unsafe',
-            target: '_self',
-          },
-        }),
+      policy: {
+        transformTags: {
+          a: (tagName, attribs) => ({
+            tagName,
+            attribs: {
+              ...attribs,
+              rel: 'unsafe',
+              target: '_self',
+            },
+          }),
+        },
       },
     });
 
@@ -96,5 +100,45 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
     expect(sanitized).toContain('target="_blank"');
     expect(sanitized).not.toContain('rel="unsafe"');
     expect(sanitized).not.toContain('target="_self"');
+  });
+
+  it('allows configured application URI schemes without allowing dangerous browser schemes', () => {
+    const scriptHref = `${'java'}script:alert(1)`;
+    const sanitized = sanitizeCustomHtml(
+      [
+        '<a href="obsidian://open?vault=notes&amp;file=daily">note</a>',
+        `<a href="${scriptHref}">script</a>`,
+        '<a href="data:text/html,evil">data</a>',
+        '<a href="file:///etc/passwd">file</a>',
+      ].join(''),
+      {
+        additionalAllowedUriSchemes: ['Obsidian:', 'javascript', 'data', 'file', 'not a scheme'],
+      }
+    );
+
+    expect(sanitized).toContain('href="obsidian://open?vault=notes&amp;file=daily"');
+    expect(sanitized).not.toContain(scriptHref);
+    expect(sanitized).not.toContain('data:text/html');
+    expect(sanitized).not.toContain('file:///etc/passwd');
+  });
+
+  it('ignores malformed custom URI scheme configuration without breaking message rendering', () => {
+    const link = '<a href="obsidian://open?vault=notes&amp;file=daily">note</a>';
+
+    expect(() =>
+      sanitizeCustomHtml(link, {
+        additionalAllowedUriSchemes: 'obsidian',
+      })
+    ).not.toThrow();
+    expect(
+      sanitizeCustomHtml(link, {
+        additionalAllowedUriSchemes: 'obsidian',
+      })
+    ).not.toContain('href=');
+
+    const sanitized = sanitizeCustomHtml(link, {
+      additionalAllowedUriSchemes: ['obsidian', null, 42, {}],
+    });
+    expect(sanitized).toContain('href="obsidian://open?vault=notes&amp;file=daily"');
   });
 });
