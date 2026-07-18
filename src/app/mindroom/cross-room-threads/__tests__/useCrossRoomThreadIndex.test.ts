@@ -763,6 +763,204 @@ describe('useCrossRoomThreadIndex', () => {
     expect(entry?.searchableText).toContain('cached-only needle');
   });
 
+  it('publishes one snapshot for one coalesced bootstrap flush instead of one per thread', async () => {
+    const { room } = makeRoomWithThreads(
+      '!room:example.org',
+      Array.from({ length: 20 }, (_, index) => ({ id: `$root-${index}`, body: `Root ${index}` }))
+    );
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const snapshot = store.get(crossRoomThreadIndexAtom);
+    expect(snapshot.entries.size).toBe(20);
+    expect(snapshot.version).toBe(1);
+  });
+
+  it('does not publish a new snapshot when a rebuilt thread is semantically unchanged', async () => {
+    const { room, thread } = makeRoom();
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const before = store.get(crossRoomThreadIndexAtom);
+    await act(async () => {
+      room.emit(ThreadEvent.Update, thread);
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(store.get(crossRoomThreadIndexAtom)).toBe(before);
+  });
+
+  it('ignores receipts that carry no receipt for the current user', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 5);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const before = store.get(crossRoomThreadIndexAtom);
+    room.getThread.mockClear();
+
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-other',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-1': { 'm.read': { '@alice:example.org': { ts: 200, thread_id: '$root-1' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(room.getThread).not.toHaveBeenCalled();
+    expect(store.get(crossRoomThreadIndexAtom)).toBe(before);
+  });
+
+  it('refreshes only the receipted thread for an own threaded receipt', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 5);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    room.getThread.mockClear();
+
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-own',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-3': { 'm.read': { '@me:example.org': { ts: 200, thread_id: '$root-3' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    const queriedThreadIds = new Set(room.getThread.mock.calls.map(([threadId]) => threadId));
+    expect(queriedThreadIds).toEqual(new Set(['$root-3']));
+  });
+
+  it('refreshes all room threads for own unthreaded and main-timeline receipts', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 3);
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const allRootIds = new Set(['$root-0', '$root-1', '$root-2']);
+
+    room.getThread.mockClear();
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-unthreaded',
+          eventType: 'm.receipt',
+          content: { '$reply-1': { 'm.read': { '@me:example.org': { ts: 200 } } } },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(allRootIds);
+
+    room.getThread.mockClear();
+    await act(async () => {
+      room.emit(
+        RoomEvent.Receipt,
+        makeEvent({
+          id: '$receipt-main',
+          eventType: 'm.receipt',
+          content: {
+            '$reply-1': { 'm.read': { '@me:example.org': { ts: 300, thread_id: 'main' } } },
+          },
+          roomId: room.roomId,
+        }),
+        room
+      );
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(allRootIds);
+  });
+
+  it('rebuilds only the thread whose summary state changed', async () => {
+    const { room } = makeRoomWithThreads(
+      '!room:example.org',
+      Array.from({ length: 5 }, (_, index) => ({ id: `$root-${index}`, body: `Root ${index}` }))
+    );
+    const mx = makeClient(room);
+    matrixClientMock.mockReturnValue(mx);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    room.getThread.mockClear();
+
+    await act(async () => {
+      storeThreadSummaryInState('session', room.roomId, '$root-2', {
+        summaryText: 'Narrow summary needle',
+        generatedTs: 300,
+        messageCount: 3,
+      });
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(new Set(room.getThread.mock.calls.map(([threadId]) => threadId))).toEqual(
+      new Set(['$root-2'])
+    );
+    const entry = store
+      .get(crossRoomThreadIndexAtom)
+      .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-2'));
+    expect(entry?.summaryText).toBe('Narrow summary needle');
+  });
+
   it('removes deleted threads from the index instead of re-upserting stale rows', async () => {
     const { room, thread } = makeRoom();
     const mx = makeClient(room);

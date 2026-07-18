@@ -17,6 +17,7 @@ import {
 } from '../threads/threadSummaryState';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../threads/threadTags';
 import {
+  applyCrossRoomThreadIndexBatch,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
   crossRoomThreadIndexAtom,
@@ -26,7 +27,8 @@ import {
   parseCrossRoomThreadIndexKey,
   removeCrossRoomThreadIndexEntry,
   removeRoomCrossRoomThreadIndexEntries,
-  upsertCrossRoomThreadIndexEntry,
+  type CrossRoomThreadIndexBatchRemoval,
+  type CrossRoomThreadIndexEntry,
 } from './crossRoomThreadIndex';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
@@ -100,6 +102,54 @@ const getReplaceRelationTargetId = (event: MatrixEvent | undefined): string | un
     typeof relationRecord.event_id === 'string'
     ? relationRecord.event_id
     : undefined;
+};
+
+const MAIN_TIMELINE_RECEIPT_THREAD_ID = 'main';
+
+type OwnReceiptTargets = {
+  threadRootIds: string[];
+  hasRoomLevelReceipt: boolean;
+};
+
+/**
+ * Thread unread state derives only from the current user's receipts
+ * (see getThreadUnread), so receipts from other users never change an
+ * index entry. Own receipts with a concrete thread_id affect only that
+ * thread; own unthreaded or main-timeline receipts move the room-level
+ * read-up-to fallback and can affect any thread in the room.
+ */
+const getOwnReceiptTargets = (event: MatrixEvent, userId: string): OwnReceiptTargets => {
+  const targets: OwnReceiptTargets = { threadRootIds: [], hasRoomLevelReceipt: false };
+  const content = event.getContent?.();
+  if (!content || typeof content !== 'object' || Array.isArray(content)) return targets;
+
+  const threadRootIds = new Set<string>();
+  Object.values(content as Record<string, unknown>).forEach((receiptsByType) => {
+    if (!receiptsByType || typeof receiptsByType !== 'object' || Array.isArray(receiptsByType)) {
+      return;
+    }
+    Object.values(receiptsByType as Record<string, unknown>).forEach((receiptsByUser) => {
+      if (!receiptsByUser || typeof receiptsByUser !== 'object' || Array.isArray(receiptsByUser)) {
+        return;
+      }
+      if (!(userId in (receiptsByUser as Record<string, unknown>))) return;
+
+      const ownReceipt = (receiptsByUser as Record<string, unknown>)[userId];
+      const threadId =
+        ownReceipt && typeof ownReceipt === 'object' && !Array.isArray(ownReceipt)
+          ? (ownReceipt as { thread_id?: unknown }).thread_id
+          : undefined;
+      if (typeof threadId === 'string' && threadId !== MAIN_TIMELINE_RECEIPT_THREAD_ID) {
+        threadRootIds.add(threadId);
+        return;
+      }
+
+      targets.hasRoomLevelReceipt = true;
+    });
+  });
+
+  targets.threadRootIds = Array.from(threadRootIds);
+  return targets;
 };
 
 const isPendingThreadRootEvent = (event: MatrixEvent | undefined): boolean => {
@@ -195,7 +245,8 @@ export const useCrossRoomThreadIndex = () => {
       setSnapshot((current) => {
         if (!isEffectCurrent()) return current;
 
-        let next = current;
+        const upserts: CrossRoomThreadIndexEntry[] = [];
+        const removals: CrossRoomThreadIndexBatchRemoval[] = [];
 
         keys.forEach((key) => {
           const parsed = parseCrossRoomThreadIndexKey(key);
@@ -203,14 +254,14 @@ export const useCrossRoomThreadIndex = () => {
 
           const entry = buildEntry(parsed.roomId, parsed.threadRootId);
           if (!entry) {
-            next = removeCrossRoomThreadIndexEntry(next, parsed.roomId, parsed.threadRootId);
+            removals.push(parsed);
             return;
           }
 
-          next = upsertCrossRoomThreadIndexEntry(next, entry);
+          upserts.push(entry);
         });
 
-        return next;
+        return applyCrossRoomThreadIndexBatch(current, { upserts, removals });
       });
     };
     const coalescer = createCrossRoomThreadDirtyCoalescer(flushDirtyKeys);
@@ -279,7 +330,9 @@ export const useCrossRoomThreadIndex = () => {
 
       idleHandle = undefined;
       if (!isEffectCurrent()) return;
-      setSnapshot((current) => ({ ...current, bootstrapped: true }));
+      setSnapshot((current) =>
+        current.bootstrapped ? current : { ...current, bootstrapped: true }
+      );
     };
 
     const scheduleRoomBootstrap = (rooms: Room[]) => {
@@ -319,8 +372,17 @@ export const useCrossRoomThreadIndex = () => {
           return removeCrossRoomThreadIndexEntry(current, room.roomId, threadRootId);
         });
       };
-      const handleReceipt = () => {
-        enqueueRoomThreads(room);
+      const handleReceipt = (event: MatrixEvent) => {
+        const currentUserId = userIdRef.current;
+        if (!currentUserId) return;
+
+        const { threadRootIds, hasRoomLevelReceipt } = getOwnReceiptTargets(event, currentUserId);
+        if (hasRoomLevelReceipt) {
+          enqueueRoomThreads(room);
+          return;
+        }
+
+        threadRootIds.forEach((threadRootId) => enqueueThread(room.roomId, threadRootId));
       };
       const handleTimeline = (event: MatrixEvent) => {
         const threadRootId = getThreadRelationRootId(event);
@@ -357,8 +419,32 @@ export const useCrossRoomThreadIndex = () => {
       room.on(ThreadEvent.Delete, handleThreadDelete);
 
       const sessionId = sessionIdRef.current;
+      let lastSummaryMap = getThreadSummaryStateSnapshot(sessionId, room.roomId);
+      const handleSummaryStateChange = () => {
+        const previousSummaryMap = lastSummaryMap;
+        const nextSummaryMap = getThreadSummaryStateSnapshot(sessionId, room.roomId);
+        lastSummaryMap = nextSummaryMap;
+        if (nextSummaryMap === previousSummaryMap) return;
+
+        nextSummaryMap.forEach((info, threadRootId) => {
+          const previousInfo = previousSummaryMap.get(threadRootId);
+          if (
+            previousInfo &&
+            previousInfo.summaryText === info?.summaryText &&
+            previousInfo.generatedTs === info?.generatedTs &&
+            previousInfo.messageCount === info?.messageCount
+          ) {
+            return;
+          }
+
+          enqueueThread(room.roomId, threadRootId);
+        });
+        previousSummaryMap.forEach((_info, threadRootId) => {
+          if (!nextSummaryMap.has(threadRootId)) enqueueThread(room.roomId, threadRootId);
+        });
+      };
       const unsubscribeSummaryState = sessionId
-        ? subscribeToThreadSummaryState(sessionId, room.roomId, () => enqueueRoomThreads(room))
+        ? subscribeToThreadSummaryState(sessionId, room.roomId, handleSummaryStateChange)
         : undefined;
 
       roomDisposers.set(room.roomId, () => {

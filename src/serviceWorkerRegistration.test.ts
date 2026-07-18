@@ -25,6 +25,7 @@ describe('service worker registration URL', () => {
 
     expect(url.pathname).toBe('/sw.js');
     expect(url.searchParams.get('version')).toBe('abc123');
+    expect(url.searchParams.get('non-disruptive-update')).toBe('1');
     expect(url.searchParams.getAll('navigation-fallback-exclude')).toEqual([
       '/other-app',
       '/control-panel',

@@ -4,6 +4,8 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
+  applyCrossRoomThreadIndexBatch,
+  areCrossRoomThreadIndexEntriesEquivalent,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
   CROSS_ROOM_INDEX_EVICTION_SLACK,
@@ -418,6 +420,156 @@ describe('crossRoomThreadIndex', () => {
         )
       )
     ).toBe(true);
+  });
+
+  it('returns the identical snapshot when re-upserting a semantically unchanged entry', () => {
+    const root = makeEvent({ id: '$root', body: 'Root' });
+    const room = makeRoom({ root });
+    const entry = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
+    expect(entry).toBeDefined();
+
+    const inserted = upsertCrossRoomThreadIndexEntry(emptyCrossRoomThreadIndexSnapshot(), entry!);
+    const rebuilt = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
+    expect(rebuilt).not.toBe(entry);
+
+    const next = upsertCrossRoomThreadIndexEntry(inserted, rebuilt!);
+    expect(next).toBe(inserted);
+    expect(next.version).toBe(1);
+  });
+
+  it('ignores generation when comparing entries for semantic equivalence', () => {
+    const root = makeEvent({ id: '$root', body: 'Root' });
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ root }),
+      threadRootId: '$root',
+      tagSnapshot,
+    });
+    expect(entry).toBeDefined();
+
+    expect(areCrossRoomThreadIndexEntriesEquivalent(entry!, { ...entry!, generation: 7 })).toBe(
+      true
+    );
+    expect(
+      areCrossRoomThreadIndexEntriesEquivalent(entry!, { ...entry!, summaryText: 'Changed' })
+    ).toBe(false);
+  });
+
+  it('applies a batch of upserts and removals with a single version increment', () => {
+    const makeEntry = (roomId: string, rootId: string, body: string) => {
+      const root = makeEvent({ id: rootId, body });
+      return buildCrossRoomThreadIndexEntry({
+        room: makeRoom({ roomId, root }),
+        threadRootId: rootId,
+        tagSnapshot,
+      })!;
+    };
+    const entryA = makeEntry('!a:example.org', '$root-a', 'Root A');
+    const entryB = makeEntry('!b:example.org', '$root-b', 'Root B');
+    const entryC = makeEntry('!c:example.org', '$root-c', 'Root C');
+
+    const inserted = applyCrossRoomThreadIndexBatch(emptyCrossRoomThreadIndexSnapshot(), {
+      upserts: [entryA, entryB, entryC],
+    });
+    expect(inserted.version).toBe(1);
+    expect(inserted.entries.size).toBe(3);
+
+    const changedA = { ...entryA, summaryText: 'Updated A', lastActivityTs: 999 };
+    const next = applyCrossRoomThreadIndexBatch(inserted, {
+      upserts: [changedA, { ...entryB }],
+      removals: [{ roomId: entryC.roomId, threadRootId: entryC.threadRootId }],
+    });
+
+    expect(next.version).toBe(2);
+    expect(next.entries.get(entryA.key)?.summaryText).toBe('Updated A');
+    expect(next.entries.get(entryA.key)?.generation).toBe(entryA.generation + 1);
+    expect(next.entries.get(entryB.key)).toBe(inserted.entries.get(entryB.key));
+    expect(next.entries.has(entryC.key)).toBe(false);
+    expect(getCrossRoomThreadRootsForEvent(next, entryC.roomId, entryC.threadRootId)).toEqual([]);
+  });
+
+  it('returns the identical snapshot for a batch with no effective changes', () => {
+    const root = makeEvent({ id: '$root', body: 'Root' });
+    const room = makeRoom({ root });
+    const entry = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
+    const inserted = applyCrossRoomThreadIndexBatch(emptyCrossRoomThreadIndexSnapshot(), {
+      upserts: [entry!],
+    });
+
+    const rebuilt = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
+    const unchanged = applyCrossRoomThreadIndexBatch(inserted, {
+      upserts: [rebuilt!],
+      removals: [{ roomId: '!missing:example.org', threadRootId: '$missing' }],
+    });
+
+    expect(unchanged).toBe(inserted);
+    expect(unchanged.version).toBe(1);
+  });
+
+  it('keeps batch removals from mutating the previous snapshot reverse index', () => {
+    const roomId = '!room:example.org';
+    const rootOne = makeEvent({ id: '$root-1', body: 'Root one' });
+    const replyOne = makeEvent({ id: '$reply-1', body: 'Reply one', threadRootId: '$root-1' });
+    const rootTwo = makeEvent({ id: '$root-2', body: 'Root two' });
+    const entryOne = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ roomId, root: rootOne, replies: [replyOne] }),
+      threadRootId: '$root-1',
+      tagSnapshot,
+    });
+    const entryTwo = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ roomId, root: rootTwo }),
+      threadRootId: '$root-2',
+      tagSnapshot,
+    });
+
+    const inserted = applyCrossRoomThreadIndexBatch(emptyCrossRoomThreadIndexSnapshot(), {
+      upserts: [entryOne!, entryTwo!],
+    });
+    const removed = applyCrossRoomThreadIndexBatch(inserted, {
+      removals: [{ roomId, threadRootId: '$root-1' }],
+    });
+
+    expect(getCrossRoomThreadRootsForEvent(removed, roomId, '$root-1')).toEqual([]);
+    expect(getCrossRoomThreadRootsForEvent(removed, roomId, '$reply-1')).toEqual([]);
+    expect(getCrossRoomThreadRootsForEvent(removed, roomId, '$root-2')).toEqual(['$root-2']);
+    expect(getCrossRoomThreadRootsForEvent(inserted, roomId, '$root-1')).toEqual(['$root-1']);
+    expect(getCrossRoomThreadRootsForEvent(inserted, roomId, '$reply-1')).toEqual(['$root-1']);
+  });
+
+  it('evicts overflow entries and cleans their reverse index within one batch', () => {
+    const root = makeEvent({ id: '$root', body: 'Root' });
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ root }),
+      threadRootId: '$root',
+      tagSnapshot,
+    });
+    expect(entry).toBeDefined();
+
+    const total = MAX_CROSS_ROOM_INDEX_ENTRIES + CROSS_ROOM_INDEX_EVICTION_SLACK + 1;
+    const upserts = Array.from({ length: total }, (_, index) => ({
+      ...entry!,
+      key: getCrossRoomThreadIndexKey(`!room${index}:example.org`, `$root${index}`),
+      roomId: `!room${index}:example.org`,
+      threadRootId: `$root${index}`,
+      lastActivityTs: index,
+    }));
+
+    const snapshot = applyCrossRoomThreadIndexBatch(emptyCrossRoomThreadIndexSnapshot(), {
+      upserts,
+    });
+
+    expect(snapshot.version).toBe(1);
+    expect(snapshot.entries.size).toBe(MAX_CROSS_ROOM_INDEX_ENTRIES);
+    expect(snapshot.entries.has(getCrossRoomThreadIndexKey('!room0:example.org', '$root0'))).toBe(
+      false
+    );
+    expect(getCrossRoomThreadRootsForEvent(snapshot, '!room0:example.org', '$root0')).toEqual([]);
+    expect(
+      getCrossRoomThreadRootsForEvent(
+        snapshot,
+        `!room${total - 1}:example.org`,
+        `$root${total - 1}`
+      )
+    ).toEqual([`$root${total - 1}`]);
   });
 
   it('coalesces dirty keys into one scheduled flush', () => {

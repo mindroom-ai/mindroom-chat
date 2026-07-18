@@ -142,14 +142,6 @@ const bootstrap = async () => {
     postCurrentSessionToSW();
   }
 
-  try {
-    if (window.sessionStorage.getItem('mindroom_app_version_reloading') === APP_BUILD_VERSION) {
-      window.sessionStorage.removeItem('mindroom_app_version_reloading');
-    }
-  } catch {
-    // Blocked sessionStorage does not affect app startup.
-  }
-
   mountApp();
 };
 
