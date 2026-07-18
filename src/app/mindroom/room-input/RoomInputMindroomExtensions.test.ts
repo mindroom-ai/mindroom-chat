@@ -113,16 +113,14 @@ describe('RoomInputMindroomExtensions', () => {
       raw: marker,
     });
 
-    expect(element).toEqual(
-      {
-        type: BlockType.PasteMarker,
-        id: 'paste-a3f19c',
-        chars: 11,
-        fileName: 'mindroom-paste-a3f19c.txt',
-        marker,
-        children: [{ text: '' }],
-      }
-    );
+    expect(element).toEqual({
+      type: BlockType.PasteMarker,
+      id: 'paste-a3f19c',
+      chars: 11,
+      fileName: 'mindroom-paste-a3f19c.txt',
+      marker,
+      children: [{ text: '' }],
+    });
 
     expect(
       getMindroomRoomInputPasteMarkerFileNames([
@@ -141,10 +139,7 @@ describe('RoomInputMindroomExtensions', () => {
       },
     ];
 
-    removeMindroomRoomInputPasteMarkerElements(
-      editor,
-      new Set(['mindroom-paste-a3f19c.txt'])
-    );
+    removeMindroomRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
 
     expect(getMindroomRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
   });
