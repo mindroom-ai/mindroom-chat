@@ -206,6 +206,8 @@
 - PR review remediation (2026-07-18): reply-draft canonicalization no longer writes an explicit undefined fallback target when malformed `m.in_reply_to` metadata omits `event_id`, and a focused malformed-metadata regression owns that invariant.
 - PR review triage rejected boolean coercion for the typed `MatrixEvent.isThreadRoot` getter, settlement ownership for callbacks invoked only after confirmed upload or caption sends, and hot-path characterization of the transaction fallback that runs only for local ids after the SDK transaction map misses.
 - PR review remediation validation passes 92 focused tests across reply-draft, receipt, and render-order suites, typecheck, changed-file Prettier, and `git diff --check`.
+- PR review final validation passes the complete Vitest suite with 437 files and 3,257 tests, typecheck, the production/PWA build plus Element Call verification, full ESLint with zero errors and 17 established warnings, changed-file Prettier, `git diff --check`, and both patch-package reverse and reapply checks.
+- PR review live validation passes the isolated Docker-Matrix Playwright thread-send stability scenario, confirming that a real threaded reply leaves the route anchored to the canonical thread root.
 
 ### Guarded App Store review release (2026-07-15)
 
