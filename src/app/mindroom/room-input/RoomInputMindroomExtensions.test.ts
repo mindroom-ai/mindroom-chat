@@ -7,7 +7,6 @@ import {
 import {
   createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputPasteMarkerFileNames,
-  getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
@@ -58,25 +57,6 @@ describe('RoomInputMindroomExtensions', () => {
         requestClose: () => undefined,
       })
     ).toBeNull();
-  });
-
-  it('builds the MindRoom message relation for plain text sends', () => {
-    expect(getMindroomRoomInputMessageRelation(undefined, undefined)).toBeUndefined();
-
-    expect(
-      getMindroomRoomInputMessageRelation(
-        {
-          eventId: '$reply',
-          relation: undefined,
-        },
-        '$thread'
-      )
-    ).toEqual({
-      'm.in_reply_to': { event_id: '$reply' },
-      event_id: '$thread',
-      rel_type: 'm.thread',
-      is_falling_back: false,
-    });
   });
 
   it('renders the thread indicator only for threaded reply drafts', () => {
@@ -133,16 +113,14 @@ describe('RoomInputMindroomExtensions', () => {
       raw: marker,
     });
 
-    expect(element).toEqual(
-      {
-        type: BlockType.PasteMarker,
-        id: 'paste-a3f19c',
-        chars: 11,
-        fileName: 'mindroom-paste-a3f19c.txt',
-        marker,
-        children: [{ text: '' }],
-      }
-    );
+    expect(element).toEqual({
+      type: BlockType.PasteMarker,
+      id: 'paste-a3f19c',
+      chars: 11,
+      fileName: 'mindroom-paste-a3f19c.txt',
+      marker,
+      children: [{ text: '' }],
+    });
 
     expect(
       getMindroomRoomInputPasteMarkerFileNames([
@@ -161,10 +139,7 @@ describe('RoomInputMindroomExtensions', () => {
       },
     ];
 
-    removeMindroomRoomInputPasteMarkerElements(
-      editor,
-      new Set(['mindroom-paste-a3f19c.txt'])
-    );
+    removeMindroomRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
 
     expect(getMindroomRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
   });
