@@ -4,7 +4,6 @@ import {
   ImagePack,
   ImageUsage,
   PackContent,
-  PackImage,
   PackImageReader,
   packMetaEqual,
   PackMetaReader,
@@ -19,11 +18,11 @@ import * as css from './style.css';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { CompactUploadCardRenderer } from '../upload-card';
 import { UploadSuccess } from '../../state/upload';
-import { getImageInfo, TUploadContent } from '../../utils/matrix';
-import { getImageFileUrl, loadImageElement, renameFile } from '../../utils/dom';
+import { TUploadContent } from '../../utils/matrix';
+import { renameFile } from '../../utils/dom';
 import { replaceSpaceWithDash, suffixRename } from '../../utils/common';
-import { getFileNameWithoutExt } from '../../utils/mimeTypes';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { readImagePackUpload } from './imagePackUpload';
 
 export type ImagePackContentProps = {
   imagePack: ImagePack;
@@ -116,15 +115,7 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
 
     const handleUploadComplete = useCallback(
       async (data: UploadSuccess) => {
-        const imgEl = await loadImageElement(getImageFileUrl(data.file));
-        const packImage: PackImage = {
-          url: data.mxc,
-          info: getImageInfo(imgEl, data.file),
-        };
-        const image = PackImageReader.fromPackImage(
-          getFileNameWithoutExt(data.file.name),
-          packImage
-        );
+        const image = await readImagePackUpload(data);
         if (!image) return;
         handleUploadRemove(data.file);
         setUploadedImages((imgs) => [image, ...imgs]);

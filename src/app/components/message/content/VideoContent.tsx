@@ -23,7 +23,7 @@ import {
 import * as css from './style.css';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
-import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
+import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { bytesToSize, millisecondsToMinutesAndSeconds } from '../../../utils/common';
 import {
   decryptFile,
@@ -90,7 +90,8 @@ export const VideoContent = as<'div', VideoContentProps>(
             )
           : await downloadMedia(mediaUrl);
         return URL.createObjectURL(fileContent);
-      }, [mx, url, useAuthentication, mimeType, encInfo])
+      }, [mx, url, useAuthentication, mimeType, encInfo]),
+      revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);
 

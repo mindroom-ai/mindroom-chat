@@ -18,7 +18,7 @@ import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import FocusTrap from 'focus-trap-react';
 import { IFileInfo } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
-import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
+import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { bytesToSize } from '../../../utils/common';
 import {
@@ -198,7 +198,8 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
         : await downloadMedia(mediaUrl);
       setPdfViewer(true);
       return URL.createObjectURL(fileContent);
-    }, [mx, url, useAuthentication, mimeType, encInfo])
+    }, [mx, url, useAuthentication, mimeType, encInfo]),
+    revokeBlobUrl
   );
   useBlobUrlCleanup(pdfState);
 
