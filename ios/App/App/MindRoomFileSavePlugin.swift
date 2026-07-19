@@ -146,7 +146,7 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
 
                 let picker = UIDocumentPickerViewController(
                     forExporting: [session.fileURL],
-                    asCopy: true
+                    asCopy: false
                 )
                 picker.delegate = self
                 picker.shouldShowFileExtensions = true

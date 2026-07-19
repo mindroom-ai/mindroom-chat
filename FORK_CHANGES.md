@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Native iOS exported-file access (2026-07-19)
+
+- Status: the explicit move-export fix, red-first coverage, full local web and native validation, independent review, and PR review remediation are complete on `fix/ios-export-file-access`; physical-device acceptance remains.
+- Symptom: attachments and on-device diagnostic JSON exports appear in both On My iPhone and iCloud Drive but Files refuses to open them with a permission error.
+- Root cause: the shared native bridge exports an app-private temporary file as a copy and deletes the source staging directory immediately after the picker callback, leaving the Files provider entry unable to materialize readable content.
+- Fix: the document picker now moves the disposable staged file into the selected destination, then removes only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
+- Red-green evidence: the native picker contract regression failed against export-as-copy mode, then the focused native-save, attachment-download, and diagnostic-export suites passed with 4 files and 23 tests after move-export mode was implemented.
+- Validation: the focused native-save and caller suites pass with 4 files and 23 tests, and the full Vitest suite passes with 443 files and 3,273 tests.
+- Typecheck, the production/PWA build with Element Call artifact verification, touched TypeScript and Markdown Prettier, touched TypeScript ESLint, Swift parsing, Capacitor iOS sync, `git diff --check`, and an unsigned two-architecture iOS Simulator workspace build pass.
+- Independent review found no production correctness issues and confirmed that successful cleanup removes only the abandoned parent staging directory; its documentation consistency finding is fixed.
+- PR review: Greptile rated the fix 5/5 and safe to merge pending physical-device acceptance; its test-formatting robustness finding is fixed.
+  The iOS 14+ UIKit header and successful two-architecture Xcode build disprove Gemini's claim that the single-argument move initializer is unavailable, but the picker now passes `asCopy: false` explicitly for ownership clarity and the contract test pins that exact form.
+  The source-contract regression remains because source-reading architecture tests are established repository practice and the iOS project has no XCTest target.
+  CodeRabbit, Sourcery, and Qodo reached account limits and produced no findings.
+- Physical-device acceptance: save and open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
+
 ### Open new compact threads from the pending root (2026-07-18)
 
 - Status: the simplified implementation, regression coverage, full local validation, real Matrix plus Chromium validation, two zero-tolerance self-review rounds, and independent review remediation are complete.
@@ -286,7 +302,8 @@
 - Symptom: attachment download actions fetch or decrypt the file, but the browser-oriented `file-saver` handoff does not open a usable download destination in the Capacitor iOS app.
 - Root cause: the native app renders inside `WKWebView`, where a browser download initiated after an asynchronous media request cannot present iOS's file destination picker.
 - Fix: attachment, image, PDF, audio/file-header, and MindRoom long-response download paths now share a platform save helper.
-  Web and Android retain the existing `file-saver` path; native iOS streams the downloaded bytes in bounded chunks to a temporary file through a Capacitor bridge, then presents `UIDocumentPickerViewController` in export-as-copy mode.
+  Web and Android retain the existing `file-saver` path; native iOS streams the downloaded bytes in bounded chunks to a temporary file through a Capacitor bridge.
+  The original picker used export-as-copy mode, which the 2026-07-19 native iOS exported-file access fix supersedes with move-export semantics.
 - The native picker resolves both successful saves and user cancellation cleanly, rejects overlapping prompts, sanitizes the temporary filename, and removes its private staging directory after the picker closes.
 - Failed save operations enter the existing async error state instead of leaving rejected event promises; image, PDF, file, and long-response actions visibly offer a retry.
 - Coverage pins native iOS bridge selection, stable per-page session ownership, reload recovery, bounded ordered chunk transfer, cleanup on failure, cancellation, object-URL loading, unchanged browser fallback behavior, duplicate-click suppression, and viewer/file retry behavior without redundant media downloads.
