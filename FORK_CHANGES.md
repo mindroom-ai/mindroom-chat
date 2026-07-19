@@ -4,19 +4,26 @@
 
 ### Native iOS exported-file access (2026-07-19)
 
-- Status: the explicit move-export fix, red-first coverage, full local web and native validation, independent review, and PR review remediation are complete on `fix/ios-export-file-access`; physical-device acceptance remains.
-- Symptom: attachments and on-device diagnostic JSON exports appear in both On My iPhone and iCloud Drive but Files refuses to open them with a permission error.
-- Root cause: the shared native bridge exports an app-private temporary file as a copy and deletes the source staging directory immediately after the picker callback, leaving the Files provider entry unable to materialize readable content.
-- Fix: the document picker now moves the disposable staged file into the selected destination, then removes only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
-- Red-green evidence: the native picker contract regression failed against export-as-copy mode, then the focused native-save, attachment-download, and diagnostic-export suites passed with 4 files and 23 tests after move-export mode was implemented.
-- Validation: the focused native-save and caller suites pass with 4 files and 23 tests, and the full Vitest suite passes with 443 files and 3,273 tests.
-- Typecheck, the production/PWA build with Element Call artifact verification, touched TypeScript and Markdown Prettier, touched TypeScript ESLint, Swift parsing, Capacitor iOS sync, `git diff --check`, and an unsigned two-architecture iOS Simulator workspace build pass.
-- Independent review found no production correctness issues and confirmed that successful cleanup removes only the abandoned parent staging directory; its documentation consistency finding is fixed.
-- PR review: Greptile rated the fix 5/5 and safe to merge pending physical-device acceptance; its test-formatting robustness finding is fixed.
-  The iOS 14+ UIKit header and successful two-architecture Xcode build disprove Gemini's claim that the single-argument move initializer is unavailable, but the picker now passes `asCopy: false` explicitly for ownership clarity and the contract test pins that exact form.
-  The source-contract regression remains because source-reading architecture tests are established repository practice and the iOS project has no XCTest target.
-  CodeRabbit, Sourcery, and Qodo reached account limits and produced no findings.
-- Physical-device acceptance: save and open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
+- Status: the first fix merged in PR #178 and shipped from `v4.12.3-mindroom.102`, but physical-device acceptance reproduced the same failure.
+  The corrected remediation, live iOS Simulator acceptance, full local validation, and independent review are complete on `fix/ios-export-staging-lifetime`.
+- Symptom: tapping Save for attachments or on-device diagnostic JSON shows a Files permission alert while the picker remains open and no usable local or iCloud export is committed.
+- Release verification: the tag, GitHub release, Xcode Cloud archive, Xcode Sources phase, native plugin registration, and JavaScript bridge path all contain and use the explicit move-export implementation, so the repeated failure is not a stale-build issue.
+- Live reproduction: a Debug-only fixture invoked the real Capacitor plugin in an iOS 26.5 Simulator, wrote a known 34-byte file, opened Apple's real document picker, and reproduced the exact permission alert in On My iPhone.
+- Root cause evidence: the staged source existed with mode `0644` and 34 bytes when presentation began, then the plugin deleted it eight milliseconds later without any picker success or cancellation callback.
+  The system document service subsequently reported `NSCocoaErrorDomain` code 260 for the missing source and surfaced it as code 257 with the misleading permission message.
+- Root cause: the plugin checked `picker.viewIfLoaded?.window` on the next main-queue turn instead of after UIKit completed presentation.
+  During the presentation animation the window was still nil, so the fallback rejected the still-opening picker and deleted its source while the picker remained usable on screen.
+- Corrected fix: export a copy of the disposable staged file and run the liveness check from `UIViewController.present` completion, where UIKit has completed attaching the picker.
+- Regression coverage now pins copy-export semantics and requires the picker window check to occur inside presentation completion.
+- A Debug-only acceptance fixture provides a repeatable login-free path through the real Capacitor bridge and native picker for live simulator validation.
+- Live corrected-build acceptance kept the 34-byte source available while the picker was open, completed Save without an alert, opened the destination successfully in Files Quick Look, and matched the expected payload with SHA-256 `f052e7a0309669cfbd1c1de6d39878ea05ca0dd8bbdad8c0306c87e2576cbeee`.
+- Validation passes the four focused native-save and caller suites with 24 tests, the full Vitest suite with 443 files and 3,274 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and 17 pre-existing warnings, touched-file Prettier, Swift parsing, `git diff --check`, and Debug plus unsigned Release iOS Simulator workspace builds.
+- Release inspection confirms the acceptance fixture strings are absent from the compiled Release binary.
+- Three pre-PR independent reviews found no production correctness, security, lifecycle, release-boundary, availability, or scope issues.
+  Their two test/documentation findings were fixed by banning any post-presentation main-queue probe in the focused source slice and aligning the symptom with the observed pre-commit failure.
+- PR review found brittle test block extraction, a weak-picker disappearance path that could strand the active session, and a silently absent presentation-controller delegate.
+  Formatting-tolerant required matches now fail with explicit labels, only the matching session rejects when its picker disappears, and a Debug assertion exposes an impossible missing presentation controller while retaining the picker cancellation delegate.
+- Remaining acceptance: install the next TestFlight build and save plus open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
 
 ### Open new compact threads from the pending root (2026-07-18)
 
