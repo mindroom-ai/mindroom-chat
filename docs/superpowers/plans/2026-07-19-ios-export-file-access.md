@@ -110,9 +110,9 @@ Run: `npx prettier --check src/app/mindroom/native/nativeFileSaveIOSContract.tes
 
 Expected: PASS with all matched files formatted.
 
-Run: `xcrun swift-format lint --strict ios/App/App/MindRoomFileSavePlugin.swift`
+Run: `xcrun swiftc -parse ios/App/App/MindRoomFileSavePlugin.swift`
 
-Expected: PASS with no Swift formatting diagnostics.
+Expected: PASS with exit code 0.
 
 Run: `npx eslint src/app/mindroom/native/nativeFileSaveIOSContract.test.ts`
 

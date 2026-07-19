@@ -4,11 +4,13 @@
 
 ### Native iOS exported-file access (2026-07-19)
 
-- Status: root-cause investigation and design are complete on `fix/ios-export-file-access`; implementation is pending the written-spec review gate.
+- Status: the move-export fix, red-first coverage, and full local web and native validation are complete on `fix/ios-export-file-access`; independent review and physical-device acceptance remain.
 - Symptom: attachments and on-device diagnostic JSON exports appear in both On My iPhone and iCloud Drive but Files refuses to open them with a permission error.
 - Root cause: the shared native bridge exports an app-private temporary file as a copy and deletes the source staging directory immediately after the picker callback, leaving the Files provider entry unable to materialize readable content.
-- Design: transfer ownership with the document picker's move-export mode, then clean only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
-- Planned coverage: add a red-first native picker contract regression, retain the focused native-save and attachment-download suites, and validate the full Vitest suite, typecheck, production build, Capacitor sync, and an unsigned iOS Simulator build.
+- Fix: the document picker now moves the disposable staged file into the selected destination, then removes only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
+- Red-green evidence: the native picker contract regression failed against export-as-copy mode, then the focused native-save, attachment-download, and diagnostic-export suites passed with 4 files and 23 tests after move-export mode was implemented.
+- Validation: the focused native-save and caller suites pass with 4 files and 23 tests, and the full Vitest suite passes with 443 files and 3,273 tests.
+- Typecheck, the production/PWA build with Element Call artifact verification, touched TypeScript and Markdown Prettier, touched TypeScript ESLint, Swift parsing, Capacitor iOS sync, `git diff --check`, and an unsigned two-architecture iOS Simulator workspace build pass.
 - Physical-device acceptance: save and open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
 
 ### Open new compact threads from the pending root (2026-07-18)
