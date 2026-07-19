@@ -109,7 +109,14 @@ export const useThreadOpenLifecycleController = ({
   threadIdRef: MutableRefObject<string | undefined>;
 }) => {
   useEffect(() => {
-    if (!threadId || isLocalEchoEventId(threadId)) return undefined;
+    if (!threadId) return undefined;
+    if (isLocalEchoEventId(threadId)) {
+      const localRoot = room.findEventById(threadId);
+      if (localRoot) {
+        setSupplementalThreadEvents(threadId, [localRoot]);
+      }
+      return undefined;
+    }
     // CINNY-207 AC2 revision (2026-07-04): every open of a thread bumps
     // exactly here. Post-choke-point invariant asserted from a docker
     // probe snapshot: threadOpens == threadOpenScheduledCacheFirst +

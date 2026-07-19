@@ -3,7 +3,6 @@ import type { NavigateOptions } from 'react-router-dom';
 import {
   getRoomThreadExitTargetFromHistoryState,
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
-  setRoomThreadExitTargetForHistoryState,
 } from './roomNavigateState';
 import { navigateMindroomRoomThread } from './threadNavigation';
 
@@ -138,46 +137,5 @@ describe('navigateMindroomRoomThread', () => {
       opts
     );
     expect(schedule).not.toHaveBeenCalled();
-  });
-
-  it('moves a carried exit target to the replacement history entry', () => {
-    const previousHistoryState = { key: 'thread-navigation-local' };
-    const nextHistoryState = { key: 'thread-navigation-confirmed' };
-    let historyState = previousHistoryState;
-    const scheduled: (() => void)[] = [];
-    const navigateRoomThreadDirect = vi.fn(() => {
-      historyState = nextHistoryState;
-    });
-    const exitTarget = {
-      exitPath: '/home/!room:example.org',
-      roomId: '!room:example.org',
-      threadId: '$thread',
-      useHistoryBack: true,
-    };
-    setRoomThreadExitTargetForHistoryState(previousHistoryState, {
-      ...exitTarget,
-      threadId: '~!room:example.org:txn',
-    });
-
-    navigateMindroomRoomThread({
-      roomId: '!room:example.org',
-      threadId: '$thread',
-      opts: {
-        replace: true,
-        state: {
-          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: exitTarget,
-        },
-      },
-      navigateRoomThreadDirect,
-      getHistoryState: () => historyState,
-      schedule: (callback) => {
-        scheduled.push(callback);
-      },
-    });
-
-    expect(scheduled).toHaveLength(1);
-    scheduled[0]();
-    expect(getRoomThreadExitTargetFromHistoryState(previousHistoryState)).toBeUndefined();
-    expect(getRoomThreadExitTargetFromHistoryState(nextHistoryState)).toEqual(exitTarget);
   });
 });

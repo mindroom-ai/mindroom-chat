@@ -39,9 +39,6 @@ const {
   matrixClientMock,
   navigateRoomMock,
   navigateRoomThreadMock,
-  keyDownHandlersMock,
-  canEditEventMock,
-  editableActiveElementMock,
   threadRenderStateMock,
   threadLastActivityTsMapMock,
   threadStreamingStateMock,
@@ -59,8 +56,6 @@ const {
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
   saveCachedThreadSummaryMock,
-  saveThreadEventsToCacheMock,
-  noteRoomFocusedMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   roomTimelineVirtualizerState,
@@ -96,9 +91,6 @@ const {
   },
   navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
-  keyDownHandlersMock: [] as Array<(event: KeyboardEvent) => void>,
-  canEditEventMock: vi.fn(() => false),
-  editableActiveElementMock: vi.fn((): unknown => null),
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [],
@@ -125,8 +117,6 @@ const {
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
-  saveThreadEventsToCacheMock: vi.fn(async (..._args: unknown[]) => undefined),
-  noteRoomFocusedMock: vi.fn(),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
@@ -534,9 +524,7 @@ vi.mock('../useStateEvents', () => ({
 }));
 
 vi.mock('../../../hooks/useKeyDown', () => ({
-  useKeyDown: vi.fn((_target: unknown, handler: (event: KeyboardEvent) => void) => {
-    keyDownHandlersMock.push(handler);
-  }),
+  useKeyDown: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -583,7 +571,7 @@ vi.mock('../../../utils/matrix', () => ({
 }));
 
 vi.mock('../../../utils/room', () => ({
-  canEditEvent: canEditEventMock,
+  canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
   getEventReactions: () => undefined,
@@ -593,10 +581,7 @@ vi.mock('../../../utils/room', () => ({
   ) => editedEvent?.getContent?.() ?? event?.getContent?.(),
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
     edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
-  getLatestEditableEvt: (
-    timeline: { getEvents: () => unknown[] },
-    predicate: (event: unknown) => boolean
-  ) => [...timeline.getEvents()].reverse().find(predicate),
+  getLatestEditableEvt: () => undefined,
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
   isMembershipChanged: isMembershipChangedMock,
@@ -763,7 +748,7 @@ vi.mock('../../notifications/readReceipts', () => ({
 }));
 
 vi.mock('../../../utils/dom', () => ({
-  editableActiveElement: editableActiveElementMock,
+  editableActiveElement: () => null,
   scrollToBottom: vi.fn(),
 }));
 
@@ -1109,6 +1094,9 @@ vi.mock('../useThreadRenderState', () => ({
 // code and is no longer exported.
 vi.mock('../cacheStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../cacheStore')>();
+  const saveThreadEventsToCache = vi.fn(
+    async (..._args: Parameters<typeof actual.saveThreadEventsToCache>) => undefined
+  );
   return {
     ...actual,
     getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
@@ -1126,10 +1114,10 @@ vi.mock('../cacheStore', async (importOriginal) => {
         new Map(threadIds.map((threadId) => [threadId, { events: [], hasMoreBefore: false }]))
     ),
     normalizeCachedThreadEvents: (events: unknown[]) => events,
-    saveThreadEventsToCache: saveThreadEventsToCacheMock,
+    saveThreadEventsToCache,
     saveThreadEventsToCacheCommitted: vi.fn(
       async (...args: Parameters<typeof actual.saveThreadEventsToCacheCommitted>) => {
-        await saveThreadEventsToCacheMock(...args);
+        await saveThreadEventsToCache(...args);
         return true;
       }
     ),
@@ -1515,9 +1503,6 @@ const emitClientSync = (current = 'SYNCING', previous = 'SYNCING') => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  keyDownHandlersMock.length = 0;
-  canEditEventMock.mockReturnValue(false);
-  editableActiveElementMock.mockReturnValue(null);
   clearThreadOpenSeedSnapshotsForTests();
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
@@ -1553,7 +1538,6 @@ beforeEach(() => {
   loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   saveCachedThreadSummaryMock.mockResolvedValue(undefined);
-  saveThreadEventsToCacheMock.mockResolvedValue(undefined);
   settingsState.prefetchDepth = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
@@ -1709,7 +1693,7 @@ const harnessSyncEngine: MindroomSyncEngine = {
   // CINNY-207 P4.2: harness needs a callable no-op so consumers wired
   // to `engine.noteRoomFocused(...)` don't blow up. The mock cacheStore
   // in the harness would ignore the writes anyway.
-  noteRoomFocused: noteRoomFocusedMock,
+  noteRoomFocused: () => undefined,
 };
 
 // Pass children as a prop rather than positionally: this file is .ts, not
@@ -1854,15 +1838,11 @@ export {
   getRenderedEventIds,
   getThreadOpenSeedSnapshot,
   ignoredUsersMock,
-  keyDownHandlersMock,
-  canEditEventMock,
-  editableActiveElementMock,
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   loadCachedThreadSummariesMock,
   loadLatestCachedRoomEventsMock,
-  noteRoomFocusedMock,
   makeCachedRoomEvent,
   makeEvent,
   makeRoom,
@@ -1878,8 +1858,6 @@ export {
   roomThreadOverviewType,
   roomUnreadState,
   saveRoomEventsToCacheMock,
-  saveCachedThreadSummaryMock,
-  saveThreadEventsToCacheMock,
   saveThreadOpenSeedSnapshot,
   scrollToItemMock,
   scrollType,

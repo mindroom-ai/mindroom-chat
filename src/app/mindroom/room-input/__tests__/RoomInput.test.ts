@@ -2,8 +2,7 @@ import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EventStatus, RelationType, Room, RoomEvent } from 'matrix-js-sdk';
-import { logger } from 'matrix-js-sdk/lib/logger';
+import { RelationType, Room } from 'matrix-js-sdk';
 import { createMindroomRoomUploadItems, RoomInput } from '../MindroomRoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../../../types/matrix/common';
 import {
@@ -31,8 +30,7 @@ const {
   editorOutputState,
   encryptionState,
   mxState,
-  roomEventState,
-  textSendState,
+  typingState,
   voiceRecorderState,
 } = vi.hoisted(() => ({
   editorMocks: {
@@ -42,7 +40,6 @@ const {
     resetEditor: vi.fn(),
     resetEditorHistory: vi.fn(),
     restoreEditorContent: vi.fn(),
-    sendTypingStatus: vi.fn(),
   },
   customEditorState: {
     autocompleteQuery: undefined as { prefix: string; range: unknown; text: string } | undefined,
@@ -70,7 +67,6 @@ const {
     htmlEqualsPlainText: true,
   },
   mxState: {
-    cancelPendingEvent: vi.fn(),
     cancelUpload: vi.fn(),
     getUserId: vi.fn(() => '@me:example.org'),
     // Default: every roomId resolves to a Joined room so the parked-draft
@@ -88,27 +84,12 @@ const {
           getMyMembership: () => 'join',
         } as unknown as Room)
     ),
-    makeTxnId: vi.fn(),
-    sendMessage: vi.fn(),
+    makeTxnId: vi.fn(() => 'txn-room-input'),
+    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
     uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
   },
-  roomEventState: {
-    localEchoUpdatedListeners: new Set<(...args: unknown[]) => void>(),
-  },
-  textSendState: {
-    getEventForTxnId: vi.fn(),
-    localEvents: new Map<
-      string,
-      {
-        getId: () => string;
-        getRoomId: () => string;
-        getRelation: () => { event_id?: string } | undefined;
-        getTxnId: () => string;
-        getUnsigned: () => { transaction_id: string };
-        status: EventStatus;
-      }
-    >(),
-    nextTxn: 0,
+  typingState: {
+    sendTypingStatus: vi.fn(),
   },
   encryptionState: {
     encryptAttachment: vi.fn(async (data: ArrayBuffer) => ({
@@ -265,7 +246,6 @@ vi.mock('../../../components/editor', () => ({
   moveCursor: editorMocks.moveCursor,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
-  restoreEditorContent: editorMocks.restoreEditorContent,
   toMatrixCustomHTML: () => editorOutputState.customHtml,
   toPlainText: () => editorOutputState.plainText,
   trimCommand: (_command: string, value: string) => value,
@@ -349,7 +329,7 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../../hooks/useTypingStatusUpdater', () => ({
-  useTypingStatusUpdater: () => editorMocks.sendTypingStatus,
+  useTypingStatusUpdater: () => typingState.sendTypingStatus,
 }));
 
 vi.mock('../../../hooks/useFilePicker', () => ({
@@ -445,17 +425,19 @@ vi.mock('../../../hooks/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('../../voice/VoiceRecorderDialog', () => ({
-  VoiceRecorderComposer: () => null,
-}));
-
 vi.mock('../RoomInputMindroomExtensions', async () => {
-  const actual = await vi.importActual<typeof import('../RoomInputMindroomExtensions')>(
-    '../RoomInputMindroomExtensions'
+  const { useRoomInputSendSessionController } = await vi.importActual<
+    typeof import('../../threads/useRoomInputSendSessionController')
+  >('../../threads/useRoomInputSendSessionController');
+  const {
+    createRoomInputSendSessionState,
+    getUploadRelationForSendSession,
+    hasMatchingReplyDraftContext,
+  } = await vi.importActual<typeof import('../../threads/roomInputSendSession')>(
+    '../../threads/roomInputSendSession'
   );
 
   return {
-    ...actual,
     createMindroomRoomInputPasteMarkerElement: (marker: {
       id: string;
       chars: number;
@@ -498,11 +480,114 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       );
     },
     getMindroomRoomInputAutocompleteQuery: () => undefined,
+    getMindroomRoomInputVoiceSendContext: ({
+      ownerSessionId,
+      roomId,
+      room,
+      threadId,
+      replyDraft,
+      threadingEnabled = true,
+    }: {
+      ownerSessionId: string;
+      roomId: string;
+      room: unknown;
+      threadId: string | undefined;
+      replyDraft: IReplyDraft | undefined;
+      threadingEnabled?: boolean;
+    }) => ({
+      ownerSessionId,
+      roomId,
+      room,
+      threadId,
+      replyDraft,
+      threadingEnabled,
+      signalBridgedRoom: false,
+    }),
+    refreshMindroomRoomInputVoiceSendContext: (
+      mxClient: { getRoom: (roomId: string) => unknown },
+      context: {
+        ownerSessionId: string;
+        roomId: string;
+        threadId: string | undefined;
+        replyDraft: IReplyDraft | undefined;
+        threadingEnabled: boolean;
+      }
+    ) => {
+      const liveRoom = mxClient.getRoom(context.roomId) as
+        | { getMyMembership?: () => string }
+        | undefined;
+      if (!liveRoom || liveRoom.getMyMembership?.() !== 'join') return null;
+      return {
+        ...context,
+        room: liveRoom,
+        signalBridgedRoom: false,
+      };
+    },
+    getMindroomRoomInputVoiceUploadRelation: (
+      context: {
+        threadId: string | undefined;
+        replyDraft: IReplyDraft | undefined;
+      },
+      file: File
+    ) =>
+      getUploadRelationForSendSession(
+        {
+          threadId: context.threadId,
+          replyDraft: context.replyDraft,
+          ...createRoomInputSendSessionState({
+            files: [file],
+            hasText: false,
+            threadId: context.threadId,
+            replyDraft: context.replyDraft,
+          }),
+        },
+        false
+      ),
+    hasMatchingMindroomRoomInputVoiceReplyContext: (
+      context: {
+        roomId: string;
+        threadId: string | undefined;
+        replyDraft: IReplyDraft | undefined;
+      },
+      currentReplyDraft: IReplyDraft | undefined
+    ) =>
+      hasMatchingReplyDraftContext(
+        {
+          roomId: context.roomId,
+          threadId: context.threadId,
+          replyDraft: context.replyDraft,
+        },
+        {
+          roomId: context.roomId,
+          threadId: context.threadId,
+          replyDraft: currentReplyDraft,
+        }
+      ),
     isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     MindroomRoomInputAutocomplete: () => null,
-    MindroomRoomInputReplyContext: ({ children }: { children?: React.ReactNode }) => {
+    MindroomRoomInputReplyContext: ({
+      children,
+      pendingSend,
+    }: {
+      children?: React.ReactNode;
+      pendingSend?: boolean;
+    }) => {
       customEditorState.replyContextRenderCount += 1;
-      return React.createElement('div', null, children);
+      return React.createElement(
+        'div',
+        null,
+        children,
+        pendingSend
+          ? React.createElement(
+              'span',
+              {
+                role: 'status',
+                title: 'Waiting for server',
+              },
+              'Message sending'
+            )
+          : null
+      );
     },
     MindroomVoiceRecorderComposer: ({
       onSendRecording,
@@ -536,6 +621,7 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       };
       return React.createElement('div');
     },
+    useRoomInputSendSessionController,
   };
 });
 
@@ -569,34 +655,13 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
   ({
     roomId,
     name: roomId,
-    getEventForTxnId: (txnId: string) => textSendState.getEventForTxnId(roomId, txnId),
-    getLiveTimeline: () => ({
-      getEvents: () =>
-        Array.from(textSendState.localEvents.values()).filter(
-          (event) => event.getRoomId() === roomId
-        ),
+    getEventForTxnId: (txnId: string) => ({
+      getId: () => `~${roomId}:${txnId}`,
     }),
-    getThreads: () => [],
-    relations: {
-      getAllChildEventsForEvent: (parentEventId: string) =>
-        Array.from(textSendState.localEvents.values()).filter(
-          (event) => event.getRoomId() === roomId && event.getRelation()?.event_id === parentEventId
-        ),
-    },
     hasEncryptionStateEvent: () => encrypted,
     getMember: () => undefined,
     getMembers: () => [],
     getMyMembership: () => 'join',
-    on: (event: RoomEvent, listener: (...args: unknown[]) => void) => {
-      if (event === RoomEvent.LocalEchoUpdated) {
-        roomEventState.localEchoUpdatedListeners.add(listener);
-      }
-    },
-    removeListener: (event: RoomEvent, listener: (...args: unknown[]) => void) => {
-      if (event === RoomEvent.LocalEchoUpdated) {
-        roomEventState.localEchoUpdatedListeners.delete(listener);
-      }
-    },
   } as never);
 
 const createEditor = () => {
@@ -615,16 +680,6 @@ const createEditor = () => {
   };
   customEditorState.editor = editor;
   return editor as never;
-};
-
-const setEditorContent = (text: string) => {
-  if (!customEditorState.editor) throw new Error('Editor is not mounted.');
-  customEditorState.editor.children = [
-    {
-      type: 'paragraph',
-      children: [{ text }],
-    },
-  ];
 };
 
 const createTextPasteEvent = (text: string) =>
@@ -652,81 +707,43 @@ const createDeferred = <T>() => {
   return { promise, resolve, reject };
 };
 
-const registerLocalEcho = (roomId: string, txnId: string, content?: unknown) => {
-  const localId = `~${roomId}:${txnId}`;
-  const relation = (content as { 'm.relates_to'?: { event_id?: string } } | undefined)?.[
-    'm.relates_to'
+const setEditorText = (text: string) => {
+  customEditorState.editor!.children = [
+    {
+      type: 'paragraph',
+      children: [{ text }],
+    },
   ];
-  const localEvent = {
-    getId: () => localId,
-    getRoomId: () => roomId,
-    getRelation: () => relation,
-    getTxnId: () => txnId,
-    getUnsigned: () => ({ transaction_id: txnId }),
-    status: EventStatus.SENDING,
-  };
-  textSendState.localEvents.set(`${roomId}:${txnId}`, localEvent);
-  return localEvent;
 };
 
-const configureDefaultTextSendMocks = () => {
-  textSendState.localEvents.clear();
-  textSendState.nextTxn = 0;
-  textSendState.getEventForTxnId.mockImplementation((roomId: string, txnId: string) =>
-    textSendState.localEvents.get(`${roomId}:${txnId}`)
-  );
-  mxState.makeTxnId.mockImplementation(() => {
-    textSendState.nextTxn += 1;
-    return `txn-${textSendState.nextTxn}`;
+const stageComposerText = (text: string) => {
+  editorOutputState.plainText = text;
+  editorOutputState.customHtml = text;
+  editorOutputState.htmlEqualsPlainText = true;
+  setEditorText(text);
+};
+
+const getEditorText = (): string | undefined =>
+  customEditorState.editor!.children[0]?.children?.[0]?.text;
+
+const resetEditorOnNextSend = () => {
+  editorMocks.resetEditor.mockImplementationOnce(() => setEditorText(''));
+};
+
+const submitComposer = async () => {
+  await act(async () => {
+    customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+    await Promise.resolve();
   });
-  mxState.sendMessage.mockImplementation(
-    async (roomId: string, content: unknown, txnId?: string) => {
-      if (txnId) registerLocalEcho(roomId, txnId, content);
-      return { event_id: '$sent' };
-    }
-  );
-  mxState.cancelPendingEvent.mockImplementation(
-    (event: { getRoomId: () => string; getTxnId: () => string }) => {
-      textSendState.localEvents.delete(`${event.getRoomId()}:${event.getTxnId()}`);
-    }
-  );
 };
 
-const mockDeferredSendWithLocalEcho = <T extends { event_id: string }>(
-  send: ReturnType<typeof createDeferred<T>>,
-  markNotSentOnReject = false
-) => {
-  let localEvent:
-    | {
-        getId: () => string;
-        getRoomId: () => string;
-        getTxnId: () => string;
-        status: EventStatus;
-      }
-    | undefined;
-
-  mxState.sendMessage.mockImplementationOnce((roomId: string, content: unknown, txnId?: string) => {
-    if (!txnId) return send.promise;
-    localEvent = registerLocalEcho(roomId, txnId, content);
-    if (markNotSentOnReject) {
-      void send.promise.then(undefined, () => {
-        if (localEvent) localEvent.status = EventStatus.NOT_SENT;
-      });
-    }
-    return send.promise;
-  });
-
-  return () => localEvent;
-};
-
-configureDefaultTextSendMocks();
 const createRoomInputTree = (
   store: ReturnType<typeof createStore>,
   props?: {
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => boolean;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -752,7 +769,7 @@ const renderRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => boolean;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -773,7 +790,7 @@ const updateRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => boolean;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -799,7 +816,6 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 };
 
 afterEach(() => {
-  roomEventState.localEchoUpdatedListeners.clear();
   voiceRecorderState.props = undefined;
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
@@ -808,7 +824,6 @@ afterEach(() => {
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
-  mxState.cancelPendingEvent.mockReset();
   mxState.cancelUpload.mockReset();
   mxState.getUserId.mockReset();
   mxState.getUserId.mockReturnValue('@me:example.org');
@@ -825,9 +840,9 @@ afterEach(() => {
       } as unknown as Room)
   );
   mxState.makeTxnId.mockReset();
+  mxState.makeTxnId.mockReturnValue('txn-room-input');
   mxState.sendMessage.mockReset();
-  textSendState.getEventForTxnId.mockReset();
-  configureDefaultTextSendMocks();
+  mxState.sendMessage.mockResolvedValue({ event_id: '$sent' });
   mxState.uploadContent.mockReset();
   mxState.uploadContent.mockResolvedValue({ content_uri: 'mxc://mindroom/voice' });
   encryptionState.encryptAttachment.mockReset();
@@ -855,7 +870,7 @@ afterEach(() => {
   editorMocks.resetEditor.mockReset();
   editorMocks.resetEditorHistory.mockReset();
   editorMocks.restoreEditorContent.mockReset();
-  editorMocks.sendTypingStatus.mockReset();
+  typingState.sendTypingStatus.mockReset();
 });
 
 describe('RoomInput', () => {
@@ -1180,7 +1195,7 @@ describe('RoomInput', () => {
   it('does not duplicate a text message when Enter is pressed twice before send resolves', async () => {
     const { renderer } = await renderRoomInput();
     const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send);
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
 
     editorOutputState.plainText = 'Hello @ali';
     editorOutputState.customHtml = 'Hello @ali';
@@ -1204,7 +1219,7 @@ describe('RoomInput', () => {
         body: 'Hello @ali',
         msgtype: 'm.text',
       }),
-      'txn-1'
+      'txn-room-input'
     );
 
     await act(async () => {
@@ -1215,12 +1230,10 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('never shows a composer pending clock for unresolved thread sends', async () => {
+  it('shows the pending send indicator for unresolved thread composer sends', async () => {
     const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
     const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send);
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
 
     editorOutputState.plainText = 'Thread reply still sending';
     editorOutputState.customHtml = 'Thread reply still sending';
@@ -1231,22 +1244,78 @@ describe('RoomInput', () => {
       await Promise.resolve();
     });
 
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Waiting for server');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Waiting for server');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
-    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
-    expect(editorMocks.resetEditorHistory).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$thread',
-        rel_type: RelationType.Thread,
-      },
-    });
 
     await act(async () => {
       send.resolve({ event_id: '$sent' });
       await Promise.resolve();
     });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('clears submitted text as soon as an unresolved thread send owns the pending local echo', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    stageComposerText('Pending local echo owns this reply');
+    resetEditorOnNextSend();
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledWith(
+      ROOM_ID,
+      expect.objectContaining({
+        body: 'Pending local echo owns this reply',
+        'm.relates_to': expect.objectContaining({
+          event_id: '$thread',
+          rel_type: RelationType.Thread,
+        }),
+      }),
+      'txn-room-input'
+    );
+    expect(getEditorText()).toBe('');
+    expect(editorMocks.resetEditorHistory).toHaveBeenCalled();
+    expect(typingState.sendTypingStatus).toHaveBeenCalledWith(false);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+
+    await act(async () => {
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    renderer.unmount();
+  });
+
+  it('keeps newer composer text and reply context when an earlier send succeeds', async () => {
+    const store = createStore();
+    const originalReply = createReplyDraft('$original-reply');
+    const newerReply = createReplyDraft('$newer-reply');
+    store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), originalReply);
+    const { renderer } = await renderRoomInput(store, { threadId: '$thread' });
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    stageComposerText('Earlier submitted reply');
+    resetEditorOnNextSend();
+    await submitComposer();
+
+    setEditorText('Newer composer input');
+    typingState.sendTypingStatus.mockClear();
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReply);
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
+    });
+
+    expect(getEditorText()).toBe('Newer composer input');
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReply);
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(typingState.sendTypingStatus).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
@@ -1260,7 +1329,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('notifies top-level room text sends with the synchronous local event id', async () => {
+  it('notifies successful top-level room text sends with the new event id', async () => {
     const notificationOrder: string[] = [];
     editorMocks.resetEditor.mockImplementation(() => {
       notificationOrder.push('reset-editor');
@@ -1282,789 +1351,12 @@ describe('RoomInput', () => {
       customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
     });
 
-    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-1`);
+    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
     const notifyIndex = notificationOrder.indexOf('notify');
     expect(notifyIndex).toBeGreaterThan(-1);
     expect(notificationOrder.indexOf('reset-editor')).toBeLessThan(notifyIndex);
     expect(notificationOrder.indexOf('reset-history')).toBeLessThan(notifyIndex);
 
-    renderer.unmount();
-  });
-
-  it('registers handlers, clears, and notifies in the required same-turn order', async () => {
-    const order: string[] = [];
-    const send = createDeferred<{ event_id: string }>();
-    const originalThen = send.promise.then.bind(send.promise);
-    const thenSpy = vi.spyOn(send.promise, 'then').mockImplementation(((...args: any[]) => {
-      order.push('attach-handlers');
-      return originalThen(...args);
-    }) as typeof send.promise.then);
-    mxState.makeTxnId.mockImplementationOnce(() => {
-      order.push('make-txn');
-      return 'ordered-txn';
-    });
-    mxState.sendMessage.mockImplementationOnce(
-      (sendRoomId: string, _content: unknown, txnId?: string) => {
-        order.push('send-message');
-        if (txnId) registerLocalEcho(sendRoomId, txnId);
-        return send.promise;
-      }
-    );
-    textSendState.getEventForTxnId.mockImplementationOnce((lookupRoomId: string, txnId: string) => {
-      order.push('lookup-local-echo');
-      return textSendState.localEvents.get(`${lookupRoomId}:${txnId}`);
-    });
-    editorMocks.resetEditor.mockImplementation(() => {
-      order.push('reset-editor');
-    });
-    editorMocks.resetEditorHistory.mockImplementation(() => {
-      order.push('reset-history');
-    });
-    editorMocks.sendTypingStatus.mockImplementation(() => {
-      order.push('stop-typing');
-    });
-    const onRoomMessageSent = vi.fn(() => {
-      order.push('notify');
-      return true;
-    });
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    order.length = 0;
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Ordered send';
-    editorOutputState.customHtml = 'Ordered send';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    act(() => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-    });
-
-    const expectedSteps = [
-      'make-txn',
-      'send-message',
-      'lookup-local-echo',
-      'attach-handlers',
-      'reset-editor',
-      'reset-history',
-      'stop-typing',
-      'notify',
-    ];
-    const stepIndexes = expectedSteps.map((step) =>
-      step === 'attach-handlers' ? order.lastIndexOf(step) : order.indexOf(step)
-    );
-    expect(stepIndexes.every((index) => index >= 0)).toBe(true);
-    expect(stepIndexes).toEqual([...stepIndexes].sort((left, right) => left - right));
-    expect(mxState.sendMessage).toHaveBeenCalledWith(
-      ROOM_ID,
-      expect.objectContaining({ body: 'Ordered send' }),
-      'ordered-txn'
-    );
-    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:ordered-txn`);
-
-    await act(async () => {
-      send.resolve({ event_id: '$ordered' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
-    expect(onRoomMessageSent).toHaveBeenCalledTimes(1);
-    thenSpy.mockRestore();
-    renderer.unmount();
-  });
-
-  it('keeps the composer and guard until exceptional missing-local fulfillment', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Conservative fallback';
-    editorOutputState.customHtml = 'Conservative fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-
-    await act(async () => {
-      send.resolve({ event_id: '$confirmed-fallback' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
-    expect(editorMocks.resetEditorHistory).toHaveBeenCalledTimes(1);
-    expect(onRoomMessageSent).toHaveBeenCalledOnce();
-    expect(onRoomMessageSent).toHaveBeenCalledWith('$confirmed-fallback');
-    renderer.unmount();
-  });
-
-  it('does not clear or notify after missing-local fulfillment loses room ownership', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Old room fallback';
-    editorOutputState.customHtml = 'Old room fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store, {
-      roomId: OTHER_ROOM_ID,
-      onRoomMessageSent,
-    });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    await act(async () => {
-      send.resolve({ event_id: '$old-room-event' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-
-    editorOutputState.plainText = 'New room message';
-    editorOutputState.customHtml = 'New room message';
-    setEditorContent('New room message');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[1][0]).toBe(OTHER_ROOM_ID);
-    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
-    renderer.unmount();
-  });
-
-  it('does not clear or notify after missing-local fulfillment unmounts', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Unmounted fallback';
-    editorOutputState.customHtml = 'Unmounted fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-    act(() => {
-      renderer.unmount();
-    });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    await act(async () => {
-      send.resolve({ event_id: '$unmounted-event' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-  });
-
-  it('does not clear or notify after missing-local fulfillment moves into a thread', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
-
-    editorOutputState.plainText = 'Overview fallback';
-    editorOutputState.customHtml = 'Overview fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store, {
-      threadId: '$new-thread',
-      onRoomMessageSent,
-    });
-    setEditorContent('New thread draft');
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    await act(async () => {
-      send.resolve({ event_id: '$overview-event' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'New thread draft' }] },
-    ]);
-    renderer.unmount();
-  });
-
-  it('does not clear or notify after missing-local fulfillment changes reply context', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
-
-    editorOutputState.plainText = 'Overview fallback';
-    editorOutputState.customHtml = 'Overview fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    const newerReplyDraft = createReplyDraft('$new-reply-target');
-    await act(async () => {
-      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReplyDraft);
-    });
-    setEditorContent('Reply draft');
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    await act(async () => {
-      send.resolve({ event_id: '$overview-event' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReplyDraft);
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Reply draft' }] },
-    ]);
-    renderer.unmount();
-  });
-
-  it('does not clear or notify after missing-local fulfillment follows a newer edit', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-
-    editorOutputState.plainText = 'Original fallback';
-    editorOutputState.customHtml = 'Original fallback';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    setEditorContent('Original fallback plus newer text');
-    act(() => {
-      customEditorState.props!.onChange?.();
-    });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    await act(async () => {
-      send.resolve({ event_id: '$overview-event' });
-      await send.promise;
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-    expect(customEditorState.editor!.children).toEqual([
-      {
-        type: 'paragraph',
-        children: [{ text: 'Original fallback plus newer text' }],
-      },
-    ]);
-    renderer.unmount();
-  });
-
-  it('leaves the composer intact for a synchronous send throw', async () => {
-    mxState.sendMessage.mockImplementationOnce(() => {
-      throw new Error('synchronous send failure');
-    });
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Still owned by composer';
-    editorOutputState.customHtml = 'Still owned by composer';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditorHistory).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it('leaves the composer intact and releases the guard for missing-local rejection', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mxState.sendMessage.mockReturnValueOnce(send.promise);
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-
-    editorOutputState.plainText = 'Retry after missing local echo';
-    editorOutputState.customHtml = 'Retry after missing local echo';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-    await act(async () => {
-      send.reject(new Error('send failed'));
-      await Promise.resolve();
-    });
-
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(onRoomMessageSent).not.toHaveBeenCalled();
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(editorMocks.resetEditor).toHaveBeenCalledTimes(1);
-    renderer.unmount();
-  });
-
-  it('cancels a terminal failed root when the room view declines timeline ownership', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn(() => false);
-    const transferOrder: string[] = [];
-    mxState.cancelPendingEvent.mockImplementation(() => {
-      transferOrder.push('cancel');
-    });
-    editorMocks.restoreEditorContent.mockImplementation(
-      (targetEditor: { children: Array<unknown> }, fragment: Array<unknown>) => {
-        transferOrder.push('restore');
-        targetEditor.children = [...fragment, ...targetEditor.children];
-      }
-    );
-    editorMocks.resetEditor.mockImplementation((targetEditor: { children: Array<unknown> }) => {
-      targetEditor.children = [];
-      queueMicrotask(() => {
-        customEditorState.props!.onChange?.();
-      });
-    });
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-    setEditorContent('Failed root');
-    const capturedFragment = structuredClone(customEditorState.editor!.children);
-
-    editorOutputState.plainText = 'Failed root';
-    editorOutputState.customHtml = 'Failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(onRoomMessageSent).toHaveBeenCalledWith(getLocalEvent()?.getId());
-
-    await act(async () => {
-      send.reject(new Error('terminal failure'));
-      await Promise.resolve();
-    });
-
-    expect(getLocalEvent()?.status).toBe(EventStatus.NOT_SENT);
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getLocalEvent());
-    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(
-      expect.anything(),
-      capturedFragment
-    );
-    expect(transferOrder).toEqual(['cancel', 'restore']);
-    expect(customEditorState.editor!.children).toEqual(capturedFragment);
-    renderer.unmount();
-  });
-
-  it('removes a declined terminal root from its actual room event store', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn(() => false);
-    const { renderer } = await renderRoomInput(createStore(), {
-      roomId: OTHER_ROOM_ID,
-      onRoomMessageSent,
-    });
-
-    editorOutputState.plainText = 'Other-room failed root';
-    editorOutputState.customHtml = 'Other-room failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(textSendState.localEvents.has(`${OTHER_ROOM_ID}:txn-1`)).toBe(true);
-    await act(async () => {
-      send.reject(new Error('terminal failure'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getLocalEvent());
-    expect(textSendState.localEvents.has(`${OTHER_ROOM_ID}:txn-1`)).toBe(false);
-    renderer.unmount();
-  });
-
-  it('reports an unexpected terminal-transfer failure', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send, true);
-    const transferError = new Error('cancel failed');
-    mxState.cancelPendingEvent.mockImplementation(() => {
-      throw transferError;
-    });
-    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
-    const { renderer } = await renderRoomInput(createStore(), {
-      onRoomMessageSent: () => false,
-    });
-
-    editorOutputState.plainText = 'Failed transfer';
-    editorOutputState.customHtml = 'Failed transfer';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-      send.reject(new Error('terminal failure'));
-      await Promise.resolve();
-    });
-
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(loggerError).toHaveBeenCalledWith(
-      '[MindroomRoomInput] Send settlement failed',
-      transferError
-    );
-    loggerError.mockRestore();
-    renderer.unmount();
-  });
-
-  it('leaves an auto-published failed root timeline-owned when rejection wins the route render', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn(() => true);
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-
-    editorOutputState.plainText = 'Published failed root';
-    editorOutputState.customHtml = 'Published failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(onRoomMessageSent).toHaveBeenCalledWith(getLocalEvent()?.getId());
-
-    await act(async () => {
-      send.reject(new Error('terminal failure before route render'));
-      await Promise.resolve();
-    });
-
-    expect(getLocalEvent()?.status).toBe(EventStatus.NOT_SENT);
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it('leaves an auto-published failed root timeline-owned after its local route renders', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    const getLocalEvent = mockDeferredSendWithLocalEcho(send, true);
-    const onRoomMessageSent = vi.fn(() => true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
-
-    editorOutputState.plainText = 'Rendered failed root';
-    editorOutputState.customHtml = 'Rendered failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    const localEventId = getLocalEvent()?.getId();
-    expect(localEventId).toBeTruthy();
-    await updateRoomInput(renderer, store, {
-      threadId: localEventId,
-      onRoomMessageSent,
-    });
-    await act(async () => {
-      send.reject(new Error('terminal failure after route render'));
-      await Promise.resolve();
-    });
-
-    expect(getLocalEvent()?.status).toBe(EventStatus.NOT_SENT);
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it('leaves a failed room root timeline-owned after a newer edit', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send, true);
-    const { renderer } = await renderRoomInput();
-
-    editorOutputState.plainText = 'Failed root';
-    editorOutputState.customHtml = 'Failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    setEditorContent('Failed root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    setEditorContent('Newer draft');
-    act(() => {
-      customEditorState.props!.onChange?.();
-    });
-    await act(async () => {
-      send.reject(new Error('terminal failure'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Newer draft' }] },
-    ]);
-    renderer.unmount();
-  });
-
-  it('leaves a failed room root timeline-owned after reply context changes', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send, true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-
-    editorOutputState.plainText = 'Failed root';
-    editorOutputState.customHtml = 'Failed root';
-    editorOutputState.htmlEqualsPlainText = true;
-    setEditorContent('Failed root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    const newerReplyDraft = createReplyDraft('$unrelated-reply');
-    await act(async () => {
-      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerReplyDraft);
-    });
-    await act(async () => {
-      send.reject(new Error('terminal failure'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReplyDraft);
-    renderer.unmount();
-  });
-
-  it('does not restore a failed room root into a different thread composer', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send, true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-
-    editorOutputState.plainText = 'Room root';
-    editorOutputState.customHtml = 'Room root';
-    editorOutputState.htmlEqualsPlainText = true;
-    setEditorContent('Room root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store, { threadId: '$different-thread' });
-    setEditorContent('Different thread draft');
-    await act(async () => {
-      send.reject(new Error('late root failure'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Different thread draft' }] },
-    ]);
-    renderer.unmount();
-  });
-
-  it('allows two sequential local sends before either network request settles', async () => {
-    const firstSend = createDeferred<{ event_id: string }>();
-    const secondSend = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(firstSend);
-    mockDeferredSendWithLocalEcho(secondSend);
-    const onRoomMessageSent = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
-
-    editorOutputState.plainText = 'First root';
-    editorOutputState.customHtml = 'First root';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    editorOutputState.plainText = 'Second root';
-    editorOutputState.customHtml = 'Second root';
-    setEditorContent('Second root');
-    act(() => {
-      customEditorState.props!.onChange?.();
-    });
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls.map((call) => call[2])).toEqual(['txn-1', 'txn-2']);
-    expect(textSendState.localEvents.has(`${ROOM_ID}:txn-1`)).toBe(true);
-    expect(textSendState.localEvents.has(`${ROOM_ID}:txn-2`)).toBe(true);
-    expect(onRoomMessageSent.mock.calls.map((call) => call[0])).toEqual([
-      `~${ROOM_ID}:txn-1`,
-      `~${ROOM_ID}:txn-2`,
-    ]);
-
-    await act(async () => {
-      firstSend.resolve({ event_id: '$first' });
-      secondSend.resolve({ event_id: '$second' });
-      await Promise.all([firstSend.promise, secondSend.promise]);
-    });
-    expect(onRoomMessageSent).toHaveBeenCalledTimes(2);
-    renderer.unmount();
-  });
-
-  it('keeps an encrypted local-root reply draft unsent until the root canonicalizes', async () => {
-    const localThreadId = `~${ROOM_ID}:pending-root`;
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, {
-      encryptedRoom: true,
-      threadId: localThreadId,
-    });
-    editorMocks.resetEditor.mockClear();
-    editorMocks.resetEditorHistory.mockClear();
-    setEditorContent('Encrypted follow-up');
-    editorOutputState.plainText = 'Encrypted follow-up';
-    editorOutputState.customHtml = 'Encrypted follow-up';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Encrypted follow-up' }] },
-    ]);
-
-    await updateRoomInput(renderer, store, {
-      encryptedRoom: true,
-      threadId: '$confirmed-root',
-    });
-    editorOutputState.plainText = 'Encrypted follow-up';
-    editorOutputState.customHtml = 'Encrypted follow-up';
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$confirmed-root',
-        rel_type: RelationType.Thread,
-      },
-    });
-    renderer.unmount();
-  });
-
-  it('unblocks an encrypted explicit reply when its draft target canonicalizes', async () => {
-    const store = createStore();
-    store.set(
-      roomIdToReplyDraftAtomFamily(ROOM_ID),
-      createReplyDraft(`~${ROOM_ID}:local-explicit-target`)
-    );
-    const { renderer } = await renderRoomInput(store, {
-      encryptedRoom: true,
-      threadingEnabled: false,
-    });
-    editorMocks.resetEditor.mockClear();
-    editorOutputState.plainText = 'Encrypted explicit reply';
-    editorOutputState.customHtml = 'Encrypted explicit reply';
-    editorOutputState.htmlEqualsPlainText = true;
-
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.resetEditor).not.toHaveBeenCalled();
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))?.eventId).toBe(
-      `~${ROOM_ID}:local-explicit-target`
-    );
-
-    const confirmedTarget = {
-      getId: () => '$confirmed-explicit-target',
-      getTxnId: () => 'local-explicit-target',
-      getUnsigned: () => ({ transaction_id: 'local-explicit-target' }),
-    };
-    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
-      txnId === 'local-explicit-target'
-        ? confirmedTarget
-        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
-    );
-    await act(async () => {
-      roomEventState.localEchoUpdatedListeners.forEach((listener) => {
-        listener(
-          confirmedTarget,
-          undefined,
-          `~${ROOM_ID}:local-explicit-target`,
-          EventStatus.SENDING
-        );
-      });
-    });
-
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))?.eventId).toBe(
-      '$confirmed-explicit-target'
-    );
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        'm.in_reply_to': {
-          event_id: '$confirmed-explicit-target',
-        },
-      },
-    });
     renderer.unmount();
   });
 
@@ -2086,199 +1378,6 @@ describe('RoomInput', () => {
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(onRoomMessageSent).not.toHaveBeenCalled();
 
-    renderer.unmount();
-  });
-
-  it('leaves failed thread and explicit replies owned by their local events', async () => {
-    const threadSend = createDeferred<{ event_id: string }>();
-    const explicitSend = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(threadSend, true);
-    mockDeferredSendWithLocalEcho(explicitSend, true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { threadId: '$thread-root' });
-
-    editorOutputState.plainText = 'Thread fallback reply';
-    editorOutputState.customHtml = 'Thread fallback reply';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    const explicitDraft = createReplyDraft('$explicit-target', {
-      event_id: '$thread-root',
-      rel_type: RelationType.Thread,
-    });
-    await act(async () => {
-      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), explicitDraft);
-    });
-    editorOutputState.plainText = 'Explicit reply';
-    editorOutputState.customHtml = 'Explicit reply';
-    setEditorContent('Explicit reply');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    const newerDraft = createReplyDraft('$newer-target');
-    await act(async () => {
-      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), newerDraft);
-    });
-    setEditorContent('Newer unsent text');
-
-    await act(async () => {
-      threadSend.reject(new Error('thread failed'));
-      explicitSend.reject(new Error('explicit failed'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$thread-root',
-        rel_type: RelationType.Thread,
-        'm.in_reply_to': { event_id: '$thread-root' },
-      },
-    });
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$thread-root',
-        rel_type: RelationType.Thread,
-        'm.in_reply_to': { event_id: '$explicit-target' },
-      },
-    });
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerDraft);
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Newer unsent text' }] },
-    ]);
-    renderer.unmount();
-  });
-
-  it('leaves a failed root and its local reply timeline-owned after exiting the thread', async () => {
-    const rootSend = createDeferred<{ event_id: string }>();
-    const replySend = createDeferred<{ event_id: string }>();
-    const getRootEvent = mockDeferredSendWithLocalEcho(rootSend, true);
-    const getReplyEvent = mockDeferredSendWithLocalEcho(replySend, true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-
-    editorOutputState.plainText = 'Root';
-    editorOutputState.customHtml = 'Root';
-    editorOutputState.htmlEqualsPlainText = true;
-    setEditorContent('Root');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store, { threadId: `~${ROOM_ID}:txn-1` });
-    editorOutputState.plainText = 'Pending reply';
-    editorOutputState.customHtml = 'Pending reply';
-    setEditorContent('Pending reply');
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store);
-    await act(async () => {
-      rootSend.reject(new Error('root failed'));
-      replySend.reject(new Error('reply failed'));
-      await Promise.resolve();
-    });
-
-    expect(getRootEvent()?.status).toBe(EventStatus.NOT_SENT);
-    expect(getReplyEvent()?.status).toBe(EventStatus.NOT_SENT);
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it.each([
-    ['FIFO', ['first', 'second']],
-    ['reverse', ['second', 'first']],
-  ] as const)(
-    'leaves the older concurrent failed root timeline-owned under %s settlement',
-    async (_label, settlementOrder) => {
-      const firstSend = createDeferred<{ event_id: string }>();
-      const secondSend = createDeferred<{ event_id: string }>();
-      const getFirstEvent = mockDeferredSendWithLocalEcho(firstSend, true);
-      const getSecondEvent = mockDeferredSendWithLocalEcho(secondSend, true);
-      const { renderer } = await renderRoomInput();
-
-      editorOutputState.plainText = 'First failed root';
-      editorOutputState.customHtml = 'First failed root';
-      editorOutputState.htmlEqualsPlainText = true;
-      setEditorContent('First failed root');
-      await act(async () => {
-        customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-        await Promise.resolve();
-      });
-
-      editorOutputState.plainText = 'Second failed root';
-      editorOutputState.customHtml = 'Second failed root';
-      setEditorContent('Second failed root');
-      act(() => {
-        customEditorState.props!.onChange?.();
-      });
-      await act(async () => {
-        customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        settlementOrder.forEach((send) => {
-          if (send === 'first') {
-            firstSend.reject(new Error('first failed'));
-          } else {
-            secondSend.reject(new Error('second failed'));
-          }
-        });
-        await Promise.allSettled([firstSend.promise, secondSend.promise]);
-      });
-
-      expect(mxState.cancelPendingEvent).toHaveBeenCalledOnce();
-      expect(mxState.cancelPendingEvent).toHaveBeenCalledWith(getSecondEvent());
-      expect(mxState.cancelPendingEvent).not.toHaveBeenCalledWith(getFirstEvent());
-      expect(editorMocks.restoreEditorContent).toHaveBeenCalledOnce();
-      expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(expect.anything(), [
-        { type: 'paragraph', children: [{ text: 'Second failed root' }] },
-      ]);
-      expect(textSendState.localEvents.has(`${ROOM_ID}:txn-1`)).toBe(true);
-      expect(textSendState.localEvents.has(`${ROOM_ID}:txn-2`)).toBe(false);
-      renderer.unmount();
-    }
-  );
-
-  it('does not cancel or restore a failed root after its input loses room ownership', async () => {
-    const send = createDeferred<{ event_id: string }>();
-    mockDeferredSendWithLocalEcho(send, true);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, {
-      keyedRoomSubtree: true,
-      roomId: ROOM_ID,
-    });
-
-    editorOutputState.plainText = 'Leave this room';
-    editorOutputState.customHtml = 'Leave this room';
-    editorOutputState.htmlEqualsPlainText = true;
-    await act(async () => {
-      customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-      await Promise.resolve();
-    });
-
-    await updateRoomInput(renderer, store, {
-      keyedRoomSubtree: true,
-      roomId: OTHER_ROOM_ID,
-    });
-    await act(async () => {
-      send.reject(new Error('late failure'));
-      await Promise.resolve();
-    });
-
-    expect(mxState.cancelPendingEvent).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -2480,7 +1579,6 @@ describe('RoomInput', () => {
         pending: store.get(voiceAutoSendPendingAtom),
         uploads: store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file),
       });
-      return true;
     });
     const { renderer } = await renderRoomInput(store, { onRoomMessageSent });
     await openVoiceRecorder(renderer);
@@ -3414,180 +2512,6 @@ describe('RoomInput', () => {
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     consoleError.mockRestore();
 
-    renderer.unmount();
-  });
-
-  it('keeps encrypted voice unsent until its captured local thread canonicalizes', async () => {
-    const localThreadId = `~${ROOM_ID}:voice-root`;
-    const liveRoom = createRoom(ROOM_ID, true);
-    mxState.getRoom.mockReturnValue(liveRoom);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, {
-      threadId: localThreadId,
-      encryptedRoom: true,
-    });
-    await openVoiceRecorder(renderer);
-    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-    const capturedContext = voiceRecorderState.props!.getSendContext();
-
-    await act(async () => {
-      await expect(
-        voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext)
-      ).rejects.toThrow();
-    });
-
-    expect(mxState.uploadContent).not.toHaveBeenCalled();
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-
-    const confirmedRoot = {
-      getId: () => '$voice-root',
-      getTxnId: () => 'voice-root',
-      getUnsigned: () => ({ transaction_id: 'voice-root' }),
-    };
-    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
-      txnId === 'voice-root'
-        ? confirmedRoot
-        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
-    );
-
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$voice-root',
-        rel_type: RelationType.Thread,
-      },
-    });
-    renderer.unmount();
-  });
-
-  it('re-prepares voice when the room becomes encrypted during a plaintext upload', async () => {
-    let encrypted = false;
-    const liveRoom = {
-      ...createRoom(ROOM_ID),
-      hasEncryptionStateEvent: () => encrypted,
-    } as unknown as Room;
-    mxState.getRoom.mockReturnValue(liveRoom);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-    await openVoiceRecorder(renderer);
-    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-    const capturedContext = voiceRecorderState.props!.getSendContext();
-    const upload = createDeferred<{ content_uri: string }>();
-    mxState.uploadContent.mockReturnValueOnce(upload.promise);
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    let sendPromise!: Promise<void>;
-
-    await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        file,
-        1100,
-        undefined,
-        capturedContext
-      );
-      await Promise.resolve();
-    });
-    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(encryptionState.encryptAttachment).not.toHaveBeenCalled();
-
-    encrypted = true;
-    await act(async () => {
-      upload.resolve({ content_uri: 'mxc://mindroom/plaintext-voice' });
-      await expect(sendPromise).rejects.toThrow();
-    });
-
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
-    });
-
-    expect(encryptionState.encryptAttachment).toHaveBeenCalledTimes(1);
-    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toEqual(
-      expect.objectContaining({
-        file: expect.objectContaining({
-          url: 'mxc://mindroom/voice',
-        }),
-      })
-    );
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('url');
-    consoleError.mockRestore();
-    renderer.unmount();
-  });
-
-  it('rechecks an encrypted local voice target after a deferred upload', async () => {
-    const localThreadId = `~${ROOM_ID}:deferred-voice-root`;
-    let encrypted = false;
-    const liveRoom = {
-      ...createRoom(ROOM_ID),
-      hasEncryptionStateEvent: () => encrypted,
-    } as unknown as Room;
-    mxState.getRoom.mockReturnValue(liveRoom);
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, {
-      threadId: localThreadId,
-    });
-    await openVoiceRecorder(renderer);
-    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-    const capturedContext = voiceRecorderState.props!.getSendContext();
-    const upload = createDeferred<{ content_uri: string }>();
-    mxState.uploadContent.mockReturnValueOnce(upload.promise);
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    let sendPromise!: Promise<void>;
-
-    await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        file,
-        1100,
-        undefined,
-        capturedContext
-      );
-      await Promise.resolve();
-    });
-    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-
-    encrypted = true;
-    await act(async () => {
-      upload.resolve({ content_uri: 'mxc://mindroom/deferred-voice' });
-      await expect(sendPromise).rejects.toThrow();
-    });
-
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-
-    const confirmedRoot = {
-      getId: () => '$deferred-voice-root',
-      getTxnId: () => 'deferred-voice-root',
-      getUnsigned: () => ({ transaction_id: 'deferred-voice-root' }),
-    };
-    textSendState.getEventForTxnId.mockImplementation((lookupRoomId: string, txnId: string) =>
-      txnId === 'deferred-voice-root'
-        ? confirmedRoot
-        : textSendState.localEvents.get(`${lookupRoomId}:${txnId}`)
-    );
-
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(file, 1100, undefined, capturedContext);
-    });
-
-    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': {
-        event_id: '$deferred-voice-root',
-        rel_type: RelationType.Thread,
-      },
-    });
-    consoleError.mockRestore();
     renderer.unmount();
   });
 

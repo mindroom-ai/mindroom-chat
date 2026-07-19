@@ -87,21 +87,16 @@ const TestHarness = ({
   onRoomMessageSent,
   mx,
   editor,
-  room,
-  threadId,
   sendTypingStatus,
 }: {
   onReady: (api: HarnessApi) => void;
-  onRoomMessageSent?: (eventId: string) => boolean;
+  onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
-    getRoom: ReturnType<typeof vi.fn>;
+    getEventForTxnId: ReturnType<typeof vi.fn>;
+    makeTxnId: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
   };
   editor: { children: unknown[] };
-  room: {
-    roomId: string;
-  };
-  threadId?: string;
   sendTypingStatus: ReturnType<typeof vi.fn>;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
@@ -111,9 +106,14 @@ const TestHarness = ({
 
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
-    room: room as never,
+    room: {
+      roomId: '!room:example.org',
+      getEventForTxnId: mx.getEventForTxnId,
+      getLiveTimeline: () => undefined,
+      getMembers: () => [],
+    } as never,
     roomId: '!room:example.org',
-    threadId,
+    threadId: undefined,
     replyDraft: undefined,
     setReplyDraft: vi.fn(),
     editor: editor as never,
@@ -157,27 +157,20 @@ const TestHarness = ({
 };
 
 const renderHarness = (
-  options: {
-    encryptedRoom?: boolean;
-    isEncrypted?: () => boolean;
-    onRoomMessageSent?: (eventId: string) => boolean;
-    threadId?: string;
-  } = {}
+  options: { onRoomMessageSent?: (eventId: string) => boolean | void } = {}
 ) => {
   let sentEvents = 0;
-  const room = {
-    roomId: '!room:example.org',
-    getEventForTxnId: () => undefined,
-    getLiveTimeline: () => ({
-      getEvents: () => [],
-    }),
-    getThreads: () => [],
-    getMembers: () => [],
-    hasEncryptionStateEvent: () => options.isEncrypted?.() ?? options.encryptedRoom ?? false,
-  };
+  let transactionIds = 0;
+  const localEvents = new Map<string, { getId: () => string }>();
   const mx = {
-    getRoom: vi.fn(() => room),
-    sendMessage: vi.fn(async () => {
+    getEventForTxnId: vi.fn((txnId: string) => localEvents.get(txnId)),
+    makeTxnId: vi.fn(() => `txn-${transactionIds++}`),
+    sendMessage: vi.fn(async (targetRoomId: string, _content: unknown, txnId?: string) => {
+      if (txnId) {
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+      }
       const eventId = `$event-${sentEvents}`;
       sentEvents += 1;
       return { event_id: eventId };
@@ -194,8 +187,6 @@ const renderHarness = (
       React.createElement(TestHarness, {
         mx,
         editor,
-        room,
-        threadId: options.threadId,
         sendTypingStatus,
         onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
@@ -205,7 +196,7 @@ const renderHarness = (
     );
   });
 
-  return { api, mx, editor, sendTypingStatus };
+  return { api, mx, editor, localEvents, sendTypingStatus };
 };
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
@@ -357,7 +348,6 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
             apiRef.current?.selectedFilesRef.current.map((item) => item.file.name) ?? [],
           uploadFiles: apiRef.current?.uploadsRef.current.map((upload) => upload.file.name) ?? [],
         });
-        return true;
       },
     });
     apiRef.current = api;
@@ -382,59 +372,6 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
         uploadFiles: ['child.txt'],
       },
     ]);
-  });
-});
-
-describe('useRoomInputSendSessionController encrypted local-target ownership', () => {
-  beforeEach(() => {
-    mocks.resetEditor.mockReset();
-    mocks.resetEditorHistory.mockReset();
-  });
-
-  it.each([
-    ['attachment-only', undefined],
-    ['caption plus attachment', { msgtype: 'm.text', body: 'caption draft' }],
-  ])(
-    'keeps an encrypted %s send on the board while its thread root is local',
-    async (_label, textContent) => {
-      const { api, mx } = renderHarness({
-        encryptedRoom: true,
-        threadId: '~!room:example.org:pending-root',
-      });
-      const file = createFile('pending.txt');
-      const item = createUploadItem(file);
-      api.selectedFilesRef.current = [item];
-      api.uploadsRef.current = [successUpload(file)];
-
-      await act(async () => {
-        await api.startSendSession({ textContent });
-      });
-
-      expect(mx.sendMessage).not.toHaveBeenCalled();
-      expect(api.selectedFilesRef.current).toEqual([item]);
-      expect(api.sendSessionFilesRef.current).toEqual([]);
-      expect(mocks.resetEditor).not.toHaveBeenCalled();
-    }
-  );
-
-  it('keeps a plaintext upload on the board when the room becomes encrypted', async () => {
-    let encrypted = false;
-    const { api, mx } = renderHarness({
-      isEncrypted: () => encrypted,
-    });
-    const file = createFile('plaintext.txt');
-    const item = createUploadItem(file);
-    api.selectedFilesRef.current = [item];
-    api.uploadsRef.current = [successUpload(file)];
-    encrypted = true;
-
-    await act(async () => {
-      await api.startSendSession();
-    });
-
-    expect(mx.sendMessage).not.toHaveBeenCalled();
-    expect(api.selectedFilesRef.current).toEqual([item]);
-    expect(api.uploadsRef.current).toEqual([successUpload(file)]);
   });
 });
 
@@ -585,5 +522,110 @@ describe('useRoomInputSendSessionController caption send failures', () => {
       (call) => (call[1] as { msgtype?: string }).msgtype === 'm.text'
     );
     expect(textSends).toHaveLength(1);
+  });
+});
+
+describe('useRoomInputSendSessionController optimistic room roots', () => {
+  beforeEach(() => {
+    mocks.resetEditor.mockReset();
+    mocks.resetEditorHistory.mockReset();
+    mocks.restoreEditorContent.mockReset();
+  });
+
+  it('opens the local root before acknowledgement and leaves a failed owned root in the timeline', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, editor, localEvents, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockImplementationOnce(
+      (targetRoomId: string, _content: unknown, txnId?: string) => {
+        if (!txnId) throw new Error('Expected a transaction id');
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+        return send.promise;
+      }
+    );
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
+    expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      send.reject(new Error('root send failed'));
+      await sendPromise;
+    });
+
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'later message' },
+      });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the confirmed event when no exact local echo is available', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockReturnValueOnce(send.promise);
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      send.resolve({ event_id: '$confirmed-root' });
+      await sendPromise;
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledOnce();
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$confirmed-root');
+  });
+
+  it('restores a failed root when the thread view declines timeline ownership', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => false);
+    const { api, editor, localEvents, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockImplementationOnce(
+      (targetRoomId: string, _content: unknown, txnId?: string) => {
+        if (!txnId) throw new Error('Expected a transaction id');
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+        return send.promise;
+      }
+    );
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+      send.reject(new Error('root send failed'));
+      await sendPromise;
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
   });
 });

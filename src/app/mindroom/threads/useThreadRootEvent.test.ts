@@ -23,7 +23,7 @@ const makeEvent = (
         : {},
     isSending: () => options?.isSending ?? false,
     threadRootId: options?.threadRootId,
-  } as never);
+  }) as never;
 
 const makeRoom = ({
   events = [],
@@ -42,7 +42,6 @@ const makeRoom = ({
       getEvents: () => events,
     }),
     getThread: () => null,
-    getThreads: () => [],
     on: (event: string | symbol, handler: (...args: unknown[]) => void) => {
       listeners.set(event, handler);
     },
@@ -84,7 +83,11 @@ describe('useThreadRootEvent', () => {
     events.splice(0, events.length, confirmedRoot);
 
     await act(async () => {
-      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(confirmedRoot, room, '~pending-root');
+      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(
+        confirmedRoot,
+        room,
+        '~pending-root'
+      );
     });
 
     expect(observedRootIds.at(-1)).toBe('$confirmed-root');
@@ -221,11 +224,9 @@ describe('useThreadRootEvent', () => {
     });
 
     await act(async () => {
-      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(
-        makeEvent('$reply-2'),
-        room,
-        '~!room:example.org:m123'
-      );
+      room.__listeners
+        .get(RoomEvent.LocalEchoUpdated)
+        ?.(makeEvent('$reply-2'), room, '~!room:example.org:m123');
     });
 
     expect(observedRootIds.at(-1)).toBe('$root');

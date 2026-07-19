@@ -9,6 +9,7 @@ import { BlockType } from '../../components/editor/types';
 import type { IReplyDraft, PendingVoiceSendContext } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
+import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
@@ -19,8 +20,6 @@ import {
 } from '../threads/roomInputSendSession';
 import type { TUploadContent } from '../../utils/matrix';
 import type { MindroomPasteMarker } from '../messages/pasteAttachmentMarker';
-import { resolveCanonicalMatrixEventId } from '../threads/threadRouteUtils';
-import { resolveMindroomReplyDraftEventIds } from '../threads/roomTimelineReplyDraft';
 
 export { useRoomInputSendSessionController } from '../threads/useRoomInputSendSessionController';
 
@@ -49,6 +48,7 @@ export type MindroomVoiceSendContext = PendingVoiceSendContext;
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
   leading?: React.ReactNode;
+  pendingSend?: boolean;
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
 };
@@ -104,10 +104,6 @@ export const refreshMindroomRoomInputVoiceSendContext = (
   return {
     ...context,
     room: liveRoom,
-    threadId: resolveCanonicalMatrixEventId(liveRoom, context.threadId),
-    replyDraft: context.replyDraft
-      ? resolveMindroomReplyDraftEventIds(liveRoom, context.replyDraft)
-      : undefined,
     signalBridgedRoom: isSignalBridgeRoom(liveRoom),
   };
 };
@@ -213,10 +209,11 @@ export function MindroomRoomInputThreadIndicator({
 export function MindroomRoomInputReplyContext({
   children,
   leading,
+  pendingSend,
   relation,
   room,
 }: MindroomRoomInputReplyContextProps) {
-  if (!leading && !children) return null;
+  if (!leading && !children && !pendingSend) return null;
 
   return (
     <Box
@@ -228,6 +225,7 @@ export function MindroomRoomInputReplyContext({
       <Box direction="Row" gap="200" alignItems="Center">
         <MindroomRoomInputThreadIndicator room={room} relation={relation} />
         {children}
+        {pendingSend && <PendingSendIndicator />}
       </Box>
     </Box>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Reactions } from './Reactions';
 
@@ -91,7 +91,6 @@ class MockRelations {
           '🔄',
           new Set([
             {
-              getId: () => '$reaction',
               getSender: () => '@bas:mindroom.chat',
               getRelation: () => ({ rel_type: 'm.annotation' }),
               isRedacted: () => false,
@@ -103,16 +102,32 @@ class MockRelations {
   }
 }
 
+const renderers: ReturnType<typeof create>[] = [];
+const render = (element: React.ReactElement) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(element);
+  });
+  renderers.push(renderer);
+  return renderer;
+};
+
 describe('Reactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    act(() => {
+      renderers.splice(0).forEach((renderer) => renderer.unmount());
+    });
   });
 
   it('passes the rendered relations object back on toggle', () => {
     const relations = new MockRelations();
     const onReactionToggle = vi.fn();
 
-    const renderer = create(
+    const renderer = render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -132,13 +147,37 @@ describe('Reactions', () => {
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🔄', undefined, relations);
   });
 
+  it('does not toggle a reaction on an unconfirmed target', () => {
+    const relations = new MockRelations();
+    const onReactionToggle = vi.fn();
+
+    const renderer = render(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '~!room:example.org:txn-root',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle,
+      })
+    );
+
+    const button = renderer.root.findByType('button');
+    expect(button.props.onClick).toBeUndefined();
+
+    act(() => {
+      button.props.onClick?.();
+    });
+
+    expect(onReactionToggle).not.toHaveBeenCalled();
+  });
+
   it('ignores redacted reaction shells when rendering counts', () => {
     const relations = new MockRelations([
       [
         '🛑',
         new Set([
           {
-            getId: () => '$redacted-stop',
             getSender: () => '@bas:mindroom.chat',
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => true,
@@ -152,7 +191,7 @@ describe('Reactions', () => {
       ],
     ]);
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -187,7 +226,6 @@ describe('Reactions', () => {
         '👍',
         new Set([
           {
-            getId: () => '$thumbs-up',
             getSender: () => '@bas:mindroom.chat',
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
@@ -199,7 +237,7 @@ describe('Reactions', () => {
       getContent: () => ({ 'io.mindroom.stream_status': 'completed' }),
     } as MatrixEvent;
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -233,7 +271,7 @@ describe('Reactions', () => {
       getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
     } as MatrixEvent;
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -247,73 +285,5 @@ describe('Reactions', () => {
     expect(reactionRenderSpy).toHaveBeenCalledWith(
       expect.objectContaining({ reaction: '🛑', count: 1 })
     );
-  });
-
-  it('keeps pending-target reaction chips read-only until the event id confirms', () => {
-    const relations = new MockRelations();
-    const onReactionToggle = vi.fn();
-
-    const renderer = create(
-      React.createElement(Reactions, {
-        room: {} as never,
-        mEventId: '~!room:example.org:txn-root',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
-        canSendReaction: true,
-        relations: relations as never,
-        onReactionToggle,
-      })
-    );
-
-    const button = renderer.root.findByType('button');
-
-    expect(button.props.onClick).toBeUndefined();
-    expect(reactionRenderSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        props: expect.objectContaining({
-          'aria-disabled': true,
-          onContextMenu: expect.any(Function),
-        }),
-      })
-    );
-    expect(onReactionToggle).not.toHaveBeenCalled();
-  });
-
-  it('keeps a pending own reaction read-only until its redaction target confirms', () => {
-    const relations = new MockRelations([
-      [
-        '👍',
-        new Set([
-          {
-            getId: () => '~!room:example.org:txn-reaction',
-            getSender: () => '@bas:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
-    ]);
-    const onReactionToggle = vi.fn();
-
-    const renderer = create(
-      React.createElement(Reactions, {
-        room: {} as never,
-        mEventId: '$confirmed-root',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
-        canSendReaction: true,
-        relations: relations as never,
-        onReactionToggle,
-      })
-    );
-
-    expect(renderer.root.findByType('button').props.onClick).toBeUndefined();
-    expect(reactionRenderSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        props: expect.objectContaining({
-          'aria-disabled': true,
-          'aria-pressed': true,
-        }),
-      })
-    );
-    expect(onReactionToggle).not.toHaveBeenCalled();
   });
 });

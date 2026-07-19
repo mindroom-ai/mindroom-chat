@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getRoomThreadExitTargetFromHistoryState,
-  moveRoomThreadExitTargetBetweenHistoryStates,
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
   withRoomThreadExitTargetState,
@@ -14,9 +13,6 @@ const makeSessionStorage = () => {
     getItem: vi.fn((key: string) => store.get(key) ?? null),
     setItem: vi.fn((key: string, value: string) => {
       store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
     }),
   };
 };
@@ -115,31 +111,5 @@ describe('roomNavigateState', () => {
       )
     ).toBe(false);
     expect(getRoomThreadExitTargetFromHistoryState({})).toBeUndefined();
-  });
-
-  it('moves a translated exit target to the replacement history entry', () => {
-    const previousHistoryState = { key: 'entry-local-thread' };
-    const nextHistoryState = { key: 'entry-confirmed-thread' };
-    setRoomThreadExitTargetForHistoryState(previousHistoryState, {
-      roomId: '!room',
-      threadId: '~!room:txn',
-    });
-
-    expect(
-      moveRoomThreadExitTargetBetweenHistoryStates(previousHistoryState, nextHistoryState, {
-        exitPath: '/home/!room',
-        roomId: '!room',
-        threadId: '$thread',
-        useHistoryBack: true,
-      })
-    ).toBe(true);
-
-    expect(getRoomThreadExitTargetFromHistoryState(previousHistoryState)).toBeUndefined();
-    expect(getRoomThreadExitTargetFromHistoryState(nextHistoryState)).toEqual({
-      exitPath: '/home/!room',
-      roomId: '!room',
-      threadId: '$thread',
-      useHistoryBack: true,
-    });
   });
 });

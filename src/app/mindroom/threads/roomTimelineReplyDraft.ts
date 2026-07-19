@@ -1,48 +1,10 @@
 import { type IContent, type Room } from 'matrix-js-sdk';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { getEditedEvent } from '../../utils/room';
-import { resolveCanonicalMatrixEventId } from './threadRouteUtils';
 
 export type MindroomRoomTimelineReplyDraft = {
   draft: IReplyDraft;
   threadRootId: string;
-};
-
-export const resolveMindroomReplyDraftEventIds = (room: Room, draft: IReplyDraft): IReplyDraft => {
-  const eventId = resolveCanonicalMatrixEventId(room, draft.eventId) ?? draft.eventId;
-  const relation = draft.relation;
-  if (!relation) {
-    return eventId === draft.eventId ? draft : { ...draft, eventId };
-  }
-
-  const relationEventId =
-    resolveCanonicalMatrixEventId(room, relation.event_id) ?? relation.event_id;
-  const replyEventId = relation['m.in_reply_to']?.event_id;
-  const canonicalReplyEventId = resolveCanonicalMatrixEventId(room, replyEventId) ?? replyEventId;
-  if (
-    eventId === draft.eventId &&
-    relationEventId === relation.event_id &&
-    canonicalReplyEventId === replyEventId
-  ) {
-    return draft;
-  }
-
-  return {
-    ...draft,
-    eventId,
-    relation: {
-      ...relation,
-      event_id: relationEventId,
-      ...(relation['m.in_reply_to']
-        ? {
-            'm.in_reply_to': {
-              ...relation['m.in_reply_to'],
-              ...(canonicalReplyEventId !== undefined ? { event_id: canonicalReplyEventId } : {}),
-            },
-          }
-        : {}),
-    },
-  };
 };
 
 export const buildMindroomRoomTimelineReplyDraft = (

@@ -806,7 +806,7 @@ export const Message = as<'div', MessageProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
-    const durableEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
+    const serverEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
     const showCopyText = isCopyTextMessageContent(menuMessageContent as Record<string, unknown>);
     const mindroomMessageExtensions = useMindroomMessageExtensionState(
@@ -865,7 +865,7 @@ export const Message = as<'div', MessageProps>(
     const msgContentJSX = (
       <Box direction="Column" alignSelf="Start" style={{ maxWidth: '100%' }}>
         {reply}
-        {edit && onEditId ? (
+        {serverEventActionsAllowed && edit && onEditId ? (
           <MessageEditor
             style={{
               maxWidth: '100%',
@@ -996,7 +996,7 @@ export const Message = as<'div', MessageProps>(
             <div className={css.MessageOptionsBase}>
               <Menu className={css.MessageOptionsBar} variant="SurfaceVariant">
                 <Box gap="100">
-                  {canSendReaction && durableEventActionsAllowed && (
+                  {canSendReaction && serverEventActionsAllowed && (
                     <PopOut
                       position="Bottom"
                       align={emojiBoardAnchor?.width === 0 ? 'Start' : 'End'}
@@ -1032,18 +1032,20 @@ export const Message = as<'div', MessageProps>(
                       </IconButton>
                     </PopOut>
                   )}
-                  <IconButton
-                    onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
-                      onReplyClick(ev, isThreadedMessage)
-                    }
-                    data-event-id={mEvent.getId()}
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                  >
-                    <Icon src={Icons.ReplyArrow} size="100" />
-                  </IconButton>
-                  {!isThreadedMessage && (
+                  {serverEventActionsAllowed && (
+                    <IconButton
+                      onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
+                        onReplyClick(ev, isThreadedMessage)
+                      }
+                      data-event-id={mEvent.getId()}
+                      variant="SurfaceVariant"
+                      size="300"
+                      radii="300"
+                    >
+                      <Icon src={Icons.ReplyArrow} size="100" />
+                    </IconButton>
+                  )}
+                  {serverEventActionsAllowed && !isThreadedMessage && (
                     <IconButton
                       onClick={(ev: React.MouseEvent<HTMLButtonElement>) => onReplyClick(ev, true)}
                       data-event-id={mEvent.getId()}
@@ -1054,7 +1056,7 @@ export const Message = as<'div', MessageProps>(
                       <Icon src={Icons.ThreadPlus} size="100" />
                     </IconButton>
                   )}
-                  {durableEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
+                  {serverEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
                     <IconButton
                       onClick={() => onEditId(mEvent.getId())}
                       variant="SurfaceVariant"
@@ -1081,7 +1083,7 @@ export const Message = as<'div', MessageProps>(
                         }}
                       >
                         <Menu>
-                          {canSendReaction && durableEventActionsAllowed && (
+                          {canSendReaction && serverEventActionsAllowed && (
                             <MessageQuickReactions
                               onReaction={(key, shortcode) => {
                                 onReactionToggle(mEvent.getId()!, key, shortcode);
@@ -1090,7 +1092,7 @@ export const Message = as<'div', MessageProps>(
                             />
                           )}
                           <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                            {canSendReaction && durableEventActionsAllowed && (
+                            {canSendReaction && serverEventActionsAllowed && (
                               <MenuItem
                                 size="300"
                                 after={<Icon size="100" src={Icons.SmilePlus} />}
@@ -1114,26 +1116,28 @@ export const Message = as<'div', MessageProps>(
                                 onClose={closeMenu}
                               />
                             )}
-                            <MenuItem
-                              size="300"
-                              after={<Icon size="100" src={Icons.ReplyArrow} />}
-                              radii="300"
-                              data-event-id={mEvent.getId()}
-                              onClick={(evt: any) => {
-                                onReplyClick(evt, isThreadedMessage);
-                                closeMenu();
-                              }}
-                            >
-                              <Text
-                                className={css.MessageMenuItemText}
-                                as="span"
-                                size="T300"
-                                truncate
+                            {serverEventActionsAllowed && (
+                              <MenuItem
+                                size="300"
+                                after={<Icon size="100" src={Icons.ReplyArrow} />}
+                                radii="300"
+                                data-event-id={mEvent.getId()}
+                                onClick={(evt: any) => {
+                                  onReplyClick(evt, isThreadedMessage);
+                                  closeMenu();
+                                }}
                               >
-                                Reply
-                              </Text>
-                            </MenuItem>
-                            {!isThreadedMessage && (
+                                <Text
+                                  className={css.MessageMenuItemText}
+                                  as="span"
+                                  size="T300"
+                                  truncate
+                                >
+                                  Reply
+                                </Text>
+                              </MenuItem>
+                            )}
+                            {serverEventActionsAllowed && !isThreadedMessage && (
                               <MenuItem
                                 size="300"
                                 after={<Icon src={Icons.ThreadPlus} size="100" />}
@@ -1154,7 +1158,7 @@ export const Message = as<'div', MessageProps>(
                                 </Text>
                               </MenuItem>
                             )}
-                            {durableEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
+                            {serverEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
                               <MenuItem
                                 size="300"
                                 after={<Icon size="100" src={Icons.Pencil} />}
@@ -1204,18 +1208,18 @@ export const Message = as<'div', MessageProps>(
                                 loading={mindroomCopyText.loading}
                               />
                             )}
-                            {durableEventActionsAllowed && (
+                            {serverEventActionsAllowed && (
                               <MessageCopyLinkItem
                                 room={room}
                                 mEvent={mEvent}
                                 onClose={closeMenu}
                               />
                             )}
-                            {durableEventActionsAllowed && canPinEvent && (
+                            {serverEventActionsAllowed && canPinEvent && (
                               <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
                             )}
                           </Box>
-                          {durableEventActionsAllowed &&
+                          {serverEventActionsAllowed &&
                             ((!mEvent.isRedacted() && canDelete) ||
                               mEvent.getSender() !== mx.getUserId()) && (
                               <>
@@ -1315,7 +1319,7 @@ export const Event = as<'div', EventProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const stateEvent = typeof mEvent.getStateKey() === 'string';
-    const durableEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
+    const serverEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
 
     const handleContextMenu: MouseEventHandler<HTMLDivElement> = (evt) => {
       if (evt.altKey || !window.getSelection()?.isCollapsed) return;
@@ -1388,11 +1392,11 @@ export const Event = as<'div', EventProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          {durableEventActionsAllowed && (
+                          {serverEventActionsAllowed && (
                             <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           )}
                         </Box>
-                        {durableEventActionsAllowed &&
+                        {serverEventActionsAllowed &&
                           ((!mEvent.isRedacted() && canDelete && !stateEvent) ||
                             (mEvent.getSender() !== mx.getUserId() && !stateEvent)) && (
                             <>

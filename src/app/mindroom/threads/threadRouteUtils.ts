@@ -1,4 +1,3 @@
-import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { buildResolveConfirmedEventId } from './threadRenderUtils';
@@ -9,9 +8,7 @@ export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
 export const isConfirmedMatrixEventId = (eventId: unknown): eventId is string =>
   typeof eventId === 'string' && eventId.startsWith('$');
 
-const getEventTxnId = (
-  event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>
-): string | undefined => {
+const getEventTxnId = (event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>): string | undefined => {
   const txnId = event.getTxnId?.() ?? event.getUnsigned()?.transaction_id;
   return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;
 };
@@ -29,22 +26,6 @@ const getTxnIdFromLocalEchoEventId = (
   return txnId.length > 0 ? txnId : undefined;
 };
 
-const getLoadedTimelineEvents = (timelineSet: EventTimelineSet): MatrixEvent[] =>
-  timelineSet.getTimelines().flatMap((timeline) => timeline.getEvents());
-
-const getLoadedRoomAndThreadEvents = (room: Room): MatrixEvent[] => {
-  const roomTimelineSet = room.getUnfilteredTimelineSet?.();
-  const roomEvents = roomTimelineSet
-    ? getLoadedTimelineEvents(roomTimelineSet)
-    : room.getLiveTimeline().getEvents();
-  const threadEvents = room.getThreads().flatMap((thread) => {
-    const threadTimelineSet = thread.getUnfilteredTimelineSet?.();
-    return threadTimelineSet ? getLoadedTimelineEvents(threadTimelineSet) : thread.events;
-  });
-
-  return [...roomEvents, ...threadEvents];
-};
-
 const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | undefined => {
   const txnEvent = room.getEventForTxnId?.(txnId);
   const txnEventId = txnEvent?.getId();
@@ -52,18 +33,8 @@ const resolveConfirmedEventIdByTxnId = (room: Room, txnId: string): string | und
     return txnEventId;
   }
 
-  const resolveConfirmedId = buildResolveConfirmedEventId(room, getLoadedRoomAndThreadEvents(room));
+  const resolveConfirmedId = buildResolveConfirmedEventId(room, room.getLiveTimeline().getEvents());
   return resolveConfirmedId(txnId);
-};
-
-export const resolveCanonicalMatrixEventId = (
-  room: Room,
-  eventId: string | undefined
-): string | undefined => {
-  const txnId = getTxnIdFromLocalEchoEventId(room, eventId);
-  if (!txnId) return eventId;
-
-  return resolveConfirmedEventIdByTxnId(room, txnId) ?? eventId;
 };
 
 export const isPendingLocalEchoThreadRootEvent = (
@@ -111,7 +82,7 @@ const resolveConfirmedEventId = (
   const txnId = getEventTxnId(event);
   if (!txnId) return undefined;
 
-  const resolveConfirmedId = buildResolveConfirmedEventId(room, getLoadedRoomAndThreadEvents(room));
+  const resolveConfirmedId = buildResolveConfirmedEventId(room, room.getLiveTimeline().getEvents());
   return resolveConfirmedId(txnId);
 };
 
@@ -127,7 +98,10 @@ export const resolveCanonicalThreadRootId = (
 
   const event = room.findEventById(threadId);
   if (!event) {
-    return resolveCanonicalMatrixEventId(room, threadId);
+    const txnId = getTxnIdFromLocalEchoEventId(room, threadId);
+    if (!txnId) return threadId;
+
+    return resolveConfirmedEventIdByTxnId(room, txnId) ?? threadId;
   }
 
   const eventId = event.getId();

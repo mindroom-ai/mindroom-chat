@@ -319,7 +319,7 @@ export const useRoomViewThreadState = ({
   );
 
   const handleRoomMessageSent = useCallback(
-    (sentEventId: string) => {
+    (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
       if (!isConfirmedMatrixEventId(sentEventId) && !isLocalEchoEventId(sentEventId)) return false;
 

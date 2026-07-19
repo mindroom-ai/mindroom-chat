@@ -85,8 +85,6 @@ export const Reactions = as<'div', ReactionsProps>(
           if (rEvents.length === 0 || typeof key !== 'string') return null;
           const myREvent = myUserId ? rEvents.find(factoryEventSentBy(myUserId)) : undefined;
           const isPressed = !!myREvent?.getRelation();
-          const reactionToggleAllowed =
-            targetAllowsReactionToggle && (!myREvent || isConfirmedMatrixEventId(myREvent.getId()));
 
           return (
             <TooltipProvider
@@ -110,12 +108,12 @@ export const Reactions = as<'div', ReactionsProps>(
                   reaction={key}
                   count={events.size}
                   onClick={
-                    reactionToggleAllowed
+                    targetAllowsReactionToggle
                       ? () => onReactionToggle(mEventId, key, undefined, relations)
                       : undefined
                   }
                   onContextMenu={handleViewReaction}
-                  aria-disabled={!reactionToggleAllowed}
+                  aria-disabled={!targetAllowsReactionToggle}
                   useAuthentication={useAuthentication}
                 />
               )}

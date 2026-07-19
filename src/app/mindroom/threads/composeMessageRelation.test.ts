@@ -1,10 +1,6 @@
 import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import {
-  getMessageRelation,
-  hasLocalEchoMessageRelationTarget,
-  type MessageRelation,
-} from './composeMessageRelation';
+import { getMessageRelation } from './composeMessageRelation';
 
 describe('getMessageRelation', () => {
   it('returns undefined when there is no reply or thread context', () => {
@@ -77,13 +73,5 @@ describe('getMessageRelation', () => {
         event_id: '$reply',
       },
     });
-  });
-
-  it('treats a malformed reply fallback without an event id as non-local', () => {
-    expect(
-      hasLocalEchoMessageRelationTarget({
-        'm.in_reply_to': {},
-      } as MessageRelation)
-    ).toBe(false);
   });
 });

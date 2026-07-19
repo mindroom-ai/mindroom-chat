@@ -54,7 +54,6 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getEditedEvent, getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
-import { isConfirmedMatrixEventId } from '../../../mindroom/threads/threadRouteUtils';
 
 type MessageEditorProps = {
   roomId: string;
@@ -72,8 +71,6 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [toolbar, setToolbar] = useState(globalToolbar);
     const isComposing = useComposingCheck();
-    const durableEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
-    const editTargetReady = durableEventActionsAllowed;
 
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<AutocompletePrefix>>();
@@ -161,10 +158,10 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     );
 
     const handleSave = useCallback(() => {
-      if (editTargetReady && saveState.status !== AsyncStatus.Loading) {
+      if (saveState.status !== AsyncStatus.Loading) {
         save();
       }
-    }, [editTargetReady, saveState, save]);
+    }, [saveState, save]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -276,7 +273,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
                     onClick={handleSave}
                     variant="Primary"
                     radii="Pill"
-                    disabled={!editTargetReady || saveState.status === AsyncStatus.Loading}
+                    disabled={saveState.status === AsyncStatus.Loading}
                     outlined
                     before={
                       saveState.status === AsyncStatus.Loading ? (

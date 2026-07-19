@@ -1,6 +1,6 @@
 import { IEventRelation, RelationType } from 'matrix-js-sdk';
 
-export type MessageRelation = {
+type MessageRelation = {
   'm.in_reply_to'?: {
     event_id: string;
   };
@@ -8,10 +8,6 @@ export type MessageRelation = {
   rel_type?: RelationType;
   is_falling_back?: boolean;
 };
-
-export const hasLocalEchoMessageRelationTarget = (relation: MessageRelation | undefined): boolean =>
-  relation?.event_id?.startsWith('~') === true ||
-  relation?.['m.in_reply_to']?.event_id?.startsWith('~') === true;
 
 export const getMessageRelation = (
   replyEventId?: string,

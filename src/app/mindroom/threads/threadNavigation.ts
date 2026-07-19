@@ -1,8 +1,6 @@
 import type { NavigateOptions } from 'react-router-dom';
 import { isNativeIOS } from '../native/nativeSso';
 import {
-  getRoomThreadExitTargetFromState,
-  moveRoomThreadExitTargetBetweenHistoryStates,
   setRoomThreadExitTargetForHistoryState,
   withRoomThreadExitTargetState,
 } from './roomNavigateState';
@@ -51,9 +49,6 @@ export const navigateMindroomRoomThread = ({
   isNativeIOSDevice = isNativeIOS,
 }: MindroomRoomThreadNavigationOptions): void => {
   const seededExitTarget = !opts?.replace;
-  const carriedExitTarget = opts?.replace
-    ? getRoomThreadExitTargetFromState(opts.state)
-    : undefined;
   const exitTarget = seededExitTarget
     ? {
         exitPath: getMindroomCurrentRoutePath(getLocation()),
@@ -61,29 +56,18 @@ export const navigateMindroomRoomThread = ({
         threadId,
         useHistoryBack: !isNativeIOSDevice(),
       }
-    : carriedExitTarget;
-  const nextOpts =
-    seededExitTarget && exitTarget
-      ? {
-          ...opts,
-          state: withRoomThreadExitTargetState(opts?.state, exitTarget),
-        }
-      : opts;
-  const previousHistoryState = carriedExitTarget ? getHistoryState() : undefined;
+    : undefined;
+  const nextOpts = exitTarget
+    ? {
+        ...opts,
+        state: withRoomThreadExitTargetState(opts?.state, exitTarget),
+      }
+    : opts;
 
   navigateRoomThreadDirect(roomId, threadId, eventId, nextOpts);
 
   if (!exitTarget) return;
   schedule(() => {
-    const nextHistoryState = getHistoryState();
-    if (carriedExitTarget) {
-      moveRoomThreadExitTargetBetweenHistoryStates(
-        previousHistoryState,
-        nextHistoryState,
-        exitTarget
-      );
-      return;
-    }
-    setRoomThreadExitTargetForHistoryState(nextHistoryState, exitTarget);
+    setRoomThreadExitTargetForHistoryState(getHistoryState(), exitTarget);
   });
 };

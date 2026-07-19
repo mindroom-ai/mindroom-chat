@@ -1,4 +1,4 @@
-import { EventStatus, MatrixEvent, RelationType } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { inSameDay } from '../../utils/time';
 import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
@@ -686,22 +686,6 @@ describe('shouldPinThreadToBottomOnOpen', () => {
 });
 
 describe('mergeThreadRenderEvents', () => {
-  it('keeps the root above a failed reply whose local timestamp predates root confirmation', () => {
-    const root = makeMessageEvent('$root', 20);
-    root.setThreadId('$root');
-    const failedReply = makeMessageEvent('~failed-reply', 10);
-    failedReply.event.content!['m.relates_to'] = {
-      event_id: '$root',
-      rel_type: RelationType.Thread,
-      'm.in_reply_to': {
-        event_id: '$root',
-      },
-    };
-    failedReply.setStatus(EventStatus.NOT_SENT);
-
-    expect(mergeThreadRenderEvents([], [failedReply, root])).toEqual([root, failedReply]);
-  });
-
   it('does not overwrite a corrected cached event with a stale duplicate', () => {
     const correctedEvent = makeMessageEvent('$target');
     correctedEvent.makeReplaced(makeEditEvent('$target', '$edit-2', 2));

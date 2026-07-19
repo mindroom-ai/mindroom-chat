@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
+import { isLocalEchoEventId } from './threadRouteUtils';
 
 const useLiveTimelineRefresh = (room: Room, onRefresh: () => void): void => {
   useEffect(() => {
@@ -42,6 +43,7 @@ export const useThreadAwareTimelineRefresh = ({
   useLiveTimelineRefresh(
     room,
     useCallback(() => {
+      if (isLocalEchoEventId(threadId)) return;
       if (threadId) {
         if (threadRefreshInFlightRef.current === threadId) {
           pendingRefreshRef.current = true;

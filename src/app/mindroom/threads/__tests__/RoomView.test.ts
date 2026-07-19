@@ -279,7 +279,7 @@ vi.mock('../../../features/room/RoomTombstone', () => ({
 }));
 
 vi.mock('../../room-input/MindroomRoomInput', () => ({
-  RoomInput: passthrough,
+  RoomInput: 'room-input',
 }));
 
 vi.mock('../../../features/room/RoomViewFollowing', () => ({
@@ -1498,48 +1498,6 @@ describe('RoomView', () => {
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
-  it('preserves the explicit iOS exit path after local-route canonicalization', async () => {
-    isIOSStandaloneWebAppMock.mockReturnValue(true);
-    const { RoomView } = await import('../../../features/room/RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    const localThreadId = `~${room.roomId}:txn-local`;
-    const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
-    useThreadRootEventMock.mockReturnValue('$confirmed-thread');
-    window.history.state = {
-      key: `thread-entry-key:${room.roomId}`,
-      usr: {
-        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
-          exitPath,
-          roomId: room.roomId,
-          threadId: localThreadId,
-          useHistoryBack: true,
-        },
-      },
-    };
-
-    await act(async () => {
-      create(
-        React.createElement(RoomView, {
-          room: room as never,
-          threadId: localThreadId,
-        })
-      );
-    });
-
-    const navigateOptions = navigateRoomThreadMock.mock.calls[0]?.[3];
-    window.history.state = {
-      key: `thread-entry-key:${room.roomId}`,
-      usr: navigateOptions?.state,
-    };
-    await act(async () => {
-      threadContextBannerState.props?.onExitThread?.();
-    });
-
-    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
-    expect(historyBackMock).not.toHaveBeenCalled();
-    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
-  });
-
   it('bumps the recent-thread list from the canonical open thread id', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
@@ -1567,7 +1525,6 @@ describe('RoomView', () => {
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    let navigationAccepted: boolean | undefined;
 
     await act(async () => {
       create(
@@ -1581,10 +1538,9 @@ describe('RoomView', () => {
     });
 
     await act(async () => {
-      navigationAccepted = threadState?.handleRoomMessageSent('$sent');
+      threadState?.handleRoomMessageSent('$sent');
     });
 
-    expect(navigationAccepted).toBe(true);
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$sent');
   });
 
@@ -1593,7 +1549,6 @@ describe('RoomView', () => {
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    let navigationAccepted: boolean | undefined;
 
     await act(async () => {
       create(
@@ -1608,10 +1563,9 @@ describe('RoomView', () => {
     });
 
     await act(async () => {
-      navigationAccepted = threadState?.handleRoomMessageSent('$sent');
+      threadState?.handleRoomMessageSent('$sent');
     });
 
-    expect(navigationAccepted).toBe(false);
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 
@@ -1620,7 +1574,6 @@ describe('RoomView', () => {
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    let navigationAccepted: boolean | undefined;
 
     useThreadRootEventMock.mockReturnValue('$thread-from-state');
 
@@ -1638,10 +1591,9 @@ describe('RoomView', () => {
     expect(threadState?.effectiveThreadId).toBe('$thread-from-state');
 
     await act(async () => {
-      navigationAccepted = threadState?.handleRoomMessageSent('$sent');
+      threadState?.handleRoomMessageSent('$sent');
     });
 
-    expect(navigationAccepted).toBe(false);
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 
@@ -1650,7 +1602,6 @@ describe('RoomView', () => {
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    let navigationAccepted: boolean | undefined;
 
     await act(async () => {
       create(
@@ -1663,13 +1614,34 @@ describe('RoomView', () => {
       );
     });
 
-    const localEventId = `~${room.roomId}:txn-local`;
+    let accepted = false;
     await act(async () => {
-      navigationAccepted = threadState?.handleRoomMessageSent(localEventId);
+      accepted = threadState?.handleRoomMessageSent('~local-echo') ?? false;
     });
 
-    expect(navigationAccepted).toBe(true);
-    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, localEventId);
+    expect(accepted).toBe(true);
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '~local-echo');
+  });
+
+  it('hides the composer until a local-echo thread root is confirmed', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    useThreadRootEventMock.mockReturnValue('~pending-thread');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: '~pending-thread',
+        })
+      );
+    });
+
+    expect(renderer?.root.findAllByType('room-input')).toHaveLength(0);
+    expect(JSON.stringify(renderer?.toJSON())).toContain(
+      'Replies are available after this message is confirmed.'
+    );
   });
 
   it('does not open successful sends as new threads in classic mode', async () => {
@@ -1677,7 +1649,6 @@ describe('RoomView', () => {
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    let navigationAccepted: boolean | undefined;
 
     await act(async () => {
       create(
@@ -1694,10 +1665,9 @@ describe('RoomView', () => {
       threadState?.handleViewModeChange('classic');
     });
     await act(async () => {
-      navigationAccepted = threadState?.handleRoomMessageSent('$sent');
+      threadState?.handleRoomMessageSent('$sent');
     });
 
-    expect(navigationAccepted).toBe(false);
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 

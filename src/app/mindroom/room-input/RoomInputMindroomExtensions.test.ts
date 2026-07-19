@@ -23,6 +23,10 @@ vi.mock('../threads/ThreadIndicator', () => ({
   ThreadIndicator: () => null,
 }));
 
+vi.mock('../messages/PendingSendIndicator.css', () => ({
+  Container: 'PendingSendIndicator',
+}));
+
 vi.mock('../voice/VoiceRecorderDialog', () => ({
   VoiceRecorderComposer: () => null,
 }));
@@ -74,7 +78,7 @@ describe('RoomInputMindroomExtensions', () => {
     ).not.toBeNull();
   });
 
-  it('renders the composer context only when reply content or a leading action exists', () => {
+  it('renders the composer context only for replies or pending sends', () => {
     expect(
       MindroomRoomInputReplyContext({
         room: {} as never,
@@ -84,7 +88,7 @@ describe('RoomInputMindroomExtensions', () => {
 
     expect(
       MindroomRoomInputReplyContext({
-        leading: 'close',
+        pendingSend: true,
         room: {} as never,
         relation: undefined,
       })

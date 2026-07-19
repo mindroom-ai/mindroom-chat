@@ -29,6 +29,7 @@ import { useMobileKeyboardViewportFix } from '../../hooks/useMobileKeyboardViewp
 import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
+import { isLocalEchoEventId } from './threadRouteUtils';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -115,6 +116,7 @@ export function RoomView({
     threadSummaryInfo,
     viewMode,
   } = useRoomViewThreadState({ eventId, hasMindroomAgents, room, threadId });
+  const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
 
   useMobileKeyboardViewportFix();
 
@@ -122,13 +124,14 @@ export function RoomView({
     window,
     useCallback(
       (evt) => {
+        if (pendingThreadRoot) return;
         if (editableActiveElement()) return;
         if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
           ReactEditor.focus(editor);
         }
       },
-      [editor]
+      [editor, pendingThreadRoot]
     )
   );
 
@@ -185,7 +188,7 @@ export function RoomView({
             />
           ) : (
             <>
-              {canMessage && (
+              {canMessage && !pendingThreadRoot && (
                 <RoomInput
                   room={room}
                   editor={editor}
@@ -196,6 +199,18 @@ export function RoomView({
                   fileDropContainerRef={roomViewRef}
                   ref={roomInputRef}
                 />
+              )}
+              {canMessage && pendingThreadRoot && (
+                <RoomInputPlaceholder
+                  style={{
+                    padding: config.space.S200,
+                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                  }}
+                  alignItems="Center"
+                  justifyContent="Center"
+                >
+                  <Text align="Center">Replies are available after this message is confirmed.</Text>
+                </RoomInputPlaceholder>
               )}
               {!canMessage && (
                 <RoomInputPlaceholder
