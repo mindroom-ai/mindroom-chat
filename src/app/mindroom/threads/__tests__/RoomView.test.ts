@@ -279,7 +279,7 @@ vi.mock('../../../features/room/RoomTombstone', () => ({
 }));
 
 vi.mock('../../room-input/MindroomRoomInput', () => ({
-  RoomInput: passthrough,
+  RoomInput: 'room-input',
 }));
 
 vi.mock('../../../features/room/RoomViewFollowing', () => ({
@@ -1435,6 +1435,69 @@ describe('RoomView', () => {
     expect(getTimeline(renderer!).props.threadId).toBe('$confirmed-thread');
   });
 
+  it('replaces a local route while translating its browser-back exit target', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    const localThreadId = `~${room.roomId}:txn-local`;
+    const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
+    useThreadRootEventMock.mockReturnValue('$confirmed-thread');
+    window.history.state = {
+      idx: 4,
+      key: `thread-entry-key:${room.roomId}`,
+      usr: {
+        preservedUserState: 'keep-me',
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath,
+          roomId: room.roomId,
+          threadId: localThreadId,
+          useHistoryBack: true,
+        },
+      },
+    };
+
+    await act(async () => {
+      create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: localThreadId,
+        })
+      );
+    });
+
+    const navigateOptions = navigateRoomThreadMock.mock.calls[0]?.[3];
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+      room.roomId,
+      '$confirmed-thread',
+      undefined,
+      {
+        replace: true,
+        state: {
+          preservedUserState: 'keep-me',
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath,
+            roomId: room.roomId,
+            threadId: '$confirmed-thread',
+            useHistoryBack: true,
+          },
+        },
+      }
+    );
+    expect(navigateOptions?.state).not.toHaveProperty('usr');
+    expect(navigateOptions?.state).not.toHaveProperty('idx');
+
+    window.history.state = {
+      idx: 4,
+      key: `thread-entry-key:${room.roomId}`,
+      usr: navigateOptions?.state,
+    };
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
   it('bumps the recent-thread list from the canonical open thread id', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
@@ -1534,7 +1597,7 @@ describe('RoomView', () => {
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
   });
 
-  it('does not open unresolved local-echo sends as compact threads', async () => {
+  it('opens unresolved local-echo sends as compact threads', async () => {
     const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
@@ -1551,11 +1614,34 @@ describe('RoomView', () => {
       );
     });
 
+    let accepted = false;
     await act(async () => {
-      threadState?.handleRoomMessageSent('~local-echo');
+      accepted = threadState?.handleRoomMessageSent('~local-echo') ?? false;
     });
 
-    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    expect(accepted).toBe(true);
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '~local-echo');
+  });
+
+  it('hides the composer until a local-echo thread root is confirmed', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    useThreadRootEventMock.mockReturnValue('~pending-thread');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: '~pending-thread',
+        })
+      );
+    });
+
+    expect(renderer?.root.findAllByType('room-input')).toHaveLength(0);
+    expect(JSON.stringify(renderer?.toJSON())).toContain(
+      'Replies are available after this message is confirmed.'
+    );
   });
 
   it('does not open successful sends as new threads in classic mode', async () => {

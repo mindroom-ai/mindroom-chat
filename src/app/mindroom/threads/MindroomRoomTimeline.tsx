@@ -124,9 +124,10 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { Event, Message } from '../messages/MindroomMessage';
-import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { useMindroomLongTextPrewarm } from '../messages/longTextPrewarm';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
@@ -869,7 +870,10 @@ export function RoomTimeline({
   // meta lastOpenedTs for both the room and thread scopes. Idempotent
   // per-call — safe to fire on every render-relevant change.
   useEffect(() => {
-    syncEngine.noteRoomFocused(room.roomId, threadId);
+    syncEngine.noteRoomFocused(
+      room.roomId,
+      isConfirmedMatrixEventId(threadId) ? threadId : undefined
+    );
   }, [syncEngine, room.roomId, threadId]);
 
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
@@ -1713,8 +1717,9 @@ export function RoomTimeline({
           document.activeElement?.getAttribute('data-editable-name') === 'RoomInput' &&
           isEmptyEditor(editor)
         ) {
-          const editableEvt = getLatestEditableEvt(room.getLiveTimeline(), (mEvt) =>
-            canEditEvent(mx, mEvt)
+          const editableEvt = getLatestEditableEvt(
+            room.getLiveTimeline(),
+            (mEvt) => isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt)
           );
           const editableEvtId = editableEvt?.getId();
           if (!editableEvtId) return;
@@ -1978,6 +1983,7 @@ export function RoomTimeline({
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
+        const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const getContent = (() => resolvedContent) as GetContentCallback;
         const collapseMode = getCollapsibleMessageMode(
@@ -2096,6 +2102,7 @@ export function RoomTimeline({
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
                   pendingSend={pendingSend}
+                  failedSend={failedSend}
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
                   urlPreview={showUrlPreview}
@@ -2137,6 +2144,7 @@ export function RoomTimeline({
           const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
           const pendingSend =
             isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
+          const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
           const approvalContent =
             getMindroomRoomTimelineApprovalContentIfSupported(mEvent, editedEvent) ??
             mEvent.getContent();
@@ -2241,6 +2249,7 @@ export function RoomTimeline({
                   ts={mEvent.getTs()}
                   edited={!!editedEvent}
                   pendingSend={pendingSend}
+                  failedSend={failedSend}
                   getContent={getContent}
                   mediaAutoLoad={mediaAutoLoad}
                   urlPreview={showUrlPreview}
@@ -2260,6 +2269,7 @@ export function RoomTimeline({
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
+        const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
         const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const threadSummary = showThreadBadgesInRoom
           ? renderMindroomRoomTimelineThreadBadge({
@@ -2385,6 +2395,7 @@ export function RoomTimeline({
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
                       pendingSend={pendingSend}
+                      failedSend={failedSend}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
                       urlPreview={showUrlPreview}
@@ -2426,6 +2437,7 @@ export function RoomTimeline({
                       ts={mEvent.getTs()}
                       edited={!!editedEvent}
                       pendingSend={pendingSend}
+                      failedSend={failedSend}
                       getContent={getContent}
                       mediaAutoLoad={mediaAutoLoad}
                       urlPreview={showUrlPreview}

@@ -84,6 +84,7 @@ const {
           getMyMembership: () => 'join',
         } as unknown as Room)
     ),
+    makeTxnId: vi.fn(() => 'txn-room-input'),
     sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
     uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
   },
@@ -654,6 +655,9 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
   ({
     roomId,
     name: roomId,
+    getEventForTxnId: (txnId: string) => ({
+      getId: () => `~${roomId}:${txnId}`,
+    }),
     hasEncryptionStateEvent: () => encrypted,
     getMember: () => undefined,
     getMembers: () => [],
@@ -739,7 +743,7 @@ const createRoomInputTree = (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -765,7 +769,7 @@ const renderRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -786,7 +790,7 @@ const updateRoomInput = async (
     roomId?: string;
     threadId?: string;
     threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => void;
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
   }
@@ -835,6 +839,8 @@ afterEach(() => {
         getMyMembership: () => 'join',
       } as unknown as Room)
   );
+  mxState.makeTxnId.mockReset();
+  mxState.makeTxnId.mockReturnValue('txn-room-input');
   mxState.sendMessage.mockReset();
   mxState.sendMessage.mockResolvedValue({ event_id: '$sent' });
   mxState.uploadContent.mockReset();
@@ -1212,7 +1218,8 @@ describe('RoomInput', () => {
       expect.objectContaining({
         body: 'Hello @ali',
         msgtype: 'm.text',
-      })
+      }),
+      'txn-room-input'
     );
 
     await act(async () => {
@@ -1268,7 +1275,8 @@ describe('RoomInput', () => {
           event_id: '$thread',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     expect(getEditorText()).toBe('');
     expect(editorMocks.resetEditorHistory).toHaveBeenCalled();
@@ -1331,6 +1339,7 @@ describe('RoomInput', () => {
     });
     const onRoomMessageSent = vi.fn(() => {
       notificationOrder.push('notify');
+      return true;
     });
     const { renderer } = await renderRoomInput(createStore(), { onRoomMessageSent });
 
@@ -1342,7 +1351,7 @@ describe('RoomInput', () => {
       customEditorState.props!.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
     });
 
-    expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
+    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
     const notifyIndex = notificationOrder.indexOf('notify');
     expect(notifyIndex).toBeGreaterThan(-1);
     expect(notificationOrder.indexOf('reset-editor')).toBeLessThan(notifyIndex);

@@ -90,8 +90,10 @@ const TestHarness = ({
   sendTypingStatus,
 }: {
   onReady: (api: HarnessApi) => void;
-  onRoomMessageSent?: (eventId: string) => void;
+  onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
+    getEventForTxnId: ReturnType<typeof vi.fn>;
+    makeTxnId: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
   };
   editor: { children: unknown[] };
@@ -106,6 +108,7 @@ const TestHarness = ({
     mx: mx as never,
     room: {
       roomId: '!room:example.org',
+      getEventForTxnId: mx.getEventForTxnId,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
     } as never,
@@ -153,10 +156,21 @@ const TestHarness = ({
   return null;
 };
 
-const renderHarness = (options: { onRoomMessageSent?: (eventId: string) => void } = {}) => {
+const renderHarness = (
+  options: { onRoomMessageSent?: (eventId: string) => boolean | void } = {}
+) => {
   let sentEvents = 0;
+  let transactionIds = 0;
+  const localEvents = new Map<string, { getId: () => string }>();
   const mx = {
-    sendMessage: vi.fn(async () => {
+    getEventForTxnId: vi.fn((txnId: string) => localEvents.get(txnId)),
+    makeTxnId: vi.fn(() => `txn-${transactionIds++}`),
+    sendMessage: vi.fn(async (targetRoomId: string, _content: unknown, txnId?: string) => {
+      if (txnId) {
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+      }
       const eventId = `$event-${sentEvents}`;
       sentEvents += 1;
       return { event_id: eventId };
@@ -182,7 +196,7 @@ const renderHarness = (options: { onRoomMessageSent?: (eventId: string) => void 
     );
   });
 
-  return { api, mx, editor, sendTypingStatus };
+  return { api, mx, editor, localEvents, sendTypingStatus };
 };
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
@@ -508,5 +522,110 @@ describe('useRoomInputSendSessionController caption send failures', () => {
       (call) => (call[1] as { msgtype?: string }).msgtype === 'm.text'
     );
     expect(textSends).toHaveLength(1);
+  });
+});
+
+describe('useRoomInputSendSessionController optimistic room roots', () => {
+  beforeEach(() => {
+    mocks.resetEditor.mockReset();
+    mocks.resetEditorHistory.mockReset();
+    mocks.restoreEditorContent.mockReset();
+  });
+
+  it('opens the local root before acknowledgement and leaves a failed owned root in the timeline', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, editor, localEvents, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockImplementationOnce(
+      (targetRoomId: string, _content: unknown, txnId?: string) => {
+        if (!txnId) throw new Error('Expected a transaction id');
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+        return send.promise;
+      }
+    );
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
+    expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      send.reject(new Error('root send failed'));
+      await sendPromise;
+    });
+
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'later message' },
+      });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to the confirmed event when no exact local echo is available', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockReturnValueOnce(send.promise);
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+
+    await act(async () => {
+      send.resolve({ event_id: '$confirmed-root' });
+      await sendPromise;
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledOnce();
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$confirmed-root');
+  });
+
+  it('restores a failed root when the thread view declines timeline ownership', async () => {
+    const send = createDeferred<{ event_id: string }>();
+    const onRoomMessageSent = vi.fn(() => false);
+    const { api, editor, localEvents, mx } = renderHarness({ onRoomMessageSent });
+    mx.sendMessage.mockImplementationOnce(
+      (targetRoomId: string, _content: unknown, txnId?: string) => {
+        if (!txnId) throw new Error('Expected a transaction id');
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+        });
+        return send.promise;
+      }
+    );
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'root message' },
+      });
+      await Promise.resolve();
+      send.reject(new Error('root send failed'));
+      await sendPromise;
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
   });
 });

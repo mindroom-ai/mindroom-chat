@@ -272,6 +272,7 @@
       "unresolvedThread": "Unresolved thread",
       "unreadMessages": "Unread messages",
       "agentStreaming": "Agent streaming",
+      "messageFailed": "Message failed to send",
       "messageSending": "Message sending",
       "lastActivity": "Last activity {{time}}",
       "removeTagFilter": "Remove {{tag}} filter"

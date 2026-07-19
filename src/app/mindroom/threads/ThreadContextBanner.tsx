@@ -13,6 +13,7 @@ import { useThreadTags } from './useThreadTags';
 import { useMutateThreadTags } from './useMutateThreadTags';
 import { ThreadTagPill } from './ThreadTagPill';
 import { ThreadTagPicker } from './ThreadTagPicker';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import * as css from './ThreadContextBanner.css';
 
 export interface ThreadContextBannerProps {
@@ -44,17 +45,10 @@ function TagPills({
   return (
     <>
       {visible.map((tag) => (
-        <ThreadTagPill
-          key={tag}
-          name={tag}
-          onRemove={canEdit ? () => onRemove(tag) : undefined}
-        />
+        <ThreadTagPill key={tag} name={tag} onRemove={canEdit ? () => onRemove(tag) : undefined} />
       ))}
       {overflowCount > 0 && (
-        <span
-          className={css.OverflowChip}
-          title={allTags.slice(maxPills).join(', ')}
-        >
+        <span className={css.OverflowChip} title={allTags.slice(maxPills).join(', ')}>
           +{overflowCount}
         </span>
       )}
@@ -77,6 +71,7 @@ export function ThreadContextBanner({
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
+  const mutableThreadRootId = isConfirmedMatrixEventId(rootEventId) ? rootEventId : undefined;
   const threadRootEvent =
     room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
   const headerRecord = buildThreadRecord({
@@ -93,11 +88,11 @@ export function ThreadContextBanner({
       nextScheduledTs,
     },
   });
-  const pickerDisabled = !rootEventId || updating;
+  const pickerDisabled = !mutableThreadRootId || updating;
   const headerModel = buildThreadHeaderViewModelFromRecord({
     record: headerRecord,
     scheduledDisplayText,
-    canEdit,
+    canEdit: canEdit && !!mutableThreadRootId,
     availableTags,
     pickerDisabled,
   });
@@ -110,24 +105,24 @@ export function ThreadContextBanner({
 
   const handleAddTag = useCallback(
     (name: string) => {
-      if (!rootEventId) return;
-      addTag(rootEventId, name);
+      if (!mutableThreadRootId) return;
+      addTag(mutableThreadRootId, name);
     },
-    [rootEventId, addTag]
+    [mutableThreadRootId, addTag]
   );
 
   const handleRemoveTag = useCallback(
     (name: string) => {
-      if (!rootEventId) return;
-      removeTag(rootEventId, name);
+      if (!mutableThreadRootId) return;
+      removeTag(mutableThreadRootId, name);
     },
-    [rootEventId, removeTag]
+    [mutableThreadRootId, removeTag]
   );
 
   const handleToggleResolve = useCallback(() => {
-    if (!rootEventId) return;
-    setResolved(rootEventId, !headerModel.isResolved);
-  }, [rootEventId, headerModel.isResolved, setResolved]);
+    if (!mutableThreadRootId) return;
+    setResolved(mutableThreadRootId, !headerModel.isResolved);
+  }, [mutableThreadRootId, headerModel.isResolved, setResolved]);
 
   const hasTags = headerModel.displayTags.length > 0;
 
@@ -241,7 +236,9 @@ export function ThreadContextBanner({
             onClick={handleToggleResolve}
             disabled={!headerModel.canEdit || headerModel.pickerDisabled}
           >
-            <Text size="T200">{headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}</Text>
+            <Text size="T200">
+              {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
+            </Text>
           </Button>
         </div>
       </div>

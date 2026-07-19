@@ -272,6 +272,7 @@
       "unresolvedThread": "Onopgeloste thread",
       "unreadMessages": "Ongelezen berichten",
       "agentStreaming": "Agent is aan het antwoorden",
+      "messageFailed": "Bericht kon niet worden verzonden",
       "messageSending": "Bericht wordt verzonden",
       "lastActivity": "Laatste activiteit {{time}}",
       "removeTagFilter": "Filter {{tag}} verwijderen"

@@ -205,7 +205,7 @@ export interface RoomInputProps {
   room: Room;
   threadId?: string;
   threadingEnabled?: boolean;
-  onRoomMessageSent?: (eventId: string) => void;
+  onRoomMessageSent?: (eventId: string) => boolean | void;
 }
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   (

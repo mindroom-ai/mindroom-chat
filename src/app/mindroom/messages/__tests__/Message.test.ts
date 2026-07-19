@@ -350,11 +350,11 @@ beforeEach(() => {
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
 });
 
-const createMessageEvent = (content: Record<string, unknown>) =>
+const createMessageEvent = (content: Record<string, unknown>, eventId = '$event') =>
   ({
     threadRootId: undefined,
     getContent: () => content,
-    getId: () => '$event',
+    getId: () => eventId,
     getSender: () => '@alice:example.org',
     getTs: () => 1,
     isRedacted: () => false,
@@ -373,7 +373,11 @@ type RenderedMessage = {
 
 const renderMessage = async (
   content: Record<string, unknown>,
-  { collapse = true }: { collapse?: boolean } = {}
+  {
+    collapse = true,
+    eventId = '$event',
+    serverActions = false,
+  }: { collapse?: boolean; eventId?: string; serverActions?: boolean } = {}
 ): Promise<RenderedMessage> => {
   const Message = await getMessageComponent();
   let renderer!: ReactTestRenderer;
@@ -385,9 +389,12 @@ const renderMessage = async (
         Message,
         {
           room: createRoom(),
-          mEvent: createMessageEvent(content),
+          mEvent: createMessageEvent(content, eventId),
           collapse,
           highlight: false,
+          canDelete: serverActions,
+          canPinEvent: serverActions,
+          canSendReaction: serverActions,
           messageLayout: 'Modern',
           messageSpacing: '400',
           onUserClick: vi.fn(),
@@ -505,6 +512,60 @@ const mindroomAiRunContent = {
     },
   },
 } as const;
+
+describe('Message local-echo actions', () => {
+  it('hides every action that needs a confirmed server event id', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'pending root',
+      },
+      {
+        eventId: '~!room:example.org:txn-root',
+        serverActions: true,
+      }
+    );
+
+    expect(getButtonByIcon(renderer, 'ReplyArrow')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'SmilePlus')).toBeUndefined();
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Reply')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Reply in Thread')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Add Reaction')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Copy Link')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Pin Message')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Delete')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+  });
+
+  it('keeps confirmed message actions available', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'confirmed root',
+      },
+      {
+        serverActions: true,
+      }
+    );
+
+    expect(getButtonByIcon(renderer, 'ReplyArrow')).toBeDefined();
+    expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeDefined();
+    expect(getButtonByIcon(renderer, 'SmilePlus')).toBeDefined();
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Reply')).toBeDefined();
+    expect(getButtonByText(renderer, 'Reply in Thread')).toBeDefined();
+    expect(getButtonByText(renderer, 'Add Reaction')).toBeDefined();
+    expect(getButtonByText(renderer, 'Copy Link')).toBeDefined();
+    expect(getButtonByText(renderer, 'Pin Message')).toBeDefined();
+    expect(getButtonByText(renderer, 'Delete')).toBeDefined();
+  });
+});
 
 describe('Message token usage menu item', () => {
   it('does not render Token usage in the context menu for messages without ai_run metadata', async () => {

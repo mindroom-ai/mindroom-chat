@@ -77,4 +77,17 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
     expect(pendingIndex).toBeGreaterThan(editedIndex);
     expect(rendered).toContain('Waiting for server');
   });
+
+  it('renders terminal failure instead of the pending indicator', () => {
+    const rendered = renderSuffix(
+      getMindroomMessageStateSuffixRenderer({
+        pendingSend: true,
+        failedSend: true,
+      })
+    );
+
+    expect(rendered).toContain('Message failed to send');
+    expect(rendered).toContain('Not sent');
+    expect(rendered).not.toContain('Message sending');
+  });
 });

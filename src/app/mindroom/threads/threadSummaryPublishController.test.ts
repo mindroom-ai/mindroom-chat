@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { getActiveThreadSummaryInfo } from './threadSummaryPublishController';
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  getActiveThreadSummaryInfo,
+  useThreadSummaryPublishController,
+} from './threadSummaryPublishController';
 
-const makeSummaryEvent = (
-  summaryText: string,
-  generatedAt: string,
-  messageCount: number
-) =>
+const makeSummaryEvent = (summaryText: string, generatedAt: string, messageCount: number) =>
   ({
     getContent: () => ({
       msgtype: 'm.notice',
@@ -17,7 +18,24 @@ const makeSummaryEvent = (
         message_count: messageCount,
       },
     }),
-  }) as never;
+  } as never);
+
+const SummaryPublishHarness = ({
+  onStoreThreadSummary,
+  threadId,
+}: {
+  onStoreThreadSummary: ReturnType<typeof vi.fn>;
+  threadId: string;
+}) => {
+  useThreadSummaryPublishController({
+    onStoreThreadSummary,
+    thread: null,
+    threadEvents: [makeSummaryEvent('Summary', '2026-01-01T00:00:00Z', 1)],
+    threadId,
+    threadSummaryInfoMap: new Map(),
+  });
+  return null;
+};
 
 describe('getActiveThreadSummaryInfo', () => {
   it('returns undefined outside a thread route', () => {
@@ -28,6 +46,21 @@ describe('getActiveThreadSummaryInfo', () => {
         threadId: undefined,
       })
     ).toBeUndefined();
+  });
+
+  it('does not publish summaries under a local-echo route id', () => {
+    const onStoreThreadSummary = vi.fn();
+
+    act(() => {
+      create(
+        React.createElement(SummaryPublishHarness, {
+          onStoreThreadSummary,
+          threadId: '~!room:example.org:txn-root',
+        })
+      );
+    });
+
+    expect(onStoreThreadSummary).not.toHaveBeenCalled();
   });
 
   it('selects the newest summary from active thread sources', () => {
