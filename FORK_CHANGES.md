@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Configurable default for long-message expansion (2026-07-18)
+
+- Status: implementation, focused regression coverage, full local validation, real Docker Matrix plus production Chromium validation, and independent second self-review are complete.
+- Settings → General → Interface now offers an account-level option to expand long messages by default instead of folding them behind Show more.
+- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices and malformed account data keeps the current folded default.
+- The preference supplies the timeline expansion baseline while per-message Show more and Show less choices plus the expand-all control remain higher-priority overrides.
+- The first live mid-thread toggle reproduced the scrolling concern as a 785 px displacement of the same visible message.
+- Bulk baseline changes now capture the centered visible message, fall back to a partially visible oversized message when no row fits inside the viewport, restore it before paint when mounted rows change height, and absorb the virtualizer's later ResizeObserver measurements for a bounded 30-frame window.
+- Readers who change the baseline while pinned to the latest message remain pinned to the bottom.
+- Focused coverage verifies the settings tile and account-data patch, strict sanitation, baseline changes on mounted messages, timeline-provider wiring, the collapse-all override from an expanded default, centered-message restoration after a 785 px row-height change, oversized partial-message anchoring, and latest-message pinning.
+- The live gate runs a production build against a fresh local Tuwunel homeserver, creates a real 180-reply long-message thread, changes the real Settings switch, verifies Matrix account-data persistence after reload, and exercises virtualized scrolling in Chromium.
+- Final live evidence reports 16 folded Show more controls before the change, 0 px drift when expanding mid-thread, 0 px drift when folding while the viewport is inside an oversized message, 6,418 px of real wheel travel, and a separate 12,960 px driver-aware ride over 326 sampled frames.
+- The driver-aware ride reports 0 px maximum gap, 0 px maximum jump, 0 px total jump, zero app-originated scroll writes, and no budget violations.
+- The existing iPhone-emulated momentum guard also passes with 3,780 px travel, 43 sampled jump frames, 0 px gap, 0 px maximum and total jump, and 0 px end-anchor drift.
+- Existing live guards for expand-all across virtualized mounts, manual Show more remount persistence, and above-viewport expansion during an upward desktop ride pass 3/3.
+- Live command: `E2E_MATRIX_AUTO_DOWN=1 E2E_NO_WEB_SERVER=1 npm run test:e2e:docker-matrix -- e2e/live/long-message-expansion-default.spec.ts`.
+- Validation passes all 438 Vitest files with 3,204 tests, TypeScript, ESLint with zero errors and 17 pre-existing warnings, the production/PWA build with Element Call artifact verification, touched-file Prettier, and `git diff --check`.
+- Independent second self-review found no account-data compatibility, expansion-precedence, test-strength, or scope issues.
+- Greptile rated the final pushed implementation 5/5 with no blocking findings.
+- Gemini's request to disable a switch during its pending write was declined because intentional rapid retoggles are protected by per-switch request generations and serialized account-data patches; both dependent review threads were answered and resolved.
+
 ### Retry transient Xcode Cloud Homebrew downloads (2026-07-18)
 
 - Status: root cause confirmed from Xcode Cloud build 150; retry hardening, focused regression coverage, full local validation, independent zero-tolerance review, valid PR review remediation, and independent re-review are complete.

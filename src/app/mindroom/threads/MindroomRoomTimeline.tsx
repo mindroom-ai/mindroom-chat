@@ -100,6 +100,7 @@ import {
   expandAllMessages,
   collapseAllMessages,
 } from './CollapsibleMessage';
+import { useTimelineBulkExpansionAnchor } from './useTimelineBulkExpansionAnchor';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -234,6 +235,7 @@ import {
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 import { useThreadTimelineState } from './useThreadTimelineState';
+import { useExpandLongMessagesByDefault } from '../settings/useMindroomAccountSettings';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -347,6 +349,7 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
+  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
   const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
   const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
@@ -406,6 +409,7 @@ export function RoomTimeline({
   // room:thread, so this state (and the context derived from it) resets on
   // navigation via remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
+  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
   const manualExpansionStateRef = useRef(new Map<string, boolean>());
   const manualExpansionState = manualExpansionStateRef.current;
   const atBottomRef = useRef(atBottom);
@@ -413,6 +417,7 @@ export function RoomTimeline({
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
   const scrollToBottomRef = useRef({
     count: 0,
     smooth: true,
@@ -3286,8 +3291,9 @@ export function RoomTimeline({
 
   return (
     <CollapsibleMessageStateProvider
-      expandAllInit={expandAllOverride}
+      expandAllInit={expandAll}
       manualExpansionState={manualExpansionState}
+      onExpansionLayoutChange={restoreBulkExpansionAnchor}
     >
       <Box grow="Yes" direction="Column">
         {shouldShowRoomThreadOverviewControls && (
@@ -3361,7 +3367,7 @@ export function RoomTimeline({
                 onClick={(e) => {
                   e.preventDefault();
                   manualExpansionState.clear();
-                  if (expandAllOverride === true) {
+                  if (expandAll) {
                     collapseAllMessages();
                     setExpandAllOverride(false);
                   } else {
@@ -3384,7 +3390,7 @@ export function RoomTimeline({
                   padding: 0,
                 }}
               >
-                {expandAllOverride === true ? '[-all]' : '[+all]'}
+                {expandAll ? '[-all]' : '[+all]'}
               </button>
               <Scroll
                 ref={scrollRef}
