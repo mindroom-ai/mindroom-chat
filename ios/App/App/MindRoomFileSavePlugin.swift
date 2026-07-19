@@ -146,17 +146,15 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
 
                 let picker = UIDocumentPickerViewController(
                     forExporting: [session.fileURL],
-                    asCopy: false
+                    asCopy: true
                 )
                 picker.delegate = self
                 picker.shouldShowFileExtensions = true
                 self.activePicker = picker
                 self.activePickerSessionID = session.id
-                viewController.present(picker, animated: true)
-                picker.presentationController?.delegate = self
-
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self, self.activePicker === picker else {
+                viewController.present(picker, animated: true) { [weak self, weak picker] in
+                    guard let self = self, let picker = picker,
+                          self.activePicker === picker else {
                         return
                     }
                     guard picker.presentingViewController != nil,
@@ -166,6 +164,7 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                         self.rejectPresentationUnavailable(sessionID: session.id)
                         return
                     }
+                    picker.presentationController?.delegate = self
                 }
             }
         }
