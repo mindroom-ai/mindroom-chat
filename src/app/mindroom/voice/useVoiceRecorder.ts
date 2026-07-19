@@ -21,6 +21,10 @@ import {
   type PendingVoiceSendInFlight,
 } from '../../state/room/roomInputDrafts';
 import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
+import {
+  setFlightRecorderVoiceCaptureState,
+  type VoiceCaptureState,
+} from '../diagnostics/flightRecorder';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
@@ -60,6 +64,15 @@ type StopResolver = (sent: boolean) => void;
 const TIMER_INTERVAL_MS = 200;
 const WAVEFORM_SAMPLE_INTERVAL_MS = 80;
 const MAX_LIVE_SAMPLES = 1200;
+const flightRecorderVoiceCaptureStates = new Map<symbol, VoiceCaptureState>();
+
+const publishFlightRecorderVoiceCaptureState = (source: symbol, state: VoiceCaptureState): void => {
+  flightRecorderVoiceCaptureStates.delete(source);
+  if (state !== 'inactive') flightRecorderVoiceCaptureStates.set(source, state);
+  setFlightRecorderVoiceCaptureState(
+    Array.from(flightRecorderVoiceCaptureStates.values()).at(-1) ?? 'inactive'
+  );
+};
 
 export const VOICE_RECORDER_AUDIO_BITS_PER_SECOND = 32_000;
 export const VOICE_RECORDER_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
@@ -134,6 +147,8 @@ export function useVoiceRecorder({
   const stopResolverRef = useRef<StopResolver>();
   const sessionIdRef = useRef(0);
   const mountedRef = useRef(true);
+  const flightRecorderSourceRef = useRef(Symbol('voice-recorder'));
+  const lastPublishedRef = useRef<VoiceCaptureState>('inactive');
   const latestOnRecordingStartRef = useRef(onRecordingStart);
   const latestOnSendStopRequestRef = useRef(onSendStopRequest);
   const latestOnSendStopFailureRef = useRef(onSendStopFailure);
@@ -201,7 +216,11 @@ export function useVoiceRecorder({
   }, [getSendContext]);
 
   const safeSetPhase = useCallback((nextPhase: VoiceRecorderPhase) => {
-    if (mountedRef.current) setPhase(nextPhase);
+    if (!mountedRef.current) return;
+    const nextState = nextPhase === 'idle' || nextPhase === 'sending' ? 'inactive' : nextPhase;
+    lastPublishedRef.current = nextState;
+    publishFlightRecorderVoiceCaptureState(flightRecorderSourceRef.current, nextState);
+    setPhase(nextPhase);
   }, []);
 
   const safeSetElapsedMs = useCallback((value: number) => {
@@ -866,6 +885,9 @@ export function useVoiceRecorder({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      if (lastPublishedRef.current !== 'inactive') {
+        publishFlightRecorderVoiceCaptureState(flightRecorderSourceRef.current, 'inactive');
+      }
       if (pendingStopActionRef.current === 'send') {
         cleanupUnmountDuringSend();
         return;

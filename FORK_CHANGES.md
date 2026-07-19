@@ -59,6 +59,41 @@
 - PR review found that a trailing `://` prefix delimiter was rejected despite the existing trailing-colon normalization and that the README named only part of the permanent browser-sensitive scheme blocklist.
 - Scheme normalization now accepts both delimiters with regression coverage, and the README lists the complete blocklist.
 
+### CINNY-124 iOS on-device freeze flight recorder (2026-07-17)
+
+- Status: PR #175 review remediation, current `dev` integration, full local validation, and independent Claude Code Fable 5 re-review are complete; publication must retain a green CI and AI-review gate.
+- Real-iPhone acceptance PENDING — release-blocking validation item, requires Bas's device.
+- The pending physical-device work is an explicit post-merge, pre-release validation step for Bas.
+- Scope remains telemetry-only: one bounded native-iOS localStorage recorder, centralized voice-phase wiring, one inline About export tile, focused unit coverage, and one ordinary-Vite Playwright simulation.
+- The implementation contains no error, rejection, console, memory, long-task, scroll, input, Matrix, network, worker, or native crash instrumentation.
+- The remaining device check must background, force-close, and relaunch a healthy session to determine whether iOS delivered the expected-end marker and must record the possible benign “ended unexpectedly” false positive if it did not.
+- The remaining native retrieval check must export from Settings → About through the iOS document picker to Files or iCloud Drive and inspect the JSON off-device.
+- The remaining terminal-stall check must persist a `recording` checkpoint, begin a long synchronous loop through Safari Web Inspector, force-close before it returns, and require the last pre-freeze heartbeat, `recording` context, a missing expected-end marker, and `startupGapMs` after relaunch.
+- The terminal-stall check does not require `heartbeat_gap` because that callback cannot return before the force-close.
+- The remaining performance check must measure serialized size and localStorage flush time on the target phone during active timeline scrolling.
+- Flush p95 at or below 2 ms remains an engineering goal, any visible hitch is a failure, and a materially slower device result requires shrinking the cap first or changing to a five-second heartbeat with a corresponding gap threshold before release.
+- Focused validation passes 88 tests across the recorder, voice hook, About retrieval path, and native-iOS bootstrap contracts plus both ordinary-Vite Playwright simulations.
+- Shuffled validation with seed 124 passes all 35 recorder tests and all 42 voice-hook tests without order-dependent cleanup or singleton identity leakage.
+- Full automated validation passes 439 Vitest files / 3,246 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with the pre-existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Independent review found and remediation covered fail-closed startup reads, status/export read failures, runtime voice-enum validation, maximum fixed-shape envelope sizing, expected-end abnormal retention, and a real scheduled-heartbeat browser baseline.
+- The forwarded review round fixed build-version normalization, idempotent generation-scoped installation and disposal, background pageshow semantics, export reentrancy, retained-abnormal status priority, and integration/state-machine coverage at their owning boundaries.
+- The final forwarded review fixed boot isolation, hidden-launch expected-end classification, stale live-looking bytes after established-session write failure, and neutral native picker cancellation at the existing recorder/bootstrap/About boundaries.
+- The converged review fixed stale unmounted-hook telemetry publication and order-dependent voice/recorder tests at the centralized hook ownership and test-cleanup/fixture boundaries.
+- The current review remediation stops a racing heartbeat before hidden-state mutation, makes installation exception-atomic while preserving pre-existing bytes, validates and repairs the abnormal slot at startup, and uses the schema constant throughout production serialization and validation.
+- Independent re-review approves the final diff with no remaining requirement mismatch, correctness finding, or half-refactor trace.
+- The final finish-the-invariant round scopes unmount `inactive` publication to a hook instance that previously published an active phase and restarts a dead heartbeat on visible `pageshow` without adding lifecycle evidence.
+- The same-session recovery round preserves the first abnormal-detection bytes through replacement-write failure and retry while still replacing unrelated retained evidence with the newly detected marker-free session.
+- PR #175 review found that current-session bytes were persisted before lifecycle-listener ownership was established, concurrent voice hooks shared one unowned diagnostic state, unavailable export failures offered a misleading retry, and a normally ended session could pass abnormal-slot validation.
+- Remediation registers lifecycle listeners before first persistence, reconciles visibility after registration, aggregates voice phase per mounted hook source, keeps export enabled for readable disabled runtimes while suppressing the impossible retry prompt, and requires abnormal evidence to be marker-free.
+- The serializer now trims only a private event copy, and the route classifier documents that the router's dynamic space route intentionally owns every non-reserved top-level segment.
+- Independent self-review found the missed startup-visibility transition and abnormal-slot semantic validation gap included in this remediation and found no remaining blocker after the focused and full gates.
+- A completely independent Claude Code Fable 5 review in an isolated worktree approved exact PR commit `12cf30f0` with no concrete findings after tracing every owning boundary and independently running the focused, shuffled, full, static, formatting, and browser gates.
+- The latest `dev` change for Xcode Cloud install retries was then merged without overlapping production code and the complete local gate was rerun on the resulting PR state.
+- Review-directed deviations from the original plan are explicit: build versions are normalized to bounded safe ASCII, hidden launches begin with an expected-end marker, initial or hidden pageshow handling follows actual visibility, established-session write failure removes stale current bytes, valid retained abnormal evidence outranks unavailable status, and the requested bootstrap/About contracts add `src/index.test.ts` and `src/app/features/settings/about/About.test.tsx`.
+- Size deviation: review-confirmed correctness work raises the implementation to 542 added production lines, 42 above the original 500-line hard cap and 292 above the 250-line target; preserving the cap would require aggressive density, weaker failure and ownership semantics, or a broader helper refactor outside the mandated file layout.
+- This Runbook contains the durable implementation, deviation, validation, and acceptance record; the transient `PLAN.md` and `.claude/REPORT.md` artifacts are removed.
+- The pre-existing `package-lock.json` and `.envrc` worktree artifacts remain out of scope and untouched.
+
 ### CINNY-123 evidence-named blob URL cleanup (2026-07-17)
 
 - Status: the two Phase 0 evidence-named cleanup defects, both reviewed generic async-publication ownership gaps, and the review-confirmed audio publication gap are fixed with full local validation and independent re-review complete.
