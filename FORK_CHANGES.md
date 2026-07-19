@@ -4,7 +4,7 @@
 
 ### Native iOS exported-file access (2026-07-19)
 
-- Status: the move-export fix, red-first coverage, full local web and native validation, and independent review are complete on `fix/ios-export-file-access`; physical-device acceptance remains.
+- Status: the explicit move-export fix, red-first coverage, full local web and native validation, independent review, and PR review remediation are complete on `fix/ios-export-file-access`; physical-device acceptance remains.
 - Symptom: attachments and on-device diagnostic JSON exports appear in both On My iPhone and iCloud Drive but Files refuses to open them with a permission error.
 - Root cause: the shared native bridge exports an app-private temporary file as a copy and deletes the source staging directory immediately after the picker callback, leaving the Files provider entry unable to materialize readable content.
 - Fix: the document picker now moves the disposable staged file into the selected destination, then removes only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
@@ -13,7 +13,8 @@
 - Typecheck, the production/PWA build with Element Call artifact verification, touched TypeScript and Markdown Prettier, touched TypeScript ESLint, Swift parsing, Capacitor iOS sync, `git diff --check`, and an unsigned two-architecture iOS Simulator workspace build pass.
 - Independent review found no production correctness issues and confirmed that successful cleanup removes only the abandoned parent staging directory; its documentation consistency finding is fixed.
 - PR review: Greptile rated the fix 5/5 and safe to merge pending physical-device acceptance; its test-formatting robustness finding is fixed.
-  Gemini's initializer finding is disproved by the iOS 14+ UIKit header, Swift parse, and successful two-architecture Xcode build, while its source-contract concern conflicts with existing repository architecture-test practice and the absence of a native XCTest target.
+  The iOS 14+ UIKit header and successful two-architecture Xcode build disprove Gemini's claim that the single-argument move initializer is unavailable, but the picker now passes `asCopy: false` explicitly for ownership clarity and the contract test pins that exact form.
+  The source-contract regression remains because source-reading architecture tests are established repository practice and the iOS project has no XCTest target.
   CodeRabbit, Sourcery, and Qodo reached account limits and produced no findings.
 - Physical-device acceptance: save and open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
 

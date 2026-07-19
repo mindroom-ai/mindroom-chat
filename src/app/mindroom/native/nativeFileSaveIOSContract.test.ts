@@ -9,7 +9,7 @@ const pluginSource = readFileSync(
 describe('MindRoomFileSavePlugin iOS export contract', () => {
   it('moves the disposable staged file into the selected destination', () => {
     expect(pluginSource).toMatch(
-      /UIDocumentPickerViewController\(\s*forExporting:\s*\[\s*session\.fileURL\s*\]\s*\)/
+      /UIDocumentPickerViewController\(\s*forExporting:\s*\[\s*session\.fileURL\s*\],\s*asCopy:\s*false\s*\)/
     );
     expect(pluginSource).not.toMatch(/asCopy:\s*true/);
   });
