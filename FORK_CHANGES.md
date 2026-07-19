@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Native iOS exported-file access (2026-07-19)
+
+- Status: root-cause investigation and design are complete on `fix/ios-export-file-access`; implementation is pending the written-spec review gate.
+- Symptom: attachments and on-device diagnostic JSON exports appear in both On My iPhone and iCloud Drive but Files refuses to open them with a permission error.
+- Root cause: the shared native bridge exports an app-private temporary file as a copy and deletes the source staging directory immediately after the picker callback, leaving the Files provider entry unable to materialize readable content.
+- Design: transfer ownership with the document picker's move-export mode, then clean only the now-empty private staging directory while preserving the existing JavaScript API, bounded chunking, cancellation, overlap, reload recovery, failure cleanup, and web/Android fallback.
+- Planned coverage: add a red-first native picker contract regression, retain the focused native-save and attachment-download suites, and validate the full Vitest suite, typecheck, production build, Capacitor sync, and an unsigned iOS Simulator build.
+- Physical-device acceptance: save and open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
+
 ### Open new compact threads from the pending root (2026-07-18)
 
 - Status: the simplified implementation, regression coverage, full local validation, real Matrix plus Chromium validation, two zero-tolerance self-review rounds, and independent review remediation are complete.
