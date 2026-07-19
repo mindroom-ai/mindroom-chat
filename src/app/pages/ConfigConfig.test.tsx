@@ -1,11 +1,11 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { ClientConfigAuthenticationError } from '../components/ClientConfigLoader';
 import { ConfigConfigError } from './ConfigConfig';
 
 vi.mock('folds', () => ({
-  Box: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
+  Box: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   Button: ({
     children,
     onClick,
@@ -37,21 +37,25 @@ vi.mock('../components/splash-screen', () => ({
 }));
 
 const getButtonByText = (renderer: ReactTestRenderer, text: string) =>
-  renderer.root.findAllByType('button').find((button) =>
-    button.findAllByType('span').some((span) => span.children.includes(text))
-  );
+  renderer.root
+    .findAllByType('button')
+    .find((button) => button.findAllByType('span').some((span) => span.children.includes(text)));
 
 const renderConfigError = ({
   retry,
   ignore,
+  authenticate,
+  error = new Error('config failed'),
 }: {
   retry: () => void;
   ignore: () => void;
+  authenticate: () => void;
+  error?: unknown;
 }) => {
   let renderer: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <ConfigConfigError error={new Error('config failed')} retry={retry} ignore={ignore} />
+      <ConfigConfigError error={error} retry={retry} ignore={ignore} authenticate={authenticate} />
     );
   });
   return renderer!;
@@ -61,7 +65,8 @@ describe('ConfigConfigError', () => {
   it('does not forward the click event into the retry callback', () => {
     const retry = vi.fn();
     const ignore = vi.fn();
-    const renderer = renderConfigError({ retry, ignore });
+    const authenticate = vi.fn();
+    const renderer = renderConfigError({ retry, ignore, authenticate });
 
     const retryButton = getButtonByText(renderer, 'Retry');
     expect(retryButton).toBeDefined();
@@ -77,9 +82,10 @@ describe('ConfigConfigError', () => {
   it('does not forward the click event into the ignore callback', () => {
     const retry = vi.fn();
     const ignore = vi.fn();
-    const renderer = renderConfigError({ retry, ignore });
+    const authenticate = vi.fn();
+    const renderer = renderConfigError({ retry, ignore, authenticate });
 
-    const continueButton = getButtonByText(renderer, 'Continue');
+    const continueButton = getButtonByText(renderer, 'Continue offline');
     expect(continueButton).toBeDefined();
 
     act(() => {
@@ -88,5 +94,33 @@ describe('ConfigConfigError', () => {
 
     expect(ignore).toHaveBeenCalledTimes(1);
     expect(ignore).toHaveBeenCalledWith();
+  });
+
+  it('uses top-level sign-in recovery for an authentication redirect', () => {
+    const retry = vi.fn();
+    const ignore = vi.fn();
+    const authenticate = vi.fn();
+    const renderer = renderConfigError({
+      retry,
+      ignore,
+      authenticate,
+      error: new ClientConfigAuthenticationError(),
+    });
+
+    expect(
+      renderer.root
+        .findAllByType('span')
+        .some((span) => span.children.includes('Your web session has expired.'))
+    ).toBe(true);
+    const signInButton = getButtonByText(renderer, 'Sign in again');
+    expect(signInButton).toBeDefined();
+
+    act(() => {
+      signInButton?.props.onClick({ type: 'click' });
+    });
+
+    expect(authenticate).toHaveBeenCalledTimes(1);
+    expect(authenticate).toHaveBeenCalledWith();
+    expect(retry).not.toHaveBeenCalled();
   });
 });
