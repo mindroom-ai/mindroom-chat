@@ -100,6 +100,7 @@ import {
   expandAllMessages,
   collapseAllMessages,
 } from './CollapsibleMessage';
+import { useTimelineBulkExpansionAnchor } from './useTimelineBulkExpansionAnchor';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -416,6 +417,7 @@ export function RoomTimeline({
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
   const scrollToBottomRef = useRef({
     count: 0,
     smooth: true,
@@ -3291,6 +3293,7 @@ export function RoomTimeline({
     <CollapsibleMessageStateProvider
       expandAllInit={expandAll}
       manualExpansionState={manualExpansionState}
+      onExpansionLayoutChange={restoreBulkExpansionAnchor}
     >
       <Box grow="Yes" direction="Column">
         {shouldShowRoomThreadOverviewControls && (
