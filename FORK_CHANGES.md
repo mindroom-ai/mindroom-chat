@@ -19,8 +19,10 @@
 - Live corrected-build acceptance kept the 34-byte source available while the picker was open, completed Save without an alert, opened the destination successfully in Files Quick Look, and matched the expected payload with SHA-256 `f052e7a0309669cfbd1c1de6d39878ea05ca0dd8bbdad8c0306c87e2576cbeee`.
 - Validation passes the four focused native-save and caller suites with 24 tests, the full Vitest suite with 443 files and 3,274 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and 17 pre-existing warnings, touched-file Prettier, Swift parsing, `git diff --check`, and Debug plus unsigned Release iOS Simulator workspace builds.
 - Release inspection confirms the acceptance fixture strings are absent from the compiled Release binary.
-- Three independent reviews found no production correctness, security, lifecycle, release-boundary, availability, or scope issues.
+- Three pre-PR independent reviews found no production correctness, security, lifecycle, release-boundary, availability, or scope issues.
   Their two test/documentation findings were fixed by banning any post-presentation main-queue probe in the focused source slice and aligning the symptom with the observed pre-commit failure.
+- PR review found brittle test block extraction, a weak-picker disappearance path that could strand the active session, and a silently absent presentation-controller delegate.
+  Formatting-tolerant required matches now fail with explicit labels, only the matching session rejects when its picker disappears, and a Debug assertion exposes an impossible missing presentation controller while retaining the picker cancellation delegate.
 - Remaining acceptance: install the next TestFlight build and save plus open one diagnostic JSON file and one attachment from both On My iPhone and iCloud Drive.
 
 ### Open new compact threads from the pending root (2026-07-18)

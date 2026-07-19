@@ -153,8 +153,13 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                 self.activePicker = picker
                 self.activePickerSessionID = session.id
                 viewController.present(picker, animated: true) { [weak self, weak picker] in
-                    guard let self = self, let picker = picker,
-                          self.activePicker === picker else {
+                    guard let self = self else { return }
+                    guard let picker = picker, self.activePicker === picker else {
+                        if self.activePickerSessionID == session.id {
+                            self.activePicker = nil
+                            self.activePickerSessionID = nil
+                            self.rejectPresentationUnavailable(sessionID: session.id)
+                        }
                         return
                     }
                     guard picker.presentingViewController != nil,
@@ -164,7 +169,11 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
                         self.rejectPresentationUnavailable(sessionID: session.id)
                         return
                     }
-                    picker.presentationController?.delegate = self
+                    guard let presentationController = picker.presentationController else {
+                        assertionFailure("Presented document picker has no presentation controller")
+                        return
+                    }
+                    presentationController.delegate = self
                 }
             }
         }
