@@ -31,6 +31,7 @@ export const ExpandAllInitContext = React.createContext<boolean | undefined>(und
 export const ManualExpansionStateContext = React.createContext<Map<string, boolean> | undefined>(
   undefined
 );
+const ExpansionLayoutChangeContext = React.createContext<(() => void) | undefined>(undefined);
 export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
 
 export const rememberManualExpansionState = (
@@ -53,16 +54,20 @@ export function CollapsibleMessageStateProvider({
   children,
   expandAllInit,
   manualExpansionState,
+  onExpansionLayoutChange,
 }: {
   children: ReactNode;
   expandAllInit: boolean | undefined;
   manualExpansionState: Map<string, boolean>;
+  onExpansionLayoutChange?: () => void;
 }) {
   return (
     <ManualExpansionStateContext.Provider value={manualExpansionState}>
-      <ExpandAllInitContext.Provider value={expandAllInit}>
-        {children}
-      </ExpandAllInitContext.Provider>
+      <ExpansionLayoutChangeContext.Provider value={onExpansionLayoutChange}>
+        <ExpandAllInitContext.Provider value={expandAllInit}>
+          {children}
+        </ExpandAllInitContext.Provider>
+      </ExpansionLayoutChangeContext.Provider>
     </ManualExpansionStateContext.Provider>
   );
 }
@@ -195,8 +200,10 @@ export function CollapsibleMessage({
   const gradientRef = useRef<HTMLDivElement>(null);
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
-  const needsFocusOnCollapseRef = useRef(false);
   const expandAllInit = useContext(ExpandAllInitContext);
+  const onExpansionLayoutChange = useContext(ExpansionLayoutChangeContext);
+  const previousExpandAllInitRef = useRef(expandAllInit);
+  const needsFocusOnCollapseRef = useRef(false);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const [overflowing, setOverflowing] = useState(() => {
     // forceOverflowing is a prop-driven override (lazily-hydrated
@@ -238,6 +245,7 @@ export function CollapsibleMessage({
   });
   const hasRenderFunctionChildren = typeof children === 'function';
   const effectiveExpanded = isExempt || expanded;
+  const previousEffectiveExpandedRef = useRef(effectiveExpanded);
   const [loadFullContent, setLoadFullContent] = useState(
     () =>
       !hasRenderFunctionChildren || effectiveExpanded || typeof IntersectionObserver === 'undefined'
@@ -270,6 +278,20 @@ export function CollapsibleMessage({
     }
     previousCollapseModeRef.current = collapseMode;
   }, [collapseMode]);
+
+  useEffect(() => {
+    if (previousExpandAllInitRef.current === expandAllInit) return;
+    previousExpandAllInitRef.current = expandAllInit;
+    if (isExempt || collapseMode === 'initially-expanded' || expandAllInit === undefined) return;
+    if (expansionKey !== undefined && manualExpansionState?.has(expansionKey)) return;
+    setExpanded(expandAllInit);
+  }, [collapseMode, expandAllInit, expansionKey, isExempt, manualExpansionState]);
+
+  useLayoutEffect(() => {
+    if (previousEffectiveExpandedRef.current === effectiveExpanded) return;
+    previousEffectiveExpandedRef.current = effectiveExpanded;
+    onExpansionLayoutChange?.();
+  }, [effectiveExpanded, onExpansionLayoutChange]);
 
   // Full long-text sidecars should load before the user expands a visible
   // row, but not for virtualizer overscan rows that never enter the viewport.

@@ -18,6 +18,23 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings({}).simpleMode).toBe(false);
   });
 
+  it('defaults long messages to folded and accepts only a strict boolean true', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(false);
+    expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(false);
+    expect(
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: true })
+        .expandLongMessagesByDefault
+    ).toBe(true);
+    expect(
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: false })
+        .expandLongMessagesByDefault
+    ).toBe(false);
+    expect(
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 1 })
+        .expandLongMessagesByDefault
+    ).toBe(false);
+  });
+
   it('enables simple mode only for a strict boolean true', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: true }).simpleMode).toBe(true);
     expect(sanitizeMindroomAccountSettings({ simpleMode: false }).simpleMode).toBe(false);
@@ -29,6 +46,7 @@ describe('sanitizeMindroomAccountSettings', () => {
   it('ignores unknown keys when reading', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: true, futureKey: 'x' })).toEqual({
       simpleMode: true,
+      expandLongMessagesByDefault: false,
     });
   });
 });
@@ -42,7 +60,10 @@ describe('mergeMindroomAccountSettings', () => {
 
   it('preserves unknown keys written by other clients', () => {
     expect(
-      mergeMindroomAccountSettings({ simpleMode: false, futureKey: { nested: 1 } }, { simpleMode: true })
+      mergeMindroomAccountSettings(
+        { simpleMode: false, futureKey: { nested: 1 } },
+        { simpleMode: true }
+      )
     ).toEqual({ simpleMode: true, futureKey: { nested: 1 } });
   });
 

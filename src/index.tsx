@@ -12,7 +12,11 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { isNativeApp, registerNativeSsoCallbacks } from './app/mindroom/native/nativeSso';
+import {
+  isNativeApp,
+  isNativeIOS,
+  registerNativeSsoCallbacks,
+} from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -23,6 +27,7 @@ import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroom
 import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
+import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -32,6 +37,14 @@ applyThemeToDom(resolveInitialTheme());
 // recorder (persisted; `?ridetrace=0` disarms). Read here because the
 // router drops query params on navigation.
 bootstrapRideTraceFlagFromUrl();
+
+if (isNativeIOS()) {
+  try {
+    installFlightRecorder();
+  } catch {
+    // Diagnostics must never block application boot.
+  }
+}
 
 if (isNativeApp()) {
   registerNativeSsoCallbacks(CapacitorApp);
