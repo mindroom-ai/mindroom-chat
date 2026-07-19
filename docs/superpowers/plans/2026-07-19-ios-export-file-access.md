@@ -106,9 +106,13 @@ Update the `Native iOS exported-file access` section to state that move-export o
 
 - [ ] **Step 2: Run focused formatting and lint checks**
 
-Run: `npx prettier --check ios/App/App/MindRoomFileSavePlugin.swift src/app/mindroom/native/nativeFileSaveIOSContract.test.ts FORK_CHANGES.md docs/superpowers/specs/2026-07-19-ios-export-file-access-design.md docs/superpowers/plans/2026-07-19-ios-export-file-access.md`
+Run: `npx prettier --check src/app/mindroom/native/nativeFileSaveIOSContract.test.ts FORK_CHANGES.md docs/superpowers/specs/2026-07-19-ios-export-file-access-design.md docs/superpowers/plans/2026-07-19-ios-export-file-access.md`
 
 Expected: PASS with all matched files formatted.
+
+Run: `xcrun swift-format lint --strict ios/App/App/MindRoomFileSavePlugin.swift`
+
+Expected: PASS with no Swift formatting diagnostics.
 
 Run: `npx eslint src/app/mindroom/native/nativeFileSaveIOSContract.test.ts`
 
