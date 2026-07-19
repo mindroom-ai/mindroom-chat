@@ -21,19 +21,30 @@ const findVisibleMessageAnchor = (
   const viewport = scrollElement.getBoundingClientRect();
   const center = viewport.top + viewport.height / 2;
   let best: { messageId: string; top: number; distance: number } | undefined;
+  let partialBest: { messageId: string; top: number; distance: number } | undefined;
 
   scrollElement.querySelectorAll<HTMLElement>('[data-message-id]').forEach((candidate) => {
     const messageId = candidate.dataset.messageId;
     if (!messageId) return;
     const rect = candidate.getBoundingClientRect();
-    if (rect.top < viewport.top + 8 || rect.bottom > viewport.bottom - 8) return;
+    const visibleTop = Math.max(rect.top, viewport.top + 8);
+    const visibleBottom = Math.min(rect.bottom, viewport.bottom - 8);
+    if (visibleTop >= visibleBottom) return;
     const distance = Math.abs((rect.top + rect.bottom) / 2 - center);
-    if (!best || distance < best.distance) {
-      best = { messageId, top: rect.top, distance };
+    if (rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8) {
+      if (!best || distance < best.distance) {
+        best = { messageId, top: rect.top, distance };
+      }
+    } else {
+      const visibleDistance = Math.abs((visibleTop + visibleBottom) / 2 - center);
+      if (!partialBest || visibleDistance < partialBest.distance) {
+        partialBest = { messageId, top: visibleTop, distance: visibleDistance };
+      }
     }
   });
 
-  return best && { messageId: best.messageId, top: best.top };
+  const anchor = best ?? partialBest;
+  return anchor && { messageId: anchor.messageId, top: anchor.top };
 };
 
 const findMessage = (scrollElement: HTMLDivElement, messageId: string): HTMLElement | undefined =>

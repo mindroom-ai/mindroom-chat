@@ -38,6 +38,7 @@ type SeededThread = {
 };
 
 type AnchorSnapshot = {
+  fullyVisible: boolean;
   messageId: string;
   top: number;
 };
@@ -53,7 +54,7 @@ const seedLongThread = async (homeserver: string, accessToken: string): Promise<
 
   for (let reply = 1; reply <= REPLY_COUNT; reply += 1) {
     const lines = Array.from(
-      { length: 18 },
+      { length: 34 },
       (_value, line) =>
         `Live proof line ${
           line + 1
@@ -116,26 +117,38 @@ const readVisibleAnchor = (page: Page): Promise<AnchorSnapshot | undefined> =>
     if (!candidate) throw new Error('Thread scroller not found.');
     const scroller = candidate;
     const viewport = scroller.getBoundingClientRect();
-    const visibleRows = Array.from(
-      scroller.querySelectorAll<HTMLElement>('[data-message-item]')
-    ).filter((row) => {
-      const rect = row.getBoundingClientRect();
-      return rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8;
-    });
+    const visibleRows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-item]'))
+      .map((row) => {
+        const rect = row.getBoundingClientRect();
+        const visibleTop = Math.max(rect.top, viewport.top + 8);
+        const visibleBottom = Math.min(rect.bottom, viewport.bottom - 8);
+        return {
+          row,
+          rect,
+          visibleTop,
+          visibleBottom,
+          fullyVisible: rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8,
+        };
+      })
+      .filter(({ visibleTop, visibleBottom }) => visibleTop < visibleBottom);
+    const fullyVisibleRows = visibleRows.filter(({ fullyVisible }) => fullyVisible);
+    const anchorCandidates = fullyVisibleRows.length > 0 ? fullyVisibleRows : visibleRows;
     const center = viewport.top + viewport.height / 2;
-    const anchor = visibleRows.sort((a, b) => {
-      const aRect = a.getBoundingClientRect();
-      const bRect = b.getBoundingClientRect();
-      return (
-        Math.abs((aRect.top + aRect.bottom) / 2 - center) -
-        Math.abs((bRect.top + bRect.bottom) / 2 - center)
-      );
+    const anchor = anchorCandidates.sort((a, b) => {
+      const aCenter = a.fullyVisible
+        ? (a.rect.top + a.rect.bottom) / 2
+        : (a.visibleTop + a.visibleBottom) / 2;
+      const bCenter = b.fullyVisible
+        ? (b.rect.top + b.rect.bottom) / 2
+        : (b.visibleTop + b.visibleBottom) / 2;
+      return Math.abs(aCenter - center) - Math.abs(bCenter - center);
     })[0];
-    const messageId = anchor?.dataset.messageId;
+    const messageId = anchor?.row.dataset.messageId;
     return anchor && messageId
       ? {
+          fullyVisible: anchor.fullyVisible,
           messageId,
-          top: anchor.getBoundingClientRect().top,
+          top: anchor.fullyVisible ? anchor.rect.top : anchor.visibleTop,
         }
       : undefined;
   });
@@ -330,18 +343,56 @@ test.describe('live long-message expansion default', () => {
         violations: rideAnalysis.violations,
       },
     };
+    expect(ride.error).toBeUndefined();
+    expect(deterministicTravelPx).toBeGreaterThan(10_000);
+    expect(ride.frames.length).toBeGreaterThan(FULL_RIDE_BUDGETS.minFrames);
+    expect(rideAnalysis.violations).toEqual([]);
+    expect(ride.appWrites).toEqual([]);
+
+    const anchorBeforeCollapse = await readVisibleAnchor(page);
+    if (!anchorBeforeCollapse)
+      throw new Error('No tall-message anchor before folding the default.');
+    expect(anchorBeforeCollapse.fullyVisible).toBe(false);
+
+    await openSettingsFromAccountRail(page);
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'true');
+    await expansionSwitch.click();
+    await expect(expansionSwitch).toHaveAttribute('aria-checked', 'false');
+    await expect.poll(() => showMore.count()).toBeGreaterThan(1);
+    await page.keyboard.press('Escape');
+    await expect(settingTitle).toHaveCount(0);
+    const anchorTopAfterCollapse = await readAnchorTop(page, anchorBeforeCollapse.messageId);
+    expect(anchorTopAfterCollapse).toBeDefined();
+    const collapseAnchorDriftPx = Math.abs(
+      (anchorTopAfterCollapse as number) - anchorBeforeCollapse.top
+    );
+    expect(collapseAnchorDriftPx).toBeLessThan(ANCHOR_DRIFT_BUDGET_PX);
+    const collapsedSettings = await matrixFetch<Record<string, unknown>>(
+      homeserver,
+      `/user/${encodeURIComponent(session.userId)}/account_data/${encodeURIComponent(
+        SETTINGS_EVENT_TYPE
+      )}`,
+      { accessToken: session.accessToken }
+    );
+    expect(collapsedSettings.expandLongMessagesByDefault).toBe(false);
+
+    const collapsedScreenshot = testInfo.outputPath('folded-from-tall-message.png');
+    await page.screenshot({ path: collapsedScreenshot });
+    await testInfo.attach('folded-from-tall-message.png', {
+      path: collapsedScreenshot,
+      contentType: 'image/png',
+    });
+
+    Object.assign(report, {
+      collapseAnchorDriftPx,
+      collapsedSettings,
+    });
     // eslint-disable-next-line no-console
     console.log(`LONG-MESSAGE-DEFAULT-LIVE ${JSON.stringify(report)}`);
     await testInfo.attach('long-message-default-live.json', {
       body: JSON.stringify({ report, ride }, null, 2),
       contentType: 'application/json',
     });
-
-    expect(ride.error).toBeUndefined();
-    expect(deterministicTravelPx).toBeGreaterThan(10_000);
-    expect(ride.frames.length).toBeGreaterThan(FULL_RIDE_BUDGETS.minFrames);
-    expect(rideAnalysis.violations).toEqual([]);
-    expect(ride.appWrites).toEqual([]);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'long-message expansion default live');
   });
 });

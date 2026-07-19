@@ -77,4 +77,28 @@ describe('timeline bulk expansion anchor', () => {
     restoreTimelineBulkExpansionAnchor(scroller, anchor!);
     expect(scroller.scrollTop).toBe(7_200);
   });
+
+  it('anchors a partially visible message when one message fills the viewport', () => {
+    let messageTop = -500;
+    const scroller = makeScroller({
+      messages: [
+        {
+          dataset: { messageId: '$tall' },
+          getBoundingClientRect: () => rect(messageTop, messageTop + 1_500),
+        },
+      ],
+    });
+
+    const anchor = captureTimelineBulkExpansionAnchor(scroller, 3);
+    expect(anchor).toEqual({
+      kind: 'message',
+      generation: 3,
+      messageId: '$tall',
+      top: 108,
+    });
+
+    messageTop = 430;
+    restoreTimelineBulkExpansionAnchor(scroller, anchor!);
+    expect(scroller.scrollTop).toBe(2_322);
+  });
 });
