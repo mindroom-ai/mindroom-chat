@@ -56,7 +56,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     isResolved ? t('thread.aria.resolvedThread') : t('thread.aria.unresolvedThread'),
     isUnread ? t('thread.aria.unreadMessages') : undefined,
     isStreaming ? t('thread.aria.agentStreaming') : undefined,
-    hasFailedSend ? 'Message failed to send' : undefined,
+    hasFailedSend ? t('thread.aria.messageFailed') : undefined,
     hasPendingSend ? t('thread.aria.messageSending') : undefined,
     scheduledTaskLabel,
     relativeTime ? t('thread.aria.lastActivity', { time: relativeTime }) : undefined,

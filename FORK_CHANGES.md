@@ -4,7 +4,7 @@
 
 ### Open new compact threads from the pending root (2026-07-18)
 
-- Status: the simplified implementation, regression coverage, full local validation, real Matrix plus Chromium validation, and two zero-tolerance self-review rounds are complete; GitHub and independent review are in progress.
+- Status: the simplified implementation, regression coverage, full local validation, real Matrix plus Chromium validation, two zero-tolerance self-review rounds, and independent review remediation are complete.
 - A standalone text send now supplies its transaction ID to matrix-js-sdk and opens the compact thread route from the SDK-owned local echo before the homeserver responds.
 - The submitted composer still clears synchronously through the existing send-session controller.
 - The pending-root route renders the local root immediately but replaces the composer with a confirmation notice, so text, reply actions, reactions, edits, and attachments cannot target an unconfirmed event ID.
@@ -13,6 +13,7 @@
 - Local-root routes skip thread fetch, receipt, summary-persistence, and focused-thread cache work until confirmation.
 - The implementation uses the public matrix-js-sdk transaction and local-echo APIs and includes no SDK patch.
 - Zero-tolerance review also disabled thread tag and resolve mutations and timeline-refresh fetches while the route still carries a local event ID.
+- Independent Claude Fable 5 review found one untranslated failed-send fragment in the compact card's composed accessibility label, which now uses the localized thread namespace with English, Dutch, and German coverage.
 - The focused Docker Matrix plus Chromium test proves automatic provisional routing, visible pending root content, disabled replies, confirmed-route replacement, restored composer access, and return to the compact overview through the preserved exit target.
 - Validation passes all 437 Vitest files with 3,214 tests, typecheck, the production and PWA build, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.

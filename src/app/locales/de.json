@@ -270,6 +270,7 @@
       "unresolvedThread": "Ungelöster Thread",
       "unreadMessages": "Ungelesene Nachrichten",
       "agentStreaming": "Agent antwortet gerade",
+      "messageFailed": "Nachricht konnte nicht gesendet werden",
       "messageSending": "Nachricht wird gesendet",
       "lastActivity": "Letzte Aktivität {{time}}",
       "removeTagFilter": "Filter {{tag}} entfernen"
