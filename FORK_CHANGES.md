@@ -2,58 +2,45 @@
 
 ## Runbook
 
-### Opt-in native iOS deep diagnostic tracing (2026-07-19)
+### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
-- Status: implementation, focused regression coverage, full local validation, PR review remediation, and independent follow-up re-review are complete.
-- Motivation: the always-on freeze flight recorder can prove an abnormal termination and retain coarse lifecycle heartbeats, but it does not explain which interaction, request, Matrix operation, or main-thread stall preceded an iOS hang.
-- Settings → About now offers native iOS users an explicit Deep diagnostic tracing switch that is off by default and persists only the device-local opt-in.
-- Enabling performs an IndexedDB open, write, and first-event durability handshake before reporting success.
-- Any later persistence failure stops capture, removes the opt-in when possible, and updates the settings status instead of silently dropping events while claiming to record.
-- Disabling always stops listeners and writes immediately even when the preference removal fails, while the UI warns that the stale preference may re-enable tracing after restart.
-- The recorder retains at most 5,000 events or 2 MiB in IndexedDB and caps the in-memory pending queue at 250 events or 256 KiB.
-- Persistence drains at most 50 events per transaction, evicts the oldest pending evidence during bursts, and exports a durable dropped-event count.
-- Clear trace removes retained events plus pending batches, counters, and scroll aggregation without changing the opt-in preference.
-- Capture covers categorical pointer, keyboard, and scroll interactions; lifecycle and connectivity transitions; routes; event-loop stalls; long tasks; runtime memory samples where available; global errors; unhandled rejections; console warnings and errors; and request timing.
-- Matrix tracing adds categorical sync and timeline counters plus operation spans around thread-list loading, resume refresh, cross-room index bootstrap, and index flush work.
-- Network capture uses one stable global delegate plus the Matrix client fetch seam, so configuration, application, media, and Matrix requests remain traceable without breaking fetch functions captured before a later disable.
-- Privacy is enforced at the recorder boundary with an event-name allowlist and numeric or boolean metadata only.
-- The trace never stores message text, console text, error text, typed keys, URLs, room IDs, event IDs, user IDs, homeserver names, access tokens, or arbitrary caller-provided strings.
-- Error and console evidence uses categorical source and error codes plus per-session salted numeric fingerprints for private correlation within a known build.
-- Fingerprints derive only from categorical type codes and numeric call-site locations, so raw error, stack, and console strings never enter the hash.
-- A transient IndexedDB open or transaction failure releases and closes the cached database handle, allowing a later explicit enable to retry in the same app session.
-- Settings toggle results carry a request generation so an older enable cannot visually override a newer disable.
-- Recorder activation failures also require generation ownership, so a rejected old database open cannot override a newer disable or re-enable.
-- First-event durability completion and failure paths revalidate the same generation after their awaited append, preventing a stale handshake from reporting success or disabling a newer request.
-- Cross-room thread flush traces are emitted after the Jotai state write instead of from inside its pure state derivation.
-- Combined diagnostic export uses schema version 2 and fault-isolates localStorage from IndexedDB so either the flight record or deep trace remains exportable when the other storage source fails.
-- Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
-- The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
-- Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 448 Vitest files with 3,320 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
-- Full ESLint reports zero errors and the existing 17-warning baseline.
-- Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
-- Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
-- All five findings are fixed with focused recovery, race, privacy, and single-completion regressions.
-- Independent follow-up review found one stale activation-failure race beyond the PR findings, and generation-gated failure ownership plus a deferred-open regression now cover it.
-- Follow-up re-review also found stale first-event append success and rejection paths, which now restart the newer activation and have deferred-append coverage for both outcomes.
-- Final independent re-review reran 61 focused tests, typecheck, formatting, and diff checks, then approved all five Greptile remediations and both activation ownership boundaries.
-- Greptile's 5/5 follow-up marked all original threads resolved and found only that a missing response Content-Length was indistinguishable from a genuine zero-byte body.
-- Unknown response size now exports as `null`, with regression coverage, while explicit zero remains numeric.
-- Independent review approved the final response-size distinction after 19 diagnostic tests, typecheck, touched ESLint, formatting, and diff checks.
-- Greptile's final 5/5 review found only inconsistent fractional precision in timing spans outside the core recorder.
-- A shared one-decimal metric formatter now covers thread-list, thread-resume, cross-room bootstrap, and cross-room flush durations as well as recorder-owned timings.
-- Independent review approved the timing normalization after 59 focused tests, typecheck, touched ESLint, formatting, and diff checks.
-- Greptile's post-normalization 5/5 review found that an initial thread-list fetch failure emitted its fetch error but left the enclosing load span open.
-- The failure path now emits a flushed `thread_list.load.error` terminal event with the same operation ID, and focused coverage requires both nested and enclosing error spans.
-- Independent review approved the terminal-event pairing after 28 focused tests, typecheck, touched ESLint, formatting, and diff checks.
-- Greptile's next 5/5 review found the equivalent open-span gap when thread-list pagination throws.
-- Pagination failures now flush both `thread_list.page.error` and `thread_list.load.error` with the shared operation ID before preserving the existing rejection behavior.
-- CodeRabbit's first completed review found a disabled-tracing sync allocation, missing direct runtime-unavailable coverage, an unguarded settings rejection boundary, and duplicated pending-state reset logic.
-- Sync tracing now avoids room enumeration while off, the settings handler fail-closes unexpected rejection, direct background storage failure has UI coverage, and clear-state reset uses one shared helper.
-- Independent review approved the pagination and CodeRabbit remediations after 57 focused tests, typecheck, touched ESLint, formatting, and diff checks.
-- Greptile's sixth 5/5 review found that V8-only stack parsing discarded JavaScriptCore's first `function@url:line:column` frame on the native iOS target.
-- Stack parsing now recognizes parenthesized V8, bare V8, and JavaScriptCore/Firefox frames, skips parsed frames instead of assuming an error-header line, and has privacy-preserving exported-trace coverage for a synthetic WKWebView rejection.
-- Independent review caught and verified fixes for error-header false positives and bare async V8 source misclassification, then approved the strict frame grammar after 17 recorder tests, typecheck, touched ESLint, formatting, and diff checks.
+- Status: the original PR is being reduced after an independent Claude Fable architecture review confirmed that feature-specific spans and noisy global probes added maintenance cost without surviving terminal hangs.
+- Motivation: preserve enough device-local evidence to reconstruct the last interaction, in-flight Matrix request, recovered event-loop stall, route, lifecycle transition, or private error category before an iOS freeze.
+- The always-on localStorage flight recorder gains one optional categorical `lastAction` field that is written synchronously on opt-in pointer activation so the triggering task can survive an immediate JavaScript hang.
+- The opt-in IndexedDB trace keeps bounded retention, queue backpressure, dropped-event accounting, clear and fault-isolated export, lifecycle and connectivity, route changes, recovered event-loop stalls, private global error locations, categorical pointer history, and categorized request timing.
+- Matrix request-start events flush immediately so a request that never settles still leaves durable evidence.
+- Keyboard, scroll, console patching, unsupported WebKit long-task and heap probes, Matrix counters, and thread-list, resume, cross-room bootstrap, and index-flush spans are removed.
+- Privacy remains allowlist-based and excludes message text, typed keys, console text, error text, URLs, identifiers, tokens, and coordinates.
+- Activation keeps one generation token, a writable-storage check, a first-event durability handshake, and fail-closed storage behavior while the settings switch is disabled during a pending change.
+- The final deep-trace tail remains best-effort, while synchronous `lastAction` and Matrix request starts define the durable terminal-hang boundary.
+- An abnormal end cannot distinguish a force-close, jetsam, native crash, or WebKit content-process termination.
+- A native WebKit termination marker is required in a follow-up before this feature is advertised for release, with MetricKit hang and crash evidence following separately.
+- Physical-iPhone acceptance remains release-blocking and must cover terminal and recovered stalls, background force-close behavior, relaunch persistence, Files export, and measured tracing overhead.
+
+### Stop cyclic Matrix timeline links from crashing room and thread views (2026-07-20)
+
+- Status: implementation, regression coverage, full local validation, independent review, PR review, and final CI are complete on PR #184; ready for human review.
+- Root cause: timeline pagination recursively followed Matrix SDK backward neighbour links until reaching `null`, while forward collection used an unbounded loop. A self-link or multi-timeline cycle therefore exhausted the JavaScript call stack, matching the repeated `getFirstLinkedTimeline` frames in the deployed production bundle.
+- Fix: traverse backward iteratively and track visited timeline identities in both directions. A malformed backward cycle falls back to the caller's known timeline, forward collection yields each reachable timeline at most once, and unusually deep valid chains no longer consume call-stack frames.
+- Coverage and validation: focused helper tests exercise a two-timeline backward cycle, a 20,000-timeline valid chain, and a forward self-cycle without relying on a hanging test timeout. The focused suite passes 9 tests and the full Vitest suite passes 443 files with 3,287 tests; typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and 17 pre-existing warnings.
+- Independent review found no correctness, scope, TypeScript, or test defects; its Runbook formatting suggestion was adopted for consistency with current entries.
+- PR review: Gemini reported no comments and Greptile rated the change 5/5 with no findings. Qodo, CodeRabbit, and Sourcery could not review because of account limits; title, web build, Android build, and Docker publish checks passed, and CodeRabbit's quota-only status is the sole non-passing check.
+
+### Keep spaces visible in Simple Mode (2026-07-20)
+
+- Status: implementation, full local validation, independent review remediation, PR review, and final CI are complete on PR #183; ready for human review.
+- Simple Mode now keeps the existing space tabs visible so users can distinguish and open their joined spaces.
+- Threads, Explore Community, Local MindRoom, and Add Space remain hidden as advanced navigation.
+- The flattened Home room list and its Home-routed room and thread navigation remain unchanged.
+- The Simple Mode setting description in English, German, and Dutch no longer says that spaces are hidden.
+- Focused coverage verifies that spaces remain visible while the advanced navigation entries stay absent.
+- Validation passes 19 focused navigation, settings, and locale tests, the full Vitest suite with 443 files and 3,284 tests, typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent review found two stale comments that still described space tabs as hidden; the current and historical Runbook contracts plus the Home-list rationale now match the implementation.
+- Independent re-review found no remaining behavior, test, documentation, i18n, routing, or scope issues.
+- PR review: Greptile rated the change 5/5 and safe to merge, and Gemini reported no feedback; neither reviewer produced an inline finding.
+- The ready PR's web, Android, Docker, and conventional-title checks pass.
+- CodeRabbit, Qodo, and Sourcery reported review quota, seat, or rate limits rather than findings.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
@@ -1552,10 +1539,11 @@ The write path (`useSetMindroomAccountSettings`) merges over raw stored content 
 js-sdk 41.7 resolves `setAccountData` only after the sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an optimistic pending value and hands back to the store when the write settles.
 
 SURFACES HIDDEN WHEN ON:
-- Sidebar: `SpaceTabs`, the global Threads tab (user-requested 2026-07-09), Explore, Create, Local MindRoom tab.
-  Home FLATTENS every joined room into one list (`useHomeRooms` switches orphan→all selector; home search matches) because hiding spaces must not make space-organized rooms unreachable.
-  Home's Create Room / Join with Address nav items hidden.
-  Kept: Home, Direct, Inbox, Unverified, Settings.
+- Sidebar: the global Threads tab (user-requested 2026-07-09), Explore, Add Space, and Local MindRoom tab.
+  Existing `SpaceTabs` remain visible (user-requested 2026-07-20).
+  Home FLATTENS every joined room into one list (`useHomeRooms` switches orphan→all selector; home search matches), preserving one complete room list alongside space-based organization.
+  Home's Create Room and Join with Address nav items remain visible (user-requested 2026-07-15).
+  Kept: Home, Direct, `SpaceTabs`, Inbox, Unverified, Settings.
 - Command palette: only the visible triggers are hidden (sidebar tab, room-header button).
   `mod+k` and the renderer deliberately stay ungated — user decision 2026-07-09: the palette remains an unadvertised power-user path in simple mode; people who don't know the shortcut never see it.
 - Thread overview toolbar: count + one binary "Unresolved" button (`data-simple-unresolved-toggle`).

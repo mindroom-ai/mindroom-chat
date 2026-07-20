@@ -14,8 +14,8 @@ export const useHomeRooms = () => {
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  // Simple mode hides the spaces sidebar, so Home flattens every joined room
-  // into one list — rooms organized into spaces must not become unreachable.
+  // Simple mode keeps Home as one complete room list alongside the visible
+  // space tabs, so users can browse either the flat list or their organization.
   const simpleMode = useSimpleMode();
   const orphanRooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
   const flatRooms = useRooms(mx, allRoomsAtom, mDirects);
@@ -36,10 +36,8 @@ export const getHomeSearchRooms = (
       !isSpace(mx.getRoom(roomId))
   );
 
-export const mergeHomeSearchRoomSources = (
-  sdkRoomIds: string[],
-  allRoomIds: string[]
-): string[] => Array.from(new Set([...sdkRoomIds, ...allRoomIds]));
+export const mergeHomeSearchRoomSources = (sdkRoomIds: string[], allRoomIds: string[]): string[] =>
+  Array.from(new Set([...sdkRoomIds, ...allRoomIds]));
 
 export const useHomeSearchRooms = () => {
   const mx = useMatrixClient();
