@@ -37,10 +37,19 @@ vi.mock('folds', () => ({
   Icon: () => null,
   Icons: { Code: 'code', Cross: 'cross', Heart: 'heart' },
   Spinner: () => React.createElement('i'),
-  Switch: ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) =>
+  Switch: ({
+    value,
+    onChange,
+    disabled,
+  }: {
+    value: boolean;
+    onChange: (value: boolean) => void;
+    disabled?: boolean;
+  }) =>
     React.createElement('input', {
       type: 'checkbox',
       checked: value,
+      disabled,
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.checked),
     }),
   config: { space: { S400: '1rem' } },
@@ -174,7 +183,7 @@ describe('About diagnostics export', () => {
   });
 
   it.each([
-    ['unexpected', 'Previous session ended unexpectedly.'],
+    ['unexpected', 'Previous session ended unexpectedly; the cause is unknown.'],
     ['none', 'No unexpected session retained.'],
     ['unavailable', 'Diagnostics storage unavailable.'],
   ])('renders the %s status', (status, description) => {
@@ -368,31 +377,38 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('keeps a rapid disable authoritative after an older enable finishes', async () => {
+  it('disables the trace controls while an enable is pending', async () => {
     let resolveEnable: ((saved: boolean) => void) | undefined;
     const pendingEnable = new Promise<boolean>((resolve) => {
       resolveEnable = resolve;
     });
-    mocks.setDeepTraceEnabled.mockImplementation((enabled: boolean) => {
-      deepTracePreference = enabled;
-      deepTraceRuntimeStatus = enabled ? 'starting' : 'disabled';
-      deepTraceStatusListener?.(deepTraceRuntimeStatus);
-      return enabled ? pendingEnable : Promise.resolve(true);
+    mocks.setDeepTraceEnabled.mockImplementation(() => {
+      deepTracePreference = true;
+      deepTraceRuntimeStatus = 'starting';
+      deepTraceStatusListener?.('starting');
+      return pendingEnable;
     });
     const renderer = create(<About requestClose={vi.fn()} />);
 
-    await act(async () => {
+    act(() => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+    });
+    expect(deepTraceSwitch(renderer).props.disabled).toBe(true);
+    expect(deepTraceTile(renderer).findByType('button').props.disabled).toBe(true);
+
+    await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
       await Promise.resolve();
     });
+    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledOnce();
+
     await act(async () => {
       resolveEnable?.(true);
       await pendingEnable;
     });
 
-    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
-    expect(deepTraceTile(renderer).props['data-description']).toContain('Off.');
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceSwitch(renderer).props.disabled).toBe(false);
     renderer.unmount();
   });
 

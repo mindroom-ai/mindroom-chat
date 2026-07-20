@@ -5,15 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   classifyDeepTraceNetworkRequest,
   clearDeepTrace,
+  DEEP_TRACE_DB_NAME,
   DEEP_TRACE_ENABLED_KEY,
   DEEP_TRACE_MAX_EVENTS,
   DEEP_TRACE_MAX_PENDING_EVENTS,
   getDeepTraceEnabled,
-  incrementDeepTraceCounter,
   initializeDeepTraceRecorder,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
-  roundDeepTraceMetric,
   setDeepTraceEnabled,
   traceDeepDiagnosticFetch,
 } from './deepTrace';
@@ -122,36 +121,6 @@ describe('opt-in deep diagnostic trace', () => {
     expect(json).toContain('"count":3');
   });
 
-  it('normalizes trace metrics to one decimal place', () => {
-    expect(roundDeepTraceMetric(12.345)).toBe(12.3);
-    expect(roundDeepTraceMetric(12.36)).toBe(12.4);
-    expect(roundDeepTraceMetric(0)).toBe(0);
-  });
-
-  it('captures console failures as numeric fingerprints without console text', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    await setDeepTraceEnabled(true, storage);
-
-    // eslint-disable-next-line no-console -- Exercises the opt-in console trace boundary.
-    console.warn('private room and message');
-    // eslint-disable-next-line no-console -- Text content must not influence the fingerprint.
-    console.warn('different homeserver and event identifiers');
-
-    const snapshot = await readDeepTraceSnapshot();
-    const warnings = snapshot.events.filter((event) => event.name === 'error.console.warn');
-    expect(warnings).toHaveLength(2);
-    warnings.forEach((warning) => {
-      expect(warning.data).toMatchObject({
-        argument_count: 1,
-        fingerprint: expect.any(Number),
-      });
-    });
-    expect(warnings[0]?.data?.fingerprint).toBe(warnings[1]?.data?.fingerprint);
-    expect(JSON.stringify(snapshot)).not.toContain('private room and message');
-    expect(JSON.stringify(snapshot)).not.toContain('different homeserver');
-    expect(warn).toHaveBeenCalledTimes(2);
-  });
-
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {
     await setDeepTraceEnabled(true, storage);
     const reason = new TypeError('private rejection message');
@@ -170,7 +139,6 @@ describe('opt-in deep diagnostic trace', () => {
           name: 'error.unhandled_rejection',
           data: expect.objectContaining({
             error_code: 7,
-            fingerprint: expect.any(Number),
             source_code: 2,
             line: 42,
             column: 7,
@@ -271,6 +239,44 @@ describe('opt-in deep diagnostic trace', () => {
     ).toHaveLength(1);
   });
 
+  it('persists a Matrix request start before the request settles', async () => {
+    let resolveFetch: ((response: Response) => void) | undefined;
+    const baseFetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    const readStoredNames = () =>
+      new Promise<string[]>((resolve, reject) => {
+        const request = indexedDB.open(DEEP_TRACE_DB_NAME);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const all = database.transaction('events', 'readonly').objectStore('events').getAll();
+          all.onerror = () => reject(all.error);
+          all.onsuccess = () => {
+            database.close();
+            resolve(all.result.map((event) => String(event.name)));
+          };
+        };
+      });
+    await setDeepTraceEnabled(true, storage);
+
+    const pending = traceDeepDiagnosticFetch(
+      baseFetch,
+      'https://matrix.example.test/_matrix/client/v3/sync'
+    );
+
+    await vi.waitFor(async () => {
+      expect(await readStoredNames()).toContain('network.matrix.sync.get.start');
+    });
+    expect(baseFetch).toHaveBeenCalledOnce();
+
+    resolveFetch?.(new Response('{}', { status: 200 }));
+    await pending;
+  });
+
   it('distinguishes an unknown response size from a zero-byte response', async () => {
     const baseFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     await setDeepTraceEnabled(true, storage);
@@ -357,20 +363,5 @@ describe('opt-in deep diagnostic trace', () => {
     expect(await secondEnable).toBe(true);
     expect((await readDeepTraceSnapshot()).status).toBe('recording');
     expect(storage.getItem(DEEP_TRACE_ENABLED_KEY)).toBe('1');
-  });
-
-  it('clears pending counters and scroll aggregation with retained events', async () => {
-    await setDeepTraceEnabled(true, storage);
-    incrementDeepTraceCounter('matrix_timeline.live.plain', 3);
-    document.dispatchEvent(new Event('scroll'));
-
-    await clearDeepTrace();
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 300);
-    });
-
-    const snapshot = await readDeepTraceSnapshot();
-    expect(snapshot.events).toEqual([]);
-    expect(snapshot.stats.eventCount).toBe(0);
   });
 });

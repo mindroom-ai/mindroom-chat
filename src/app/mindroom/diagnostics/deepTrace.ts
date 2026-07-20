@@ -5,7 +5,11 @@ import {
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../../utils/safeLocalStorage';
-import { classifyFlightRecorderRoute } from './flightRecorder';
+import {
+  classifyFlightRecorderAction,
+  classifyFlightRecorderRoute,
+  setFlightRecorderLastAction,
+} from './flightRecorder';
 
 export const DEEP_TRACE_SCHEMA_VERSION = 1;
 export const DEEP_TRACE_ENABLED_KEY = 'mindroom.diagnostics.deepTrace.enabled.v1';
@@ -23,7 +27,6 @@ const FLUSH_INTERVAL_MS = 500;
 const FLUSH_BATCH_SIZE = 50;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
-const SCROLL_SETTLE_MS = 250;
 
 export type DeepTraceData = Record<string, number | boolean | null>;
 
@@ -40,6 +43,14 @@ export type DeepTraceEvent = {
 type StoredDeepTraceEvent = DeepTraceEvent & {
   bytes: number;
 };
+type NetworkCategory =
+  | 'matrix.sync'
+  | 'matrix.relations'
+  | 'matrix.messages'
+  | 'matrix.media'
+  | 'matrix.client'
+  | 'app'
+  | 'external';
 
 export type DeepTraceStats = {
   eventCount: number;
@@ -68,23 +79,12 @@ interface DeepTraceDB extends DBSchema {
   };
 }
 
-type ScrollState = {
-  startedAt: number;
-  startTop: number;
-  lastTop: number;
-  eventCount: number;
-  surface: string;
-  timer?: number;
-};
-
 type Runtime = {
   storage?: Storage;
-  initialized: boolean;
   enabled: boolean;
   unavailable: boolean;
   disposed: boolean;
   sessionId: string;
-  fingerprintSalt: number;
   sequence: number;
   queue: DeepTraceEvent[];
   queueBytes: number;
@@ -96,11 +96,7 @@ type Runtime = {
   starting: boolean;
   loopTimer?: number;
   lastLoopTick: number;
-  sampleTick: number;
-  counters: Map<string, number>;
   lastRoute?: string;
-  observer?: PerformanceObserver;
-  scroll?: ScrollState;
   removeListeners: () => void;
 };
 
@@ -114,7 +110,7 @@ const EMPTY_STATS: DeepTraceStats = {
 
 let databasePromise: Promise<IDBPDatabase<DeepTraceDB>> | undefined;
 let runtime: Runtime | undefined;
-let operationSequence = 0;
+let requestSequence = 0;
 const statusListeners = new Set<(status: DeepTraceRuntimeStatus) => void>();
 const TRACED_FETCH = Symbol('mindroom.deepTrace.fetch');
 
@@ -128,53 +124,23 @@ const createSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ??
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 
-const createFingerprintSalt = (): number => {
-  const values = new Uint32Array(1);
-  globalThis.crypto?.getRandomValues?.(values);
-  return values[0] || Math.floor(Math.random() * 0xffffffff);
-};
-
 const nowMonotonic = (): number =>
   typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
     : 0;
 
-export const roundDeepTraceMetric = (value: number): number => Math.round(value * 10) / 10;
+const roundMetric = (value: number): number => Math.round(value * 10) / 10;
 
 const STATIC_EVENT_NAMES = new Set([
-  'error.console.error',
-  'error.console.warn',
   'error.global',
   'error.unhandled_rejection',
-  'lifecycle.blur',
-  'lifecycle.focus',
   'lifecycle.hidden',
   'lifecycle.pagehide',
   'lifecycle.pageshow',
   'lifecycle.visible',
-  'matrix_sync.state',
   'network.offline',
   'network.online',
   'performance.event_loop_stall',
-  'performance.long_task',
-  'performance.runtime_sample',
-  'thread_index.bootstrap_chunk.complete',
-  'thread_index.bootstrap_chunk.start',
-  'thread_index.flush.complete',
-  'thread_index.flush.start',
-  'thread_list.fetch.complete',
-  'thread_list.fetch.error',
-  'thread_list.fetch.start',
-  'thread_list.load.complete',
-  'thread_list.load.error',
-  'thread_list.load.start',
-  'thread_list.page.complete',
-  'thread_list.page.error',
-  'thread_list.page.start',
-  'thread_resume.cancelled',
-  'thread_resume.complete',
-  'thread_resume.error',
-  'thread_resume.list.complete',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -182,13 +148,9 @@ const STATIC_EVENT_NAMES = new Set([
 ]);
 
 const SAFE_EVENT_PATTERNS = [
-  /^counter\.(matrix_timeline\.live\.(encrypted|plain)|thread_index\.receipt\.(room|thread))$/,
-  /^interaction\.key\.(activate|escape|navigate|shortcut)\.(app|dialog|document|form|navigation|settings|timeline)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|settings|timeline)$/,
-  /^interaction\.scroll\.(start|end)\.(app|dialog|document|form|navigation|settings|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
-  /^thread_resume\.(focus|online|pageshow|visibility)\.start$/,
 ];
 
 const safeEventName = (value: string): string | undefined => {
@@ -285,14 +247,9 @@ const readStoredEvents = async (): Promise<{
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readonly');
   const stored = await tx.objectStore(EVENT_STORE).getAll();
   const storedStats = await tx.objectStore(META_STORE).get(STATS_KEY);
-  const stats = {
-    ...EMPTY_STATS,
-    ...storedStats,
-  };
   await tx.done;
-
   return {
-    stats,
+    stats: { ...EMPTY_STATS, ...storedStats },
     events: stored.map(({ bytes: _bytes, ...event }) => event),
   };
 };
@@ -302,39 +259,34 @@ const flush = async (target: Runtime): Promise<void> => {
     window.clearTimeout(target.flushTimer);
     target.flushTimer = undefined;
   }
-  if (target.flushPromise) {
+  while (target.flushPromise) {
     await target.flushPromise;
-    if ((target.queue.length > 0 || target.droppedQueueEvents > 0) && !target.unavailable) {
-      await flush(target);
-    }
-    return;
   }
   if ((target.queue.length === 0 && target.droppedQueueEvents === 0) || target.unavailable) {
     return;
   }
 
-  const batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
-  target.queueBytes = Math.max(
-    0,
-    target.queueBytes - batch.reduce((total, event) => total + JSON.stringify(event).length, 0)
-  );
-  const droppedEventCount = target.droppedQueueEvents;
-  target.droppedQueueEvents = 0;
   const flushSequence = target.activationSequence;
-  target.flushPromise = appendStoredEvents(batch, droppedEventCount)
-    .catch(() => {
-      if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
-        return;
-      }
-      markUnavailable(target);
-    })
-    .finally(() => {
-      target.flushPromise = undefined;
-    });
-  await target.flushPromise;
-  if ((target.queue.length > 0 || target.droppedQueueEvents > 0) && !target.unavailable) {
-    await flush(target);
-  }
+  const drain = (async () => {
+    while ((target.queue.length > 0 || target.droppedQueueEvents > 0) && !target.unavailable) {
+      const batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
+      target.queueBytes = Math.max(
+        0,
+        target.queueBytes - batch.reduce((total, event) => total + JSON.stringify(event).length, 0)
+      );
+      const droppedEventCount = target.droppedQueueEvents;
+      target.droppedQueueEvents = 0;
+      await appendStoredEvents(batch, droppedEventCount);
+    }
+  })().catch(() => {
+    if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
+      return;
+    }
+    markUnavailable(target);
+  });
+  target.flushPromise = drain;
+  await drain;
+  if (target.flushPromise === drain) target.flushPromise = undefined;
 };
 
 const scheduleFlush = (target: Runtime, immediate = false): void => {
@@ -368,7 +320,7 @@ export const recordDeepTraceEvent = (
     sessionId: target.sessionId,
     sequence: target.sequence,
     at: Date.now(),
-    monotonicMs: roundDeepTraceMetric(nowMonotonic()),
+    monotonicMs: roundMetric(nowMonotonic()),
     name: normalizedName,
     ...(normalizedData ? { data: normalizedData } : {}),
   };
@@ -396,34 +348,6 @@ export const recordDeepTraceEvent = (
   scheduleFlush(target, options.flush);
 };
 
-export const createDeepTraceOperationId = (): number => {
-  operationSequence = (operationSequence + 1) % Number.MAX_SAFE_INTEGER;
-  return operationSequence;
-};
-
-export const incrementDeepTraceCounter = (name: string, amount = 1): void => {
-  const target = runtime;
-  const normalizedName = name.trim().toLowerCase();
-  if (
-    !target ||
-    !target.enabled ||
-    target.disposed ||
-    target.unavailable ||
-    !safeEventName(`counter.${normalizedName}`) ||
-    !Number.isFinite(amount)
-  ) {
-    return;
-  }
-  target.counters.set(normalizedName, (target.counters.get(normalizedName) ?? 0) + amount);
-};
-
-const flushCounters = (target: Runtime): void => {
-  target.counters.forEach((count, name) => {
-    recordDeepTraceEvent(`counter.${name}`, { count });
-  });
-  target.counters.clear();
-};
-
 export const getDeepTraceEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
 ): boolean => {
@@ -434,46 +358,7 @@ export const getDeepTraceEnabled = (
   }
 };
 
-const getElementSurface = (target: EventTarget | null): string => {
-  if (!(target instanceof Element)) return 'document';
-  if (target.closest('[role="dialog"]')) return 'dialog';
-  if (target.closest('[data-setting-title]')) return 'settings';
-  if (target.closest('[data-message-id]')) return 'timeline';
-  if (target.closest('nav,[role="navigation"]')) return 'navigation';
-  if (target.closest('form')) return 'form';
-  return 'app';
-};
-
-const getControlKind = (target: EventTarget | null): string => {
-  if (!(target instanceof Element)) return 'other';
-  const control = target.closest('button,a,input,textarea,select,[role]');
-  if (!control) return 'surface';
-  if (control instanceof HTMLAnchorElement) return 'link';
-  if (control instanceof HTMLButtonElement) return 'button';
-  if (control instanceof HTMLInputElement) {
-    return ['checkbox', 'radio', 'range'].includes(control.type) ? control.type : 'input';
-  }
-  if (control instanceof HTMLTextAreaElement) return 'textarea';
-  if (control instanceof HTMLSelectElement) return 'select';
-  const role = control.getAttribute('role');
-  return ['button', 'menuitem', 'tab', 'switch'].includes(role ?? '') ? role! : 'control';
-};
-
-const getScrollTop = (target: EventTarget | null): number => {
-  if (target === document) return document.scrollingElement?.scrollTop ?? 0;
-  return target instanceof Element ? target.scrollTop : 0;
-};
-
-export const classifyDeepTraceNetworkRequest = (
-  input: RequestInfo | URL
-):
-  | 'matrix.sync'
-  | 'matrix.relations'
-  | 'matrix.messages'
-  | 'matrix.media'
-  | 'matrix.client'
-  | 'app'
-  | 'external' => {
+export const classifyDeepTraceNetworkRequest = (input: RequestInfo | URL): NetworkCategory => {
   try {
     const raw = input instanceof Request ? input.url : String(input);
     const url = new URL(raw, window.location.origin);
@@ -499,15 +384,6 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit): string 
   return ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'].includes(method)
     ? method.toLowerCase()
     : 'other';
-};
-
-const hashText = (value: string, salt: number): number => {
-  let hash = 2166136261 ^ salt;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
 };
 
 const getErrorCode = (value: unknown): number => {
@@ -561,50 +437,20 @@ const getStackLocation = (stack: string | undefined, skipFrames = 0): DeepTraceD
   return {};
 };
 
-const getValueKindCode = (value: unknown): number => {
-  if (value instanceof Error) return 100 + getErrorCode(value);
-  return (
-    {
-      bigint: 1,
-      boolean: 2,
-      function: 3,
-      number: 4,
-      object: 5,
-      string: 6,
-      symbol: 7,
-      undefined: 8,
-    }[typeof value] ?? 0
-  );
-};
-
-const getErrorFingerprint = (value: unknown, salt: number): number => {
-  const location = value instanceof Error ? getStackLocation(value.stack) : {};
-  return hashText(
-    `${getErrorCode(value)}:${location.source_code ?? 0}:${location.line ?? 0}:${
-      location.column ?? 0
-    }`,
-    salt
-  );
-};
-
-const getConsoleFingerprint = (values: unknown[], salt: number): number =>
-  hashText(
-    values
-      .map((value) => {
-        const location = value instanceof Error ? getStackLocation(value.stack) : {};
-        return `${getValueKindCode(value)}:${location.source_code ?? 0}:${location.line ?? 0}:${
-          location.column ?? 0
-        }`;
-      })
-      .join('|'),
-    salt
-  );
-
 const startGlobalCapture = (target: Runtime): void => {
+  const removers: Array<() => void> = [];
+  const listen = (
+    source: EventTarget,
+    type: string,
+    listener: EventListener,
+    options?: AddEventListenerOptions | boolean
+  ) => {
+    source.addEventListener(type, listener, options);
+    removers.push(() => source.removeEventListener(type, listener, options));
+  };
   const visibility = () => {
     const state = document.visibilityState === 'visible' ? 'visible' : 'hidden';
     target.lastLoopTick = nowMonotonic();
-    if (state === 'hidden') flushCounters(target);
     recordDeepTraceEvent(`lifecycle.${state}`, undefined, { flush: state === 'hidden' });
   };
   const pageHide = () => recordDeepTraceEvent('lifecycle.pagehide', undefined, { flush: true });
@@ -612,8 +458,6 @@ const startGlobalCapture = (target: Runtime): void => {
     target.lastLoopTick = nowMonotonic();
     recordDeepTraceEvent('lifecycle.pageshow', undefined, { flush: true });
   };
-  const focus = () => recordDeepTraceEvent('lifecycle.focus');
-  const blur = () => recordDeepTraceEvent('lifecycle.blur');
   const online = () => recordDeepTraceEvent('network.online');
   const offline = () => recordDeepTraceEvent('network.offline', undefined, { flush: true });
   const error = (event: ErrorEvent) =>
@@ -621,7 +465,6 @@ const startGlobalCapture = (target: Runtime): void => {
       'error.global',
       {
         error_code: getErrorCode(event.error),
-        fingerprint: getErrorFingerprint(event.error, target.fingerprintSalt),
         source_code: getSourceCode(event.filename),
         line: event.lineno || 0,
         column: event.colno || 0,
@@ -633,112 +476,28 @@ const startGlobalCapture = (target: Runtime): void => {
       'error.unhandled_rejection',
       {
         error_code: getErrorCode(event.reason),
-        fingerprint: getErrorFingerprint(event.reason, target.fingerprintSalt),
         ...getStackLocation(event.reason instanceof Error ? event.reason.stack : undefined),
       },
       { flush: true }
     );
-  const pointerDown = (event: PointerEvent) =>
-    recordDeepTraceEvent(
-      `interaction.pointer.${getControlKind(event.target)}.${getElementSurface(event.target)}`,
-      {
-        primary: event.isPrimary,
-        pointer_count: event.pointerType === 'touch' ? 1 : 0,
-      }
-    );
-  const keyDown = (event: KeyboardEvent) => {
-    let kind: string | undefined;
-    if (event.key === 'Enter' || event.key === ' ') kind = 'activate';
-    else if (event.key === 'Escape') kind = 'escape';
-    else if (event.key === 'Tab' || event.key.startsWith('Arrow')) kind = 'navigate';
-    else if (event.metaKey || event.ctrlKey || event.altKey) kind = 'shortcut';
-    if (!kind) return;
-    recordDeepTraceEvent(`interaction.key.${kind}.${getElementSurface(event.target)}`, {
-      repeat: event.repeat,
+  const pointerDown = (event: PointerEvent) => {
+    const action = classifyFlightRecorderAction(event.target);
+    setFlightRecorderLastAction(action);
+    recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
+      primary: event.isPrimary,
+      pointer_count: event.pointerType === 'touch' ? 1 : 0,
     });
   };
-  const scroll = (event: Event) => {
-    const at = nowMonotonic();
-    const top = getScrollTop(event.target);
-    const surface = getElementSurface(event.target);
-    if (!target.scroll || target.scroll.surface !== surface) {
-      if (target.scroll?.timer !== undefined) window.clearTimeout(target.scroll.timer);
-      target.scroll = {
-        startedAt: at,
-        startTop: top,
-        lastTop: top,
-        eventCount: 0,
-        surface,
-      };
-      recordDeepTraceEvent(`interaction.scroll.start.${surface}`);
-    }
-    target.scroll.lastTop = top;
-    target.scroll.eventCount += 1;
-    if (target.scroll.timer !== undefined) window.clearTimeout(target.scroll.timer);
-    target.scroll.timer = window.setTimeout(() => {
-      const current = target.scroll;
-      if (!current) return;
-      recordDeepTraceEvent(`interaction.scroll.end.${current.surface}`, {
-        duration_ms: roundDeepTraceMetric(nowMonotonic() - current.startedAt),
-        distance_px: roundDeepTraceMetric(Math.abs(current.lastTop - current.startTop)),
-        event_count: current.eventCount,
-      });
-      target.scroll = undefined;
-    }, SCROLL_SETTLE_MS);
-  };
 
-  document.addEventListener('visibilitychange', visibility);
-  window.addEventListener('pagehide', pageHide);
-  window.addEventListener('pageshow', pageShow);
-  window.addEventListener('focus', focus);
-  window.addEventListener('blur', blur);
-  window.addEventListener('online', online);
-  window.addEventListener('offline', offline);
-  window.addEventListener('error', error);
-  window.addEventListener('unhandledrejection', rejection);
-  document.addEventListener('pointerdown', pointerDown, { capture: true, passive: true });
-  document.addEventListener('keydown', keyDown, { capture: true });
-  document.addEventListener('scroll', scroll, { capture: true, passive: true });
-
-  /* eslint-disable no-console -- Opt-in tracing delegates to the original console methods. */
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
-  const tracedConsoleError = (...values: unknown[]) => {
-    recordDeepTraceEvent('error.console.error', {
-      argument_count: values.length,
-      fingerprint: getConsoleFingerprint(values, target.fingerprintSalt),
-      ...getStackLocation(new Error().stack, 1),
-    });
-    originalConsoleError.apply(console, values);
-  };
-  const tracedConsoleWarn = (...values: unknown[]) => {
-    recordDeepTraceEvent('error.console.warn', {
-      argument_count: values.length,
-      fingerprint: getConsoleFingerprint(values, target.fingerprintSalt),
-      ...getStackLocation(new Error().stack, 1),
-    });
-    originalConsoleWarn.apply(console, values);
-  };
-  console.error = tracedConsoleError;
-  console.warn = tracedConsoleWarn;
-
-  target.removeListeners = () => {
-    document.removeEventListener('visibilitychange', visibility);
-    window.removeEventListener('pagehide', pageHide);
-    window.removeEventListener('pageshow', pageShow);
-    window.removeEventListener('focus', focus);
-    window.removeEventListener('blur', blur);
-    window.removeEventListener('online', online);
-    window.removeEventListener('offline', offline);
-    window.removeEventListener('error', error);
-    window.removeEventListener('unhandledrejection', rejection);
-    document.removeEventListener('pointerdown', pointerDown, { capture: true });
-    document.removeEventListener('keydown', keyDown, { capture: true });
-    document.removeEventListener('scroll', scroll, { capture: true });
-    if (console.error === tracedConsoleError) console.error = originalConsoleError;
-    if (console.warn === tracedConsoleWarn) console.warn = originalConsoleWarn;
-  };
-  /* eslint-enable no-console */
+  listen(document, 'visibilitychange', visibility);
+  listen(window, 'pagehide', pageHide);
+  listen(window, 'pageshow', pageShow);
+  listen(window, 'online', online);
+  listen(window, 'offline', offline);
+  listen(window, 'error', error as EventListener);
+  listen(window, 'unhandledrejection', rejection as EventListener);
+  listen(document, 'pointerdown', pointerDown as EventListener, { capture: true, passive: true });
+  target.removeListeners = () => removers.forEach((remove) => remove());
 };
 
 export const traceDeepDiagnosticFetch = async (
@@ -756,18 +515,21 @@ export const traceDeepDiagnosticFetch = async (
 
   const category = classifyDeepTraceNetworkRequest(input);
   const method = getRequestMethod(input, init);
-  const operationId = createDeepTraceOperationId();
+  requestSequence = (requestSequence + 1) % Number.MAX_SAFE_INTEGER;
+  const operationId = requestSequence;
   const startedAt = nowMonotonic();
-  recordDeepTraceEvent(`network.${category}.${method}.start`, {
-    operation_id: operationId,
-  });
+  recordDeepTraceEvent(
+    `network.${category}.${method}.start`,
+    { operation_id: operationId },
+    { flush: category.startsWith('matrix.') }
+  );
   try {
     const response = await baseFetch(input, init);
     const contentLengthHeader = response.headers.get('content-length');
     const contentLength = contentLengthHeader === null ? null : Number(contentLengthHeader);
     recordDeepTraceEvent(`network.${category}.${method}.complete`, {
       operation_id: operationId,
-      duration_ms: roundDeepTraceMetric(nowMonotonic() - startedAt),
+      duration_ms: roundMetric(nowMonotonic() - startedAt),
       status: response.status,
       content_bytes:
         contentLength !== null && Number.isFinite(contentLength) ? contentLength : null,
@@ -778,7 +540,7 @@ export const traceDeepDiagnosticFetch = async (
       `network.${category}.${method}.error`,
       {
         operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(nowMonotonic() - startedAt),
+        duration_ms: roundMetric(nowMonotonic() - startedAt),
       },
       { flush: true }
     );
@@ -807,7 +569,7 @@ const startPerformanceCapture = (target: Runtime): void => {
         recordDeepTraceEvent(
           'performance.event_loop_stall',
           {
-            delay_ms: roundDeepTraceMetric(delay),
+            delay_ms: roundMetric(delay),
           },
           { flush: true }
         );
@@ -818,40 +580,9 @@ const startPerformanceCapture = (target: Runtime): void => {
         target.lastRoute = routeKey;
         recordDeepTraceEvent(`navigation.${routeKey}`, undefined, { flush: true });
       }
-      target.sampleTick += 1;
-      if (target.sampleTick % 10 === 0) {
-        const memory = performance as Performance & {
-          memory?: { usedJSHeapSize?: number; totalJSHeapSize?: number };
-        };
-        recordDeepTraceEvent('performance.runtime_sample', {
-          heap_used_bytes: memory.memory?.usedJSHeapSize ?? 0,
-          heap_total_bytes: memory.memory?.totalJSHeapSize ?? 0,
-          queued_trace_events: target.queue.length,
-        });
-      }
     }
-    flushCounters(target);
     target.lastLoopTick = tick;
   }, LOOP_INTERVAL_MS);
-
-  if (typeof PerformanceObserver !== 'function') return;
-  try {
-    target.observer = new PerformanceObserver((list) => {
-      list.getEntries().forEach((entry) => {
-        recordDeepTraceEvent(
-          'performance.long_task',
-          {
-            duration_ms: roundDeepTraceMetric(entry.duration),
-            start_ms: roundDeepTraceMetric(entry.startTime),
-          },
-          { flush: entry.duration >= LOOP_STALL_THRESHOLD_MS }
-        );
-      });
-    });
-    target.observer.observe({ type: 'longtask' });
-  } catch {
-    target.observer = undefined;
-  }
 };
 
 const start = (target: Runtime): void => {
@@ -860,11 +591,8 @@ const start = (target: Runtime): void => {
   target.enabled = true;
   target.unavailable = false;
   target.sessionId = createSessionId();
-  target.fingerprintSalt = createFingerprintSalt();
   target.sequence = 0;
   target.lastRoute = undefined;
-  target.sampleTick = 0;
-  target.counters.clear();
   startGlobalCapture(target);
   startPerformanceCapture(target);
   recordDeepTraceEvent('trace.session.start', undefined, { flush: true });
@@ -905,22 +633,24 @@ const stopCapture = (target: Runtime): void => {
   target.starting = false;
   target.removeListeners();
   target.removeListeners = () => undefined;
-  target.observer?.disconnect();
-  target.observer = undefined;
   if (target.loopTimer !== undefined) window.clearInterval(target.loopTimer);
   target.loopTimer = undefined;
-  if (target.scroll?.timer !== undefined) window.clearTimeout(target.scroll.timer);
-  target.scroll = undefined;
-  target.counters.clear();
+};
+
+const releaseDatabase = (): void => {
+  const released = databasePromise;
+  databasePromise = undefined;
+  void released?.then((database) => database.close()).catch(() => undefined);
 };
 
 const stop = (target: Runtime, clearUnavailable = false): void => {
+  const wasStarting = target.starting;
   target.activationSequence += 1;
   if (target.enabled) {
-    flushCounters(target);
     recordDeepTraceEvent('trace.session.stop', undefined, { flush: true });
   }
   stopCapture(target);
+  if (wasStarting) releaseDatabase();
   if (!target.unavailable) void flush(target);
   if (clearUnavailable) target.unavailable = false;
   notifyStatus(target);
@@ -929,9 +659,7 @@ const stop = (target: Runtime, clearUnavailable = false): void => {
 const markUnavailable = (target: Runtime): void => {
   target.activationSequence += 1;
   target.unavailable = true;
-  const failedDatabase = databasePromise;
-  databasePromise = undefined;
-  void failedDatabase?.then((database) => database.close()).catch(() => undefined);
+  releaseDatabase();
   stopCapture(target);
   target.queue.length = 0;
   target.queueBytes = 0;
@@ -944,39 +672,20 @@ const markUnavailable = (target: Runtime): void => {
 
 const verifyDatabaseWritable = async (): Promise<void> => {
   const db = await getDatabase();
-  const tx = db.transaction(META_STORE, 'readwrite');
-  const store = tx.objectStore(META_STORE);
-  const current = (await store.get(STATS_KEY)) ?? EMPTY_STATS;
-  await store.put(
-    {
-      ...current,
-      droppedEventCount: current.droppedEventCount ?? 0,
-    },
+  const current = (await db.get(META_STORE, STATS_KEY)) ?? EMPTY_STATS;
+  await db.put(
+    META_STORE,
+    { ...current, droppedEventCount: current.droppedEventCount ?? 0 },
     STATS_KEY
   );
-  await tx.done;
 };
+
+const ownsActivation = (target: Runtime, generation: number): boolean =>
+  runtime === target && !target.disposed && target.activationSequence === generation;
 
 const activate = (target: Runtime): Promise<boolean> => {
   if (target.enabled) return Promise.resolve(true);
-  if (target.activationPromise) {
-    const pendingActivation = target.activationPromise;
-    return pendingActivation.then((activated) => {
-      if (activated || target.enabled) return true;
-      if (
-        runtime !== target ||
-        target.disposed ||
-        target.unavailable ||
-        !getDeepTraceEnabled(target.storage)
-      ) {
-        return false;
-      }
-      if (target.activationPromise === pendingActivation) {
-        target.activationPromise = undefined;
-      }
-      return activate(target);
-    });
-  }
+  if (target.activationPromise && target.starting) return target.activationPromise;
   if (typeof indexedDB === 'undefined') {
     markUnavailable(target);
     return Promise.resolve(false);
@@ -991,20 +700,13 @@ const activate = (target: Runtime): Promise<boolean> => {
   const activationPromise = (async () => {
     try {
       await verifyDatabaseWritable();
-      if (
-        runtime !== target ||
-        target.disposed ||
-        target.activationSequence !== activationSequence ||
-        !getDeepTraceEnabled(target.storage)
-      ) {
+      if (!ownsActivation(target, activationSequence) || !getDeepTraceEnabled(target.storage)) {
         return false;
       }
       start(target);
       await flush(target);
       if (
-        runtime !== target ||
-        target.disposed ||
-        target.activationSequence !== activationSequence ||
+        !ownsActivation(target, activationSequence) ||
         target.unavailable ||
         !target.enabled ||
         !getDeepTraceEnabled(target.storage)
@@ -1014,11 +716,7 @@ const activate = (target: Runtime): Promise<boolean> => {
       notifyStatus(target);
       return true;
     } catch {
-      if (
-        runtime !== target ||
-        target.disposed ||
-        target.activationSequence !== activationSequence
-      ) {
+      if (!ownsActivation(target, activationSequence)) {
         return false;
       }
       markUnavailable(target);
@@ -1050,21 +748,17 @@ export const initializeDeepTraceRecorder = (
 
   const target: Runtime = {
     storage,
-    initialized: true,
     enabled: false,
     unavailable: typeof indexedDB === 'undefined',
     starting: false,
     disposed: false,
     sessionId: createSessionId(),
-    fingerprintSalt: createFingerprintSalt(),
     sequence: 0,
     queue: [],
     queueBytes: 0,
     droppedQueueEvents: 0,
     activationSequence: 0,
     lastLoopTick: 0,
-    sampleTick: 0,
-    counters: new Map(),
     removeListeners: () => undefined,
   };
   runtime = target;
@@ -1096,18 +790,10 @@ export const setDeepTraceEnabled = async (
   return activate(target);
 };
 
-const clearPendingAggregates = (target: Runtime): void => {
-  target.counters.clear();
-  const scrollTimer = target.scroll?.timer;
-  if (scrollTimer !== undefined) window.clearTimeout(scrollTimer);
-  target.scroll = undefined;
-};
-
 const resetPendingState = (target: Runtime): void => {
   target.queue.length = 0;
   target.queueBytes = 0;
   target.droppedQueueEvents = 0;
-  clearPendingAggregates(target);
   if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
   target.flushTimer = undefined;
 };

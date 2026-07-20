@@ -14,6 +14,31 @@ const HEARTBEAT_MS = 2000;
 const GAP_MS = 5000;
 const routes = ['home', 'direct', 'threads', 'space', 'auth', 'other'] as const;
 const voices = ['inactive', 'requesting', 'recording', 'paused', 'processing'] as const;
+const actionKinds = [
+  'button',
+  'checkbox',
+  'control',
+  'input',
+  'link',
+  'menuitem',
+  'other',
+  'radio',
+  'range',
+  'select',
+  'surface',
+  'switch',
+  'tab',
+  'textarea',
+] as const;
+const actionSurfaces = [
+  'app',
+  'dialog',
+  'document',
+  'form',
+  'navigation',
+  'settings',
+  'timeline',
+] as const;
 export const normalizeFlightRecorderBuildVersion = (value: string): string =>
   value
     .trim()
@@ -22,6 +47,13 @@ export const normalizeFlightRecorderBuildVersion = (value: string): string =>
 const FLIGHT_RECORDER_BUILD_VERSION = normalizeFlightRecorderBuildVersion(APP_BUILD_VERSION);
 type RouteClass = typeof routes[number];
 export type VoiceCaptureState = typeof voices[number];
+export type FlightRecorderActionKind = typeof actionKinds[number];
+export type FlightRecorderActionSurface = typeof actionSurfaces[number];
+export type FlightRecorderLastAction = {
+  at: number;
+  kind: FlightRecorderActionKind;
+  surface: FlightRecorderActionSurface;
+};
 type EndReason = 'hidden' | 'pagehide';
 type FlightEvent =
   | { at: number; type: 'voice'; state: VoiceCaptureState }
@@ -42,6 +74,7 @@ export type FlightRecorderSession = {
   expectedEndAt: number | null;
   endReason: EndReason | null;
   events: FlightEvent[];
+  lastAction?: FlightRecorderLastAction;
 };
 type AbnormalSession = FlightRecorderSession & { detectedAt: number; startupGapMs: number };
 type Runtime = {
@@ -69,6 +102,16 @@ const read = (storage: Storage | undefined, key: string) => {
 };
 const number = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction => {
+  const action = value as Partial<FlightRecorderLastAction> | null;
+  return Boolean(
+    action &&
+      Object.keys(action).length === 3 &&
+      number(action.at) &&
+      actionKinds.includes(action.kind as FlightRecorderActionKind) &&
+      actionSurfaces.includes(action.surface as FlightRecorderActionSurface)
+  );
+};
 const eventIsValid = (value: unknown): value is FlightEvent => {
   const event = value as Partial<FlightEvent> | null;
   if (!event || !number(event.at)) return false;
@@ -95,9 +138,10 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
 };
 const sessionIsValid = (value: unknown): value is FlightRecorderSession => {
   const item = value as Partial<FlightRecorderSession> | null;
+  const keyCount = item ? Object.keys(item).length : 0;
   return Boolean(
     item &&
-      Object.keys(item).length === 12 &&
+      (keyCount === 12 || (keyCount === 13 && lastActionIsValid(item.lastAction))) &&
       item.schemaVersion === FLIGHT_RECORDER_SCHEMA_VERSION &&
       typeof item.buildVersion === 'string' &&
       /^[A-Za-z0-9._+-]{1,128}$/.test(item.buildVersion) &&
@@ -131,7 +175,7 @@ const parseAbnormal = (raw: string | null): AbnormalSession | undefined => {
   try {
     const abnormal = JSON.parse(raw) as AbnormalSession;
     const { detectedAt, startupGapMs, ...value } = abnormal;
-    return Object.keys(abnormal).length === 14 &&
+    return (Object.keys(abnormal).length === 14 || Object.keys(abnormal).length === 15) &&
       number(detectedAt) &&
       number(startupGapMs) &&
       sessionIsValid(value) &&
@@ -212,6 +256,39 @@ export const classifyFlightRecorderRoute = (
   )
     route = 'space';
   return { route, hasThreadId: url.searchParams.has('threadId') };
+};
+
+export const classifyFlightRecorderAction = (
+  target: EventTarget | null
+): Pick<FlightRecorderLastAction, 'kind' | 'surface'> => {
+  let surface: FlightRecorderActionSurface = 'document';
+  if (target instanceof Element) {
+    if (target.closest('[role="dialog"]')) surface = 'dialog';
+    else if (target.closest('[data-setting-title]')) surface = 'settings';
+    else if (target.closest('[data-message-id]')) surface = 'timeline';
+    else if (target.closest('nav,[role="navigation"]')) surface = 'navigation';
+    else if (target.closest('form')) surface = 'form';
+    else surface = 'app';
+  }
+
+  if (!(target instanceof Element)) return { kind: 'other', surface };
+  const control = target.closest('button,a,input,textarea,select,[role]');
+  if (!control) return { kind: 'surface', surface };
+  if (control instanceof HTMLAnchorElement) return { kind: 'link', surface };
+  if (control instanceof HTMLButtonElement) return { kind: 'button', surface };
+  if (control instanceof HTMLInputElement) {
+    const kind = actionKinds.includes(control.type as FlightRecorderActionKind)
+      ? (control.type as FlightRecorderActionKind)
+      : 'input';
+    return { kind, surface };
+  }
+  if (control instanceof HTMLTextAreaElement) return { kind: 'textarea', surface };
+  if (control instanceof HTMLSelectElement) return { kind: 'select', surface };
+  const role = control.getAttribute('role');
+  const kind = ['button', 'menuitem', 'tab', 'switch'].includes(role ?? '')
+    ? (role as FlightRecorderActionKind)
+    : 'control';
+  return { kind, surface };
 };
 
 export const installFlightRecorder = (
@@ -400,6 +477,25 @@ export const setFlightRecorderVoiceCaptureState = (state: VoiceCaptureState): vo
   }
   runtime.session.voiceCapture = state;
   add(runtime, { at: Date.now(), type: 'voice', state });
+  flush(runtime);
+};
+
+export const setFlightRecorderLastAction = (
+  action: Pick<FlightRecorderLastAction, 'kind' | 'surface'>,
+  at = Date.now()
+): void => {
+  const runtime = activeRuntime;
+  if (
+    !runtime ||
+    runtime.disabled ||
+    !runtime.session ||
+    !number(at) ||
+    !actionKinds.includes(action.kind) ||
+    !actionSurfaces.includes(action.surface)
+  ) {
+    return;
+  }
+  runtime.session.lastAction = { at, ...action };
   flush(runtime);
 };
 

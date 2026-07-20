@@ -48,12 +48,12 @@ export function About({ requestClose }: AboutProps) {
   const [deepTraceError, setDeepTraceError] = React.useState<
     'storage' | 'preference' | undefined
   >();
-  const deepTraceChangeSequence = React.useRef(0);
+  const [deepTraceChanging, setDeepTraceChanging] = React.useState(false);
   const [clearingDeepTrace, setClearingDeepTrace] = React.useState(false);
   const nativeIOS = isNativeIOS();
   const diagnosticsStatus = getFlightRecorderStatus();
   const diagnosticsDescription = {
-    unexpected: 'Previous session ended unexpectedly.',
+    unexpected: 'Previous session ended unexpectedly; the cause is unknown.',
     none: 'No unexpected session retained.',
     unavailable: 'Diagnostics storage unavailable.',
   }[diagnosticsStatus];
@@ -63,12 +63,19 @@ export function About({ requestClose }: AboutProps) {
       subscribeDeepTraceStatus((status) => {
         if (status === 'unavailable') {
           setDeepTracing(false);
+          setDeepTraceChanging(false);
           setDeepTraceError('storage');
-        } else if (status === 'recording' || status === 'starting') {
+        } else if (status === 'starting') {
           setDeepTracing(true);
+          setDeepTraceChanging(true);
+          setDeepTraceError(undefined);
+        } else if (status === 'recording') {
+          setDeepTracing(true);
+          setDeepTraceChanging(false);
           setDeepTraceError(undefined);
         } else {
           setDeepTracing(false);
+          setDeepTraceChanging(false);
         }
       }),
     []
@@ -103,8 +110,9 @@ export function About({ requestClose }: AboutProps) {
   };
 
   const handleDeepTraceChange = async (enabled: boolean) => {
-    const changeSequence = deepTraceChangeSequence.current + 1;
-    deepTraceChangeSequence.current = changeSequence;
+    if (deepTraceChanging) return;
+    setDeepTraceChanging(true);
+    setDeepTracing(enabled);
     setDeepTraceError(undefined);
     let saved = false;
     try {
@@ -112,11 +120,11 @@ export function About({ requestClose }: AboutProps) {
     } catch {
       saved = false;
     }
-    if (deepTraceChangeSequence.current !== changeSequence) return;
     if (!saved) {
       setDeepTraceError(enabled ? 'storage' : 'preference');
     }
     setDeepTracing(enabled && saved);
+    setDeepTraceChanging(false);
   };
 
   const handleClearDeepTrace = async () => {
@@ -248,7 +256,7 @@ export function About({ requestClose }: AboutProps) {
                             size="300"
                             radii="300"
                             outlined
-                            disabled={clearingDeepTrace}
+                            disabled={clearingDeepTrace || deepTraceChanging}
                             before={
                               clearingDeepTrace && (
                                 <Spinner size="200" variant="Secondary" fill="Soft" />
@@ -263,6 +271,7 @@ export function About({ requestClose }: AboutProps) {
                             variant="Primary"
                             value={deepTracing}
                             onChange={handleDeepTraceChange}
+                            disabled={deepTraceChanging}
                           />
                         </Box>
                       }
