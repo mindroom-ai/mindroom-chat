@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, Icons, Text } from 'folds';
 import * as css from './recentThreads.css';
@@ -11,6 +11,7 @@ type RecentThreadsResizeProps = {
   collapsedHeight: number;
   onPreviewHeightChange: (height: number) => void;
   onCommitHeightChange: (height: number) => void;
+  onDraggingChange?: (dragging: boolean) => void;
   entryCount?: never;
   isExpanded?: boolean;
   onToggle?: never;
@@ -27,6 +28,7 @@ type RecentThreadsToggleProps = {
   collapsedHeight?: never;
   onPreviewHeightChange?: never;
   onCommitHeightChange?: never;
+  onDraggingChange?: never;
 };
 
 type RecentThreadsDividerProps = RecentThreadsResizeProps | RecentThreadsToggleProps;
@@ -63,8 +65,29 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
     toggleProps && toggleProps.entryCount > 0 ? `${toggleProps.entryCount}` : undefined;
   const [dragging, setDragging] = useState(false);
   const dragStateRef = useRef<DragState | undefined>(undefined);
+  const resizePropsRef = useRef(resizeProps);
+  const onDraggingChangeRef = useRef(resizeProps?.onDraggingChange);
 
-  const clearWindowListenersRef = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    resizePropsRef.current = resizeProps;
+    if (resizeProps) {
+      onDraggingChangeRef.current = resizeProps.onDraggingChange;
+    }
+  }, [resizeProps]);
+
+  useEffect(() => {
+    onDraggingChangeRef.current?.(dragging);
+  }, [dragging]);
+
+  useEffect(
+    () => () => {
+      if (!dragStateRef.current) return;
+
+      dragStateRef.current = undefined;
+      onDraggingChangeRef.current?.(false);
+    },
+    []
+  );
 
   const commitResolvedHeight = useCallback(
     (nextHeight: number) => {
@@ -82,74 +105,88 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
     [resizeProps]
   );
 
-  const handlePointerMove = useCallback(
-    (evt: PointerEvent) => {
+  useEffect(() => {
+    if (!dragging) return undefined;
+
+    const handlePointerMove = (evt: PointerEvent) => {
       const dragState = dragStateRef.current;
-      if (!dragState || evt.pointerId !== dragState.pointerId || !resizeProps) return;
+      const currentResizeProps = resizePropsRef.current;
+      if (!dragState || evt.pointerId !== dragState.pointerId || !currentResizeProps) return;
 
       const deltaY = evt.clientY - dragState.startY;
       const nextHeight = getResolvedHeight(
         dragState.startHeight - deltaY,
-        resizeProps.minHeight,
-        resizeProps.maxHeight,
-        resizeProps.collapsedHeight
+        currentResizeProps.minHeight,
+        currentResizeProps.maxHeight,
+        currentResizeProps.collapsedHeight
       );
 
       dragState.lastHeight = nextHeight;
-      resizeProps.onPreviewHeightChange(nextHeight);
-    },
-    [resizeProps]
-  );
+      currentResizeProps.onPreviewHeightChange(nextHeight);
+    };
 
-  const finishDrag = useCallback(
-    (pointerId: number, commit: boolean) => {
+    const finishDrag = (pointerId: number, commit: boolean) => {
       const dragState = dragStateRef.current;
       if (!dragState || dragState.pointerId !== pointerId) return;
 
       dragStateRef.current = undefined;
-      clearWindowListenersRef.current();
       setDragging(false);
 
-      if (!resizeProps) {
-        return;
-      }
+      const currentResizeProps = resizePropsRef.current;
+      if (!currentResizeProps) return;
 
       if (commit) {
-        resizeProps.onCommitHeightChange(dragState.lastHeight);
+        const committedHeight = getResolvedHeight(
+          dragState.lastHeight,
+          currentResizeProps.minHeight,
+          currentResizeProps.maxHeight,
+          currentResizeProps.collapsedHeight
+        );
+        currentResizeProps.onPreviewHeightChange(committedHeight);
+        currentResizeProps.onCommitHeightChange(committedHeight);
         return;
       }
 
-      resizeProps.onPreviewHeightChange(dragState.startHeight);
-    },
-    [resizeProps]
-  );
+      currentResizeProps.onPreviewHeightChange(
+        getResolvedHeight(
+          dragState.startHeight,
+          currentResizeProps.minHeight,
+          currentResizeProps.maxHeight,
+          currentResizeProps.collapsedHeight
+        )
+      );
+    };
 
-  const handlePointerUp = useCallback(
-    (evt: PointerEvent) => {
+    const handlePointerUp = (evt: PointerEvent) => {
       finishDrag(evt.pointerId, true);
-    },
-    [finishDrag]
-  );
+    };
 
-  const handlePointerCancel = useCallback(
-    (evt: PointerEvent) => {
+    const handlePointerCancel = (evt: PointerEvent) => {
       finishDrag(evt.pointerId, false);
-    },
-    [finishDrag]
-  );
+    };
 
-  useEffect(
-    () => () => {
-      clearWindowListenersRef.current();
-    },
-    []
-  );
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+    };
+  }, [dragging]);
+
+  useEffect(() => {
+    if (!resizeProps && dragging) {
+      dragStateRef.current = undefined;
+      setDragging(false);
+    }
+  }, [dragging, resizeProps]);
 
   const handlePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     if (!resizeProps) return;
 
     evt.preventDefault();
-    clearWindowListenersRef.current();
 
     dragStateRef.current = {
       pointerId: evt.pointerId,
@@ -158,18 +195,6 @@ export function RecentThreadsDivider(props: RecentThreadsDividerProps) {
       lastHeight: resizeProps.panelHeight,
     };
     setDragging(true);
-
-    const clearWindowListeners = () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerCancel);
-    };
-
-    clearWindowListenersRef.current = clearWindowListeners;
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerCancel);
   };
 
   const handleResizeKeyDown = (evt: React.KeyboardEvent<HTMLDivElement>) => {

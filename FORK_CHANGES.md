@@ -4,16 +4,20 @@
 
 ### Restore Recent Threads beside the thread navigation category (2026-07-20)
 
-- Status: implementation, regression coverage, full local validation, and independent review are complete on `feat/restore-recent-threads`.
+- Status: implementation, regression coverage, full local validation, independent review, and PR review remediation are complete on `feat/restore-recent-threads`.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed the separate `Recent Threads` panel, including its desktop resize control and mobile expand toggle.
 - The `Threads` category remains unchanged, while Home, Direct Messages, and Space navigation shells again show the separate per-user recent-open panel.
 - Desktop restores the keyboard-accessible resizable panel, and mobile restores the persisted collapsed or expanded toggle.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - Logout cleanup now removes the restored per-user panel height and mobile expansion stores alongside recent entries and thread sidebar preferences.
 - The live sidebar spec now scopes identical thread buttons to their owning surface and verifies that the `Threads` category and `Recent Threads` panel coexist across desktop, tablet, and mobile layouts.
-- Validation passes 13 focused files with 201 tests, the full Vitest suite with 447 files and 3,418 tests, typecheck, the production and PWA build with Element Call verification, touched-file ESLint, Playwright spec discovery, Prettier, and `git diff --check`.
+- Validation passes 13 focused files with 204 tests, the full Vitest suite with 447 files and 3,421 tests, typecheck, the production and PWA build with Element Call verification, touched-file ESLint, Playwright spec discovery, Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent review found one ambiguous room-name assertion in the live coexistence spec, which is now scoped to the Rooms category; independent re-review found no remaining issues.
+- PR review found a redundant mount-time resize debounce, dead header-button styling, stale drag callbacks, and viewport resizing that could overwrite an active drag preview.
+  The resize divider now owns declarative listeners backed by current bounds, commits a freshly clamped height, pauses viewport synchronization during a drag, and has focused coverage for changing bounds and mid-drag viewport resizing.
+- Independent remediation review required commit-synchronous bound updates and explicit drag cleanup coverage for mode switches and unmounts.
+  The ref now updates in a layout effect, cleanup notifies its owner, the lifecycle cases are pinned, and the final review found only the now-corrected validation counts.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

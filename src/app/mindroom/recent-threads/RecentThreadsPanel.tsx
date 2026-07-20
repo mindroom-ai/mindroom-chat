@@ -120,6 +120,7 @@ export function RecentThreadsPageNav({ children, header }: RecentThreadsPageNavP
   const allRoomIds = useAtomValue(allRoomsAtom);
   const [storedPanelHeight, setStoredPanelHeight] = useAtom(recentThreadsPanelHeightAtom);
   const [mobileExpanded, setMobileExpanded] = useAtom(recentThreadsPanelMobileExpandedAtom);
+  const [resizing, setResizing] = useState(false);
   const viewportHeight = useDebouncedViewportHeight();
   const resolvedLayout = useResolvedRecentThreadsLayout({
     screenSize,
@@ -131,8 +132,9 @@ export function RecentThreadsPageNav({ children, header }: RecentThreadsPageNavP
   const [panelHeight, setPanelHeight] = useState(resolvedLayout.height);
 
   useEffect(() => {
+    if (resizing) return;
     setPanelHeight(resolvedLayout.height);
-  }, [resolvedLayout.height]);
+  }, [resizing, resolvedLayout.height]);
 
   const maxPanelHeight = resolvedLayout.maxHeight;
 
@@ -165,6 +167,7 @@ export function RecentThreadsPageNav({ children, header }: RecentThreadsPageNavP
             collapsedHeight={RECENT_THREADS_PANEL_COLLAPSED_HEIGHT}
             onPreviewHeightChange={setPanelHeight}
             onCommitHeightChange={setStoredPanelHeight}
+            onDraggingChange={setResizing}
           />
         )}
         <RecentThreadsPanel

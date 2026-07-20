@@ -115,9 +115,12 @@ describe('RecentThreadsDivider', () => {
       expect(onCommitHeightChange).toHaveBeenLastCalledWith(32);
     });
 
-    it('cleans up the previous window listeners before starting a second drag', () => {
+    it('uses current resize bounds while keeping one listener set across restarted drags', () => {
       const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+      const onPreviewHeightChange = vi.fn();
+      const onCommitHeightChange = vi.fn();
+      const onDraggingChange = vi.fn();
 
       act(() => {
         renderer = create(
@@ -127,8 +130,9 @@ describe('RecentThreadsDivider', () => {
             minHeight: 80,
             maxHeight: 240,
             collapsedHeight: 32,
-            onPreviewHeightChange: vi.fn(),
-            onCommitHeightChange: vi.fn(),
+            onPreviewHeightChange,
+            onCommitHeightChange,
+            onDraggingChange,
           })
         );
       });
@@ -144,6 +148,7 @@ describe('RecentThreadsDivider', () => {
       });
 
       expect(addEventListenerSpy).toHaveBeenCalledTimes(3);
+      expect(onDraggingChange).toHaveBeenLastCalledWith(true);
 
       act(() => {
         separator.props.onPointerDown({
@@ -153,18 +158,119 @@ describe('RecentThreadsDivider', () => {
         });
       });
 
+      expect(addEventListenerSpy).toHaveBeenCalledTimes(3);
+      expect(removeEventListenerSpy).not.toHaveBeenCalled();
+
+      act(() => {
+        renderer?.update(
+          React.createElement(RecentThreadsDivider, {
+            mode: 'resize',
+            panelHeight: 120,
+            minHeight: 80,
+            maxHeight: 160,
+            collapsedHeight: 32,
+            onPreviewHeightChange,
+            onCommitHeightChange,
+            onDraggingChange,
+          })
+        );
+      });
+
+      const getWindowListener = (eventName: string) =>
+        addEventListenerSpy.mock.calls.find(([name]) => name === eventName)?.[1] as EventListener;
+
+      act(() => {
+        getWindowListener('pointermove')({ pointerId: 1, clientY: 0 } as PointerEvent);
+        getWindowListener('pointermove')({ pointerId: 2, clientY: 0 } as PointerEvent);
+      });
+
+      expect(onPreviewHeightChange).toHaveBeenLastCalledWith(160);
+
+      act(() => {
+        getWindowListener('pointerup')({ pointerId: 2 } as PointerEvent);
+      });
+
+      expect(onCommitHeightChange).toHaveBeenLastCalledWith(160);
+      expect(onDraggingChange).toHaveBeenLastCalledWith(false);
       expect(removeEventListenerSpy).toHaveBeenCalledTimes(3);
-      expect(removeEventListenerSpy).toHaveBeenNthCalledWith(
-        1,
-        'pointermove',
-        expect.any(Function)
-      );
-      expect(removeEventListenerSpy).toHaveBeenNthCalledWith(2, 'pointerup', expect.any(Function));
-      expect(removeEventListenerSpy).toHaveBeenNthCalledWith(
-        3,
-        'pointercancel',
-        expect.any(Function)
-      );
+    });
+
+    it('ends an active drag and removes listeners when switching to toggle mode', () => {
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+      const onDraggingChange = vi.fn();
+
+      act(() => {
+        renderer = create(
+          React.createElement(RecentThreadsDivider, {
+            mode: 'resize',
+            panelHeight: 120,
+            minHeight: 80,
+            maxHeight: 240,
+            collapsedHeight: 32,
+            onPreviewHeightChange: vi.fn(),
+            onCommitHeightChange: vi.fn(),
+            onDraggingChange,
+          })
+        );
+      });
+
+      act(() => {
+        getSeparator(renderer!).props.onPointerDown({
+          pointerId: 1,
+          clientY: 200,
+          preventDefault: vi.fn(),
+        });
+      });
+
+      act(() => {
+        renderer?.update(
+          React.createElement(RecentThreadsDivider, {
+            entryCount: 1,
+            mode: 'toggle',
+            isExpanded: true,
+            onToggle: vi.fn(),
+          })
+        );
+      });
+
+      expect(onDraggingChange).toHaveBeenLastCalledWith(false);
+      expect(removeEventListenerSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('ends an active drag and removes listeners when unmounted', () => {
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+      const onDraggingChange = vi.fn();
+
+      act(() => {
+        renderer = create(
+          React.createElement(RecentThreadsDivider, {
+            mode: 'resize',
+            panelHeight: 120,
+            minHeight: 80,
+            maxHeight: 240,
+            collapsedHeight: 32,
+            onPreviewHeightChange: vi.fn(),
+            onCommitHeightChange: vi.fn(),
+            onDraggingChange,
+          })
+        );
+      });
+
+      act(() => {
+        getSeparator(renderer!).props.onPointerDown({
+          pointerId: 1,
+          clientY: 200,
+          preventDefault: vi.fn(),
+        });
+      });
+
+      act(() => {
+        renderer?.unmount();
+      });
+      renderer = undefined;
+
+      expect(onDraggingChange).toHaveBeenLastCalledWith(false);
+      expect(removeEventListenerSpy).toHaveBeenCalledTimes(3);
     });
   });
 

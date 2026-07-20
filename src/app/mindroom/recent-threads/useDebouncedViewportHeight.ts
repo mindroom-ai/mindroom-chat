@@ -20,7 +20,6 @@ export const useDebouncedViewportHeight = (debounceMs = VIEWPORT_RESIZE_DEBOUNCE
       }, debounceMs);
     };
 
-    handleResize();
     window.addEventListener('resize', handleResize);
 
     return () => {

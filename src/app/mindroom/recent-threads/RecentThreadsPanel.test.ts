@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { clearRecentThreadsStore } from './recentThreads';
+import { clearRecentThreadsPanelHeightStore } from './recentThreadsPanelHeight';
+import { clearRecentThreadsPanelMobileExpandedStore } from './recentThreadsPanelMobileExpanded';
 import { RecentThreadsPageNav, RecentThreadsPanel } from './RecentThreadsPanel';
 import { buildVisibleRecentThreadEntries } from './recentThreadsPanelUtils';
 
@@ -50,6 +52,7 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 
 const RECENT_THREADS_STORAGE_KEY = 'recentThreads:@alice:example.org';
+const RECENT_THREADS_PANEL_HEIGHT_STORAGE_KEY = 'recentThreadsPanelHeight:@alice:example.org';
 
 const createStorage = (): Storage => {
   const state = new Map<string, string>();
@@ -85,6 +88,13 @@ beforeEach(() => {
       setTimeout,
     },
   });
+  clearRecentThreadsStore('@alice:example.org');
+  clearRecentThreadsPanelHeightStore('@alice:example.org');
+  clearRecentThreadsPanelMobileExpandedStore('@alice:example.org');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('buildVisibleRecentThreadEntries', () => {
@@ -134,6 +144,8 @@ describe('RecentThreadsPanel', () => {
     renderer = undefined;
     localStorage.removeItem(RECENT_THREADS_STORAGE_KEY);
     clearRecentThreadsStore('@alice:example.org');
+    clearRecentThreadsPanelHeightStore('@alice:example.org');
+    clearRecentThreadsPanelMobileExpandedStore('@alice:example.org');
     getDefaultStore().set(allRoomsAtom, { type: 'INITIALIZE', rooms: [] });
     mxMock.getRoom.mockReset();
   });
@@ -184,6 +196,8 @@ describe('RecentThreadsPageNav', () => {
     renderer = undefined;
     localStorage.removeItem(RECENT_THREADS_STORAGE_KEY);
     clearRecentThreadsStore('@alice:example.org');
+    clearRecentThreadsPanelHeightStore('@alice:example.org');
+    clearRecentThreadsPanelMobileExpandedStore('@alice:example.org');
     getDefaultStore().set(allRoomsAtom, { type: 'INITIALIZE', rooms: [] });
     mxMock.getRoom.mockReset();
   });
@@ -241,5 +255,60 @@ describe('RecentThreadsPageNav', () => {
     expect(
       renderer!.root.findAll((node) => node.props['data-recent-thread-id'] === '$thread')
     ).toHaveLength(1);
+  });
+
+  it('keeps the drag preview through viewport changes and commits against the latest bounds', () => {
+    vi.useFakeTimers();
+    window.setTimeout = setTimeout;
+    window.clearTimeout = clearTimeout;
+    localStorage.setItem(
+      RECENT_THREADS_PANEL_HEIGHT_STORAGE_KEY,
+      JSON.stringify({ v: 1, height: 400 })
+    );
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          ScreenSizeProvider,
+          { value: ScreenSize.Desktop },
+          React.createElement(
+            RecentThreadsPageNav,
+            { header: React.createElement('div', null, 'header') },
+            React.createElement('div', null, 'children')
+          )
+        )
+      );
+    });
+
+    const getPanel = () => renderer!.root.findByProps({ 'data-testid': 'recent-threads-panel' });
+    const separator = renderer!.root.find((node) => node.props.role === 'separator');
+    const getWindowListener = (eventName: string) =>
+      vi
+        .mocked(window.addEventListener)
+        .mock.calls.find(([name]) => name === eventName)?.[1] as EventListener;
+
+    expect(getPanel().props.style.height).toBe('400px');
+
+    act(() => {
+      separator.props.onPointerDown({
+        pointerId: 1,
+        clientY: 400,
+        preventDefault: vi.fn(),
+      });
+    });
+
+    act(() => {
+      Object.assign(window, { innerHeight: 300 });
+      getWindowListener('resize')({} as Event);
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(getPanel().props.style.height).toBe('400px');
+
+    act(() => {
+      getWindowListener('pointerup')({ pointerId: 1 } as unknown as PointerEvent);
+    });
+
+    expect(getPanel().props.style.height).toBe('180px');
   });
 });

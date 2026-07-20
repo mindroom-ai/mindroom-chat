@@ -163,24 +163,3 @@ export const DividerToggleHandle = style({
   width: '24px',
   flexShrink: 0,
 });
-
-export const PanelHeaderButton = style([
-  DefaultReset,
-  {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    minHeight: '32px',
-    padding: `0 ${config.space.S300}`,
-    color: color.SurfaceVariant.OnContainer,
-    cursor: 'pointer',
-    ':hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
-    },
-    ':focus-visible': {
-      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
-    },
-  },
-]);
