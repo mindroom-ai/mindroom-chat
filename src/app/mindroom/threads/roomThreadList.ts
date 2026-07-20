@@ -167,6 +167,14 @@ export const loadRoomThreads = async (room: Room, onProgress?: () => void): Prom
       },
       { flush: true }
     );
+    recordDeepTraceEvent(
+      'thread_list.load.error',
+      {
+        operation_id: operationId,
+        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
+      },
+      { flush: true }
+    );
     return;
   }
   recordDeepTraceEvent('thread_list.fetch.complete', {

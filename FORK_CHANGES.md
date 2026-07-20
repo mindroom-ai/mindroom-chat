@@ -43,6 +43,9 @@
 - Greptile's final 5/5 review found only inconsistent fractional precision in timing spans outside the core recorder.
 - A shared one-decimal metric formatter now covers thread-list, thread-resume, cross-room bootstrap, and cross-room flush durations as well as recorder-owned timings.
 - Independent review approved the timing normalization after 59 focused tests, typecheck, touched ESLint, formatting, and diff checks.
+- Greptile's post-normalization 5/5 review found that an initial thread-list fetch failure emitted its fetch error but left the enclosing load span open.
+- The failure path now emits a flushed `thread_list.load.error` terminal event with the same operation ID, and focused coverage requires both nested and enclosing error spans.
+- Independent review approved the terminal-event pairing after 28 focused tests, typecheck, touched ESLint, formatting, and diff checks.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

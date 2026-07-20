@@ -7,6 +7,16 @@ import {
   roomThreadListIsComplete,
 } from './roomThreadList';
 
+const { recordDeepTraceEventMock } = vi.hoisted(() => ({
+  recordDeepTraceEventMock: vi.fn(),
+}));
+
+vi.mock('../diagnostics/deepTrace', () => ({
+  createDeepTraceOperationId: vi.fn(() => 42),
+  recordDeepTraceEvent: recordDeepTraceEventMock,
+  roundDeepTraceMetric: (value: number) => Math.round(value * 10) / 10,
+}));
+
 const setServerSideListSupport = (enabled: boolean) => {
   Thread.hasServerSideListSupport = (enabled ? 2 : 0) as typeof Thread.hasServerSideListSupport;
 };
@@ -47,6 +57,7 @@ const makeRoom = (tokens: Array<string | null>) => {
 
 afterEach(() => {
   Thread.hasServerSideListSupport = 0 as typeof Thread.hasServerSideListSupport;
+  recordDeepTraceEventMock.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -190,6 +201,20 @@ describe('loadRoomThreads', () => {
     expect(paginateEventTimeline).not.toHaveBeenCalled();
     expect(progress).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('[threadList] fetchRoomThreads failed:', error);
+    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
+      'thread_list.fetch.error',
+      expect.objectContaining({ operation_id: 42, duration_ms: expect.any(Number) }),
+      { flush: true }
+    );
+    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
+      'thread_list.load.error',
+      expect.objectContaining({ operation_id: 42, duration_ms: expect.any(Number) }),
+      { flush: true }
+    );
+    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
+      'thread_list.load.complete',
+      expect.anything()
+    );
   });
 });
 

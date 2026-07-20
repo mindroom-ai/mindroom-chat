@@ -166,6 +166,7 @@ const STATIC_EVENT_NAMES = new Set([
   'thread_list.fetch.error',
   'thread_list.fetch.start',
   'thread_list.load.complete',
+  'thread_list.load.error',
   'thread_list.load.start',
   'thread_list.page.complete',
   'thread_list.page.start',
