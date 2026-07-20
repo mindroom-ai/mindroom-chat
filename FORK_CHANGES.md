@@ -29,7 +29,7 @@
 - Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
 - The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
 - Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 448 Vitest files with 3,314 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Validation passes all 448 Vitest files with 3,318 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 - Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
 - Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
@@ -46,6 +46,11 @@
 - Greptile's post-normalization 5/5 review found that an initial thread-list fetch failure emitted its fetch error but left the enclosing load span open.
 - The failure path now emits a flushed `thread_list.load.error` terminal event with the same operation ID, and focused coverage requires both nested and enclosing error spans.
 - Independent review approved the terminal-event pairing after 28 focused tests, typecheck, touched ESLint, formatting, and diff checks.
+- Greptile's next 5/5 review found the equivalent open-span gap when thread-list pagination throws.
+- Pagination failures now flush both `thread_list.page.error` and `thread_list.load.error` with the shared operation ID before preserving the existing rejection behavior.
+- CodeRabbit's first completed review found a disabled-tracing sync allocation, missing direct runtime-unavailable coverage, an unguarded settings rejection boundary, and duplicated pending-state reset logic.
+- Sync tracing now avoids room enumeration while off, the settings handler fail-closes unexpected rejection, direct background storage failure has UI coverage, and clear-state reset uses one shared helper.
+- Independent review approved the pagination and CodeRabbit remediations after 57 focused tests, typecheck, touched ESLint, formatting, and diff checks.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

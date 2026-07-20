@@ -106,7 +106,12 @@ export function About({ requestClose }: AboutProps) {
     const changeSequence = deepTraceChangeSequence.current + 1;
     deepTraceChangeSequence.current = changeSequence;
     setDeepTraceError(undefined);
-    const saved = await setDeepTraceEnabled(enabled);
+    let saved = false;
+    try {
+      saved = await setDeepTraceEnabled(enabled);
+    } catch {
+      saved = false;
+    }
     if (deepTraceChangeSequence.current !== changeSequence) return;
     if (!saved) {
       setDeepTraceError(enabled ? 'storage' : 'preference');

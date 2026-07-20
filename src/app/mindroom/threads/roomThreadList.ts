@@ -206,46 +206,73 @@ export const loadRoomThreads = async (room: Room, onProgress?: () => void): Prom
   }
 
   let pageCount = 0;
-  for (;;) {
-    const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-    if (currentToken === null) {
-      recordDeepTraceEvent('thread_list.load.complete', {
+  try {
+    for (;;) {
+      const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+      if (currentToken === null) {
+        recordDeepTraceEvent('thread_list.load.complete', {
+          operation_id: operationId,
+          duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
+          page_count: pageCount,
+          thread_count: getThreadCount(room),
+        });
+        return;
+      }
+
+      const pageStartedAt = performance.now();
+      recordDeepTraceEvent('thread_list.page.start', {
+        operation_id: operationId,
+        page_index: pageCount,
+      });
+      let hasMore: boolean;
+      try {
+        hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
+          backwards: true,
+        });
+      } catch (error) {
+        recordDeepTraceEvent(
+          'thread_list.page.error',
+          {
+            operation_id: operationId,
+            page_index: pageCount,
+            duration_ms: roundDeepTraceMetric(performance.now() - pageStartedAt),
+          },
+          { flush: true }
+        );
+        throw error;
+      }
+      pageCount += 1;
+      recordDeepTraceEvent('thread_list.page.complete', {
+        operation_id: operationId,
+        page_index: pageCount - 1,
+        duration_ms: roundDeepTraceMetric(performance.now() - pageStartedAt),
+        has_more: hasMore,
+        thread_count: getThreadCount(room),
+      });
+      onProgress?.();
+
+      const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+      if (!hasMore || nextToken === currentToken) {
+        recordDeepTraceEvent('thread_list.load.complete', {
+          operation_id: operationId,
+          duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
+          page_count: pageCount,
+          thread_count: getThreadCount(room),
+          stalled_token: nextToken === currentToken,
+        });
+        return;
+      }
+    }
+  } catch (error) {
+    recordDeepTraceEvent(
+      'thread_list.load.error',
+      {
         operation_id: operationId,
         duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
         page_count: pageCount,
-        thread_count: getThreadCount(room),
-      });
-      return;
-    }
-
-    const pageStartedAt = performance.now();
-    recordDeepTraceEvent('thread_list.page.start', {
-      operation_id: operationId,
-      page_index: pageCount,
-    });
-    const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
-      backwards: true,
-    });
-    pageCount += 1;
-    recordDeepTraceEvent('thread_list.page.complete', {
-      operation_id: operationId,
-      page_index: pageCount - 1,
-      duration_ms: roundDeepTraceMetric(performance.now() - pageStartedAt),
-      has_more: hasMore,
-      thread_count: getThreadCount(room),
-    });
-    onProgress?.();
-
-    const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-    if (!hasMore || nextToken === currentToken) {
-      recordDeepTraceEvent('thread_list.load.complete', {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-        page_count: pageCount,
-        thread_count: getThreadCount(room),
-        stalled_token: nextToken === currentToken,
-      });
-      return;
-    }
+      },
+      { flush: true }
+    );
+    throw error;
   }
 };

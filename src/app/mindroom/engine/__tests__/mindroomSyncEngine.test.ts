@@ -213,6 +213,19 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     expect(getCacheProbeSnapshot().engineLiveWrites).toBe(0);
   });
 
+  it('does not enumerate rooms for sync tracing while deep tracing is disabled', () => {
+    const mx = createMockClient();
+    const getRooms = vi.fn(() => []);
+    mx.getRooms = getRooms;
+    const engine = createMindroomSyncEngine({ mx });
+    engine.start();
+
+    mx.__emit(ClientEvent.Sync, SyncState.Syncing, null);
+
+    expect(getRooms).not.toHaveBeenCalled();
+    engine.stop();
+  });
+
   it('primes liveMode from getSyncState() on start() for warm clients', () => {
     const mx = createMockClient(SyncState.Syncing);
     const writeThrough: EngineWriteThrough = {

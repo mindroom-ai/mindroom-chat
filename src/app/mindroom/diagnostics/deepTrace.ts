@@ -169,6 +169,7 @@ const STATIC_EVENT_NAMES = new Set([
   'thread_list.load.error',
   'thread_list.load.start',
   'thread_list.page.complete',
+  'thread_list.page.error',
   'thread_list.page.start',
   'thread_resume.cancelled',
   'thread_resume.complete',
@@ -1093,22 +1094,21 @@ const clearPendingAggregates = (target: Runtime): void => {
   target.scroll = undefined;
 };
 
+const resetPendingState = (target: Runtime): void => {
+  target.queue.length = 0;
+  target.queueBytes = 0;
+  target.droppedQueueEvents = 0;
+  clearPendingAggregates(target);
+  if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
+  target.flushTimer = undefined;
+};
+
 export const clearDeepTrace = async (): Promise<void> => {
   const target = runtime;
   if (target) {
-    target.queue.length = 0;
-    target.queueBytes = 0;
-    target.droppedQueueEvents = 0;
-    clearPendingAggregates(target);
-    if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
-    target.flushTimer = undefined;
+    resetPendingState(target);
     if (target.flushPromise) await target.flushPromise;
-    target.queue.length = 0;
-    target.queueBytes = 0;
-    target.droppedQueueEvents = 0;
-    clearPendingAggregates(target);
-    if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
-    target.flushTimer = undefined;
+    resetPendingState(target);
   }
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');

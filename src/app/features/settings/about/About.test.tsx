@@ -313,6 +313,39 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('reports a background trace storage failure from the runtime status', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
+
+    act(() => {
+      deepTraceStatusListener?.('unavailable');
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Trace storage unavailable.'
+    );
+    renderer.unmount();
+  });
+
+  it('reports an unexpected trace preference rejection without an unhandled failure', async () => {
+    mocks.setDeepTraceEnabled.mockRejectedValue(new Error('unexpected rejection'));
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+      await Promise.resolve();
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Trace storage unavailable.'
+    );
+    renderer.unmount();
+  });
+
   it('stops for this session and warns when the disabled preference cannot be saved', async () => {
     deepTracePreference = true;
     deepTraceRuntimeStatus = 'recording';

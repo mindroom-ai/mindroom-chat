@@ -52,9 +52,21 @@ import {
   type PrefetchConfig,
 } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
-import { incrementDeepTraceCounter, recordDeepTraceEvent } from '../diagnostics/deepTrace';
+import {
+  getDeepTraceRuntimeStatus,
+  incrementDeepTraceCounter,
+  recordDeepTraceEvent,
+} from '../diagnostics/deepTrace';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
+const DEEP_TRACE_SYNC_STATE_CODES: Readonly<Record<string, number>> = {
+  ERROR: 1,
+  PREPARED: 2,
+  SYNCING: 3,
+  CATCHUP: 4,
+  RECONNECTING: 5,
+  STOPPED: 6,
+};
 
 const activeEngineStops = new WeakMap<MatrixClient, () => void>();
 
@@ -188,20 +200,14 @@ export const createMindroomSyncEngine = ({
   };
 
   const handleSync: ClientEventHandlerMap[ClientEvent.Sync] = (current) => {
-    const stateCode =
-      {
-        ERROR: 1,
-        PREPARED: 2,
-        SYNCING: 3,
-        CATCHUP: 4,
-        RECONNECTING: 5,
-        STOPPED: 6,
-      }[String(current ?? '').toUpperCase()] ?? 0;
-    recordDeepTraceEvent('matrix_sync.state', {
-      state_code: stateCode,
-      room_count: mx.getRooms?.().length ?? 0,
-      live_mode: liveMode,
-    });
+    if (getDeepTraceRuntimeStatus() === 'recording') {
+      const stateCode = DEEP_TRACE_SYNC_STATE_CODES[String(current ?? '').toUpperCase()] ?? 0;
+      recordDeepTraceEvent('matrix_sync.state', {
+        state_code: stateCode,
+        room_count: mx.getRooms?.().length ?? 0,
+        live_mode: liveMode,
+      });
+    }
     if (!liveMode && isLiveSyncState(current)) {
       liveMode = true;
     }

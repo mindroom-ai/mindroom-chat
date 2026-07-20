@@ -216,6 +216,42 @@ describe('loadRoomThreads', () => {
       expect.anything()
     );
   });
+
+  it('closes the page and load spans when pagination fails', async () => {
+    setServerSideListSupport(true);
+    const error = new Error('pagination failed');
+    const { room, paginateEventTimeline } = makeRoom(['page-1', null]);
+    paginateEventTimeline.mockRejectedValueOnce(error);
+
+    await expect(loadRoomThreads(room as never)).rejects.toBe(error);
+
+    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
+      'thread_list.page.error',
+      expect.objectContaining({
+        operation_id: 42,
+        page_index: 0,
+        duration_ms: expect.any(Number),
+      }),
+      { flush: true }
+    );
+    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
+      'thread_list.load.error',
+      expect.objectContaining({
+        operation_id: 42,
+        page_count: 0,
+        duration_ms: expect.any(Number),
+      }),
+      { flush: true }
+    );
+    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
+      'thread_list.page.complete',
+      expect.anything()
+    );
+    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
+      'thread_list.load.complete',
+      expect.anything()
+    );
+  });
 });
 
 describe('thread visibility helpers', () => {
