@@ -245,135 +245,133 @@ export function Home() {
   return (
     <PageNav>
       <HomeHeader />
-      <PageNavContent scrollRef={scrollRef}>
-        <Box direction="Column" gap="300" grow="Yes" style={{ minHeight: '100%' }}>
-          {noRoomToDisplay ? (
-            <HomeEmpty />
-          ) : (
-            <>
-              <NavCategory>
-                <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
-                  <NavButton
-                    onClick={() => navigate(getHomeCreatePath())}
-                    data-home-room-action="create"
-                  >
-                    <NavItemContent>
-                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                        <Avatar size="200" radii="400">
-                          <Icon src={Icons.Plus} size="100" />
-                        </Avatar>
-                        <Box as="span" grow="Yes">
-                          <Text as="span" size="Inherit" truncate>
-                            {t('nav.createRoom')}
-                          </Text>
-                        </Box>
-                      </Box>
-                    </NavItemContent>
-                  </NavButton>
-                </NavItem>
-                <UseStateProvider initial={false}>
-                  {(open, setOpen) => (
-                    <>
-                      <NavItem variant="Background" radii="400">
-                        <NavButton onClick={() => setOpen(true)} data-home-room-action="join">
-                          <NavItemContent>
-                            <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                              <Avatar size="200" radii="400">
-                                <Icon src={Icons.Link} size="100" />
-                              </Avatar>
-                              <Box as="span" grow="Yes">
-                                <Text as="span" size="Inherit" truncate>
-                                  {t('nav.joinWithAddress')}
-                                </Text>
-                              </Box>
-                            </Box>
-                          </NavItemContent>
-                        </NavButton>
-                      </NavItem>
-                      {open && (
-                        <JoinAddressPrompt
-                          onCancel={() => setOpen(false)}
-                          onOpen={(roomIdOrAlias, viaServers, eventId) => {
-                            setOpen(false);
-                            const path = getHomeRoomPath(roomIdOrAlias, eventId);
-                            navigate(
-                              viaServers
-                                ? withSearchParam<_RoomSearchParams>(path, {
-                                    viaServers: encodeSearchParamValueArray(viaServers),
-                                  })
-                                : path
-                            );
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </UseStateProvider>
-                <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
-                  <NavLink to={getHomeSearchPath()}>
-                    <NavItemContent>
-                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                        <Avatar size="200" radii="400">
-                          <Icon src={Icons.Search} size="100" filled={searchSelected} />
-                        </Avatar>
-                        <Box as="span" grow="Yes">
-                          <Text as="span" size="Inherit" truncate>
-                            {t('nav.messageSearch')}
-                          </Text>
-                        </Box>
-                      </Box>
-                    </NavItemContent>
-                  </NavLink>
-                </NavItem>
-              </NavCategory>
-              <NavCategory data-testid="room-nav-category">
-                <NavCategoryHeader>
-                  <RoomNavCategoryButton
-                    closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
-                    data-category-id={DEFAULT_CATEGORY_ID}
-                    onClick={handleCategoryClick}
-                  >
-                    {t('nav.rooms')}
-                  </RoomNavCategoryButton>
-                </NavCategoryHeader>
-                <div
-                  style={{
-                    position: 'relative',
-                    height: virtualizer.getTotalSize(),
-                  }}
+      {noRoomToDisplay ? (
+        <HomeEmpty />
+      ) : (
+        <PageNavContent scrollRef={scrollRef}>
+          <Box direction="Column" gap="300">
+            <NavCategory>
+              <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
+                <NavButton
+                  onClick={() => navigate(getHomeCreatePath())}
+                  data-home-room-action="create"
                 >
-                  {virtualizer.getVirtualItems().map((vItem) => {
-                    const roomId = sortedRooms[vItem.index];
-                    const room = mx.getRoom(roomId);
-                    if (!room) return null;
-                    const selected = selectedRoomId === roomId;
+                  <NavItemContent>
+                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                      <Avatar size="200" radii="400">
+                        <Icon src={Icons.Plus} size="100" />
+                      </Avatar>
+                      <Box as="span" grow="Yes">
+                        <Text as="span" size="Inherit" truncate>
+                          {t('nav.createRoom')}
+                        </Text>
+                      </Box>
+                    </Box>
+                  </NavItemContent>
+                </NavButton>
+              </NavItem>
+              <UseStateProvider initial={false}>
+                {(open, setOpen) => (
+                  <>
+                    <NavItem variant="Background" radii="400">
+                      <NavButton onClick={() => setOpen(true)} data-home-room-action="join">
+                        <NavItemContent>
+                          <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                            <Avatar size="200" radii="400">
+                              <Icon src={Icons.Link} size="100" />
+                            </Avatar>
+                            <Box as="span" grow="Yes">
+                              <Text as="span" size="Inherit" truncate>
+                                {t('nav.joinWithAddress')}
+                              </Text>
+                            </Box>
+                          </Box>
+                        </NavItemContent>
+                      </NavButton>
+                    </NavItem>
+                    {open && (
+                      <JoinAddressPrompt
+                        onCancel={() => setOpen(false)}
+                        onOpen={(roomIdOrAlias, viaServers, eventId) => {
+                          setOpen(false);
+                          const path = getHomeRoomPath(roomIdOrAlias, eventId);
+                          navigate(
+                            viaServers
+                              ? withSearchParam<_RoomSearchParams>(path, {
+                                  viaServers: encodeSearchParamValueArray(viaServers),
+                                })
+                              : path
+                          );
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </UseStateProvider>
+              <NavItem variant="Background" radii="400" aria-selected={searchSelected}>
+                <NavLink to={getHomeSearchPath()}>
+                  <NavItemContent>
+                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                      <Avatar size="200" radii="400">
+                        <Icon src={Icons.Search} size="100" filled={searchSelected} />
+                      </Avatar>
+                      <Box as="span" grow="Yes">
+                        <Text as="span" size="Inherit" truncate>
+                          {t('nav.messageSearch')}
+                        </Text>
+                      </Box>
+                    </Box>
+                  </NavItemContent>
+                </NavLink>
+              </NavItem>
+            </NavCategory>
+            <NavCategory data-testid="room-nav-category">
+              <NavCategoryHeader>
+                <RoomNavCategoryButton
+                  closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
+                  data-category-id={DEFAULT_CATEGORY_ID}
+                  onClick={handleCategoryClick}
+                >
+                  {t('nav.rooms')}
+                </RoomNavCategoryButton>
+              </NavCategoryHeader>
+              <div
+                style={{
+                  position: 'relative',
+                  height: virtualizer.getTotalSize(),
+                }}
+              >
+                {virtualizer.getVirtualItems().map((vItem) => {
+                  const roomId = sortedRooms[vItem.index];
+                  const room = mx.getRoom(roomId);
+                  if (!room) return null;
+                  const selected = selectedRoomId === roomId;
 
-                    return (
-                      <VirtualTile
-                        virtualItem={vItem}
-                        key={vItem.index}
-                        ref={virtualizer.measureElement}
-                      >
-                        <RoomNavItem
-                          room={room}
-                          selected={selected}
-                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
-                      </VirtualTile>
-                    );
-                  })}
-                </div>
-              </NavCategory>
-              <ThreadNavCategory sidebarScrollRef={scrollRef} />
-            </>
-          )}
-          <RecentlyOpenedNavCategory />
-        </Box>
-      </PageNavContent>
+                  return (
+                    <VirtualTile
+                      virtualItem={vItem}
+                      key={vItem.index}
+                      ref={virtualizer.measureElement}
+                    >
+                      <RoomNavItem
+                        room={room}
+                        selected={selected}
+                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
+                        notificationMode={getRoomNotificationMode(
+                          notificationPreferences,
+                          room.roomId
+                        )}
+                      />
+                    </VirtualTile>
+                  );
+                })}
+              </div>
+            </NavCategory>
+            <ThreadNavCategory sidebarScrollRef={scrollRef} />
+          </Box>
+        </PageNavContent>
+      )}
+      <RecentlyOpenedNavCategory />
     </PageNav>
   );
 }

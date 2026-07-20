@@ -19,14 +19,12 @@ vi.mock('folds', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
-  const box = ({ children, style }: { children?: React.ReactNode; style?: React.CSSProperties }) =>
-    reactModule.createElement('div', { style }, children);
   const button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     reactModule.createElement('button', props, children);
 
   return {
     Avatar: passthrough,
-    Box: box,
+    Box: passthrough,
     Button: button,
     Icon: passthrough,
     IconButton: button,
@@ -126,7 +124,9 @@ vi.mock('../../../components/page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
-  return { PageNav: passthrough, PageNavContent: passthrough, PageNavHeader: passthrough };
+  const pageNavContent = ({ children }: { children?: React.ReactNode }) =>
+    reactModule.createElement('div', { 'data-page-nav-content': true }, children);
+  return { PageNav: passthrough, PageNavContent: pageNavContent, PageNavHeader: passthrough };
 });
 vi.mock('../../../state/hooks/closedNavCategories', () => ({
   useClosedNavCategoriesAtom: () => ({}),
@@ -198,6 +198,11 @@ describe('Home', () => {
     expectRoomActionsWork(renderer);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
+    expect(
+      renderer.root
+        .findByProps({ 'data-page-nav-content': true })
+        .findAllByProps({ 'data-recently-opened-nav': true })
+    ).toHaveLength(0);
 
     renderer.unmount();
   });
@@ -208,9 +213,6 @@ describe('Home', () => {
 
     expectRoomActionsWork(renderer);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
-    expect(
-      renderer.root.findAll((node) => node.type === 'div' && node.props.style?.minHeight === '100%')
-    ).toHaveLength(1);
 
     renderer.unmount();
   });

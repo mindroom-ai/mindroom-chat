@@ -56,7 +56,12 @@ vi.mock('./RecentThreadEntry', () => ({
   RecentThreadEntry: ({ threadId }: { threadId: string }) =>
     React.createElement('div', { 'data-recent-thread-id': threadId }),
 }));
-vi.mock('./threadNav.css', () => ({ CategoryState: 'CategoryState' }));
+vi.mock('./threadNav.css', () => ({
+  CategoryState: 'CategoryState',
+  RecentlyOpenedCategory: 'RecentlyOpenedCategory',
+  RecentlyOpenedList: 'RecentlyOpenedList',
+  RecentlyOpenedPanel: 'RecentlyOpenedPanel',
+}));
 
 const USER_ID = '@me:example.org';
 
@@ -122,13 +127,20 @@ describe('RecentlyOpenedNavCategory', () => {
       .findAll((node) => node.props['data-recent-thread-id'])
       .map((node) => node.props['data-recent-thread-id']);
 
-  it('renders a peer category with the 10 most recently opened threads by default', () => {
+  it('renders a bounded bottom panel with the 10 most recently opened threads by default', () => {
     seedJoinedThreads(DEFAULT_RECENTLY_OPENED_THREAD_LIMIT + 2);
     renderCategory();
 
+    expect(
+      renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-panel' }).props.className
+    ).toBe('RecentlyOpenedPanel');
     const category = renderer!.root.findByProps({
       'data-testid': 'recently-opened-nav-category',
     });
+    expect(category.props.className).toBe('RecentlyOpenedCategory');
+    expect(
+      renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-list' }).props.className
+    ).toBe('RecentlyOpenedList');
     expect(
       category
         .findByProps({ 'data-category-id': RECENTLY_OPENED_NAV_CATEGORY_ID })

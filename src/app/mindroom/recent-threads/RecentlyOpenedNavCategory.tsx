@@ -57,35 +57,40 @@ export function RecentlyOpenedNavCategory({
   }, [allRoomIds, mx, recentThreads, visibleLimit]);
 
   return (
-    <NavCategory data-testid="recently-opened-nav-category">
-      <NavCategoryHeader>
-        <RoomNavCategoryButton
-          closed={closed}
-          data-category-id={RECENTLY_OPENED_NAV_CATEGORY_ID}
-          onClick={handleCategoryClick}
-        >
-          {t('recentThreads.title')}
-        </RoomNavCategoryButton>
-      </NavCategoryHeader>
-      {!closed && (
-        <div data-testid="recently-opened-nav-list">
-          {entries.length === 0 ? (
-            <Text className={css.CategoryState} as="p" size="T200">
-              {t('recentThreads.empty')}
-            </Text>
-          ) : (
-            entries.map((entry) => (
-              <RecentThreadEntry
-                key={`${entry.roomId}|${entry.threadId}`}
-                room={entry.room}
-                threadId={entry.threadId}
-                openedAt={entry.openedAt}
-                summaryText={entry.summaryText}
-              />
-            ))
-          )}
-        </div>
-      )}
-    </NavCategory>
+    <div className={css.RecentlyOpenedPanel} data-testid="recently-opened-nav-panel">
+      <NavCategory
+        className={css.RecentlyOpenedCategory}
+        data-testid="recently-opened-nav-category"
+      >
+        <NavCategoryHeader>
+          <RoomNavCategoryButton
+            closed={closed}
+            data-category-id={RECENTLY_OPENED_NAV_CATEGORY_ID}
+            onClick={handleCategoryClick}
+          >
+            {t('recentThreads.title')}
+          </RoomNavCategoryButton>
+        </NavCategoryHeader>
+        {!closed && (
+          <div className={css.RecentlyOpenedList} data-testid="recently-opened-nav-list">
+            {entries.length === 0 ? (
+              <Text className={css.CategoryState} as="p" size="T200">
+                {t('recentThreads.empty')}
+              </Text>
+            ) : (
+              entries.map((entry) => (
+                <RecentThreadEntry
+                  key={`${entry.roomId}|${entry.threadId}`}
+                  room={entry.room}
+                  threadId={entry.threadId}
+                  openedAt={entry.openedAt}
+                  summaryText={entry.summaryText}
+                />
+              ))
+            )}
+          </div>
+        )}
+      </NavCategory>
+    </div>
   );
 }

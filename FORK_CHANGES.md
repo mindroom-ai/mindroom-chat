@@ -4,11 +4,11 @@
 
 ### Restore Recently Opened beside the thread navigation category (2026-07-20)
 
-- Status: the simpler category-based implementation, regression coverage, full local validation, and independent re-review are complete on `feat/restore-recent-threads`.
+- Status: the simpler category implementation is being revised on `feat/restore-recent-threads` to restore a stable bottom position across navigation pages.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
 - Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
-- Architecture decision: render Recently Opened as a normal persisted sidebar category beside Threads instead of restoring a separate resizable panel with viewport tracking and two layout preference stores.
-- The category reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
+- Architecture decision: render Recently Opened as a bounded bottom sidebar section outside each page navigation scroller instead of restoring a resizable panel with viewport tracking and two layout preference stores.
+- The bottom section reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
 - The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.

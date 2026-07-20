@@ -728,9 +728,9 @@ export function Space() {
             </NavCategory>
           </DndContext>
           <ThreadNavCategory sidebarScrollRef={scrollRef} spaceId={space.roomId} />
-          <RecentlyOpenedNavCategory />
         </Box>
       </PageNavContent>
+      <RecentlyOpenedNavCategory />
     </PageNav>
   );
 }
