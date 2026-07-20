@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Opt-in native iOS deep diagnostic tracing (2026-07-20)
+
+- Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan and implementation reviews, PR review remediation, and final CI are complete; ready for human review.
+- Motivation: preserve enough device-local evidence to reconstruct the last interaction, in-flight Matrix request, recovered event-loop stall, route, lifecycle transition, or private error category before an iOS freeze.
+- The always-on localStorage flight recorder gains one optional categorical `lastAction` field that is written synchronously on opt-in pointer activation so the triggering task can survive an immediate JavaScript hang.
+- The opt-in IndexedDB trace keeps bounded retention, queue backpressure, dropped-event accounting, clear and fault-isolated export, lifecycle and connectivity, route changes, recovered event-loop stalls, private global error locations, categorical pointer history, and categorized request timing.
+- Matrix request-start events flush immediately so a request that never settles still leaves durable evidence.
+- Keyboard, scroll, console patching, unsupported WebKit long-task and heap probes, Matrix counters, and thread-list, resume, cross-room bootstrap, and index-flush spans are removed.
+- Privacy remains allowlist-based and excludes message text, typed keys, console text, error text, URLs, identifiers, tokens, and coordinates.
+- Activation keeps one generation token, a writable-storage check, a first-event durability handshake, and fail-closed storage behavior while the settings switch is disabled during a pending change.
+- The final deep-trace tail remains best-effort, while synchronous `lastAction` and Matrix request starts define the durable terminal-hang boundary.
+- An abnormal end cannot distinguish a force-close, jetsam, native crash, or WebKit content-process termination.
+- A native WebKit termination marker is required in a follow-up before this feature is advertised for release, with MetricKit hang and crash evidence following separately.
+- Physical-iPhone acceptance remains release-blocking and must cover terminal and recovered stalls, background force-close behavior, relaunch persistence, Files export, and measured tracing overhead.
+- The trim reduces the PR from 24 files and 2,745 added lines to 17 files and 2,085 added lines, restores the original feature-layer behavior, and reduces the central recorder from 1,140 to 826 lines.
+- The independent implementation review found one unreachable settings-surface category and a disposer ordering bug that suppressed clean stop markers.
+- Both findings are fixed, and legacy settings-surface evidence remains readable without allowing new events to emit that dead category.
+- Final focused validation passes 78 tests, and the full Vitest suite passes 447 files with 3,321 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and the existing 17-warning baseline.
+- Fable's final targeted re-review found no remaining correctness, privacy, storage-race, durability, or over-engineering issue.
+- Greptile rated the pushed implementation 5/5 with no regression, and its remaining pending-flag ownership concern is fixed with one synchronous in-flight guard plus a regression test; CodeRabbit, Sourcery, Gemini, and Qodo could not run on the final head because of service quota or account limits.
+
 ### Stop cyclic Matrix timeline links from crashing room and thread views (2026-07-20)
 
 - Status: implementation, regression coverage, full local validation, independent review, PR review, and final CI are complete on PR #184; ready for human review.
