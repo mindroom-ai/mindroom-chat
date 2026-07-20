@@ -88,7 +88,10 @@ const makeEvent = (eventId: string | undefined, roomId: string | undefined, edit
 const readCurrent = (storage: MemoryStorage): FlightRecorderSession =>
   JSON.parse(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY) ?? 'null') as FlightRecorderSession;
 
-const makePriorSession = (events: FlightRecorderSession['events']): FlightRecorderSession => ({
+const makePriorSession = (
+  events: FlightRecorderSession['events'],
+  overrides: Partial<FlightRecorderSession> = {}
+): FlightRecorderSession => ({
   schemaVersion: 1,
   buildVersion: 'prior-build',
   sessionId: '11111111-1111-4111-8111-111111111111',
@@ -101,6 +104,7 @@ const makePriorSession = (events: FlightRecorderSession['events']): FlightRecord
   expectedEndAt: null,
   endReason: null,
   events,
+  ...overrides,
 });
 
 describe('Matrix sync flight recorder', () => {
@@ -286,6 +290,34 @@ describe('Matrix sync flight recorder', () => {
     expect(JSON.parse(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY) ?? 'null')).toMatchObject({
       sessionId: prior.sessionId,
       events: prior.events,
+    });
+  });
+
+  it('retains matrix sync evidence alongside the optional last action on relaunch', () => {
+    const matrixSyncEvent = {
+      at: 925,
+      type: 'matrix_sync',
+      roomHash: '1234abcd',
+      eventCount: 2,
+      editCount: 1,
+      route: 'home',
+      hasThreadId: false,
+    } as const;
+    const lastAction = { at: 940, kind: 'button', surface: 'timeline' } as const;
+    const prior = makePriorSession([matrixSyncEvent], {
+      sessionId: '22222222-2222-4222-8222-222222222222',
+      lastAction,
+    });
+    storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
+
+    disposeRecorder = installFlightRecorder(storage);
+
+    const abnormal = JSON.parse(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY) ?? 'null');
+    expect(Object.keys(abnormal)).toHaveLength(15);
+    expect(abnormal).toMatchObject({
+      sessionId: prior.sessionId,
+      events: [matrixSyncEvent],
+      lastAction,
     });
   });
 

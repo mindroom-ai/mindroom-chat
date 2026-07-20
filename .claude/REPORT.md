@@ -22,6 +22,7 @@ The presentation helper was intentionally left unchanged.
 - Stored only event/edit counts, an eight-character stable room hash, coarse route class, and thread-route presence, with no raw room IDs, event IDs, senders, content, relation targets, URLs, or tokens.
 - Discarded saved-sync cache accumulators at `Prepared(fromCache: true)` so cached edits cannot be falsely attributed to the first live network batch.
 - Attached the sync recorder immediately before the authenticated main client starts, with idempotent client attachment, deterministic stop/dispose cleanup, and clean reattachment.
+- Kept combined optional `lastAction` and `matrix_sync` evidence valid inside the unchanged schema-v1 abnormal-session envelope.
 
 ## Evidence
 
@@ -41,11 +42,11 @@ The forced-failure verdict is `GREEN` with two pagination attempts and zero unha
 ## Validation
 
 - A clean `npm ci` completed and patch-package applied both `@tanstack/virtual-core@3.17.3` and `matrix-js-sdk@41.7.0` successfully.
-- The 84 focused SDK patch, flight recorder, and authenticated-startup tests pass on current `dev`.
+- The 85 focused SDK patch, flight recorder, and authenticated-startup tests pass on current `dev`.
 - `npm run typecheck` passes.
 - `npm run build` passes, including the production/PWA build and Element Call background verification.
 - `npm run lint` completes with zero errors and 17 pre-existing warnings.
-- Normal `npm test` discovery passes 448 files and 3,333 tests, including every CINNY-126 test.
+- Normal `npm test` discovery passes 448 files and 3,334 tests, including every CINNY-126 test.
 - Three pre-existing `xcodeCloudPostClone.test.ts` cases fail only because this Nix environment exposes Bash at `/run/current-system/sw/bin/bash` while the test replaces `PATH` with `/usr/bin:/bin`, which makes its `spawnSync('bash')` return `ENOENT` before the test fixture runs.
 - Neither the Xcode Cloud test nor its shell scripts differs on this branch.
 - Independent review found and drove fixes for harness acceptance gaps, a concurrent SDK waiter rejection, cached-sync recorder attribution, and missing timing/lifecycle assertions, and each remediation passed independent re-review with no remaining findings.
