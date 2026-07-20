@@ -29,6 +29,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:mindroom": "./scripts/test-e2e-mindroom.sh",
     "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed",
+    "cinny-126:replay:offline": "vite-node scripts/cinny-126-replay/offline.ts",
+    "cinny-126:replay:live": "vite-node scripts/cinny-126-replay/live.ts",
     "ios:phone": "node scripts/ios-phone.mjs",
     "ios:phone:watch": "node scripts/ios-phone.mjs --watch",
     "ios:phone:bg": "node scripts/ios-phone.mjs --background",
