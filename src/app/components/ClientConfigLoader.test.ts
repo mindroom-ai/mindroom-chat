@@ -142,6 +142,31 @@ describe('client configuration loading', () => {
     expect(renderedConfig).toEqual(cachedConfig);
   });
 
+  it('does not offer offline continuation without a cached configuration', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('offline'));
+    let errorRendered = false;
+    let continueOffline: (() => void) | undefined;
+
+    await act(async () => {
+      create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            error: (_error, _retry, ignore) => {
+              errorRendered = true;
+              continueOffline = ignore;
+              return null;
+            },
+          },
+          () => null
+        )
+      );
+    });
+
+    await vi.waitFor(() => expect(errorRendered).toBe(true));
+    expect(continueOffline).toBeUndefined();
+  });
+
   it('uses a document reload for interactive authentication', () => {
     const reload = vi.fn();
     vi.stubGlobal('window', { location: { reload } });
