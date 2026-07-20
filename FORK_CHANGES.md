@@ -4,7 +4,7 @@
 
 ### Keep spaces visible in Simple Mode (2026-07-20)
 
-- Status: implementation, full local validation, independent review remediation, and independent re-review are complete; ready for PR review.
+- Status: implementation, full local validation, independent review remediation, PR review, and final CI are complete on PR #183; ready for human review.
 - Simple Mode now keeps the existing space tabs visible so users can distinguish and open their joined spaces.
 - Threads, Explore Community, Local MindRoom, and Add Space remain hidden as advanced navigation.
 - The flattened Home room list and its Home-routed room and thread navigation remain unchanged.
@@ -14,6 +14,9 @@
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent review found two stale comments that still described space tabs as hidden; the current and historical Runbook contracts plus the Home-list rationale now match the implementation.
 - Independent re-review found no remaining behavior, test, documentation, i18n, routing, or scope issues.
+- PR review: Greptile rated the change 5/5 and safe to merge, and Gemini reported no feedback; neither reviewer produced an inline finding.
+- The ready PR's web, Android, Docker, and conventional-title checks pass.
+- CodeRabbit, Qodo, and Sourcery reported review quota, seat, or rate limits rather than findings.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
