@@ -25,7 +25,7 @@
 - Recorder review: independent review found cached saved-sync events could be misattributed to the first live batch and found three lifecycle/timing assertions that were not yet pinned; cached `Prepared` now discards its accumulator, the missing assertions were added, and re-review found no remaining issue.
 - Validation: a clean `npm ci` reapplies both package patches, all 85 focused SDK/recorder/startup tests pass on current `dev`, typecheck passes, full ESLint reports zero errors and 17 pre-existing warnings, and the production/PWA build with Element Call verification passes.
 - Full-suite environment note: normal Vitest discovery passes 448 files and 3,334 tests; only the three pre-existing Xcode Cloud shell-harness tests fail because this Nix environment has Bash at `/run/current-system/sw/bin/bash` while that test replaces `PATH` with `/usr/bin:/bin`, causing `spawnSync bash ENOENT`; neither the test nor its scripts differs on this branch.
-- Publication: branch `cinny-126` is pushed to Gitea and ready PR #1 is open at `04fa2137`; Gitea's `dev` is 332 commits behind and 14 commits ahead of the canonical `origin/dev`, so Gitea currently reports the otherwise reviewed PR as non-mergeable and leaves its six Actions checks waiting for a runner.
+- Publication: branch `cinny-126` is pushed to Gitea and ready PR #1 is open at implementation SHA `04fa2137`; Gitea's `dev` is 332 commits behind and 14 commits ahead of the canonical `origin/dev`, so Gitea currently reports the otherwise reviewed PR as non-mergeable and leaves its Actions checks waiting for a runner.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 

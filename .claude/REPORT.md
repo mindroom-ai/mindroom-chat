@@ -67,7 +67,7 @@ Branch `cinny-126` is pushed to Gitea and ready PR [#1](https://git.nijho.lt/bas
 
 The Gitea `dev` base is 332 commits behind and 14 commits ahead of canonical `origin/dev`, so Gitea reports the PR as non-mergeable even though this branch is based on current canonical `dev`.
 
-No AI review comments were configured or returned on Gitea, and all six Gitea Actions checks remain queued with `Waiting to run`, so there were no external reviewer findings to validate.
+No AI review comments were configured or returned on Gitea, and its Actions checks remain queued with `Waiting to run`, so there were no external reviewer findings to validate.
 
 Independent Codex review completed after the final clean install and found no remaining correctness, privacy, lifecycle, patch hygiene, or scope issue.
 
