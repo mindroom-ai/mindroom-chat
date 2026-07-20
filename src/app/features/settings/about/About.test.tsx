@@ -412,6 +412,39 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('ignores another toggle until the current preference change settles', async () => {
+    let resolveEnable: ((saved: boolean) => void) | undefined;
+    const pendingEnable = new Promise<boolean>((resolve) => {
+      resolveEnable = resolve;
+    });
+    mocks.setDeepTraceEnabled.mockImplementation(() => {
+      deepTracePreference = true;
+      deepTraceRuntimeStatus = 'recording';
+      deepTraceStatusListener?.('recording');
+      return pendingEnable;
+    });
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    act(() => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+    });
+    expect(deepTraceSwitch(renderer).props.disabled).toBe(false);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
+      await Promise.resolve();
+    });
+    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveEnable?.(true);
+      await pendingEnable;
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    renderer.unmount();
+  });
+
   it('clears retained deep trace without changing its enabled state', async () => {
     deepTracePreference = true;
     deepTraceRuntimeStatus = 'recording';
