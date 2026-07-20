@@ -5,13 +5,6 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
-import {
-  createDeepTraceOperationId,
-  recordDeepTraceEvent,
-  roundDeepTraceMetric,
-} from '../diagnostics/deepTrace';
-
-const getThreadCount = (room: Room): number => room.getThreads?.().length ?? 0;
 
 const getLatestVisibleReply = (thread: Thread) =>
   [...(thread.events ?? [])].reverse().find(isVisibleThreadReplyEvent) ??
@@ -139,140 +132,32 @@ export const roomThreadListIsComplete = (room: Room): boolean => {
 };
 
 export const loadRoomThreads = async (room: Room, onProgress?: () => void): Promise<void> => {
-  const operationId = createDeepTraceOperationId();
-  const startedAt = performance.now();
-  recordDeepTraceEvent(
-    'thread_list.load.start',
-    {
-      operation_id: operationId,
-      existing_threads: getThreadCount(room),
-      server_side: Thread.hasServerSideListSupport,
-    },
-    { flush: true }
-  );
   await ensureThreadTimelineSets(room);
-  const fetchStartedAt = performance.now();
-  recordDeepTraceEvent('thread_list.fetch.start', {
-    operation_id: operationId,
-  });
   try {
     await room.fetchRoomThreads();
   } catch (err) {
     console.warn('[threadList] fetchRoomThreads failed:', err);
-    recordDeepTraceEvent(
-      'thread_list.fetch.error',
-      {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - fetchStartedAt),
-      },
-      { flush: true }
-    );
-    recordDeepTraceEvent(
-      'thread_list.load.error',
-      {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-      },
-      { flush: true }
-    );
     return;
   }
-  recordDeepTraceEvent('thread_list.fetch.complete', {
-    operation_id: operationId,
-    duration_ms: roundDeepTraceMetric(performance.now() - fetchStartedAt),
-    thread_count: getThreadCount(room),
-  });
   onProgress?.();
 
-  if (!Thread.hasServerSideListSupport) {
-    recordDeepTraceEvent('thread_list.load.complete', {
-      operation_id: operationId,
-      duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-      page_count: 0,
-      thread_count: getThreadCount(room),
-    });
-    return;
-  }
+  if (!Thread.hasServerSideListSupport) return;
 
   const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
-  if (!allThreadsLiveTimeline) {
-    recordDeepTraceEvent('thread_list.load.complete', {
-      operation_id: operationId,
-      duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-      page_count: 0,
-      thread_count: getThreadCount(room),
+  if (!allThreadsLiveTimeline) return;
+
+  for (;;) {
+    const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+    if (currentToken === null) return;
+
+    const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
+      backwards: true,
     });
-    return;
-  }
+    onProgress?.();
 
-  let pageCount = 0;
-  try {
-    for (;;) {
-      const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-      if (currentToken === null) {
-        recordDeepTraceEvent('thread_list.load.complete', {
-          operation_id: operationId,
-          duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-          page_count: pageCount,
-          thread_count: getThreadCount(room),
-        });
-        return;
-      }
-
-      const pageStartedAt = performance.now();
-      recordDeepTraceEvent('thread_list.page.start', {
-        operation_id: operationId,
-        page_index: pageCount,
-      });
-      let hasMore: boolean;
-      try {
-        hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
-          backwards: true,
-        });
-      } catch (error) {
-        recordDeepTraceEvent(
-          'thread_list.page.error',
-          {
-            operation_id: operationId,
-            page_index: pageCount,
-            duration_ms: roundDeepTraceMetric(performance.now() - pageStartedAt),
-          },
-          { flush: true }
-        );
-        throw error;
-      }
-      pageCount += 1;
-      recordDeepTraceEvent('thread_list.page.complete', {
-        operation_id: operationId,
-        page_index: pageCount - 1,
-        duration_ms: roundDeepTraceMetric(performance.now() - pageStartedAt),
-        has_more: hasMore,
-        thread_count: getThreadCount(room),
-      });
-      onProgress?.();
-
-      const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-      if (!hasMore || nextToken === currentToken) {
-        recordDeepTraceEvent('thread_list.load.complete', {
-          operation_id: operationId,
-          duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-          page_count: pageCount,
-          thread_count: getThreadCount(room),
-          stalled_token: nextToken === currentToken,
-        });
-        return;
-      }
+    const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+    if (!hasMore || nextToken === currentToken) {
+      return;
     }
-  } catch (error) {
-    recordDeepTraceEvent(
-      'thread_list.load.error',
-      {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-        page_count: pageCount,
-      },
-      { flush: true }
-    );
-    throw error;
   }
 };

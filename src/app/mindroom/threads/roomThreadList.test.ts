@@ -7,16 +7,6 @@ import {
   roomThreadListIsComplete,
 } from './roomThreadList';
 
-const { recordDeepTraceEventMock } = vi.hoisted(() => ({
-  recordDeepTraceEventMock: vi.fn(),
-}));
-
-vi.mock('../diagnostics/deepTrace', () => ({
-  createDeepTraceOperationId: vi.fn(() => 42),
-  recordDeepTraceEvent: recordDeepTraceEventMock,
-  roundDeepTraceMetric: (value: number) => Math.round(value * 10) / 10,
-}));
-
 const setServerSideListSupport = (enabled: boolean) => {
   Thread.hasServerSideListSupport = (enabled ? 2 : 0) as typeof Thread.hasServerSideListSupport;
 };
@@ -57,7 +47,6 @@ const makeRoom = (tokens: Array<string | null>) => {
 
 afterEach(() => {
   Thread.hasServerSideListSupport = 0 as typeof Thread.hasServerSideListSupport;
-  recordDeepTraceEventMock.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -201,56 +190,6 @@ describe('loadRoomThreads', () => {
     expect(paginateEventTimeline).not.toHaveBeenCalled();
     expect(progress).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('[threadList] fetchRoomThreads failed:', error);
-    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
-      'thread_list.fetch.error',
-      expect.objectContaining({ operation_id: 42, duration_ms: expect.any(Number) }),
-      { flush: true }
-    );
-    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
-      'thread_list.load.error',
-      expect.objectContaining({ operation_id: 42, duration_ms: expect.any(Number) }),
-      { flush: true }
-    );
-    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
-      'thread_list.load.complete',
-      expect.anything()
-    );
-  });
-
-  it('closes the page and load spans when pagination fails', async () => {
-    setServerSideListSupport(true);
-    const error = new Error('pagination failed');
-    const { room, paginateEventTimeline } = makeRoom(['page-1', null]);
-    paginateEventTimeline.mockRejectedValueOnce(error);
-
-    await expect(loadRoomThreads(room as never)).rejects.toBe(error);
-
-    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
-      'thread_list.page.error',
-      expect.objectContaining({
-        operation_id: 42,
-        page_index: 0,
-        duration_ms: expect.any(Number),
-      }),
-      { flush: true }
-    );
-    expect(recordDeepTraceEventMock).toHaveBeenCalledWith(
-      'thread_list.load.error',
-      expect.objectContaining({
-        operation_id: 42,
-        page_count: 0,
-        duration_ms: expect.any(Number),
-      }),
-      { flush: true }
-    );
-    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
-      'thread_list.page.complete',
-      expect.anything()
-    );
-    expect(recordDeepTraceEventMock).not.toHaveBeenCalledWith(
-      'thread_list.load.complete',
-      expect.anything()
-    );
   });
 });
 

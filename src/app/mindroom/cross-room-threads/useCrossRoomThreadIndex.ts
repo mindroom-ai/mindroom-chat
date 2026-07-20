@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
@@ -30,12 +30,6 @@ import {
   type CrossRoomThreadIndexBatchRemoval,
   type CrossRoomThreadIndexEntry,
 } from './crossRoomThreadIndex';
-import {
-  createDeepTraceOperationId,
-  incrementDeepTraceCounter,
-  recordDeepTraceEvent,
-  roundDeepTraceMetric,
-} from '../diagnostics/deepTrace';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
 
@@ -181,7 +175,6 @@ export const useCrossRoomThreadIndex = () => {
   const recentThreads = useAtomValue(useMemo(() => makeRecentThreadsAtom(userId ?? ''), [userId]));
   const snapshot = useAtomValue(crossRoomThreadIndexAtom);
   const setSnapshot = useSetAtom(crossRoomThreadIndexAtom);
-  const store = useStore();
   const parentMapRef = useRef(roomToParents);
   const recentThreadsRef = useRef(recentThreads);
   const sessionIdRef = useRef(activeSession?.sessionId);
@@ -248,47 +241,27 @@ export const useCrossRoomThreadIndex = () => {
 
     const flushDirtyKeys = (keys: string[]) => {
       if (!isEffectCurrent()) return;
-      const operationId = createDeepTraceOperationId();
-      const startedAt = performance.now();
-      recordDeepTraceEvent(
-        'thread_index.flush.start',
-        {
-          operation_id: operationId,
-          dirty_count: keys.length,
-          entry_count: snapshotRef.current.entries.size,
-        },
-        { flush: true }
-      );
 
-      const upserts: CrossRoomThreadIndexEntry[] = [];
-      const removals: CrossRoomThreadIndexBatchRemoval[] = [];
+      setSnapshot((current) => {
+        if (!isEffectCurrent()) return current;
 
-      keys.forEach((key) => {
-        const parsed = parseCrossRoomThreadIndexKey(key);
-        if (!parsed) return;
+        const upserts: CrossRoomThreadIndexEntry[] = [];
+        const removals: CrossRoomThreadIndexBatchRemoval[] = [];
 
-        const entry = buildEntry(parsed.roomId, parsed.threadRootId);
-        if (!entry) {
-          removals.push(parsed);
-          return;
-        }
+        keys.forEach((key) => {
+          const parsed = parseCrossRoomThreadIndexKey(key);
+          if (!parsed) return;
 
-        upserts.push(entry);
-      });
+          const entry = buildEntry(parsed.roomId, parsed.threadRootId);
+          if (!entry) {
+            removals.push(parsed);
+            return;
+          }
 
-      if (!isEffectCurrent()) return;
-      const current = store.get(crossRoomThreadIndexAtom);
-      const next = applyCrossRoomThreadIndexBatch(current, { upserts, removals });
-      setSnapshot(next);
-      recordDeepTraceEvent('thread_index.flush.complete', {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-        dirty_count: keys.length,
-        upsert_count: upserts.length,
-        removal_count: removals.length,
-        entry_count_before: current.entries.size,
-        entry_count_after: next.entries.size,
-        changed: next !== current,
+          upserts.push(entry);
+        });
+
+        return applyCrossRoomThreadIndexBatch(current, { upserts, removals });
       });
     };
     const coalescer = createCrossRoomThreadDirtyCoalescer(flushDirtyKeys);
@@ -346,22 +319,9 @@ export const useCrossRoomThreadIndex = () => {
     const drainBootstrapQueue = () => {
       if (disposed) return;
 
-      const operationId = createDeepTraceOperationId();
-      const startedAt = performance.now();
       const chunk = bootstrapRooms.splice(0, BOOTSTRAP_ROOM_CHUNK_SIZE);
-      recordDeepTraceEvent('thread_index.bootstrap_chunk.start', {
-        operation_id: operationId,
-        room_count: chunk.length,
-        remaining_rooms: bootstrapRooms.length,
-      });
       chunk.forEach((room) => bootstrapQueuedRoomIds.delete(room.roomId));
       chunk.forEach(scanRoom);
-      recordDeepTraceEvent('thread_index.bootstrap_chunk.complete', {
-        operation_id: operationId,
-        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
-        room_count: chunk.length,
-        remaining_rooms: bootstrapRooms.length,
-      });
 
       if (bootstrapRooms.length > 0) {
         idleHandle = requestIdle(drainBootstrapQueue);
@@ -417,10 +377,6 @@ export const useCrossRoomThreadIndex = () => {
         if (!currentUserId) return;
 
         const { threadRootIds, hasRoomLevelReceipt } = getOwnReceiptTargets(event, currentUserId);
-        incrementDeepTraceCounter(
-          hasRoomLevelReceipt ? 'thread_index.receipt.room' : 'thread_index.receipt.thread',
-          Math.max(1, threadRootIds.length)
-        );
         if (hasRoomLevelReceipt) {
           enqueueRoomThreads(room);
           return;
@@ -614,7 +570,7 @@ export const useCrossRoomThreadIndex = () => {
       mx.removeListener(RoomStateEvent.Events, handleStateEvent);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
     };
-  }, [activeSession?.sessionId, mx, setSnapshot, store, userId]);
+  }, [activeSession?.sessionId, mx, setSnapshot, userId]);
 
   useEffect(() => {
     controllerRef.current?.syncJoinedRooms(joinedRoomIds);

@@ -21,10 +21,9 @@ import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
 import { crossRoomThreadIndexAtom, getCrossRoomThreadIndexKey } from '../crossRoomThreadIndex';
 import { isCrossRoomThreadEntryEligible } from '../crossRoomThreadFilterPipeline';
 
-const { matrixClientMock, activeSessionMock, recordDeepTraceEventMock } = vi.hoisted(() => ({
+const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
   activeSessionMock: vi.fn(),
-  recordDeepTraceEventMock: vi.fn(),
 }));
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
@@ -33,13 +32,6 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 
 vi.mock('../../../hooks/useSessionStore', () => ({
   useActiveSession: activeSessionMock,
-}));
-
-vi.mock('../../diagnostics/deepTrace', () => ({
-  createDeepTraceOperationId: vi.fn(() => 42),
-  incrementDeepTraceCounter: vi.fn(),
-  recordDeepTraceEvent: recordDeepTraceEventMock,
-  roundDeepTraceMetric: (value: number) => Math.round(value * 10) / 10,
 }));
 
 type ListenerMap = Map<unknown, Set<(...args: any[]) => void>>;
@@ -400,48 +392,6 @@ describe('useCrossRoomThreadIndex', () => {
     await flushScheduledWork();
 
     expect(store.get(crossRoomThreadIndexAtom).bootstrapped).toBe(true);
-  });
-
-  it('emits one completion trace after each dirty thread flush', async () => {
-    const { room, thread } = makeRoom();
-    const mx = makeClient(room);
-    matrixClientMock.mockReturnValue(mx);
-    const store = createStore();
-    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
-
-    await act(async () => {
-      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
-    });
-    await flushScheduledWork();
-    recordDeepTraceEventMock.mockClear();
-    const key = getCrossRoomThreadIndexKey(room.roomId, '$root');
-    recordDeepTraceEventMock.mockImplementation((name: string) => {
-      if (name === 'thread_index.flush.complete') {
-        expect(store.get(crossRoomThreadIndexAtom).entries.has(key)).toBe(true);
-      }
-    });
-
-    await act(async () => {
-      room.emit(ThreadEvent.Update, thread);
-      await Promise.resolve();
-    });
-    await flushScheduledWork();
-
-    expect(
-      recordDeepTraceEventMock.mock.calls.filter(([name]) => name === 'thread_index.flush.start')
-    ).toHaveLength(1);
-    expect(
-      recordDeepTraceEventMock.mock.calls.filter(([name]) => name === 'thread_index.flush.complete')
-    ).toEqual([
-      [
-        'thread_index.flush.complete',
-        expect.objectContaining({
-          operation_id: 42,
-          upsert_count: 1,
-          removal_count: 0,
-        }),
-      ],
-    ]);
   });
 
   it('does not index plain live room messages as cross-room threads', async () => {
