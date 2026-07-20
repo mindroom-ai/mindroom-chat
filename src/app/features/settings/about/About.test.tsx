@@ -428,7 +428,8 @@ describe('About diagnostics export', () => {
     act(() => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
     });
-    expect(deepTraceSwitch(renderer).props.disabled).toBe(false);
+    expect(deepTraceSwitch(renderer).props.disabled).toBe(true);
+    expect(deepTraceTile(renderer).findByType('button').props.disabled).toBe(true);
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });

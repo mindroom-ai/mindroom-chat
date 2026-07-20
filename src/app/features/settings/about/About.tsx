@@ -62,21 +62,20 @@ export function About({ requestClose }: AboutProps) {
   React.useEffect(
     () =>
       subscribeDeepTraceStatus((status) => {
+        if (!deepTraceChangePending.current) {
+          setDeepTraceChanging(status === 'starting');
+        }
         if (status === 'unavailable') {
           setDeepTracing(false);
-          setDeepTraceChanging(false);
           setDeepTraceError('storage');
         } else if (status === 'starting') {
           setDeepTracing(true);
-          setDeepTraceChanging(true);
           setDeepTraceError(undefined);
         } else if (status === 'recording') {
           setDeepTracing(true);
-          setDeepTraceChanging(false);
           setDeepTraceError(undefined);
         } else {
           setDeepTracing(false);
-          setDeepTraceChanging(false);
         }
       }),
     []
