@@ -102,6 +102,17 @@ describe('opt-in deep diagnostic trace', () => {
     expect(snapshot.events.map((event) => event.name)).not.toContain('test.after_disable');
   });
 
+  it('persists a clean stop marker when the recorder is disposed', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    dispose?.();
+    dispose = undefined;
+
+    expect((await readDeepTraceSnapshot()).events.map((event) => event.name)).toContain(
+      'trace.session.stop'
+    );
+  });
+
   it('keeps dynamic metadata numeric and rejects unsafe event names', async () => {
     await setDeepTraceEnabled(true, storage);
     recordDeepTraceEvent('test.safe', {

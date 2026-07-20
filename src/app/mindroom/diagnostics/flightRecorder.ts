@@ -30,15 +30,7 @@ const actionKinds = [
   'tab',
   'textarea',
 ] as const;
-const actionSurfaces = [
-  'app',
-  'dialog',
-  'document',
-  'form',
-  'navigation',
-  'settings',
-  'timeline',
-] as const;
+const actionSurfaces = ['app', 'dialog', 'document', 'form', 'navigation', 'timeline'] as const;
 export const normalizeFlightRecorderBuildVersion = (value: string): string =>
   value
     .trim()
@@ -264,7 +256,6 @@ export const classifyFlightRecorderAction = (
   let surface: FlightRecorderActionSurface = 'document';
   if (target instanceof Element) {
     if (target.closest('[role="dialog"]')) surface = 'dialog';
-    else if (target.closest('[data-setting-title]')) surface = 'settings';
     else if (target.closest('[data-message-id]')) surface = 'timeline';
     else if (target.closest('nav,[role="navigation"]')) surface = 'navigation';
     else if (target.closest('form')) surface = 'form';

@@ -479,7 +479,7 @@ describe('iOS freeze flight recorder', () => {
 
   it('retains every valid marker-free prior session even after a fast relaunch', () => {
     const prior = makePriorSession({
-      lastAction: { at: 940, kind: 'range', surface: 'settings' },
+      lastAction: { at: 940, kind: 'range', surface: 'dialog' },
     });
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
 
@@ -490,7 +490,7 @@ describe('iOS freeze flight recorder', () => {
       sessionId: prior.sessionId,
       detectedAt: 1000,
       startupGapMs: 50,
-      lastAction: { at: 940, kind: 'range', surface: 'settings' },
+      lastAction: { at: 940, kind: 'range', surface: 'dialog' },
     });
     expect(abnormal.events).not.toContainEqual(expect.objectContaining({ type: 'heartbeat_gap' }));
     expect(readCurrent(storage).sessionId).not.toBe(prior.sessionId);

@@ -148,7 +148,7 @@ const STATIC_EVENT_NAMES = new Set([
 ]);
 
 const SAFE_EVENT_PATTERNS = [
-  /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|settings|timeline)$/,
+  /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
 ];
@@ -737,13 +737,13 @@ export const initializeDeepTraceRecorder = (
     const existing = runtime;
     return () => {
       if (runtime !== existing || existing.disposed) return;
-      existing.disposed = true;
       stop(existing);
+      existing.disposed = true;
     };
   }
   if (runtime) {
-    runtime.disposed = true;
     stop(runtime);
+    runtime.disposed = true;
   }
 
   const target: Runtime = {
@@ -767,8 +767,8 @@ export const initializeDeepTraceRecorder = (
 
   return () => {
     if (runtime !== target || target.disposed) return;
-    target.disposed = true;
     stop(target);
+    target.disposed = true;
   };
 };
 
