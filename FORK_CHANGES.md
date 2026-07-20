@@ -2,20 +2,21 @@
 
 ## Runbook
 
-### Restore Recently Opened beside the thread navigation category (2026-07-20)
+### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
-- Status: the simpler category implementation is being revised on `feat/restore-recent-threads` to restore a stable bottom position across navigation pages.
+- Status: the persistent bottom implementation, current `dev` merge, regression coverage, full local validation, and independent re-review are complete on `feat/restore-recent-threads`.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
 - Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
 - Architecture decision: render Recently Opened as a bounded bottom sidebar section outside each page navigation scroller instead of restoring a resizable panel with viewport tracking and two layout preference stores.
 - The bottom section reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
+- Expanded content is capped at 45% of the sidebar height and scrolls internally, which keeps the section anchored without a resize control.
 - The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.
-- The aggregate PR diff is now 832 insertions and 192 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 60%; 418 of the remaining insertions are tests.
-- Validation passes 10 focused tests and the full Vitest suite with 445 files and 3,294 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
+- The aggregate PR diff is now 742 insertions and 12 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 64%; 489 of the remaining insertions are tests.
+- Validation passes 58 focused tests and the full Vitest suite with 445 files and 3,295 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
-- Independent review found empty-list visibility, invalid button-descendant markup, and empty-shell centering gaps; all were fixed, and independent re-review found no remaining findings.
+- Independent review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed, and independent re-review found no remaining findings.
 
 ### Keep spaces visible in Simple Mode (2026-07-20)
 
