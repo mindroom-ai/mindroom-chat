@@ -43,7 +43,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('fetchClientConfig', () => {
+describe('client configuration loading', () => {
   it('requests config.json from the provided base path', async () => {
     const fetchMock = vi.fn().mockResolvedValue(response());
     globalThis.fetch = fetchMock as unknown as typeof fetch;

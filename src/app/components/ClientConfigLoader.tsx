@@ -85,7 +85,7 @@ type ClientConfigLoaderProps = {
   error?: (
     err: unknown,
     retry: () => void,
-    ignore: () => void,
+    ignore: (() => void) | undefined,
     authenticate: () => void
   ) => ReactNode;
   children: (config: ClientConfig) => ReactNode;
@@ -94,6 +94,7 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
   const config = state.status === AsyncStatus.Success ? state.data : undefined;
+  const cachedConfig = readCachedClientConfig();
 
   const ignoreCallback = useCallback(() => setIgnoreError(true), []);
   const retryCallback = useCallback(() => {
@@ -110,10 +111,15 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   }
 
   if (!ignoreError && state.status === AsyncStatus.Error) {
-    return error?.(state.error, retryCallback, ignoreCallback, reloadForInteractiveAuthentication);
+    return error?.(
+      state.error,
+      retryCallback,
+      cachedConfig === undefined ? undefined : ignoreCallback,
+      reloadForInteractiveAuthentication
+    );
   }
 
-  const resolvedConfig: ClientConfig = config ?? readCachedClientConfig() ?? {};
+  const resolvedConfig: ClientConfig = config ?? cachedConfig ?? {};
 
   return children(resolvedConfig);
 }

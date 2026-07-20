@@ -10,7 +10,7 @@ export function ConfigConfigLoading() {
 type ConfigConfigErrorProps = {
   error: unknown;
   retry: () => void;
-  ignore: () => void;
+  ignore?: () => void;
   authenticate: () => void;
 };
 export function ConfigConfigError({ error, retry, ignore, authenticate }: ConfigConfigErrorProps) {
@@ -28,7 +28,11 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
                   : 'Failed to load client configuration file.'}
               </Text>
               {authenticationRequired ? (
-                <Text size="T300">Sign in again to reconnect, or continue in offline mode.</Text>
+                <Text size="T300">
+                  {ignore
+                    ? 'Sign in again to reconnect, or continue in offline mode.'
+                    : 'Sign in again to reconnect.'}
+                </Text>
               ) : (
                 typeof error === 'object' &&
                 error &&
@@ -48,11 +52,13 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
                 {authenticationRequired ? 'Sign in again' : 'Retry'}
               </Text>
             </Button>
-            <Button variant="Critical" onClick={() => ignore()} fill="Soft">
-              <Text as="span" size="B400">
-                Continue offline
-              </Text>
-            </Button>
+            {ignore && (
+              <Button variant="Critical" onClick={() => ignore()} fill="Soft">
+                <Text as="span" size="B400">
+                  Continue offline
+                </Text>
+              </Button>
+            )}
           </Box>
         </Dialog>
       </Box>

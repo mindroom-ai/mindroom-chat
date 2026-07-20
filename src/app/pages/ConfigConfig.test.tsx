@@ -48,7 +48,7 @@ const renderConfigError = ({
   error = new Error('config failed'),
 }: {
   retry: () => void;
-  ignore: () => void;
+  ignore?: () => void;
   authenticate: () => void;
   error?: unknown;
 }) => {
@@ -94,6 +94,21 @@ describe('ConfigConfigError', () => {
 
     expect(ignore).toHaveBeenCalledTimes(1);
     expect(ignore).toHaveBeenCalledWith();
+  });
+
+  it('does not offer offline mode without a cached configuration', () => {
+    const renderer = renderConfigError({
+      retry: vi.fn(),
+      authenticate: vi.fn(),
+      error: new ClientConfigAuthenticationError(),
+    });
+
+    expect(getButtonByText(renderer, 'Continue offline')).toBeUndefined();
+    expect(
+      renderer.root
+        .findAllByType('span')
+        .some((span) => span.children.includes('Sign in again to reconnect.'))
+    ).toBe(true);
   });
 
   it('uses top-level sign-in recovery for an authentication redirect', () => {

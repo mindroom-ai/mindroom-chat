@@ -8,13 +8,14 @@
 - Symptom: an installed web client can load its cached application shell after its browser session expires, then fail to load runtime configuration as a subresource.
 - Root cause: retrying the subresource request cannot complete an interactive browser redirect, while continuing with empty defaults discards the last configuration needed for a useful offline start.
 - Fix: runtime configuration requests expose manual redirects as an interactive-authentication state, and the primary recovery action performs a top-level reload that lets the browser handle that redirect.
-- Offline behavior: each successful configuration load stores the last valid JSON object by application base path, and the explicit Continue offline action reuses that configuration when the network request fails.
+- Offline behavior: each successful configuration load stores the last valid JSON object by application base path, and the Continue offline action appears only when that cached configuration is available.
 - Failure behavior: non-success HTTP responses are rejected before JSON parsing, malformed configuration and storage data remain inert, and unavailable browser storage preserves the existing empty-default fallback.
 - Scope: the change uses standard browser navigation and storage only, with no identity-provider, cookie, hostname, or infrastructure coupling.
 - Focused coverage verifies request policy, redirect classification, HTTP failure handling, base-path-isolated caching, cached offline continuation, sign-in recovery, retry, and explicit offline actions.
-- Validation passes 10 focused tests and the full Vitest suite with 443 files and 3,279 tests, as well as typecheck, the web/PWA build with Element Call verification, touched-file Prettier, and `git diff --check`.
+- Validation passes 11 focused tests and the full Vitest suite with 443 files and 3,282 tests, as well as typecheck, the web/PWA build with Element Call verification, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent second self-review found no redirect-classification, offline-cache, storage-failure, navigation, security-boundary, or scope issues.
+- PR review found that first-time visitors without cached configuration could still continue into the old empty-default dead end, so offline continuation is now hidden until a valid configuration has been cached.
 
 ### Native iOS exported-file access (2026-07-19)
 
