@@ -44,6 +44,7 @@ import { clearAppOwnedCacheLocalStorage } from '../app/utils/appOwnedStorage';
 import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 import { createSessionTokenRefresh } from './sessionTokenRefresh';
 import { readCachedSpecVersions, removeCachedSpecVersions } from '../app/state/cachedSpecVersions';
+import { installMatrixSyncFlightRecorder } from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
@@ -309,11 +310,17 @@ export const startClient = async (mx: MatrixClient) => {
     mx.canSupport = await buildFeatureSupportMap(cachedServerVersions);
   }
 
-  await mx.startClient({
-    filter: createStartupSyncFilter(mx),
-    lazyLoadMembers: true,
-    threadSupport: true,
-  });
+  const disposeMatrixSyncFlightRecorder = installMatrixSyncFlightRecorder(mx);
+  try {
+    await mx.startClient({
+      filter: createStartupSyncFilter(mx),
+      lazyLoadMembers: true,
+      threadSupport: true,
+    });
+  } catch (error) {
+    disposeMatrixSyncFlightRecorder();
+    throw error;
+  }
 };
 
 const deleteNamedDatabase = async (name: string): Promise<void> => {
