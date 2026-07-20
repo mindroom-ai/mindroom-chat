@@ -17,6 +17,22 @@
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent review found empty-list visibility, invalid button-descendant markup, and empty-shell centering gaps; all were fixed, and independent re-review found no remaining findings.
 
+### Keep spaces visible in Simple Mode (2026-07-20)
+
+- Status: implementation, full local validation, independent review remediation, PR review, and final CI are complete on PR #183; ready for human review.
+- Simple Mode now keeps the existing space tabs visible so users can distinguish and open their joined spaces.
+- Threads, Explore Community, Local MindRoom, and Add Space remain hidden as advanced navigation.
+- The flattened Home room list and its Home-routed room and thread navigation remain unchanged.
+- The Simple Mode setting description in English, German, and Dutch no longer says that spaces are hidden.
+- Focused coverage verifies that spaces remain visible while the advanced navigation entries stay absent.
+- Validation passes 19 focused navigation, settings, and locale tests, the full Vitest suite with 443 files and 3,284 tests, typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent review found two stale comments that still described space tabs as hidden; the current and historical Runbook contracts plus the Home-list rationale now match the implementation.
+- Independent re-review found no remaining behavior, test, documentation, i18n, routing, or scope issues.
+- PR review: Greptile rated the change 5/5 and safe to merge, and Gemini reported no feedback; neither reviewer produced an inline finding.
+- The ready PR's web, Android, Docker, and conventional-title checks pass.
+- CodeRabbit, Qodo, and Sourcery reported review quota, seat, or rate limits rather than findings.
+
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
 - Status: the minimal recovery path, regression coverage, full local validation, privacy audit, and independent second self-review are complete; ready for PR review.
@@ -1514,10 +1530,11 @@ The write path (`useSetMindroomAccountSettings`) merges over raw stored content 
 js-sdk 41.7 resolves `setAccountData` only after the sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an optimistic pending value and hands back to the store when the write settles.
 
 SURFACES HIDDEN WHEN ON:
-- Sidebar: `SpaceTabs`, the global Threads tab (user-requested 2026-07-09), Explore, Create, Local MindRoom tab.
-  Home FLATTENS every joined room into one list (`useHomeRooms` switches orphan→all selector; home search matches) because hiding spaces must not make space-organized rooms unreachable.
-  Home's Create Room / Join with Address nav items hidden.
-  Kept: Home, Direct, Inbox, Unverified, Settings.
+- Sidebar: the global Threads tab (user-requested 2026-07-09), Explore, Add Space, and Local MindRoom tab.
+  Existing `SpaceTabs` remain visible (user-requested 2026-07-20).
+  Home FLATTENS every joined room into one list (`useHomeRooms` switches orphan→all selector; home search matches), preserving one complete room list alongside space-based organization.
+  Home's Create Room and Join with Address nav items remain visible (user-requested 2026-07-15).
+  Kept: Home, Direct, `SpaceTabs`, Inbox, Unverified, Settings.
 - Command palette: only the visible triggers are hidden (sidebar tab, room-header button).
   `mod+k` and the renderer deliberately stay ungated — user decision 2026-07-09: the palette remains an unadvertised power-user path in simple mode; people who don't know the shortcut never see it.
 - Thread overview toolbar: count + one binary "Unresolved" button (`data-simple-unresolved-toggle`).
