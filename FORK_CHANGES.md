@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### CINNY-126 pre-initialization thread edits (2026-07-20)
+
+- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch is next.
+- Inputs: the final plan, incident report, and all three authoritative trace artifacts were read, and their SHA-256 hashes are recorded for replay verification.
+- Safety: no live credentials were found in the worktree, so live replay remains disabled unless explicit test-room accounts are supplied; Bas's account and the incident room are forbidden targets.
+- Harness: the portable live sender requires three distinct test accounts plus replacement test media, while the offline driver feeds all 23 exact events through matrix-js-sdk 41.7.0 `Room.addLiveEvents`, a real SDK `Thread`, and the shared presentation and tag resolvers.
+- Red gate: all 23 events were processed at speed 1, both overview tags were visible before thread initialization, and the summary targeted the final edit, but zero of 17 edits emitted a pre-initialization timeline event, `replacingEvent()` stayed null, the stream stayed pending, and presentation stayed `Thinking...`.
+- Localization: releasing initialization replay attached the final edit and exposed the completed 1,466-code-point body immediately, proving H1 SDK buffering and disproving a live presentation-helper defect on this path.
+- Evidence: `/tmp/CINNY-126-evidence/red/exact-offline-speed-1.log`, `/tmp/CINNY-126-evidence/red/verdict.txt`, `/tmp/CINNY-126-evidence/red/artifact-sha256.txt`, and `/tmp/CINNY-126-evidence/red/git-head.txt`.
+- Harness review: independent review found six gating, failure-diagnostic, ordering, and live-safety gaps; all were remediated, and re-review found no remaining issue after exact, warm, slow-init, and forced-failure diagnostics.
+
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
 - Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan and implementation reviews, PR review remediation, and final CI are complete; ready for human review.
