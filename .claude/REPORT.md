@@ -61,9 +61,20 @@ The offline real-SDK reproduction is the accepted red/green gate permitted by th
 
 The clean install reported the repository's existing npm audit total of 23 dependency vulnerabilities, which were not changed because dependency upgrades are outside CINNY-126's root-cause scope.
 
+## Publication
+
+Branch `cinny-126` is pushed to Gitea and ready PR [#1](https://git.nijho.lt/basnijholt/mindroom-cinny/pulls/1) is open at implementation SHA `04fa2137`.
+
+The Gitea `dev` base is 332 commits behind and 14 commits ahead of canonical `origin/dev`, so Gitea reports the PR as non-mergeable even though this branch is based on current canonical `dev`.
+
+No AI review comments were configured or returned on Gitea, and all six Gitea Actions checks remain queued with `Waiting to run`, so there were no external reviewer findings to validate.
+
+Independent Codex review completed after the final clean install and found no remaining correctness, privacy, lifecycle, patch hygiene, or scope issue.
+
 ## Commits
 
 - `91faebb1 test: add CINNY-126 exact trace replay gate`
 - `1ca1256f fix: aggregate pre-init thread edits in matrix SDK`
 - `0f0e0acf feat: record Matrix sync batches on iOS`
 - `06185b4d test: keep SDK patch contract lint-clean`
+- `04fa2137 test: verify merged flight recorder evidence`
