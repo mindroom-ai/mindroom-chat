@@ -29,7 +29,7 @@
 - Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
 - The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
 - Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 448 Vitest files with 3,318 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Validation passes all 448 Vitest files with 3,320 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 - Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
 - Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
@@ -51,6 +51,9 @@
 - CodeRabbit's first completed review found a disabled-tracing sync allocation, missing direct runtime-unavailable coverage, an unguarded settings rejection boundary, and duplicated pending-state reset logic.
 - Sync tracing now avoids room enumeration while off, the settings handler fail-closes unexpected rejection, direct background storage failure has UI coverage, and clear-state reset uses one shared helper.
 - Independent review approved the pagination and CodeRabbit remediations after 57 focused tests, typecheck, touched ESLint, formatting, and diff checks.
+- Greptile's sixth 5/5 review found that V8-only stack parsing discarded JavaScriptCore's first `function@url:line:column` frame on the native iOS target.
+- Stack parsing now recognizes parenthesized V8, bare V8, and JavaScriptCore/Firefox frames, skips parsed frames instead of assuming an error-header line, and has privacy-preserving exported-trace coverage for a synthetic WKWebView rejection.
+- Independent review caught and verified fixes for error-header false positives and bare async V8 source misclassification, then approved the strict frame grammar after 17 recorder tests, typecheck, touched ESLint, formatting, and diff checks.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

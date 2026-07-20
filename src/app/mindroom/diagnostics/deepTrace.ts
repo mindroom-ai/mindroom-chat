@@ -537,12 +537,21 @@ const getSourceCode = (filename: string): number => {
   }
 };
 
+const parseStackFrame = (frame: string): RegExpMatchArray | null =>
+  frame.match(/^\s*at\s+.*\((.+):(\d+):(\d+)\)\s*$/) ??
+  frame.match(/^\s*at\s+(?:async\s+)?(.+):(\d+):(\d+)\s*$/) ??
+  frame.match(/^(?:[^@\s:]+|(?:global|module|eval) code)?@(.+):(\d+):(\d+)\s*$/);
+
 const getStackLocation = (stack: string | undefined, skipFrames = 0): DeepTraceData => {
   if (!stack) return {};
-  const frames = stack.split('\n').slice(1 + skipFrames);
-  for (const frame of frames) {
-    const match = frame.match(/(?:\(|\s)(.+):(\d+):(\d+)\)?$/);
+  let framesToSkip = skipFrames;
+  for (const frame of stack.split('\n')) {
+    const match = parseStackFrame(frame);
     if (!match) continue;
+    if (framesToSkip > 0) {
+      framesToSkip -= 1;
+      continue;
+    }
     return {
       source_code: getSourceCode(match[1]),
       line: Number(match[2]),

@@ -152,6 +152,64 @@ describe('opt-in deep diagnostic trace', () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
+  it('captures JavaScriptCore stack locations without retaining stack text', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const reason = new TypeError('private rejection message');
+    reason.stack =
+      'loadThreads@https://cdn.private.test/app.js:42:7\n' +
+      `global code@${window.location.origin}/index.js:8:3`;
+    const rejection = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(rejection, 'reason', { value: reason });
+
+    window.dispatchEvent(rejection);
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'error.unhandled_rejection',
+          data: expect.objectContaining({
+            error_code: 7,
+            fingerprint: expect.any(Number),
+            source_code: 2,
+            line: 42,
+            column: 7,
+          }),
+        }),
+      ])
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('private rejection message');
+    expect(JSON.stringify(snapshot)).not.toContain('cdn.private.test');
+  });
+
+  it('ignores coordinate-like error text and classifies a bare async V8 frame', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const reason = new TypeError(
+      'contact user@private.test:77:2 (https://private.test/fake.js:99:4)'
+    );
+    reason.stack = `${reason.name}: ${reason.message}\n    at async https://cdn.private.test/app.js:12:5`;
+    const rejection = new Event('unhandledrejection') as PromiseRejectionEvent;
+    Object.defineProperty(rejection, 'reason', { value: reason });
+
+    window.dispatchEvent(rejection);
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'error.unhandled_rejection',
+          data: expect.objectContaining({
+            source_code: 2,
+            line: 12,
+            column: 5,
+          }),
+        }),
+      ])
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('private.test');
+    expect(JSON.stringify(snapshot)).not.toContain('fake.js');
+  });
+
   it('captures range-control interactions through the categorical allowlist', async () => {
     await setDeepTraceEnabled(true, storage);
     const range = document.createElement('input');
