@@ -23,7 +23,7 @@
 - Recorder compatibility: storage keys, schema version, 32-event ring, and 8 KB envelope remain unchanged; the strict additive validator accepts old schema-v1 events and rejects raw/invalid hashes, invalid counts, and extra keys.
 - Recorder coverage: focused tests pass for multi-room batches, duplicate emissions, arrivals before the first completed batch, cached saved-sync exclusion, empty batches, completion-time route changes, inactive runtimes, detach/reattach and stop, strict old-session validation, one storage write per batch, startup ordering and failure cleanup, and the fixed-envelope bound.
 - Recorder review: independent review found cached saved-sync events could be misattributed to the first live batch and found three lifecycle/timing assertions that were not yet pinned; cached `Prepared` now discards its accumulator, the missing assertions were added, and re-review found no remaining issue.
-- Validation so far: the 80 focused SDK/recorder/startup tests, typecheck, touched-file ESLint, and the production/PWA build with Element Call verification pass.
+- Validation: a clean `npm ci` reapplies both package patches, all 82 focused SDK/recorder/startup tests pass, typecheck passes, full ESLint reports zero errors and 17 pre-existing warnings, and the production/PWA build with Element Call verification passes.
 - Full-suite environment note: normal Vitest discovery passes 444 files and 3,293 tests; only the three pre-existing Xcode Cloud shell-harness tests fail because this Nix environment has Bash at `/run/current-system/sw/bin/bash` while that test replaces `PATH` with `/usr/bin:/bin`, causing `spawnSync bash ENOENT`; neither the test nor its scripts differ on this branch.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
