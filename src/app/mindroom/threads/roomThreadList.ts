@@ -5,6 +5,9 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
+import { createDeepTraceOperationId, recordDeepTraceEvent } from '../diagnostics/deepTrace';
+
+const getThreadCount = (room: Room): number => room.getThreads?.().length ?? 0;
 
 const getLatestVisibleReply = (thread: Thread) =>
   [...(thread.events ?? [])].reverse().find(isVisibleThreadReplyEvent) ??
@@ -132,31 +135,104 @@ export const roomThreadListIsComplete = (room: Room): boolean => {
 };
 
 export const loadRoomThreads = async (room: Room, onProgress?: () => void): Promise<void> => {
+  const operationId = createDeepTraceOperationId();
+  const startedAt = performance.now();
+  recordDeepTraceEvent(
+    'thread_list.load.start',
+    {
+      operation_id: operationId,
+      existing_threads: getThreadCount(room),
+      server_side: Thread.hasServerSideListSupport,
+    },
+    { flush: true }
+  );
   await ensureThreadTimelineSets(room);
+  const fetchStartedAt = performance.now();
+  recordDeepTraceEvent('thread_list.fetch.start', {
+    operation_id: operationId,
+  });
   try {
     await room.fetchRoomThreads();
   } catch (err) {
     console.warn('[threadList] fetchRoomThreads failed:', err);
+    recordDeepTraceEvent(
+      'thread_list.fetch.error',
+      {
+        operation_id: operationId,
+        duration_ms: performance.now() - fetchStartedAt,
+      },
+      { flush: true }
+    );
     return;
   }
+  recordDeepTraceEvent('thread_list.fetch.complete', {
+    operation_id: operationId,
+    duration_ms: performance.now() - fetchStartedAt,
+    thread_count: getThreadCount(room),
+  });
   onProgress?.();
 
-  if (!Thread.hasServerSideListSupport) return;
+  if (!Thread.hasServerSideListSupport) {
+    recordDeepTraceEvent('thread_list.load.complete', {
+      operation_id: operationId,
+      duration_ms: performance.now() - startedAt,
+      page_count: 0,
+      thread_count: getThreadCount(room),
+    });
+    return;
+  }
 
   const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
-  if (!allThreadsLiveTimeline) return;
+  if (!allThreadsLiveTimeline) {
+    recordDeepTraceEvent('thread_list.load.complete', {
+      operation_id: operationId,
+      duration_ms: performance.now() - startedAt,
+      page_count: 0,
+      thread_count: getThreadCount(room),
+    });
+    return;
+  }
 
+  let pageCount = 0;
   for (;;) {
     const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-    if (currentToken === null) return;
+    if (currentToken === null) {
+      recordDeepTraceEvent('thread_list.load.complete', {
+        operation_id: operationId,
+        duration_ms: performance.now() - startedAt,
+        page_count: pageCount,
+        thread_count: getThreadCount(room),
+      });
+      return;
+    }
 
+    const pageStartedAt = performance.now();
+    recordDeepTraceEvent('thread_list.page.start', {
+      operation_id: operationId,
+      page_index: pageCount,
+    });
     const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
       backwards: true,
+    });
+    pageCount += 1;
+    recordDeepTraceEvent('thread_list.page.complete', {
+      operation_id: operationId,
+      page_index: pageCount - 1,
+      duration_ms: performance.now() - pageStartedAt,
+      has_more: hasMore,
+      thread_count: getThreadCount(room),
     });
     onProgress?.();
 
     const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
     if (!hasMore || nextToken === currentToken) {
+      recordDeepTraceEvent('thread_list.load.complete', {
+        operation_id: operationId,
+        duration_ms: performance.now() - startedAt,
+        page_count: pageCount,
+        thread_count: getThreadCount(room),
+        stalled_token: nextToken === currentToken,
+      });
       return;
     }
   }

@@ -2,6 +2,31 @@
 
 ## Runbook
 
+### Opt-in native iOS deep diagnostic tracing (2026-07-19)
+
+- Status: implementation, focused regression coverage, full local validation, and independent remediation re-review are complete; PR review remains.
+- Motivation: the always-on freeze flight recorder can prove an abnormal termination and retain coarse lifecycle heartbeats, but it does not explain which interaction, request, Matrix operation, or main-thread stall preceded an iOS hang.
+- Settings → About now offers native iOS users an explicit Deep diagnostic tracing switch that is off by default and persists only the device-local opt-in.
+- Enabling performs an IndexedDB open, write, and first-event durability handshake before reporting success.
+- Any later persistence failure stops capture, removes the opt-in when possible, and updates the settings status instead of silently dropping events while claiming to record.
+- Disabling always stops listeners and writes immediately even when the preference removal fails, while the UI warns that the stale preference may re-enable tracing after restart.
+- The recorder retains at most 5,000 events or 2 MiB in IndexedDB and caps the in-memory pending queue at 250 events or 256 KiB.
+- Persistence drains at most 50 events per transaction, evicts the oldest pending evidence during bursts, and exports a durable dropped-event count.
+- Clear trace removes retained events plus pending batches, counters, and scroll aggregation without changing the opt-in preference.
+- Capture covers categorical pointer, keyboard, and scroll interactions; lifecycle and connectivity transitions; routes; event-loop stalls; long tasks; runtime memory samples where available; global errors; unhandled rejections; console warnings and errors; and request timing.
+- Matrix tracing adds categorical sync and timeline counters plus operation spans around thread-list loading, resume refresh, cross-room index bootstrap, and index flush work.
+- Network capture uses one stable global delegate plus the Matrix client fetch seam, so configuration, application, media, and Matrix requests remain traceable without breaking fetch functions captured before a later disable.
+- Privacy is enforced at the recorder boundary with an event-name allowlist and numeric or boolean metadata only.
+- The trace never stores message text, console text, error text, typed keys, URLs, room IDs, event IDs, user IDs, homeserver names, access tokens, or arbitrary caller-provided strings.
+- Error and console evidence uses categorical source and error codes plus per-session salted numeric fingerprints for private correlation within a known build.
+- Combined diagnostic export uses schema version 2 and fault-isolates localStorage from IndexedDB so either the flight record or deep trace remains exportable when the other storage source fails.
+- Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
+- The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
+- Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
+- Validation passes all 447 Vitest files with 3,307 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and the existing 17-warning baseline.
+- Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
+
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
 - Status: the minimal recovery path, regression coverage, full local validation, privacy audit, and independent second self-review are complete; ready for PR review.

@@ -18,6 +18,7 @@ import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
+import { createDeepTraceOperationId, recordDeepTraceEvent } from '../diagnostics/deepTrace';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -193,6 +194,17 @@ export const useThreadOverviewResumeController = ({
       // burst-fire from stacked resume signals (visibility + focus
       // firing in quick succession).
       const runRefresh = async () => {
+        const operationId = createDeepTraceOperationId();
+        const startedAt = performance.now();
+        recordDeepTraceEvent(
+          `thread_resume.${reason}.start`,
+          {
+            operation_id: operationId,
+            compact: compactViewRequested,
+            target_count: targetThreadIds.length,
+          },
+          { flush: true }
+        );
         logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-start', {
           compactViewRequested,
           reason,
@@ -205,22 +217,56 @@ export const useThreadOverviewResumeController = ({
           } else {
             await loadRoomThreads(room);
           }
+          recordDeepTraceEvent('thread_resume.list.complete', {
+            operation_id: operationId,
+            duration_ms: performance.now() - startedAt,
+          });
 
-          if (!alive() || threadIdRef.current) return;
+          if (!alive() || threadIdRef.current) {
+            recordDeepTraceEvent('thread_resume.cancelled', {
+              operation_id: operationId,
+              duration_ms: performance.now() - startedAt,
+              opened_thread: Boolean(threadIdRef.current),
+            });
+            return;
+          }
 
+          let refreshedCount = 0;
           for (const expectedThreadId of targetThreadIds) {
-            if (!alive() || threadIdRef.current) return;
+            if (!alive() || threadIdRef.current) {
+              recordDeepTraceEvent('thread_resume.cancelled', {
+                operation_id: operationId,
+                duration_ms: performance.now() - startedAt,
+                opened_thread: Boolean(threadIdRef.current),
+                refreshed_count: refreshedCount,
+              });
+              return;
+            }
             // eslint-disable-next-line no-await-in-loop
             await refreshOverviewThreadCacheFromRelations(expectedThreadId);
+            refreshedCount += 1;
           }
 
           setOverviewRefreshCounter((value) => value + 1);
+          recordDeepTraceEvent('thread_resume.complete', {
+            operation_id: operationId,
+            duration_ms: performance.now() - startedAt,
+            refreshed_count: refreshedCount,
+          });
           logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-complete', {
             compactViewRequested,
             reason,
             targetCount: targetThreadIds.length,
           });
         } catch (error) {
+          recordDeepTraceEvent(
+            'thread_resume.error',
+            {
+              operation_id: operationId,
+              duration_ms: performance.now() - startedAt,
+            },
+            { flush: true }
+          );
           logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-error', {
             compactViewRequested,
             error: error instanceof Error ? error.message : String(error),
