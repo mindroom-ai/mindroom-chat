@@ -31,6 +31,7 @@ const actionKinds = [
   'textarea',
 ] as const;
 const actionSurfaces = ['app', 'dialog', 'document', 'form', 'navigation', 'timeline'] as const;
+const storedActionSurfaces = [...actionSurfaces, 'settings'] as const;
 export const normalizeFlightRecorderBuildVersion = (value: string): string =>
   value
     .trim()
@@ -44,7 +45,7 @@ export type FlightRecorderActionSurface = typeof actionSurfaces[number];
 export type FlightRecorderLastAction = {
   at: number;
   kind: FlightRecorderActionKind;
-  surface: FlightRecorderActionSurface;
+  surface: FlightRecorderActionSurface | 'settings';
 };
 type EndReason = 'hidden' | 'pagehide';
 type FlightEvent =
@@ -101,7 +102,7 @@ const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction =>
       Object.keys(action).length === 3 &&
       number(action.at) &&
       actionKinds.includes(action.kind as FlightRecorderActionKind) &&
-      actionSurfaces.includes(action.surface as FlightRecorderActionSurface)
+      storedActionSurfaces.includes(action.surface as typeof storedActionSurfaces[number])
   );
 };
 const eventIsValid = (value: unknown): value is FlightEvent => {
@@ -252,7 +253,7 @@ export const classifyFlightRecorderRoute = (
 
 export const classifyFlightRecorderAction = (
   target: EventTarget | null
-): Pick<FlightRecorderLastAction, 'kind' | 'surface'> => {
+): { kind: FlightRecorderActionKind; surface: FlightRecorderActionSurface } => {
   let surface: FlightRecorderActionSurface = 'document';
   if (target instanceof Element) {
     if (target.closest('[role="dialog"]')) surface = 'dialog';
@@ -472,7 +473,7 @@ export const setFlightRecorderVoiceCaptureState = (state: VoiceCaptureState): vo
 };
 
 export const setFlightRecorderLastAction = (
-  action: Pick<FlightRecorderLastAction, 'kind' | 'surface'>,
+  action: { kind: FlightRecorderActionKind; surface: FlightRecorderActionSurface },
   at = Date.now()
 ): void => {
   const runtime = activeRuntime;
