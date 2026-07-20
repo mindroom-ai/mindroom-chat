@@ -29,7 +29,7 @@
 - Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
 - The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
 - Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 448 Vitest files with 3,312 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Validation passes all 448 Vitest files with 3,313 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 - Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
 - Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
@@ -37,6 +37,9 @@
 - Independent follow-up review found one stale activation-failure race beyond the PR findings, and generation-gated failure ownership plus a deferred-open regression now cover it.
 - Follow-up re-review also found stale first-event append success and rejection paths, which now restart the newer activation and have deferred-append coverage for both outcomes.
 - Final independent re-review reran 61 focused tests, typecheck, formatting, and diff checks, then approved all five Greptile remediations and both activation ownership boundaries.
+- Greptile's 5/5 follow-up marked all original threads resolved and found only that a missing response Content-Length was indistinguishable from a genuine zero-byte body.
+- Unknown response size now exports as `null`, with regression coverage, while explicit zero remains numeric.
+- Independent review approved the final response-size distinction after 19 diagnostic tests, typecheck, touched ESLint, formatting, and diff checks.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

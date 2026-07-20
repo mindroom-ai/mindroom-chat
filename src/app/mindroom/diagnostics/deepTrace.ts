@@ -752,12 +752,14 @@ export const traceDeepDiagnosticFetch = async (
   });
   try {
     const response = await baseFetch(input, init);
-    const contentLength = Number(response.headers.get('content-length'));
+    const contentLengthHeader = response.headers.get('content-length');
+    const contentLength = contentLengthHeader === null ? null : Number(contentLengthHeader);
     recordDeepTraceEvent(`network.${category}.${method}.complete`, {
       operation_id: operationId,
       duration_ms: roundMetric(nowMonotonic() - startedAt),
       status: response.status,
-      content_bytes: Number.isFinite(contentLength) ? contentLength : 0,
+      content_bytes:
+        contentLength !== null && Number.isFinite(contentLength) ? contentLength : null,
     });
     return response;
   } catch (requestError) {

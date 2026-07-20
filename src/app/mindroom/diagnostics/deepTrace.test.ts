@@ -206,6 +206,18 @@ describe('opt-in deep diagnostic trace', () => {
     ).toHaveLength(1);
   });
 
+  it('distinguishes an unknown response size from a zero-byte response', async () => {
+    const baseFetch = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    await setDeepTraceEnabled(true, storage);
+
+    await traceDeepDiagnosticFetch(baseFetch, `${window.location.origin}/config.json`);
+
+    const completion = (await readDeepTraceSnapshot()).events.find(
+      (event) => event.name === 'network.app.get.complete'
+    );
+    expect(completion?.data?.content_bytes).toBeNull();
+  });
+
   it('caps the persisted ring by event count and keeps the newest evidence', async () => {
     await setDeepTraceEnabled(true, storage);
     for (let start = 0; start < DEEP_TRACE_MAX_EVENTS + 5; start += 200) {
