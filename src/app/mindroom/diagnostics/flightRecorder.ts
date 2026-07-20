@@ -38,7 +38,7 @@ export const normalizeFlightRecorderBuildVersion = (value: string): string =>
     .replace(/[^A-Za-z0-9._+-]/g, '_')
     .slice(0, 128) || 'unknown';
 const FLIGHT_RECORDER_BUILD_VERSION = normalizeFlightRecorderBuildVersion(APP_BUILD_VERSION);
-type RouteClass = typeof routes[number];
+export type RouteClass = typeof routes[number];
 export type VoiceCaptureState = typeof voices[number];
 export type FlightRecorderActionKind = typeof actionKinds[number];
 export type FlightRecorderActionSurface = typeof actionSurfaces[number];
@@ -48,11 +48,25 @@ export type FlightRecorderLastAction = {
   surface: FlightRecorderActionSurface | 'settings';
 };
 type EndReason = 'hidden' | 'pagehide';
-type FlightEvent =
+export type FlightEvent =
   | { at: number; type: 'voice'; state: VoiceCaptureState }
   | { at: number; type: 'lifecycle'; state: EndReason | 'visible' | 'pageshow' }
   | { at: number; type: 'route'; route: RouteClass; hasThreadId: boolean }
-  | { at: number; type: 'heartbeat_gap'; delayMs: number };
+  | { at: number; type: 'heartbeat_gap'; delayMs: number }
+  | {
+      at: number;
+      type: 'matrix_sync';
+      roomHash: string;
+      eventCount: number;
+      editCount: number;
+      route: RouteClass;
+      hasThreadId: boolean;
+    };
+
+export type MatrixSyncFlightRecorderRoom = Pick<
+  Extract<FlightEvent, { type: 'matrix_sync' }>,
+  'roomHash' | 'eventCount' | 'editCount'
+>;
 
 export type FlightRecorderSession = {
   schemaVersion: typeof FLIGHT_RECORDER_SCHEMA_VERSION;
@@ -105,6 +119,7 @@ const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction =>
       storedActionSurfaces.includes(action.surface as typeof storedActionSurfaces[number])
   );
 };
+const count = (value: unknown): value is number => Number.isSafeInteger(value) && number(value);
 const eventIsValid = (value: unknown): value is FlightEvent => {
   const event = value as Partial<FlightEvent> | null;
   if (!event || !number(event.at)) return false;
@@ -119,6 +134,18 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
   if (event.type === 'route')
     return (
       keyCount === 4 &&
+      routes.includes(event.route as RouteClass) &&
+      typeof event.hasThreadId === 'boolean'
+    );
+  if (event.type === 'matrix_sync')
+    return (
+      keyCount === 7 &&
+      typeof event.roomHash === 'string' &&
+      /^[a-f0-9]{8}$/.test(event.roomHash) &&
+      count(event.eventCount) &&
+      event.eventCount > 0 &&
+      count(event.editCount) &&
+      event.editCount <= event.eventCount &&
       routes.includes(event.route as RouteClass) &&
       typeof event.hasThreadId === 'boolean'
     );
@@ -489,6 +516,31 @@ export const setFlightRecorderLastAction = (
   }
   runtime.session.lastAction = { at, ...action };
   flush(runtime);
+};
+
+export const isFlightRecorderActive = (): boolean => {
+  const runtime = activeRuntime;
+  return Boolean(runtime && !runtime.disabled && !runtime.disposed && runtime.session);
+};
+
+export const recordFlightRecorderMatrixSyncBatch = (
+  rooms: MatrixSyncFlightRecorderRoom[]
+): boolean => {
+  const runtime = activeRuntime;
+  if (!runtime || runtime.disabled || runtime.disposed || !runtime.session || rooms.length === 0) {
+    return false;
+  }
+  const at = Date.now();
+  const route = classifyFlightRecorderRoute();
+  const events: FlightEvent[] = rooms.map((room) => ({
+    at,
+    type: 'matrix_sync',
+    ...room,
+    ...route,
+  }));
+  if (!events.every(eventIsValid)) return false;
+  events.forEach((event) => add(runtime, event));
+  return flush(runtime);
 };
 
 export type FlightRecorderStatus = 'unexpected' | 'none' | 'unavailable';

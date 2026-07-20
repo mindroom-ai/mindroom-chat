@@ -46,6 +46,7 @@ import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../app/state/cachedSpecVersions';
+import { installMatrixSyncFlightRecorder } from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -118,6 +119,10 @@ vi.mock('../app/mindroom/threads/cacheStore', () => ({
 vi.mock('../app/mindroom/native/iosPush', () => ({
   IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
+}));
+
+vi.mock('../app/mindroom/diagnostics/matrixSyncFlightRecorder', () => ({
+  installMatrixSyncFlightRecorder: vi.fn(() => vi.fn()),
 }));
 
 const createStorageMock = (initialEntries: Record<string, string> = {}) => {
@@ -873,6 +878,11 @@ describe('initClient', () => {
 });
 
 describe('startClient', () => {
+  beforeEach(() => {
+    vi.mocked(installMatrixSyncFlightRecorder).mockReset();
+    vi.mocked(installMatrixSyncFlightRecorder).mockReturnValue(vi.fn());
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -938,6 +948,46 @@ describe('startClient', () => {
         },
       },
     });
+  });
+
+  it('attaches sync diagnostics immediately before the authenticated client starts', async () => {
+    const calls: string[] = [];
+    const dispose = vi.fn();
+    vi.mocked(installMatrixSyncFlightRecorder).mockImplementationOnce(() => {
+      calls.push('attach');
+      return dispose;
+    });
+    const matrixStartClient = vi.fn().mockImplementation(async () => {
+      calls.push('start');
+    });
+    const mx = {
+      baseUrl: 'https://example.com',
+      canSupport: new Map([[Feature.ThreadUnreadNotifications, ServerSupport.Stable]]),
+      getUserId: vi.fn(() => '@user:example.com'),
+      startClient: matrixStartClient,
+    } as unknown as Parameters<typeof startClient>[0];
+
+    await startClient(mx);
+
+    expect(installMatrixSyncFlightRecorder).toHaveBeenCalledWith(mx);
+    expect(calls).toEqual(['attach', 'start']);
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
+  it('detaches sync diagnostics when authenticated client startup fails', async () => {
+    const dispose = vi.fn();
+    vi.mocked(installMatrixSyncFlightRecorder).mockReturnValueOnce(dispose);
+    const failure = new Error('sync startup failed');
+    const mx = {
+      baseUrl: 'https://example.com',
+      canSupport: new Map([[Feature.ThreadUnreadNotifications, ServerSupport.Stable]]),
+      getUserId: vi.fn(() => '@user:example.com'),
+      startClient: vi.fn().mockRejectedValue(failure),
+    } as unknown as Parameters<typeof startClient>[0];
+
+    await expect(startClient(mx)).rejects.toBe(failure);
+
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it('does not seed another account versions on the same homeserver', async () => {

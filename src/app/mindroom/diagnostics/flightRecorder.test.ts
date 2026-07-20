@@ -702,6 +702,15 @@ describe('iOS freeze flight recorder', () => {
       { at, type: 'lifecycle', state: 'pagehide' },
       { at, type: 'route', route: 'threads', hasThreadId: false },
       { at, type: 'heartbeat_gap', delayMs: Number.MAX_VALUE },
+      {
+        at,
+        type: 'matrix_sync',
+        roomHash: 'ffffffff',
+        eventCount: Number.MAX_SAFE_INTEGER,
+        editCount: Number.MAX_SAFE_INTEGER,
+        route: 'threads',
+        hasThreadId: true,
+      },
     ].sort((a, b) => JSON.stringify(b).length - JSON.stringify(a).length)[0];
     const maximumFixedShape = {
       ...makePriorSession({

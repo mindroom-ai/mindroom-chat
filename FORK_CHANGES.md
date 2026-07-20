@@ -4,7 +4,7 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch, retry hardening, contract tests, exact-cadence green gate, and independent review are complete.
+- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch, retry hardening, contract tests, exact-cadence green gate, flight-recorder extension, and independent reviews are complete.
 - Inputs: the final plan, incident report, and all three authoritative trace artifacts were read, and their SHA-256 hashes are recorded for replay verification.
 - Safety: no live credentials were found in the worktree, so live replay remains disabled unless explicit test-room accounts are supplied; Bas's account and the incident room are forbidden targets.
 - Harness: the portable live sender requires three distinct test accounts plus replacement test media, while the offline driver feeds all 23 exact events through matrix-js-sdk 41.7.0 `Room.addLiveEvents`, a real SDK `Thread`, and the shared presentation and tag resolvers.
@@ -17,6 +17,14 @@
 - Green gate: the exact speed-1 replay passes with 23 of 23 events processed, 17 replacement and thread-update signals before initialization, final compact-card and global-Threads previews, unread state, overview tags, summary targeting, and first-entry content intact; evidence is `/tmp/CINNY-126-evidence/green/exact-offline-speed-1.log` and `/tmp/CINNY-126-evidence/green/verdict.txt`.
 - Retry diagnostic: the forced-initialization-failure replay passes with two pagination attempts and zero unhandled rejections; evidence is `/tmp/CINNY-126-evidence/green/forced-init-failure.log`.
 - SDK review: independent review found and reproduced a concurrent-waiter rejection hidden by the first retry gate; the waiter path, real `Room.createThread` contract, and gate were tightened, and re-review found no remaining issue.
+- Flight recorder: the authenticated main client now coalesces deduplicated `ClientEvent.Event` arrivals in memory until each successful `SYNCING` boundary, appends one `matrix_sync` record per room with event/edit counts and the current coarse route, and persists the whole batch with one immediate storage write so edit bursts survive suspension.
+- Recorder privacy: stored sync records contain only an eight-character stable room hash, counts, coarse route class, and thread-route presence; raw room IDs, event IDs, senders, bodies, relation targets, URLs, and tokens are never persisted.
+- Recorder lifecycle: attachment occurs immediately before the authenticated client's `startClient`, is idempotent per client, drops incomplete batches on explicit detach, removes both listeners on `STOPPED`, can reattach cleanly, and stays inert when the native-iOS recorder runtime is unavailable.
+- Recorder compatibility: storage keys, schema version, 32-event ring, and 8 KB envelope remain unchanged; the strict additive validator accepts old schema-v1 events and rejects raw/invalid hashes, invalid counts, and extra keys.
+- Recorder coverage: focused tests pass for multi-room batches, duplicate emissions, arrivals before the first completed batch, cached saved-sync exclusion, empty batches, completion-time route changes, inactive runtimes, detach/reattach and stop, strict old-session validation, one storage write per batch, startup ordering and failure cleanup, and the fixed-envelope bound.
+- Recorder review: independent review found cached saved-sync events could be misattributed to the first live batch and found three lifecycle/timing assertions that were not yet pinned; cached `Prepared` now discards its accumulator, the missing assertions were added, and re-review found no remaining issue.
+- Validation so far: the 80 focused SDK/recorder/startup tests, typecheck, touched-file ESLint, and the production/PWA build with Element Call verification pass.
+- Full-suite environment note: normal Vitest discovery passes 444 files and 3,293 tests; only the three pre-existing Xcode Cloud shell-harness tests fail because this Nix environment has Bash at `/run/current-system/sw/bin/bash` while that test replaces `PATH` with `/usr/bin:/bin`, causing `spawnSync bash ENOENT`; neither the test nor its scripts differ on this branch.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
