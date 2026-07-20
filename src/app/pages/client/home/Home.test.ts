@@ -151,6 +151,15 @@ vi.mock('../../../components/join-address-prompt', async () => {
 vi.mock('../../../mindroom/recent-threads/ThreadNavCategory', () => {
   return { ThreadNavCategory: () => React.createElement('div', { 'data-thread-nav': true }) };
 });
+vi.mock('../../../mindroom/recent-threads/RecentThreadsPanel', () => ({
+  RecentThreadsPageNav: ({
+    children,
+    header,
+  }: {
+    children: React.ReactNode;
+    header: React.ReactNode;
+  }) => React.createElement('div', { 'data-recent-threads-nav': true }, header, children),
+}));
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
 }));
@@ -192,6 +201,7 @@ describe('Home', () => {
 
     expectRoomActionsWork(renderer);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-recent-threads-nav': true })).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -201,6 +211,7 @@ describe('Home', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
+    expect(renderer.root.findAllByProps({ 'data-recent-threads-nav': true })).toHaveLength(1);
 
     renderer.unmount();
   });

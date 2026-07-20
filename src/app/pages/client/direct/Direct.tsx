@@ -38,7 +38,7 @@ import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { useDirectRooms } from './useDirectRooms';
-import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
+import { PageNavContent, PageNavHeader } from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { stopPropagation } from '../../../utils/keyboard';
 import {
@@ -46,6 +46,7 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { useDirectCreateSelected } from '../../../hooks/router/useDirectSelected';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
 type DirectMenuProps = {
@@ -179,8 +180,7 @@ export function Direct() {
   );
 
   return (
-    <PageNav>
-      <DirectHeader />
+    <RecentThreadsPageNav header={<DirectHeader />}>
       {noRoomToDisplay ? (
         <DirectEmpty />
       ) : (
@@ -251,6 +251,6 @@ export function Direct() {
           </Box>
         </PageNavContent>
       )}
-    </PageNav>
+    </RecentThreadsPageNav>
   );
 }

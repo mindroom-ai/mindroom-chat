@@ -14,6 +14,7 @@ import {
 } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
+const MOBILE_BREAKPOINT = 750;
 
 type ViewportFixture = {
   height: number;
@@ -31,9 +32,19 @@ const VIEWPORTS: ViewportFixture[] = [
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getThreadButton = (page: Page, rootBody: string) =>
-  page.getByRole('button', {
+  page.getByTestId('thread-nav-list').getByRole('button', {
     name: new RegExp(`Open thread: ${escapeRegex(rootBody)}`, 'i'),
   });
+
+const getRecentThreadButton = (page: Page, rootBody: string) =>
+  page.getByTestId('recent-threads-panel').getByRole('button', {
+    name: new RegExp(`Open thread: ${escapeRegex(rootBody)}`, 'i'),
+  });
+
+const getRecentThreadsToggle = (page: Page) => page.getByRole('button', { name: 'Recent Threads' });
+
+const getRecentThreadsSeparator = (page: Page) =>
+  page.getByRole('separator', { name: 'Resize recent threads panel' });
 
 const getThreadRow = (page: Page, fixture: ThreadFixture) =>
   page.locator(`[data-sidebar-thread-root-id="${fixture.rootId}"]`);
@@ -66,6 +77,14 @@ const seedRecentThreadsState = async ({
         `recentThreads:${nextUserId}`,
         JSON.stringify({ v: 1, entries: nextEntries })
       );
+      localStorage.setItem(
+        `recentThreadsPanelHeight:${nextUserId}`,
+        JSON.stringify({ v: 1, height: 200 })
+      );
+      localStorage.setItem(
+        `recentThreadsPanelMobileExpanded:${nextUserId}`,
+        JSON.stringify({ v: 1, expanded: false })
+      );
     },
     { nextUserId: userId, nextEntries: entries }
   );
@@ -75,6 +94,14 @@ const waitForThreadEntries = async (page: Page, fixtures: ThreadFixture[]) => {
   await Promise.all(
     fixtures.map((fixture) =>
       expect(getThreadButton(page, fixture.rootBody)).toBeVisible({ timeout: 30_000 })
+    )
+  );
+};
+
+const waitForRecentThreadEntries = async (page: Page, fixtures: ThreadFixture[]) => {
+  await Promise.all(
+    fixtures.map((fixture) =>
+      expect(getRecentThreadButton(page, fixture.rootBody)).toBeVisible({ timeout: 30_000 })
     )
   );
 };
@@ -145,9 +172,22 @@ test.describe('live cinny073 peer thread navigation', () => {
       await expect(getThreadsCategoryButton(page)).toHaveText('Threads');
       await waitForThreadEntries(page, fixtures);
 
+      if (viewport.width <= MOBILE_BREAKPOINT) {
+        const recentThreadsToggle = getRecentThreadsToggle(page);
+        await expect(recentThreadsToggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(page.getByTestId('recent-threads-panel')).toHaveCount(0);
+        await recentThreadsToggle.click();
+        await expect(recentThreadsToggle).toHaveAttribute('aria-expanded', 'true');
+        await waitForRecentThreadEntries(page, fixtures);
+      } else {
+        await expect(page.getByRole('heading', { name: 'Recent Threads' })).toBeVisible();
+        await expect(getRecentThreadsSeparator(page)).toBeVisible();
+        await waitForRecentThreadEntries(page, fixtures);
+      }
+
       await getRoomsCategoryButton(page).click();
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
-      await expect(page.getByText(roomNames[0], { exact: true })).toHaveCount(0);
+      await expect(roomsCategory.getByText(roomNames[0], { exact: true })).toHaveCount(0);
       await waitForThreadEntries(page, fixtures);
 
       if (viewport.label === 'desktop') {
@@ -189,6 +229,10 @@ test.describe('live cinny073 peer thread navigation', () => {
       await waitForLoggedInShell(page);
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await waitForThreadEntries(page, fixtures);
+      if (viewport.width <= MOBILE_BREAKPOINT) {
+        await expect(getRecentThreadsToggle(page)).toHaveAttribute('aria-expanded', 'true');
+      }
+      await waitForRecentThreadEntries(page, fixtures);
       if (viewport.label === 'desktop') {
         await expect(
           getThreadRow(page, fixtures[1]).getByRole('button', { name: 'Unpin thread' })

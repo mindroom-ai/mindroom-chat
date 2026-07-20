@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Restore Recent Threads beside the thread navigation category (2026-07-20)
+
+- Status: implementation, regression coverage, full local validation, and independent review are complete on `feat/restore-recent-threads`.
+- Regression: PR #163 added the persistent `Threads` navigation category but removed the separate `Recent Threads` panel, including its desktop resize control and mobile expand toggle.
+- The `Threads` category remains unchanged, while Home, Direct Messages, and Space navigation shells again show the separate per-user recent-open panel.
+- Desktop restores the keyboard-accessible resizable panel, and mobile restores the persisted collapsed or expanded toggle.
+- Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
+- Logout cleanup now removes the restored per-user panel height and mobile expansion stores alongside recent entries and thread sidebar preferences.
+- The live sidebar spec now scopes identical thread buttons to their owning surface and verifies that the `Threads` category and `Recent Threads` panel coexist across desktop, tablet, and mobile layouts.
+- Validation passes 13 focused files with 201 tests, the full Vitest suite with 447 files and 3,418 tests, typecheck, the production and PWA build with Element Call verification, touched-file ESLint, Playwright spec discovery, Prettier, and `git diff --check`.
+- Full ESLint reports zero errors and 17 pre-existing warnings.
+- Independent review found one ambiguous room-name assertion in the live coexistence spec, which is now scoped to the Rooms category; independent re-review found no remaining issues.
+
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
 - Status: the minimal recovery path, regression coverage, full local validation, privacy audit, and independent second self-review are complete; ready for PR review.

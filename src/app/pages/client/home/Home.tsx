@@ -50,7 +50,7 @@ import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
-import { PageNav, PageNavHeader, PageNavContent } from '../../../components/page';
+import { PageNavHeader, PageNavContent } from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { stopPropagation } from '../../../utils/keyboard';
 import {
@@ -60,6 +60,7 @@ import {
 import { UseStateProvider } from '../../../components/UseStateProvider';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
+import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
@@ -242,8 +243,7 @@ export function Home() {
   );
 
   return (
-    <PageNav>
-      <HomeHeader />
+    <RecentThreadsPageNav header={<HomeHeader />}>
       {noRoomToDisplay ? (
         <HomeEmpty />
       ) : (
@@ -370,6 +370,6 @@ export function Home() {
           </Box>
         </PageNavContent>
       )}
-    </PageNav>
+    </RecentThreadsPageNav>
   );
 }

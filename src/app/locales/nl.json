@@ -235,6 +235,12 @@
     "close": "Sluiten",
     "actionError": "Dit account kon niet worden bijgewerkt. Probeer het opnieuw."
   },
+  "recentThreads": {
+    "title": "Recente threads",
+    "empty": "Geen recente threads",
+    "resizeAria": "Formaat van paneel \"Recente threads\" aanpassen",
+    "openedAt": "Geopend {{time}}"
+  },
   "threadNav": {
     "title": "Threads",
     "empty": "Nog geen threads",

@@ -4,6 +4,8 @@ import {
   makeMindroomClientStorageAtoms,
   registerMindroomClientStorageAtoms,
 } from './clientStorageAtoms';
+import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
+import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { bumpRecentThread, clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import {
   DEFAULT_CROSS_ROOM_THREAD_FILTERS,
@@ -16,6 +18,8 @@ const storage = new Map<string, string>();
 
 const clearMindroomStorage = () => {
   clearRecentThreadsStore(USER_ID);
+  clearRecentThreadsPanelHeightStore(USER_ID);
+  clearRecentThreadsPanelMobileExpandedStore(USER_ID);
   clearCrossRoomThreadFiltersStore(USER_ID);
 };
 
@@ -45,6 +49,8 @@ describe('MindRoom client storage atom registration', () => {
     const store = getDefaultStore();
 
     bumpRecentThread('!room:example.org', '$thread-root', 200, 'Preview text');
+    store.set(atoms.recentThreadsPanelHeightAtom, 320);
+    store.set(atoms.recentThreadsPanelMobileExpandedAtom, true);
     store.set(makeCrossRoomThreadFiltersAtom(USER_ID), {
       ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
       query: 'agent',
@@ -52,6 +58,10 @@ describe('MindRoom client storage atom registration', () => {
 
     expect(storage.get(`recentThreads:${USER_ID}`)).toBe(
       '{"v":1,"entries":[{"roomId":"!room:example.org","threadId":"$thread-root","openedAt":200,"summaryText":"Preview text"}]}'
+    );
+    expect(storage.get(`recentThreadsPanelHeight:${USER_ID}`)).toBe('{"v":1,"height":320}');
+    expect(storage.get(`recentThreadsPanelMobileExpanded:${USER_ID}`)).toBe(
+      '{"expanded":true,"v":1}'
     );
     expect(store.get(makeCrossRoomThreadFiltersAtom(USER_ID)).query).toBe('agent');
     expect(storage.get(`crossRoomThreadFilters:${USER_ID}`)).not.toContain('"query"');
