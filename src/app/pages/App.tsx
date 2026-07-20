@@ -34,8 +34,13 @@ function App() {
               <FeatureCheck>
                 <ClientConfigLoader
                   fallback={() => <ConfigConfigLoading />}
-                  error={(err, retry, ignore) => (
-                    <ConfigConfigError error={err} retry={retry} ignore={ignore} />
+                  error={(err, retry, ignore, authenticate) => (
+                    <ConfigConfigError
+                      error={err}
+                      retry={retry}
+                      ignore={ignore}
+                      authenticate={authenticate}
+                    />
                   )}
                 >
                   {(clientConfig) => (
