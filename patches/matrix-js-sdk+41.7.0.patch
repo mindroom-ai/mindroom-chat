@@ -1,0 +1,48 @@
+diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
+index b02b81f..8041e8f 100644
+--- a/node_modules/matrix-js-sdk/lib/models/thread.js
++++ b/node_modules/matrix-js-sdk/lib/models/thread.js
+@@ -387,13 +387,16 @@ export class Thread extends ReadReceipt {
+        */
+       (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
+ 
+-      // For annotations (reactions), aggregate immediately (pre-init) to keep
+-      // reaction counts/summary visible while the thread is still initialising.
++      // For annotations (reactions) and replacements (edits), aggregate immediately
++      // to keep reaction counts and edited content visible while the thread is initialising.
+       // Only aggregate as child: parent aggregation is unnecessary here.
+-      if (event.isRelation(RelationType.Annotation)) {
++      if (event.isRelation(RelationType.Annotation) || event.isRelation(RelationType.Replace)) {
+         var _this$timelineSet$rel;
+         (_this$timelineSet$rel = this.timelineSet.relations) === null || _this$timelineSet$rel === void 0 || _this$timelineSet$rel.aggregateChildEvent(event, this.timelineSet);
+       }
++      if (event.isRelation(RelationType.Replace)) {
++        this.emit(ThreadEvent.Update, this);
++      }
+     } else {
+       var _this$client$canSuppo2;
+       // Case 2: this is happening later, and we have a timeline. In
+@@ -556,7 +559,14 @@ export class Thread extends ReadReceipt {
+       yield _this7.processRootEventPromise;
+       if (!_this7.initialEventsFetched) {
+         if (_this7.initalEventFetchProm) {
+-          yield _this7.initalEventFetchProm;
++          try {
++            yield _this7.initalEventFetchProm;
++          } catch (_unused) {
++            // A concurrent metadata update owns the request and reports the failure.
++            // Keep this waiter from surfacing the same rejection as unhandled.
++            _this7.initalEventFetchProm = undefined;
++            _this7.initialEventsFetched = false;
++          }
+         } else {
+           // fetch initial events to allow proper pagination
+           try {
+@@ -595,6 +605,7 @@ export class Thread extends ReadReceipt {
+             _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
+           } catch (e) {
+             logger.error("Failed to load start of newly created thread: ", e);
++            _this7.initalEventFetchProm = undefined;
+             _this7.initialEventsFetched = false;
+           }
+         }

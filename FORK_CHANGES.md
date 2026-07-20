@@ -4,7 +4,7 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch is next.
+- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch, retry hardening, contract tests, exact-cadence green gate, and independent review are complete.
 - Inputs: the final plan, incident report, and all three authoritative trace artifacts were read, and their SHA-256 hashes are recorded for replay verification.
 - Safety: no live credentials were found in the worktree, so live replay remains disabled unless explicit test-room accounts are supplied; Bas's account and the incident room are forbidden targets.
 - Harness: the portable live sender requires three distinct test accounts plus replacement test media, while the offline driver feeds all 23 exact events through matrix-js-sdk 41.7.0 `Room.addLiveEvents`, a real SDK `Thread`, and the shared presentation and tag resolvers.
@@ -12,6 +12,11 @@
 - Localization: releasing initialization replay attached the final edit and exposed the completed 1,466-code-point body immediately, proving H1 SDK buffering and disproving a live presentation-helper defect on this path.
 - Evidence: `/tmp/CINNY-126-evidence/red/exact-offline-speed-1.log`, `/tmp/CINNY-126-evidence/red/verdict.txt`, `/tmp/CINNY-126-evidence/red/artifact-sha256.txt`, and `/tmp/CINNY-126-evidence/red/git-head.txt`.
 - Harness review: independent review found six gating, failure-diagnostic, ordering, and live-safety gaps; all were remediated, and re-review found no remaining issue after exact, warm, slow-init, and forced-failure diagnostics.
+- SDK fix: the matrix-js-sdk 41.7.0 runtime patch aggregates pre-initialization replacements through the thread relation container, emits `Thread.update`, clears a rejected initial pagination promise so subsequent metadata work can retry, and absorbs the owner-reported rejection in concurrent metadata waiters.
+- SDK contracts: focused real-SDK tests require pre-initialization `replacingEvent()` resolution, completed effective content, `Event.replaced`, `Thread.update`, a successful second pagination attempt after a forced first failure through `Room.createThread`, and zero escaped rejections.
+- Green gate: the exact speed-1 replay passes with 23 of 23 events processed, 17 replacement and thread-update signals before initialization, final compact-card and global-Threads previews, unread state, overview tags, summary targeting, and first-entry content intact; evidence is `/tmp/CINNY-126-evidence/green/exact-offline-speed-1.log` and `/tmp/CINNY-126-evidence/green/verdict.txt`.
+- Retry diagnostic: the forced-initialization-failure replay passes with two pagination attempts and zero unhandled rejections; evidence is `/tmp/CINNY-126-evidence/green/forced-init-failure.log`.
+- SDK review: independent review found and reproduced a concurrent-waiter rejection hidden by the first retry gate; the waiter path, real `Room.createThread` contract, and gate were tightened, and re-review found no remaining issue.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
