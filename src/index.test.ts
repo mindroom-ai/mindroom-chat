@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
   installFlightRecorder: vi.fn(),
+  initializeDeepTraceRecorder: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
 }));
@@ -25,6 +26,10 @@ vi.mock('./app/mindroom/native/nativeSso', () => ({
 
 vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
   installFlightRecorder: mocks.installFlightRecorder,
+}));
+
+vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
+  initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
 }));
 
 vi.mock('./app/theme/themeBootstrap', () => ({
@@ -91,6 +96,7 @@ describe('application diagnostics bootstrap', () => {
     await import('./index');
 
     expect(mocks.installFlightRecorder).toHaveBeenCalledTimes(installs);
+    expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 
@@ -103,6 +109,20 @@ describe('application diagnostics bootstrap', () => {
     await expect(import('./index')).resolves.toBeDefined();
 
     expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+    expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+    expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
+  it('continues boot when opt-in tracing setup throws', async () => {
+    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.initializeDeepTraceRecorder.mockImplementationOnce(() => {
+      throw new TypeError('indexeddb setup failed');
+    });
+
+    await expect(import('./index')).resolves.toBeDefined();
+
+    expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+    expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 });

@@ -413,7 +413,7 @@ export const getFlightRecorderStatus = (): FlightRecorderStatus => {
   return runtime.disabled ? 'unavailable' : 'none';
 };
 
-export const buildFlightRecorderExport = (): { fileName: string; blob: Blob } => {
+export const buildFlightRecorderPayload = () => {
   const runtime = activeRuntime;
   const abnormalRead = read(runtime?.storage, FLIGHT_RECORDER_ABNORMAL_KEY);
   const currentRead = runtime?.preserved
@@ -424,7 +424,7 @@ export const buildFlightRecorderExport = (): { fileName: string; blob: Blob } =>
   const abnormalSession = parseAbnormal(abnormalRead.value);
   const currentSession = runtime?.preserved ?? parse(currentRead?.value ?? null) ?? null;
   const exportedAt = Date.now();
-  const payload = {
+  return {
     metadata: {
       exportSchemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
       flightRecorderSchemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
@@ -435,6 +435,11 @@ export const buildFlightRecorderExport = (): { fileName: string; blob: Blob } =>
     currentOrPreservedSession:
       currentSession?.sessionId === abnormalSession?.sessionId ? null : currentSession,
   };
+};
+
+export const buildFlightRecorderExport = (): { fileName: string; blob: Blob } => {
+  const payload = buildFlightRecorderPayload();
+  const { exportedAt } = payload.metadata;
   const timestamp = new Date(exportedAt).toISOString().replace(/[:.]/g, '-');
   return {
     fileName: `mindroom-diagnostics-${timestamp}.json`,

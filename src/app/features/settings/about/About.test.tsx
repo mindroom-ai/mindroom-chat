@@ -8,7 +8,11 @@ import { About } from './About';
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
   getFlightRecorderStatus: vi.fn(),
-  buildFlightRecorderExport: vi.fn(),
+  buildDiagnosticsExport: vi.fn(),
+  getDeepTraceEnabled: vi.fn(),
+  setDeepTraceEnabled: vi.fn(),
+  subscribeDeepTraceStatus: vi.fn(),
+  clearDeepTrace: vi.fn(),
   saveFile: vi.fn(),
 }));
 
@@ -33,6 +37,12 @@ vi.mock('folds', () => ({
   Icon: () => null,
   Icons: { Code: 'code', Cross: 'cross', Heart: 'heart' },
   Spinner: () => React.createElement('i'),
+  Switch: ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) =>
+    React.createElement('input', {
+      type: 'checkbox',
+      checked: value,
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.checked),
+    }),
   config: { space: { S400: '1rem' } },
   toRem: (value: number) => `${value / 16}rem`,
 }));
@@ -104,7 +114,17 @@ vi.mock('../../../mindroom/native/nativeFileSave', () => ({
 
 vi.mock('../../../mindroom/diagnostics/flightRecorder', () => ({
   getFlightRecorderStatus: mocks.getFlightRecorderStatus,
-  buildFlightRecorderExport: mocks.buildFlightRecorderExport,
+}));
+
+vi.mock('../../../mindroom/diagnostics/deepTrace', () => ({
+  getDeepTraceEnabled: mocks.getDeepTraceEnabled,
+  setDeepTraceEnabled: mocks.setDeepTraceEnabled,
+  subscribeDeepTraceStatus: mocks.subscribeDeepTraceStatus,
+  clearDeepTrace: mocks.clearDeepTrace,
+}));
+
+vi.mock('../../../mindroom/diagnostics/diagnosticsExport', () => ({
+  buildDiagnosticsExport: mocks.buildDiagnosticsExport,
 }));
 
 const diagnosticsTile = (renderer: ReactTestRenderer): ReactTestInstance =>
@@ -113,12 +133,22 @@ const diagnosticsTile = (renderer: ReactTestRenderer): ReactTestInstance =>
 const diagnosticsButton = (renderer: ReactTestRenderer): ReactTestInstance =>
   diagnosticsTile(renderer).findByType('button');
 
+const deepTraceTile = (renderer: ReactTestRenderer): ReactTestInstance =>
+  renderer.root.findByProps({ 'data-setting-title': 'Deep diagnostic tracing' });
+
+const deepTraceSwitch = (renderer: ReactTestRenderer): ReactTestInstance =>
+  deepTraceTile(renderer).findByType('input');
+
 describe('About diagnostics export', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isNativeIOS.mockReturnValue(true);
     mocks.getFlightRecorderStatus.mockReturnValue('none');
-    mocks.buildFlightRecorderExport.mockReturnValue({
+    mocks.getDeepTraceEnabled.mockReturnValue(false);
+    mocks.setDeepTraceEnabled.mockResolvedValue(true);
+    mocks.subscribeDeepTraceStatus.mockReturnValue(() => undefined);
+    mocks.clearDeepTrace.mockResolvedValue(undefined);
+    mocks.buildDiagnosticsExport.mockResolvedValue({
       blob: new Blob(['{}'], { type: 'application/json' }),
       fileName: 'mindroom-diagnostics-test.json',
     });
@@ -144,6 +174,9 @@ describe('About diagnostics export', () => {
     expect(
       renderer.root.findAllByProps({ 'data-setting-title': 'On-device diagnostics' })
     ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ 'data-setting-title': 'Deep diagnostic tracing' })
+    ).toHaveLength(0);
     renderer.unmount();
   });
 
@@ -163,7 +196,7 @@ describe('About diagnostics export', () => {
       await diagnosticsButton(renderer).props.onClick();
     });
 
-    expect(mocks.buildFlightRecorderExport).toHaveBeenCalledOnce();
+    expect(mocks.buildDiagnosticsExport).toHaveBeenCalledOnce();
     expect(mocks.saveFile).toHaveBeenCalledOnce();
 
     await act(async () => {
@@ -194,9 +227,7 @@ describe('About diagnostics export', () => {
 
   it('does not offer a retry when unavailable diagnostics cannot be read', async () => {
     mocks.getFlightRecorderStatus.mockReturnValue('unavailable');
-    mocks.buildFlightRecorderExport.mockImplementation(() => {
-      throw new Error('Diagnostics storage unavailable');
-    });
+    mocks.buildDiagnosticsExport.mockRejectedValue(new Error('Diagnostics storage unavailable'));
     const renderer = create(<About requestClose={vi.fn()} />);
 
     await act(async () => {
@@ -225,6 +256,73 @@ describe('About diagnostics export', () => {
     expect(diagnosticsButton(renderer).findByType('span').children.join('')).toBe(
       'Export diagnostics'
     );
+    renderer.unmount();
+  });
+
+  it('enables and disables deep tracing through the device-local switch', async () => {
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+      await Promise.resolve();
+    });
+    expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(true);
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toContain('Recording');
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
+      await Promise.resolve();
+    });
+    expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(false);
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    renderer.unmount();
+  });
+
+  it('keeps the switch unchanged and reports unavailable trace storage when persistence fails', async () => {
+    mocks.setDeepTraceEnabled.mockResolvedValue(false);
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+      await Promise.resolve();
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Trace storage unavailable.'
+    );
+    renderer.unmount();
+  });
+
+  it('stops for this session and warns when the disabled preference cannot be saved', async () => {
+    mocks.getDeepTraceEnabled.mockReturnValue(true);
+    mocks.setDeepTraceEnabled.mockResolvedValue(false);
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
+      await Promise.resolve();
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'may re-enable after restart'
+    );
+    renderer.unmount();
+  });
+
+  it('clears retained deep trace without changing its enabled state', async () => {
+    mocks.getDeepTraceEnabled.mockReturnValue(true);
+    const renderer = create(<About requestClose={vi.fn()} />);
+    const clearButton = deepTraceTile(renderer).findByType('button');
+
+    await act(async () => {
+      await clearButton.props.onClick();
+    });
+
+    expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
     renderer.unmount();
   });
 });
