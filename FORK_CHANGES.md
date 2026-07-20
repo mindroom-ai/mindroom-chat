@@ -16,7 +16,7 @@
 - An abnormal end cannot distinguish a force-close, jetsam, native crash, or WebKit content-process termination.
 - A native WebKit termination marker is required in a follow-up before this feature is advertised for release, with MetricKit hang and crash evidence following separately.
 - Physical-iPhone acceptance remains release-blocking and must cover terminal and recovered stalls, background force-close behavior, relaunch persistence, Files export, and measured tracing overhead.
-- The trim reduces the PR from 24 files and 2,745 added lines to 17 files and 2,042 added lines, restores the original feature-layer behavior, and reduces the central recorder from 1,140 to 826 lines.
+- The trim reduces the PR from 24 files and 2,745 added lines to 17 files and 2,048 added lines, restores the original feature-layer behavior, and reduces the central recorder from 1,140 to 826 lines.
 - The independent implementation review found one unreachable settings-surface category and a disposer ordering bug that suppressed clean stop markers.
 - Both findings are fixed, and legacy settings-surface evidence remains readable without allowing new events to emit that dead category.
 - Final focused validation passes 77 tests, and the full Vitest suite passes 447 files with 3,320 tests.
