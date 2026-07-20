@@ -19,12 +19,14 @@ vi.mock('folds', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
+  const box = ({ children, style }: { children?: React.ReactNode; style?: React.CSSProperties }) =>
+    reactModule.createElement('div', { style }, children);
   const button = ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     reactModule.createElement('button', props, children);
 
   return {
     Avatar: passthrough,
-    Box: passthrough,
+    Box: box,
     Button: button,
     Icon: passthrough,
     IconButton: button,
@@ -151,14 +153,8 @@ vi.mock('../../../components/join-address-prompt', async () => {
 vi.mock('../../../mindroom/recent-threads/ThreadNavCategory', () => {
   return { ThreadNavCategory: () => React.createElement('div', { 'data-thread-nav': true }) };
 });
-vi.mock('../../../mindroom/recent-threads/RecentThreadsPanel', () => ({
-  RecentThreadsPageNav: ({
-    children,
-    header,
-  }: {
-    children: React.ReactNode;
-    header: React.ReactNode;
-  }) => React.createElement('div', { 'data-recent-threads-nav': true }, header, children),
+vi.mock('../../../mindroom/recent-threads/RecentlyOpenedNavCategory', () => ({
+  RecentlyOpenedNavCategory: () => React.createElement('div', { 'data-recently-opened-nav': true }),
 }));
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
@@ -201,7 +197,7 @@ describe('Home', () => {
 
     expectRoomActionsWork(renderer);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-recent-threads-nav': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -211,7 +207,10 @@ describe('Home', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
-    expect(renderer.root.findAllByProps({ 'data-recent-threads-nav': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
+    expect(
+      renderer.root.findAll((node) => node.type === 'div' && node.props.style?.minHeight === '100%')
+    ).toHaveLength(1);
 
     renderer.unmount();
   });

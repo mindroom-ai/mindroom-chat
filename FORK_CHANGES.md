@@ -2,22 +2,20 @@
 
 ## Runbook
 
-### Restore Recent Threads beside the thread navigation category (2026-07-20)
+### Restore Recently Opened beside the thread navigation category (2026-07-20)
 
-- Status: implementation, regression coverage, full local validation, independent review, and PR review remediation are complete on `feat/restore-recent-threads`.
-- Regression: PR #163 added the persistent `Threads` navigation category but removed the separate `Recent Threads` panel, including its desktop resize control and mobile expand toggle.
-- The `Threads` category remains unchanged, while Home, Direct Messages, and Space navigation shells again show the separate per-user recent-open panel.
-- Desktop restores the keyboard-accessible resizable panel, and mobile restores the persisted collapsed or expanded toggle.
+- Status: the simpler category-based implementation, regression coverage, full local validation, and independent re-review are complete on `feat/restore-recent-threads`.
+- Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
+- Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
+- Architecture decision: render Recently Opened as a normal persisted sidebar category beside Threads instead of restoring a separate resizable panel with viewport tracking and two layout preference stores.
+- The category reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
+- The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
-- Logout cleanup now removes the restored per-user panel height and mobile expansion stores alongside recent entries and thread sidebar preferences.
-- The live sidebar spec now scopes identical thread buttons to their owning surface and verifies that the `Threads` category and `Recent Threads` panel coexist across desktop, tablet, and mobile layouts.
-- Validation passes 13 focused files with 204 tests, the full Vitest suite with 447 files and 3,421 tests, typecheck, the production and PWA build with Element Call verification, touched-file ESLint, Playwright spec discovery, Prettier, and `git diff --check`.
+- The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.
+- The aggregate PR diff is now 832 insertions and 192 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 60%; 418 of the remaining insertions are tests.
+- Validation passes 10 focused tests and the full Vitest suite with 445 files and 3,294 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
-- Independent review found one ambiguous room-name assertion in the live coexistence spec, which is now scoped to the Rooms category; independent re-review found no remaining issues.
-- PR review found a redundant mount-time resize debounce, dead header-button styling, stale drag callbacks, and viewport resizing that could overwrite an active drag preview.
-  The resize divider now owns declarative listeners backed by current bounds, commits a freshly clamped height, pauses viewport synchronization during a drag, and has focused coverage for changing bounds and mid-drag viewport resizing.
-- Independent remediation review required commit-synchronous bound updates and explicit drag cleanup coverage for mode switches and unmounts.
-  The ref now updates in a layout effect, cleanup notifies its owner, the lifecycle cases are pinned, and the final review found only the now-corrected validation counts.
+- Independent review found empty-list visibility, invalid button-descendant markup, and empty-shell centering gaps; all were fixed, and independent re-review found no remaining findings.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

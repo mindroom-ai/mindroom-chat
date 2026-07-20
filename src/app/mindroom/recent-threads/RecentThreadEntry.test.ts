@@ -26,8 +26,24 @@ vi.mock('react-i18next', async () => {
 });
 
 vi.mock('folds', () => ({
+  Box: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('span', null, children),
   Text: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('span', null, children),
+}));
+
+vi.mock('../../components/nav', () => ({
+  NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
+    React.createElement('button', props, children),
+  NavItem: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('div', null, children),
+  NavItemContent: ({
+    as: asElement = 'div',
+    children,
+  }: {
+    as?: string;
+    children?: React.ReactNode;
+  }) => React.createElement(asElement, null, children),
 }));
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
@@ -68,14 +84,6 @@ vi.mock('../threads/recentThreadViewModel', () => ({
     persistableSummaryText: 'Thread summary',
     shouldRekey: true,
   }),
-}));
-
-vi.mock('./recentThreads.css', () => ({
-  EntryButton: 'EntryButton',
-  EntryTopRow: 'EntryTopRow',
-  EntryRoomName: 'EntryRoomName',
-  EntryTime: 'EntryTime',
-  EntrySummary: 'EntrySummary',
 }));
 
 import { RecentThreadEntry } from './RecentThreadEntry';
@@ -170,5 +178,6 @@ describe('RecentThreadEntry', () => {
     expect(button.props['aria-label']).toBe(
       'Open thread: Thread summary. Room Name. Opened 1m ago'
     );
+    expect(button.findAllByType('div')).toHaveLength(0);
   });
 });

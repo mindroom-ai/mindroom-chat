@@ -1,13 +1,13 @@
 import React, { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text } from 'folds';
+import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
+import { NavButton, NavItem, NavItemContent } from '../../components/nav';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
-import * as css from './recentThreads.css';
 
 type RecentThreadEntryProps = {
   room: Room;
@@ -56,33 +56,38 @@ export const RecentThreadEntry = memo(
     ]);
 
     return (
-      <button
-        className={css.EntryButton}
-        type="button"
-        onClick={() => {
-          if (viewMode === 'classic') {
-            navigateRoom(room.roomId, viewModel.id.threadRootId);
-            return;
-          }
-          navigateRoomThreadDirect(room.roomId, viewModel.id.threadRootId);
-        }}
-        title={`${viewModel.roomName}: ${viewModel.summaryText}`}
-        aria-label={ariaLabel}
-      >
-        <div className={css.EntryTopRow}>
-          <Text className={css.EntryRoomName} size="T200" priority="300" truncate>
-            {viewModel.roomName}
-          </Text>
-          {relativeTime && (
-            <Text className={css.EntryTime} size="T200" priority="400">
-              {relativeTime}
-            </Text>
-          )}
-        </div>
-        <Text className={css.EntrySummary} size="T300">
-          {viewModel.summaryText}
-        </Text>
-      </button>
+      <NavItem variant="Background" radii="400">
+        <NavButton
+          type="button"
+          onClick={() => {
+            if (viewMode === 'classic') {
+              navigateRoom(room.roomId, viewModel.id.threadRootId);
+              return;
+            }
+            navigateRoomThreadDirect(room.roomId, viewModel.id.threadRootId);
+          }}
+          title={`${viewModel.roomName}: ${viewModel.summaryText}`}
+          aria-label={ariaLabel}
+        >
+          <NavItemContent as="span">
+            <Box as="span" grow="Yes" direction="Column" gap="100" style={{ minWidth: 0 }}>
+              <Box as="span" alignItems="Center" justifyContent="SpaceBetween" gap="100">
+                <Text as="span" size="T200" priority="300" truncate>
+                  {viewModel.roomName}
+                </Text>
+                {relativeTime && (
+                  <Text as="span" size="T200" priority="400">
+                    {relativeTime}
+                  </Text>
+                )}
+              </Box>
+              <Text as="span" size="T300" truncate>
+                {viewModel.summaryText}
+              </Text>
+            </Box>
+          </NavItemContent>
+        </NavButton>
+      </NavItem>
     );
   }
 );

@@ -77,7 +77,7 @@ import {
   useSpaceJoinedHierarchy,
 } from '../../../hooks/useSpaceHierarchy';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
-import { PageNavContent, PageNavHeader } from '../../../components/page';
+import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRecursiveChildScopeFactory, useSpaceChildren } from '../../../state/hooks/roomList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
@@ -105,7 +105,7 @@ import { ContainerColor } from '../../../styles/ContainerColor.css';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
-import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
+import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
@@ -567,7 +567,8 @@ export function Space() {
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(mx, roomId));
 
   return (
-    <RecentThreadsPageNav header={<SpaceHeader />}>
+    <PageNav>
+      <SpaceHeader />
       <PageNavContent scrollRef={scrollRef}>
         <Box direction="Column" gap="300">
           {tombstoneEvent && (
@@ -727,8 +728,9 @@ export function Space() {
             </NavCategory>
           </DndContext>
           <ThreadNavCategory sidebarScrollRef={scrollRef} spaceId={space.roomId} />
+          <RecentlyOpenedNavCategory />
         </Box>
       </PageNavContent>
-    </RecentThreadsPageNav>
+    </PageNav>
   );
 }

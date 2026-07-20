@@ -236,9 +236,8 @@
     "actionError": "Dit account kon niet worden bijgewerkt. Probeer het opnieuw."
   },
   "recentThreads": {
-    "title": "Recente threads",
-    "empty": "Geen recente threads",
-    "resizeAria": "Formaat van paneel \"Recente threads\" aanpassen",
+    "title": "Recent geopend",
+    "empty": "Geen recent geopende threads",
     "openedAt": "Geopend {{time}}"
   },
   "threadNav": {

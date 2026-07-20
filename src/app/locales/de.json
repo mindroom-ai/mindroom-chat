@@ -236,9 +236,8 @@
     "actionError": "Das Konto konnte nicht aktualisiert werden. Bitte versuche es erneut."
   },
   "recentThreads": {
-    "title": "Letzte Threads",
+    "title": "Zuletzt geöffnet",
     "empty": "Keine kürzlich geöffneten Threads",
-    "resizeAria": "Bereich \"Letzte Threads\" in der Größe anpassen",
     "openedAt": "Geöffnet {{time}}"
   },
   "threadNav": {

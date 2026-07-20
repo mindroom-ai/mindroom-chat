@@ -14,7 +14,6 @@ import {
 } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
-const MOBILE_BREAKPOINT = 750;
 
 type ViewportFixture = {
   height: number;
@@ -36,15 +35,10 @@ const getThreadButton = (page: Page, rootBody: string) =>
     name: new RegExp(`Open thread: ${escapeRegex(rootBody)}`, 'i'),
   });
 
-const getRecentThreadButton = (page: Page, rootBody: string) =>
-  page.getByTestId('recent-threads-panel').getByRole('button', {
+const getRecentlyOpenedThreadButton = (page: Page, rootBody: string) =>
+  page.getByTestId('recently-opened-nav-list').getByRole('button', {
     name: new RegExp(`Open thread: ${escapeRegex(rootBody)}`, 'i'),
   });
-
-const getRecentThreadsToggle = (page: Page) => page.getByRole('button', { name: 'Recent Threads' });
-
-const getRecentThreadsSeparator = (page: Page) =>
-  page.getByRole('separator', { name: 'Resize recent threads panel' });
 
 const getThreadRow = (page: Page, fixture: ThreadFixture) =>
   page.locator(`[data-sidebar-thread-root-id="${fixture.rootId}"]`);
@@ -53,6 +47,9 @@ const getRoomsCategoryButton = (page: Page) => page.locator('button[data-categor
 
 const getThreadsCategoryButton = (page: Page) =>
   page.locator('button[data-category-id="mindroom|threads"]');
+
+const getRecentlyOpenedCategoryButton = (page: Page) =>
+  page.locator('button[data-category-id="mindroom|recently-opened"]');
 
 const seedRecentThreadsState = async ({
   page,
@@ -77,14 +74,6 @@ const seedRecentThreadsState = async ({
         `recentThreads:${nextUserId}`,
         JSON.stringify({ v: 1, entries: nextEntries })
       );
-      localStorage.setItem(
-        `recentThreadsPanelHeight:${nextUserId}`,
-        JSON.stringify({ v: 1, height: 200 })
-      );
-      localStorage.setItem(
-        `recentThreadsPanelMobileExpanded:${nextUserId}`,
-        JSON.stringify({ v: 1, expanded: false })
-      );
     },
     { nextUserId: userId, nextEntries: entries }
   );
@@ -98,10 +87,12 @@ const waitForThreadEntries = async (page: Page, fixtures: ThreadFixture[]) => {
   );
 };
 
-const waitForRecentThreadEntries = async (page: Page, fixtures: ThreadFixture[]) => {
+const waitForRecentlyOpenedEntries = async (page: Page, fixtures: ThreadFixture[]) => {
   await Promise.all(
     fixtures.map((fixture) =>
-      expect(getRecentThreadButton(page, fixture.rootBody)).toBeVisible({ timeout: 30_000 })
+      expect(getRecentlyOpenedThreadButton(page, fixture.rootBody)).toBeVisible({
+        timeout: 30_000,
+      })
     )
   );
 };
@@ -135,7 +126,7 @@ test.describe('live cinny073 peer thread navigation', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   for (const viewport of VIEWPORTS) {
-    test(`renders Rooms and Threads as peer categories at ${viewport.width}x${viewport.height}`, async ({
+    test(`renders Rooms, Threads, and Recently Opened as peer categories at ${viewport.width}x${viewport.height}`, async ({
       page,
     }) => {
       test.slow();
@@ -163,32 +154,30 @@ test.describe('live cinny073 peer thread navigation', () => {
 
       const roomsCategory = page.getByTestId('room-nav-category');
       const threadsCategory = page.getByTestId('thread-nav-category');
+      const recentlyOpenedCategory = page.getByTestId('recently-opened-nav-category');
       await expect(roomsCategory).toBeVisible();
       await expect(threadsCategory).toBeVisible();
+      await expect(recentlyOpenedCategory).toBeVisible();
       await expect(
         page.locator('[data-testid="room-nav-category"] + [data-testid="thread-nav-category"]')
       ).toHaveCount(1);
+      await expect(
+        page.locator(
+          '[data-testid="thread-nav-category"] + [data-testid="recently-opened-nav-category"]'
+        )
+      ).toHaveCount(1);
       await expect(getRoomsCategoryButton(page)).toHaveText('Rooms');
       await expect(getThreadsCategoryButton(page)).toHaveText('Threads');
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveText('Recently Opened');
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'true');
       await waitForThreadEntries(page, fixtures);
-
-      if (viewport.width <= MOBILE_BREAKPOINT) {
-        const recentThreadsToggle = getRecentThreadsToggle(page);
-        await expect(recentThreadsToggle).toHaveAttribute('aria-expanded', 'false');
-        await expect(page.getByTestId('recent-threads-panel')).toHaveCount(0);
-        await recentThreadsToggle.click();
-        await expect(recentThreadsToggle).toHaveAttribute('aria-expanded', 'true');
-        await waitForRecentThreadEntries(page, fixtures);
-      } else {
-        await expect(page.getByRole('heading', { name: 'Recent Threads' })).toBeVisible();
-        await expect(getRecentThreadsSeparator(page)).toBeVisible();
-        await waitForRecentThreadEntries(page, fixtures);
-      }
+      await waitForRecentlyOpenedEntries(page, fixtures);
 
       await getRoomsCategoryButton(page).click();
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await expect(roomsCategory.getByText(roomNames[0], { exact: true })).toHaveCount(0);
       await waitForThreadEntries(page, fixtures);
+      await waitForRecentlyOpenedEntries(page, fixtures);
 
       if (viewport.label === 'desktop') {
         const secondRow = getThreadRow(page, fixtures[1]);
@@ -222,17 +211,22 @@ test.describe('live cinny073 peer thread navigation', () => {
       await getThreadsCategoryButton(page).click();
       await expect(getThreadsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await expect(page.getByTestId('thread-nav-list')).toHaveCount(0);
+      await waitForRecentlyOpenedEntries(page, fixtures);
       await getThreadsCategoryButton(page).click();
       await waitForThreadEntries(page, fixtures);
+
+      await getRecentlyOpenedCategoryButton(page).click();
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
 
       await page.reload();
       await waitForLoggedInShell(page);
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await waitForThreadEntries(page, fixtures);
-      if (viewport.width <= MOBILE_BREAKPOINT) {
-        await expect(getRecentThreadsToggle(page)).toHaveAttribute('aria-expanded', 'true');
-      }
-      await waitForRecentThreadEntries(page, fixtures);
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
+      await getRecentlyOpenedCategoryButton(page).click();
+      await waitForRecentlyOpenedEntries(page, fixtures);
       if (viewport.label === 'desktop') {
         await expect(
           getThreadRow(page, fixtures[1]).getByRole('button', { name: 'Unpin thread' })

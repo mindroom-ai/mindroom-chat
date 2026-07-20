@@ -236,9 +236,8 @@
     "actionError": "Could not update this account. Please try again."
   },
   "recentThreads": {
-    "title": "Recent Threads",
-    "empty": "No recent threads",
-    "resizeAria": "Resize recent threads panel",
+    "title": "Recently Opened",
+    "empty": "No recently opened threads",
     "openedAt": "Opened {{time}}"
   },
   "threadNav": {
