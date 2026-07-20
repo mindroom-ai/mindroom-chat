@@ -4,7 +4,7 @@
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
-- Status: the original PR is being reduced after an independent Claude Fable architecture review confirmed that feature-specific spans and noisy global probes added maintenance cost without surviving terminal hangs.
+- Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan review, implementation review remediation, and final re-review are complete; ready for PR review.
 - Motivation: preserve enough device-local evidence to reconstruct the last interaction, in-flight Matrix request, recovered event-loop stall, route, lifecycle transition, or private error category before an iOS freeze.
 - The always-on localStorage flight recorder gains one optional categorical `lastAction` field that is written synchronously on opt-in pointer activation so the triggering task can survive an immediate JavaScript hang.
 - The opt-in IndexedDB trace keeps bounded retention, queue backpressure, dropped-event accounting, clear and fault-isolated export, lifecycle and connectivity, route changes, recovered event-loop stalls, private global error locations, categorical pointer history, and categorized request timing.
@@ -16,6 +16,12 @@
 - An abnormal end cannot distinguish a force-close, jetsam, native crash, or WebKit content-process termination.
 - A native WebKit termination marker is required in a follow-up before this feature is advertised for release, with MetricKit hang and crash evidence following separately.
 - Physical-iPhone acceptance remains release-blocking and must cover terminal and recovered stalls, background force-close behavior, relaunch persistence, Files export, and measured tracing overhead.
+- The trim reduces the PR from 24 files and 2,745 added lines to 17 files and 2,042 added lines, restores the original feature-layer behavior, and reduces the central recorder from 1,140 to 826 lines.
+- The independent implementation review found one unreachable settings-surface category and a disposer ordering bug that suppressed clean stop markers.
+- Both findings are fixed, and legacy settings-surface evidence remains readable without allowing new events to emit that dead category.
+- Final focused validation passes 77 tests, and the full Vitest suite passes 447 files with 3,320 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and the existing 17-warning baseline.
+- Fable's final targeted re-review found no remaining correctness, privacy, storage-race, durability, or over-engineering issue.
 
 ### Stop cyclic Matrix timeline links from crashing room and thread views (2026-07-20)
 
