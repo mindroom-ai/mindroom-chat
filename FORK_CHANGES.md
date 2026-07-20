@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Stop cyclic Matrix timeline links from crashing room and thread views (2026-07-20)
+
+- Status: implementation, regression coverage, full local validation, independent review, PR review, and final CI are complete on PR #184; ready for human review.
+- Root cause: timeline pagination recursively followed Matrix SDK backward neighbour links until reaching `null`, while forward collection used an unbounded loop. A self-link or multi-timeline cycle therefore exhausted the JavaScript call stack, matching the repeated `getFirstLinkedTimeline` frames in the deployed production bundle.
+- Fix: traverse backward iteratively and track visited timeline identities in both directions. A malformed backward cycle falls back to the caller's known timeline, forward collection yields each reachable timeline at most once, and unusually deep valid chains no longer consume call-stack frames.
+- Coverage and validation: focused helper tests exercise a two-timeline backward cycle, a 20,000-timeline valid chain, and a forward self-cycle without relying on a hanging test timeout. The focused suite passes 9 tests and the full Vitest suite passes 443 files with 3,287 tests; typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and 17 pre-existing warnings.
+- Independent review found no correctness, scope, TypeScript, or test defects; its Runbook formatting suggestion was adopted for consistency with current entries.
+- PR review: Gemini reported no comments and Greptile rated the change 5/5 with no findings. Qodo, CodeRabbit, and Sourcery could not review because of account limits; title, web build, Android build, and Docker publish checks passed, and CodeRabbit's quota-only status is the sole non-passing check.
+
 ### Keep spaces visible in Simple Mode (2026-07-20)
 
 - Status: implementation, full local validation, independent review remediation, PR review, and final CI are complete on PR #183; ready for human review.
