@@ -48,6 +48,7 @@ export function About({ requestClose }: AboutProps) {
   const [deepTraceError, setDeepTraceError] = React.useState<
     'storage' | 'preference' | undefined
   >();
+  const deepTraceChangeSequence = React.useRef(0);
   const [clearingDeepTrace, setClearingDeepTrace] = React.useState(false);
   const nativeIOS = isNativeIOS();
   const diagnosticsStatus = getFlightRecorderStatus();
@@ -102,8 +103,11 @@ export function About({ requestClose }: AboutProps) {
   };
 
   const handleDeepTraceChange = async (enabled: boolean) => {
+    const changeSequence = deepTraceChangeSequence.current + 1;
+    deepTraceChangeSequence.current = changeSequence;
     setDeepTraceError(undefined);
     const saved = await setDeepTraceEnabled(enabled);
+    if (deepTraceChangeSequence.current !== changeSequence) return;
     if (!saved) {
       setDeepTraceError(enabled ? 'storage' : 'preference');
     }

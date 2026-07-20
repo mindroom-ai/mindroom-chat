@@ -4,7 +4,7 @@
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-19)
 
-- Status: implementation, focused regression coverage, full local validation, and independent remediation re-review are complete; PR review remains.
+- Status: implementation, focused regression coverage, full local validation, first PR review remediation, and independent follow-up re-review are complete.
 - Motivation: the always-on freeze flight recorder can prove an abnormal termination and retain coarse lifecycle heartbeats, but it does not explain which interaction, request, Matrix operation, or main-thread stall preceded an iOS hang.
 - Settings → About now offers native iOS users an explicit Deep diagnostic tracing switch that is off by default and persists only the device-local opt-in.
 - Enabling performs an IndexedDB open, write, and first-event durability handshake before reporting success.
@@ -19,13 +19,24 @@
 - Privacy is enforced at the recorder boundary with an event-name allowlist and numeric or boolean metadata only.
 - The trace never stores message text, console text, error text, typed keys, URLs, room IDs, event IDs, user IDs, homeserver names, access tokens, or arbitrary caller-provided strings.
 - Error and console evidence uses categorical source and error codes plus per-session salted numeric fingerprints for private correlation within a known build.
+- Fingerprints derive only from categorical type codes and numeric call-site locations, so raw error, stack, and console strings never enter the hash.
+- A transient IndexedDB open or transaction failure releases and closes the cached database handle, allowing a later explicit enable to retry in the same app session.
+- Settings toggle results carry a request generation so an older enable cannot visually override a newer disable.
+- Recorder activation failures also require generation ownership, so a rejected old database open cannot override a newer disable or re-enable.
+- First-event durability completion and failure paths revalidate the same generation after their awaited append, preventing a stale handshake from reporting success or disabling a newer request.
+- Cross-room thread flush traces are emitted after the Jotai state write instead of from inside its pure state derivation.
 - Combined diagnostic export uses schema version 2 and fault-isolates localStorage from IndexedDB so either the flight record or deep trace remains exportable when the other storage source fails.
 - Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
 - The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
 - Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 447 Vitest files with 3,307 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Validation passes all 448 Vitest files with 3,312 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 - Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
+- Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
+- All five findings are fixed with focused recovery, race, privacy, and single-completion regressions.
+- Independent follow-up review found one stale activation-failure race beyond the PR findings, and generation-gated failure ownership plus a deferred-open regression now cover it.
+- Follow-up re-review also found stale first-event append success and rejection paths, which now restart the newer activation and have deferred-append coverage for both outcomes.
+- Final independent re-review reran 61 focused tests, typecheck, formatting, and diff checks, then approved all five Greptile remediations and both activation ownership boundaries.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 

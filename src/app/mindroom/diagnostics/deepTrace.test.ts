@@ -127,15 +127,22 @@ describe('opt-in deep diagnostic trace', () => {
 
     // eslint-disable-next-line no-console -- Exercises the opt-in console trace boundary.
     console.warn('private room and message');
+    // eslint-disable-next-line no-console -- Text content must not influence the fingerprint.
+    console.warn('different homeserver and event identifiers');
 
     const snapshot = await readDeepTraceSnapshot();
-    const warning = snapshot.events.find((event) => event.name === 'error.console.warn');
-    expect(warning?.data).toMatchObject({
-      argument_count: 1,
-      fingerprint: expect.any(Number),
+    const warnings = snapshot.events.filter((event) => event.name === 'error.console.warn');
+    expect(warnings).toHaveLength(2);
+    warnings.forEach((warning) => {
+      expect(warning.data).toMatchObject({
+        argument_count: 1,
+        fingerprint: expect.any(Number),
+      });
     });
+    expect(warnings[0]?.data?.fingerprint).toBe(warnings[1]?.data?.fingerprint);
     expect(JSON.stringify(snapshot)).not.toContain('private room and message');
-    expect(warn).toHaveBeenCalledOnce();
+    expect(JSON.stringify(snapshot)).not.toContain('different homeserver');
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it('captures range-control interactions through the categorical allowlist', async () => {

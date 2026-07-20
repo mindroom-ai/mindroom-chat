@@ -140,13 +140,31 @@ const deepTraceSwitch = (renderer: ReactTestRenderer): ReactTestInstance =>
   deepTraceTile(renderer).findByType('input');
 
 describe('About diagnostics export', () => {
+  let deepTraceStatusListener: ((status: string) => void) | undefined;
+  let deepTracePreference = false;
+  let deepTraceRuntimeStatus = 'disabled';
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isNativeIOS.mockReturnValue(true);
     mocks.getFlightRecorderStatus.mockReturnValue('none');
-    mocks.getDeepTraceEnabled.mockReturnValue(false);
-    mocks.setDeepTraceEnabled.mockResolvedValue(true);
-    mocks.subscribeDeepTraceStatus.mockReturnValue(() => undefined);
+    deepTracePreference = false;
+    deepTraceRuntimeStatus = 'disabled';
+    mocks.getDeepTraceEnabled.mockImplementation(() => deepTracePreference);
+    deepTraceStatusListener = undefined;
+    mocks.setDeepTraceEnabled.mockImplementation(async (enabled: boolean) => {
+      deepTracePreference = enabled;
+      deepTraceRuntimeStatus = enabled ? 'recording' : 'disabled';
+      deepTraceStatusListener?.(deepTraceRuntimeStatus);
+      return true;
+    });
+    mocks.subscribeDeepTraceStatus.mockImplementation((listener: (status: string) => void) => {
+      deepTraceStatusListener = listener;
+      listener(deepTraceRuntimeStatus);
+      return () => {
+        if (deepTraceStatusListener === listener) deepTraceStatusListener = undefined;
+      };
+    });
     mocks.clearDeepTrace.mockResolvedValue(undefined);
     mocks.buildDiagnosticsExport.mockResolvedValue({
       blob: new Blob(['{}'], { type: 'application/json' }),
@@ -296,8 +314,13 @@ describe('About diagnostics export', () => {
   });
 
   it('stops for this session and warns when the disabled preference cannot be saved', async () => {
-    mocks.getDeepTraceEnabled.mockReturnValue(true);
-    mocks.setDeepTraceEnabled.mockResolvedValue(false);
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'recording';
+    mocks.setDeepTraceEnabled.mockImplementation(async () => {
+      deepTraceRuntimeStatus = 'disabled';
+      deepTraceStatusListener?.('disabled');
+      return false;
+    });
     const renderer = create(<About requestClose={vi.fn()} />);
 
     await act(async () => {
@@ -312,8 +335,37 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('keeps a rapid disable authoritative after an older enable finishes', async () => {
+    let resolveEnable: ((saved: boolean) => void) | undefined;
+    const pendingEnable = new Promise<boolean>((resolve) => {
+      resolveEnable = resolve;
+    });
+    mocks.setDeepTraceEnabled.mockImplementation((enabled: boolean) => {
+      deepTracePreference = enabled;
+      deepTraceRuntimeStatus = enabled ? 'starting' : 'disabled';
+      deepTraceStatusListener?.(deepTraceRuntimeStatus);
+      return enabled ? pendingEnable : Promise.resolve(true);
+    });
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      resolveEnable?.(true);
+      await pendingEnable;
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceTile(renderer).props['data-description']).toContain('Off.');
+    renderer.unmount();
+  });
+
   it('clears retained deep trace without changing its enabled state', async () => {
-    mocks.getDeepTraceEnabled.mockReturnValue(true);
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'recording';
     const renderer = create(<About requestClose={vi.fn()} />);
     const clearButton = deepTraceTile(renderer).findByType('button');
 

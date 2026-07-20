@@ -214,16 +214,22 @@ const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined =
 };
 
 const getDatabase = (): Promise<IDBPDatabase<DeepTraceDB>> => {
-  databasePromise ??= openDB<DeepTraceDB>(DEEP_TRACE_DB_NAME, DEEP_TRACE_DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(EVENT_STORE)) {
-        db.createObjectStore(EVENT_STORE, { autoIncrement: true });
-      }
-      if (!db.objectStoreNames.contains(META_STORE)) {
-        db.createObjectStore(META_STORE);
-      }
-    },
-  });
+  if (!databasePromise) {
+    const opening = openDB<DeepTraceDB>(DEEP_TRACE_DB_NAME, DEEP_TRACE_DB_VERSION, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains(EVENT_STORE)) {
+          db.createObjectStore(EVENT_STORE, { autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          db.createObjectStore(META_STORE);
+        }
+      },
+    });
+    databasePromise = opening;
+    void opening.catch(() => {
+      if (databasePromise === opening) databasePromise = undefined;
+    });
+  }
   return databasePromise;
 };
 
@@ -312,8 +318,12 @@ const flush = async (target: Runtime): Promise<void> => {
   );
   const droppedEventCount = target.droppedQueueEvents;
   target.droppedQueueEvents = 0;
+  const flushSequence = target.activationSequence;
   target.flushPromise = appendStoredEvents(batch, droppedEventCount)
     .catch(() => {
+      if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
+        return;
+      }
       markUnavailable(target);
     })
     .finally(() => {
@@ -516,25 +526,6 @@ const getErrorCode = (value: unknown): number => {
   );
 };
 
-const getErrorFingerprint = (value: unknown, salt: number): number => {
-  if (value instanceof Error) {
-    return hashText(value.stack ?? `${value.name}:${value.message}`, salt);
-  }
-  return hashText(typeof value, salt);
-};
-
-const getConsoleFingerprint = (values: unknown[], salt: number): number =>
-  hashText(
-    values
-      .map((value) => {
-        if (value instanceof Error) return value.stack ?? `${value.name}:${value.message}`;
-        if (typeof value === 'string') return value;
-        return typeof value;
-      })
-      .join('|'),
-    salt
-  );
-
 const getSourceCode = (filename: string): number => {
   if (!filename) return 0;
   try {
@@ -558,6 +549,45 @@ const getStackLocation = (stack: string | undefined, skipFrames = 0): DeepTraceD
   }
   return {};
 };
+
+const getValueKindCode = (value: unknown): number => {
+  if (value instanceof Error) return 100 + getErrorCode(value);
+  return (
+    {
+      bigint: 1,
+      boolean: 2,
+      function: 3,
+      number: 4,
+      object: 5,
+      string: 6,
+      symbol: 7,
+      undefined: 8,
+    }[typeof value] ?? 0
+  );
+};
+
+const getErrorFingerprint = (value: unknown, salt: number): number => {
+  const location = value instanceof Error ? getStackLocation(value.stack) : {};
+  return hashText(
+    `${getErrorCode(value)}:${location.source_code ?? 0}:${location.line ?? 0}:${
+      location.column ?? 0
+    }`,
+    salt
+  );
+};
+
+const getConsoleFingerprint = (values: unknown[], salt: number): number =>
+  hashText(
+    values
+      .map((value) => {
+        const location = value instanceof Error ? getStackLocation(value.stack) : {};
+        return `${getValueKindCode(value)}:${location.source_code ?? 0}:${location.line ?? 0}:${
+          location.column ?? 0
+        }`;
+      })
+      .join('|'),
+    salt
+  );
 
 const startGlobalCapture = (target: Runtime): void => {
   const visibility = () => {
@@ -871,7 +901,7 @@ const stopCapture = (target: Runtime): void => {
   target.counters.clear();
 };
 
-const stop = (target: Runtime): void => {
+const stop = (target: Runtime, clearUnavailable = false): void => {
   target.activationSequence += 1;
   if (target.enabled) {
     flushCounters(target);
@@ -879,12 +909,16 @@ const stop = (target: Runtime): void => {
   }
   stopCapture(target);
   if (!target.unavailable) void flush(target);
+  if (clearUnavailable) target.unavailable = false;
   notifyStatus(target);
 };
 
 const markUnavailable = (target: Runtime): void => {
   target.activationSequence += 1;
   target.unavailable = true;
+  const failedDatabase = databasePromise;
+  databasePromise = undefined;
+  void failedDatabase?.then((database) => database.close()).catch(() => undefined);
   stopCapture(target);
   target.queue.length = 0;
   target.queueBytes = 0;
@@ -954,10 +988,26 @@ const activate = (target: Runtime): Promise<boolean> => {
       }
       start(target);
       await flush(target);
-      if (target.unavailable) return false;
+      if (
+        runtime !== target ||
+        target.disposed ||
+        target.activationSequence !== activationSequence ||
+        target.unavailable ||
+        !target.enabled ||
+        !getDeepTraceEnabled(target.storage)
+      ) {
+        return false;
+      }
       notifyStatus(target);
       return true;
     } catch {
+      if (
+        runtime !== target ||
+        target.disposed ||
+        target.activationSequence !== activationSequence
+      ) {
+        return false;
+      }
       markUnavailable(target);
       return false;
     }
@@ -1025,8 +1075,7 @@ export const setDeepTraceEnabled = async (
 
   if (!enabled) {
     const persisted = removeStorageItemSafe(storage, DEEP_TRACE_ENABLED_KEY);
-    target.unavailable = false;
-    stop(target);
+    stop(target, true);
     return persisted;
   }
 
