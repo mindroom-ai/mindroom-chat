@@ -139,7 +139,7 @@ const nowMonotonic = (): number =>
     ? performance.now()
     : 0;
 
-const roundMetric = (value: number): number => Math.round(value * 10) / 10;
+export const roundDeepTraceMetric = (value: number): number => Math.round(value * 10) / 10;
 
 const STATIC_EVENT_NAMES = new Set([
   'error.console.error',
@@ -366,7 +366,7 @@ export const recordDeepTraceEvent = (
     sessionId: target.sessionId,
     sequence: target.sequence,
     at: Date.now(),
-    monotonicMs: roundMetric(nowMonotonic()),
+    monotonicMs: roundDeepTraceMetric(nowMonotonic()),
     name: normalizedName,
     ...(normalizedData ? { data: normalizedData } : {}),
   };
@@ -668,8 +668,8 @@ const startGlobalCapture = (target: Runtime): void => {
       const current = target.scroll;
       if (!current) return;
       recordDeepTraceEvent(`interaction.scroll.end.${current.surface}`, {
-        duration_ms: roundMetric(nowMonotonic() - current.startedAt),
-        distance_px: roundMetric(Math.abs(current.lastTop - current.startTop)),
+        duration_ms: roundDeepTraceMetric(nowMonotonic() - current.startedAt),
+        distance_px: roundDeepTraceMetric(Math.abs(current.lastTop - current.startTop)),
         event_count: current.eventCount,
       });
       target.scroll = undefined;
@@ -756,7 +756,7 @@ export const traceDeepDiagnosticFetch = async (
     const contentLength = contentLengthHeader === null ? null : Number(contentLengthHeader);
     recordDeepTraceEvent(`network.${category}.${method}.complete`, {
       operation_id: operationId,
-      duration_ms: roundMetric(nowMonotonic() - startedAt),
+      duration_ms: roundDeepTraceMetric(nowMonotonic() - startedAt),
       status: response.status,
       content_bytes:
         contentLength !== null && Number.isFinite(contentLength) ? contentLength : null,
@@ -767,7 +767,7 @@ export const traceDeepDiagnosticFetch = async (
       `network.${category}.${method}.error`,
       {
         operation_id: operationId,
-        duration_ms: roundMetric(nowMonotonic() - startedAt),
+        duration_ms: roundDeepTraceMetric(nowMonotonic() - startedAt),
       },
       { flush: true }
     );
@@ -796,7 +796,7 @@ const startPerformanceCapture = (target: Runtime): void => {
         recordDeepTraceEvent(
           'performance.event_loop_stall',
           {
-            delay_ms: roundMetric(delay),
+            delay_ms: roundDeepTraceMetric(delay),
           },
           { flush: true }
         );
@@ -830,8 +830,8 @@ const startPerformanceCapture = (target: Runtime): void => {
         recordDeepTraceEvent(
           'performance.long_task',
           {
-            duration_ms: roundMetric(entry.duration),
-            start_ms: roundMetric(entry.startTime),
+            duration_ms: roundDeepTraceMetric(entry.duration),
+            start_ms: roundDeepTraceMetric(entry.startTime),
           },
           { flush: entry.duration >= LOOP_STALL_THRESHOLD_MS }
         );

@@ -39,6 +39,7 @@ vi.mock('../../diagnostics/deepTrace', () => ({
   createDeepTraceOperationId: vi.fn(() => 42),
   incrementDeepTraceCounter: vi.fn(),
   recordDeepTraceEvent: recordDeepTraceEventMock,
+  roundDeepTraceMetric: (value: number) => Math.round(value * 10) / 10,
 }));
 
 type ListenerMap = Map<unknown, Set<(...args: any[]) => void>>;

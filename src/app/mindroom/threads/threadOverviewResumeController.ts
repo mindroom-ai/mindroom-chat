@@ -18,7 +18,11 @@ import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
-import { createDeepTraceOperationId, recordDeepTraceEvent } from '../diagnostics/deepTrace';
+import {
+  createDeepTraceOperationId,
+  recordDeepTraceEvent,
+  roundDeepTraceMetric,
+} from '../diagnostics/deepTrace';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -219,13 +223,13 @@ export const useThreadOverviewResumeController = ({
           }
           recordDeepTraceEvent('thread_resume.list.complete', {
             operation_id: operationId,
-            duration_ms: performance.now() - startedAt,
+            duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
           });
 
           if (!alive() || threadIdRef.current) {
             recordDeepTraceEvent('thread_resume.cancelled', {
               operation_id: operationId,
-              duration_ms: performance.now() - startedAt,
+              duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
               opened_thread: Boolean(threadIdRef.current),
             });
             return;
@@ -236,7 +240,7 @@ export const useThreadOverviewResumeController = ({
             if (!alive() || threadIdRef.current) {
               recordDeepTraceEvent('thread_resume.cancelled', {
                 operation_id: operationId,
-                duration_ms: performance.now() - startedAt,
+                duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
                 opened_thread: Boolean(threadIdRef.current),
                 refreshed_count: refreshedCount,
               });
@@ -250,7 +254,7 @@ export const useThreadOverviewResumeController = ({
           setOverviewRefreshCounter((value) => value + 1);
           recordDeepTraceEvent('thread_resume.complete', {
             operation_id: operationId,
-            duration_ms: performance.now() - startedAt,
+            duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
             refreshed_count: refreshedCount,
           });
           logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-complete', {
@@ -263,7 +267,7 @@ export const useThreadOverviewResumeController = ({
             'thread_resume.error',
             {
               operation_id: operationId,
-              duration_ms: performance.now() - startedAt,
+              duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
             },
             { flush: true }
           );

@@ -34,6 +34,7 @@ import {
   createDeepTraceOperationId,
   incrementDeepTraceCounter,
   recordDeepTraceEvent,
+  roundDeepTraceMetric,
 } from '../diagnostics/deepTrace';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
@@ -281,7 +282,7 @@ export const useCrossRoomThreadIndex = () => {
       setSnapshot(next);
       recordDeepTraceEvent('thread_index.flush.complete', {
         operation_id: operationId,
-        duration_ms: performance.now() - startedAt,
+        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
         dirty_count: keys.length,
         upsert_count: upserts.length,
         removal_count: removals.length,
@@ -357,7 +358,7 @@ export const useCrossRoomThreadIndex = () => {
       chunk.forEach(scanRoom);
       recordDeepTraceEvent('thread_index.bootstrap_chunk.complete', {
         operation_id: operationId,
-        duration_ms: performance.now() - startedAt,
+        duration_ms: roundDeepTraceMetric(performance.now() - startedAt),
         room_count: chunk.length,
         remaining_rooms: bootstrapRooms.length,
       });

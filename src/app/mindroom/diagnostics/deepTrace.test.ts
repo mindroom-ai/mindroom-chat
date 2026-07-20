@@ -13,6 +13,7 @@ import {
   initializeDeepTraceRecorder,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
+  roundDeepTraceMetric,
   setDeepTraceEnabled,
   traceDeepDiagnosticFetch,
 } from './deepTrace';
@@ -119,6 +120,12 @@ describe('opt-in deep diagnostic trace', () => {
     expect(json).not.toContain('private-room');
     expect(json).not.toContain('finite');
     expect(json).toContain('"count":3');
+  });
+
+  it('normalizes trace metrics to one decimal place', () => {
+    expect(roundDeepTraceMetric(12.345)).toBe(12.3);
+    expect(roundDeepTraceMetric(12.36)).toBe(12.4);
+    expect(roundDeepTraceMetric(0)).toBe(0);
   });
 
   it('captures console failures as numeric fingerprints without console text', async () => {

@@ -4,7 +4,7 @@
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-19)
 
-- Status: implementation, focused regression coverage, full local validation, first PR review remediation, and independent follow-up re-review are complete.
+- Status: implementation, focused regression coverage, full local validation, PR review remediation, and independent follow-up re-review are complete.
 - Motivation: the always-on freeze flight recorder can prove an abnormal termination and retain coarse lifecycle heartbeats, but it does not explain which interaction, request, Matrix operation, or main-thread stall preceded an iOS hang.
 - Settings → About now offers native iOS users an explicit Deep diagnostic tracing switch that is off by default and persists only the device-local opt-in.
 - Enabling performs an IndexedDB open, write, and first-event durability handshake before reporting success.
@@ -29,7 +29,7 @@
 - Focused coverage verifies opt-in behavior, durable enable failure, disable failure semantics, queue backpressure, retained-ring limits, privacy filtering, independent export fallbacks, clear semantics, settings state, boot isolation, and the Matrix fetch boundary.
 - The first independent review found unsafe fetch restoration, false enable success, unbounded pending writes, disable and clear ownership gaps, asymmetric export fallback, and an identifier-permissive event-name boundary.
 - Review remediation also closes an on-off-on activation race, adds stable direct-fetch coverage, captures console call sites without text, and aligns the categorical pointer allowlist with range controls.
-- Validation passes all 448 Vitest files with 3,313 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
+- Validation passes all 448 Vitest files with 3,314 tests, typecheck, the production/PWA build with Element Call verification, dependency-lock dry-run installation, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 - Independent remediation re-review reran 113 focused tests, a 37-test current-state recorder subset, typecheck, formatting, and diff checks, then approved the complete diff with no remaining blocker.
 - Greptile PR review found the Jotai updater side effect, rapid-toggle UI race, rejected database cache, unavailable-disable ordering, and raw-text fingerprint input.
@@ -40,6 +40,9 @@
 - Greptile's 5/5 follow-up marked all original threads resolved and found only that a missing response Content-Length was indistinguishable from a genuine zero-byte body.
 - Unknown response size now exports as `null`, with regression coverage, while explicit zero remains numeric.
 - Independent review approved the final response-size distinction after 19 diagnostic tests, typecheck, touched ESLint, formatting, and diff checks.
+- Greptile's final 5/5 review found only inconsistent fractional precision in timing spans outside the core recorder.
+- A shared one-decimal metric formatter now covers thread-list, thread-resume, cross-room bootstrap, and cross-room flush durations as well as recorder-owned timings.
+- Independent review approved the timing normalization after 59 focused tests, typecheck, touched ESLint, formatting, and diff checks.
 
 ### Recover expired web sessions while preserving offline startup (2026-07-19)
 
