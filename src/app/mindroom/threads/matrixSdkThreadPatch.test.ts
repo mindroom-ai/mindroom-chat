@@ -61,7 +61,9 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
   });
 
   it('aggregates replacements and publishes a thread update before initial pagination completes', async () => {
-    const rootFetch = new Promise<Record<string, unknown>>(() => undefined);
+    const rootFetch = new Promise<Record<string, unknown>>(() => {
+      // Deliberately unresolved so the assertions observe the pre-initialization path.
+    });
     const client = makeClient({
       fetchRoomEvent: vi.fn(() => rootFetch),
       paginateEventTimeline: vi.fn(),
