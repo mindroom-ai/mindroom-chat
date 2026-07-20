@@ -262,7 +262,7 @@ try {
     hypothesis = 'SYNC_NOT_PROCESSED';
   } else if (
     scenario === 'forced-init-failure' &&
-    (paginationAttempts < 2 || !thread.initialEventsFetched)
+    (paginationAttempts < 2 || !thread.initialEventsFetched || unhandledRejections.length > 0)
   ) {
     status = 'RED';
     hypothesis = 'H1_STRANDED_INIT_PROMISE';
