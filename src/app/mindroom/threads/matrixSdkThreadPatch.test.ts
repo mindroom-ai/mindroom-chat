@@ -3,6 +3,7 @@ import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
+import { RelationsContainer } from 'matrix-js-sdk/lib/models/relations-container';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ROOM_ID = '!cinny-126-sdk-contract:example.org';
@@ -13,7 +14,7 @@ const flushAsyncWork = async (cycles = 12) => {
   for (let index = 0; index < cycles; index += 1) await Promise.resolve();
 };
 
-const deferred = <T,>() => {
+const deferred = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
@@ -79,6 +80,83 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     Thread.hasServerSideSupport = previousThreadSupport;
+  });
+
+  it('preserves arrival order when equal-timestamp edits aggregate concurrently', async () => {
+    const room = new Room(ROOM_ID, makeClient(), VIEWER_ID);
+    const placeholder = makeEvent('$same-ts-placeholder', { body: 'Thinking...' }, 2);
+    const makeEdit = (eventId: string, body: string) =>
+      makeEvent(
+        eventId,
+        {
+          body: `* ${body}`,
+          'm.new_content': { body, msgtype: 'm.text' },
+          'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        3
+      );
+    const firstEdit = makeEdit('$same-ts-edit-1', 'First arrival');
+    const secondEdit = makeEdit('$same-ts-edit-2', 'Second arrival');
+
+    const firstAggregation = room.relations.aggregateChildEvent(
+      firstEdit,
+      room.getUnfilteredTimelineSet(),
+      placeholder
+    );
+    const secondAggregation = room.relations.aggregateChildEvent(
+      secondEdit,
+      room.getUnfilteredTimelineSet(),
+      placeholder
+    );
+
+    const replacements = room.relations.getChildEventsForEvent(
+      placeholder.getId()!,
+      'm.replace',
+      'm.room.message'
+    );
+    expect(replacements?.getRelations()).toEqual([firstEdit, secondEdit]);
+
+    await Promise.all([firstAggregation, secondAggregation]);
+
+    expect(replacements?.getRelations()).toEqual([firstEdit, secondEdit]);
+    expect(placeholder.replacingEvent()).toBe(secondEdit);
+    expect(placeholder.getContent().body).toBe('Second arrival');
+  });
+
+  it('makes a reaction visible before fire-and-forget aggregation returns', async () => {
+    const room = new Room(ROOM_ID, makeClient(), VIEWER_ID);
+    const target = makeEvent('$reaction-target', { body: 'Target', msgtype: 'm.text' }, 2);
+    const reaction = new MatrixEvent({
+      content: {
+        'm.relates_to': {
+          event_id: target.getId(),
+          key: '👍',
+          rel_type: 'm.annotation',
+        },
+      },
+      event_id: '$reaction',
+      origin_server_ts: 3,
+      room_id: ROOM_ID,
+      sender: VIEWER_ID,
+      type: 'm.reaction',
+    });
+
+    const aggregation = room.relations.aggregateChildEvent(
+      reaction,
+      room.getUnfilteredTimelineSet(),
+      target
+    );
+
+    const annotations = room.relations.getChildEventsForEvent(
+      target.getId()!,
+      'm.annotation',
+      'm.reaction'
+    );
+    expect(annotations?.getRelations()).toEqual([reaction]);
+    expect(annotations?.getSortedAnnotationsByKey()?.[0]?.[1]).toEqual(new Set([reaction]));
+
+    await aggregation;
   });
 
   it('aggregates replacements and publishes a thread update before initial pagination completes', async () => {
@@ -319,6 +397,108 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     ).toBe(0);
   });
 
+  it('preserves the pre-init target when an edit decrypts before pagination completes', async () => {
+    const releasePagination = deferred<void>();
+    const placeholder = makeEvent(
+      '$early-decrypted-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const freshPlaceholder = makeEvent(
+      placeholder.getId()!,
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    setThreadSummary(root, placeholder);
+    const paginateEventTimeline = vi.fn<MatrixClient['paginateEventTimeline']>(async (timeline) => {
+      await releasePagination.promise;
+      timeline
+        .getTimelineSet()
+        .addEventsToTimeline([freshPlaceholder], true, false, timeline, null);
+      return true;
+    });
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline,
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [placeholder], false);
+    const edit = new MatrixEvent({
+      content: {
+        algorithm: 'test-only',
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+      },
+      event_id: '$early-decrypted-edit',
+      origin_server_ts: 3,
+      room_id: ROOM_ID,
+      sender: '@agent:example.org',
+      type: 'm.room.encrypted',
+    });
+    const decryption = deferred<{
+      clearEvent: { content: Record<string, unknown>; type: string };
+    }>();
+    const decryptionPromise = edit.attemptDecryption({
+      decryptEvent: vi.fn(() => decryption.promise),
+    } as never);
+    const threadUpdateBodies: unknown[] = [];
+    thread.on(ThreadEvent.Update, () => {
+      threadUpdateBodies.push(placeholder.getContent().body);
+    });
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+
+    expect(paginateEventTimeline).toHaveBeenCalledOnce();
+    expect(placeholder.replacingEvent()).toBeNull();
+    expect(
+      room.relations.getChildEventsForEvent(placeholder.getId()!, 'm.replace', 'm.room.encrypted')
+    ).toBeUndefined();
+
+    decryption.resolve({
+      clearEvent: {
+        content: {
+          body: '* Final before pagination',
+          'm.new_content': { body: 'Final before pagination', msgtype: 'm.text' },
+          'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        type: 'm.room.message',
+      },
+    });
+    await decryptionPromise;
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(placeholder.replacingEvent()).toBe(edit);
+    expect(placeholder.getContent().body).toBe('Final before pagination');
+    expect(threadUpdateBodies).toEqual(['Final before pagination']);
+
+    releasePagination.resolve();
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(true);
+    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+    expect(freshPlaceholder.replacingEvent()).toBe(edit);
+    expect(freshPlaceholder.getContent().body).toBe('Final before pagination');
+    expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+    expect(freshPlaceholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+    expect(
+      room.relations
+        .getChildEventsForEvent(placeholder.getId()!, 'm.replace', 'm.room.message')
+        ?.listenerCount(RelationsEvent.Add)
+    ).toBe(0);
+  });
+
   it('commits a deferred encrypted edit to the fresh post-pagination target', async () => {
     const releasePagination = deferred<void>();
     const placeholder = makeEvent(
@@ -385,8 +565,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       'm.replace',
       'm.room.encrypted'
     );
-    expect(encryptedRelations).toBeDefined();
-    expect(encryptedRelations?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(encryptedRelations).toBeUndefined();
     expect(placeholder.replacingEvent()).toBeNull();
 
     releasePagination.resolve();
@@ -421,8 +600,68 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(freshPlaceholder.getContent().body).toBe('Final after decryption');
     expect(threadUpdateBodies).toHaveLength(updatesBeforeDecryption + 1);
     expect(threadUpdateBodies.at(-1)).toBe('Final after decryption');
-    expect(encryptedRelations?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(encryptedRelations).toBeUndefined();
     expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+  });
+
+  it('resolves a decrypted edit through the original timeline in a roomless container', async () => {
+    const client = makeClient();
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    const target = makeEvent(
+      '$roomless-encrypted-target',
+      { body: 'Thinking...', msgtype: 'm.text' },
+      2
+    );
+    addRootToRoom(room, target);
+    const relations = new RelationsContainer(client);
+    const edit = new MatrixEvent({
+      content: {
+        algorithm: 'test-only',
+        'm.relates_to': { event_id: target.getId(), rel_type: 'm.replace' },
+      },
+      event_id: '$roomless-deferred-edit',
+      origin_server_ts: 3,
+      room_id: ROOM_ID,
+      sender: '@agent:example.org',
+      type: 'm.room.encrypted',
+    });
+    const decryption = deferred<{
+      clearEvent: { content: Record<string, unknown>; type: string };
+    }>();
+    const decryptionPromise = edit.attemptDecryption({
+      decryptEvent: vi.fn(() => decryption.promise),
+    } as never);
+
+    const aggregation = relations.aggregateChildEvent(edit, room.getUnfilteredTimelineSet());
+
+    expect(
+      relations.getChildEventsForEvent(target.getId()!, 'm.replace', 'm.room.encrypted')
+    ).toBeUndefined();
+
+    decryption.resolve({
+      clearEvent: {
+        content: {
+          body: '* Final from roomless container',
+          'm.new_content': { body: 'Final from roomless container', msgtype: 'm.text' },
+          'm.relates_to': { event_id: target.getId(), rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        type: 'm.room.message',
+      },
+    });
+    await decryptionPromise;
+    await aggregation;
+
+    expect(
+      relations
+        .getChildEventsForEvent(target.getId()!, 'm.replace', 'm.room.message')
+        ?.getRelations()
+    ).toEqual([edit]);
+    expect(target.replacingEvent()).toBe(edit);
+    expect(target.getContent().body).toBe('Final from roomless container');
+    expect(
+      relations.getChildEventsForEvent(target.getId()!, 'm.replace', 'm.room.encrypted')
+    ).toBeUndefined();
   });
 
   it('does not retain a replacement observer after a pre-init thread is deleted', async () => {
@@ -471,7 +710,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       'm.replace',
       'm.room.message'
     );
-    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(replacements).toBeUndefined();
     const updatesBeforeDeletion = threadUpdates.mock.calls.length;
 
     thread.emit(ThreadEvent.Delete, thread);
@@ -479,7 +718,11 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     edit.emit(MatrixEventEvent.Decrypted, edit);
     await flushAsyncWork(24);
 
-    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(
+      room.relations
+        .getChildEventsForEvent(placeholder.getId()!, 'm.replace', 'm.room.message')
+        ?.listenerCount(RelationsEvent.Add)
+    ).toBe(0);
     expect(threadUpdates).toHaveBeenCalledTimes(updatesBeforeDeletion);
   });
 

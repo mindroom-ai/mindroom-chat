@@ -1,5 +1,5 @@
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
-index ba649eb..09a1a07 100644
+index ba649eb..f8aa444 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 @@ -32,13 +32,13 @@ export declare class RelationsContainer {
@@ -18,8 +18,9 @@ index ba649eb..09a1a07 100644
 +    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet, targetEvent?: MatrixEvent): Promise<Relations | undefined>;
  }
  //# sourceMappingURL=relations-container.d.ts.map
+\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..9bd9a92 100644
+index 8ccc053..fb40514 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
 @@ -65,12 +65,14 @@ export class RelationsContainer {
@@ -37,10 +38,9 @@ index 8ccc053..9bd9a92 100644
      }
 +    return Promise.all(targetUpdates).then(() => undefined);
    }
--
-+
+
    /**
-@@ -79,27 +81,12 @@ export class RelationsContainer {
+@@ -79,26 +81,29 @@ export class RelationsContainer {
     * @param event - The new child event to be aggregated.
     * @param timelineSet - The event timeline set within which to search for the related event if any.
     */
@@ -61,17 +61,31 @@ index 8ccc053..9bd9a92 100644
 -      }
 -      this.aggregateChildEvent(event, timelineSet);
 -    };
--
++    if (!relation) return Promise.resolve(undefined);
+
 -    // If the event is currently encrypted, wait until it has been decrypted.
--    if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
++    // Wait for the clear event type before creating its relation collection.
++    // Reuse the timeline resolver after decryption so roomless containers can
++    // find the target and room-backed containers can select its freshest instance.
+     if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
 -      event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
 -      return;
--    }
-+    if (!relation) return Promise.resolve(undefined);
++      return new Promise((resolve, reject) => {
++        var onEventDecrypted = () => {
++          if (event.isDecryptionFailure()) {
++            // This could for example happen if the encryption keys are not yet available.
++            // The event may still be decrypted later. Register the listener again.
++            event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++            return;
++          }
++          void this.aggregateChildEvent(event, timelineSet, targetEvent).then(resolve, reject);
++        };
++        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++      });
+     }
      var relatesToEventId = relation.event_id,
        relationType = relation.rel_type;
-     var eventType = event.getType();
-@@ -114,17 +101,39 @@ export class RelationsContainer {
+@@ -114,17 +119,23 @@ export class RelationsContainer {
        relationsForEvent.set(relationType, relationsWithRelType);
      }
      var relationsWithEventType = relationsWithRelType.get(eventType);
@@ -90,32 +104,16 @@ index 8ccc053..9bd9a92 100644
      }
 -    relationsWithEventType.addEvent(event);
 +
-+    // If the event is currently encrypted, wait until it has been decrypted.
-+    if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-+      var decryptedCommit = new Promise((resolve, reject) => {
-+        var onEventDecrypted = () => {
-+          if (event.isDecryptionFailure()) {
-+            // This could for example happen if the encryption keys are not yet available.
-+            // The event may still be decrypted later. Register the listener again.
-+            event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
-+            return;
-+          }
-+
-+          // The relation collection already exists and may have been rebound to a
-+          // fresher target while decryption was pending. Do not retain a timeline or
-+          // fallback target across that state transition.
-+          void this.aggregateChildEvent(event).then(resolve, reject);
-+        };
-+        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
-+      });
-+      return Promise.all([targetEventUpdate, decryptedCommit]).then(([, relations]) => relations);
-+    }
-+    return targetEventUpdate.then(() => relationsWithEventType.addEvent(event)).then(() => relationsWithEventType);
++    // addEvent mutates the insertion-ordered relation set before its first await.
++    // Start it immediately so fire-and-forget callers and equal-timestamp edits
++    // retain arrival order while target rebinding completes.
++    var addEventUpdate = relationsWithEventType.addEvent(event);
++    return Promise.all([targetEventUpdate, addEventUpdate]).then(() => relationsWithEventType);
    }
  }
  //# sourceMappingURL=relations-container.js.map
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..6027092 100644
+index 6be66bb..e3313f3 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -60,6 +60,7 @@ export class Relations extends TypedEventEmitter {
@@ -147,7 +145,7 @@ index 6be66bb..6027092 100644
      })();
    }
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..051a60c 100644
+index b02b81f..10f8d15 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
 @@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
@@ -179,15 +177,13 @@ index b02b81f..051a60c 100644
 +    if (!this.initialEventsFetched && eventId && !event.isRelation(RelationType.Annotation) && !event.isRelation(RelationType.Replace)) {
 +      this.preInitEventTargets.set(eventId, event);
 +    }
--
-+
+
      // Decide whether this event is going to be added at the end of the timeline.
      var lastReply = this.lastReply();
 @@ -387,12 +398,27 @@ export class Thread extends ReadReceipt {
         */
        (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
--
-+
+
 -      // For annotations (reactions), aggregate immediately (pre-init) to keep
 -      // reaction counts/summary visible while the thread is still initialising.
 +      // For annotations (reactions) and replacements (edits), aggregate immediately
@@ -265,7 +261,7 @@ index b02b81f..051a60c 100644
            }
          }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
-index 8394bc6..70f2921 100644
+index 8394bc6..132010b 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
 @@ -72,15 +72,17 @@ export class RelationsContainer {
@@ -277,8 +273,7 @@ index 8394bc6..70f2921 100644
          const relationsForEvent = this.relations.get(event.getId()!);
 -        if (!relationsForEvent) return;
 +        if (!relationsForEvent) return Promise.resolve();
--
-+
+
 +        const targetUpdates: Promise<void>[] = [];
          for (const relationsWithRelType of relationsForEvent.values()) {
              for (const relationsWithEventType of relationsWithRelType.values()) {
@@ -288,10 +283,9 @@ index 8394bc6..70f2921 100644
          }
 +        return Promise.all(targetUpdates).then(() => undefined);
      }
--
-+
+
      /**
-@@ -89,30 +91,17 @@ export class RelationsContainer {
+@@ -89,29 +91,35 @@ export class RelationsContainer {
       * @param event - The new child event to be aggregated.
       * @param timelineSet - The event timeline set within which to search for the related event if any.
       */
@@ -305,11 +299,11 @@ index 8394bc6..70f2921 100644
 -            return;
 +            return Promise.resolve(undefined);
          }
--
-+
+
          const relation = event.getRelation();
 -        if (!relation) return;
--
++        if (!relation) return Promise.resolve(undefined);
+
 -        const onEventDecrypted = (): void => {
 -            if (event.isDecryptionFailure()) {
 -                // This could for example happen if the encryption keys are not yet available.
@@ -322,25 +316,37 @@ index 8394bc6..70f2921 100644
 -        };
 -
 -        // If the event is currently encrypted, wait until it has been decrypted.
--        if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
++        // Wait for the clear event type before creating its relation collection.
++        // Reuse the timeline resolver after decryption so roomless containers can
++        // find the target and room-backed containers can select its freshest instance.
+         if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
 -            event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
 -            return;
--        }
-+        if (!relation) return Promise.resolve(undefined);
--
++            return new Promise<Relations | undefined>((resolve, reject) => {
++                const onEventDecrypted = (): void => {
++                    if (event.isDecryptionFailure()) {
++                        // This could for example happen if the encryption keys are not yet available.
++                        // The event may still be decrypted later. Register the listener again.
++                        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++                        return;
++                    }
 +
-         const { event_id: relatesToEventId, rel_type: relationType } = relation;
-         const eventType = event.getType();
-@@ -130,6 +119,7 @@ export class RelationsContainer {
++                    void this.aggregateChildEvent(event, timelineSet, targetEvent).then(resolve, reject);
++                };
++                event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++            });
          }
--
-+
+
+         const { event_id: relatesToEventId, rel_type: relationType } = relation;
+@@ -130,6 +138,7 @@ export class RelationsContainer {
+         }
+
          let relationsWithEventType = relationsWithRelType.get(eventType);
 +        let targetEventUpdate = Promise.resolve();
          if (!relationsWithEventType) {
              relationsWithEventType = new Relations(relationType!, eventType, this.client);
              relationsWithRelType.set(eventType, relationsWithEventType);
-@@ -138,12 +128,36 @@ export class RelationsContainer {
+@@ -138,12 +147,17 @@ export class RelationsContainer {
              const relatesToEvent =
                  timelineSet?.findEventById(relatesToEventId!) ??
                  room?.findEventById(relatesToEventId!) ??
@@ -352,33 +358,13 @@ index 8394bc6..70f2921 100644
 +                targetEventUpdate = relationsWithEventType.setTargetEvent(relatesToEvent);
              }
          }
--
-+
+
 -        relationsWithEventType.addEvent(event);
-+        // If the event is currently encrypted, wait until it has been decrypted.
-+        if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-+            const decryptedCommit = new Promise<Relations | undefined>((resolve, reject) => {
-+                const onEventDecrypted = (): void => {
-+                    if (event.isDecryptionFailure()) {
-+                        // This could for example happen if the encryption keys are not yet available.
-+                        // The event may still be decrypted later. Register the listener again.
-+                        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
-+                        return;
-+                    }
-+
-+                    // The relation collection already exists and may have been rebound to a
-+                    // fresher target while decryption was pending. Do not retain a timeline or
-+                    // fallback target across that state transition.
-+                    void this.aggregateChildEvent(event).then(resolve, reject);
-+                };
-+                event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
-+            });
-+            return Promise.all([targetEventUpdate, decryptedCommit]).then(([, relations]) => relations);
-+        }
-+
-+        return targetEventUpdate
-+            .then(() => relationsWithEventType.addEvent(event))
-+            .then(() => relationsWithEventType);
++        // addEvent mutates the insertion-ordered relation set before its first await.
++        // Start it immediately so fire-and-forget callers and equal-timestamp edits
++        // retain arrival order while target rebinding completes.
++        const addEventUpdate = relationsWithEventType.addEvent(event);
++        return Promise.all([targetEventUpdate, addEventUpdate]).then(() => relationsWithEventType);
      }
  }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
@@ -403,8 +389,7 @@ index 77ba3b3..ce2116b 100644
 +            return this.targetEventUpdatePromise;
          }
          this.targetEvent = event;
--
-+
+
          if (this.relationType === RelationType.Replace) {
 -            await this.updateTargetEventReplacement();
 +            this.targetEventUpdatePromise = this.updateTargetEventReplacement();
@@ -412,8 +397,7 @@ index 77ba3b3..ce2116b 100644
 +            this.targetEventUpdatePromise = Promise.resolve();
          }
 +        await this.targetEventUpdatePromise;
--
-+
+
          this.maybeEmitCreated();
      }
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
@@ -426,16 +410,13 @@ index 871875d..9f0f83c 100644
      private initalEventFetchProm: Promise<boolean> | undefined;
 +    private preInitEventTargets = new Map<string, MatrixEvent>();
 +    private preInitObserverState = { active: true };
--
-+
+
      /**
       * An array of events to add to the timeline once the thread has been initialised
 @@ -171,6 +173,10 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
--
-+
+
          this.reEmitter.reEmit(this.timelineSet, [RoomEvent.Timeline, RoomEvent.TimelineReset]);
--
-+
+
 +        this.once(ThreadEvent.Delete, () => {
 +            this.preInitObserverState.active = false;
 +        });
@@ -456,15 +437,13 @@ index 871875d..9f0f83c 100644
 +        ) {
 +            this.preInitEventTargets.set(eventId, event);
 +        }
--
-+
+
          // Decide whether this event is going to be added at the end of the timeline.
          const lastReply = this.lastReply();
 @@ -438,11 +453,36 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
               */
              this.replayEvents?.push(event);
--
-+
+
 -            // For annotations (reactions), aggregate immediately (pre-init) to keep
 -            // reaction counts/summary visible while the thread is still initialising.
 +            // For annotations (reactions) and replacements (edits), aggregate immediately
@@ -505,8 +484,7 @@ index 871875d..9f0f83c 100644
 @@ -474,6 +514,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          }
      }
--
-+
+
 +    private findPreInitTargetEvent(eventId: string): MatrixEvent | undefined {
 +        return (
 +            this.timelineSet.findEventById(eventId) ??
@@ -519,8 +497,7 @@ index 871875d..9f0f83c 100644
          if (event) {
              this.setEventMetadata(event);
 @@ -608,7 +656,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
--
-+
+
          if (!this.initialEventsFetched) {
              if (this.initalEventFetchProm) {
 -                await this.initalEventFetchProm;
