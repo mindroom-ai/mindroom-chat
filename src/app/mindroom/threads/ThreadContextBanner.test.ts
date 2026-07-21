@@ -415,8 +415,7 @@ describe('ThreadContextBanner rendering', () => {
     const tree = JSON.stringify(renderer.toJSON());
 
     expect(tree).toContain('2 scheduled tasks');
-    expect(tree).not.toContain('pending scheduled');
-    expect(renderer.root.findByProps({ 'aria-label': '2 scheduled tasks' })).toBeTruthy();
+    expect(renderer.root.findByProps({ 'aria-label': '2 pending scheduled tasks' })).toBeTruthy();
   });
 
   it('renders the backend cron description when it is the only scheduled task detail', () => {

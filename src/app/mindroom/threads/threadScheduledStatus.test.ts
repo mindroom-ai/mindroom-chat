@@ -82,6 +82,22 @@ describe('threadScheduledStatus', () => {
     });
   });
 
+  it('keeps count fallback when a timestamp-less task is between timestamped tasks', () => {
+    const statusMap = buildRoomThreadScheduledStatusMap(
+      [
+        makeScheduledEvent({ stateKey: 'once-1', executeAt: '2026-04-04T18:05:00.000Z' }),
+        makeScheduledEvent({ stateKey: 'cron', cronDescription: 'At 09:00' }),
+        makeScheduledEvent({ stateKey: 'once-2', executeAt: '2026-04-04T18:10:00.000Z' }),
+      ],
+      Date.parse('2026-04-04T18:00:00.000Z')
+    );
+
+    expect(getThreadScheduledStatus(statusMap, '$thread')).toEqual({
+      scheduledTaskCount: 3,
+      nextScheduledTs: undefined,
+    });
+  });
+
   it('exposes a backend cron description only for one recurring task', () => {
     const now = Date.parse('2026-04-04T18:00:00.000Z');
     const singleStatusMap = buildRoomThreadScheduledStatusMap(

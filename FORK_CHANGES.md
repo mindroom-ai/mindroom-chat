@@ -4,16 +4,17 @@
 
 ### Show backend-owned recurring schedule descriptions (2026-07-21)
 
-- Status: simplified implementation and local validation are complete; PR #188 awaits its final independent review gate.
+- Status: simplified implementation, review remediation, and local validation are complete; PR #188 awaits final exact-head Fable approval.
 - Merged MindRoom PR #1615 publishes its existing natural-language `cron_description` in scheduled-task Matrix state.
 - MindRoom Chat reads that stable display field instead of parsing or evaluating cron expressions in the browser.
 - One recurring task displays the backend description, while multiple or incomplete task sets retain the honest count fallback.
 - Existing one-time `execute_at` formatting and refresh behavior remain unchanged.
 - The previous client-side Croner dependency, croniter-parity engine, evaluation budgets, continuation cache, and associated timer machinery are removed.
-- The final MindRoom Chat diff adds 67 production lines and removes 21, down from the previous 919 additions and 99 deletions.
-- Focused scheduled-task coverage passes 35 tests, typecheck passes, the production/PWA build passes, and ESLint reports zero errors with the existing 17-warning baseline.
-- The full Vitest suite passes after the propagation fix.
+- The final MindRoom Chat production diff is net +29 lines (+101/-72), down from the previous net +820 (+919/-99).
+- Focused scheduled-task and banner coverage passes 62 tests, typecheck passes, the production/PWA build passes, and ESLint reports zero errors with the existing 17-warning baseline.
+- The full Vitest suite passes all 447 files and 3,372 tests.
 - First independent Fable review found the thread banner dropped `cronDescription` between its hook and record; the propagation fix and component regression now keep summary-less banners on the backend description.
+- Second independent Fable review found duplicated card/header label policy and a missing three-task order regression; one shared display helper now owns both surfaces, and the new test kills the event-order mutant.
 
 ### Expose repository skills to Codex (2026-07-21)
 

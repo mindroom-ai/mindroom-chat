@@ -101,7 +101,7 @@ describe('buildThreadHeaderViewModelFromRecord', () => {
       pickerDisabled: true,
     });
 
-    expect(model.scheduledLabel).toBe('2 scheduled tasks');
+    expect(model.scheduledLabel).toBe('2 pending scheduled tasks');
     expect(model.bannerScheduledText).toBe('2 scheduled tasks');
   });
 
