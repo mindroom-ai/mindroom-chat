@@ -12,7 +12,7 @@
     "build": "vite build && node scripts/verify-element-call-background.mjs",
     "preview": "vite preview",
     "lint": "npm run check:eslint",
-    "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
+    "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"scripts/cinny-126-replay/**/*.ts\"",
     "check:prettier": "prettier --check .",
     "fix:prettier": "prettier --write .",
     "typecheck": "tsc --noEmit",

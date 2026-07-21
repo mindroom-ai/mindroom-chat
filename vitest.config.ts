@@ -4,9 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./src/vitest.setup.ts'],
-    include: [
-      'src/**/*.test.ts',
-      'src/**/*.test.tsx',
-    ],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/cinny-126-replay/**/*.test.ts'],
   },
 });

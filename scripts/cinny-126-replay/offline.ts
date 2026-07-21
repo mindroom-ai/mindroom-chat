@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { MatrixEvent, MatrixEventEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
@@ -63,7 +64,7 @@ const rootFetch = new Promise<TraceEvent>((resolve) => {
   releaseRootFetch = resolve;
 });
 let paginationAttempts = 0;
-let firstOrderEvents: MatrixEvent[] = [];
+const firstOrderEvents: MatrixEvent[] = [];
 
 const client = {
   canSupport: new Map([[Feature.RelationsRecursion, ServerSupport.Stable]]),
@@ -191,6 +192,7 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
   });
   const content = placeholder.getContent<Record<string, unknown>>();
   const replacement = placeholder.replacingEvent();
+  const presentationBody = record.presentation.latestReplyPreviewText ?? '';
   return {
     compactCardUsesFinal: compactCard.previewText.includes('Take the 1:00 PM slot.'),
     effectiveBodyIsFinal:
@@ -202,7 +204,8 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
     overviewTagsVisible:
       JSON.stringify(tagSnapshot?.displayTags) ===
       JSON.stringify(['anniversary-planning', 'schedule-coordination']),
-    presentationPreview: record.presentation.latestReplyPreviewText,
+    presentationBodyLength: Array.from(presentationBody).length,
+    presentationBodySha256: createHash('sha256').update(presentationBody).digest('hex'),
     replacementEventId: replacement?.getId() ?? null,
     replacementIsFinal: replacement?.getId() === INCIDENT_FINAL_EDIT_EVENT_ID,
     roomNavUnread: record.status.isUnread,
@@ -305,7 +308,8 @@ try {
     globalThreadsUsesFinal: preInitSurfaces.globalThreadsUsesFinal,
     overviewTagsVisible: preInitSurfaces.overviewTagsVisible,
     paginationAttempts,
-    presentationPreview: preInitSurfaces.presentationPreview,
+    presentationBodyLength: preInitSurfaces.presentationBodyLength,
+    presentationBodySha256: preInitSurfaces.presentationBodySha256,
     replacementEventId: preInitSurfaces.replacementEventId,
     replacementSignals: preInitReplacementSignals,
     roomNavUnread: preInitSurfaces.roomNavUnread,

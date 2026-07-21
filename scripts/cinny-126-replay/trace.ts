@@ -172,7 +172,11 @@ export const loadExactTrace = async (
     readVerifiedArtifact<TraceEvent[]>(artifactDir, 'edit-events-full.json'),
     readVerifiedArtifact<TraceEvent[]>(artifactDir, 'incident-window-all-events.json'),
   ]);
-  const coreEvents = coreRows.map(({ event_json }) => JSON.parse(event_json) as TraceEvent);
+  const coreEvents = coreRows.map((row) => {
+    // eslint-disable-next-line camelcase -- authoritative artifact field name
+    const { event_json: eventJson } = row;
+    return JSON.parse(eventJson) as TraceEvent;
+  });
   return validateTrace({
     artifactDir,
     artifactHashes: ARTIFACT_HASHES,

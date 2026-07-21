@@ -7,6 +7,13 @@ import {
   ORIGINAL_SENDERS,
   type TraceEvent,
 } from './trace';
+import {
+  assertNoIncidentMediaReferences,
+  collectIncidentAttachmentIds,
+  parseReplacementAttachmentIds,
+  rewriteReplayAttachmentIds,
+  validateLiveReplayMedia,
+} from './liveSafety';
 
 type Role = keyof typeof ORIGINAL_SENDERS;
 type Account = { accessToken: string; userId: string };
@@ -16,9 +23,9 @@ const roomId = process.env.CINNY_126_TEST_ROOM_ID;
 const confirmation = process.env.CINNY_126_TEST_ROOM_CONFIRM;
 const requiredRoomTopic = process.env.CINNY_126_TEST_ROOM_TOPIC ?? 'CINNY-126 TEST ONLY';
 const testAudioMxc = process.env.CINNY_126_TEST_AUDIO_MXC;
-const replacementAttachmentIds = JSON.parse(process.env.CINNY_126_TEST_ATTACHMENT_IDS ?? 'null') as
-  | string[]
-  | null;
+const replacementAttachmentIds = parseReplacementAttachmentIds(
+  process.env.CINNY_126_TEST_ATTACHMENT_IDS
+);
 const roleTokens: Record<Role, string | undefined> = {
   user: process.env.CINNY_126_USER_ACCESS_TOKEN,
   router: process.env.CINNY_126_ROUTER_ACCESS_TOKEN,
@@ -29,15 +36,22 @@ if (!roomId || confirmation !== 'TEST_ONLY') {
   throw new Error('Set CINNY_126_TEST_ROOM_ID and CINNY_126_TEST_ROOM_CONFIRM=TEST_ONLY');
 }
 if (roomId === INCIDENT_ROOM_ID) throw new Error('The incident room is a forbidden replay target');
-if (!testAudioMxc?.startsWith('mxc://')) {
-  throw new Error('Set CINNY_126_TEST_AUDIO_MXC to a non-sensitive test audio upload');
-}
-if (!replacementAttachmentIds || replacementAttachmentIds.length !== 3) {
-  throw new Error('Set CINNY_126_TEST_ATTACHMENT_IDS to a JSON array of three test attachment IDs');
-}
 if (Object.values(roleTokens).some((token) => !token)) {
   throw new Error('Three explicit test-account access tokens are required');
 }
+
+const trace = await loadExactTrace();
+const incidentAttachmentIds = collectIncidentAttachmentIds(trace.replayEvents);
+const {
+  attachmentMap,
+  forbiddenIncidentMedia,
+  testAudioMxc: safeTestAudioMxc,
+} = validateLiveReplayMedia({
+  incidentAttachmentIds,
+  incidentAudioMxc: trace.voice.content.url,
+  replacementAttachmentIds,
+  testAudioMxc,
+});
 
 const matrixRequest = async <T>(
   account: Pick<Account, 'accessToken'>,
@@ -101,15 +115,7 @@ if (roomTopic.topic !== requiredRoomTopic) {
   throw new Error(`Test room topic must be exactly ${JSON.stringify(requiredRoomTopic)}`);
 }
 
-const trace = await loadExactTrace();
 const idMap = new Map<string, string>();
-const originalAttachmentIds = trace.edits[0].content['com.mindroom.attachment_ids'] as string[];
-const attachmentMap = new Map(
-  originalAttachmentIds.map((attachmentId, index) => [
-    attachmentId,
-    replacementAttachmentIds[index],
-  ])
-);
 const accountForSender = (sender: string): Account => {
   const role = (Object.entries(ORIGINAL_SENDERS) as Array<[Role, string]>).find(
     ([, originalSender]) => originalSender === sender
@@ -127,21 +133,24 @@ const rewriteContent = (event: TraceEvent): Record<string, unknown> => {
     const reply = eventRelation['m.in_reply_to'] as Record<string, unknown> | undefined;
     if (reply) reply.event_id = rewriteReference(reply.event_id);
   }
-  if (event.sender === ORIGINAL_SENDERS.user && content.url) content.url = testAudioMxc;
+  if (event.sender === ORIGINAL_SENDERS.user && content.url) content.url = safeTestAudioMxc;
   if (content.set_by === ORIGINAL_SENDERS.agent) content.set_by = accounts.agent.userId;
   const attachmentIds = content['com.mindroom.attachment_ids'] as string[] | undefined;
   if (attachmentIds) {
-    content['com.mindroom.attachment_ids'] = attachmentIds.map(
-      (attachmentId) => attachmentMap.get(attachmentId) ?? attachmentId
+    content['com.mindroom.attachment_ids'] = rewriteReplayAttachmentIds(
+      attachmentIds,
+      attachmentMap
     );
   }
   const newContent = content['m.new_content'] as Record<string, unknown> | undefined;
   const newAttachmentIds = newContent?.['com.mindroom.attachment_ids'] as string[] | undefined;
   if (newContent && newAttachmentIds) {
-    newContent['com.mindroom.attachment_ids'] = newAttachmentIds.map(
-      (attachmentId) => attachmentMap.get(attachmentId) ?? attachmentId
+    newContent['com.mindroom.attachment_ids'] = rewriteReplayAttachmentIds(
+      newAttachmentIds,
+      attachmentMap
     );
   }
+  assertNoIncidentMediaReferences(content, forbiddenIncidentMedia);
   return content;
 };
 const sendMessageEvent = async (account: Account, eventType: string, content: unknown) =>
@@ -174,15 +183,17 @@ idMap.set(INCIDENT_THREAD_ROOT_ID, rootResponse.event_id);
 process.stdout.write(`CINNY-126 test thread root: ${rootResponse.event_id}\n`);
 process.stdout.write('Place the client-under-test on the test room overview now.\n');
 const startDelayMs = Number(process.env.CINNY_126_START_DELAY_MS ?? '10000');
-await new Promise((resolve) => setTimeout(resolve, startDelayMs));
+await new Promise<void>((resolve) => {
+  setTimeout(resolve, startDelayMs);
+});
 
 const replayStartTs = trace.replayEvents[0].origin_server_ts;
 const wallStart = Date.now();
 for (const event of trace.replayEvents) {
   const targetElapsed = event.origin_server_ts - replayStartTs;
-  await new Promise((resolve) =>
-    setTimeout(resolve, Math.max(0, targetElapsed - (Date.now() - wallStart)))
-  );
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, Math.max(0, targetElapsed - (Date.now() - wallStart)));
+  });
   const account = accountForSender(event.sender);
   const content = rewriteContent(cloneTraceEvent(event, roomId));
   let response: { event_id: string };
