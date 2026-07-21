@@ -14,6 +14,7 @@ import {
   removeStoredSession,
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
+  stopClientRuntime,
 } from './initMatrix';
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
@@ -46,7 +47,11 @@ import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../app/state/cachedSpecVersions';
-import { installMatrixSyncFlightRecorder } from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
+import {
+  installMatrixSyncFlightRecorder,
+  stopMatrixSyncFlightRecorderForClient,
+} from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
+import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -123,6 +128,7 @@ vi.mock('../app/mindroom/native/iosPush', () => ({
 
 vi.mock('../app/mindroom/diagnostics/matrixSyncFlightRecorder', () => ({
   installMatrixSyncFlightRecorder: vi.fn(() => vi.fn()),
+  stopMatrixSyncFlightRecorderForClient: vi.fn(),
 }));
 
 const createStorageMock = (initialEntries: Record<string, string> = {}) => {
@@ -1014,6 +1020,55 @@ describe('startClient', () => {
     expect(
       (mx as unknown as { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise
     ).toBeUndefined();
+  });
+});
+
+describe('stopClientRuntime', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('detaches client-scoped listeners before stopping the Matrix client', () => {
+    const calls: string[] = [];
+    const mx = {
+      stopClient: vi.fn(() => calls.push('client')),
+    } as unknown as Parameters<typeof stopClientRuntime>[0];
+    vi.mocked(stopMatrixSyncFlightRecorderForClient).mockImplementationOnce(() => {
+      calls.push('diagnostics');
+    });
+    vi.mocked(stopMindroomSyncEngineForClient).mockImplementationOnce(() => {
+      calls.push('engine');
+    });
+
+    stopClientRuntime(mx);
+
+    expect(calls).toEqual(['diagnostics', 'engine', 'client']);
+  });
+
+  it('continues client shutdown when diagnostic teardown fails', () => {
+    const mx = {
+      stopClient: vi.fn(),
+    } as unknown as Parameters<typeof stopClientRuntime>[0];
+    vi.mocked(stopMatrixSyncFlightRecorderForClient).mockImplementationOnce(() => {
+      throw new Error('diagnostic teardown failed');
+    });
+
+    expect(() => stopClientRuntime(mx)).not.toThrow();
+    expect(stopMindroomSyncEngineForClient).toHaveBeenCalledWith(mx);
+    expect(mx.stopClient).toHaveBeenCalledOnce();
+  });
+
+  it('continues client shutdown when cache-engine teardown fails', () => {
+    const mx = {
+      stopClient: vi.fn(),
+    } as unknown as Parameters<typeof stopClientRuntime>[0];
+    vi.mocked(stopMindroomSyncEngineForClient).mockImplementationOnce(() => {
+      throw new Error('cache-engine teardown failed');
+    });
+
+    expect(() => stopClientRuntime(mx)).not.toThrow();
+    expect(stopMatrixSyncFlightRecorderForClient).toHaveBeenCalledWith(mx);
+    expect(mx.stopClient).toHaveBeenCalledOnce();
   });
 });
 

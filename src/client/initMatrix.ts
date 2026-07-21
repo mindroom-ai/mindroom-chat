@@ -44,7 +44,10 @@ import { clearAppOwnedCacheLocalStorage } from '../app/utils/appOwnedStorage';
 import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 import { createSessionTokenRefresh } from './sessionTokenRefresh';
 import { readCachedSpecVersions, removeCachedSpecVersions } from '../app/state/cachedSpecVersions';
-import { installMatrixSyncFlightRecorder } from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
+import {
+  installMatrixSyncFlightRecorder,
+  stopMatrixSyncFlightRecorderForClient,
+} from '../app/mindroom/diagnostics/matrixSyncFlightRecorder';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
@@ -590,7 +593,12 @@ const getMatrixClientSessionCleanupContext = (
   return undefined;
 };
 
-const stopClientRuntime = (mx: MatrixClient): void => {
+export const stopClientRuntime = (mx: MatrixClient): void => {
+  try {
+    stopMatrixSyncFlightRecorderForClient(mx);
+  } catch {
+    // Matrix cleanup must continue even if diagnostic listener cleanup fails.
+  }
   try {
     stopMindroomSyncEngineForClient(mx);
   } catch {

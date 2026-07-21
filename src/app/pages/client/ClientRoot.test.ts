@@ -13,6 +13,7 @@ import {
   initClient,
   removeCurrentClientSessionAndReload,
   startClient,
+  stopClientRuntime,
 } from '../../../client/initMatrix';
 import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 
@@ -66,6 +67,7 @@ vi.mock('../../../client/initMatrix', () => ({
   removeCurrentClientSessionAndReload: vi.fn().mockResolvedValue(undefined),
   removeSessionAndReload: vi.fn().mockResolvedValue(undefined),
   startClient: vi.fn(),
+  stopClientRuntime: vi.fn((mx: { stopClient: () => void }) => mx.stopClient()),
 }));
 
 vi.mock('../../../client/secretStorageKeys', () => ({
@@ -302,6 +304,7 @@ describe('ClientRoot', () => {
 
     expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(toBootstrapSession(currentSession));
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(stopClientRuntime)).toHaveBeenCalledWith(clientA);
     expect(clientA.stopClient).toHaveBeenCalledTimes(1);
     expect(clientB.stopClient).not.toHaveBeenCalled();
     expect(vi.mocked(clearSecretStorageKeys)).toHaveBeenCalledTimes(1);
@@ -352,6 +355,42 @@ describe('ClientRoot', () => {
 
     resolveClientB?.(createMockClient());
     await act(flushEffects);
+  });
+
+  it('stops a client through the shared runtime when initialization resolves after unmount', async () => {
+    vi.mocked(stopClientRuntime).mockClear();
+    let resolveClient: ((client: MockClient) => void) | undefined;
+    const pendingClient = new Promise<MockClient>((resolve) => {
+      resolveClient = resolve;
+    });
+    const client = createMockClient();
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockReturnValue(pendingClient as never);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+    act(() => {
+      renderer?.unmount();
+      renderer = undefined;
+    });
+    await act(async () => {
+      resolveClient?.(client);
+      await flushEffects();
+    });
+
+    expect(vi.mocked(stopClientRuntime)).toHaveBeenCalledWith(client);
+    expect(client.stopClient).toHaveBeenCalledOnce();
+    expect(vi.mocked(startClient)).not.toHaveBeenCalled();
   });
 
   it('uses a fresh authenticated query cache when the active account changes', async () => {
@@ -480,6 +519,7 @@ describe('ClientRoot', () => {
   });
 
   it('offers cache recovery when a created client fails to start', async () => {
+    vi.mocked(stopClientRuntime).mockClear();
     const client = createMockClient();
     currentSession = {
       sessionId: 'session-a',
@@ -499,6 +539,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
+    expect(vi.mocked(stopClientRuntime)).toHaveBeenCalledWith(client);
     expect(hasRenderedText(renderer, 'Clear Cache and Reload')).toBe(true);
     const recoveryButton = renderer?.root.findAll(
       (node) =>

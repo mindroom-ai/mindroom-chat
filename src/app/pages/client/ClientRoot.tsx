@@ -27,6 +27,7 @@ import {
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
   startClient,
+  stopClientRuntime,
 } from '../../../client/initMatrix';
 import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
@@ -343,7 +344,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
       try {
         nextClient = (await initClient(clientBootstrapSession)) as ClientMatrixClient;
         if (disposed) {
-          nextClient.stopClient();
+          stopClientRuntime(nextClient);
           return;
         }
 
@@ -353,9 +354,6 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
           mx: nextClient,
         });
       } catch (error) {
-        if (nextClient) {
-          nextClient.stopClient();
-        }
         if (disposed) return;
 
         setClientState({
@@ -371,7 +369,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
 
     return () => {
       disposed = true;
-      nextClient?.stopClient();
+      if (nextClient) stopClientRuntime(nextClient);
     };
   }, [clientBootstrapSession]);
 
@@ -404,7 +402,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
           };
         });
       } catch (error) {
-        nextClient.stopClient();
+        stopClientRuntime(nextClient);
         if (disposed) return;
 
         setClientState({

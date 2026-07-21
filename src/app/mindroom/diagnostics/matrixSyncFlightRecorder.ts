@@ -28,6 +28,10 @@ export const MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM = 32;
 
 const installations = new WeakMap<MatrixClient, () => void>();
 
+export const stopMatrixSyncFlightRecorderForClient = (mx: MatrixClient): void => {
+  installations.get(mx)?.();
+};
+
 // FNV-1a gives this bounded diagnostic a stable room pseudonym without storing a Matrix ID.
 export const hashFlightRecorderRoomId = (roomId: string): string => {
   let hash = 0x811c9dc5;
@@ -213,12 +217,36 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
   dispose = () => {
     if (disposed) return;
     disposed = true;
+    if (installations.get(mx) === dispose) installations.delete(mx);
     rooms.clear();
     resetOverflow();
-    mx.removeListener(ClientEvent.Event, onEvent);
-    mx.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
-    mx.removeListener(ClientEvent.Sync, onSync);
-    if (installations.get(mx) === dispose) installations.delete(mx);
+    try {
+      mx.removeListener(ClientEvent.Event, onEvent);
+    } catch {
+      try {
+        mx.off(ClientEvent.Event, onEvent);
+      } catch {
+        // A broken event emitter must not block the remaining listener cleanup.
+      }
+    }
+    try {
+      mx.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
+    } catch {
+      try {
+        mx.off(MatrixEventEvent.Decrypted, onDecrypted);
+      } catch {
+        // A broken event emitter must not block the remaining listener cleanup.
+      }
+    }
+    try {
+      mx.removeListener(ClientEvent.Sync, onSync);
+    } catch {
+      try {
+        mx.off(ClientEvent.Sync, onSync);
+      } catch {
+        // A broken event emitter must not block registry recovery.
+      }
+    }
   };
   installations.set(mx, dispose);
   mx.on(ClientEvent.Event, onEvent);

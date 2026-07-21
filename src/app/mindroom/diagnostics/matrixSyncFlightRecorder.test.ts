@@ -21,6 +21,7 @@ import {
   installMatrixSyncFlightRecorder,
   MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM,
   MATRIX_SYNC_MAX_PENDING_ROOMS,
+  stopMatrixSyncFlightRecorderForClient,
 } from './matrixSyncFlightRecorder';
 
 class MemoryStorage implements Storage {
@@ -63,6 +64,9 @@ type FakeClient = MatrixClient & {
 
 const createClient = (): FakeClient => {
   const listeners = new Map<RecordedClientEvent, Set<Handler>>();
+  const detach = (event: RecordedClientEvent, handler: Handler) => {
+    listeners.get(event)?.delete(handler);
+  };
   const client = {
     on: vi.fn((event: RecordedClientEvent, handler: Handler) => {
       const handlers = listeners.get(event) ?? new Set<Handler>();
@@ -71,7 +75,11 @@ const createClient = (): FakeClient => {
       return client;
     }),
     removeListener: vi.fn((event: RecordedClientEvent, handler: Handler) => {
-      listeners.get(event)?.delete(handler);
+      detach(event, handler);
+      return client;
+    }),
+    off: vi.fn((event: RecordedClientEvent, handler: Handler) => {
+      detach(event, handler);
       return client;
     }),
     emitClient: (event: RecordedClientEvent, ...args: unknown[]) => {
@@ -557,6 +565,33 @@ describe('Matrix sync flight recorder', () => {
     client.emitClient(ClientEvent.Event, makeEvent('$after-reattach', '!room:example.org'));
     client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Stopped);
     expect(storage.writes).toHaveLength(2);
+  });
+
+  it('explicitly detaches before a client stop emits its sync state', () => {
+    disposeRecorder = installFlightRecorder(storage);
+    storage.writes.length = 0;
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+    vi.mocked(client.removeListener).mockImplementationOnce(() => {
+      throw new Error('event listener cleanup failed');
+    });
+
+    expect(() => stopMatrixSyncFlightRecorderForClient(client)).not.toThrow();
+
+    expect(client.listenerCount(ClientEvent.Event)).toBe(0);
+    expect(client.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    expect(client.listenerCount(ClientEvent.Sync)).toBe(0);
+    expect(client.off).toHaveBeenCalledWith(ClientEvent.Event, expect.any(Function));
+    client.emitClient(ClientEvent.Event, makeEvent('$after-explicit-stop', '!room:example.org'));
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+    expect(storage.writes).toEqual([]);
+
+    const reattachedDispose = installMatrixSyncFlightRecorder(client);
+    expect(reattachedDispose).not.toBe(disposeMatrix);
+    disposeMatrix = reattachedDispose;
+    expect(client.listenerCount(ClientEvent.Event)).toBe(1);
+    expect(client.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
+    expect(client.listenerCount(ClientEvent.Sync)).toBe(1);
   });
 
   it('keeps schema-v2 sessions valid after adding matrix sync events', () => {

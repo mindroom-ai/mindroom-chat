@@ -10,7 +10,7 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: PR #185 remediation is locally complete after live-head review found SDK ordering, replay privacy, fail-closed mapping, oracle strength, script typechecking, schema migration, formatting, and documentation blockers.
+- Status: PR #185 remediation is locally complete after live-head review found SDK ordering, replay privacy, fail-closed mapping, oracle strength, script typechecking, schema migration, formatting, documentation, and explicit teardown blockers.
 - Reported symptom: a rapidly streamed agent reply could remain stuck on its placeholder in the room overview until the user opened the thread.
 - Root cause: matrix-js-sdk buffered replacement relations while the thread initialized, so overview surfaces did not observe the effective replacement or a thread update at the time the edit arrived.
 - SDK boundary: `RelationsContainer` now creates relation collections before deferred decryption, rebinds them to the freshest target object, and exposes completion to the thread without retaining replacement listeners.
@@ -23,10 +23,11 @@
 - Mapping safety: every direct relation, nested reply, and tag-state reference must map to a fresh-room event ID or live replay aborts.
 - Flight recorder compatibility: strict schema-v1 current and abnormal sessions normalize to schema v2 without losing valid pre-sync evidence, while schema-v1 records containing v2-only sync events remain rejected.
 - Type safety: the repository typecheck now includes all CINNY-126 replay scripts through `tsconfig.scripts.json`.
-- Current validation: clean install reapplies both package patches, script-aware typecheck passes, focused SDK/replay/recorder coverage passes 68 tests, the production/PWA build passes, all 452 Vitest files pass with 3,435 tests, ESLint and formatting pass, and `git diff --check` passes.
+- Current validation: clean install reapplies both package patches, script-aware typecheck passes, focused SDK/replay/recorder coverage passes 68 tests, focused teardown integration passes 80 tests, the production/PWA build passes, all 452 Vitest files pass with 3,440 tests, ESLint and formatting pass, and `git diff --check` passes.
 - Exact replay acceptance: the private incident trace passes at real cadence with all 23 events processed, all 17 ordered replacement and thread-update signals observed before initialization, all shared surfaces on the final content, both tags visible, the summary targeting the final edit, and the first thread entry on the final body.
 - Live replay acceptance: the production homeserver accepted all 23 synthetic events at real cadence in a freshly validated invite-only room containing only three non-human test actors, and every disposable login session was logged out afterward.
 - Independent review: the final SDK/decryption review and replay privacy/safety review both approve with no remaining blocker.
+- Teardown remediation: the final Greptile pass found that client shutdown could leave the sync recorder attached until the SDK later emitted `Stopped`; the shared client-runtime stop path now detaches diagnostic and cache-engine listeners synchronously before every Matrix client stop, with direct lifecycle and reattachment regressions.
 - Remaining gate: browser acceptance, hosted CI, and the available AI-review loop must finish before handoff.
 - Publication: the existing ready-for-review GitHub PR #185 remains open on branch `cinny-126` and will receive focused follow-up commits without amend or force-push.
 
