@@ -18,7 +18,7 @@ import {
 import { cleanupMindroomAgentCall } from '../mindroom/calls/agentCall';
 
 /**
- * Cleanup ownership for published call embeds (CINNY-129).
+ * Cleanup ownership for published call embeds.
  *
  * Every embed's end-of-call obligations (bounded End teardown, residual RTC
  * membership scrub, ephemeral agent-room cleanup) are owned by exactly one
@@ -49,7 +49,7 @@ const residualCheckDelay = (): Promise<void> =>
   });
 
 /**
- * Builds the coordinator's environment for one CallEmbed identity (CINNY-129).
+ * Builds the coordinator's environment for one CallEmbed identity.
  *
  * The finalizer verifies the captured embed is still current, captures the
  * forced RTC membership cleanup targets before disposal, clears the embed

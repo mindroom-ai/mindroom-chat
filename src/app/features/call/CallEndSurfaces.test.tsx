@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Component-level End behavior across BOTH surfaces (CINNY-129): the in-room
+ * Component-level End behavior across BOTH surfaces: the in-room
  * `CallControls` and the persistent status `CallControl`, mounted like
  * `CallEmbedProvider` mounts them — real `useCallTerminationController`, real
  * `CallTerminationContext`, real jotai store and `callEmbedAtom` setter (so

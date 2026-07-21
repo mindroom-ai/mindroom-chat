@@ -3,7 +3,7 @@ import { getStateEvents } from '../../utils/room';
 import { StateEvent } from '../../../types/matrix/room';
 
 /**
- * Forced End-call teardown (CINNY-129) bypasses Element Call's own MatrixRTC
+ * Forced End-call teardown bypasses Element Call's own MatrixRTC
  * leave, and stale `org.matrix.msc3401.call.member` state only expires after
  * four hours. This module clears exactly this user's + this device's active
  * room-call membership slot — nothing else — after a forced disposal.
@@ -91,6 +91,7 @@ export const isCallCleanupGenerationCurrent = (roomId: string, generation: numbe
  * and a retired room must stay unusable for as long as this client runs.
  */
 const retiredCallRooms = new Set<string>();
+const callRoomRetirementListeners = new Map<string, Set<() => void>>();
 
 /**
  * Permanently retire an ephemeral call room. Must be called synchronously in
@@ -101,10 +102,35 @@ const retiredCallRooms = new Set<string>();
  * successor impossible instead of fenced-against.
  */
 export const retireCallRoom = (roomId: string): void => {
+  if (retiredCallRooms.has(roomId)) return;
   retiredCallRooms.add(roomId);
+  callRoomRetirementListeners.get(roomId)?.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // A broken view subscriber must not block destructive room teardown.
+    }
+  });
 };
 
 export const isCallRoomRetired = (roomId: string): boolean => retiredCallRooms.has(roomId);
+
+/** Subscribe one mounted call surface to retirement of its exact room. */
+export const subscribeCallRoomRetirement = (roomId: string, listener: () => void): (() => void) => {
+  let listeners = callRoomRetirementListeners.get(roomId);
+  if (!listeners) {
+    listeners = new Set();
+    callRoomRetirementListeners.set(roomId, listeners);
+  }
+  const roomListeners = listeners;
+  roomListeners.add(listener);
+  return () => {
+    roomListeners.delete(listener);
+    if (roomListeners.size === 0 && callRoomRetirementListeners.get(roomId) === roomListeners) {
+      callRoomRetirementListeners.delete(roomId);
+    }
+  };
+};
 
 /**
  * Thrown by the call-start chokepoint (`createCallEmbed`) for a retired

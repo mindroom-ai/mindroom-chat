@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CallEmbed } from './CallEmbed';
 
 /**
- * `CallEmbed.dispose()` partial-failure behavior (CINNY-129 review A4): the
+ * `CallEmbed.dispose()` partial-failure behavior: the
  * `callEmbedAtom` setter catches dispose errors and then drops its only
  * reference, so a step that throws must not prevent the remaining steps —
  * otherwise a live iframe/media session leaks unreachably behind a UI that

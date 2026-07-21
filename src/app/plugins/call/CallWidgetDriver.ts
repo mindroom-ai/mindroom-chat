@@ -96,7 +96,7 @@ export class CallWidgetDriver extends WidgetDriver {
         // A predecessor call's detached cleanup can still have a membership
         // `{}` PUT in flight for this room. Publishing this call's
         // membership before it settles could let the stale write land after
-        // — and wipe — the fresh state, so serialize behind it (CINNY-129).
+        // — and wipe — the fresh state, so serialize behind it.
         // Bounded: a blackholed cleanup request must not wedge this call's
         // join forever; past the bound the residual recheck and Element
         // Call's own missing-membership recovery repair any misordering.

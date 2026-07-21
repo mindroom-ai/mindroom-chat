@@ -1,5 +1,5 @@
 /**
- * Host-owned End-call coordinator (CINNY-129).
+ * Host-owned End-call coordinator.
  *
  * `im.vector.hangup` is only a request to the embedded Element Call iframe.
  * The widget transport acknowledgement proves delivery, not teardown: a

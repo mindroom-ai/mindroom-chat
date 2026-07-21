@@ -13,7 +13,7 @@ type MicrophoneButtonProps = {
 function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps) {
   const [micState, toggleMic] = useAsyncCallback(onToggle);
   const loading = micState.status === AsyncStatus.Loading;
-  
+
   return (
     <TooltipProvider
       position="Top"
@@ -162,7 +162,10 @@ export function CallControl({
 }) {
   const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
 
-  const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
+  const handleMicrophoneToggle = useCallback(
+    () => callEmbed.control.toggleMicrophone(),
+    [callEmbed]
+  );
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
   // Shared with the in-room End surface. The coordinator also owns the
@@ -185,11 +188,7 @@ export function CallControl({
           disabled={!callJoined}
         />
         {!compact && <StatusDivider />}
-        <VideoButton
-          enabled={video}
-          onToggle={handleVideoToggle}
-          disabled={!callJoined}
-        />
+        <VideoButton enabled={video} onToggle={handleVideoToggle} disabled={!callJoined} />
         {!compact && (
           <ScreenShareButton
             enabled={screenshare}

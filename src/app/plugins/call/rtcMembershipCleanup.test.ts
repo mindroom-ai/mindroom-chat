@@ -13,6 +13,7 @@ import {
   membershipCleanupRetryDelayMs,
   retireCallRoom,
   roomCallMembershipWritesSettled,
+  subscribeCallRoomRetirement,
   trackRoomCallMembershipWrite,
 } from './rtcMembershipCleanup';
 
@@ -655,5 +656,39 @@ describe('call room retirement', () => {
 
     expect(isCallRoomRetired(retired)).toBe(true);
     expect(isCallRoomRetired(untouched)).toBe(false);
+  });
+
+  it('notifies exact-room subscribers once without letting one broken listener block another', () => {
+    const retired = '!retirement-subscribers:mindroom.test';
+    const untouched = '!retirement-subscribers-other:mindroom.test';
+    const first = vi.fn();
+    const broken = vi.fn(() => {
+      throw new Error('broken subscriber');
+    });
+    const other = vi.fn();
+    const unsubscribeFirst = subscribeCallRoomRetirement(retired, first);
+    const unsubscribeBroken = subscribeCallRoomRetirement(retired, broken);
+    const unsubscribeOther = subscribeCallRoomRetirement(untouched, other);
+
+    retireCallRoom(retired);
+    retireCallRoom(retired);
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(broken).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+    unsubscribeFirst();
+    unsubscribeBroken();
+    unsubscribeOther();
+  });
+
+  it('stops notifying after unsubscribe', () => {
+    const retired = '!retirement-unsubscribed:mindroom.test';
+    const listener = vi.fn();
+    const unsubscribe = subscribeCallRoomRetirement(retired, listener);
+
+    unsubscribe();
+    retireCallRoom(retired);
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

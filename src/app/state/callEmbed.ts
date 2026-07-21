@@ -7,7 +7,7 @@ const baseCallEmbedAtom = atom<CallEmbed | undefined>(undefined);
 
 /**
  * The single publish/replace/clear transition for the active call embed —
- * and therefore the anchor for cleanup ownership (CINNY-129). Every embed
+ * and therefore the anchor for cleanup ownership. Every embed
  * gets its `CallTermination` owner created synchronously on publish and
  * disposed synchronously on replacement or clear, independent of React
  * commit/effect timing: two publications batched into one commit still run

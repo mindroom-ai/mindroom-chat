@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Call-start surface behavior for a retired room (CINNY-129 round 4, review
- * A6/B2): `createCallEmbed` throws once a room's destructive teardown has
+ * Call-start surface behavior for a retired room: `createCallEmbed` throws
+ * once a room's destructive teardown has
  * started, and that throw happens inside an ordinary click handler. The
  * surface must consume it — no uncaught exception, no embed published.
  */
@@ -127,39 +127,57 @@ describe('PrescreenControls on a retired room', () => {
     const embedRef = { current: container } as React.RefObject<HTMLDivElement>;
     const renderer = renderPrescreen(embedRef);
 
-    expect(findJoinButton(renderer).props.disabled).toBe(true);
-    expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+    try {
+      expect(findJoinButton(renderer).props.disabled).toBe(true);
+      expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+    } finally {
+      act(() => renderer.unmount());
+    }
   });
 
-  it('consumes a click-time refusal and surfaces the message instead of staying silent', () => {
-    // The room retires between render and click (its previous call's
-    // detached teardown ran while the prescreen was already on screen):
-    // the click handler must consume the throw and tell the user.
+  it('reacts immediately when its room retires after the prescreen mounted', () => {
     const lateRetiredRoomId = '!late-retired-prescreen:mindroom.test';
     mocks.room.roomId = lateRetiredRoomId;
+    const container = document.createElement('div');
+    const embedRef = { current: container } as React.RefObject<HTMLDivElement>;
+    const renderer = renderPrescreen(embedRef);
+    try {
+      expect(findJoinButton(renderer).props.disabled).toBe(false);
+      expect(renderedText(renderer)).not.toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+
+      act(() => {
+        retireCallRoom(lateRetiredRoomId);
+      });
+
+      expect(findJoinButton(renderer).props.disabled).toBe(true);
+      expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+      expect(container.childElementCount).toBe(0);
+    } finally {
+      act(() => renderer.unmount());
+      mocks.room.roomId = '!retired-prescreen:mindroom.test';
+    }
+  });
+
+  it('consumes a click-time refusal if retirement wins the render-to-click race', () => {
+    const raceRetiredRoomId = '!race-retired-prescreen:mindroom.test';
+    mocks.room.roomId = raceRetiredRoomId;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const container = document.createElement('div');
     const embedRef = { current: container } as React.RefObject<HTMLDivElement>;
+    const renderer = renderPrescreen(embedRef);
+    const handleJoin = findJoinButton(renderer).props.onClick;
     try {
-      const renderer = renderPrescreen(embedRef);
-      const button = findJoinButton(renderer);
-      expect(button.props.disabled).toBe(false);
-      expect(renderedText(renderer)).not.toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
-
-      retireCallRoom(lateRetiredRoomId);
-      expect(() => {
-        act(() => {
-          button.props.onClick();
-        });
-      }).not.toThrow();
+      act(() => {
+        retireCallRoom(raceRetiredRoomId);
+        handleJoin();
+      });
 
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0][1])).toContain('shutting down');
-      // The refusal is visible feedback, not silence...
       expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
-      // ...and no embed was created or mounted into the host container.
       expect(container.childElementCount).toBe(0);
     } finally {
+      act(() => renderer.unmount());
       warn.mockRestore();
       mocks.room.roomId = '!retired-prescreen:mindroom.test';
     }

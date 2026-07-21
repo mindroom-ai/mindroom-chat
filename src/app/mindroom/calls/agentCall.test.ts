@@ -143,7 +143,7 @@ describe('MindRoom agent calls', () => {
 
   it('keeps a permanent kick 403 non-blocking and still leaves and forgets', async () => {
     // Ending a call after the creator already left the room makes the kick
-    // return M_FORBIDDEN (CINNY-129 trace operation 572); it must stay caught
+    // return M_FORBIDDEN (incident trace operation 572); it must stay caught
     // and must not stop the leave/forget sequence.
     kick.mockRejectedValueOnce(
       new MatrixError({ errcode: 'M_FORBIDDEN', error: 'You cannot kick user' }, 403)

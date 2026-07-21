@@ -9,9 +9,9 @@ import {
   attemptCallStart,
   useCallEmbed,
   useCallJoined,
+  useCallRoomRetired,
   useCallStart,
 } from '../../hooks/useCallEmbed';
-import { isCallRoomRetired } from '../../plugins/call';
 import { useCallPreferences } from '../../state/hooks/callPreferences';
 
 type PrescreenControlsProps = {
@@ -27,7 +27,7 @@ export function PrescreenControls({ canJoin }: PrescreenControlsProps) {
   const inOtherCall = callEmbed && callEmbed.roomId !== room.roomId;
   // A retired room's post-call teardown already started; joining can never
   // succeed there, so refuse proactively instead of only failing on click.
-  const retired = isCallRoomRetired(room.roomId);
+  const retired = useCallRoomRetired(room.roomId);
 
   const startCall = useCallStart(direct);
   const joining = callEmbed?.roomId === room.roomId && !callJoined;

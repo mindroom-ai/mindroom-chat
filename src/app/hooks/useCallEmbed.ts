@@ -19,6 +19,7 @@ import {
   isCallRoomRetired,
   useClientWidgetApiEvent,
 } from '../plugins/call';
+import { subscribeCallRoomRetirement } from '../plugins/call/rtcMembershipCleanup';
 import { useMatrixClient } from './useMatrixClient';
 import { ThemeKind, useTheme } from './useTheme';
 import { callEmbedAtom } from '../state/callEmbed';
@@ -122,6 +123,16 @@ export const attemptCallStart = (start: () => void): string | undefined => {
   }
 };
 
+/** Reactively tracks permanent retirement of one exact call room. */
+export const useCallRoomRetired = (roomId: string): boolean => {
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => subscribeCallRoomRetirement(roomId, onStoreChange),
+    [roomId]
+  );
+  const getSnapshot = useCallback(() => isCallRoomRetired(roomId), [roomId]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+};
+
 export const useCallJoined = (embed?: CallEmbed): boolean => {
   const [joined, setJoined] = useState(embed?.joined ?? false);
 
@@ -163,7 +174,7 @@ export const useCallTermination = (): CallTerminationControls => {
 
 /**
  * Consumes the shared termination coordinator for the current embed and
- * exposes the `ending`/`endCall` pair used by both End surfaces (CINNY-129).
+ * exposes the `ending`/`endCall` pair used by both End surfaces.
  * From-widget Hangup marks teardown progress; Close (or the host deadline,
  * or a transport rejection) runs the single idempotent local finalizer.
  *
