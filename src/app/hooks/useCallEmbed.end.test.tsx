@@ -63,17 +63,19 @@ const makeEmbed = (hangup: () => Promise<unknown>): FakeEmbed => {
 function EndHarness({
   embed,
   finish,
+  requestHangup,
   onFirst,
   onSecond,
 }: {
   embed: CallEmbed;
   finish: () => void;
+  requestHangup: boolean;
   onFirst: (control: EndControl) => void;
   onSecond: (control: EndControl) => void;
 }) {
   useCallEndLifecycle(embed, finish);
-  const [firstEnding, firstEndCall] = useCallEnd(embed);
-  const [secondEnding, secondEndCall] = useCallEnd(embed);
+  const [firstEnding, firstEndCall] = useCallEnd(embed, requestHangup);
+  const [secondEnding, secondEndCall] = useCallEnd(embed, requestHangup);
   onFirst({ ending: firstEnding, endCall: firstEndCall });
   onSecond({ ending: secondEnding, endCall: secondEndCall });
   return null;
@@ -93,7 +95,7 @@ describe('bounded call End fallback', () => {
     vi.useRealTimers();
   });
 
-  const renderEnd = (fake: FakeEmbed) => {
+  const renderEnd = (fake: FakeEmbed, requestHangup = true) => {
     const store = createStore();
     store.set(callEmbedAtom, fake.embed);
     let first!: EndControl;
@@ -108,6 +110,7 @@ describe('bounded call End fallback', () => {
             <EndHarness
               embed={fake.embed}
               finish={finish}
+              requestHangup={requestHangup}
               onFirst={(control) => {
                 first = control;
               }}
@@ -163,6 +166,17 @@ describe('bounded call End fallback', () => {
     expect(harness.store.get(callEmbedAtom)).toBeUndefined();
     act(() => vi.advanceTimersByTime(CALL_END_FALLBACK_MS));
     expect(harness.finish).toHaveBeenCalledTimes(1);
+  });
+
+  it('finishes a not-yet-joined call immediately without asking the widget', () => {
+    const fake = makeEmbed(async () => ({}));
+    const harness = renderEnd(fake, false);
+
+    act(() => harness.first().endCall());
+
+    expect(fake.hangup).not.toHaveBeenCalled();
+    expect(harness.finish).toHaveBeenCalledTimes(1);
+    expect(harness.store.get(callEmbedAtom)).toBeUndefined();
   });
 
   it('consumes a rejected widget request and still uses the deadline', async () => {

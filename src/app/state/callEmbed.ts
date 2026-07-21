@@ -3,7 +3,12 @@ import { CallEmbed } from '../plugins/call';
 
 const baseCallEmbedAtom = atom<CallEmbed | undefined>(undefined);
 
-export const callEndRequestAtom = atom<CallEmbed | undefined>(undefined);
+type CallEndRequest = {
+  embed: CallEmbed;
+  requestHangup: boolean;
+};
+
+export const callEndRequestAtom = atom<CallEndRequest | undefined>(undefined);
 
 export const callEmbedAtom = atom<CallEmbed | undefined, [CallEmbed | undefined], void>(
   (get) => get(baseCallEmbedAtom),

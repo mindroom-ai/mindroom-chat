@@ -1,10 +1,8 @@
 import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, Tooltip, TooltipProvider } from 'folds';
 import React, { useCallback } from 'react';
-import { useSetAtom } from 'jotai';
 import { StatusDivider } from './components';
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { callEmbedAtom } from '../../state/callEmbed';
 import { useCallEnd } from '../../hooks/useCallEmbed';
 
 type MicrophoneButtonProps = {
@@ -163,7 +161,6 @@ export function CallControl({
   callJoined: boolean;
 }) {
   const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
-  const setCallEmbed = useSetAtom(callEmbedAtom);
 
   const handleMicrophoneToggle = useCallback(
     () => callEmbed.control.toggleMicrophone(),
@@ -171,15 +168,7 @@ export function CallControl({
   );
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
-  const [exiting, endCall] = useCallEnd(callEmbed);
-
-  const handleHangup = () => {
-    if (!callJoined) {
-      setCallEmbed(undefined);
-      return;
-    }
-    endCall();
-  };
+  const [exiting, endCall] = useCallEnd(callEmbed, callJoined);
 
   return (
     <Box shrink="No" alignItems="Center" gap="300">
@@ -218,7 +207,7 @@ export function CallControl({
         }
         disabled={exiting}
         outlined
-        onClick={handleHangup}
+        onClick={endCall}
       >
         {!compact && (
           <Text as="span" size="L400">
