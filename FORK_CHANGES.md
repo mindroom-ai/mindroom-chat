@@ -70,6 +70,7 @@
 - The full Vitest suite, typecheck, production/PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check` pass.
 - Independent second self-review found the deferred failure-dialog Retry bypass and unmounted caption-recovery gap; both are fixed with regression coverage, and the final self-review found no remaining blocker or half-refactor trace.
 - PR CI caught the forwarded recorder component using a named function expression against the repository `prefer-arrow-callback` rule; the component now uses the required arrow callback and passes direct-file ESLint plus focused regression tests.
+- Independent Claude Fable review rejected the optional voice-only failure-dialog Retry fallback as a half-refactor trace; `onRetryRequest` is now required and Retry always delegates to the unified primary Send path.
 
 ### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
 

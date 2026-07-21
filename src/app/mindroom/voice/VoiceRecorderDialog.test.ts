@@ -198,6 +198,7 @@ function OverviewHarness({ onClose }: { onClose: () => void }) {
       onClose();
       setOpen(false);
     },
+    onRetryRequest: vi.fn(),
     onSendRecording: vi.fn(),
     getSendContext: createTestSendContext,
   });
@@ -309,6 +310,7 @@ describe('VoiceRecorderComposer', () => {
             ref: recorderRef,
             active: true,
             onClose,
+            onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
           })
@@ -377,6 +379,7 @@ describe('VoiceRecorderComposer', () => {
             ref: recorderRef,
             active: true,
             onClose,
+            onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
           })
@@ -434,6 +437,7 @@ describe('VoiceRecorderComposer', () => {
             ref: recorderRef,
             active: true,
             onClose: vi.fn(),
+            onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
           })
@@ -492,6 +496,7 @@ describe('VoiceRecorderComposer', () => {
             ref: recorderRef,
             active: true,
             onClose: vi.fn(),
+            onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
           })

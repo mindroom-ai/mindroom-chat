@@ -31,7 +31,7 @@ type VoiceRecorderComposerProps = {
   onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
-  onRetryRequest?: () => void;
+  onRetryRequest: () => void;
   onSendRecording: (
     file: File,
     duration: number,
@@ -235,21 +235,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                     <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(true)}>
                       Discard
                     </Button>
-                    <Button
-                      variant="Primary"
-                      onClick={() => {
-                        if (onRetryRequest) {
-                          onRetryRequest();
-                          return;
-                        }
-                        void (async () => {
-                          const sent = await beginRetry();
-                          if (sent) {
-                            onClose();
-                          }
-                        })();
-                      }}
-                    >
+                    <Button variant="Primary" onClick={onRetryRequest}>
                       Retry
                     </Button>
                   </Box>
