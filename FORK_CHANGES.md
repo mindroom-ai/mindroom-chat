@@ -4,7 +4,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the finish-the-invariant review remediation, validation, and independent review are complete; ready for human review.
+- Status: the final fail-fast adjudication, validation, and independent review are complete; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -39,6 +39,13 @@
 - Final focused validation passes 83 tests across the room-input integration, send-session controller, and send-session policy suites, including the adopted in-flight upload rejection branch.
 - Final validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`; the full suite retains only the same three Xcode fixture failures documented above.
 - Independent review approved the final reduction with no findings and confirmed that no new recovery machinery or half-refactor traces remain.
+- Encryption-transition adjudication reproduced the reported plaintext media behavior on the pre-existing ordinary upload-board path: a file staged and uploaded before encryption was enabled still sent its plaintext `mxc` and `url` after the room rerendered encrypted and the board Send action was pressed.
+- Security follow-up: attachment preparation and uploaded media must be invalidated or re-encrypted whenever a room changes from plaintext to encrypted, across ordinary board, composer, and combined-voice sends; this repo-wide transition policy is explicitly outside CINNY-128 and must not be patched only in combined enrollment.
+- Combined upload orchestration now awaits the voice upload independently from the already-observed companion settlement aggregate, so a known fatal voice failure promptly rejects and releases global serialization even if a companion never settles.
+- Lifecycle-complete text failures now restore the existing composer fallback and rethrow the original Matrix error, matching upload failure semantics; focused coverage also pins fail-fast root rejection before later batch members send.
+- Final review triage fixes Issues 2, 3, and 5 as the same fail-fast lifecycle class, records Issue 1 as a confirmed pre-existing security follow-up, and leaves the Issue 4 API redesign and Issue 6 coverage expansion out of scope.
+- Final focused validation passes 129 tests; typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The final full suite passes 446 of 447 files and 3342 of 3345 tests, with only the same three Xcode fixture failures, and independent review approved with no findings or half-refactor traces.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 

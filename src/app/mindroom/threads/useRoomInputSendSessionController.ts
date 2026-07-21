@@ -314,6 +314,9 @@ export const useRoomInputSendSessionController = ({
             } else {
               restoreComposerFallback(session);
             }
+            if (session.failFast) {
+              throw error;
+            }
           }
           continue;
         }

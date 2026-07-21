@@ -971,18 +971,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
           if (shouldCombineWithCompanions) {
             const ownerRoomId = liveContext.roomId;
-            const uploadResults = await Promise.allSettled([
-              ...eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item)),
-              uploadItem(fileItem).then(() => fileItem),
-            ]);
-            const voiceUploadResult = uploadResults[eligibleCompanionItems.length];
-            if (voiceUploadResult?.status === 'rejected') {
-              return logAndThrowUploadError(voiceUploadResult.reason, 'upload');
+            const companionUploadResultsPromise = Promise.allSettled(
+              eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item))
+            );
+            try {
+              await uploadItem(fileItem);
+            } catch (err) {
+              return logAndThrowUploadError(err, 'upload');
             }
+            const companionUploadResults = await companionUploadResultsPromise;
 
             const liveItems = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
             const liveFiles = new Set(liveItems.map((item) => item.file));
-            const companionUploadResults = uploadResults.slice(0, -1);
             const readyItems = [
               ...companionUploadResults
                 .map((result) => (result.status === 'fulfilled' ? result.value : undefined))

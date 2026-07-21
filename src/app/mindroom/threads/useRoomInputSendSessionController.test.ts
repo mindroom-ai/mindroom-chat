@@ -255,36 +255,44 @@ describe('useRoomInputSendSessionController active session query', () => {
     expect(mx.sendMessage).toHaveBeenCalledTimes(3);
   });
 
-  it('uses explicit items and surfaces the original lifecycle-complete send error', async () => {
-    const { api, mx } = renderHarness();
-    const root = createFile('root.txt');
-    const voice = createFile('voice.m4a');
-    const sendFailure = new Error('voice send failed');
-    const fileItems = [createUploadItem(root), createUploadItem(voice)];
-    mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' }).mockRejectedValueOnce(sendFailure);
-
-    let failure: unknown;
-    await act(async () => {
-      try {
-        await api.startSendSession({
-          batch: { fileItems, uploads: [successUpload(root), successUpload(voice)] },
-          completeWithinCall: true,
-        });
-      } catch (error) {
-        failure = error;
+  it.each([
+    ['root', false, ['root.txt']],
+    ['child', true, ['root.txt', 'voice.m4a']],
+  ] as const)(
+    'uses explicit items and surfaces the original lifecycle-complete %s error',
+    async (_failedMember, rootSucceeds, expectedBodies) => {
+      const { api, mx } = renderHarness();
+      const root = createFile('root.txt');
+      const voice = createFile('voice.m4a');
+      const sendFailure = new Error('send failed');
+      const fileItems = [createUploadItem(root), createUploadItem(voice)];
+      if (rootSucceeds) {
+        mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' });
       }
-    });
+      mx.sendMessage.mockRejectedValueOnce(sendFailure);
 
-    expect(failure).toBe(sendFailure);
-    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'root.txt',
-      'voice.m4a',
-    ]);
-    expect(api.hasActiveSendSession()).toBe(false);
-    expect(api.sendSessionFilesRef.current).toEqual([]);
-    expect(api.sendSessionUploadItemsRef.current).toEqual([]);
-  });
+      let failure: unknown;
+      await act(async () => {
+        try {
+          await api.startSendSession({
+            batch: { fileItems, uploads: [successUpload(root), successUpload(voice)] },
+            completeWithinCall: true,
+          });
+        } catch (error) {
+          failure = error;
+        }
+      });
+
+      expect(failure).toBe(sendFailure);
+      expect(mx.sendMessage).toHaveBeenCalledTimes(expectedBodies.length);
+      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+        ...expectedBodies,
+      ]);
+      expect(api.hasActiveSendSession()).toBe(false);
+      expect(api.sendSessionFilesRef.current).toEqual([]);
+      expect(api.sendSessionUploadItemsRef.current).toEqual([]);
+    }
+  );
 
   it('clears a consumed reply through the captured room context', async () => {
     const replyDraft: IReplyDraft = {
@@ -491,24 +499,30 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     mocks.restoreEditorContent.mockReset();
   });
 
-  it('restores the caption to the composer and completes the session when the caption fails', async () => {
+  it('restores the caption and clears the session when lifecycle-complete sending fails', async () => {
     const { api, mx, editor } = renderHarness();
     const image = createFile('image.png');
+    const textFailure = new Error('caption send failed');
 
     api.selectedFilesRef.current = [createUploadItem(image)];
     api.uploadsRef.current = [successUpload(image)];
 
     mx.sendMessage.mockImplementationOnce(async () => ({ event_id: '$root' }));
-    mx.sendMessage.mockImplementationOnce(async () => {
-      throw new Error('caption send failed');
-    });
+    mx.sendMessage.mockRejectedValueOnce(textFailure);
 
+    let failure: unknown;
     await act(async () => {
-      await api.startSendSession({
-        textContent: { msgtype: 'm.text', body: 'caption draft' },
-      });
+      try {
+        await api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'caption draft' },
+          completeWithinCall: true,
+        });
+      } catch (error) {
+        failure = error;
+      }
     });
 
+    expect(failure).toBe(textFailure);
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
     expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
       url: 'mxc://mindroom/image.png',

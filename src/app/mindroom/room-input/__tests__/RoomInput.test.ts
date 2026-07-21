@@ -2076,6 +2076,44 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('releases voice serialization without waiting for a stalled companion after voice failure', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'stalled.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const stalledUpload = createDeferred<{ content_uri: string }>();
+    stageUploadItems(store, [createUploadItem(companion)]);
+    mxState.uploadContent
+      .mockReturnValueOnce(stalledUpload.promise)
+      .mockRejectedValueOnce(new Error('voice upload failed'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+
+    await act(async () => {
+      await expect(voiceRecorderState.props!.onSendRecording(voice, 325)).rejects.toMatchObject({
+        errcode: 'M_UNKNOWN',
+      });
+    });
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      companion,
+    ]);
+    expect(store.get(roomUploadAtomFamily(companion)).status).toBe(UploadStatus.Loading);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    await act(async () => {
+      stalledUpload.reject(new Error('stalled companion cleanup'));
+      await vi.waitFor(() =>
+        expect(store.get(roomUploadAtomFamily(companion)).status).toBe(UploadStatus.Error)
+      );
+    });
+
+    consoleError.mockRestore();
+    renderer.unmount();
+  });
+
   it('leaves a partial failure staged without redirecting later composer intent', async () => {
     const store = createStore();
     const root = new File(['root'], 'root.txt', { type: 'text/plain' });
