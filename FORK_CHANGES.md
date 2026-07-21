@@ -4,35 +4,36 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: lifecycle-completion and partial-delivery recovery remediation, focused and full validation, and independent re-review are complete; ready for human review.
+- Status: the simplified lifecycle-completion remediation, focused and full validation, and independent review are complete; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
 - Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so voice is last among files that do not require a later manual retry.
 - Implemented behavior: when eligible live staged attachments exist and no send session is active, `handleVoiceSend` owns the complete accepted gesture, starts and awaits each surviving upload, refreshes the origin room's store-backed board state, and invokes the existing ordering controller only when the batch can complete within that call.
 - The recorder callback does not resolve, the durable voice serialization claim does not release, and the parked draft cannot clear until the surviving batch members have sent or an error has surfaced.
-- The lifecycle-complete controller mode fails fast, preserves the original Matrix error and any generated root id, clears its transient session on any incomplete result, and never depends on a later mounted-component upload effect.
+- The lifecycle-complete controller mode fails fast, propagates the original Matrix error, clears its transient session on any incomplete result, and never depends on a later mounted-component upload effect.
 - Eligibility preserves the standalone voice path for voice-only sends, classic mode, active sessions, oversized voice, only preparation-error, marker-backed paste, or oversized companions, callbacks owned by another room, and callbacks after unmount.
 - The final companion list is read after voice preparation, so attachments canceled during preparation are omitted and attachments added before an initial voice handoff are included.
-- Combined-send enrollment now excludes companions already in upload error, parked voice retries, and partial-delivery recovery cohorts, preserving the invariant that one user gesture owns one controller-advanceable batch while failed or later-staged attachments remain isolated on the board.
+- Combined-send enrollment excludes companions already in upload error and parked voice retries, preserving the invariant that one user gesture owns one explicit controller batch while failed or later-staged attachments remain ordinary board items.
 - `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query for enrollment exclusion and retains its ordinary retryable behavior for upload-board sends.
 - Session-owned reply and upload cleanup now targets the captured room id through room-scoped callbacks even if the composer rerenders for another room.
 - Combined-batch upload or fail-fast send failures reject the recorder callback so the existing parked-draft surface remains authoritative, while unsent companions remain staged on their origin-room board.
-- After partial Matrix delivery, the recorder parks the voice with the generated root as its retry destination and every unsent enrolled companion stores the same destination in board metadata.
-- A board retry selects only the first item's matching recovery cohort, sends that cohort into the preserved root, and leaves unrelated later attachments staged.
+- Partial Matrix delivery has deliberately simple recovery: the recorder parks the voice with its original captured context, and unsent companions remain staged without hidden thread-binding metadata.
+- The combined voice item is owned by the recorder capsule rather than rendered as a removable upload-board card.
+- The controller receives one explicit prepared batch containing both file items and upload states, so lifecycle completion does not seed or overwrite current-composer refs after an await.
+- Invariant: an accepted voice-send callback resolves only after the recorded voice and every still-enrolled companion from that gesture send under the captured room, thread, and reply context; failure parks the voice, leaves unsent companions as ordinary staged items, and never appropriates later composer intent.
+- Ownership stays at the gesture boundary: `handleVoiceSend` captures the exact batch and awaits its promise, while `useRoomInputSendSessionController` only orders that explicit batch and does not infer recovery destinations from staged-item metadata.
 - Scope leaves backend code, typed composer text, paste-marker lifecycle, and the existing root-plus-thread ordering policy unchanged.
 - Paste-converted attachments and composer text stay with the typed draft.
-- Focused validation passes eight behavior, controller, recorder, upload-surface, and room-view files with 176 tests, including 117 RoomInput, recorder, and controller tests, plus typecheck, touched-file ESLint, Prettier, `git diff --check`, and the production/PWA build with Element Call verification.
-- Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, owning-hook completion after unmount, serialization lifetime, origin-room reply clearing, upload failure, root cancellation, and partial-delivery recovery for voice and nonvoice companions.
-- Review triage classifies the unmount stall, narrowed serialization, and origin-room reply ownership as real correctness bugs and fixes all three at their owning async or room-scoped boundary.
-- Review triage classifies the upload-card gate and synthetic pre-controller exception as test cleanup, deletes both mock behaviors and their obsolete test, and does not add a compatibility helper.
-- Review triage classifies the contradictory planning artifacts as repository hygiene and removes them in favor of this canonical Runbook.
+- Focused validation passes 149 tests across eight room-input, send-session, recorder, capsule, dialog, and upload-card files.
+- Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, owning-hook completion after unmount, serialization lifetime, origin-room reply clearing, upload failure, and companion cancellation while recorder-owned voice remains non-removable.
+- Third-round review triage fixes Issues 1-5, 7, and 8 by deleting recovery cohorts, removing the voice upload-board card, making the explicit prepared batch authoritative, removing the post-await ref stomp, comparing reply drafts directly, and replacing cohort tests with invariant regressions.
+- Issue 6 is ignored as non-blocking translation cleanup because the surviving generic failure string predates this remediation and changing the capsule-wide error policy is outside this bug boundary.
 - The lifecycle remediation deletes the mocked upload-card auto-start implementation and synthetic controller-start failure wrapper because combined-send correctness no longer depends on either mocked boundary.
 - `PLAN.md`, `PLAN-B.md`, and `REPORT.md` are removed because this Runbook is the canonical durable record.
-- Independent remediation review approved the production implementation after verifying unmount ownership, preserved errors and root ids, voice and companion recovery, cohort isolation, cleanup, and the absence of half-refactor traces.
-- The final full `npm test` rerun exercises all 447 files and 3,344 tests, with 446 files and 3,341 tests passing; the only failures are the three Xcode shell-fixture tests, which cannot spawn Bash because the fixture replaces this Nix workspace's PATH with `/usr/bin:/bin` even though Bash is installed at `/run/current-system/sw/bin/bash`.
-- The three Xcode fixture failures are an environment-specific baseline that occurs before repository shell code executes, while every application test and all CINNY-128 coverage pass.
-- Full ESLint reports zero errors and the existing 17-warning baseline.
+- Independent review approved the simplified boundary with no findings and confirmed that no recovery-cohort, retry-context, thread-binding, or ref-stomp traces remain.
+- Validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- The full Vitest suite passes 446 of 447 files and 3340 of 3343 tests; the only failures are the three established Nix-environment Xcode Cloud Homebrew fixture tests in `xcodeCloudPostClone.test.ts`.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 

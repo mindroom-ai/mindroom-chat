@@ -34,27 +34,8 @@ type SendSession = RoomInputSendSessionState & {
   replyCleared: boolean;
   signalBridgedRoom: boolean;
   failFast: boolean;
-  lastFailure?: {
-    cause: unknown;
-    file: TUploadContent;
-  };
+  uploads?: Upload[];
 };
-
-export class RoomInputSendSessionError extends Error {
-  readonly sendCause: unknown;
-
-  readonly rootEventId: string | undefined;
-
-  readonly failedFile: TUploadContent;
-
-  constructor(cause: unknown, rootEventId: string | undefined, failedFile: TUploadContent) {
-    super(cause instanceof Error && cause.message ? cause.message : 'Failed to send room input.');
-    this.name = 'RoomInputSendSessionError';
-    this.sendCause = cause;
-    this.rootEventId = rootEventId;
-    this.failedFile = failedFile;
-  }
-}
 
 export type RoomInputSendContext = {
   roomId: string;
@@ -67,7 +48,10 @@ export type RoomInputSendContext = {
 
 export type StartRoomInputSendSessionOptions = {
   textContent?: IContent;
-  files?: TUploadContent[];
+  batch?: {
+    fileItems: TUploadItem[];
+    uploads: Upload[];
+  };
   context?: RoomInputSendContext;
   completeWithinCall?: boolean;
 };
@@ -307,7 +291,7 @@ export const useRoomInputSendSessionController = ({
 
         const step = resolveRoomInputSendStep(
           session,
-          uploadsRef.current,
+          session.uploads ?? uploadsRef.current,
           Array.from(
             new Set([
               ...selectedFilesRef.current.map((fileItem) => fileItem.file),
@@ -341,16 +325,14 @@ export const useRoomInputSendSessionController = ({
         try {
           await sendSessionUpload(session, step.file, step.mxc, step.isRoot);
         } catch (error) {
-          session.lastFailure = { cause: error, file: step.file };
+          if (session.failFast) {
+            throw error;
+          }
           if (step.isRoot) {
             session.blockedRoot = true;
             return;
           }
-
           session.failedFiles.add(step.file);
-          if (session.failFast) {
-            return;
-          }
         }
       }
     } finally {
@@ -369,7 +351,7 @@ export const useRoomInputSendSessionController = ({
   const startSendSession = useCallback(
     async ({
       textContent,
-      files,
+      batch,
       context,
       completeWithinCall = false,
     }: StartRoomInputSendSessionOptions = {}) => {
@@ -387,25 +369,13 @@ export const useRoomInputSendSessionController = ({
 
         existingSession.blockedRoot = false;
         existingSession.failedFiles.clear();
-        existingSession.lastFailure = undefined;
         await processSendSession();
         return;
       }
 
-      const selectedSendItems = selectedFilesRef.current.filter((fileItem) => !fileItem.prepError);
-      const prepErrorFiles = new Set(
-        selectedFilesRef.current
-          .filter((fileItem) => fileItem.prepError)
-          .map((fileItem) => fileItem.file)
+      const sendItems = (batch?.fileItems ?? selectedFilesRef.current).filter(
+        (fileItem) => !fileItem.prepError
       );
-      const requestedFiles = files
-        ? files.filter((file) => !prepErrorFiles.has(file))
-        : selectedSendItems.map((fileItem) => fileItem.file);
-      const requestedItems = selectedSendItems.filter((item) => requestedFiles.includes(item.file));
-      const recoveryThreadId = context ? undefined : requestedItems[0]?.metadata.sendThreadId;
-      const sendItems = context
-        ? requestedItems
-        : requestedItems.filter((item) => item.metadata.sendThreadId === recoveryThreadId);
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) return;
       if (hasFailedPasteMarkerInText(textContent, selectedFilesRef.current)) return;
@@ -421,17 +391,9 @@ export const useRoomInputSendSessionController = ({
 
       const sessionRoomId = context ? context.roomId : roomId;
       const sessionRoom = context ? context.room : room;
-      const sessionThreadId = context ? context.threadId : recoveryThreadId ?? threadId;
-      const sessionReplyDraft = context
-        ? context.replyDraft
-        : recoveryThreadId
-        ? undefined
-        : replyDraft;
-      const sessionThreadingEnabled = context
-        ? context.threadingEnabled
-        : recoveryThreadId
-        ? true
-        : threadingEnabled;
+      const sessionThreadId = context ? context.threadId : threadId;
+      const sessionReplyDraft = context ? context.replyDraft : replyDraft;
+      const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
       const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
 
       sendSessionRef.current = {
@@ -444,6 +406,7 @@ export const useRoomInputSendSessionController = ({
         replyCleared: false,
         signalBridgedRoom,
         failFast: completeWithinCall,
+        uploads: batch?.uploads,
         ...createRoomInputSendSessionState({
           files: sendFiles,
           hasText: Boolean(textContent),
@@ -462,15 +425,16 @@ export const useRoomInputSendSessionController = ({
         resetEditorHistory(editor);
         sendTypingStatus(false);
       }
-      await processSendSession();
-      if (completeWithinCall && sendSessionRef.current) {
-        const incompleteSession = sendSessionRef.current;
-        const lastFailure = incompleteSession.lastFailure;
-        const rootEventId = incompleteSession.rootEventId;
-        clearSendSession();
-        if (lastFailure) {
-          throw new RoomInputSendSessionError(lastFailure.cause, rootEventId, lastFailure.file);
+      try {
+        await processSendSession();
+      } catch (error) {
+        if (completeWithinCall) {
+          clearSendSession();
         }
+        throw error;
+      }
+      if (completeWithinCall && sendSessionRef.current) {
+        clearSendSession();
         throw new Error('Lifecycle-complete send did not finish within the initiating call.');
       }
     },

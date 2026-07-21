@@ -9,7 +9,6 @@ import { createListAtom } from '../list';
 
 export type TUploadMetadata = {
   markedAsSpoiler: boolean;
-  sendThreadId?: string;
   mindroomPasteAttachment?: {
     id: string;
     chars: number;

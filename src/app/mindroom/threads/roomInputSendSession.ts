@@ -43,7 +43,7 @@ const hasMatchingReplyRelation = (
   );
 };
 
-const hasMatchingReplyDraft = (
+export const hasMatchingReplyDraft = (
   expected?: IReplyDraft,
   current?: IReplyDraft
 ): boolean => {

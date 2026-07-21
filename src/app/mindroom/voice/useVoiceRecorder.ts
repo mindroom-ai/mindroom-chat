@@ -28,21 +28,6 @@ import {
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
-const pendingVoiceSendRetryContexts = new WeakMap<Error, PendingVoiceSendContext>();
-
-export const setPendingVoiceSendRetryContext = <T extends Error>(
-  error: T,
-  context: PendingVoiceSendContext
-): T => {
-  pendingVoiceSendRetryContexts.set(error, context);
-  return error;
-};
-
-export const getPendingVoiceSendRetryContext = (
-  error: unknown
-): PendingVoiceSendContext | undefined =>
-  error instanceof Error ? pendingVoiceSendRetryContexts.get(error) : undefined;
-
 export type VoiceRecorderPhase =
   | 'idle'
   | 'requesting'
@@ -549,7 +534,7 @@ export function useVoiceRecorder({
           duration,
           waveform: sampleWaveformData,
           errorMessage: friendlyMessage,
-          context: getPendingVoiceSendRetryContext(err) ?? sendContext,
+          context: sendContext,
         });
         latestOnSendStopFailureRef.current?.();
         resolveStop?.(false);
@@ -873,7 +858,6 @@ export function useVoiceRecorder({
       writePendingDraft({
         ...liveDraft,
         errorMessage: friendlyMessage,
-        context: getPendingVoiceSendRetryContext(err) ?? liveDraft.context,
         inFlight: undefined,
       });
       latestOnSendStopFailureRef.current?.();

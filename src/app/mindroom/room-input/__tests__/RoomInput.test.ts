@@ -20,7 +20,6 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../../utils/matrix';
-import { getPendingVoiceSendRetryContext } from '../../voice/useVoiceRecorder';
 
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
@@ -446,7 +445,7 @@ vi.mock('../../../hooks/useCommands', () => ({
 }));
 
 vi.mock('../RoomInputMindroomExtensions', async () => {
-  const { RoomInputSendSessionError, useRoomInputSendSessionController } = await vi.importActual<
+  const { useRoomInputSendSessionController } = await vi.importActual<
     typeof import('../../threads/useRoomInputSendSessionController')
   >('../../threads/useRoomInputSendSessionController');
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
@@ -618,7 +617,6 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       };
       return React.createElement('div');
     },
-    RoomInputSendSessionError,
     useRoomInputSendSessionController,
   };
 });
@@ -2030,71 +2028,48 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('preserves the generated thread root for voice and companion retries', async () => {
+  it('leaves a partial failure staged without redirecting later composer intent', async () => {
     const store = createStore();
     const root = new File(['root'], 'root.txt', { type: 'text/plain' });
-    const companion = new File(['attachment'], 'companion.txt', { type: 'text/plain' });
+    const failed = new File(['failed'], 'failed.txt', { type: 'text/plain' });
     const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-    const sendFailure = new Error('companion send failed');
-    stageUploadItems(
-      store,
-      [createUploadItem(root), createUploadItem(companion)],
-      [root, companion]
-    );
+    stageUploadItems(store, [createUploadItem(root), createUploadItem(failed)], [root, failed]);
     mxState.sendMessage
-      .mockResolvedValueOnce({ event_id: '$attachment-root' })
-      .mockRejectedValueOnce(sendFailure);
+      .mockResolvedValueOnce({ event_id: '$old-root' })
+      .mockRejectedValueOnce(new Error('failed companion send'));
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
-    let failure: unknown;
     await act(async () => {
-      try {
-        await voiceRecorderState.props!.onSendRecording(voice, 350);
-      } catch (error) {
-        failure = error;
-      }
-    });
-
-    expect(failure).toBeInstanceOf(Error);
-    expect(failure).toMatchObject({ message: expect.stringContaining('companion send failed') });
-    const retryContext = getPendingVoiceSendRetryContext(failure);
-    expect(retryContext).toMatchObject({
-      roomId: ROOM_ID,
-      threadId: '$attachment-root',
-      replyDraft: undefined,
-    });
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([
-      expect.objectContaining({
-        file: companion,
-        metadata: expect.objectContaining({ sendThreadId: '$attachment-root' }),
-      }),
-    ]);
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-
-    mxState.sendMessage.mockClear();
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(voice, 350, undefined, retryContext);
-    });
-    await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Upload board Send' }).props.onClick();
-    });
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(
-      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
-    ).toEqual(['voice.m4a', 'companion.txt']);
-    mxState.sendMessage.mock.calls.forEach((call) => {
-      expect(call[1]).toMatchObject({
-        'm.relates_to': expect.objectContaining({
-          event_id: '$attachment-root',
-          rel_type: RelationType.Thread,
-        }),
+      await expect(voiceRecorderState.props!.onSendRecording(voice, 350)).rejects.toMatchObject({
+        message: expect.stringContaining('failed companion send'),
       });
     });
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      failed,
+    ]);
+
+    const later = new File(['later'], 'later.txt', { type: 'text/plain' });
+    const replyDraft = createReplyDraft('$current-reply');
+    mxState.sendMessage.mockClear();
+    await act(async () => {
+      stageUploadItems(store, [createUploadItem(later)], [later]);
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), replyDraft);
+      await Promise.resolve();
+    });
+    stageComposerText('fresh composer text');
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['failed.txt', 'later.txt', 'fresh composer text']);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$current-reply' } },
+    });
+    expect(mxState.sendMessage.mock.calls[2][1]).toMatchObject({
+      'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
+    });
 
     consoleError.mockRestore();
     renderer.unmount();
@@ -2119,6 +2094,11 @@ describe('RoomInput', () => {
       await Promise.resolve();
     });
     expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      canceled,
+      surviving,
+    ]);
+    expect(() => renderer.root.findByProps({ 'aria-label': 'Remove upload voice.m4a' })).toThrow();
 
     await act(async () => {
       renderer.root

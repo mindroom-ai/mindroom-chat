@@ -11,9 +11,7 @@ import {
   VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
 import {
-  getPendingVoiceSendRetryContext,
   getVoiceRecorderErrorMessage,
-  setPendingVoiceSendRetryContext,
   useVoiceRecorder,
   VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
@@ -749,13 +747,10 @@ describe('useVoiceRecorder', () => {
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
   });
 
-  it('parks an in-flight send failure after unmount with its recovery context', async () => {
+  it('parks an in-flight send failure after unmount with its captured context', async () => {
     let rejectSend!: (error: Error) => void;
-    const recoveryContext = createTestSendContext(ROOM_ID, '$attachment-root');
-    const sendFailure = setPendingVoiceSendRetryContext(
-      new Error('voice send failed'),
-      recoveryContext
-    );
+    const capturedContext = createTestSendContext(ROOM_ID);
+    const sendFailure = new Error('voice send failed');
     const onSendRecording = vi.fn(
       () =>
         new Promise<void>((_resolve, reject) => {
@@ -763,7 +758,10 @@ describe('useVoiceRecorder', () => {
         })
     );
     const store = createStore();
-    const { renderer } = await renderHarness({ onSendRecording }, store);
+    const { renderer } = await renderHarness(
+      { onSendRecording, getSendContext: () => capturedContext },
+      store
+    );
 
     await act(async () => {
       await recorderState.current?.start();
@@ -775,7 +773,6 @@ describe('useVoiceRecorder', () => {
       await Promise.resolve();
     });
 
-    expect(getPendingVoiceSendRetryContext(sendFailure)).toBe(recoveryContext);
     act(() => {
       renderer.unmount();
     });
@@ -789,7 +786,7 @@ describe('useVoiceRecorder', () => {
     expect(sent).toBe(false);
     expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
       errorMessage: 'voice send failed',
-      context: recoveryContext,
+      context: capturedContext,
     });
   });
 
