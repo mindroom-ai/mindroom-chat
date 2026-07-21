@@ -56,7 +56,7 @@
 
 - Status: merged in PR #186 after live lab acceptance.
   Retroactive review remediation, regression coverage, full local validation, and independent re-review are complete on `fix/invite-autosuggest-review`.
-  The branch is ready for a follow-up PR.
+  Ready follow-up PR #187 is in AI review.
 - Symptom: the invite dialog's auto-suggest never lists MindRoom agents whose display name has no spaces (e.g. `MindRoomExpert`), even though pasting the MXID resolves the user.
 - Root cause: Tuwunel matches `user_directory/search` by case-insensitive substring, so the previous `' '` bootstrap term only returned users whose display name contains a literal space and space-less users never entered the local suggestion cache.
   A natural spaced query such as `mindroom expert` also substring-matched nothing server-side.
