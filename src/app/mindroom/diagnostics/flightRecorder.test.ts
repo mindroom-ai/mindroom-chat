@@ -17,6 +17,7 @@ import {
   FLIGHT_RECORDER_CURRENT_KEY,
   FLIGHT_RECORDER_MAX_EVENTS,
   FLIGHT_RECORDER_MAX_JSON_CHARS,
+  FLIGHT_RECORDER_SCHEMA_VERSION,
   type FlightRecorderSession,
   getFlightRecorderStatus,
   installFlightRecorder,
@@ -75,7 +76,7 @@ const makePriorSession = (
 ): FlightRecorderSession => {
   priorSessionSequence += 1;
   return {
-    schemaVersion: 1,
+    schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
     buildVersion: 'prior-build',
     sessionId: `11111111-1111-4111-8111-${priorSessionSequence.toString().padStart(12, '0')}`,
     startedAt: 900,
@@ -690,7 +691,7 @@ describe('iOS freeze flight recorder', () => {
     expect(current.events[0]).toMatchObject({ type: 'voice', state: 'recording' });
     expect(current.events.at(-1)).toMatchObject({ type: 'voice', state: 'paused' });
     expect(current).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
       sessionId: expect.any(String),
       startedAt: 1000,
     });
@@ -708,6 +709,7 @@ describe('iOS freeze flight recorder', () => {
         roomHash: 'ffffffff',
         eventCount: Number.MAX_SAFE_INTEGER,
         editCount: Number.MAX_SAFE_INTEGER,
+        encryptedCount: 0,
         route: 'threads',
         hasThreadId: true,
       },
@@ -762,8 +764,8 @@ describe('iOS freeze flight recorder', () => {
 
     expect(fileName).toMatch(/^mindroom-diagnostics-.*Z\.json$/);
     expect(payload.metadata).toMatchObject({
-      exportSchemaVersion: 1,
-      flightRecorderSchemaVersion: 1,
+      exportSchemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+      flightRecorderSchemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
       buildVersion: expect.any(String),
       exportedAt: 1000,
     });

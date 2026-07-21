@@ -3,6 +3,7 @@ import {
   type ClientEventHandlerMap,
   type MatrixClient,
   type MatrixEvent,
+  MatrixEventEvent,
   SyncState,
 } from 'matrix-js-sdk';
 
@@ -14,9 +15,11 @@ import {
 
 type RoomBatch = {
   eventIds: Set<string>;
-  anonymousEventCount: number;
-  anonymousEditCount: number;
+  anonymousEvents: Set<MatrixEvent>;
+  anonymousEditEvents: Set<MatrixEvent>;
+  anonymousEncryptedEvents: Set<MatrixEvent>;
   editEventIds: Set<string>;
+  encryptedEventIds: Set<string>;
 };
 
 const installations = new WeakMap<MatrixClient, () => void>();
@@ -31,7 +34,14 @@ export const hashFlightRecorderRoomId = (roomId: string): string => {
   return (hash >>> 0).toString(16).padStart(8, '0');
 };
 
-const isEdit = (event: MatrixEvent): boolean => event.getRelation()?.rel_type === 'm.replace';
+const isEdit = (event: MatrixEvent): boolean => {
+  const decryptedRelation = event.getOriginalContent()['m.relates_to'] as
+    | Record<string, unknown>
+    | undefined;
+  return (event.getRelation() ?? decryptedRelation)?.rel_type === 'm.replace';
+};
+const isUnresolvedEncrypted = (event: MatrixEvent): boolean =>
+  event.isEncrypted() && (event.getClearContent() === null || event.isDecryptionFailure());
 
 export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) => {
   const existing = installations.get(mx);
@@ -48,20 +58,48 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
     if (!room) {
       room = {
         eventIds: new Set(),
-        anonymousEventCount: 0,
-        anonymousEditCount: 0,
+        anonymousEvents: new Set(),
+        anonymousEditEvents: new Set(),
+        anonymousEncryptedEvents: new Set(),
         editEventIds: new Set(),
+        encryptedEventIds: new Set(),
       };
       rooms.set(roomId, room);
     }
     const eventId = event.getId();
     if (eventId) {
       room.eventIds.add(eventId);
+      if (isUnresolvedEncrypted(event)) room.encryptedEventIds.add(eventId);
+      else {
+        room.encryptedEventIds.delete(eventId);
+        if (isEdit(event)) room.editEventIds.add(eventId);
+      }
+      return;
+    }
+    room.anonymousEvents.add(event);
+    if (isUnresolvedEncrypted(event)) room.anonymousEncryptedEvents.add(event);
+    else {
+      room.anonymousEncryptedEvents.delete(event);
+      if (isEdit(event)) room.anonymousEditEvents.add(event);
+    }
+  };
+
+  const onDecrypted = (event: MatrixEvent) => {
+    const roomId = event.getRoomId();
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (isUnresolvedEncrypted(event)) return;
+    const eventId = event.getId();
+    if (eventId) {
+      if (!room.eventIds.has(eventId)) return;
+      room.encryptedEventIds.delete(eventId);
       if (isEdit(event)) room.editEventIds.add(eventId);
       return;
     }
-    room.anonymousEventCount += 1;
-    if (isEdit(event)) room.anonymousEditCount += 1;
+    if (!room.anonymousEvents.has(event)) return;
+    room.anonymousEncryptedEvents.delete(event);
+    if (isEdit(event)) room.anonymousEditEvents.add(event);
   };
 
   let dispose = () => undefined;
@@ -77,8 +115,9 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
     if (state !== SyncState.Syncing || rooms.size === 0) return;
     const batch: MatrixSyncFlightRecorderRoom[] = Array.from(rooms, ([roomId, room]) => ({
       roomHash: hashFlightRecorderRoomId(roomId),
-      eventCount: room.eventIds.size + room.anonymousEventCount,
-      editCount: room.editEventIds.size + room.anonymousEditCount,
+      eventCount: room.eventIds.size + room.anonymousEvents.size,
+      editCount: room.editEventIds.size + room.anonymousEditEvents.size,
+      encryptedCount: room.encryptedEventIds.size + room.anonymousEncryptedEvents.size,
     }));
     rooms.clear();
     recordFlightRecorderMatrixSyncBatch(batch);
@@ -89,11 +128,13 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
     disposed = true;
     rooms.clear();
     mx.removeListener(ClientEvent.Event, onEvent);
+    mx.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
     mx.removeListener(ClientEvent.Sync, onSync);
     if (installations.get(mx) === dispose) installations.delete(mx);
   };
   installations.set(mx, dispose);
   mx.on(ClientEvent.Event, onEvent);
+  mx.on(MatrixEventEvent.Decrypted, onDecrypted);
   mx.on(ClientEvent.Sync, onSync);
   return dispose;
 };

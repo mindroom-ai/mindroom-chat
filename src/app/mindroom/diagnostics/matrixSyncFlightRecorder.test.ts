@@ -1,9 +1,17 @@
-import { ClientEvent, MatrixEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  MatrixEvent,
+  MatrixEventEvent,
+  SyncState,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   FLIGHT_RECORDER_ABNORMAL_KEY,
   FLIGHT_RECORDER_CURRENT_KEY,
+  FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS,
+  FLIGHT_RECORDER_SCHEMA_VERSION,
   type FlightRecorderSession,
   installFlightRecorder,
 } from './flightRecorder';
@@ -43,26 +51,27 @@ class MemoryStorage implements Storage {
   }
 }
 
+type RecordedClientEvent = ClientEvent | MatrixEventEvent.Decrypted;
 type Handler = (...args: unknown[]) => void;
 type FakeClient = MatrixClient & {
-  emitClient: (event: ClientEvent, ...args: unknown[]) => void;
-  listenerCount: (event: ClientEvent) => number;
+  emitClient: (event: RecordedClientEvent, ...args: unknown[]) => void;
+  listenerCount: (event: RecordedClientEvent) => number;
 };
 
 const createClient = (): FakeClient => {
-  const listeners = new Map<ClientEvent, Set<Handler>>();
+  const listeners = new Map<RecordedClientEvent, Set<Handler>>();
   const client = {
-    on: vi.fn((event: ClientEvent, handler: Handler) => {
+    on: vi.fn((event: RecordedClientEvent, handler: Handler) => {
       const handlers = listeners.get(event) ?? new Set<Handler>();
       handlers.add(handler);
       listeners.set(event, handlers);
       return client;
     }),
-    removeListener: vi.fn((event: ClientEvent, handler: Handler) => {
+    removeListener: vi.fn((event: RecordedClientEvent, handler: Handler) => {
       listeners.get(event)?.delete(handler);
       return client;
     }),
-    emitClient: (event: ClientEvent, ...args: unknown[]) => {
+    emitClient: (event: RecordedClientEvent, ...args: unknown[]) => {
       Array.from(listeners.get(event) ?? []).forEach((handler) => handler(...args));
     },
     listenerCount: (event: ClientEvent) => listeners.get(event)?.size ?? 0,
@@ -92,7 +101,7 @@ const makePriorSession = (
   events: FlightRecorderSession['events'],
   overrides: Partial<FlightRecorderSession> = {}
 ): FlightRecorderSession => ({
-  schemaVersion: 1,
+  schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
   buildVersion: 'prior-build',
   sessionId: '11111111-1111-4111-8111-111111111111',
   startedAt: 900,
@@ -177,6 +186,7 @@ describe('Matrix sync flight recorder', () => {
         roomHash: hashFlightRecorderRoomId(roomA),
         eventCount: 2,
         editCount: 1,
+        encryptedCount: 0,
         route: 'home',
         hasThreadId: false,
       },
@@ -186,6 +196,7 @@ describe('Matrix sync flight recorder', () => {
         roomHash: hashFlightRecorderRoomId(roomB),
         eventCount: 1,
         editCount: 0,
+        encryptedCount: 0,
         route: 'home',
         hasThreadId: false,
       },
@@ -237,6 +248,101 @@ describe('Matrix sync flight recorder', () => {
     expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
   });
 
+  it('classifies an encrypted replacement after decryption and before batch completion', async () => {
+    const roomId = '!encrypted-room:example.org';
+    const encryptedEdit = new MatrixEvent({
+      content: { algorithm: 'test-only' },
+      event_id: '$encrypted-edit',
+      origin_server_ts: 1000,
+      room_id: roomId,
+      sender: '@agent:example.org',
+      type: 'm.room.encrypted',
+    });
+    disposeRecorder = installFlightRecorder(storage);
+    storage.writes.length = 0;
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+
+    client.emitClient(ClientEvent.Event, encryptedEdit);
+    await encryptedEdit.attemptDecryption({
+      decryptEvent: vi.fn().mockResolvedValue({
+        clearEvent: {
+          content: {
+            'm.new_content': { body: 'private edit body', msgtype: 'm.text' },
+            'm.relates_to': { event_id: '$private-target', rel_type: 'm.replace' },
+            msgtype: 'm.text',
+          },
+          type: 'm.room.message',
+        },
+      }),
+    } as never);
+    client.emitClient(MatrixEventEvent.Decrypted, encryptedEdit);
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    expect(readCurrent(storage).events).toMatchObject([
+      { type: 'matrix_sync', eventCount: 1, editCount: 1, encryptedCount: 0 },
+    ]);
+    expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).not.toContain('private');
+  });
+
+  it('records unresolved encrypted events without classifying them as non-edits', () => {
+    const roomId = '!unresolved-room:example.org';
+    disposeRecorder = installFlightRecorder(storage);
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+
+    client.emitClient(
+      ClientEvent.Event,
+      new MatrixEvent({
+        content: { algorithm: 'test-only' },
+        event_id: '$unresolved',
+        origin_server_ts: 1000,
+        room_id: roomId,
+        sender: '@agent:example.org',
+        type: 'm.room.encrypted',
+      })
+    );
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    expect(readCurrent(storage).events).toMatchObject([
+      { type: 'matrix_sync', eventCount: 1, editCount: 0, encryptedCount: 1 },
+    ]);
+  });
+
+  it('caps a large room batch while retaining edit-bearing rooms and earlier evidence', () => {
+    disposeRecorder = installFlightRecorder(storage);
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+
+    for (let index = 0; index < 10; index += 1) {
+      client.emitClient(
+        ClientEvent.Event,
+        makeEvent(`$history-${index}`, `!history-${index}:example.org`)
+      );
+      client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    }
+    const earlierEvidence = readCurrent(storage).events;
+    const editRoomId = '!burst-edit:example.org';
+    for (let index = 0; index < 40; index += 1) {
+      const roomId = index === 39 ? editRoomId : `!burst-${index}:example.org`;
+      client.emitClient(ClientEvent.Event, makeEvent(`$burst-${index}`, roomId, index === 39));
+    }
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+
+    const events = readCurrent(storage).events;
+    expect(events.slice(0, earlierEvidence.length)).toEqual(earlierEvidence);
+    expect(events.slice(earlierEvidence.length)).toHaveLength(
+      FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'matrix_sync',
+        roomHash: hashFlightRecorderRoomId(editRoomId),
+        editCount: 1,
+      })
+    );
+  });
+
   it('stays inert until the native flight recorder runtime is active', () => {
     const client = createClient();
     const inactiveDispose = installMatrixSyncFlightRecorder(client);
@@ -281,7 +387,7 @@ describe('Matrix sync flight recorder', () => {
     expect(storage.writes).toHaveLength(2);
   });
 
-  it('keeps legacy schema-v1 sessions valid after adding matrix sync events', () => {
+  it('keeps schema-v2 sessions valid after adding matrix sync events', () => {
     const prior = makePriorSession([{ at: 925, type: 'voice', state: 'recording' }]);
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
 
@@ -293,6 +399,19 @@ describe('Matrix sync flight recorder', () => {
     });
   });
 
+  it('rejects the previous schema after the matrix sync format bump', () => {
+    const prior = { ...makePriorSession([]), schemaVersion: 1 };
+    storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
+
+    disposeRecorder = installFlightRecorder(storage);
+
+    expect(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBeNull();
+    expect(readCurrent(storage)).toMatchObject({
+      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+      events: [],
+    });
+  });
+
   it('retains matrix sync evidence alongside the optional last action on relaunch', () => {
     const matrixSyncEvent = {
       at: 925,
@@ -300,6 +419,7 @@ describe('Matrix sync flight recorder', () => {
       roomHash: '1234abcd',
       eventCount: 2,
       editCount: 1,
+      encryptedCount: 0,
       route: 'home',
       hasThreadId: false,
     } as const;
@@ -326,6 +446,9 @@ describe('Matrix sync flight recorder', () => {
     ['zero events', { eventCount: 0 }],
     ['too many edits', { eventCount: 1, editCount: 2 }],
     ['fractional count', { eventCount: 1.5 }],
+    ['negative count', { editCount: -1 }],
+    ['too many encrypted', { eventCount: 1, encryptedCount: 2 }],
+    ['overlapping edit and encrypted counts', { eventCount: 1, editCount: 1, encryptedCount: 1 }],
     ['extra key', { extra: 'private' }],
   ])('strictly rejects prior matrix sync events with %s', (_case, override) => {
     const invalidEvent = {
@@ -334,6 +457,7 @@ describe('Matrix sync flight recorder', () => {
       roomHash: '1234abcd',
       eventCount: 2,
       editCount: 1,
+      encryptedCount: 0,
       route: 'home',
       hasThreadId: false,
       ...override,

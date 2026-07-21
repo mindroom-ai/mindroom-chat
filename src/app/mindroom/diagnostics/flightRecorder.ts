@@ -7,9 +7,10 @@ import {
 
 export const FLIGHT_RECORDER_CURRENT_KEY = 'mindroom.flight.current.v1';
 export const FLIGHT_RECORDER_ABNORMAL_KEY = 'mindroom.flight.abnormal.v1';
-export const FLIGHT_RECORDER_SCHEMA_VERSION = 1;
+export const FLIGHT_RECORDER_SCHEMA_VERSION = 2;
 export const FLIGHT_RECORDER_MAX_EVENTS = 32;
 export const FLIGHT_RECORDER_MAX_JSON_CHARS = 8192;
+export const FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS = 8;
 const HEARTBEAT_MS = 2000;
 const GAP_MS = 5000;
 const routes = ['home', 'direct', 'threads', 'space', 'auth', 'other'] as const;
@@ -59,13 +60,14 @@ export type FlightEvent =
       roomHash: string;
       eventCount: number;
       editCount: number;
+      encryptedCount: number;
       route: RouteClass;
       hasThreadId: boolean;
     };
 
 export type MatrixSyncFlightRecorderRoom = Pick<
   Extract<FlightEvent, { type: 'matrix_sync' }>,
-  'roomHash' | 'eventCount' | 'editCount'
+  'roomHash' | 'eventCount' | 'editCount' | 'encryptedCount'
 >;
 
 export type FlightRecorderSession = {
@@ -139,13 +141,16 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
     );
   if (event.type === 'matrix_sync')
     return (
-      keyCount === 7 &&
+      keyCount === 8 &&
       typeof event.roomHash === 'string' &&
       /^[a-f0-9]{8}$/.test(event.roomHash) &&
       count(event.eventCount) &&
       event.eventCount > 0 &&
       count(event.editCount) &&
       event.editCount <= event.eventCount &&
+      count(event.encryptedCount) &&
+      event.encryptedCount <= event.eventCount &&
+      event.editCount + event.encryptedCount <= event.eventCount &&
       routes.includes(event.route as RouteClass) &&
       typeof event.hasThreadId === 'boolean'
     );
@@ -539,7 +544,20 @@ export const recordFlightRecorderMatrixSyncBatch = (
     ...route,
   }));
   if (!events.every(eventIsValid)) return false;
-  events.forEach((event) => add(runtime, event));
+  events
+    .map((event, index) => ({ event, index }))
+    .sort((left, right) => {
+      if (left.event.type !== 'matrix_sync' || right.event.type !== 'matrix_sync') return 0;
+      return (
+        right.event.editCount - left.event.editCount ||
+        right.event.encryptedCount - left.event.encryptedCount ||
+        right.event.eventCount - left.event.eventCount ||
+        left.index - right.index
+      );
+    })
+    .slice(0, FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS)
+    .sort((left, right) => left.index - right.index)
+    .forEach(({ event }) => add(runtime, event));
   return flush(runtime);
 };
 

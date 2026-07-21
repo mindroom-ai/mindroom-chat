@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./flightRecorder', () => ({
-  FLIGHT_RECORDER_SCHEMA_VERSION: 1,
+  FLIGHT_RECORDER_SCHEMA_VERSION: 2,
   buildFlightRecorderPayload: mocks.buildFlightRecorderPayload,
   normalizeFlightRecorderBuildVersion: (value: string) => value,
 }));
@@ -25,7 +25,7 @@ describe('combined diagnostics export', () => {
     mocks.buildFlightRecorderPayload.mockReturnValue({
       metadata: {
         exportSchemaVersion: 1,
-        flightRecorderSchemaVersion: 1,
+        flightRecorderSchemaVersion: 2,
         buildVersion: 'build-sha',
         exportedAt: 1,
       },
@@ -54,7 +54,7 @@ describe('combined diagnostics export', () => {
     expect(fileName).toBe('mindroom-diagnostics-2026-07-20T02-13-48-415Z.json');
     expect(payload.metadata).toEqual({
       exportSchemaVersion: 2,
-      flightRecorderSchemaVersion: 1,
+      flightRecorderSchemaVersion: 2,
       deepTraceSchemaVersion: 1,
       buildVersion: 'build-sha',
       exportedAt: 1_784_513_628_415,
