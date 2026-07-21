@@ -5,10 +5,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
-import {
-  getThreadScheduledDisplayText,
-  getThreadScheduledLabel,
-} from './compactThreadCardUtils';
+import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
 import type {
   CompactThreadAttentionState,

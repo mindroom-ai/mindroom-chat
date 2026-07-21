@@ -45,10 +45,6 @@ export const buildThreadHeaderViewModelFromRecord = ({
       cronDescription,
       scheduledDisplayText
     ),
-    bannerScheduledText: getBannerScheduledText(
-      summaryText,
-      nextScheduledTs,
-      scheduledDisplayText
-    ),
+    bannerScheduledText: getBannerScheduledText(summaryText, nextScheduledTs, scheduledDisplayText),
   };
 };

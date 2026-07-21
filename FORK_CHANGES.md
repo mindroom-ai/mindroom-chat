@@ -10,7 +10,7 @@
 - One recurring task displays the backend description, while multiple or incomplete task sets retain the honest count fallback.
 - Existing one-time `execute_at` formatting and refresh behavior remain unchanged.
 - The previous client-side Croner dependency, croniter-parity engine, evaluation budgets, continuation cache, and associated timer machinery are removed.
-- The final MindRoom Chat production diff is net +29 lines (+101/-72), down from the previous net +820 (+919/-99).
+- The final MindRoom Chat production diff is net +22 lines (+95/-73), down from the previous net +820 (+919/-99).
 - Focused scheduled-task and banner coverage passes 62 tests, typecheck passes, the production/PWA build passes, and ESLint reports zero errors with the existing 17-warning baseline.
 - The full Vitest suite passes all 447 files and 3,372 tests.
 - First independent Fable review found the thread banner dropped `cronDescription` between its hook and record; the propagation fix and component regression now keep summary-less banners on the backend description.
