@@ -555,6 +555,96 @@ describe('useInviteUserSearch', () => {
     expect(view.getResult().isFetching).toBe(false);
   });
 
+  it('invalidates older server results after the query changes away and back', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) => ({
+      limited: false,
+      results:
+        term === 'mindroomexpert'
+          ? [
+              {
+                user_id: '@stale-server:example.org',
+                display_name: 'MindRoomExpert',
+              },
+            ]
+          : [],
+    }));
+    const view = renderSearch({
+      mx,
+      query: 'mindroom expert',
+      cacheState: readyCache([
+        { userId: '@local:example.org', displayName: 'Mindroom Expert Local' },
+      ]),
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@stale-server:example.org'
+    );
+
+    view.update(mx, undefined, '');
+    view.update(mx, undefined, 'mindroom expert');
+
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual(['@local:example.org']);
+  });
+
+  it('clears older same-query results when a fresh same-owner search fully fails', async () => {
+    const firstClient = makeMx();
+    vi.mocked(firstClient.searchUserDirectory).mockImplementation(async ({ term }) => ({
+      limited: false,
+      results:
+        term === 'mindroomexpert'
+          ? [
+              {
+                user_id: '@stale-server:example.org',
+                display_name: 'MindRoomExpert',
+              },
+            ]
+          : [],
+    }));
+    const view = renderSearch({
+      mx: firstClient,
+      query: 'mindroom expert',
+      cacheState: readyCache([
+        { userId: '@local:example.org', displayName: 'Mindroom Expert Local' },
+      ]),
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@stale-server:example.org'
+    );
+
+    const retryClient = makeMx();
+    vi.mocked(retryClient.searchUserDirectory).mockRejectedValue(
+      new Error('directory unavailable')
+    );
+    view.update(retryClient);
+
+    // Same term and owner preserve the prior result until the fresh search
+    // settles, so only the all-failed path can clear it.
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@stale-server:example.org'
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(retryClient.searchUserDirectory).toHaveBeenCalledTimes(2);
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual(['@local:example.org']);
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
   it('ignores dual-request results that resolve after the query changes', async () => {
     const mx = makeMx();
     const staleRawDeferred = createDeferred<SearchUserDirectoryResponse>();
