@@ -1,5 +1,5 @@
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
-index ba649eb..b244400 100644
+index ba649eb..364f89a 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 @@ -8,6 +8,8 @@ export declare class RelationsContainer {
@@ -27,8 +27,9 @@ index ba649eb..b244400 100644
 +    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet, targetEvent?: MatrixEvent): Promise<Relations | undefined>;
  }
  //# sourceMappingURL=relations-container.d.ts.map
+\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..e04bebc 100644
+index 8ccc053..7758d99 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
 @@ -24,6 +24,8 @@ export class RelationsContainer {
@@ -133,11 +134,12 @@ index 8ccc053..e04bebc 100644
    }
  }
  //# sourceMappingURL=relations-container.js.map
+\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.d.ts b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-index 933f698..692c82a 100644
+index 933f698..8db5e53 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-@@ -27,6 +27,8 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+@@ -27,10 +27,13 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
      readonly altEventTypes?: string[] | undefined;
      private relationEventIds;
      private relations;
@@ -146,7 +148,12 @@ index 933f698..692c82a 100644
      private annotationsByKey;
      private annotationsBySender;
      private sortedAnnotationsByKey;
-@@ -46,7 +48,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+     private targetEvent;
++    private targetEventUpdatePromise;
+     private creationEmitted;
+     private replacementUpdateId;
+     private readonly client;
+@@ -46,7 +49,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
       *
       * @param event - The new relation event to be added.
       */
@@ -155,7 +162,7 @@ index 933f698..692c82a 100644
      /**
       * Remove relation event from this collection.
       *
-@@ -63,11 +65,11 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+@@ -63,11 +66,11 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
      /**
       * Get all relation events in this collection.
       *
@@ -170,7 +177,7 @@ index 933f698..692c82a 100644
      getRelations(): MatrixEvent[];
      private addAnnotationToAggregation;
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..178537f 100644
+index 6be66bb..7e6f72a 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -56,10 +56,13 @@ export class Relations extends TypedEventEmitter {
@@ -245,13 +252,23 @@ index 6be66bb..178537f 100644
      })();
    }
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.d.ts b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
-index 6933b26..fbbaa6c 100644
+index 6933b26..217d678 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
-@@ -164,6 +164,7 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
+@@ -92,6 +92,8 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
+      */
+     initialEventsFetched: boolean;
+     private initalEventFetchProm;
++    private preInitEventTargets;
++    private preInitObserverState;
+     /**
+      * An array of events to add to the timeline once the thread has been initialised
+      * with server suppport.
+@@ -164,6 +166,8 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
       */
      resetLiveTimeline(backPaginationToken?: string | null, forwardPaginationToken?: string | null): Promise<void>;
      private updateThreadFromRootEvent;
++    private findPreInitTargetEvent;
 +    private initializeTimeline;
      private updateThreadMetadata;
      private fetchEditsWhereNeeded;
