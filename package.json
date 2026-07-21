@@ -15,7 +15,7 @@
     "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"scripts/cinny-126-replay/**/*.ts\"",
     "check:prettier": "prettier --check .",
     "fix:prettier": "prettier --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
     "postinstall": "patch-package",
     "prepare": "husky install",
     "commit": "git-cz",

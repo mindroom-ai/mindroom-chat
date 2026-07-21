@@ -1,32 +1,20 @@
 import { randomUUID } from 'node:crypto';
+import { loadExactTrace, type TraceEvent } from './trace';
 import {
-  cloneTraceEvent,
-  INCIDENT_ROOM_ID,
-  INCIDENT_THREAD_ROOT_ID,
-  loadExactTrace,
-  ORIGINAL_SENDERS,
-  type TraceEvent,
-} from './trace';
-import {
-  assertNoIncidentMediaReferences,
+  assertNoForbiddenStrings,
   assertLiveReplayRoomIsolation,
+  buildSafeLiveReplayContent,
+  buildSafeLiveReplayStateKey,
   buildLiveReplayRoomRequest,
-  collectIncidentAttachmentIds,
   LIVE_REPLAY_CANARY_TYPE,
-  parseReplacementAttachmentIds,
-  rewriteReplayAttachmentIds,
-  validateLiveReplayMedia,
+  type LiveReplayEventKind,
 } from './liveSafety';
 
-type Role = keyof typeof ORIGINAL_SENDERS;
+type Role = 'user' | 'router' | 'agent';
 type Account = { accessToken: string; userId: string };
 
 const homeserver = 'https://mindroom.chat';
 const confirmation = process.env.CINNY_126_TEST_ROOM_CONFIRM;
-const testAudioMxc = process.env.CINNY_126_TEST_AUDIO_MXC;
-const replacementAttachmentIds = parseReplacementAttachmentIds(
-  process.env.CINNY_126_TEST_ATTACHMENT_IDS
-);
 const roleTokens: Record<Role, string | undefined> = {
   user: process.env.CINNY_126_USER_ACCESS_TOKEN,
   router: process.env.CINNY_126_ROUTER_ACCESS_TOKEN,
@@ -41,17 +29,74 @@ if (Object.values(roleTokens).some((token) => !token)) {
 }
 
 const trace = await loadExactTrace();
-const incidentAttachmentIds = collectIncidentAttachmentIds(trace.replayEvents);
-const {
-  attachmentMap,
-  forbiddenIncidentMedia,
-  testAudioMxc: safeTestAudioMxc,
-} = validateLiveReplayMedia({
-  incidentAttachmentIds,
-  incidentAudioMxc: trace.voice.content.url,
-  replacementAttachmentIds,
-  testAudioMxc,
-});
+const forbiddenPrivateReferences = new Set([
+  trace.ids.room,
+  trace.ids.threadRoot,
+  ...trace.replayEvents.map((event) => event.event_id),
+  ...Object.values(trace.senders),
+]);
+type ReplayDescriptor = {
+  channel: 'message' | 'state';
+  eventType: 'm.room.message' | 'com.mindroom.thread.tags';
+  index: number;
+  kind: LiveReplayEventKind;
+};
+const describeTraceEvent = (event: TraceEvent): ReplayDescriptor => {
+  let descriptor: ReplayDescriptor;
+  if (event === trace.voice) {
+    descriptor = { channel: 'message', eventType: 'm.room.message', index: 0, kind: 'voice' };
+  } else if (event === trace.transcription) {
+    descriptor = {
+      channel: 'message',
+      eventType: 'm.room.message',
+      index: 0,
+      kind: 'transcription',
+    };
+  } else if (event === trace.placeholder) {
+    descriptor = {
+      channel: 'message',
+      eventType: 'm.room.message',
+      index: 0,
+      kind: 'placeholder',
+    };
+  } else {
+    const editIndex = trace.edits.indexOf(event);
+    const tagIndex = trace.tags.indexOf(event);
+    if (editIndex >= 0) {
+      descriptor = {
+        channel: 'message',
+        eventType: 'm.room.message',
+        index: editIndex,
+        kind: 'edit',
+      };
+    } else if (tagIndex >= 0) {
+      descriptor = {
+        channel: 'state',
+        eventType: 'com.mindroom.thread.tags',
+        index: tagIndex,
+        kind: 'tag',
+      };
+    } else if (event === trace.summary) {
+      descriptor = {
+        channel: 'message',
+        eventType: 'm.room.message',
+        index: 0,
+        kind: 'summary',
+      };
+    } else {
+      throw new Error('Unknown event in validated trace');
+    }
+  }
+  const sourceChannel = event.state_key === undefined ? 'message' : 'state';
+  if (event.type !== descriptor.eventType || sourceChannel !== descriptor.channel) {
+    throw new Error('Validated trace kind does not match the synthetic replay plan');
+  }
+  return descriptor;
+};
+const replayPlan = trace.replayEvents.map((event) => ({
+  descriptor: describeTraceEvent(event),
+  event,
+}));
 
 const matrixRequest = async <T>(
   account: Pick<Account, 'accessToken'>,
@@ -83,8 +128,8 @@ const accounts = Object.fromEntries(
         'GET',
         '/account/whoami'
       );
-      if (Object.values(ORIGINAL_SENDERS).some((userId) => userId === whoami.user_id)) {
-        throw new Error(`Original account ${whoami.user_id} is forbidden`);
+      if (Object.values(trace.senders).some((userId) => userId === whoami.user_id)) {
+        throw new Error('An original trace account is forbidden');
       }
       return [role, { accessToken, userId: whoami.user_id }] as const;
     })
@@ -101,15 +146,10 @@ const createRoomResponse = await matrixRequest<{ room_id: string }>(
   buildLiveReplayRoomRequest([accounts.router.userId, accounts.agent.userId], canaryNonce)
 );
 const roomId = createRoomResponse.room_id;
-if (!roomId || roomId === INCIDENT_ROOM_ID) throw new Error('Homeserver returned an invalid room');
+if (!roomId || roomId === trace.ids.room) throw new Error('Homeserver returned an invalid room');
 await Promise.all(
   ([accounts.router, accounts.agent] as Account[]).map((account) =>
-    matrixRequest<{ room_id: string }>(
-      account,
-      'POST',
-      `/join/${encodeURIComponent(roomId)}`,
-      {}
-    )
+    matrixRequest<{ room_id: string }>(account, 'POST', `/join/${encodeURIComponent(roomId)}`, {})
   )
 );
 const [joinedMembers, joinRules, history, powerLevels, roomTopic, canary] = await Promise.all([
@@ -141,9 +181,7 @@ const [joinedMembers, joinRules, history, powerLevels, roomTopic, canary] = awai
   matrixRequest<Record<string, unknown>>(
     accounts.user,
     'GET',
-    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
-      LIVE_REPLAY_CANARY_TYPE
-    )}/`
+    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(LIVE_REPLAY_CANARY_TYPE)}/`
   ),
 ]);
 assertLiveReplayRoomIsolation({
@@ -160,41 +198,11 @@ process.stdout.write(`CINNY-126 disposable test room: ${roomId}\n`);
 
 const idMap = new Map<string, string>();
 const accountForSender = (sender: string): Account => {
-  const role = (Object.entries(ORIGINAL_SENDERS) as Array<[Role, string]>).find(
+  const role = (Object.entries(trace.senders) as Array<[Role, string]>).find(
     ([, originalSender]) => originalSender === sender
   )?.[0];
-  if (!role) throw new Error(`No test role for ${sender}`);
+  if (!role) throw new Error('No test role for trace sender');
   return accounts[role];
-};
-const rewriteReference = (eventId: unknown): unknown =>
-  typeof eventId === 'string' ? idMap.get(eventId) ?? eventId : eventId;
-const rewriteContent = (event: TraceEvent): Record<string, unknown> => {
-  const content = structuredClone(event.content);
-  const eventRelation = content['m.relates_to'] as Record<string, unknown> | undefined;
-  if (eventRelation) {
-    eventRelation.event_id = rewriteReference(eventRelation.event_id);
-    const reply = eventRelation['m.in_reply_to'] as Record<string, unknown> | undefined;
-    if (reply) reply.event_id = rewriteReference(reply.event_id);
-  }
-  if (event.sender === ORIGINAL_SENDERS.user && content.url) content.url = safeTestAudioMxc;
-  if (content.set_by === ORIGINAL_SENDERS.agent) content.set_by = accounts.agent.userId;
-  const attachmentIds = content['com.mindroom.attachment_ids'] as string[] | undefined;
-  if (attachmentIds) {
-    content['com.mindroom.attachment_ids'] = rewriteReplayAttachmentIds(
-      attachmentIds,
-      attachmentMap
-    );
-  }
-  const newContent = content['m.new_content'] as Record<string, unknown> | undefined;
-  const newAttachmentIds = newContent?.['com.mindroom.attachment_ids'] as string[] | undefined;
-  if (newContent && newAttachmentIds) {
-    newContent['com.mindroom.attachment_ids'] = rewriteReplayAttachmentIds(
-      newAttachmentIds,
-      attachmentMap
-    );
-  }
-  assertNoIncidentMediaReferences(content, forbiddenIncidentMedia);
-  return content;
 };
 const sendMessageEvent = async (account: Account, eventType: string, content: unknown) =>
   matrixRequest<{ event_id: string }>(
@@ -222,7 +230,7 @@ const rootResponse = await sendMessageEvent(accounts.user, 'm.room.message', {
   body: 'CINNY-126 exact-trace replay root',
   msgtype: 'm.text',
 });
-idMap.set(INCIDENT_THREAD_ROOT_ID, rootResponse.event_id);
+idMap.set(trace.ids.threadRoot, rootResponse.event_id);
 process.stdout.write(`CINNY-126 test thread root: ${rootResponse.event_id}\n`);
 process.stdout.write('Place the client-under-test on the test room overview now.\n');
 const startDelayMs = Number(process.env.CINNY_126_START_DELAY_MS ?? '10000');
@@ -232,29 +240,39 @@ await new Promise<void>((resolve) => {
 
 const replayStartTs = trace.replayEvents[0].origin_server_ts;
 const wallStart = Date.now();
-for (const event of trace.replayEvents) {
+for (const [sequence, { descriptor, event }] of replayPlan.entries()) {
   const targetElapsed = event.origin_server_ts - replayStartTs;
   await new Promise<void>((resolve) => {
     setTimeout(resolve, Math.max(0, targetElapsed - (Date.now() - wallStart)));
   });
   const account = accountForSender(event.sender);
-  const content = rewriteContent(cloneTraceEvent(event, roomId));
+  const content = buildSafeLiveReplayContent({
+    event,
+    idMap,
+    index: descriptor.index,
+    kind: descriptor.kind,
+    senderUserId: account.userId,
+  });
+  assertNoForbiddenStrings(content, forbiddenPrivateReferences);
   let response: { event_id: string };
-  if (event.state_key !== undefined) {
-    const parsedStateKey = JSON.parse(event.state_key) as [string, string];
-    parsedStateKey[0] = idMap.get(parsedStateKey[0]) ?? parsedStateKey[0];
-    response = await sendStateEvent(account, event.type, JSON.stringify(parsedStateKey), content);
+  if (descriptor.channel === 'state') {
+    const stateKey = buildSafeLiveReplayStateKey(event, idMap, descriptor.index);
+    assertNoForbiddenStrings(stateKey, forbiddenPrivateReferences);
+    response = await sendStateEvent(account, descriptor.eventType, stateKey, content);
   } else {
-    response = await sendMessageEvent(account, event.type, content);
+    response = await sendMessageEvent(account, descriptor.eventType, content);
   }
   idMap.set(event.event_id, response.event_id);
   process.stdout.write(
     `${JSON.stringify({
-      originalEventId: event.event_id,
+      kind: descriptor.kind,
       replayEventId: response.event_id,
       scheduledOffsetMs: targetElapsed,
+      sequence,
       observedOffsetMs: Date.now() - wallStart,
-      senderRole: event.sender,
+      senderRole: (Object.entries(accounts) as Array<[Role, Account]>).find(
+        ([, candidate]) => candidate === account
+      )?.[0],
     })}\n`
   );
 }

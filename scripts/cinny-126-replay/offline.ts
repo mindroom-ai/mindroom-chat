@@ -5,16 +5,8 @@ import { buildCrossRoomThreadIndexEntry } from '../../src/app/mindroom/cross-roo
 import { buildCompactThreadCardViewModelFromRecord } from '../../src/app/mindroom/threads/compactThreadCardViewModel';
 import { getRoomThreadTagSnapshotMap } from '../../src/app/mindroom/threads/threadTagSnapshots';
 import { buildThreadRecord } from '../../src/app/mindroom/threads/threadRecord';
-import { EXACT_REPLAY_FINGERPRINTS, fingerprintText, fingerprintsMatch } from './exactReplayOracle';
-import {
-  cloneTraceEvent,
-  INCIDENT_FINAL_EDIT_EVENT_ID,
-  INCIDENT_PLACEHOLDER_EVENT_ID,
-  INCIDENT_THREAD_ROOT_ID,
-  loadExactTrace,
-  ORIGINAL_SENDERS,
-  type TraceEvent,
-} from './trace';
+import { fingerprintText, fingerprintsMatch, orderedSignalIdsMatch } from './exactReplayOracle';
+import { cloneTraceEvent, loadExactTrace, type TraceEvent } from './trace';
 
 const OFFLINE_ROOM_ID = '!cinny-126-replay:test.invalid';
 
@@ -49,11 +41,10 @@ const emitDiagnostic = (kind: string, value: Record<string, unknown>) => {
 const trace = await loadExactTrace();
 const originalThreadSupport = Thread.hasServerSideSupport;
 Thread.hasServerSideSupport = FeatureSupport.Stable;
-const unhandledRejections: string[] = [];
-const captureUnhandledRejection = (reason: unknown) => {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  unhandledRejections.push(message);
-  emitDiagnostic('unhandled-rejection', { message });
+let unhandledRejectionCount = 0;
+const captureUnhandledRejection = () => {
+  unhandledRejectionCount += 1;
+  emitDiagnostic('unhandled-rejection', { occurred: true });
 };
 if (scenario === 'forced-init-failure') {
   process.on('unhandledRejection', captureUnhandledRejection);
@@ -95,7 +86,7 @@ const room = new Room(
 const latestForRoot = cloneTraceEvent(trace.voice, OFFLINE_ROOM_ID);
 const rootWireEvent: TraceEvent = {
   content: { body: 'CINNY-126 exact-trace replay root', msgtype: 'm.text' },
-  event_id: INCIDENT_THREAD_ROOT_ID,
+  event_id: trace.ids.threadRoot,
   origin_server_ts: trace.voice.origin_server_ts - 1,
   room_id: OFFLINE_ROOM_ID,
   sender: '@cinny-126-root:test.invalid',
@@ -116,20 +107,24 @@ room.getUnfilteredTimelineSet().addEventToTimeline(rootEvent, room.getLiveTimeli
   roomState: room.currentState,
   toStartOfTimeline: false,
 });
-const thread = room.createThread(INCIDENT_THREAD_ROOT_ID, rootEvent, [], false);
+const thread = room.createThread(trace.ids.threadRoot, rootEvent, [], false);
 
 const submittedEventIds: string[] = [];
 const sdkProcessedEventIds: string[] = [];
 const editTimelineEventIds: string[] = [];
-let threadUpdates = 0;
-let replacementSignals = 0;
+const expectedEditIds = trace.edits.map((event) => event.event_id);
+const threadUpdateEditIds: string[] = [];
+const replacementSignalEventIds: string[] = [];
 room.on(RoomEvent.Timeline, (event) => {
   if (trace.edits.some((edit) => edit.event_id === event.getId())) {
     editTimelineEventIds.push(event.getId() ?? 'missing-id');
   }
 });
 thread.on(ThreadEvent.Update, () => {
-  threadUpdates += 1;
+  const replacementId = mappedEvents.get(trace.ids.placeholder)?.replacingEvent()?.getId();
+  if (replacementId && expectedEditIds.includes(replacementId)) {
+    threadUpdateEditIds.push(replacementId);
+  }
 });
 
 const mappedEvents = new Map<string, MatrixEvent>();
@@ -152,25 +147,27 @@ const eventReachedSdkState = (event: MatrixEvent): boolean => {
       event.getThread() === thread &&
       (thread.replayEvents?.includes(event) === true ||
         thread.findEventById(eventId) === event ||
-        mappedEvents.get(INCIDENT_PLACEHOLDER_EVENT_ID)?.replacingEvent()?.getId() === eventId)
+        mappedEvents.get(trace.ids.placeholder)?.replacingEvent()?.getId() === eventId)
     );
   }
   if (event.isRelation('m.thread')) return thread.findEventById(eventId) === event;
   if (event.isState()) {
+    const stateKey = event.getStateKey();
     return (
-      room.currentState.getStateEvents(event.getType(), event.getStateKey())?.getId() === eventId
+      typeof stateKey === 'string' &&
+      room.currentState.getStateEvents(event.getType(), stateKey)?.getId() === eventId
     );
   }
   return room.findEventById(eventId) === event;
 };
 
 const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
-  const tagSnapshot = getRoomThreadTagSnapshotMap(room).get(INCIDENT_THREAD_ROOT_ID);
+  const tagSnapshot = getRoomThreadTagSnapshotMap(room).get(trace.ids.threadRoot);
   const record = buildThreadRecord({
     room,
-    threadRootId: INCIDENT_THREAD_ROOT_ID,
+    threadRootId: trace.ids.threadRoot,
     threadRootEvent: rootEvent,
-    currentUserId: ORIGINAL_SENDERS.user,
+    currentUserId: trace.senders.user,
     readUpToTs: rootEvent.getTs(),
     threadResolution: tagSnapshot
       ? { isResolved: tagSnapshot.isResolved, tags: tagSnapshot.content.tags }
@@ -179,15 +176,15 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
   const compactCard = buildCompactThreadCardViewModelFromRecord({
     record,
     room,
-    currentUserId: ORIGINAL_SENDERS.user,
+    currentUserId: trace.senders.user,
     mx: client as never,
     useAuthentication: false,
   });
   const globalEntry = buildCrossRoomThreadIndexEntry({
     room,
-    threadRootId: INCIDENT_THREAD_ROOT_ID,
+    threadRootId: trace.ids.threadRoot,
     threadRootEvent: rootEvent,
-    currentUserId: ORIGINAL_SENDERS.user,
+    currentUserId: trace.senders.user,
     tagSnapshot,
   });
   const content = placeholder.getContent<Record<string, unknown>>();
@@ -201,36 +198,28 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
   );
   const overviewTagsFingerprint = fingerprintText(JSON.stringify(tagSnapshot?.displayTags ?? []));
   return {
-    compactCardPreviewLength: compactCardFingerprint.length,
-    compactCardPreviewSha256: compactCardFingerprint.sha256,
     compactCardUsesFinal: fingerprintsMatch(
       compactCardFingerprint,
-      EXACT_REPLAY_FINGERPRINTS.compactCard
+      trace.expectedFingerprints.compactCard
     ),
     effectiveBodyIsFinal: fingerprintsMatch(
       effectiveBodyFingerprint,
-      EXACT_REPLAY_FINGERPRINTS.effectiveBody
+      trace.expectedFingerprints.effectiveBody
     ),
-    globalThreadsPreviewLength: globalThreadsFingerprint.length,
-    globalThreadsPreviewSha256: globalThreadsFingerprint.sha256,
     globalThreadsUsesFinal: fingerprintsMatch(
       globalThreadsFingerprint,
-      EXACT_REPLAY_FINGERPRINTS.globalThreads
+      trace.expectedFingerprints.globalThreads
     ),
     overviewTagsVisible: fingerprintsMatch(
       overviewTagsFingerprint,
-      EXACT_REPLAY_FINGERPRINTS.overviewTags
+      trace.expectedFingerprints.overviewTags
     ),
-    overviewTagsLength: overviewTagsFingerprint.length,
-    overviewTagsSha256: overviewTagsFingerprint.sha256,
-    presentationBodyLength: fingerprintText(presentationBody).length,
-    presentationBodySha256: fingerprintText(presentationBody).sha256,
     presentationUsesFinal: fingerprintsMatch(
       fingerprintText(presentationBody),
-      EXACT_REPLAY_FINGERPRINTS.presentation
+      trace.expectedFingerprints.presentation
     ),
     replacementEventId: replacement?.getId() ?? null,
-    replacementIsFinal: replacement?.getId() === INCIDENT_FINAL_EDIT_EVENT_ID,
+    replacementIsFinal: replacement?.getId() === trace.ids.finalEdit,
     roomNavUnread: record.status.isUnread,
     streamCompleted: content['io.mindroom.stream_status'] === 'completed',
     streamStatus: content['io.mindroom.stream_status'] ?? null,
@@ -250,15 +239,16 @@ try {
       addToState: true,
       fromCache: false,
     });
-    if (wireEvent.event_id === INCIDENT_PLACEHOLDER_EVENT_ID) {
+    if (wireEvent.event_id === trace.ids.placeholder) {
       event.on(MatrixEventEvent.Replaced, () => {
-        replacementSignals += 1;
+        const replacementId = event.replacingEvent()?.getId();
+        if (replacementId) replacementSignalEventIds.push(replacementId);
       });
     }
     if (eventReachedSdkState(event)) sdkProcessedEventIds.push(wireEvent.event_id);
     if (event.isRelation('m.thread')) firstOrderEvents.push(event);
     emitDiagnostic('event', {
-      eventId: wireEvent.event_id,
+      sequence: index,
       eventType: wireEvent.type,
       relationType: event.getRelation()?.rel_type ?? null,
       scheduledOffsetMs: wireEvent.origin_server_ts - replayStartTs,
@@ -267,7 +257,7 @@ try {
   }
   await settle();
 
-  const placeholder = mappedEvents.get(INCIDENT_PLACEHOLDER_EVENT_ID);
+  const placeholder = mappedEvents.get(trace.ids.placeholder);
   if (!placeholder) throw new Error('Replay did not map the placeholder');
   const preInitSurfaces = observeAcceptanceSurfaces(placeholder);
   const summary = mappedEvents.get(trace.summary.event_id);
@@ -277,9 +267,12 @@ try {
 
   const allSdkEventsProcessed = sdkProcessedEventIds.length === trace.replayEvents.length;
   const preInitEditTimelineCount = editTimelineEventIds.length;
-  const summaryTargetsFinal = summaryReplyTarget?.event_id === INCIDENT_FINAL_EDIT_EVENT_ID;
-  const preInitThreadUpdates = threadUpdates;
-  const preInitReplacementSignals = replacementSignals;
+  const summaryTargetsFinal = summaryReplyTarget?.event_id === trace.ids.finalEdit;
+  const replacementSignalsMatch = orderedSignalIdsMatch(expectedEditIds, replacementSignalEventIds);
+  const threadUpdatesMatch = orderedSignalIdsMatch(expectedEditIds, threadUpdateEditIds);
+  const preInitReplacementSignalCount = replacementSignalEventIds.length;
+  const preInitThreadUpdateCount = threadUpdateEditIds.length;
+  const requireExactPreInitSignals = scenario === 'exact';
 
   let status: 'GREEN' | 'RED';
   let hypothesis: string;
@@ -288,17 +281,25 @@ try {
     hypothesis = 'SYNC_NOT_PROCESSED';
   } else if (
     scenario === 'forced-init-failure' &&
-    (paginationAttempts < 2 || !thread.initialEventsFetched || unhandledRejections.length > 0)
+    (paginationAttempts < 2 || !thread.initialEventsFetched || unhandledRejectionCount > 0)
   ) {
     status = 'RED';
     hypothesis = 'H1_STRANDED_INIT_PROMISE';
   } else if (!preInitSurfaces.replacementIsFinal && preInitEditTimelineCount === 0) {
     status = 'RED';
     hypothesis = 'H1_SDK_PREINIT_BUFFERING';
-  } else if (preInitSurfaces.replacementIsFinal && preInitReplacementSignals === 0) {
+  } else if (
+    requireExactPreInitSignals &&
+    preInitSurfaces.replacementIsFinal &&
+    !replacementSignalsMatch
+  ) {
     status = 'RED';
     hypothesis = 'SDK_NO_REPLACEMENT_SIGNAL';
-  } else if (preInitSurfaces.replacementIsFinal && preInitThreadUpdates === 0) {
+  } else if (
+    requireExactPreInitSignals &&
+    preInitSurfaces.replacementIsFinal &&
+    !threadUpdatesMatch
+  ) {
     status = 'RED';
     hypothesis = 'SDK_NO_THREAD_UPDATE';
   } else if (
@@ -329,30 +330,24 @@ try {
 
   emitDiagnostic('pre-init-observation', {
     allSdkEventsProcessed,
-    compactCardPreviewLength: preInitSurfaces.compactCardPreviewLength,
-    compactCardPreviewSha256: preInitSurfaces.compactCardPreviewSha256,
     compactCardUsesFinal: preInitSurfaces.compactCardUsesFinal,
     editTimelineEventCount: preInitEditTimelineCount,
     globalThreadsUsesFinal: preInitSurfaces.globalThreadsUsesFinal,
-    globalThreadsPreviewLength: preInitSurfaces.globalThreadsPreviewLength,
-    globalThreadsPreviewSha256: preInitSurfaces.globalThreadsPreviewSha256,
     overviewTagsVisible: preInitSurfaces.overviewTagsVisible,
-    overviewTagsLength: preInitSurfaces.overviewTagsLength,
-    overviewTagsSha256: preInitSurfaces.overviewTagsSha256,
     paginationAttempts,
-    presentationBodyLength: preInitSurfaces.presentationBodyLength,
-    presentationBodySha256: preInitSurfaces.presentationBodySha256,
     presentationUsesFinal: preInitSurfaces.presentationUsesFinal,
-    replacementEventId: preInitSurfaces.replacementEventId,
-    replacementSignals: preInitReplacementSignals,
+    replacementIsFinal: preInitSurfaces.replacementIsFinal,
+    replacementSignalCount: preInitReplacementSignalCount,
+    replacementSignalsMatch,
     roomNavUnread: preInitSurfaces.roomNavUnread,
     sdkProcessedEventCount: sdkProcessedEventIds.length,
     streamStatus: preInitSurfaces.streamStatus,
     submittedEventCount: submittedEventIds.length,
     summaryTargetsFinal,
     threadInitialEventsFetched: thread.initialEventsFetched,
-    threadUpdates: preInitThreadUpdates,
-    unhandledRejectionCount: unhandledRejections.length,
+    threadUpdateCount: preInitThreadUpdateCount,
+    threadUpdatesMatch,
+    unhandledRejectionCount,
   });
 
   if (!releaseRootFetch && scenario === 'forced-init-failure') {
@@ -381,21 +376,19 @@ try {
     globalThreadsUsesFinal: postInitSurfaces.globalThreadsUsesFinal,
     overviewTagsVisible: postInitSurfaces.overviewTagsVisible,
     paginationAttempts,
-    replacementEventId: postInitSurfaces.replacementEventId,
-    replacementSignals,
+    replacementIsFinal: postInitSurfaces.replacementIsFinal,
+    replacementSignalCount: replacementSignalEventIds.length,
     roomNavUnread: postInitSurfaces.roomNavUnread,
     streamStatus: postInitSurfaces.streamStatus,
     threadInitialEventsFetched: thread.initialEventsFetched,
-    threadUpdates,
-    unhandledRejectionCount: unhandledRejections.length,
+    threadUpdateCount: threadUpdateEditIds.length,
+    unhandledRejectionCount,
   });
   process.stdout.write(
     `CINNY126_VERDICT status=${status} hypothesis=${hypothesis} scenario=${scenario} speed=${speed} ` +
       `sdkProcessed=${sdkProcessedEventIds.length}/${trace.replayEvents.length} ` +
-      `editTimeline=${preInitEditTimelineCount}/17 replacement=${
-        preInitSurfaces.replacementEventId ?? 'none'
-      } ` +
-      `threadUpdates=${preInitThreadUpdates} tagsBeforeEntry=${preInitSurfaces.overviewTagsVisible} ` +
+      `editTimeline=${preInitEditTimelineCount}/17 replacementFinal=${preInitSurfaces.replacementIsFinal} ` +
+      `threadUpdates=${preInitThreadUpdateCount}/17 tagsBeforeEntry=${preInitSurfaces.overviewTagsVisible} ` +
       `summaryTargetsFinal=${summaryTargetsFinal} firstEntryFinal=${postInitAccepted}\n`
   );
   if (status !== 'GREEN') process.exitCode = 1;

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "noEmit": true,
+    "target": "ES2022",
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "exclude": ["node_modules", "dist"],
+  "include": ["scripts/cinny-126-replay/**/*.ts", "src/ext.d.ts"]
+}

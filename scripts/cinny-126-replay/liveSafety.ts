@@ -1,4 +1,4 @@
-type ReplayEventContent = { content: Record<string, unknown> };
+import type { TraceEvent } from './trace';
 
 export const LIVE_REPLAY_ROOM_NAME = 'CINNY-126 disposable replay';
 export const LIVE_REPLAY_ROOM_TOPIC = 'CINNY-126 TEST ONLY';
@@ -64,128 +64,175 @@ export const assertLiveReplayRoomIsolation = ({
     throw new Error('Disposable replay room must allow test accounts to write thread tags');
   }
   if (topic !== LIVE_REPLAY_ROOM_TOPIC) {
-    throw new Error(`Disposable replay room topic must be ${JSON.stringify(LIVE_REPLAY_ROOM_TOPIC)}`);
+    throw new Error(
+      `Disposable replay room topic must be ${JSON.stringify(LIVE_REPLAY_ROOM_TOPIC)}`
+    );
   }
   if (canary.nonce !== canaryNonce || canary.purpose !== LIVE_REPLAY_CANARY_PURPOSE) {
     throw new Error('Disposable replay room canary does not match this invocation');
   }
 };
 
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === 'string' && value.trim().length > 0;
+export type LiveReplayEventKind =
+  | 'voice'
+  | 'transcription'
+  | 'placeholder'
+  | 'edit'
+  | 'tag'
+  | 'summary';
 
-export const parseReplacementAttachmentIds = (raw: string | undefined): string[] => {
+const RELATION_KEYS = new Set(['event_id', 'is_falling_back', 'm.in_reply_to', 'rel_type']);
+const RELATION_TYPES = new Set(['m.annotation', 'm.reference', 'm.replace', 'm.thread']);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export const requireMappedEventId = (
+  eventId: unknown,
+  idMap: ReadonlyMap<string, string>,
+  label: string
+): string => {
+  if (typeof eventId !== 'string') throw new Error(`${label} is not an event ID`);
+  const mappedEventId = idMap.get(eventId);
+  if (!mappedEventId) throw new Error(`No safe event-ID mapping for ${label}`);
+  return mappedEventId;
+};
+
+const buildSafeRelation = (
+  sourceContent: Record<string, unknown>,
+  idMap: ReadonlyMap<string, string>
+): Record<string, unknown> | undefined => {
+  const sourceRelation = sourceContent['m.relates_to'];
+  if (sourceRelation === undefined) return undefined;
+  if (!isRecord(sourceRelation)) throw new Error('Source m.relates_to is not an object');
+  const unexpectedKey = Object.keys(sourceRelation).find((key) => !RELATION_KEYS.has(key));
+  if (unexpectedKey) throw new Error(`Unhandled source relation field ${unexpectedKey}`);
+  if (typeof sourceRelation.rel_type !== 'string' || !RELATION_TYPES.has(sourceRelation.rel_type)) {
+    throw new Error('Source relation type is unsupported');
+  }
+  const safeRelation: Record<string, unknown> = {
+    event_id: requireMappedEventId(sourceRelation.event_id, idMap, 'm.relates_to.event_id'),
+    rel_type: sourceRelation.rel_type,
+  };
+  if (sourceRelation.is_falling_back !== undefined) {
+    if (typeof sourceRelation.is_falling_back !== 'boolean') {
+      throw new Error('Source is_falling_back is not boolean');
+    }
+    safeRelation.is_falling_back = sourceRelation.is_falling_back;
+  }
+  if (sourceRelation['m.in_reply_to'] !== undefined) {
+    const sourceReply = sourceRelation['m.in_reply_to'];
+    if (!isRecord(sourceReply) || Object.keys(sourceReply).some((key) => key !== 'event_id')) {
+      throw new Error('Source m.in_reply_to has unsupported fields');
+    }
+    safeRelation['m.in_reply_to'] = {
+      event_id: requireMappedEventId(
+        sourceReply.event_id,
+        idMap,
+        'm.relates_to.m.in_reply_to.event_id'
+      ),
+    };
+  }
+  return safeRelation;
+};
+
+export const buildSafeLiveReplayContent = ({
+  event,
+  idMap,
+  index,
+  kind,
+  senderUserId,
+}: {
+  event: TraceEvent;
+  idMap: ReadonlyMap<string, string>;
+  index: number;
+  kind: LiveReplayEventKind;
+  senderUserId: string;
+}): Record<string, unknown> => {
+  if (kind === 'tag') {
+    return {
+      set_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+      set_by: senderUserId,
+    };
+  }
+
+  const relation = buildSafeRelation(event.content, idMap);
+  const withRelation = relation ? { 'm.relates_to': relation } : {};
+  if (kind === 'edit') {
+    const final = index === 16;
+    const body = final
+      ? 'CINNY-126 synthetic final answer'
+      : `CINNY-126 synthetic stream update ${index + 1}`;
+    const msgtype = final ? 'm.text' : 'm.notice';
+    const streamStatus = final ? 'completed' : 'streaming';
+    return {
+      body: `* ${body}`,
+      'io.mindroom.stream_status': streamStatus,
+      'm.new_content': {
+        body,
+        'io.mindroom.stream_status': streamStatus,
+        msgtype,
+      },
+      ...withRelation,
+      msgtype,
+    };
+  }
+
+  const safeBodies: Record<Exclude<LiveReplayEventKind, 'edit' | 'tag'>, string> = {
+    voice: 'CINNY-126 synthetic voice marker',
+    transcription: 'CINNY-126 synthetic transcription',
+    placeholder: 'CINNY-126 synthetic placeholder',
+    summary: 'CINNY-126 synthetic completion summary',
+  };
+  return {
+    body: safeBodies[kind],
+    ...(kind === 'placeholder' ? { 'io.mindroom.stream_status': 'pending' } : {}),
+    ...withRelation,
+    msgtype: kind === 'placeholder' || kind === 'summary' ? 'm.notice' : 'm.text',
+  };
+};
+
+export const buildSafeLiveReplayStateKey = (
+  event: TraceEvent,
+  idMap: ReadonlyMap<string, string>,
+  tagIndex: number
+): string => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw ?? 'null') as unknown;
+    parsed = JSON.parse(event.state_key ?? 'null') as unknown;
   } catch {
-    throw new Error(
-      'CINNY_126_TEST_ATTACHMENT_IDS must be a JSON array of three test attachment IDs'
-    );
+    throw new Error('Source tag state key is not JSON');
   }
   if (
     !Array.isArray(parsed) ||
-    parsed.length !== 3 ||
-    !parsed.every(isNonEmptyString) ||
-    new Set(parsed).size !== parsed.length
+    parsed.length !== 2 ||
+    typeof parsed[0] !== 'string' ||
+    typeof parsed[1] !== 'string' ||
+    parsed[1].length === 0
   ) {
-    throw new Error('CINNY_126_TEST_ATTACHMENT_IDS must contain three distinct non-empty strings');
+    throw new Error('Source tag state key has unsupported shape');
   }
-  return parsed;
+  return JSON.stringify([
+    requireMappedEventId(parsed[0], idMap, 'tag state thread root'),
+    `cinny-126-test-${tagIndex + 1}`,
+  ]);
 };
 
-const attachmentIdsFromContent = (content: Record<string, unknown>): string[] => {
-  const ids: string[] = [];
-  const append = (value: unknown) => {
-    if (Array.isArray(value)) value.forEach((item) => isNonEmptyString(item) && ids.push(item));
-  };
-  append(content['com.mindroom.attachment_ids']);
-  const newContent = content['m.new_content'] as Record<string, unknown> | undefined;
-  append(newContent?.['com.mindroom.attachment_ids']);
-  return ids;
-};
-
-export const collectIncidentAttachmentIds = (events: ReplayEventContent[]): string[] =>
-  Array.from(new Set(events.flatMap((event) => attachmentIdsFromContent(event.content))));
-
-export const validateLiveReplayMedia = ({
-  incidentAttachmentIds,
-  incidentAudioMxc,
-  replacementAttachmentIds,
-  testAudioMxc,
-}: {
-  incidentAttachmentIds: string[];
-  incidentAudioMxc: unknown;
-  replacementAttachmentIds: string[];
-  testAudioMxc: string | undefined;
-}): {
-  attachmentMap: Map<string, string>;
-  forbiddenIncidentMedia: Set<string>;
-  testAudioMxc: string;
-} => {
-  if (!isNonEmptyString(incidentAudioMxc) || !incidentAudioMxc.startsWith('mxc://')) {
-    throw new Error('Verified incident trace has no voice MXC');
-  }
-  if (!testAudioMxc || !/^mxc:\/\/[^/\s]+\/[^/\s]+$/.test(testAudioMxc)) {
-    throw new Error('Set CINNY_126_TEST_AUDIO_MXC to a valid non-sensitive test audio upload');
-  }
-  if (testAudioMxc === incidentAudioMxc) {
-    throw new Error('The incident voice MXC is forbidden in live replay');
-  }
-  if (
-    incidentAttachmentIds.length !== 3 ||
-    !incidentAttachmentIds.every(isNonEmptyString) ||
-    new Set(incidentAttachmentIds).size !== incidentAttachmentIds.length
-  ) {
-    throw new Error('Verified incident trace must contain three distinct attachment IDs');
-  }
-  const incidentAttachmentSet = new Set(incidentAttachmentIds);
-  if (replacementAttachmentIds.some((attachmentId) => incidentAttachmentSet.has(attachmentId))) {
-    throw new Error('Incident attachment IDs are forbidden in live replay');
-  }
-  return {
-    attachmentMap: new Map(
-      incidentAttachmentIds.map((attachmentId, index) => [
-        attachmentId,
-        replacementAttachmentIds[index],
-      ])
-    ),
-    forbiddenIncidentMedia: new Set([incidentAudioMxc, ...incidentAttachmentIds]),
-    testAudioMxc,
-  };
-};
-
-export const rewriteReplayAttachmentIds = (
-  attachmentIds: unknown,
-  attachmentMap: ReadonlyMap<string, string>
-): string[] => {
-  if (!Array.isArray(attachmentIds) || !attachmentIds.every(isNonEmptyString)) {
-    throw new Error('Replay attachment field is not an array of non-empty strings');
-  }
-  return attachmentIds.map((attachmentId) => {
-    const replacement = attachmentMap.get(attachmentId);
-    if (!replacement) throw new Error(`No safe attachment replacement for ${attachmentId}`);
-    return replacement;
-  });
-};
-
-export const assertNoIncidentMediaReferences = (
+export const assertNoForbiddenStrings = (
   value: unknown,
-  forbiddenIncidentMedia: ReadonlySet<string>
+  forbiddenValues: ReadonlySet<string>
 ): void => {
   if (typeof value === 'string') {
-    if (forbiddenIncidentMedia.has(value)) {
-      throw new Error('Rewritten live event still contains an incident media reference');
+    if (forbiddenValues.has(value)) {
+      throw new Error('Synthetic live event still contains a private trace reference');
     }
     return;
   }
   if (Array.isArray(value)) {
-    value.forEach((item) => assertNoIncidentMediaReferences(item, forbiddenIncidentMedia));
+    value.forEach((item) => assertNoForbiddenStrings(item, forbiddenValues));
     return;
   }
   if (value && typeof value === 'object') {
-    Object.values(value).forEach((item) =>
-      assertNoIncidentMediaReferences(item, forbiddenIncidentMedia)
-    );
+    Object.values(value).forEach((item) => assertNoForbiddenStrings(item, forbiddenValues));
   }
 };
