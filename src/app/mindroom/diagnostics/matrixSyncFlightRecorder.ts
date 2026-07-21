@@ -69,19 +69,17 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
     const eventId = event.getId();
     if (eventId) {
       room.eventIds.add(eventId);
-      if (isUnresolvedEncrypted(event)) room.encryptedEventIds.add(eventId);
-      else {
+      if (isEdit(event)) {
         room.encryptedEventIds.delete(eventId);
-        if (isEdit(event)) room.editEventIds.add(eventId);
-      }
+        room.editEventIds.add(eventId);
+      } else if (isUnresolvedEncrypted(event)) room.encryptedEventIds.add(eventId);
       return;
     }
     room.anonymousEvents.add(event);
-    if (isUnresolvedEncrypted(event)) room.anonymousEncryptedEvents.add(event);
-    else {
+    if (isEdit(event)) {
       room.anonymousEncryptedEvents.delete(event);
-      if (isEdit(event)) room.anonymousEditEvents.add(event);
-    }
+      room.anonymousEditEvents.add(event);
+    } else if (isUnresolvedEncrypted(event)) room.anonymousEncryptedEvents.add(event);
   };
 
   const onDecrypted = (event: MatrixEvent) => {

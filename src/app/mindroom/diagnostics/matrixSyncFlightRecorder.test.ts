@@ -309,6 +309,34 @@ describe('Matrix sync flight recorder', () => {
     ]);
   });
 
+  it('counts an encrypted edit immediately when its wire relation is already visible', () => {
+    const roomId = '!encrypted-relation-room:example.org';
+    disposeRecorder = installFlightRecorder(storage);
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+
+    client.emitClient(
+      ClientEvent.Event,
+      new MatrixEvent({
+        content: {
+          algorithm: 'test-only',
+          'm.relates_to': { event_id: '$private-target', rel_type: 'm.replace' },
+        },
+        event_id: '$encrypted-visible-edit',
+        origin_server_ts: 1000,
+        room_id: roomId,
+        sender: '@agent:example.org',
+        type: 'm.room.encrypted',
+      })
+    );
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    expect(readCurrent(storage).events).toMatchObject([
+      { type: 'matrix_sync', eventCount: 1, editCount: 1, encryptedCount: 0 },
+    ]);
+    expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).not.toContain('private-target');
+  });
+
   it('caps a large room batch while retaining edit-bearing rooms and earlier evidence', () => {
     disposeRecorder = installFlightRecorder(storage);
     const client = createClient();
