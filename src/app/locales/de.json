@@ -257,7 +257,8 @@
     "dropFilesHint": "Dateien hierher ziehen oder klicken, um den Auswahldialog zu öffnen",
     "roomFallback": "Raum",
     "voiceRoomUnavailable": "Dieser Raum ist nicht mehr verfügbar. Verwirf die nicht gesendete Sprachnachricht und versuche es später erneut.",
-    "voiceStillSending": "Eine andere Sprachnachricht wird noch gesendet. Bitte warte, bevor du erneut aufnimmst."
+    "voiceStillSending": "Eine andere Sprachnachricht wird noch gesendet. Bitte warte, bevor du erneut aufnimmst.",
+    "voiceBundleBlocked": "Ein anderer Anhang wird noch gesendet oder benötigt deine Aufmerksamkeit. Warte oder versuche fehlgeschlagene Anhänge erneut oder entferne sie und sende diese Nachricht dann erneut."
   },
   "thread": {
     "chip": "Thread",

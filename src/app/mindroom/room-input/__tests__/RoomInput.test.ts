@@ -751,6 +751,34 @@ const submitComposer = async () => {
   });
 };
 
+const getPrimarySendButton = (renderer: ReactTestRenderer) =>
+  renderer.root.find(
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Send message'
+  );
+
+const queuePrimaryVoiceSend = (
+  file: File,
+  duration: number,
+  waveform?: number[],
+  recordingStartContext?: unknown
+) => {
+  voiceRecorderState.send.mockImplementationOnce(async () => {
+    if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+    try {
+      await voiceRecorderState.props!.onSendRecording(
+        file,
+        duration,
+        waveform,
+        recordingStartContext
+      );
+      return true;
+    } catch (error) {
+      voiceRecorderState.props!.onSendStopFailure?.();
+      throw error;
+    }
+  });
+};
+
 const createRoomInputTree = (
   store: ReturnType<typeof createStore>,
   props?: {
@@ -1497,9 +1525,8 @@ describe('RoomInput', () => {
     await openVoiceRecorder(renderer);
 
     const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(voice, 1200, [0, 512, 1024]);
-    });
+    queuePrimaryVoiceSend(voice, 1200, [0, 512, 1024]);
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
@@ -1567,6 +1594,92 @@ describe('RoomInput', () => {
     });
     expect(getEditorText()).toBe('');
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('uses a reply added after recording starts when primary Send is pressed', async () => {
+    const store = createStore();
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const recordingStartContext = voiceRecorderState.props!.getSendContext();
+    const sendReply = createReplyDraft('$reply-added');
+
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), sendReply);
+    });
+    await updateRoomInput(renderer, store);
+    queuePrimaryVoiceSend(voice, 1200, undefined, recordingStartContext);
+
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledWith(
+      ROOM_ID,
+      expect.objectContaining({
+        'm.relates_to': {
+          'm.in_reply_to': { event_id: '$reply-added' },
+        },
+      })
+    );
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('does not use a reply cleared after recording starts when primary Send is pressed', async () => {
+    const store = createStore();
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), createReplyDraft('$reply-cleared'));
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const recordingStartContext = voiceRecorderState.props!.getSendContext();
+
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), undefined);
+    });
+    await updateRoomInput(renderer, store);
+    queuePrimaryVoiceSend(voice, 1200, undefined, recordingStartContext);
+
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+
+    renderer.unmount();
+  });
+
+  it('uses a replaced reply for the full primary-Send bundle', async () => {
+    const store = createStore();
+    const attachment = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    stageUploadItems(store, [createUploadItem(attachment)], [attachment]);
+    store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), createReplyDraft('$reply-old'));
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const recordingStartContext = voiceRecorderState.props!.getSendContext();
+    const sendReply = createReplyDraft('$reply-current');
+
+    await act(async () => {
+      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), sendReply);
+    });
+    await updateRoomInput(renderer, store);
+    stageComposerText('bundle caption');
+    resetEditorOnNextSend();
+    queuePrimaryVoiceSend(voice, 1200, undefined, recordingStartContext);
+
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['attachment.txt', 'voice.m4a', 'bundle caption']);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': {
+        'm.in_reply_to': { event_id: '$reply-current' },
+      },
+    });
+    expect(JSON.stringify(mxState.sendMessage.mock.calls)).not.toContain('$reply-old');
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toBeUndefined();
 
     renderer.unmount();
   });
@@ -1658,10 +1771,11 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(voice, 1000);
     let sendSettled = false;
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(voice, 1000) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       void sendPromise.finally(() => {
         sendSettled = true;
       });
@@ -1746,12 +1860,11 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 1000);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        1000
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
 
@@ -1777,12 +1890,8 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        900
-      );
-    });
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 900);
+    await submitComposer();
 
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
@@ -1815,12 +1924,8 @@ describe('RoomInput', () => {
     });
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'thread-voice.m4a', { type: 'audio/mp4' }),
-        800
-      );
-    });
+    queuePrimaryVoiceSend(new File(['voice'], 'thread-voice.m4a', { type: 'audio/mp4' }), 800);
+    await submitComposer();
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
     mxState.sendMessage.mock.calls.forEach((call) => {
       expect(call[1]).toMatchObject({
@@ -1845,12 +1950,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 700);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        700
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
 
@@ -1878,12 +1981,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 650);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        650
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
 
@@ -1915,7 +2016,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('uses the live attachment board after delayed voice preparation', async () => {
+  it('keeps the primary-Send attachment snapshot after delayed voice preparation', async () => {
     const store = createStore();
     const removed = new File(['removed'], 'removed.txt', { type: 'text/plain' });
     const added = new File(['added'], 'added.txt', { type: 'text/plain' });
@@ -1930,12 +2031,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store, { encryptedRoom: true });
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 750);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        750
-      );
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
 
@@ -1962,11 +2061,11 @@ describe('RoomInput', () => {
       await sendPromise;
     });
 
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'added.txt' });
-    expect(
-      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
-    ).toEqual(['added.txt', 'voice.m4a']);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file.name)).toEqual(
+      [added.name]
+    );
 
     renderer.unmount();
   });
@@ -1983,14 +2082,13 @@ describe('RoomInput', () => {
 
     mxState.getRoom.mockImplementation((roomId: string) => createRoom(roomId, true));
     await updateRoomInput(renderer, store, { encryptedRoom: true });
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        725,
-        undefined,
-        capturedContext
-      );
-    });
+    queuePrimaryVoiceSend(
+      new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+      725,
+      undefined,
+      capturedContext
+    );
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
@@ -2005,32 +2103,29 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps classic-mode voice sends standalone when attachments are staged', async () => {
+  it('uses primary Send for classic-mode attachments and voice without thread relations', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'classic.txt', { type: 'text/plain' });
     stageUploadItems(store, [createUploadItem(companion)], [companion]);
     const { renderer } = await renderRoomInput(store, { threadingEnabled: false });
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        650
-      );
-    });
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 650);
+    await submitComposer();
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
-      companion,
-    ]);
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['classic.txt', 'voice.m4a']);
+    mxState.sendMessage.mock.calls.forEach((call) => {
+      expect(call[1]).not.toHaveProperty('m.relates_to');
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
   });
 
-  it('keeps voice standalone while another generic send session is active', async () => {
+  it('uses translated recovery guidance while another attachment session is active', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'active-session.txt', { type: 'text/plain' });
     const upload = createDeferred<{ content_uri: string }>();
@@ -2040,58 +2135,78 @@ describe('RoomInput', () => {
 
     await submitComposer();
     await openVoiceRecorder(renderer);
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 600);
     await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        600
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toThrow(
+        'Another attachment send is still in progress or needs attention. Wait for it, or retry or remove failed attachments, then send this message again.'
       );
     });
 
-    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
-      companion,
-    ]);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    await act(async () => {
+      store.set(roomUploadAtomFamily(companion), { mxc: 'mxc://mindroom/active-session.txt' });
+    });
+    await updateRoomInput(renderer, store);
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(1));
+
+    queuePrimaryVoiceSend(voice, 600);
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['active-session.txt', 'voice.m4a']);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
   });
 
-  it('keeps a parked voice retry standalone from attachments staged later', async () => {
+  it('keeps a parked retry context while including attachments staged later', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'later-attachment.txt', { type: 'text/plain' });
     const voice = new File(['voice'], 'retry-voice.m4a', { type: 'audio/mp4' });
     stageUploadItems(store, [createUploadItem(companion)], [companion]);
-    const { renderer } = await renderRoomInput(store);
+    const { renderer } = await renderRoomInput(store, { threadId: '$original-thread' });
     await openVoiceRecorder(renderer);
     const capturedContext = voiceRecorderState.props!.getSendContext();
-    store.set(pendingVoiceSendDraftAtom, {
-      file: voice,
-      duration: 575,
-      errorMessage: undefined,
-      context: capturedContext as never,
-      inFlight: {
-        token: 'retry-attempt',
-        startedAt: 1,
-      },
+    await updateRoomInput(renderer, store, { threadId: '$current-thread' });
+    await act(async () => {
+      store.set(pendingVoiceSendDraftAtom, {
+        file: voice,
+        duration: 575,
+        errorMessage: undefined,
+        context: capturedContext as never,
+        inFlight: {
+          token: 'retry-attempt',
+          startedAt: 1,
+        },
+      });
     });
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(voice, 575, undefined, capturedContext);
-    });
+    queuePrimaryVoiceSend(voice, 575, undefined, capturedContext);
+    await submitComposer();
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'retry-voice.m4a' });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
-      companion,
-    ]);
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['later-attachment.txt', 'retry-voice.m4a']);
+    mxState.sendMessage.mock.calls.forEach((call) => {
+      expect(call[1]).toMatchObject({
+        'm.relates_to': expect.objectContaining({
+          event_id: '$original-thread',
+          rel_type: RelationType.Thread,
+        }),
+      });
+    });
+    expect(JSON.stringify(mxState.sendMessage.mock.calls)).not.toContain('$current-thread');
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
   });
 
-  it('leaves prep-error, paste-marker, and oversized companions staged', async () => {
+  it('sends eligible paste companions while leaving invalid companions staged', async () => {
     const store = createStore();
     const prepFailed = new File(['bad'], 'failed.txt', { type: 'text/plain' });
     const paste = new File(['paste'], 'mindroom-paste-a3f19c.txt', { type: 'text/plain' });
@@ -2120,18 +2235,15 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['12345'], 'voice.m4a', { type: 'audio/mp4' }),
-        550
-      );
-    });
+    queuePrimaryVoiceSend(new File(['12345'], 'voice.m4a', { type: 'audio/mp4' }), 550);
+    await submitComposer();
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual([paste.name, 'voice.m4a']);
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
       prepFailed,
-      paste,
       oversized,
     ]);
 
@@ -2149,12 +2261,8 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        525
-      );
-    });
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 525);
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'ready-root.txt' });
@@ -2182,12 +2290,8 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
-    await act(async () => {
-      await voiceRecorderState.props!.onSendRecording(
-        new File(['123456'], 'oversized-voice.m4a', { type: 'audio/mp4' }),
-        500
-      );
-    });
+    queuePrimaryVoiceSend(new File(['123456'], 'oversized-voice.m4a', { type: 'audio/mp4' }), 500);
+    await submitComposer();
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
@@ -2210,12 +2314,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 400);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        400
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
 
@@ -2251,8 +2353,9 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(voice, 350);
     await act(async () => {
-      await expect(voiceRecorderState.props!.onSendRecording(voice, 350)).rejects.toMatchObject({
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toMatchObject({
         errcode: 'M_UNKNOWN',
       });
     });
@@ -2280,8 +2383,9 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(voice, 325);
     await act(async () => {
-      await expect(voiceRecorderState.props!.onSendRecording(voice, 325)).rejects.toMatchObject({
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toMatchObject({
         errcode: 'M_UNKNOWN',
       });
     });
@@ -2319,8 +2423,9 @@ describe('RoomInput', () => {
     await openVoiceRecorder(renderer);
     const capturedContext = voiceRecorderState.props!.getSendContext();
 
+    queuePrimaryVoiceSend(voice, 350, undefined, capturedContext);
     await act(async () => {
-      await expect(voiceRecorderState.props!.onSendRecording(voice, 350)).rejects.toMatchObject({
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toMatchObject({
         message: expect.stringContaining('failed companion send'),
       });
     });
@@ -2345,11 +2450,7 @@ describe('RoomInput', () => {
     });
     stageComposerText('fresh composer text');
     resetEditorOnNextSend();
-    voiceRecorderState.send.mockImplementationOnce(async () => {
-      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
-      await voiceRecorderState.props!.onSendRecording(voice, 350, undefined, capturedContext);
-      return true;
-    });
+    queuePrimaryVoiceSend(voice, 350, undefined, capturedContext);
     await submitComposer();
 
     expect(
@@ -2375,12 +2476,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 300);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        300
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
     expect(mxState.sendMessage).not.toHaveBeenCalled();
@@ -2422,12 +2521,10 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
 
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 275);
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
-        275
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
     await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(1));
@@ -2451,25 +2548,23 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps voice sends targeted to the thread captured when recording starts', async () => {
+  it('uses the thread visible when primary Send is pressed for a live recording', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { threadId: '$thread-a' });
     await openVoiceRecorder(renderer);
     const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
 
-    // The hook snapshots the send context inside start(); replicate that here.
     const capturedContext = voiceRecorderState.props!.getSendContext();
     await updateRoomInput(renderer, store, { threadId: '$thread-b' });
-    await act(async () => {
-      await voiceRecorderState.props?.onSendRecording(file, 1200, undefined, capturedContext);
-    });
+    queuePrimaryVoiceSend(file, 1200, undefined, capturedContext);
+    await submitComposer();
     await updateRoomInput(renderer, store, { threadId: '$thread-c' });
 
     expect(mxState.sendMessage).toHaveBeenCalledWith(
       ROOM_ID,
       expect.objectContaining({
         'm.relates_to': expect.objectContaining({
-          event_id: '$thread-a',
+          event_id: '$thread-b',
           rel_type: RelationType.Thread,
         }),
       })
@@ -2492,9 +2587,10 @@ describe('RoomInput', () => {
     );
 
     // Simulate a failed send: hook would write to the global atom on failure.
-    // Drive that through the mocked composer's onSendRecording.
+    // Drive that through the single primary Send path.
+    queuePrimaryVoiceSend(file, 1100);
     await act(async () => {
-      await expect(voiceRecorderState.props!.onSendRecording(file, 1100)).rejects.toMatchObject({
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toMatchObject({
         errcode: 'M_UNKNOWN',
       });
     });
@@ -2528,7 +2624,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps overview voice recordings room-level after thread navigation before send', async () => {
+  it('uses a thread opened after recording starts when primary Send is pressed', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store);
     const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
@@ -2542,12 +2638,16 @@ describe('RoomInput', () => {
 
     const capturedContext = voiceRecorderState.props!.getSendContext();
     await updateRoomInput(renderer, store, { threadId: '$thread-after-open' });
-    await act(async () => {
-      await voiceRecorderState.props?.onSendRecording(file, 800, undefined, capturedContext);
-    });
+    queuePrimaryVoiceSend(file, 800, undefined, capturedContext);
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': expect.objectContaining({
+        event_id: '$thread-after-open',
+        rel_type: RelationType.Thread,
+      }),
+    });
 
     renderer.unmount();
   });
@@ -2565,9 +2665,8 @@ describe('RoomInput', () => {
     await openVoiceRecorder(renderer);
     const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
 
-    await act(async () => {
-      await voiceRecorderState.props?.onSendRecording(file, 900);
-    });
+    queuePrimaryVoiceSend(file, 900);
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
@@ -2577,7 +2676,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('keeps paused voice recordings on the recording-start thread after navigation', async () => {
+  it('uses the current thread for a paused live recording sent from primary Send', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { threadId: '$thread-a' });
     await openVoiceRecorder(renderer);
@@ -2585,13 +2684,12 @@ describe('RoomInput', () => {
 
     const capturedContext = voiceRecorderState.props!.getSendContext();
     await updateRoomInput(renderer, store, { threadId: '$thread-b' });
-    await act(async () => {
-      await voiceRecorderState.props?.onSendRecording(file, 900, undefined, capturedContext);
-    });
+    queuePrimaryVoiceSend(file, 900, undefined, capturedContext);
+    await submitComposer();
 
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
-        event_id: '$thread-a',
+        event_id: '$thread-b',
         rel_type: RelationType.Thread,
       }),
     });
@@ -2610,9 +2708,8 @@ describe('RoomInput', () => {
       roomId: OTHER_ROOM_ID,
       threadId: '$other-thread',
     });
-    await act(async () => {
-      await voiceRecorderState.props?.onSendRecording(file, 1100, undefined, capturedContext);
-    });
+    queuePrimaryVoiceSend(file, 1100, undefined, capturedContext);
+    await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledWith(
       ROOM_ID,
@@ -2641,13 +2738,9 @@ describe('RoomInput', () => {
       roomId: OTHER_ROOM_ID,
       threadId: '$other-thread',
     });
+    queuePrimaryVoiceSend(file, 1100, undefined, capturedContext);
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        file,
-        1100,
-        undefined,
-        capturedContext
-      ) as Promise<void>;
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
     await updateRoomInput(renderer, store, {

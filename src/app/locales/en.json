@@ -257,7 +257,8 @@
     "dropFilesHint": "Drag and drop files here or click for selection dialog",
     "roomFallback": "Room",
     "voiceRoomUnavailable": "This room is no longer available. Discard the unsent voice message and try again later.",
-    "voiceStillSending": "Another voice message is still sending. Please wait before recording again."
+    "voiceStillSending": "Another voice message is still sending. Please wait before recording again.",
+    "voiceBundleBlocked": "Another attachment send is still in progress or needs attention. Wait for it, or retry or remove failed attachments, then send this message again."
   },
   "thread": {
     "chip": "Thread",

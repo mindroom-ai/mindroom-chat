@@ -214,6 +214,7 @@ export interface RoomInputProps {
 
 type PendingVoiceComposerBundle = {
   roomId: string;
+  relationContext?: Pick<MindroomVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
   textContent?: IContent;
   composerFallback?: Descendant[];
   companionItems: TUploadItem[];
@@ -966,7 +967,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // between original failure and retry would otherwise be sent
           // unencrypted because context.room.hasEncryptionStateEvent()
           // returns the cached value.
-          liveContext = refreshMindroomRoomInputVoiceSendContext(mx, context);
+          const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
+          const composerBundle =
+            pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
+          const sendContext = composerBundle?.relationContext
+            ? { ...context, ...composerBundle.relationContext }
+            : context;
+          liveContext = refreshMindroomRoomInputVoiceSendContext(mx, sendContext);
           if (!liveContext) {
             throw new Error(t('composer.voiceRoomUnavailable'));
           }
@@ -995,39 +1002,36 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'create'
             );
           }
-          const pendingVoiceRetry = store.get(pendingVoiceSendDraftAtom);
-          const isParkedVoiceRetry =
-            pendingVoiceRetry?.inFlight !== undefined &&
-            pendingVoiceRetry.file === file &&
-            pendingVoiceRetry.context === context;
           const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
-          const composerBundle = pendingVoiceComposerBundleRef.current;
-          const companionCandidates = composerBundle?.companionItems ?? selectedFilesRef.current;
-          const eligibleCompanionItems = companionCandidates.filter(
+          const eligibleCompanionItems = (composerBundle?.companionItems ?? []).filter(
             (item) =>
               !item.prepError &&
-              (!item.metadata.mindroomPasteAttachment || Boolean(composerBundle)) &&
               Boolean(item.encInfo) === liveRoomEncrypted &&
               store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
               item.file.size < allowUploadSize
           );
+          if (
+            composerBundle &&
+            (composerBundle.textContent || eligibleCompanionItems.length > 0) &&
+            hasActiveSendSession()
+          ) {
+            // Give a previously failed attachment session one chance to finish after its
+            // upload cards were retried or removed before parking this new voice bundle.
+            await startSendSession();
+          }
           const activeSendSession = hasActiveSendSession();
           if (
             composerBundle &&
             (composerBundle.textContent || eligibleCompanionItems.length > 0) &&
             activeSendSession
           ) {
-            throw new Error('Another composer bundle is still sending.');
+            throw new Error(t('composer.voiceBundleBlocked'));
           }
           const shouldCombineWithCompanions =
-            (composerBundle || (mountedRef.current && liveContext.roomId === roomIdRef.current)) &&
+            composerBundle !== undefined &&
             !activeSendSession &&
             fileItem.file.size < allowUploadSize &&
-            (composerBundle
-              ? eligibleCompanionItems.length > 0 || Boolean(composerBundle.textContent)
-              : liveContext.threadingEnabled &&
-                !isParkedVoiceRetry &&
-                eligibleCompanionItems.length > 0);
+            (eligibleCompanionItems.length > 0 || Boolean(composerBundle.textContent));
 
           if (shouldCombineWithCompanions) {
             const ownerRoomId = liveContext.roomId;
@@ -1213,6 +1217,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
           pendingVoiceComposerBundleRef.current = {
             roomId,
+            // A live recording follows the reply/thread visible when primary Send is pressed.
+            // A parked retry keeps the durable context captured with the failed recording.
+            relationContext: ownsPendingVoiceDraft
+              ? undefined
+              : {
+                  threadId: threadIdRef.current,
+                  replyDraft: replyDraftRef.current,
+                  threadingEnabled,
+                },
             textContent: content,
             composerFallback: content ? structuredClone(editor.children) : undefined,
             companionItems: [...selectedFilesRef.current],
@@ -1264,6 +1277,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       store,
       voiceRecorderOpen,
       ownsPendingVoiceDraft,
+      threadingEnabled,
     ]);
 
     useEffect(() => {

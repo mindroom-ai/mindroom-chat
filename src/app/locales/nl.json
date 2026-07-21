@@ -257,7 +257,8 @@
     "dropFilesHint": "Sleep bestanden hierheen of klik om het selectievenster te openen",
     "roomFallback": "Kamer",
     "voiceRoomUnavailable": "Deze kamer is niet meer beschikbaar. Verwijder het niet-verzonden spraakbericht en probeer het later opnieuw.",
-    "voiceStillSending": "Er wordt nog een spraakbericht verzonden. Wacht even voordat je opnieuw opneemt."
+    "voiceStillSending": "Er wordt nog een spraakbericht verzonden. Wacht even voordat je opnieuw opneemt.",
+    "voiceBundleBlocked": "Er wordt nog een bijlage verzonden of deze heeft aandacht nodig. Wacht even of probeer mislukte bijlagen opnieuw of verwijder ze en verzend dit bericht daarna opnieuw."
   },
   "thread": {
     "chip": "Thread",
