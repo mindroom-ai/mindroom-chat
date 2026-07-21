@@ -13,6 +13,7 @@ import {
   FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS,
   FLIGHT_RECORDER_SCHEMA_VERSION,
   type FlightRecorderSession,
+  buildFlightRecorderPayload,
   installFlightRecorder,
 } from './flightRecorder';
 import {
@@ -570,17 +571,69 @@ describe('Matrix sync flight recorder', () => {
     });
   });
 
-  it('rejects the previous schema after the matrix sync format bump', () => {
-    const prior = { ...makePriorSession([]), schemaVersion: 1 };
+  it('migrates a valid schema-v1 current session without losing its evidence', () => {
+    const legacyEvent = { at: 925, type: 'voice', state: 'recording' } as const;
+    const prior = {
+      ...makePriorSession([legacyEvent], {
+        sessionId: '33333333-3333-4333-8333-333333333333',
+      }),
+      schemaVersion: 1,
+    };
+    storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
+
+    disposeRecorder = installFlightRecorder(storage);
+
+    expect(JSON.parse(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY) ?? 'null')).toMatchObject({
+      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+      sessionId: prior.sessionId,
+      events: [legacyEvent],
+    });
+    expect(readCurrent(storage)).toMatchObject({
+      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+      events: [],
+    });
+  });
+
+  it('retains and normalizes a valid schema-v1 abnormal session', () => {
+    const legacyEvent = { at: 925, type: 'route', route: 'threads', hasThreadId: true } as const;
+    const prior = {
+      ...makePriorSession([legacyEvent], {
+        sessionId: '44444444-4444-4444-8444-444444444444',
+      }),
+      schemaVersion: 1,
+      detectedAt: 975,
+      startupGapMs: 25,
+    };
+    storage.values.set(FLIGHT_RECORDER_ABNORMAL_KEY, JSON.stringify(prior));
+
+    disposeRecorder = installFlightRecorder(storage);
+
+    expect(buildFlightRecorderPayload().abnormalSession).toMatchObject({
+      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+      sessionId: prior.sessionId,
+      events: [legacyEvent],
+      detectedAt: 975,
+      startupGapMs: 25,
+    });
+  });
+
+  it('rejects matrix-sync records disguised as schema-v1 evidence', () => {
+    const matrixSyncEvent = {
+      at: 925,
+      type: 'matrix_sync',
+      roomHash: '1234abcd',
+      eventCount: 1,
+      editCount: 1,
+      encryptedCount: 0,
+      route: 'home',
+      hasThreadId: false,
+    } as const;
+    const prior = { ...makePriorSession([matrixSyncEvent]), schemaVersion: 1 };
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
 
     disposeRecorder = installFlightRecorder(storage);
 
     expect(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBeNull();
-    expect(readCurrent(storage)).toMatchObject({
-      schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
-      events: [],
-    });
   });
 
   it('retains matrix sync evidence alongside the optional last action on relaunch', () => {

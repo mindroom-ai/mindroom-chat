@@ -99,6 +99,11 @@ export type FlightRecorderSession = {
   lastAction?: FlightRecorderLastAction;
 };
 type AbnormalSession = FlightRecorderSession & { detectedAt: number; startupGapMs: number };
+type LegacyFlightEvent = Exclude<FlightEvent, { type: 'matrix_sync' | 'matrix_sync_overflow' }>;
+type LegacyFlightRecorderSession = Omit<FlightRecorderSession, 'events' | 'schemaVersion'> & {
+  schemaVersion: 1;
+  events: LegacyFlightEvent[];
+};
 type Runtime = {
   storage?: Storage;
   session?: FlightRecorderSession;
@@ -187,13 +192,17 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
     event.delayMs >= GAP_MS
   );
 };
-const sessionIsValid = (value: unknown): value is FlightRecorderSession => {
+const sessionShapeIsValid = (
+  value: unknown,
+  schemaVersion: number,
+  validateEvent: (event: unknown) => boolean
+): boolean => {
   const item = value as Partial<FlightRecorderSession> | null;
   const keyCount = item ? Object.keys(item).length : 0;
   return Boolean(
     item &&
       (keyCount === 12 || (keyCount === 13 && lastActionIsValid(item.lastAction))) &&
-      item.schemaVersion === FLIGHT_RECORDER_SCHEMA_VERSION &&
+      item.schemaVersion === schemaVersion &&
       typeof item.buildVersion === 'string' &&
       /^[A-Za-z0-9._+-]{1,128}$/.test(item.buildVersion) &&
       typeof item.sessionId === 'string' &&
@@ -209,14 +218,29 @@ const sessionIsValid = (value: unknown): value is FlightRecorderSession => {
       (item.expectedEndAt === null) === (item.endReason === null) &&
       Array.isArray(item.events) &&
       item.events.length <= FLIGHT_RECORDER_MAX_EVENTS &&
-      item.events.every(eventIsValid)
+      item.events.every(validateEvent)
   );
+};
+const sessionIsValid = (value: unknown): value is FlightRecorderSession =>
+  sessionShapeIsValid(value, FLIGHT_RECORDER_SCHEMA_VERSION, eventIsValid);
+const legacyEventIsValid = (value: unknown): value is LegacyFlightEvent =>
+  eventIsValid(value) && value.type !== 'matrix_sync' && value.type !== 'matrix_sync_overflow';
+const legacySessionIsValid = (value: unknown): value is LegacyFlightRecorderSession =>
+  sessionShapeIsValid(value, 1, legacyEventIsValid);
+const normalizeSession = (value: unknown): FlightRecorderSession | undefined => {
+  if (sessionIsValid(value)) return value;
+  if (!legacySessionIsValid(value)) return undefined;
+  return {
+    ...value,
+    schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
+    events: [...value.events],
+  };
 };
 const parse = (raw: string | null): FlightRecorderSession | undefined => {
   if (!raw || raw.length > FLIGHT_RECORDER_MAX_JSON_CHARS) return undefined;
   try {
     const value: unknown = JSON.parse(raw);
-    return sessionIsValid(value) ? value : undefined;
+    return normalizeSession(value);
   } catch {
     return undefined;
   }
@@ -224,14 +248,14 @@ const parse = (raw: string | null): FlightRecorderSession | undefined => {
 const parseAbnormal = (raw: string | null): AbnormalSession | undefined => {
   if (!raw || raw.length > FLIGHT_RECORDER_MAX_JSON_CHARS) return undefined;
   try {
-    const abnormal = JSON.parse(raw) as AbnormalSession;
+    const abnormal = JSON.parse(raw) as Record<string, unknown>;
     const { detectedAt, startupGapMs, ...value } = abnormal;
+    const session = normalizeSession(value);
     return (Object.keys(abnormal).length === 14 || Object.keys(abnormal).length === 15) &&
       number(detectedAt) &&
       number(startupGapMs) &&
-      sessionIsValid(value) &&
-      value.expectedEndAt === null
-      ? { ...value, detectedAt, startupGapMs }
+      session?.expectedEndAt === null
+      ? { ...session, detectedAt, startupGapMs }
       : undefined;
   } catch {
     return undefined;
