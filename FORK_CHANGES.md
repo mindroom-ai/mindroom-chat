@@ -14,6 +14,9 @@
 - Full validation passes all 450 Vitest files with 3,400 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
 - Independent exact-head review found that the original encrypted test passed the unchanged SDK and that equal-timestamp encrypted edits followed decryption completion order; arrival order is now reserved before decryption and the strengthened regression proves pre-pagination aggregation plus post-pagination rebinding.
 - SDK source, compiled JavaScript, and declarations include the same new private state and methods, and a fresh `npm ci` applies the patch successfully.
+- CodeRabbit found that legacy synchronous SDK callers ignored the new relation promises and that one failed initial target aggregation could strand thread initialization; every fire-and-forget caller now reports rejection, while initialization isolates and logs each failed target before continuing.
+- Focused tests wait for observable state instead of fixed microtask counts and cover thread-specific, room-timeline, and client-pagination rejection handling.
+- Next steps: merge PR #193 after final automated review, then monitor CINNY-126 regressions after release.
 
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 

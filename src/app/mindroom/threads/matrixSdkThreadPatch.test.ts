@@ -1,4 +1,4 @@
-import { MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
@@ -8,10 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const ROOM_ID = '!cinny-126-sdk-contract:example.org';
 const ROOT_ID = '$root';
 const VIEWER_ID = '@viewer:example.org';
-
-const flushAsyncWork = async (cycles = 12) => {
-  for (let index = 0; index < cycles; index += 1) await Promise.resolve();
-};
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -134,7 +130,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
 
     thread.addEvent(firstEdit, false);
     thread.addEvent(finalEdit, false);
-    await flushAsyncWork(24);
+    await vi.waitFor(() => expect(placeholder.replacingEvent()).toBe(finalEdit));
 
     const replacements = room.relations.getChildEventsForEvent(
       placeholder.getId()!,
@@ -148,11 +144,11 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(updateBodies).toEqual(['Final answer']);
 
     releasePagination.resolve();
-    await flushAsyncWork(24);
-
-    expect(thread.initialEventsFetched).toBe(true);
-    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
-    expect(freshPlaceholder.replacingEvent()).toBe(finalEdit);
+    await vi.waitFor(() => {
+      expect(thread.initialEventsFetched).toBe(true);
+      expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+      expect(freshPlaceholder.replacingEvent()).toBe(finalEdit);
+    });
     expect(freshPlaceholder.getContent().body).toBe('Final answer');
   });
 
@@ -216,7 +212,6 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
 
     thread.addEvent(firstEdit, false);
     thread.addEvent(finalEdit, false);
-    await flushAsyncWork();
     finalDecryption.resolve({
       clearEvent: {
         content: {
@@ -229,9 +224,8 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       },
     });
     await finalDecryptionPromise;
-    await flushAsyncWork(24);
+    await vi.waitFor(() => expect(placeholder.replacingEvent()).toBe(finalEdit));
     expect(thread.initialEventsFetched).toBe(false);
-    expect(placeholder.replacingEvent()).toBe(finalEdit);
 
     firstDecryption.resolve({
       clearEvent: {
@@ -245,7 +239,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       },
     });
     await firstDecryptionPromise;
-    await flushAsyncWork(24);
+    await vi.waitFor(() => expect(placeholder.replacingEvent()).toBe(finalEdit));
     const replacements = room.relations.getChildEventsForEvent(
       placeholder.getId()!,
       'm.replace',
@@ -256,9 +250,10 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(placeholder.getContent().body).toBe('Final encrypted answer');
 
     releasePagination.resolve();
-    await flushAsyncWork(24);
-    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
-    expect(freshPlaceholder.replacingEvent()).toBe(finalEdit);
+    await vi.waitFor(() => {
+      expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+      expect(freshPlaceholder.replacingEvent()).toBe(finalEdit);
+    });
     expect(freshPlaceholder.getContent().body).toBe('Final encrypted answer');
   });
 
@@ -305,11 +300,55 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     vi.spyOn(Relations.prototype, 'addEvent').mockRejectedValueOnce(failure);
 
     thread.addEvent(reaction, false);
-    await flushAsyncWork(24);
+    await vi.waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to aggregate pre-initialization thread relation: ',
+        failure
+      )
+    );
 
-    expect(loggerError).toHaveBeenCalledWith(
-      'Failed to aggregate pre-initialization thread relation: ',
-      failure
+    const roomTarget = makeEvent(
+      '$room-failure-target',
+      { body: 'Room target', msgtype: 'm.text' },
+      4
+    );
+    await room.addLiveEvents([roomTarget], { addToState: false, fromCache: false });
+    const roomFailure = new Error('forced room aggregation failure');
+    vi.spyOn(Relations.prototype, 'addEvent').mockRejectedValueOnce(roomFailure);
+    await room.addLiveEvents(
+      [makeEdit('$failed-room-edit', roomTarget.getId()!, 'Ignored room edit', 5)],
+      { addToState: false, fromCache: false }
+    );
+    await vi.waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith('Failed to aggregate child event: ', roomFailure)
+    );
+
+    const sdkClient = new MatrixClient({
+      baseUrl: 'https://example.org',
+      userId: VIEWER_ID,
+    });
+    const scrollbackRoom = new Room(ROOM_ID, sdkClient, VIEWER_ID);
+    scrollbackRoom.oldState.paginationToken = 'older';
+    const unknownRelation = makeEdit('$unknown-edit', '$missing-target', 'Unknown edit', 6);
+    vi.spyOn(scrollbackRoom, 'partitionThreadedEvents').mockReturnValue([
+      [],
+      [],
+      [unknownRelation],
+    ]);
+    const clientFailure = new Error('forced client aggregation failure');
+    vi.spyOn(scrollbackRoom.relations, 'aggregateChildEvent').mockRejectedValueOnce(clientFailure);
+    vi.spyOn(sdkClient, 'createMessagesRequest').mockResolvedValue({
+      chunk: [unknownRelation.event],
+      end: null,
+      start: 'older',
+    });
+
+    await expect(sdkClient.scrollback(scrollbackRoom, 1)).resolves.toBe(scrollbackRoom);
+    await vi.waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to aggregate unknown relation: ',
+        clientFailure
+      )
     );
   });
 
@@ -325,12 +364,18 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       },
       2
     );
+    const freshPlaceholder = makeEvent(placeholder.getId()!, placeholder.getContent(), 2);
     const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
     setThreadSummary(root, placeholder);
     const paginateEventTimeline = vi
       .fn<MatrixClient['paginateEventTimeline']>()
       .mockImplementationOnce(() => firstPagination.promise)
-      .mockResolvedValue(true);
+      .mockImplementation(async (timeline) => {
+        timeline
+          .getTimelineSet()
+          .addEventsToTimeline([freshPlaceholder], true, false, timeline, null);
+        return true;
+      });
     const room = new Room(
       ROOM_ID,
       makeClient({
@@ -344,21 +389,35 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     await vi.waitFor(() => expect(paginateEventTimeline).toHaveBeenCalledOnce());
 
     thread.addEvents([], false);
-    await flushAsyncWork();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
     expect(paginateEventTimeline).toHaveBeenCalledOnce();
 
     const failure = new Error('forced pagination failure');
     firstPagination.reject(failure);
-    await flushAsyncWork(24);
-    expect(thread.initialEventsFetched).toBe(false);
-    expect(loggerError).toHaveBeenCalledWith(
-      'Failed to load start of newly created thread: ',
-      failure
+    await vi.waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to load start of newly created thread: ',
+        failure
+      )
     );
+    expect(thread.initialEventsFetched).toBe(false);
+
+    const aggregationFailure = new Error('forced initial target aggregation failure');
+    vi.spyOn(thread.timelineSet.relations, 'aggregateParentEvent')
+      .mockRejectedValueOnce(aggregationFailure)
+      .mockRejectedValueOnce(aggregationFailure)
+      .mockResolvedValue(undefined);
 
     thread.addEvents([], false);
-    await flushAsyncWork(24);
-    expect(paginateEventTimeline).toHaveBeenCalledTimes(2);
-    expect(thread.initialEventsFetched).toBe(true);
+    await vi.waitFor(() => {
+      expect(paginateEventTimeline).toHaveBeenCalledTimes(2);
+      expect(thread.initialEventsFetched).toBe(true);
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to aggregate initial thread relation target: ',
+        aggregationFailure
+      );
+    });
   });
 });

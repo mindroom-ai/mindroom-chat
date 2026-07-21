@@ -1,3 +1,66 @@
+diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
+index bc4e623..92312aa 100644
+--- a/node_modules/matrix-js-sdk/lib/client.js
++++ b/node_modules/matrix-js-sdk/lib/client.js
+@@ -3347,7 +3347,9 @@ export class MatrixClient extends TypedEventEmitter {
+         this.processAggregatedTimelineEvents(room, timelineEvents);
+         room.addEventsToTimeline(timelineEvents, true, true, room.getLiveTimeline());
+         this.processThreadEvents(room, threadedEvents, true);
+-        unknownRelations.forEach(event => room.relations.aggregateChildEvent(event));
++        unknownRelations.forEach(event => {
++          void room.relations.aggregateChildEvent(event).catch(error => this.logger.error("Failed to aggregate unknown relation: ", error));
++        });
+         room.oldState.paginationToken = (_res$end = res.end) !== null && _res$end !== void 0 ? _res$end : null;
+         if (res.chunk.length === 0) {
+           room.oldState.paginationToken = null;
+@@ -3481,7 +3483,9 @@ export class MatrixClient extends TypedEventEmitter {
+       // The target event is not in a thread but process the contextual events, so we can show any threads around it.
+       _this39.processThreadEvents(timelineSet.room, threadedEvents, true);
+       _this39.processAggregatedTimelineEvents(timelineSet.room, timelineEvents);
+-      unknownRelations.forEach(event => timelineSet.relations.aggregateChildEvent(event));
++      unknownRelations.forEach(event => {
++        void timelineSet.relations.aggregateChildEvent(event).catch(error => _this39.logger.error("Failed to aggregate unknown relation: ", error));
++      });
+
+       // There is no guarantee that the event ended up in "timeline" (we might have switched to a neighbouring
+       // timeline) - so check the room's index again. On the other hand, there's no guarantee the event ended up
+@@ -3945,7 +3949,9 @@ export class MatrixClient extends TypedEventEmitter {
+         timelineSet.addEventsToTimeline(timelineEvents, backwards, false, eventTimeline, token);
+         this.processAggregatedTimelineEvents(room, timelineEvents);
+         this.processThreadRoots(room, timelineEvents.filter(it => it.getServerAggregatedRelation(THREAD_RELATION_TYPE.name)), false);
+-        unknownRelations.forEach(event => room.relations.aggregateChildEvent(event));
++        unknownRelations.forEach(event => {
++          void room.relations.aggregateChildEvent(event).catch(error => this.logger.error("Failed to aggregate unknown relation: ", error));
++        });
+         var atEnd = res.end === undefined || res.end === res.start;
+
+         // if we've hit the end of the timeline, we need to stop trying to
+diff --git a/node_modules/matrix-js-sdk/lib/models/event-timeline-set.js b/node_modules/matrix-js-sdk/lib/models/event-timeline-set.js
+index 6bbe2ab..570b676 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event-timeline-set.js
++++ b/node_modules/matrix-js-sdk/lib/models/event-timeline-set.js
+@@ -529,8 +529,8 @@ export class EventTimelineSet extends TypedEventEmitter {
+       throw new Error("EventTimelineSet.addEventToTimeline: Timeline=".concat(timeline.toString(), " does not belong \" +\n                \"in timelineSet(threadId=").concat((_this$thread = this.thread) === null || _this$thread === void 0 ? void 0 : _this$thread.id, ")"));
+     }
+     var eventId = event.getId();
+-    this.relations.aggregateParentEvent(event);
+-    this.relations.aggregateChildEvent(event, this);
++    void this.relations.aggregateParentEvent(event).catch(error => logger.error("Failed to aggregate parent event: ", error));
++    void this.relations.aggregateChildEvent(event, this).catch(error => logger.error("Failed to aggregate child event: ", error));
+
+     // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a
+     // threaded message should not be in the main timeline).
+@@ -584,8 +584,8 @@ export class EventTimelineSet extends TypedEventEmitter {
+       throw new Error("EventTimelineSet.insertEventIntoTimeline: Timeline=".concat(timeline.toString(), " does not belong \" +\n                \"in timelineSet(threadId=").concat((_this$thread3 = this.thread) === null || _this$thread3 === void 0 ? void 0 : _this$thread3.id, ")"));
+     }
+     var eventId = event.getId();
+-    this.relations.aggregateParentEvent(event);
+-    this.relations.aggregateChildEvent(event, this);
++    void this.relations.aggregateParentEvent(event).catch(error => logger.error("Failed to aggregate parent event: ", error));
++    void this.relations.aggregateChildEvent(event, this).catch(error => logger.error("Failed to aggregate child event: ", error));
+
+     // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a
+     // threaded message should not be in the main timeline).
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 index ba649eb..364f89a 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
@@ -136,7 +199,7 @@ index 8ccc053..7758d99 100644
  //# sourceMappingURL=relations-container.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.d.ts b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-index 933f698..8db5e53 100644
+index 933f698..5728fc2 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 @@ -27,10 +27,13 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
@@ -251,8 +314,30 @@ index 6be66bb..7e6f72a 100644
        _this5.maybeEmitCreated();
      })();
    }
+diff --git a/node_modules/matrix-js-sdk/lib/models/room.js b/node_modules/matrix-js-sdk/lib/models/room.js
+index ac723cf..31f5fca 100644
+--- a/node_modules/matrix-js-sdk/lib/models/room.js
++++ b/node_modules/matrix-js-sdk/lib/models/room.js
+@@ -2473,7 +2473,7 @@ export class Room extends ReadReceipt {
+    * @param event - the relation event that needs to be aggregated.
+    */
+   aggregateNonLiveRelation(event) {
+-    this.relations.aggregateChildEvent(event);
++    void this.relations.aggregateChildEvent(event).catch(error => logger.error("Failed to aggregate non-live relation: ", error));
+   }
+   getEventForTxnId(txnId) {
+     return this.txnToEvent.get(txnId);
+@@ -2718,7 +2718,7 @@ export class Room extends ReadReceipt {
+         if (shouldLiveInRoom) {
+           _this15.addLiveEvent(event, options);
+         } else if (!shouldLiveInThread && event.isRelation()) {
+-          _this15.relations.aggregateChildEvent(event);
++          void _this15.relations.aggregateChildEvent(event).catch(error => logger.error("Failed to aggregate non-live relation: ", error));
+         }
+       }
+       Object.entries(eventsByThread).forEach(_ref18 => {
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.d.ts b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
-index 6933b26..217d678 100644
+index 6933b26..34a1f15 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
 @@ -92,6 +92,8 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
@@ -274,7 +359,7 @@ index 6933b26..217d678 100644
      private fetchEditsWhereNeeded;
      setEventMetadata(event: MatrixEvent | null | undefined): void;
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..fc5fadc 100644
+index b02b81f..f40f474 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
 @@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
@@ -387,7 +472,7 @@ index b02b81f..fc5fadc 100644
 +        // them rather than buffer them in the pending event list. The main thing is that this
 +        // must remain false while the async fetch happens, so we don't try to add events before
 +        // the pagination has finished.
-+        yield Promise.all(_this7.liveTimeline.getEvents().map(event => _this7.timelineSet.relations.aggregateParentEvent(event)));
++        yield Promise.all(_this7.liveTimeline.getEvents().map(event => _this7.timelineSet.relations.aggregateParentEvent(event).catch(error => logger.error("Failed to aggregate initial thread relation target: ", error))));
 +        _this7.initialEventsFetched = true;
 +        for (var event of _this7.replayEvents) {
 +          _this7.addEvent(event, false);
@@ -463,6 +548,83 @@ index b02b81f..fc5fadc 100644
            }
          }
        }
+diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
+index 80ea382..cc561d1 100644
+--- a/node_modules/matrix-js-sdk/src/client.ts
++++ b/node_modules/matrix-js-sdk/src/client.ts
+@@ -4533,7 +4533,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+                     this.processAggregatedTimelineEvents(room, timelineEvents);
+                     room.addEventsToTimeline(timelineEvents, true, true, room.getLiveTimeline());
+                     this.processThreadEvents(room, threadedEvents, true);
+-                    unknownRelations.forEach((event) => room.relations.aggregateChildEvent(event));
++                    unknownRelations.forEach((event) => {
++                        void room.relations
++                            .aggregateChildEvent(event)
++                            .catch((error) => this.logger.error("Failed to aggregate unknown relation: ", error));
++                    });
+
+                     room.oldState.paginationToken = res.end ?? null;
+                     if (res.chunk.length === 0) {
+@@ -4673,7 +4677,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+         // The target event is not in a thread but process the contextual events, so we can show any threads around it.
+         this.processThreadEvents(timelineSet.room, threadedEvents, true);
+         this.processAggregatedTimelineEvents(timelineSet.room, timelineEvents);
+-        unknownRelations.forEach((event) => timelineSet.relations.aggregateChildEvent(event));
++        unknownRelations.forEach((event) => {
++            void timelineSet.relations
++                .aggregateChildEvent(event)
++                .catch((error) => this.logger.error("Failed to aggregate unknown relation: ", error));
++        });
+
+         // There is no guarantee that the event ended up in "timeline" (we might have switched to a neighbouring
+         // timeline) - so check the room's index again. On the other hand, there's no guarantee the event ended up
+@@ -5216,7 +5224,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+                         timelineEvents.filter((it) => it.getServerAggregatedRelation(THREAD_RELATION_TYPE.name)),
+                         false,
+                     );
+-                    unknownRelations.forEach((event) => room.relations.aggregateChildEvent(event));
++                    unknownRelations.forEach((event) => {
++                        void room.relations
++                            .aggregateChildEvent(event)
++                            .catch((error) => this.logger.error("Failed to aggregate unknown relation: ", error));
++                    });
+
+                     const atEnd = res.end === undefined || res.end === res.start;
+
+diff --git a/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts b/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts
+index d5d7e36..2ffae3b 100644
+--- a/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts
++++ b/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts
+@@ -664,8 +664,12 @@ export class EventTimelineSet extends TypedEventEmitter<EmittedEvents, EventTime
+         }
+
+         const eventId = event.getId()!;
+-        this.relations.aggregateParentEvent(event);
+-        this.relations.aggregateChildEvent(event, this);
++        void this.relations
++            .aggregateParentEvent(event)
++            .catch((error) => logger.error("Failed to aggregate parent event: ", error));
++        void this.relations
++            .aggregateChildEvent(event, this)
++            .catch((error) => logger.error("Failed to aggregate child event: ", error));
+
+         // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a
+         // threaded message should not be in the main timeline).
+@@ -729,8 +733,12 @@ export class EventTimelineSet extends TypedEventEmitter<EmittedEvents, EventTime
+         }
+
+         const eventId = event.getId()!;
+-        this.relations.aggregateParentEvent(event);
+-        this.relations.aggregateChildEvent(event, this);
++        void this.relations
++            .aggregateParentEvent(event)
++            .catch((error) => logger.error("Failed to aggregate parent event: ", error));
++        void this.relations
++            .aggregateChildEvent(event, this)
++            .catch((error) => logger.error("Failed to aggregate child event: ", error));
+
+         // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a
+         // threaded message should not be in the main timeline).
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
 index 8394bc6..3fae0fa 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
@@ -661,8 +823,34 @@ index 77ba3b3..8112e00 100644
 
          this.maybeEmitCreated();
      }
+diff --git a/node_modules/matrix-js-sdk/src/models/room.ts b/node_modules/matrix-js-sdk/src/models/room.ts
+index f288f9d..1b2c7e1 100644
+--- a/node_modules/matrix-js-sdk/src/models/room.ts
++++ b/node_modules/matrix-js-sdk/src/models/room.ts
+@@ -2878,7 +2878,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+      * @param event - the relation event that needs to be aggregated.
+      */
+     private aggregateNonLiveRelation(event: MatrixEvent): void {
+-        this.relations.aggregateChildEvent(event);
++        void this.relations
++            .aggregateChildEvent(event)
++            .catch((error) => logger.error("Failed to aggregate non-live relation: ", error));
+     }
+
+     public getEventForTxnId(txnId: string): MatrixEvent | undefined {
+@@ -3148,7 +3150,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+             if (shouldLiveInRoom) {
+                 this.addLiveEvent(event, options);
+             } else if (!shouldLiveInThread && event.isRelation()) {
+-                this.relations.aggregateChildEvent(event);
++                void this.relations
++                    .aggregateChildEvent(event)
++                    .catch((error) => logger.error("Failed to aggregate non-live relation: ", error));
+             }
+         }
+
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
-index 871875d..f340224 100644
+index 871875d..fd7bb90 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
 +++ b/node_modules/matrix-js-sdk/src/models/thread.ts
 @@ -131,7 +131,9 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
@@ -764,7 +952,7 @@ index 871875d..f340224 100644
      public async processEvent(event: MatrixEvent | null | undefined): Promise<void> {
          if (event) {
              this.setEventMetadata(event);
-@@ -597,6 +650,49 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -597,6 +650,53 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          await this.processRootEvent();
      }
 
@@ -794,7 +982,11 @@ index 871875d..f340224 100644
 +            // must remain false while the async fetch happens, so we don't try to add events before
 +            // the pagination has finished.
 +            await Promise.all(
-+                this.liveTimeline.getEvents().map((event) => this.timelineSet.relations.aggregateParentEvent(event)),
++                this.liveTimeline.getEvents().map((event) =>
++                    this.timelineSet.relations
++                        .aggregateParentEvent(event)
++                        .catch((error) => logger.error("Failed to aggregate initial thread relation target: ", error)),
++                ),
 +            );
 +            this.initialEventsFetched = true;
 +            for (const event of this.replayEvents!) {
@@ -814,7 +1006,7 @@ index 871875d..f340224 100644
      private async updateThreadMetadata(): Promise<void> {
          this.updatePendingReplyCount();
 
-@@ -607,47 +703,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -607,47 +707,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          await this.processRootEventPromise;
 
          if (!this.initialEventsFetched) {
