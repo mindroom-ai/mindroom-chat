@@ -37,11 +37,7 @@ vi.mock('../../hooks/useInterval', async () => {
 
 const mockedUseStateEvents = vi.mocked(useStateEvents);
 
-const makeSummaryEvent = (
-  body: string,
-  generatedAt: string,
-  eventId: string
-) =>
+const makeSummaryEvent = (body: string, generatedAt: string, eventId: string) =>
   new MatrixEvent({
     content: {
       msgtype: 'm.notice',
@@ -66,12 +62,14 @@ const makeScheduledTaskEvent = (
     newThread = false,
     executeAt,
     scheduledAt,
+    cronDescription,
   }: {
     status?: string;
     threadId?: string | null;
     newThread?: boolean;
     executeAt?: string;
     scheduledAt?: string;
+    cronDescription?: string;
   },
   stateKey: string
 ) =>
@@ -82,6 +80,7 @@ const makeScheduledTaskEvent = (
       new_thread: newThread,
       execute_at: executeAt,
       scheduled_at: scheduledAt,
+      cron_description: cronDescription,
     },
     event_id: `$${stateKey}`,
     origin_server_ts: 1,
@@ -160,11 +159,7 @@ const createThread = (threadRootId = '$root') => {
     sender: '@alice:example.org',
     type: 'm.room.message',
   });
-  const olderSummary = makeSummaryEvent(
-    'Older summary',
-    '2026-04-04T18:00:00.000Z',
-    '$summary-1'
-  );
+  const olderSummary = makeSummaryEvent('Older summary', '2026-04-04T18:00:00.000Z', '$summary-1');
   const latestSummary = makeSummaryEvent(
     'Latest summary',
     '2026-04-04T18:10:00.000Z',
@@ -262,6 +257,27 @@ describe('useThreadHeaderInfo', () => {
       scheduledTaskCount: 0,
       nextScheduledTs: undefined,
       scheduledDisplayText: undefined,
+    });
+
+    renderer.unmount();
+  });
+
+  it('displays the backend cron description for one recurring task', () => {
+    const room = createRoom();
+    const { getSnapshot, renderer } = renderHookHarness(room, '$root', () => [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronDescription: 'At 09:00',
+        },
+        'task-1'
+      ),
+    ]);
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 1,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: 'At 09:00',
     });
 
     renderer.unmount();

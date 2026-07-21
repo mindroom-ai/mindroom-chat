@@ -158,14 +158,19 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       ? `${status.scheduledTaskCount} pending scheduled ${
           status.scheduledTaskCount === 1 ? 'task' : 'tasks'
         }${
-          status.nextScheduledTs === undefined
+          status.nextScheduledTs === undefined && status.cronDescription === undefined
             ? ''
-            : `, ${formatScheduledTime(status.nextScheduledTs)}`
+            : `, ${
+                status.nextScheduledTs === undefined
+                  ? status.cronDescription
+                  : formatScheduledTime(status.nextScheduledTs)
+              }`
         }`
       : undefined;
   const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
     status.scheduledTaskCount,
-    status.nextScheduledTs
+    status.nextScheduledTs,
+    status.cronDescription
   );
 
   return {

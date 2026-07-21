@@ -10,12 +10,12 @@ type BuildThreadHeaderViewModelOptions = {
 
 const getScheduledLabel = (
   scheduledTaskCount: number,
-  nextScheduledTs: number | undefined,
+  hasScheduleDetail: boolean,
   scheduledDisplayText: string | undefined
 ): string | undefined => {
   if (scheduledTaskCount <= 0) return undefined;
 
-  if (nextScheduledTs === undefined) {
+  if (!hasScheduleDetail) {
     return scheduledDisplayText;
   }
 
@@ -30,6 +30,7 @@ const getBannerScheduledText = (
   summaryText: string | undefined,
   scheduledTaskCount: number,
   nextScheduledTs: number | undefined,
+  hasScheduleDetail: boolean,
   scheduledDisplayText: string | undefined
 ): string | undefined => {
   if (!scheduledDisplayText) return undefined;
@@ -38,6 +39,8 @@ const getBannerScheduledText = (
   if (nextScheduledTs !== undefined) {
     return `Next task ${scheduledDisplayText}`;
   }
+
+  if (hasScheduleDetail) return scheduledDisplayText;
 
   if (scheduledTaskCount > 0) {
     return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
@@ -54,6 +57,8 @@ export const buildThreadHeaderViewModelFromRecord = ({
   pickerDisabled,
 }: BuildThreadHeaderViewModelOptions): ThreadHeaderViewModel => {
   const { scheduledTaskCount, nextScheduledTs } = record.status;
+  const hasScheduleDetail =
+    nextScheduledTs !== undefined || record.status.cronDescription !== undefined;
   const summaryText = record.presentation.summaryText;
 
   return {
@@ -66,11 +71,12 @@ export const buildThreadHeaderViewModelFromRecord = ({
     scheduledTaskCount,
     nextScheduledTs,
     scheduledDisplayText,
-    scheduledLabel: getScheduledLabel(scheduledTaskCount, nextScheduledTs, scheduledDisplayText),
+    scheduledLabel: getScheduledLabel(scheduledTaskCount, hasScheduleDetail, scheduledDisplayText),
     bannerScheduledText: getBannerScheduledText(
       summaryText,
       scheduledTaskCount,
       nextScheduledTs,
+      hasScheduleDetail,
       scheduledDisplayText
     ),
   };
