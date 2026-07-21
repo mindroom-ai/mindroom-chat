@@ -133,6 +133,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   shouldBlockStartSendSession,
 }: UseRoomInputSendSessionControllerOptions): {
+  hasActiveSendSession: () => boolean;
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
 } => {
@@ -447,7 +448,10 @@ export const useRoomInputSendSessionController = ({
     ]
   );
 
+  const hasActiveSendSession = useCallback(() => sendSessionRef.current !== undefined, []);
+
   return {
+    hasActiveSendSession,
     processSendSession,
     startSendSession,
   };

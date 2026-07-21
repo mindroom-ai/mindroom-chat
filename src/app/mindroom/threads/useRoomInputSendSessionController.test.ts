@@ -28,6 +28,7 @@ type HarnessApi = {
   sendSessionFilesRef: MutableRefObject<TUploadContent[]>;
   sendSessionUploadItemsRef: MutableRefObject<TUploadItem[]>;
   uploadsRef: MutableRefObject<Upload[]>;
+  hasActiveSendSession: () => boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
   processSendSession: () => Promise<void>;
 };
@@ -74,6 +75,16 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
   file,
   status: UploadStatus.Success,
   mxc,
+});
+
+const loadingUpload = (file: File): Upload => ({
+  file,
+  status: UploadStatus.Loading,
+  promise: Promise.resolve({ content_uri: `mxc://mindroom/${file.name}` }),
+  progress: {
+    loaded: 0,
+    total: file.size,
+  },
 });
 
 const prepErrorUpload = (file: File): Upload => ({
@@ -198,6 +209,42 @@ const renderHarness = (
 
   return { api, mx, editor, localEvents, sendTypingStatus };
 };
+
+describe('useRoomInputSendSessionController active session query', () => {
+  it('tracks waiting, failed, retried, and completed sessions', async () => {
+    const { api, mx } = renderHarness();
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+
+    expect(api.hasActiveSendSession()).toBe(false);
+
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [loadingUpload(root), successUpload(child)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(true);
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.uploadsRef.current = [successUpload(root), successUpload(child)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('root send failed'));
+
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(false);
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+  });
+});
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
   beforeEach(() => {

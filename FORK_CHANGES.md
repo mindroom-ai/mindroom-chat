@@ -2,17 +2,18 @@
 
 ## Runbook
 
-### CINNY-128 - Voice send + staged attachment same-thread grouping planning note (2026-07-20)
+### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: investigation and implementation plan are complete in repo-root `PLAN-B.md`; no source changes yet.
+- Status: implementation is in progress from repo-root `PLAN.md`; the controller active-session query and focused lifecycle coverage are complete and pass 12 focused tests.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Traced actual behavior: `handleVoiceSend` is a separate single-item pipeline that computes its relation from a synthetic one-file session, so at room level the voice message sends as a plain event and becomes its own thread root, while the staged attachment silently stays parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocks the send-session path for the duration.
 - Grouping today exists only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sends the first upload as a plain root and threads the remaining uploads plus the trailing caption under it.
 - Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so the voice message must be the last batch member — attachments first, voice last.
 - Planned direction: when eligible staged attachments exist and no send session is active, `handleVoiceSend` hands the voice file to the existing send-session controller as the last file of one batch (`startSendSession({ files: [...staged, voice], context })`), keeping the standalone voice pipeline (and its parked-draft retry machinery) for voice-only sends.
-- Planned surface: expose `hasActiveSendSession` from `useRoomInputSendSessionController` and branch inside `handleVoiceSend`; no changes to mode selection, the recorder stack, the upload board, or backend code.
+- Implemented surface so far: `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query whose lifecycle remains true while a session waits or is retryable and becomes false only after completion.
+- Remaining surface: branch inside `handleVoiceSend`; no changes are planned to mode selection, the recorder stack, the upload board, or backend code.
 - Documented trade-offs: combined-batch voice failures surface through the upload-board retry affordances instead of the parked-draft overlay, and paste-converted attachments plus composer text stay with the typed draft.
-- Docs-only validation target for this planning step is `git diff --check`.
+- Step-one validation passes the focused controller suite with 12 tests, typecheck, touched-file ESLint, and `git diff --check`; the production build and full validation remain pending until the behavior step is complete.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
