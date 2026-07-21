@@ -56,7 +56,7 @@
 
 - Status: merged in PR #186 after live lab acceptance.
   Retroactive review remediation, regression coverage, full local validation, and independent re-review are complete on `fix/invite-autosuggest-review`.
-  Ready follow-up PR #187 is in AI review.
+  Ready follow-up PR #187 passed final CI and available AI review and is ready for human review.
 - Symptom: the invite dialog's auto-suggest never lists MindRoom agents whose display name has no spaces (e.g. `MindRoomExpert`), even though pasting the MXID resolves the user.
 - Root cause: Tuwunel matches `user_directory/search` by case-insensitive substring, so the previous `' '` bootstrap term only returned users whose display name contains a literal space and space-less users never entered the local suggestion cache.
   A natural spaced query such as `mindroom expert` also substring-matched nothing server-side.
@@ -96,7 +96,12 @@
   Final independent re-review found no remaining race, ownership, stale-result, test-strength, documentation, or half-refactor issue.
   PR #187 review found one valid state-identity optimization in the all-failed path.
   The functional update now clears only a matching nonempty stale result and preserves the current state reference when no clear is required.
-  Focused tests and typecheck pass after remediation, and independent re-review approved the query, owner, and request-race behavior with no findings.
+  Focused tests and typecheck pass after remediation.
+  Independent re-review approved the query, owner, and request-race behavior with no findings.
+  Greptile reviewed the final head at 5/5 confidence with no findings.
+  Android, web, and Docker CI pass.
+  CodeRabbit and Sourcery could not review because their quotas were exhausted, and Qodo was paused for the account.
+  All four retrospective review threads on PR #186 have disposition replies and are resolved.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
