@@ -1,15 +1,11 @@
-import { createHash } from 'node:crypto';
 import { MatrixEvent, MatrixEventEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { buildCrossRoomThreadIndexEntry } from '../../src/app/mindroom/cross-room-threads/crossRoomThreadIndex';
 import { buildCompactThreadCardViewModelFromRecord } from '../../src/app/mindroom/threads/compactThreadCardViewModel';
-import { getThreadMessagePreviewText } from '../../src/app/mindroom/threads/threadMessagePreview';
-import {
-  buildThreadTagSnapshotMap,
-  getRoomThreadTagSnapshotMap,
-} from '../../src/app/mindroom/threads/threadTagSnapshots';
+import { getRoomThreadTagSnapshotMap } from '../../src/app/mindroom/threads/threadTagSnapshots';
 import { buildThreadRecord } from '../../src/app/mindroom/threads/threadRecord';
+import { EXACT_REPLAY_FINGERPRINTS, fingerprintText, fingerprintsMatch } from './exactReplayOracle';
 import {
   cloneTraceEvent,
   INCIDENT_FINAL_EDIT_EVENT_ID,
@@ -50,31 +46,7 @@ const emitDiagnostic = (kind: string, value: Record<string, unknown>) => {
   process.stdout.write(`${JSON.stringify({ kind, ...value })}\n`);
 };
 
-const fingerprintText = (value: string) => ({
-  length: Array.from(value).length,
-  sha256: createHash('sha256').update(value).digest('hex'),
-});
-
-const fingerprintsMatch = (
-  actual: ReturnType<typeof fingerprintText>,
-  expected: ReturnType<typeof fingerprintText>
-) => actual.length === expected.length && actual.sha256 === expected.sha256;
-
 const trace = await loadExactTrace();
-const finalNewContent = trace.edits.at(-1)?.content['m.new_content'] as
-  | Record<string, unknown>
-  | undefined;
-const expectedEffectiveBody = finalNewContent?.body;
-const expectedPresentationBody = getThreadMessagePreviewText(finalNewContent);
-if (typeof expectedEffectiveBody !== 'string' || !expectedPresentationBody) {
-  throw new Error('Verified trace has no final effective presentation');
-}
-const expectedEffectiveBodyFingerprint = fingerprintText(expectedEffectiveBody);
-const expectedPresentationBodyFingerprint = fingerprintText(expectedPresentationBody);
-const expectedTagSnapshot = buildThreadTagSnapshotMap(
-  trace.tags.map((event) => new MatrixEvent(cloneTraceEvent(event, OFFLINE_ROOM_ID)))
-).get(INCIDENT_THREAD_ROOT_ID);
-if (!expectedTagSnapshot) throw new Error('Verified trace has no expected tag snapshot');
 const originalThreadSupport = Thread.hasServerSideSupport;
 Thread.hasServerSideSupport = FeatureSupport.Stable;
 const unhandledRejections: string[] = [];
@@ -221,45 +193,42 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
   const content = placeholder.getContent<Record<string, unknown>>();
   const replacement = placeholder.replacingEvent();
   const presentationBody = record.presentation.latestReplyPreviewText ?? '';
-  const expectedCompactCard = buildCompactThreadCardViewModelFromRecord({
-    record: {
-      ...record,
-      presentation: { ...record.presentation, latestReplyPreviewText: expectedPresentationBody },
-    },
-    room,
-    currentUserId: ORIGINAL_SENDERS.user,
-    mx: client as never,
-    useAuthentication: false,
-  });
   const globalPreview = globalEntry?.threadRecord.presentation.latestReplyPreviewText ?? '';
   const compactCardFingerprint = fingerprintText(compactCard.previewText);
-  const expectedCompactCardFingerprint = fingerprintText(expectedCompactCard.previewText);
   const globalThreadsFingerprint = fingerprintText(globalPreview);
   const effectiveBodyFingerprint = fingerprintText(
     typeof content.body === 'string' ? content.body : ''
   );
+  const overviewTagsFingerprint = fingerprintText(JSON.stringify(tagSnapshot?.displayTags ?? []));
   return {
     compactCardPreviewLength: compactCardFingerprint.length,
     compactCardPreviewSha256: compactCardFingerprint.sha256,
     compactCardUsesFinal: fingerprintsMatch(
       compactCardFingerprint,
-      expectedCompactCardFingerprint
+      EXACT_REPLAY_FINGERPRINTS.compactCard
     ),
     effectiveBodyIsFinal: fingerprintsMatch(
       effectiveBodyFingerprint,
-      expectedEffectiveBodyFingerprint
+      EXACT_REPLAY_FINGERPRINTS.effectiveBody
     ),
     globalThreadsPreviewLength: globalThreadsFingerprint.length,
     globalThreadsPreviewSha256: globalThreadsFingerprint.sha256,
     globalThreadsUsesFinal: fingerprintsMatch(
       globalThreadsFingerprint,
-      expectedPresentationBodyFingerprint
+      EXACT_REPLAY_FINGERPRINTS.globalThreads
     ),
-    overviewTagsVisible:
-      JSON.stringify(tagSnapshot?.displayTags) ===
-      JSON.stringify(expectedTagSnapshot.displayTags),
+    overviewTagsVisible: fingerprintsMatch(
+      overviewTagsFingerprint,
+      EXACT_REPLAY_FINGERPRINTS.overviewTags
+    ),
+    overviewTagsLength: overviewTagsFingerprint.length,
+    overviewTagsSha256: overviewTagsFingerprint.sha256,
     presentationBodyLength: fingerprintText(presentationBody).length,
     presentationBodySha256: fingerprintText(presentationBody).sha256,
+    presentationUsesFinal: fingerprintsMatch(
+      fingerprintText(presentationBody),
+      EXACT_REPLAY_FINGERPRINTS.presentation
+    ),
     replacementEventId: replacement?.getId() ?? null,
     replacementIsFinal: replacement?.getId() === INCIDENT_FINAL_EDIT_EVENT_ID,
     roomNavUnread: record.status.isUnread,
@@ -334,7 +303,9 @@ try {
     hypothesis = 'SDK_NO_THREAD_UPDATE';
   } else if (
     preInitSurfaces.replacementIsFinal &&
-    (!preInitSurfaces.compactCardUsesFinal || !preInitSurfaces.globalThreadsUsesFinal)
+    (!preInitSurfaces.compactCardUsesFinal ||
+      !preInitSurfaces.globalThreadsUsesFinal ||
+      !preInitSurfaces.presentationUsesFinal)
   ) {
     status = 'RED';
     hypothesis = 'PRESENTATION_HELPER';
@@ -344,6 +315,7 @@ try {
     preInitSurfaces.streamCompleted &&
     preInitSurfaces.compactCardUsesFinal &&
     preInitSurfaces.globalThreadsUsesFinal &&
+    preInitSurfaces.presentationUsesFinal &&
     preInitSurfaces.overviewTagsVisible &&
     preInitSurfaces.roomNavUnread &&
     summaryTargetsFinal
@@ -365,9 +337,12 @@ try {
     globalThreadsPreviewLength: preInitSurfaces.globalThreadsPreviewLength,
     globalThreadsPreviewSha256: preInitSurfaces.globalThreadsPreviewSha256,
     overviewTagsVisible: preInitSurfaces.overviewTagsVisible,
+    overviewTagsLength: preInitSurfaces.overviewTagsLength,
+    overviewTagsSha256: preInitSurfaces.overviewTagsSha256,
     paginationAttempts,
     presentationBodyLength: preInitSurfaces.presentationBodyLength,
     presentationBodySha256: preInitSurfaces.presentationBodySha256,
+    presentationUsesFinal: preInitSurfaces.presentationUsesFinal,
     replacementEventId: preInitSurfaces.replacementEventId,
     replacementSignals: preInitReplacementSignals,
     roomNavUnread: preInitSurfaces.roomNavUnread,
@@ -393,6 +368,7 @@ try {
     postInitSurfaces.streamCompleted &&
     postInitSurfaces.compactCardUsesFinal &&
     postInitSurfaces.globalThreadsUsesFinal &&
+    postInitSurfaces.presentationUsesFinal &&
     postInitSurfaces.overviewTagsVisible &&
     postInitSurfaces.roomNavUnread;
   if (status === 'GREEN' && !postInitAccepted) {
