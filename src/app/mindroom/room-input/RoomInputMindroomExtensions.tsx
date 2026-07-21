@@ -12,6 +12,7 @@ import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mi
 import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
+import type { VoiceRecorderComposerHandle } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
 import {
   createRoomInputSendSessionState,
@@ -43,6 +44,7 @@ type MindroomRoomInputThreadIndicatorProps = {
  * not need account stamping because it never outlives the active send.
  */
 export type MindroomVoiceSendContext = PendingVoiceSendContext;
+export type MindroomVoiceRecorderComposerHandle = VoiceRecorderComposerHandle;
 
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;

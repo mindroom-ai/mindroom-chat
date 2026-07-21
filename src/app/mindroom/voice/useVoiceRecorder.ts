@@ -114,7 +114,7 @@ export function useVoiceRecorder({
   const store = useStore();
   // Initialize phase from the atom on first render. If a previous mount's
   // retry is still in flight (atom.inFlight set), we MUST surface 'sending'
-  // immediately so the capsule's Discard / Send buttons stay disabled until
+  // immediately so capsule Discard stays disabled and primary Send stays blocked until
   // that request settles — otherwise the user can discard a draft whose
   // matrix message is still uploading and end up with the message landing
   // after the explicit discard.
@@ -795,9 +795,9 @@ export function useVoiceRecorder({
     const draft = pendingDraftRef.current;
     const sendRecording = sendRecordingAtStartRef.current ?? latestOnSendRecordingRef.current;
     // Refuse a fresh retry if the atom already has an inFlight marker — a
-    // previous mount's retry is still racing the network. The capsule's
-    // Discard / Send buttons are disabled by the synced phase='sending'
-    // state above, but a programmatic call into retry() must also bail.
+    // previous mount's retry is still racing the network. Capsule Discard is
+    // disabled and primary Send is blocked by the synced phase='sending' state
+    // above, but a programmatic call into retry() must also bail.
     if (
       !draft ||
       !sendRecording ||

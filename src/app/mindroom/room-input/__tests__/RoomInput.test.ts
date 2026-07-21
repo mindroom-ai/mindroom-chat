@@ -118,6 +118,7 @@ const {
     decryptAttachment: vi.fn(),
   },
   voiceRecorderState: {
+    send: vi.fn(async () => false),
     props: undefined as
       | {
           active?: boolean;
@@ -299,8 +300,6 @@ vi.mock('../../../components/upload-card', () => ({
 vi.mock('../../../components/upload-board', async () => {
   const reactModule = await import('react');
   const { useAtomValue } = await import('jotai');
-  const { UploadStatus } = await import('../../../state/upload');
-  const { getMatrixUploadErrorStage } = await import('../../../utils/matrix');
 
   return {
     UploadBoard: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
@@ -310,37 +309,15 @@ vi.mock('../../../components/upload-board', async () => {
     UploadBoardHeader: ({
       uploadFamilyObserverAtom,
       onCancel,
-      onSend,
     }: {
       uploadFamilyObserverAtom: Parameters<typeof useAtomValue>[0];
       onCancel: (uploads: Upload[]) => void;
-      onSend: () => Promise<void>;
     }) => {
       const uploads = useAtomValue(uploadFamilyObserverAtom);
-      const hasMixedPrepErrorSend =
-        uploads.some((upload) => upload.status === UploadStatus.Success) &&
-        uploads.every(
-          (upload) =>
-            upload.status === UploadStatus.Success ||
-            (upload.status === UploadStatus.Error &&
-              getMatrixUploadErrorStage(upload.error) === 'create')
-        );
-      const hasNonPrepErrorUpload = uploads.some(
-        (upload) =>
-          upload.status !== UploadStatus.Error ||
-          getMatrixUploadErrorStage(upload.error) !== 'create'
-      );
-      const canSend = hasMixedPrepErrorSend || hasNonPrepErrorUpload;
 
       return reactModule.createElement(
         reactModule.Fragment,
         null,
-        canSend
-          ? reactModule.createElement('button', {
-              'aria-label': 'Upload board Send',
-              onClick: onSend,
-            })
-          : reactModule.createElement('span', { 'aria-label': 'Upload board Send hidden' }),
         reactModule.createElement('button', {
           'aria-label': 'Upload board Remove All',
           onClick: () => onCancel(uploads),
@@ -596,38 +573,46 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
           : null
       );
     },
-    MindroomVoiceRecorderComposer: ({
-      onSendRecording,
-      getSendContext,
-      ...rest
-    }: {
-      active?: boolean;
-      sendDisabled?: boolean;
-      onClose: () => void;
-      onRecordingStart?: () => void;
-      onSendStopRequest?: () => boolean | void;
-      onSendStopFailure?: () => void;
-      onSendRecording: (
-        file: File,
-        duration: number,
-        waveform: number[] | undefined,
-        context: unknown
-      ) => Promise<void>;
-      getSendContext: () => unknown;
-    }) => {
-      // Auto-fill the captured context from getSendContext() so existing
-      // unit-style tests of handleVoiceSend keep their (file, duration,
-      // waveform?) call shape. The hook's own end-to-end persistence is
-      // covered by useVoiceRecorder.test.ts; the parent's auto-open and
-      // mic-disabled wiring is exercised in dedicated tests below.
-      voiceRecorderState.props = {
-        ...rest,
-        getSendContext,
-        onSendRecording: (file, duration, waveform, context) =>
-          onSendRecording(file, duration, waveform, context ?? getSendContext()),
-      };
-      return React.createElement('div');
-    },
+    MindroomVoiceRecorderComposer: React.forwardRef(
+      (
+        {
+          onSendRecording,
+          getSendContext,
+          ...rest
+        }: {
+          active?: boolean;
+          sendDisabled?: boolean;
+          onClose: () => void;
+          onRecordingStart?: () => void;
+          onSendStopRequest?: () => boolean | void;
+          onSendStopFailure?: () => void;
+          onSendRecording: (
+            file: File,
+            duration: number,
+            waveform: number[] | undefined,
+            context: unknown
+          ) => Promise<void>;
+          getSendContext: () => unknown;
+        },
+        ref
+      ) => {
+        // Auto-fill the captured context from getSendContext() so existing
+        // unit-style tests of handleVoiceSend keep their (file, duration,
+        // waveform?) call shape. The hook's own end-to-end persistence is
+        // covered by useVoiceRecorder.test.ts; the parent's auto-open and
+        // mic-disabled wiring is exercised in dedicated tests below.
+        voiceRecorderState.props = {
+          ...rest,
+          getSendContext,
+          onSendRecording: (file, duration, waveform, context) =>
+            onSendRecording(file, duration, waveform, context ?? getSendContext()),
+        };
+        React.useImperativeHandle(ref, () => ({
+          send: () => voiceRecorderState.send(),
+        }));
+        return React.createElement('div');
+      }
+    ),
     useRoomInputSendSessionController,
   };
 });
@@ -846,6 +831,8 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 
 afterEach(() => {
   voiceRecorderState.props = undefined;
+  voiceRecorderState.send.mockReset();
+  voiceRecorderState.send.mockResolvedValue(false);
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
@@ -1012,7 +999,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('shows upload-board Send for a successful file mixed with a prep-error file', async () => {
+  it('uses primary Send for a successful file mixed with a prep-error file', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store);
     const failed = new File(['failed'], 'failed.txt', { type: 'text/plain' });
@@ -1042,9 +1029,13 @@ describe('RoomInput', () => {
       store.set(roomUploadAtomFamily(sendable), { mxc: 'mxc://mindroom/sendable' });
     });
 
-    const uploadBoardSend = renderer.root.findByProps({ 'aria-label': 'Upload board Send' });
+    const primarySendButtons = renderer.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Send message'
+    );
+    expect(primarySendButtons).toHaveLength(1);
+    expect(primarySendButtons[0].props.variant).toBe('Primary');
     await act(async () => {
-      await uploadBoardSend.props.onClick();
+      await primarySendButtons[0].props.onClick();
     });
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
@@ -1190,10 +1181,7 @@ describe('RoomInput', () => {
       customEditorState.props!.onChange?.();
     });
 
-    const uploadBoardSend = renderer.root.findByProps({ 'aria-label': 'Upload board Send' });
-    await act(async () => {
-      await uploadBoardSend.props.onClick();
-    });
+    await submitComposer();
 
     // The caption sends after the paste upload; the session-start editor reset clears the
     // marker but must not orphan-clean the claimed paste upload while it is still uploading.
@@ -1537,6 +1525,129 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('uses primary Send for attachments, voice, and typed text as one ordered bundle', async () => {
+    const store = createStore();
+    const first = new File(['first'], 'first.txt', { type: 'text/plain' });
+    const second = new File(['second'], 'second.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    stageUploadItems(store, [createUploadItem(first), createUploadItem(second)], [first, second]);
+    const { renderer } = await renderRoomInput(store);
+    stageComposerText('bundle caption');
+    resetEditorOnNextSend();
+    await openVoiceRecorder(renderer);
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      try {
+        await voiceRecorderState.props!.onSendRecording(voice, 1200, [0, 512, 1024]);
+        return true;
+      } catch (error) {
+        voiceRecorderState.props!.onSendStopFailure?.();
+        throw error;
+      }
+    });
+
+    const primarySend = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Send message'
+    );
+    await act(async () => {
+      await primarySend.props.onClick();
+    });
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['first.txt', 'second.txt', 'voice.m4a', 'bundle caption']);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    mxState.sendMessage.mock.calls.slice(1).forEach((call) => {
+      expect(call[1]).toMatchObject({
+        'm.relates_to': expect.objectContaining({
+          event_id: '$sent',
+          rel_type: RelationType.Thread,
+        }),
+      });
+    });
+    expect(getEditorText()).toBe('');
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('restores failed trailing text without making an accepted voice retryable', async () => {
+    const store = createStore();
+    const attachment = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const textFailure = new Error('caption send failed');
+    stageUploadItems(store, [createUploadItem(attachment)], [attachment]);
+    const { renderer } = await renderRoomInput(store);
+    stageComposerText('restore this caption');
+    resetEditorOnNextSend();
+    await openVoiceRecorder(renderer);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$root' })
+      .mockResolvedValueOnce({ event_id: '$voice' })
+      .mockRejectedValueOnce(textFailure);
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      await voiceRecorderState.props!.onSendRecording(voice, 900);
+      return true;
+    });
+
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['attachment.txt', 'voice.m4a', 'restore this caption']);
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(customEditorState.editor, [
+      { type: 'paragraph', children: [{ text: 'restore this caption' }] },
+    ]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('keeps a paste attachment claimed while primary Send clears the composer', async () => {
+    const store = createStore();
+    const paste = new File(['paste'], 'mindroom-paste-a3f19c.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    stageUploadItems(
+      store,
+      [
+        createUploadItem(paste, {
+          metadata: {
+            markedAsSpoiler: false,
+            mindroomPasteAttachment: {
+              id: 'paste-a3f19c',
+              chars: 5,
+              fileName: paste.name,
+            },
+          },
+        }),
+      ],
+      [paste]
+    );
+    const { renderer } = await renderRoomInput(store);
+    stageComposerText('paste caption');
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      setEditorText('');
+      customEditorState.props!.onChange?.();
+    });
+    await openVoiceRecorder(renderer);
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      await voiceRecorderState.props!.onSendRecording(voice, 700);
+      return true;
+    });
+
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual([paste.name, 'voice.m4a', 'paste caption']);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
   it('keeps the combined send pending and completes it after the composer unmounts', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
@@ -1586,6 +1697,42 @@ describe('RoomInput', () => {
         rel_type: RelationType.Thread,
       }),
     });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+  });
+
+  it('keeps the primary text, attachment, and voice bundle alive after unmount', async () => {
+    const store = createStore();
+    const attachment = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const voiceUpload = createDeferred<{ content_uri: string }>();
+    stageUploadItems(store, [createUploadItem(attachment)], [attachment]);
+    mxState.uploadContent.mockReturnValueOnce(voiceUpload.promise);
+    const { renderer } = await renderRoomInput(store);
+    stageComposerText('captured caption');
+    resetEditorOnNextSend();
+    await openVoiceRecorder(renderer);
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      await voiceRecorderState.props!.onSendRecording(voice, 1000);
+      return true;
+    });
+
+    await submitComposer();
+    const sendPromise = voiceRecorderState.send.mock.results[0]?.value as Promise<boolean>;
+    await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    renderer.unmount();
+
+    await act(async () => {
+      voiceUpload.resolve({ content_uri: 'mxc://mindroom/voice' });
+      await sendPromise;
+    });
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['attachment.txt', 'voice.m4a', 'captured caption']);
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
   });
@@ -1891,9 +2038,7 @@ describe('RoomInput', () => {
     store.set(roomUploadAtomFamily(companion), { promise: upload.promise });
     const { renderer } = await renderRoomInput(store);
 
-    await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Upload board Send' }).props.onClick();
-    });
+    await submitComposer();
     await openVoiceRecorder(renderer);
     await act(async () => {
       await voiceRecorderState.props!.onSendRecording(
@@ -2160,7 +2305,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('leaves a partial failure staged without redirecting later composer intent', async () => {
+  it('retries a parked voice with all still-staged text and attachments through primary Send', async () => {
     const store = createStore();
     const root = new File(['root'], 'root.txt', { type: 'text/plain' });
     const failed = new File(['failed'], 'failed.txt', { type: 'text/plain' });
@@ -2172,6 +2317,7 @@ describe('RoomInput', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
+    const capturedContext = voiceRecorderState.props!.getSendContext();
 
     await act(async () => {
       await expect(voiceRecorderState.props!.onSendRecording(voice, 350)).rejects.toMatchObject({
@@ -2183,25 +2329,37 @@ describe('RoomInput', () => {
     ]);
 
     const later = new File(['later'], 'later.txt', { type: 'text/plain' });
-    const replyDraft = createReplyDraft('$current-reply');
     mxState.sendMessage.mockClear();
     await act(async () => {
       stageUploadItems(store, [createUploadItem(later)], [later]);
-      store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), replyDraft);
+      store.set(pendingVoiceSendDraftAtom, {
+        file: voice,
+        duration: 350,
+        context: capturedContext as never,
+        inFlight: {
+          token: 'retry-attempt',
+          startedAt: 1,
+        },
+      });
       await Promise.resolve();
     });
     stageComposerText('fresh composer text');
+    resetEditorOnNextSend();
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      await voiceRecorderState.props!.onSendRecording(voice, 350, undefined, capturedContext);
+      return true;
+    });
     await submitComposer();
 
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
-    ).toEqual(['failed.txt', 'later.txt', 'fresh composer text']);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
-      'm.relates_to': { 'm.in_reply_to': { event_id: '$current-reply' } },
-    });
-    expect(mxState.sendMessage.mock.calls[2][1]).toMatchObject({
+    ).toEqual(['failed.txt', 'later.txt', 'voice.m4a', 'fresh composer text']);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[3][1]).toMatchObject({
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     consoleError.mockRestore();
     renderer.unmount();
@@ -2743,7 +2901,7 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('does not let regular composer or upload-board Send duplicate a pending compact voice auto-send', async () => {
+  it('does not let primary Send duplicate a pending compact voice auto-send', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { threadId: '$thread-a' });
     await openVoiceRecorder(renderer);
@@ -2764,16 +2922,7 @@ describe('RoomInput', () => {
       file,
     ]);
 
-    const uploadBoardSend = renderer.root.findByProps({ 'aria-label': 'Upload board Send' });
-    await act(async () => {
-      await uploadBoardSend.props.onClick();
-    });
-
-    const buttons = renderer.root.findAll((node) => node.type === 'button');
-    const composerSend = buttons[buttons.length - 1];
-    await act(async () => {
-      await composerSend.props.onClick();
-    });
+    await submitComposer();
 
     await act(async () => {
       upload.resolve({ content_uri: 'mxc://mindroom/voice' });

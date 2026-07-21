@@ -10,7 +10,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the lifecycle-ownership and encryption-eligibility remediation is complete, validated, and independently approved; ready for human review.
+- Status: the lifecycle-ownership, encryption-eligibility, and unified composer Send work is complete and locally validated; ready for PR review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -20,17 +20,17 @@
 - The lifecycle-complete controller mode fails fast, propagates the original Matrix error, clears its transient session on any incomplete result, and never depends on a later mounted-component upload effect.
 - Eligibility preserves the standalone voice path for voice-only sends, classic mode, active sessions, oversized voice, only preparation-error, marker-backed paste, or oversized companions, callbacks owned by another room, and callbacks after unmount.
 - The final companion list is read after voice preparation, so attachments canceled during preparation are omitted and attachments added before an initial voice handoff are included.
-- Combined-send enrollment excludes companions already in upload error and parked voice retries, preserving the invariant that one user gesture owns one explicit controller batch while failed or later-staged attachments remain ordinary board items.
+- Recorder-owned automatic enrollment excludes companions already in upload error and legacy parked-voice retry callbacks, while the unified primary Send explicitly snapshots the current eligible board for both initial sends and parked retries.
 - `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query for enrollment exclusion and retains its ordinary retryable behavior for upload-board sends.
 - Session-owned reply and upload cleanup now targets the captured room id through room-scoped callbacks even if the composer rerenders for another room.
 - Combined-batch upload or fail-fast send failures reject the recorder callback so the existing parked-draft surface remains authoritative, while unsent companions remain staged on their origin-room board.
-- Partial Matrix delivery has deliberately simple recovery: the recorder parks the voice with its original captured context, and unsent companions remain staged without hidden thread-binding metadata.
+- Partial Matrix delivery has deliberately simple recovery: an unsent voice parks with its original captured context, unsent companions remain staged without hidden thread-binding metadata, and a voice already accepted by Matrix is never parked again when only trailing text fails.
 - The combined voice item is owned by the recorder capsule rather than rendered as a removable upload-board card.
 - The controller receives one explicit prepared batch containing both file items and upload states, so lifecycle completion does not seed or overwrite current-composer refs after an await.
 - Invariant: an accepted voice-send callback resolves only after the recorded voice and every still-enrolled companion from that gesture send under the captured room, thread, and reply context; failure parks the voice, leaves unsent companions as ordinary staged items, and never appropriates later composer intent.
 - Ownership stays at the gesture boundary: `handleVoiceSend` captures the exact batch and awaits its promise, while `useRoomInputSendSessionController` only orders that explicit batch and does not infer recovery destinations from staged-item metadata.
-- Scope leaves backend code, typed composer text, paste-marker lifecycle, and the existing root-plus-thread ordering policy unchanged.
-- Paste-converted attachments and composer text stay with the typed draft.
+- The original lifecycle remediation left backend code, typed composer text, paste-marker lifecycle, and the existing root-plus-thread ordering policy unchanged; the unified primary-Send follow-up now extends that same controller ownership to typed text.
+- A valid paste-converted attachment is part of an explicit primary-Send bundle, while a failed paste marker still blocks submission so neither its text nor a simultaneous voice recording is silently consumed.
 - Focused validation passes 149 tests across eight room-input, send-session, recorder, capsule, dialog, and upload-card files.
 - Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, owning-hook completion after unmount, serialization lifetime, origin-room reply clearing, upload failure, and companion cancellation while recorder-owned voice remains non-removable.
 - Third-round review triage fixes Issues 1-5, 7, and 8 by deleting recovery cohorts, removing the voice upload-board card, making the explicit prepared batch authoritative, removing the post-await ref stomp, comparing reply drafts directly, and replacing cohort tests with invariant regressions.
@@ -58,6 +58,17 @@
 - Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
 - The full suite passes 446 of 447 files and 3344 of 3347 tests, with only the same three Xcode fixture failures, and independent review approved the ownership and encryption fixes with no half-refactor findings.
 - PR #190 review remediation removes the always-true voice-item identity guard, rejects four optional-chaining findings because the media and atom hooks have non-null contracts, and retains unconditional final voice cleanup because it owns atom release on every exit path.
+- Product follow-up: the room composer will expose one primary Send action instead of separate upload-board and voice-capsule Send actions.
+- Unified-send invariant: pressing primary Send while voice is active or parked snapshots the visible typed text and staged attachments, stops or retries the voice recording, and sends every eligible member through one captured room, thread, and reply context.
+- Media ordering remains attachments first, voice next, and typed text last so MindRoom receives one media burst terminated by the caption.
+- Failure ownership must never retry a voice event that Matrix already accepted; unsent text returns to the composer and unsent attachments remain staged.
+- The voice-failure dialog's Retry action delegates back to primary Send, so recovery snapshots the same visible text and attachment bundle instead of bypassing it with a voice-only retry.
+- The upload-board header and recorder capsule retain progress, remove, discard, and pause/resume controls but no longer render their own Send actions, while the composer Send is the single visually primary action.
+- Primary Send snapshots attachments and typed content before stopping or retrying voice, keeps paste-converted attachments claimed across the editor reset, and completes the captured bundle after an initiating composer unmount.
+- Lifecycle-complete failures restore captured text through the mounted editor or the room draft store, and a trailing text failure after Matrix accepts voice closes the recorder without making that voice retryable.
+- Focused validation passes 148 tests across the room-input, send-session, recorder, capsule, dialog, and upload-board surfaces.
+- The full Vitest suite, typecheck, production/PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check` pass.
+- Independent second self-review found the deferred failure-dialog Retry bypass and unmounted caption-recovery gap; both are fixed with regression coverage, and the final self-review found no remaining blocker or half-refactor trace.
 
 ### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
 

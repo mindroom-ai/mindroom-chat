@@ -28,6 +28,7 @@ type HarnessApi = {
   sendSessionFilesRef: MutableRefObject<TUploadContent[]>;
   sendSessionUploadItemsRef: MutableRefObject<TUploadItem[]>;
   uploadsRef: MutableRefObject<Upload[]>;
+  mountedRef: MutableRefObject<boolean>;
   hasActiveSendSession: () => boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
   processSendSession: () => Promise<void>;
@@ -101,6 +102,7 @@ const TestHarness = ({
   sendTypingStatus,
   replyDraft,
   clearReplyDraft,
+  restoreComposerFallbackForRoom,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -113,11 +115,13 @@ const TestHarness = ({
   sendTypingStatus: ReturnType<typeof vi.fn>;
   replyDraft?: IReplyDraft;
   clearReplyDraft: ReturnType<typeof vi.fn>;
+  restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
   const sendSessionUploadItemsRef = useRef<TUploadItem[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
+  const mountedRef = useRef(true);
 
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
@@ -136,6 +140,7 @@ const TestHarness = ({
     selectedFilesRef,
     sendSessionFilesRef,
     sendSessionUploadItemsRef,
+    mountedRef,
     uploadsRef,
     buildUploadMessageContent: async (fileItem, mxc) => ({
       msgtype: 'm.file',
@@ -155,6 +160,7 @@ const TestHarness = ({
       );
       uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
     },
+    restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
 
@@ -164,6 +170,7 @@ const TestHarness = ({
       sendSessionFilesRef,
       sendSessionUploadItemsRef,
       uploadsRef,
+      mountedRef,
       ...controller,
     });
   }, [controller, onReady]);
@@ -199,6 +206,7 @@ const renderHarness = (
   };
   const sendTypingStatus = vi.fn();
   const clearReplyDraft = vi.fn();
+  const restoreComposerFallbackForRoom = vi.fn();
   let api!: HarnessApi;
 
   act(() => {
@@ -209,6 +217,7 @@ const renderHarness = (
         sendTypingStatus,
         replyDraft: options.replyDraft,
         clearReplyDraft,
+        restoreComposerFallbackForRoom,
         onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
           api = nextApi;
@@ -217,7 +226,15 @@ const renderHarness = (
     );
   });
 
-  return { api, mx, editor, localEvents, sendTypingStatus, clearReplyDraft };
+  return {
+    api,
+    mx,
+    editor,
+    localEvents,
+    sendTypingStatus,
+    clearReplyDraft,
+    restoreComposerFallbackForRoom,
+  };
 };
 
 describe('useRoomInputSendSessionController active session query', () => {
@@ -546,6 +563,80 @@ describe('useRoomInputSendSessionController caption send failures', () => {
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });
+  });
+
+  it('restores an already-cleared caption when an earlier lifecycle upload fails', async () => {
+    const { api, mx, editor } = renderHarness();
+    const root = createFile('root.txt');
+    const failed = createFile('failed.txt');
+    const voice = createFile('voice.m4a');
+    const sendFailure = new Error('companion send failed');
+    const composerFallback = [
+      { type: 'paragraph', children: [{ text: 'captured caption' }] },
+    ] as never;
+    const onUploadSent = vi.fn();
+
+    mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' });
+    mx.sendMessage.mockRejectedValueOnce(sendFailure);
+
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'captured caption' },
+          batch: {
+            fileItems: [createUploadItem(root), createUploadItem(failed), createUploadItem(voice)],
+            uploads: [successUpload(root), successUpload(failed), successUpload(voice)],
+          },
+          completeWithinCall: true,
+          composerFallback,
+          composerAlreadyReset: true,
+          onUploadSent,
+        });
+      } catch (error) {
+        failure = error;
+      }
+    });
+
+    expect(failure).toBe(sendFailure);
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(onUploadSent).toHaveBeenCalledWith(root);
+    expect(onUploadSent).not.toHaveBeenCalledWith(voice);
+    expect(mocks.resetEditor).not.toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, composerFallback);
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('restores a lifecycle caption through room draft storage after unmount', async () => {
+    const { api, mx, restoreComposerFallbackForRoom } = renderHarness();
+    const attachment = createFile('attachment.txt');
+    const sendFailure = new Error('attachment send failed');
+    const composerFallback = [
+      { type: 'paragraph', children: [{ text: 'durable caption' }] },
+    ] as never;
+    api.mountedRef.current = false;
+    mx.sendMessage.mockRejectedValueOnce(sendFailure);
+
+    await act(async () => {
+      await expect(
+        api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'durable caption' },
+          batch: {
+            fileItems: [createUploadItem(attachment)],
+            uploads: [successUpload(attachment)],
+          },
+          completeWithinCall: true,
+          composerFallback,
+          composerAlreadyReset: true,
+        })
+      ).rejects.toBe(sendFailure);
+    });
+
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
+      '!room:example.org',
+      composerFallback
+    );
   });
 
   it('restores a failed text snapshot without erasing newer composer input', async () => {

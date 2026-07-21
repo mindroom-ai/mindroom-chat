@@ -1,4 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
   Box,
   Button,
@@ -23,6 +30,7 @@ type VoiceRecorderComposerProps = {
   onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
+  onRetryRequest?: () => void;
   onSendRecording: (
     file: File,
     duration: number,
@@ -32,21 +40,32 @@ type VoiceRecorderComposerProps = {
   getSendContext: () => PendingVoiceSendContext;
 };
 
-export function VoiceRecorderComposer({
-  active,
-  sendDisabled,
-  onClose,
-  onRecordingStart,
-  onSendStopRequest,
-  onSendStopFailure,
-  onSendRecording,
-  getSendContext,
-}: VoiceRecorderComposerProps) {
+export type VoiceRecorderComposerHandle = {
+  send: () => Promise<boolean>;
+};
+
+export const VoiceRecorderComposer = forwardRef<
+  VoiceRecorderComposerHandle,
+  VoiceRecorderComposerProps
+>(function VoiceRecorderComposer(
+  {
+    active,
+    sendDisabled,
+    onClose,
+    onRecordingStart,
+    onSendStopRequest,
+    onSendStopFailure,
+    onRetryRequest,
+    onSendRecording,
+    getSendContext,
+  },
+  ref
+) {
   const autoStartTriggeredRef = useRef(false);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
   // capsule + parked draft remain visible; the user can re-open the overlay
-  // by clicking Retry on the capsule. A fresh failure surfaces a fresh
+  // by retrying through primary composer Send. A fresh failure surfaces a fresh
   // overlay because errorMessage will differ from the deferred value.
   // The defer signal MUST come from the per-event predicates below
   // (clickOutsideDeactivates / escapeDeactivates), NOT from FocusTrap's
@@ -102,21 +121,22 @@ export function VoiceRecorderComposer({
   // Any user-initiated retry must clear an existing defer so a follow-up
   // failure with the same canonical message (very common: connection-dropped)
   // re-surfaces the overlay rather than getting silently hidden.
-  const beginRetry = (): Promise<boolean> => {
+  const beginRetry = useCallback((): Promise<boolean> => {
     setDeferredErrorMessage(undefined);
     return retry();
-  };
+  }, [retry]);
 
-  const sendAndClose = () => {
-    if (sendDisabled) return;
+  const submitRecording = useCallback(async (): Promise<boolean> => {
+    if (sendDisabled) return false;
 
-    void (async () => {
-      const sent = hasPendingSend ? await beginRetry() : await send();
-      if (sent) {
-        onClose();
-      }
-    })();
-  };
+    const sent = hasPendingSend ? await beginRetry() : await send();
+    if (sent) {
+      onClose();
+    }
+    return sent;
+  }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
+
+  useImperativeHandle(ref, () => ({ send: submitRecording }), [submitRecording]);
 
   const confirmDiscardAndClose = () => {
     discardPending();
@@ -199,37 +219,41 @@ export function VoiceRecorderComposer({
                 non-forwardRef function component (folds Dialog supports
                 refs in production but the test mock doesn't). */}
             <div>
-            <Dialog variant="Surface">
-              <Box
-                direction="Column"
-                gap="300"
-                style={{ padding: config.space.S400, maxWidth: 360 }}
-              >
-                <Text size="H5">Voice send failed</Text>
-                <Box direction="Column" gap="100">
-                  <Text size="T300">{errorMessage}</Text>
-                  <Text size="T300">Your recording is still saved.</Text>
-                </Box>
-                <Box justifyContent="End" gap="200">
-                  <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(true)}>
-                    Discard
-                  </Button>
-                  <Button
-                    variant="Primary"
-                    onClick={() => {
-                      void (async () => {
-                        const sent = await beginRetry();
-                        if (sent) {
-                          onClose();
+              <Dialog variant="Surface">
+                <Box
+                  direction="Column"
+                  gap="300"
+                  style={{ padding: config.space.S400, maxWidth: 360 }}
+                >
+                  <Text size="H5">Voice send failed</Text>
+                  <Box direction="Column" gap="100">
+                    <Text size="T300">{errorMessage}</Text>
+                    <Text size="T300">Your recording is still saved.</Text>
+                  </Box>
+                  <Box justifyContent="End" gap="200">
+                    <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(true)}>
+                      Discard
+                    </Button>
+                    <Button
+                      variant="Primary"
+                      onClick={() => {
+                        if (onRetryRequest) {
+                          onRetryRequest();
+                          return;
                         }
-                      })();
-                    }}
-                  >
-                    Retry
-                  </Button>
+                        void (async () => {
+                          const sent = await beginRetry();
+                          if (sent) {
+                            onClose();
+                          }
+                        })();
+                      }}
+                    >
+                      Retry
+                    </Button>
+                  </Box>
                 </Box>
-              </Box>
-            </Dialog>
+              </Dialog>
             </div>
           </FocusTrap>
         </OverlayCenter>
@@ -280,15 +304,13 @@ export function VoiceRecorderComposer({
               waveform={hasPendingSend ? pendingWaveform : waveform}
               canPause={canPause}
               hasPendingSend={hasPendingSend}
-              sendDisabled={sendDisabled}
               onDiscard={discardAndClose}
               onPause={pause}
               onResume={resume}
-              onSend={sendAndClose}
             />
           </Box>
         </div>
       )}
     </>
   );
-}
+});

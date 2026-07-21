@@ -35,6 +35,7 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
+  onUploadSent?: (file: TUploadContent) => void;
 };
 
 export type RoomInputSendContext = {
@@ -54,6 +55,9 @@ export type StartRoomInputSendSessionOptions = {
   };
   context?: RoomInputSendContext;
   completeWithinCall?: boolean;
+  composerFallback?: Descendant[];
+  composerAlreadyReset?: boolean;
+  onUploadSent?: (file: TUploadContent) => void;
 };
 
 export type RoomInputReplyDraftContext = Pick<RoomInputSendContext, 'roomId' | 'replyDraft'>;
@@ -80,6 +84,7 @@ type UseRoomInputSendSessionControllerOptions = {
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[], ownerRoomId?: string) => void;
+  restoreComposerFallbackForRoom?: (roomId: string, fragment: Descendant[]) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
@@ -91,7 +96,7 @@ const getTextContentStrings = (content: IContent | undefined): string[] => {
   );
 };
 
-const hasFailedPasteMarkerInText = (
+export const hasFailedPasteMarkerInText = (
   textContent: IContent | undefined,
   fileItems: TUploadItem[]
 ): boolean => {
@@ -136,6 +141,7 @@ export const useRoomInputSendSessionController = ({
   uploadsRef,
   buildUploadMessageContent,
   removeUploadsFromBoard,
+  restoreComposerFallbackForRoom,
   onRoomMessageSent,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
@@ -232,6 +238,7 @@ export const useRoomInputSendSessionController = ({
       if (session.mode === 'auto-thread-upload-root' && isRoot) {
         session.rootEventId = response.event_id;
       }
+      session.onUploadSent?.(file);
       clearReplyDraftForSession(session);
       removeUploadsFromBoard(file, session.roomId);
       if (sentEventIdToNotify) {
@@ -259,9 +266,11 @@ export const useRoomInputSendSessionController = ({
       session.composerFallback = undefined;
       if (fragment && (mountedRef?.current ?? true)) {
         restoreEditorContent(editor, fragment);
+      } else if (fragment) {
+        restoreComposerFallbackForRoom?.(session.roomId, fragment);
       }
     },
-    [editor, mountedRef]
+    [editor, mountedRef, restoreComposerFallbackForRoom]
   );
 
   const clearSendSession = useCallback(() => {
@@ -353,6 +362,9 @@ export const useRoomInputSendSessionController = ({
       batch,
       context,
       completeWithinCall = false,
+      composerFallback,
+      composerAlreadyReset = false,
+      onUploadSent,
     }: StartRoomInputSendSessionOptions = {}) => {
       const existingSession = sendSessionRef.current;
       if (existingSession) {
@@ -406,6 +418,7 @@ export const useRoomInputSendSessionController = ({
         signalBridgedRoom,
         failFast: completeWithinCall,
         uploads: batch?.uploads,
+        onUploadSent,
         ...createRoomInputSendSessionState({
           files: sendFiles,
           hasText: Boolean(textContent),
@@ -419,15 +432,22 @@ export const useRoomInputSendSessionController = ({
         // session has snapshotted the text instead of when the text event goes out. Keep a
         // clone of the composer content so a failed caption can be restored (slate mutates
         // editor.children in place).
-        sendSessionRef.current.composerFallback = structuredClone(editor.children);
-        resetEditor(editor);
-        resetEditorHistory(editor);
-        sendTypingStatus(false);
+        sendSessionRef.current.composerFallback =
+          composerFallback ?? structuredClone(editor.children);
+        if (!composerAlreadyReset) {
+          resetEditor(editor);
+          resetEditorHistory(editor);
+          sendTypingStatus(false);
+        }
       }
       try {
         await processSendSession();
       } catch (error) {
         if (completeWithinCall) {
+          const failedSession = sendSessionRef.current;
+          if (failedSession?.textPending) {
+            restoreComposerFallback(failedSession);
+          }
           clearSendSession();
         }
         throw error;
@@ -451,6 +471,7 @@ export const useRoomInputSendSessionController = ({
       setSendSessionFiles,
       mountedRef,
       processSendSession,
+      restoreComposerFallback,
       clearSendSession,
     ]
   );

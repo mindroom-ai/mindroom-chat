@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { createRef, useState } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { Room } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { VoiceRecorderComposer } from './VoiceRecorderDialog';
+import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
 import type { PendingVoiceSendContext } from '../../state/room/roomInputDrafts';
 
 const TEST_ROOM_ID = '!room:example.org';
@@ -248,15 +248,19 @@ describe('VoiceRecorderComposer', () => {
   it('shows retry-first upload failure controls and keeps the capsule mounted', async () => {
     setupSupportedRecorder();
     const onClose = vi.fn();
+    const onRetryRequest = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
       renderer = create(
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
             active: true,
             onClose,
+            onRetryRequest,
             onSendRecording,
             getSendContext: createTestSendContext,
           })
@@ -264,9 +268,8 @@ describe('VoiceRecorderComposer', () => {
       );
     });
 
-    const sendButton = renderer.root.findByProps({ 'aria-label': 'Send voice recording' });
     await act(async () => {
-      await sendButton.props.onClick();
+      await recorderRef.current?.send();
     });
 
     const rendered = JSON.stringify(renderer.toJSON());
@@ -276,9 +279,18 @@ describe('VoiceRecorderComposer', () => {
     expect(rendered).toContain('Retry');
     expect(rendered).toContain('Discard');
     expect(
-      renderer.root.findByProps({ 'aria-label': 'Retry sending voice recording' })
-    ).toBeTruthy();
+      renderer.root.findAllByProps({ 'aria-label': 'Retry sending voice recording' })
+    ).toHaveLength(0);
     expect(onClose).not.toHaveBeenCalled();
+
+    const retryButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.props.children === 'Retry');
+    await act(async () => {
+      retryButton?.props.onClick();
+    });
+    expect(onRetryRequest).toHaveBeenCalledOnce();
+    expect(onSendRecording).toHaveBeenCalledOnce();
 
     renderer.unmount();
   });
@@ -287,12 +299,14 @@ describe('VoiceRecorderComposer', () => {
     setupSupportedRecorder();
     const onClose = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
       renderer = create(
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
             active: true,
             onClose,
             onSendRecording,
@@ -303,13 +317,11 @@ describe('VoiceRecorderComposer', () => {
     });
 
     await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Send voice recording' }).props.onClick();
+      await recorderRef.current?.send();
     });
 
     const findRetryDialogDiscard = () =>
-      renderer.root
-        .findAllByType('button')
-        .find((button) => button.props.children === 'Discard');
+      renderer.root.findAllByType('button').find((button) => button.props.children === 'Discard');
     await act(async () => {
       findRetryDialogDiscard()?.props.onClick();
     });
@@ -355,12 +367,14 @@ describe('VoiceRecorderComposer', () => {
     setupSupportedRecorder();
     const onClose = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
       renderer = create(
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
             active: true,
             onClose,
             onSendRecording,
@@ -371,7 +385,7 @@ describe('VoiceRecorderComposer', () => {
     });
 
     await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Send voice recording' }).props.onClick();
+      await recorderRef.current?.send();
     });
 
     // Failure overlay is open and FocusTrap captured its predicate.
@@ -410,12 +424,14 @@ describe('VoiceRecorderComposer', () => {
     // onDeactivate → Cancel from confirmation → overlay must re-show.
     setupSupportedRecorder();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
       renderer = create(
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
             active: true,
             onClose: vi.fn(),
             onSendRecording,
@@ -426,7 +442,7 @@ describe('VoiceRecorderComposer', () => {
     });
 
     await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Send voice recording' }).props.onClick();
+      await recorderRef.current?.send();
     });
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice send failed');
 
@@ -466,12 +482,14 @@ describe('VoiceRecorderComposer', () => {
       .fn()
       .mockRejectedValueOnce(new Error(message))
       .mockRejectedValueOnce(new Error(message));
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
     await act(async () => {
       renderer = create(
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
             active: true,
             onClose: vi.fn(),
             onSendRecording,
@@ -482,7 +500,7 @@ describe('VoiceRecorderComposer', () => {
     });
 
     await act(async () => {
-      await renderer.root.findByProps({ 'aria-label': 'Send voice recording' }).props.onClick();
+      await recorderRef.current?.send();
     });
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice send failed');
 
@@ -495,11 +513,9 @@ describe('VoiceRecorderComposer', () => {
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Voice send failed');
 
-    // User clicks Retry on the capsule (sendAndClose → beginRetry).
+    // User clicks primary composer Send again.
     await act(async () => {
-      await renderer.root
-        .findByProps({ 'aria-label': 'Retry sending voice recording' })
-        .props.onClick();
+      await recorderRef.current?.send();
     });
 
     // Same-message failure must re-surface the overlay.
