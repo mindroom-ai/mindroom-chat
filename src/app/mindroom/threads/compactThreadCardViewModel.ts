@@ -3,10 +3,9 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { getThreadHeaderScheduledDisplayText } from './useThreadHeaderInfo';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
-import { formatScheduledTime } from './compactThreadCardUtils';
+import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
 import type {
   CompactThreadAttentionState,
@@ -153,19 +152,16 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     lastSenderId,
     currentUserId,
   });
-  const scheduledTaskLabel =
-    status.scheduledTaskCount > 0
-      ? `${status.scheduledTaskCount} pending scheduled ${
-          status.scheduledTaskCount === 1 ? 'task' : 'tasks'
-        }${
-          status.nextScheduledTs === undefined
-            ? ''
-            : `, ${formatScheduledTime(status.nextScheduledTs)}`
-        }`
-      : undefined;
-  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
+  const scheduledDisplayText = getThreadScheduledDisplayText(
     status.scheduledTaskCount,
-    status.nextScheduledTs
+    status.nextScheduledTs,
+    status.cronDescription
+  );
+  const scheduledTaskLabel = getThreadScheduledLabel(
+    status.scheduledTaskCount,
+    status.nextScheduledTs,
+    status.cronDescription,
+    scheduledDisplayText
   );
 
   return {
