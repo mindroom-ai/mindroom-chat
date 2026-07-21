@@ -6,6 +6,7 @@ import { useThreadScheduledStatus } from './useThreadScheduledStatus';
 export type ThreadHeaderInfo = {
   scheduledTaskCount: number;
   nextScheduledTs?: number;
+  cronDescription?: string;
   scheduledDisplayText?: string;
 };
 
@@ -33,6 +34,7 @@ export const useThreadHeaderInfo = (room: Room, threadId: string | undefined): T
   return {
     scheduledTaskCount,
     nextScheduledTs,
+    cronDescription: scheduledStatus.cronDescription,
     scheduledDisplayText,
   };
 };

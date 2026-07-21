@@ -419,6 +419,24 @@ describe('ThreadContextBanner rendering', () => {
     expect(renderer.root.findByProps({ 'aria-label': '2 scheduled tasks' })).toBeTruthy();
   });
 
+  it('renders the backend cron description when it is the only scheduled task detail', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 1,
+      nextScheduledTs: undefined,
+      cronDescription: 'At 09:00',
+      scheduledDisplayText: 'At 09:00',
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('At 09:00');
+    expect(tree).not.toContain('1 scheduled task');
+    expect(
+      renderer.root.findByProps({ 'aria-label': '1 pending scheduled task, At 09:00' })
+    ).toBeTruthy();
+  });
+
   it('renders summary and scheduled countdown together when both exist', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
       scheduledTaskCount: 1,

@@ -277,6 +277,7 @@ describe('useThreadHeaderInfo', () => {
     expect(getSnapshot()).toMatchObject({
       scheduledTaskCount: 1,
       nextScheduledTs: undefined,
+      cronDescription: 'At 09:00',
       scheduledDisplayText: 'At 09:00',
     });
 
