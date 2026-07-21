@@ -2,6 +2,7 @@ import { MatrixEvent, MatrixEventEvent, Room, type MatrixClient } from 'matrix-j
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
+import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ROOM_ID = '!cinny-126-sdk-contract:example.org';
@@ -181,6 +182,11 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(placeholder.getContent().body).toBe('Final answer');
     expect(threadUpdateBodies).toEqual(['First draft', 'Final answer']);
     expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(replacementListenerCount);
+    expect(
+      room.relations
+        .getChildEventsForEvent('$placeholder', 'm.replace', 'm.room.message')
+        ?.listenerCount(RelationsEvent.Add)
+    ).toBe(0);
   });
 
   it('applies the first edit that arrives while initial pagination has reset the timeline', async () => {
@@ -306,6 +312,152 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(freshPlaceholder.getContent().body).toBe('Final after remap');
     expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
     expect(freshPlaceholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+    expect(
+      room.relations
+        .getChildEventsForEvent(placeholder.getId()!, 'm.replace', 'm.room.message')
+        ?.listenerCount(RelationsEvent.Add)
+    ).toBe(0);
+  });
+
+  it('commits a deferred encrypted edit to the fresh post-pagination target', async () => {
+    const releasePagination = deferred<void>();
+    const placeholder = makeEvent(
+      '$encrypted-remapped-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const freshPlaceholder = makeEvent(
+      placeholder.getId()!,
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    setThreadSummary(root, placeholder);
+    const paginateEventTimeline = vi.fn<MatrixClient['paginateEventTimeline']>(async (timeline) => {
+      await releasePagination.promise;
+      timeline
+        .getTimelineSet()
+        .addEventsToTimeline([freshPlaceholder], true, false, timeline, null);
+      return true;
+    });
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline,
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [placeholder], false);
+    const edit = makeEvent(
+      '$deferred-encrypted-edit',
+      {
+        body: '* Final after decryption',
+        'm.new_content': { body: 'Final after decryption', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+    let decrypting = true;
+    vi.spyOn(edit, 'isBeingDecrypted').mockImplementation(() => decrypting);
+    vi.spyOn(edit, 'shouldAttemptDecryption').mockReturnValue(false);
+    const threadUpdateBodies: unknown[] = [];
+    thread.on(ThreadEvent.Update, () => {
+      threadUpdateBodies.push(freshPlaceholder.getContent().body);
+    });
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+
+    const replacements = room.relations.getChildEventsForEvent(
+      placeholder.getId()!,
+      'm.replace',
+      'm.room.message'
+    );
+    expect(replacements).toBeDefined();
+    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(placeholder.replacingEvent()).toBeNull();
+
+    releasePagination.resolve();
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(true);
+    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+    expect(freshPlaceholder.replacingEvent()).toBeNull();
+    const updatesBeforeDecryption = threadUpdateBodies.length;
+
+    decrypting = false;
+    edit.emit(MatrixEventEvent.Decrypted, edit);
+    await flushAsyncWork(24);
+
+    expect(placeholder.replacingEvent()).toBeNull();
+    expect(freshPlaceholder.replacingEvent()).toBe(edit);
+    expect(freshPlaceholder.getContent().body).toBe('Final after decryption');
+    expect(threadUpdateBodies).toHaveLength(updatesBeforeDecryption + 1);
+    expect(threadUpdateBodies.at(-1)).toBe('Final after decryption');
+    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+  });
+
+  it('does not retain a replacement observer after a pre-init thread is deleted', async () => {
+    const rootFetch = new Promise<Record<string, unknown>>(() => undefined);
+    const client = makeClient({
+      fetchRoomEvent: vi.fn(() => rootFetch),
+      paginateEventTimeline: vi.fn(),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+    const placeholder = makeEvent(
+      '$deleted-thread-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    await room.addLiveEvents([placeholder], { addToState: false, fromCache: false });
+    const edit = makeEvent(
+      '$deleted-thread-edit',
+      {
+        body: '* Final after deletion',
+        'm.new_content': { body: 'Final after deletion', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+    let decrypting = true;
+    vi.spyOn(edit, 'isBeingDecrypted').mockImplementation(() => decrypting);
+    vi.spyOn(edit, 'shouldAttemptDecryption').mockReturnValue(false);
+    const threadUpdates = vi.fn();
+    thread.on(ThreadEvent.Update, threadUpdates);
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+    const replacements = room.relations.getChildEventsForEvent(
+      placeholder.getId()!,
+      'm.replace',
+      'm.room.message'
+    );
+    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    const updatesBeforeDeletion = threadUpdates.mock.calls.length;
+
+    thread.emit(ThreadEvent.Delete, thread);
+    decrypting = false;
+    edit.emit(MatrixEventEvent.Decrypted, edit);
+    await flushAsyncWork(24);
+
+    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(threadUpdates).toHaveBeenCalledTimes(updatesBeforeDeletion);
   });
 
   it('retries initial pagination after the first request rejects', async () => {

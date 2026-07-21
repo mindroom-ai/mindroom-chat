@@ -1,5 +1,5 @@
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
-index ba649eb..00075ab 100644
+index ba649eb..09a1a07 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 @@ -32,13 +32,13 @@ export declare class RelationsContainer {
@@ -15,11 +15,11 @@ index ba649eb..00075ab 100644
       * @param timelineSet - The event timeline set within which to search for the related event if any.
       */
 -    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet): void;
-+    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet, targetEvent?: MatrixEvent): void;
++    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet, targetEvent?: MatrixEvent): Promise<Relations | undefined>;
  }
  //# sourceMappingURL=relations-container.d.ts.map
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..6449c45 100644
+index 8ccc053..3aa00b0 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
 @@ -65,12 +65,14 @@ export class RelationsContainer {
@@ -40,34 +40,79 @@ index 8ccc053..6449c45 100644
 -
 +
    /**
-@@ -79,7 +81,7 @@ export class RelationsContainer {
+@@ -79,27 +81,12 @@ export class RelationsContainer {
     * @param event - The new child event to be aggregated.
     * @param timelineSet - The event timeline set within which to search for the related event if any.
     */
 -  aggregateChildEvent(event, timelineSet) {
 +  aggregateChildEvent(event, timelineSet, targetEvent) {
      if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
-       return;
+-      return;
++      return Promise.resolve(undefined);
      }
-@@ -92,7 +94,7 @@ export class RelationsContainer {
-         event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
-         return;
-       }
+     var relation = event.getRelation();
+-    if (!relation) return;
+-    var onEventDecrypted = () => {
+-      if (event.isDecryptionFailure()) {
+-        // This could for example happen if the encryption keys are not yet available.
+-        // The event may still be decrypted later. Register the listener again.
+-        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
+-        return;
+-      }
 -      this.aggregateChildEvent(event, timelineSet);
-+      this.aggregateChildEvent(event, timelineSet, targetEvent);
-     };
+-    };
 -
-+
-     // If the event is currently encrypted, wait until it has been decrypted.
-@@ -119,7 +121,7 @@ export class RelationsContainer {
+-    // If the event is currently encrypted, wait until it has been decrypted.
+-    if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
+-      event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
+-      return;
+-    }
++    if (!relation) return Promise.resolve(undefined);
+     var relatesToEventId = relation.event_id,
+       relationType = relation.rel_type;
+     var eventType = event.getType();
+@@ -114,17 +101,38 @@ export class RelationsContainer {
+       relationsForEvent.set(relationType, relationsWithRelType);
+     }
+     var relationsWithEventType = relationsWithRelType.get(eventType);
++    var targetEventUpdate = Promise.resolve();
+     if (!relationsWithEventType) {
+       var _this$room, _ref, _timelineSet$findEven;
        relationsWithEventType = new Relations(relationType, eventType, this.client);
        relationsWithRelType.set(eventType, relationsWithEventType);
        var _room = (_this$room = this.room) !== null && _this$room !== void 0 ? _this$room : timelineSet === null || timelineSet === void 0 ? void 0 : timelineSet.room;
 -      var relatesToEvent = (_ref = (_timelineSet$findEven = timelineSet === null || timelineSet === void 0 ? void 0 : timelineSet.findEventById(relatesToEventId)) !== null && _timelineSet$findEven !== void 0 ? _timelineSet$findEven : _room === null || _room === void 0 ? void 0 : _room.findEventById(relatesToEventId)) !== null && _ref !== void 0 ? _ref : _room === null || _room === void 0 ? void 0 : _room.getPendingEvent(relatesToEventId);
-+      var relatesToEvent = targetEvent !== null && targetEvent !== void 0 ? targetEvent : (_ref = (_timelineSet$findEven = timelineSet === null || timelineSet === void 0 ? void 0 : timelineSet.findEventById(relatesToEventId)) !== null && _timelineSet$findEven !== void 0 ? _timelineSet$findEven : _room === null || _room === void 0 ? void 0 : _room.findEventById(relatesToEventId)) !== null && _ref !== void 0 ? _ref : _room === null || _room === void 0 ? void 0 : _room.getPendingEvent(relatesToEventId);
++      var relatesToEvent = (_ref = (_timelineSet$findEven = timelineSet === null || timelineSet === void 0 ? void 0 : timelineSet.findEventById(relatesToEventId)) !== null && _timelineSet$findEven !== void 0 ? _timelineSet$findEven : _room === null || _room === void 0 ? void 0 : _room.findEventById(relatesToEventId)) !== null && _ref !== void 0 ? _ref : (_ref = _room === null || _room === void 0 ? void 0 : _room.getPendingEvent(relatesToEventId)) !== null && _ref !== void 0 ? _ref : targetEvent;
        if (relatesToEvent) {
-         relationsWithEventType.setTargetEvent(relatesToEvent);
+-        relationsWithEventType.setTargetEvent(relatesToEvent);
++        targetEventUpdate = relationsWithEventType.setTargetEvent(relatesToEvent);
        }
+     }
+-    relationsWithEventType.addEvent(event);
++
++    // If the event is currently encrypted, wait until it has been decrypted.
++    if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
++      return new Promise(resolve => {
++        var onEventDecrypted = () => {
++          if (event.isDecryptionFailure()) {
++            // This could for example happen if the encryption keys are not yet available.
++            // The event may still be decrypted later. Register the listener again.
++            event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++            return;
++          }
++
++          // The relation collection already exists and may have been rebound to a
++          // fresher target while decryption was pending. Do not retain a timeline or
++          // fallback target across that state transition.
++          void this.aggregateChildEvent(event).then(resolve);
++        };
++        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++      });
++    }
++    return targetEventUpdate.then(() => relationsWithEventType.addEvent(event)).then(() => relationsWithEventType);
+   }
+ }
+ //# sourceMappingURL=relations-container.js.map
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
 index 6be66bb..6027092 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
@@ -101,27 +146,31 @@ index 6be66bb..6027092 100644
      })();
    }
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..6df81ba 100644
+index b02b81f..1729ed6 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
-@@ -30,6 +30,7 @@ import { logger } from "../logger.js";
- import { ReadReceipt } from "./read-receipt.js";
- import { ReceiptType } from "../@types/read_receipts.js";
- import { Feature, ServerSupport } from "../feature.js";
-+import { RelationsEvent } from "./relations.js";
- export var ThreadEvent = /*#__PURE__*/function (ThreadEvent) {
-   ThreadEvent["New"] = "Thread.new";
-   ThreadEvent["Update"] = "Thread.update";
-@@ -114,6 +115,8 @@ export class Thread extends ReadReceipt {
+@@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
       */
      _defineProperty(this, "initialEventsFetched", !Thread.hasServerSideSupport);
      _defineProperty(this, "initalEventFetchProm", void 0);
 +    _defineProperty(this, "preInitEventTargets", new Map());
-+    _defineProperty(this, "preInitReplacementRelations", new Map());
++    _defineProperty(this, "preInitObserverState", {
++      active: true
++    });
      /**
       * An array of events to add to the timeline once the thread has been initialised
       * with server suppport.
-@@ -321,6 +324,10 @@ export class Thread extends ReadReceipt {
+@@ -204,6 +208,9 @@ export class Thread extends ReadReceipt {
+     }, this.client, this);
+     this.reEmitter = new TypedReEmitter(this);
+     this.reEmitter.reEmit(this.timelineSet, [RoomEvent.Timeline, RoomEvent.TimelineReset]);
++    this.once(ThreadEvent.Delete, () => {
++      this.preInitObserverState.active = false;
++    });
+     this.room.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
+     this.room.on(RoomEvent.Redaction, this.onRedaction);
+     this.room.on(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
+@@ -321,6 +328,10 @@ export class Thread extends ReadReceipt {
      // Modify this event to point at our room's state, and mark its thread
      // as this.
      this.setEventMetadata(event);
@@ -133,7 +182,7 @@ index b02b81f..6df81ba 100644
 +
      // Decide whether this event is going to be added at the end of the timeline.
      var lastReply = this.lastReply();
-@@ -387,12 +394,20 @@ export class Thread extends ReadReceipt {
+@@ -387,12 +398,27 @@ export class Thread extends ReadReceipt {
         */
        (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
 -
@@ -150,17 +199,24 @@ index b02b81f..6df81ba 100644
 +        var relation = event.getRelation();
 +        var targetEventId = relation === null || relation === void 0 ? void 0 : relation.event_id;
 +        var targetEvent = event.isRelation(RelationType.Replace) && targetEventId ? this.findPreInitTargetEvent(targetEventId) : undefined;
-+        this.timelineSet.relations.aggregateChildEvent(event, this.timelineSet, targetEvent);
++        var aggregation = this.timelineSet.relations.aggregateChildEvent(event, this.timelineSet, targetEvent);
 +        if (event.isRelation(RelationType.Replace) && targetEventId) {
-+          var aggregatedReplacements = this.timelineSet.relations.getChildEventsForEvent(targetEventId, RelationType.Replace, event.getType());
-+          if (aggregatedReplacements) {
-+            this.observePreInitReplacements(aggregatedReplacements);
-+          }
++          var weakThread = new WeakRef(this);
++          var observerState = this.preInitObserverState;
++          void aggregation.then(() => {
++            var _effectiveTarget$rep;
++            var thread = weakThread.deref();
++            if (!thread || !observerState.active) return;
++            var effectiveTarget = thread.findPreInitTargetEvent(targetEventId);
++            if (((_effectiveTarget$rep = effectiveTarget === null || effectiveTarget === void 0 ? void 0 : effectiveTarget.replacingEvent()) === null || _effectiveTarget$rep === void 0 ? void 0 : _effectiveTarget$rep.getId()) === event.getId()) {
++              thread.emit(ThreadEvent.Update, thread);
++            }
++          });
 +        }
        }
      } else {
        var _this$client$canSuppo2;
-@@ -422,6 +437,30 @@ export class Thread extends ReadReceipt {
+@@ -422,6 +448,10 @@ export class Thread extends ReadReceipt {
        // Aggregation is handled by EventTimelineSet when inserting/adding.
      }
    }
@@ -168,30 +224,10 @@ index b02b81f..6df81ba 100644
 +    var _this$timelineSet$fin, _this$room$findEventB;
 +    return (_this$timelineSet$fin = this.timelineSet.findEventById(eventId)) !== null && _this$timelineSet$fin !== void 0 ? _this$timelineSet$fin : (_this$room$findEventB = this.room.findEventById(eventId)) !== null && _this$room$findEventB !== void 0 ? _this$room$findEventB : this.preInitEventTargets.get(eventId);
 +  }
-+  observePreInitReplacements(relations) {
-+    if (this.preInitReplacementRelations.has(relations)) return;
-+    var onAdded = addedEvent => {
-+      var _addedEvent$getRelati;
-+      var targetEventId = (_addedEvent$getRelati = addedEvent.getRelation()) === null || _addedEvent$getRelati === void 0 ? void 0 : _addedEvent$getRelati.event_id;
-+      if (!targetEventId) return;
-+      var effectiveTarget = this.findPreInitTargetEvent(targetEventId);
-+      if ((effectiveTarget === null || effectiveTarget === void 0 ? void 0 : effectiveTarget.replacingEvent()) === addedEvent) {
-+        this.emit(ThreadEvent.Update, this);
-+      }
-+    };
-+    relations.on(RelationsEvent.Add, onAdded);
-+    this.preInitReplacementRelations.set(relations, onAdded);
-+  }
-+  clearPreInitReplacementObservers() {
-+    for (var [relations, onAdded] of this.preInitReplacementRelations) {
-+      relations.off(RelationsEvent.Add, onAdded);
-+    }
-+    this.preInitReplacementRelations.clear();
-+  }
    processEvent(event) {
      var _this3 = this;
      return _asyncToGenerator(function* () {
-@@ -556,7 +595,14 @@ export class Thread extends ReadReceipt {
+@@ -556,7 +586,14 @@ export class Thread extends ReadReceipt {
        yield _this7.processRootEventPromise;
        if (!_this7.initialEventsFetched) {
          if (_this7.initalEventFetchProm) {
@@ -207,7 +243,7 @@ index b02b81f..6df81ba 100644
          } else {
            // fetch initial events to allow proper pagination
            try {
-@@ -585,16 +631,20 @@ export class Thread extends ReadReceipt {
+@@ -585,16 +622,19 @@ export class Thread extends ReadReceipt {
              // must remain false while the async fetch happens, so we don't try to add events before
              // the pagination has finished. The important thing is that we're not await-ing anything
              // else between setting this and adding events, so no races.
@@ -218,7 +254,6 @@ index b02b81f..6df81ba 100644
              }
              _this7.replayEvents = null;
 +            _this7.preInitEventTargets.clear();
-+            _this7.clearPreInitReplacementObservers();
              // just to make sure that, if we've created a timeline window for this thread before the thread itself
              // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
              _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
@@ -229,7 +264,7 @@ index b02b81f..6df81ba 100644
            }
          }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
-index 8394bc6..b5799c8 100644
+index 8394bc6..0489609 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
 @@ -72,15 +72,17 @@ export class RelationsContainer {
@@ -255,7 +290,7 @@ index 8394bc6..b5799c8 100644
 -
 +
      /**
-@@ -89,7 +91,11 @@ export class RelationsContainer {
+@@ -89,30 +91,17 @@ export class RelationsContainer {
       * @param event - The new child event to be aggregated.
       * @param timelineSet - The event timeline set within which to search for the related event if any.
       */
@@ -264,30 +299,86 @@ index 8394bc6..b5799c8 100644
 +        event: MatrixEvent,
 +        timelineSet?: EventTimelineSet,
 +        targetEvent?: MatrixEvent,
-+    ): void {
++    ): Promise<Relations | undefined> {
          if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
-             return;
+-            return;
++            return Promise.resolve(undefined);
          }
-@@ -105,7 +111,7 @@ export class RelationsContainer {
-                 return;
-             }
 -
 +
+         const relation = event.getRelation();
+-        if (!relation) return;
+-
+-        const onEventDecrypted = (): void => {
+-            if (event.isDecryptionFailure()) {
+-                // This could for example happen if the encryption keys are not yet available.
+-                // The event may still be decrypted later. Register the listener again.
+-                event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
+-                return;
+-            }
+-
 -            this.aggregateChildEvent(event, timelineSet);
-+            this.aggregateChildEvent(event, timelineSet, targetEvent);
-         };
+-        };
+-
+-        // If the event is currently encrypted, wait until it has been decrypted.
+-        if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
+-            event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
+-            return;
+-        }
++        if (!relation) return Promise.resolve(undefined);
 -
 +
-         // If the event is currently encrypted, wait until it has been decrypted.
-@@ -136,6 +142,7 @@ export class RelationsContainer {
+         const { event_id: relatesToEventId, rel_type: relationType } = relation;
+         const eventType = event.getType();
+@@ -130,6 +119,7 @@ export class RelationsContainer {
+         }
 -
 +
-             const room = this.room ?? timelineSet?.room;
+         let relationsWithEventType = relationsWithRelType.get(eventType);
++        let targetEventUpdate = Promise.resolve();
+         if (!relationsWithEventType) {
+             relationsWithEventType = new Relations(relationType!, eventType, this.client);
+             relationsWithRelType.set(eventType, relationsWithEventType);
+@@ -138,12 +128,35 @@ export class RelationsContainer {
              const relatesToEvent =
-+                targetEvent ??
                  timelineSet?.findEventById(relatesToEventId!) ??
                  room?.findEventById(relatesToEventId!) ??
-                 room?.getPendingEvent(relatesToEventId!);
+-                room?.getPendingEvent(relatesToEventId!);
++                room?.getPendingEvent(relatesToEventId!) ??
++                targetEvent;
+             if (relatesToEvent) {
+-                relationsWithEventType.setTargetEvent(relatesToEvent);
++                targetEventUpdate = relationsWithEventType.setTargetEvent(relatesToEvent);
+             }
+         }
+-
++
+-        relationsWithEventType.addEvent(event);
++        // If the event is currently encrypted, wait until it has been decrypted.
++        if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
++            return new Promise((resolve) => {
++                const onEventDecrypted = (): void => {
++                    if (event.isDecryptionFailure()) {
++                        // This could for example happen if the encryption keys are not yet available.
++                        // The event may still be decrypted later. Register the listener again.
++                        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++                        return;
++                    }
++
++                    // The relation collection already exists and may have been rebound to a
++                    // fresher target while decryption was pending. Do not retain a timeline or
++                    // fallback target across that state transition.
++                    void this.aggregateChildEvent(event).then(resolve);
++                };
++                event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
++            });
++        }
++
++        return targetEventUpdate
++            .then(() => relationsWithEventType.addEvent(event))
++            .then(() => relationsWithEventType);
+     }
+ }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
 index 77ba3b3..ce2116b 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
@@ -324,29 +415,33 @@ index 77ba3b3..ce2116b 100644
          this.maybeEmitCreated();
      }
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
-index 871875d..a211ef2 100644
+index 871875d..6fa9955 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
 +++ b/node_modules/matrix-js-sdk/src/models/thread.ts
-@@ -27,6 +27,7 @@ import { logger } from "../logger.ts";
- import { ReadReceipt } from "./read-receipt.ts";
- import { type CachedReceiptStructure, type Receipt, ReceiptType } from "../@types/read_receipts.ts";
- import { Feature, ServerSupport } from "../feature.ts";
-+import { type Relations, RelationsEvent } from "./relations.ts";
--
-+
- export enum ThreadEvent {
-     New = "Thread.new",
-@@ -132,6 +133,8 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -132,6 +132,8 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
       */
      public initialEventsFetched = !Thread.hasServerSideSupport;
      private initalEventFetchProm: Promise<boolean> | undefined;
 +    private preInitEventTargets = new Map<string, MatrixEvent>();
-+    private preInitReplacementRelations = new Map<Relations, (event: MatrixEvent) => void>();
++    private preInitObserverState = { active: true };
 -
 +
      /**
       * An array of events to add to the timeline once the thread has been initialised
-@@ -364,6 +367,15 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -171,6 +173,10 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+-
++
+         this.reEmitter.reEmit(this.timelineSet, [RoomEvent.Timeline, RoomEvent.TimelineReset]);
+-
++
++        this.once(ThreadEvent.Delete, () => {
++            this.preInitObserverState.active = false;
++        });
++
+         this.room.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
+         this.room.on(RoomEvent.Redaction, this.onRedaction);
+         this.room.on(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
+@@ -364,6 +370,15 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          // Modify this event to point at our room's state, and mark its thread
          // as this.
          this.setEventMetadata(event);
@@ -363,7 +458,7 @@ index 871875d..a211ef2 100644
 +
          // Decide whether this event is going to be added at the end of the timeline.
          const lastReply = this.lastReply();
-@@ -438,11 +450,27 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -438,11 +453,33 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
               */
              this.replayEvents?.push(event);
 -
@@ -382,21 +477,27 @@ index 871875d..a211ef2 100644
 +                    event.isRelation(RelationType.Replace) && targetEventId
 +                        ? this.findPreInitTargetEvent(targetEventId)
 +                        : undefined;
-+                this.timelineSet.relations.aggregateChildEvent(event, this.timelineSet, targetEvent);
++                const aggregation = this.timelineSet.relations.aggregateChildEvent(
++                    event,
++                    this.timelineSet,
++                    targetEvent,
++                );
 +                if (event.isRelation(RelationType.Replace) && targetEventId) {
-+                    const aggregatedReplacements = this.timelineSet.relations.getChildEventsForEvent(
-+                        targetEventId,
-+                        RelationType.Replace,
-+                        event.getType(),
-+                    );
-+                    if (aggregatedReplacements) {
-+                        this.observePreInitReplacements(aggregatedReplacements);
-+                    }
++                    const weakThread = new WeakRef(this);
++                    const observerState = this.preInitObserverState;
++                    void aggregation.then(() => {
++                        const thread = weakThread.deref();
++                        if (!thread || !observerState.active) return;
++                        const effectiveTarget = thread.findPreInitTargetEvent(targetEventId);
++                        if (effectiveTarget?.replacingEvent()?.getId() === event.getId()) {
++                            thread.emit(ThreadEvent.Update, thread);
++                        }
++                    });
 +                }
              }
          } else {
              // Case 2: this is happening later, and we have a timeline. In
-@@ -474,6 +502,35 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -474,6 +511,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          }
      }
 -
@@ -409,31 +510,10 @@ index 871875d..a211ef2 100644
 +        );
 +    }
 +
-+    private observePreInitReplacements(relations: Relations): void {
-+        if (this.preInitReplacementRelations.has(relations)) return;
-+        const onAdded = (addedEvent: MatrixEvent): void => {
-+            const targetEventId = addedEvent.getRelation()?.event_id;
-+            if (!targetEventId) return;
-+            const effectiveTarget = this.findPreInitTargetEvent(targetEventId);
-+            if (effectiveTarget?.replacingEvent() === addedEvent) {
-+                this.emit(ThreadEvent.Update, this);
-+            }
-+        };
-+        relations.on(RelationsEvent.Add, onAdded);
-+        this.preInitReplacementRelations.set(relations, onAdded);
-+    }
-+
-+    private clearPreInitReplacementObservers(): void {
-+        for (const [relations, onAdded] of this.preInitReplacementRelations) {
-+            relations.off(RelationsEvent.Add, onAdded);
-+        }
-+        this.preInitReplacementRelations.clear();
-+    }
-+
      public async processEvent(event: MatrixEvent | null | undefined): Promise<void> {
          if (event) {
              this.setEventMetadata(event);
-@@ -608,7 +665,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -608,7 +653,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
 -
 +
          if (!this.initialEventsFetched) {
@@ -450,7 +530,7 @@ index 871875d..a211ef2 100644
              } else {
                  // fetch initial events to allow proper pagination
                  try {
-@@ -637,16 +701,24 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -637,16 +689,23 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
                      // must remain false while the async fetch happens, so we don't try to add events before
                      // the pagination has finished. The important thing is that we're not await-ing anything
                      // else between setting this and adding events, so no races.
@@ -465,7 +545,6 @@ index 871875d..a211ef2 100644
                      }
                      this.replayEvents = null;
 +                    this.preInitEventTargets.clear();
-+                    this.clearPreInitReplacementObservers();
                      // just to make sure that, if we've created a timeline window for this thread before the thread itself
                      // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
                      this.emit(RoomEvent.TimelineReset, this.room, this.timelineSet, true);
