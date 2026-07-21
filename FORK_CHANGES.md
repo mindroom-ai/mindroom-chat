@@ -10,41 +10,25 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: PR #185 remediation is in progress after live-head review found SDK ordering, replay privacy and fail-closed mapping, oracle strength, script typechecking, schema migration, formatting, and documentation blockers.
-- Inputs: `plan/FINAL-PLAN.md`, the incident report, and all three authoritative trace artifacts were read before the implementation, and the replay loader verifies each artifact SHA-256 before use.
-- Root-cause gate: the exact unpatched speed-1 replay processed all 23 events but left all 17 edits buffered before thread initialization, while releasing initialization immediately exposed the completed 1,466-code-point body.
-- Gate verdict: H1 SDK pre-initialization relation buffering is confirmed, and the same exact trace disproves a presentation-helper defect on the proven path, so no presentation helper was changed.
-- Red evidence: `/tmp/CINNY-126-evidence/red/exact-offline-speed-1.log`, `/tmp/CINNY-126-evidence/red/verdict.txt`, `/tmp/CINNY-126-evidence/red/artifact-sha256.txt`, and `/tmp/CINNY-126-evidence/red/git-head.txt`.
-- Round-2 invariant: every observable instance of a thread event must expose the newest valid known `m.replace` independent of initialization state, pagination timing, decryption timing, or Matrix-event object identity.
-- Owning boundary: matrix-js-sdk relation collections are keyed by target event ID, so `RelationsContainer` owns aggregation commit and `Relations.setTargetEvent` owns rebinding already-known replacements to the current visible object.
-- SDK fix: the matrix-js-sdk 41.7.0 patch creates the event-ID relation collection before deferred decryption, resolves the freshest visible target before a transient fallback object, returns a commit promise, and rebinds a relation collection whenever pagination installs a fresh target instance.
-- SDK signaling: a weak pre-initialization continuation emits `Thread.update` only after the effective replacement commit, holds no `Relations.add` or transient-event replacement listener, and is cancelled when the thread is deleted.
-- SDK failure handling: deferred commit and target-binding failures propagate through the aggregation promise, the thread logs and consumes its owned rejection, and a failed initial pagination clears `initalEventFetchProm` so later metadata work can retry without an escaped rejection.
-- SDK contracts: eight real-SDK tests cover the reset pagination window, distinct post-pagination object identity, a real `m.room.encrypted` to clear `m.room.message` transition after pagination, deletion cleanup, deferred rejection propagation and containment, stable listener counts, and retry after a forced initial-pagination rejection.
-- SDK review: independent re-review reran the pagination, real-encryption, deletion, and forced-rejection probes and reported no remaining actionable SDK finding.
-- Offline privacy: accepted effective-body, presentation, compact-card, global-Threads, and normalized-tag values are pinned as code-point lengths plus SHA-256 hashes, so no expected value passes through a production helper under test.
-- Offline oracle contract: source-level coverage rejects a same-length wrong hash and prevents the expected path from importing the production preview or tag-snapshot helpers or building an expected compact card through the actual view-model helper.
-- Offline privacy audit: the three reviewer-identified private reply and tag fragments are absent from committed replay source and green evidence logs.
-- Green gate: the final exact speed-1 replay is GREEN with 23 of 23 events processed, 17 replacement and thread-update signals before initialization, exact final compact and global previews, unread state, both overview tags, final-edit summary targeting, and final first-entry content.
-- Green evidence: `/tmp/CINNY-126-evidence/green/exact-offline-speed-1.log`, `/tmp/CINNY-126-evidence/green/verdict.txt`, `/tmp/CINNY-126-evidence/green/sdk-patch-sha256.txt`, and `/tmp/CINNY-126-evidence/green/git-head.txt`.
-- Retry evidence: `/tmp/CINNY-126-evidence/green/forced-init-failure.log` is GREEN with two pagination attempts and zero unhandled rejections.
-- Live replay safety: the sender no longer accepts a room ID or expected topic from the operator and instead creates a fresh invite-only room on `https://mindroom.chat` with joined-only history, a fixed test topic, and a per-invocation canary.
-- Live room guard: the sender joins the two invited test accounts, verifies that exactly the three distinct non-incident accounts are joined, verifies join rules, history, canary, topic, and tag-state permissions, and only then sends any trace event.
-- Live media guard: verified incident MXC and attachment identifiers remain forbidden, all replacements fail closed, and the script requires explicit test-account tokens plus safe replacement media.
-- Live execution: no test credentials were present in the worktree, so no production-homeserver room was created and the side-effect-free room-isolation contracts are the live-safety evidence for this round.
-- Flight recorder: sync accumulation is bounded during arrival at eight rooms and 32 retained event identities per room instead of only being truncated after a sync boundary.
-- Recorder priority: an edit-bearing or unresolved-encrypted room can displace an ordinary retained room, and a room's first priority event at its 32-identity limit likewise displaces one retained ordinary identity so post-decryption reclassification remains possible.
-- Recorder privacy and durability: persisted room records still contain only an eight-character room hash, counts, coarse route, and thread-route presence, overflow contains counts only, and each completed batch performs one immediate storage write.
-- Recorder compatibility: storage keys, schema version 2, the 32-event ring, and the 8 KB envelope remain unchanged, while strict validation now also accepts only internally consistent fixed-shape overflow records.
-- Recorder stress contract: more than both arrival bounds are emitted before any sync boundary, no pre-boundary write occurs, retained room counts stay bounded, late edit and encrypted events are promoted at both bounds, encrypted-to-edit reclassification succeeds, overflow counts remain useful, and the completed batch writes once.
-- Report cleanup: this Runbook is the sole CINNY-126 implementation report, and the duplicate `.claude/REPORT.md` is removed.
-- Clean-install validation: `npm ci` reapplies both package patches successfully.
-- Focused validation: all 130 SDK, replay-oracle, replay-safety, recorder, export, and startup tests pass, and `npm run typecheck` passes.
-- Static and build validation: full ESLint reports zero errors and the unchanged 17-warning baseline, `git diff --check` passes, and `npm run build` completes the production/PWA build plus Element Call background verification.
-- Full-suite validation: normal Vitest discovery passes 450 files and 3,376 tests with no CINNY-126 regression.
-- Full-suite environment note: only the same three unrelated Xcode Cloud shell-harness tests fail because that test replaces `PATH` with `/usr/bin:/bin`, while Bash in this Nix environment is `/run/current-system/sw/bin/bash`; neither the failing test nor its scripts is changed by CINNY-126.
-- Independent final review: the SDK, pinned replay oracle, live-room isolation, recorder bounds, priority promotion, and overflow schema were re-reviewed after remediation with no remaining actionable finding.
-- Publication: the existing ready-for-review GitHub PR #185 remains open on branch `cinny-126`; a follow-up commit, refreshed hosted checks, and available AI reviewers are required before handoff.
+- Status: PR #185 remediation is locally complete after live-head review found SDK ordering, replay privacy, fail-closed mapping, oracle strength, script typechecking, schema migration, formatting, and documentation blockers.
+- Reported symptom: a rapidly streamed agent reply could remain stuck on its placeholder in the room overview until the user opened the thread.
+- Root cause: matrix-js-sdk buffered replacement relations while the thread initialized, so overview surfaces did not observe the effective replacement or a thread update at the time the edit arrived.
+- SDK boundary: `RelationsContainer` now creates relation collections before deferred decryption, rebinds them to the freshest target object, and exposes completion to the thread without retaining replacement listeners.
+- Ordering remediation: relation insertion starts synchronously while target rebinding continues, preserving arrival order for equal-timestamp edits and immediate visibility for fire-and-forget reactions.
+- SDK coverage: real-SDK tests cover pre-initialization edits, equal-timestamp concurrent edits, immediate reactions, pagination object replacement, deferred encryption, deletion cleanup, failure propagation, listener stability, and pagination retry.
+- Offline gate: the exact trace requires all 17 ordered replacement signals and all 17 ordered thread-update identities before accepting the final replacement, shared previews, unread state, tags, summary target, and post-initialization body.
+- Private trace contract: the artifact directory is mandatory and its uncommitted manifest owns incident selectors, sender roles, artifact hashes, and expected fingerprints.
+- Oracle privacy: no incident identifier, account, default artifact path, artifact hash, or low-entropy tag fingerprint remains in committed replay source.
+- Live safety: the sender creates and validates a fresh invite-only test room, reads only trace topology, roles, status transitions, and cadence, and builds synthetic outbound content without cloning incident payloads.
+- Mapping safety: every direct relation, nested reply, and tag-state reference must map to a fresh-room event ID or live replay aborts.
+- Flight recorder compatibility: strict schema-v1 current and abnormal sessions normalize to schema v2 without losing valid pre-sync evidence, while schema-v1 records containing v2-only sync events remain rejected.
+- Type safety: the repository typecheck now includes all CINNY-126 replay scripts through `tsconfig.scripts.json`.
+- Current validation: clean install reapplies both package patches, script-aware typecheck passes, focused SDK/replay/recorder coverage passes 65 tests, the production/PWA build passes, all 452 Vitest files pass with 3,432 tests, ESLint and formatting pass, and `git diff --check` passes.
+- Exact replay acceptance: the private incident trace passes at real cadence with all 23 events processed, all 17 ordered replacement and thread-update signals observed before initialization, all shared surfaces on the final content, both tags visible, the summary targeting the final edit, and the first thread entry on the final body.
+- Live replay acceptance: the production homeserver accepted all 23 synthetic events at real cadence in a freshly validated invite-only room containing only three non-human test actors, and every disposable login session was logged out afterward.
+- Independent review: the final SDK/decryption review and replay privacy/safety review both approve with no remaining blocker.
+- Remaining gate: browser acceptance, hosted CI, and the available AI-review loop must finish before handoff.
+- Publication: the existing ready-for-review GitHub PR #185 remains open on branch `cinny-126` and will receive focused follow-up commits without amend or force-push.
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
