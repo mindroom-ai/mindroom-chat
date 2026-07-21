@@ -138,6 +138,29 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     });
     expect(replacedEventIds).toEqual(['$streaming-edit', '$final-edit']);
     expect(threadUpdateBodies).toEqual(['First draft', 'Final answer']);
+
+    const replacementListenerCount = placeholder.listenerCount(MatrixEventEvent.Replaced);
+    expect(replacementListenerCount).toBe(2);
+    const staleEdits = Array.from({ length: 25 }, (_, index) =>
+      makeEvent(
+        `$stale-edit-${index}`,
+        {
+          body: `* Stale draft ${index}`,
+          'm.new_content': { body: `Stale draft ${index}`, msgtype: 'm.text' },
+          'm.relates_to': { event_id: '$placeholder', rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        3
+      )
+    );
+
+    await room.addLiveEvents(staleEdits, { addToState: false, fromCache: false });
+    await flushAsyncWork();
+
+    expect(placeholder.replacingEvent()).toBe(finalEdit);
+    expect(placeholder.getContent().body).toBe('Final answer');
+    expect(threadUpdateBodies).toEqual(['First draft', 'Final answer']);
+    expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(replacementListenerCount);
   });
 
   it('retries initial pagination after the first request rejects', async () => {

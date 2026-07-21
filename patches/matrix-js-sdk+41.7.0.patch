@@ -1,8 +1,20 @@
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..21c6091 100644
+index b02b81f..c7bff2a 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
-@@ -390,7 +390,14 @@ export class Thread extends ReadReceipt {
+@@ -114,6 +114,7 @@ export class Thread extends ReadReceipt {
+      */
+     _defineProperty(this, "initialEventsFetched", !Thread.hasServerSideSupport);
+     _defineProperty(this, "initalEventFetchProm", void 0);
++    _defineProperty(this, "preInitReplacementTargets", new WeakSet());
+     /**
+      * An array of events to add to the timeline once the thread has been initialised
+      * with server suppport.
+@@ -387,10 +388,18 @@ export class Thread extends ReadReceipt {
+        */
+       (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
+-
++
 -      // For annotations (reactions), aggregate immediately (pre-init) to keep
 -      // reaction counts/summary visible while the thread is still initialising.
 +      // For annotations (reactions) and replacements (edits), aggregate immediately
@@ -12,15 +24,16 @@ index b02b81f..21c6091 100644
 +      if (event.isRelation(RelationType.Annotation) || event.isRelation(RelationType.Replace)) {
 +        var relation = event.getRelation();
 +        var targetEvent = event.isRelation(RelationType.Replace) && relation !== null && relation !== void 0 && relation.event_id ? this.timelineSet.findEventById(relation.event_id) : undefined;
-+        targetEvent === null || targetEvent === void 0 || targetEvent.once(MatrixEventEvent.Replaced, replacedEvent => {
-+          if (replacedEvent.replacingEvent() === event) {
-+            this.emit(ThreadEvent.Update, this);
-+          }
-+        });
++        if (targetEvent && !this.preInitReplacementTargets.has(targetEvent)) {
++          this.preInitReplacementTargets.add(targetEvent);
++          targetEvent.on(MatrixEventEvent.Replaced, () => {
++            if (!this.initialEventsFetched) this.emit(ThreadEvent.Update, this);
++          });
++        }
          var _this$timelineSet$rel;
          (_this$timelineSet$rel = this.timelineSet.relations) === null || _this$timelineSet$rel === void 0 || _this$timelineSet$rel.aggregateChildEvent(event, this.timelineSet);
        }
-@@ -556,7 +563,14 @@ export class Thread extends ReadReceipt {
+@@ -556,7 +565,14 @@ export class Thread extends ReadReceipt {
        yield _this7.processRootEventPromise;
        if (!_this7.initialEventsFetched) {
          if (_this7.initalEventFetchProm) {
@@ -36,7 +49,7 @@ index b02b81f..21c6091 100644
          } else {
            // fetch initial events to allow proper pagination
            try {
-@@ -595,6 +609,7 @@ export class Thread extends ReadReceipt {
+@@ -595,6 +611,7 @@ export class Thread extends ReadReceipt {
              _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
            } catch (e) {
              logger.error("Failed to load start of newly created thread: ", e);
@@ -44,3 +57,67 @@ index b02b81f..21c6091 100644
              _this7.initialEventsFetched = false;
            }
          }
+diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
+index 871875d..d9d049d 100644
+--- a/node_modules/matrix-js-sdk/src/models/thread.ts
++++ b/node_modules/matrix-js-sdk/src/models/thread.ts
+@@ -132,6 +132,7 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+      */
+     public initialEventsFetched = !Thread.hasServerSideSupport;
+     private initalEventFetchProm: Promise<boolean> | undefined;
++    private preInitReplacementTargets = new WeakSet<MatrixEvent>();
+-
++
+     /**
+      * An array of events to add to the timeline once the thread has been initialised
+@@ -438,10 +439,21 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+              */
+             this.replayEvents?.push(event);
+-
++
+-            // For annotations (reactions), aggregate immediately (pre-init) to keep
+-            // reaction counts/summary visible while the thread is still initialising.
++            // For annotations (reactions) and replacements (edits), aggregate immediately
++            // to keep reaction counts and edited content visible while the thread is initialising.
+             // Only aggregate as child: parent aggregation is unnecessary here.
+-            if (event.isRelation(RelationType.Annotation)) {
++            if (event.isRelation(RelationType.Annotation) || event.isRelation(RelationType.Replace)) {
++                const relation = event.getRelation();
++                const targetEvent =
++                    event.isRelation(RelationType.Replace) && relation?.event_id
++                        ? this.timelineSet.findEventById(relation.event_id)
++                        : undefined;
++                if (targetEvent && !this.preInitReplacementTargets.has(targetEvent)) {
++                    this.preInitReplacementTargets.add(targetEvent);
++                    targetEvent.on(MatrixEventEvent.Replaced, () => {
++                        if (!this.initialEventsFetched) this.emit(ThreadEvent.Update, this);
++                    });
++                }
+                 this.timelineSet.relations?.aggregateChildEvent(event, this.timelineSet);
+             }
+         } else {
+@@ -608,7 +620,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+-
++
+         if (!this.initialEventsFetched) {
+             if (this.initalEventFetchProm) {
+-                await this.initalEventFetchProm;
++                try {
++                    await this.initalEventFetchProm;
++                } catch {
++                    // A concurrent metadata update owns the request and reports the failure.
++                    // Keep this waiter from surfacing the same rejection as unhandled.
++                    this.initalEventFetchProm = undefined;
++                    this.initialEventsFetched = false;
++                }
+             } else {
+                 // fetch initial events to allow proper pagination
+                 try {
+@@ -647,6 +666,7 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+                     this.emit(RoomEvent.TimelineReset, this.room, this.timelineSet, true);
+                 } catch (e) {
+                     logger.error("Failed to load start of newly created thread: ", e);
++                    this.initalEventFetchProm = undefined;
+                     this.initialEventsFetched = false;
+                 }
+             }
