@@ -30,6 +30,7 @@ export type ThreadStatusSnapshot = {
   hasFailedSend?: boolean;
   scheduledTaskCount: number;
   nextScheduledTs?: number;
+  cronDescription?: string;
   lastActivityTs?: number;
   tags: string[];
 };

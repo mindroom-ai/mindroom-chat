@@ -13,12 +13,14 @@ const makeScheduledEvent = ({
   threadId = '$thread',
   newThread = false,
   executeAt,
+  cronDescription,
 }: {
   stateKey?: string;
   status?: string;
   threadId?: string | null;
   newThread?: boolean;
   executeAt?: string | null;
+  cronDescription?: string;
 }): MatrixEvent =>
   ({
     getStateKey: () => stateKey,
@@ -27,6 +29,7 @@ const makeScheduledEvent = ({
       thread_id: threadId,
       new_thread: newThread,
       execute_at: executeAt,
+      cron_description: cronDescription,
     }),
   } as unknown as MatrixEvent);
 
@@ -60,7 +63,7 @@ describe('threadScheduledStatus', () => {
     expect(statusMap.has('$thread-3')).toBe(false);
   });
 
-  it('counts invalid or missing timestamps without making them the next scheduled time', () => {
+  it('uses count fallback when any task lacks a trustworthy timestamp', () => {
     const statusMap = buildRoomThreadScheduledStatusMap(
       [
         makeScheduledEvent({ stateKey: 'task-1', executeAt: undefined }),
@@ -75,7 +78,53 @@ describe('threadScheduledStatus', () => {
 
     expect(getThreadScheduledStatus(statusMap, '$thread')).toEqual({
       scheduledTaskCount: 3,
-      nextScheduledTs: Date.parse('2026-04-04T18:05:00.000Z'),
+      nextScheduledTs: undefined,
+    });
+  });
+
+  it('keeps count fallback when a timestamp-less task is between timestamped tasks', () => {
+    const statusMap = buildRoomThreadScheduledStatusMap(
+      [
+        makeScheduledEvent({ stateKey: 'once-1', executeAt: '2026-04-04T18:05:00.000Z' }),
+        makeScheduledEvent({ stateKey: 'cron', cronDescription: 'At 09:00' }),
+        makeScheduledEvent({ stateKey: 'once-2', executeAt: '2026-04-04T18:10:00.000Z' }),
+      ],
+      Date.parse('2026-04-04T18:00:00.000Z')
+    );
+
+    expect(getThreadScheduledStatus(statusMap, '$thread')).toEqual({
+      scheduledTaskCount: 3,
+      nextScheduledTs: undefined,
+    });
+  });
+
+  it('exposes a backend cron description only for one recurring task', () => {
+    const now = Date.parse('2026-04-04T18:00:00.000Z');
+    const singleStatusMap = buildRoomThreadScheduledStatusMap(
+      [makeScheduledEvent({ cronDescription: 'At 09:00' })],
+      now
+    );
+
+    expect(getThreadScheduledStatus(singleStatusMap, '$thread')).toEqual({
+      scheduledTaskCount: 1,
+      nextScheduledTs: undefined,
+      cronDescription: 'At 09:00',
+    });
+
+    const multipleStatusMap = buildRoomThreadScheduledStatusMap(
+      [
+        makeScheduledEvent({ stateKey: 'cron', cronDescription: 'At 09:00' }),
+        makeScheduledEvent({
+          stateKey: 'once',
+          executeAt: '2026-04-04T18:05:00.000Z',
+        }),
+      ],
+      now
+    );
+
+    expect(getThreadScheduledStatus(multipleStatusMap, '$thread')).toEqual({
+      scheduledTaskCount: 2,
+      nextScheduledTs: undefined,
     });
   });
 

@@ -53,6 +53,35 @@ export const formatScheduledTime = (ts: number): string => {
   }).format(ts);
 };
 
+export const getThreadScheduledDisplayText = (
+  scheduledTaskCount: number,
+  nextScheduledTs: number | undefined,
+  cronDescription?: string
+): string | undefined => {
+  if (nextScheduledTs !== undefined) return formatScheduledTime(nextScheduledTs);
+  if (scheduledTaskCount === 1 && cronDescription) return cronDescription;
+  if (scheduledTaskCount <= 0) return undefined;
+  return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
+};
+
+export const getThreadScheduledLabel = (
+  scheduledTaskCount: number,
+  nextScheduledTs: number | undefined,
+  cronDescription: string | undefined,
+  scheduledDisplayText: string | undefined
+): string | undefined => {
+  if (scheduledTaskCount <= 0) return undefined;
+
+  const hasScheduleDetail =
+    nextScheduledTs !== undefined || (scheduledTaskCount === 1 && !!cronDescription);
+  const taskCopy = `${scheduledTaskCount} pending scheduled ${
+    scheduledTaskCount === 1 ? 'task' : 'tasks'
+  }`;
+  return hasScheduleDetail && scheduledDisplayText
+    ? `${taskCopy}, ${scheduledDisplayText}`
+    : taskCopy;
+};
+
 export const getScheduledTimeUpdateInterval = (ts: number, now = Date.now()): number => {
   const deltaMs = ts - now;
 
