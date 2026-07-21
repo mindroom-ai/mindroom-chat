@@ -7,6 +7,7 @@ import {
 } from '../state/userDirectoryCache';
 import {
   filterInviteUserCandidates,
+  getUserDirectoryQueryVariants,
   rankUsers,
   sanitizeInviteAutocompleteOptionId,
 } from './userDirectorySearch';
@@ -20,6 +21,20 @@ const users: ServerUserDirectoryUser[] = [
   { userId: '@carol:example.org', displayName: 'Carol Example' },
   { userId: '@ally:example.org', displayName: 'Zed Person' },
 ];
+
+describe('getUserDirectoryQueryVariants', () => {
+  it('adds one whitespace-compacted variant for a spaced query', () => {
+    expect(getUserDirectoryQueryVariants('mindroom expert')).toEqual([
+      'mindroom expert',
+      'mindroomexpert',
+    ]);
+  });
+
+  it('keeps one variant when compaction is unchanged or leaves one character', () => {
+    expect(getUserDirectoryQueryVariants('mindroomexpert')).toEqual(['mindroomexpert']);
+    expect(getUserDirectoryQueryVariants(' x')).toEqual([' x']);
+  });
+});
 
 describe('rankUsers', () => {
   it('short-circuits one-character queries to starts-with matches before contains matches', () => {
