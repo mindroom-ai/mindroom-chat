@@ -10,6 +10,8 @@ The artifacts are intentionally not committed because they contain private incid
 
 The event IDs kept in `trace.ts` are opaque topology anchors and contain no message content.
 
+The accepted effective-body, presentation, compact-card, global-Threads, and normalized-tag values are pinned as code-point lengths plus SHA-256 hashes, so expected values never pass through the production helpers under test.
+
 The offline SDK gate uses matrix-js-sdk 41.7.0 `Room.addLiveEvents`, a real SDK `Thread`, compact-card and global-Threads view models, unread derivation, and the room tag snapshot resolver.
 
 It is an SDK and shared-view-model gate, not a browser UI substitute.

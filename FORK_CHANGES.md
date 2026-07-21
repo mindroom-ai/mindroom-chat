@@ -4,7 +4,7 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: review-round-2 implementation and local validation are complete, both remotes contain implementation head `2473583c`, and refreshed GitHub PR #185 checks and AI review are running.
+- Status: review-round-2 implementation, independent review, and local validation are complete, and final dual-remote publication will refresh GitHub PR #185 checks and AI review.
 - Inputs: `plan/FINAL-PLAN.md`, the incident report, and all three authoritative trace artifacts were read before the implementation, and the replay loader verifies each artifact SHA-256 before use.
 - Root-cause gate: the exact unpatched speed-1 replay processed all 23 events but left all 17 edits buffered before thread initialization, while releasing initialization immediately exposed the completed 1,466-code-point body.
 - Gate verdict: H1 SDK pre-initialization relation buffering is confirmed, and the same exact trace disproves a presentation-helper defect on the proven path, so no presentation helper was changed.
@@ -16,7 +16,8 @@
 - SDK failure handling: deferred commit and target-binding failures propagate through the aggregation promise, the thread logs and consumes its owned rejection, and a failed initial pagination clears `initalEventFetchProm` so later metadata work can retry without an escaped rejection.
 - SDK contracts: eight real-SDK tests cover the reset pagination window, distinct post-pagination object identity, a real `m.room.encrypted` to clear `m.room.message` transition after pagination, deletion cleanup, deferred rejection propagation and containment, stable listener counts, and retry after a forced initial-pagination rejection.
 - SDK review: independent re-review reran the pagination, real-encryption, deletion, and forced-rejection probes and reported no remaining actionable SDK finding.
-- Offline privacy: expected effective body, compact-card preview, global-Threads preview, and overview tags are derived at runtime from verified on-disk artifacts, and acceptance uses exact code-point-length plus SHA-256 comparisons instead of private substrings or prefixes.
+- Offline privacy: accepted effective-body, presentation, compact-card, global-Threads, and normalized-tag values are pinned as code-point lengths plus SHA-256 hashes, so no expected value passes through a production helper under test.
+- Offline oracle contract: source-level coverage rejects a same-length wrong hash and prevents the expected path from importing the production preview or tag-snapshot helpers or building an expected compact card through the actual view-model helper.
 - Offline privacy audit: the three reviewer-identified private reply and tag fragments are absent from committed replay source and green evidence logs.
 - Green gate: the final exact speed-1 replay is GREEN with 23 of 23 events processed, 17 replacement and thread-update signals before initialization, exact final compact and global previews, unread state, both overview tags, final-edit summary targeting, and final first-entry content.
 - Green evidence: `/tmp/CINNY-126-evidence/green/exact-offline-speed-1.log`, `/tmp/CINNY-126-evidence/green/verdict.txt`, `/tmp/CINNY-126-evidence/green/sdk-patch-sha256.txt`, and `/tmp/CINNY-126-evidence/green/git-head.txt`.
@@ -26,17 +27,18 @@
 - Live media guard: verified incident MXC and attachment identifiers remain forbidden, all replacements fail closed, and the script requires explicit test-account tokens plus safe replacement media.
 - Live execution: no test credentials were present in the worktree, so no production-homeserver room was created and the side-effect-free room-isolation contracts are the live-safety evidence for this round.
 - Flight recorder: sync accumulation is bounded during arrival at eight rooms and 32 retained event identities per room instead of only being truncated after a sync boundary.
-- Recorder priority: an edit-bearing or unresolved-encrypted room can displace an ordinary retained room, while excess arrivals are preserved as count-only `matrix_sync_overflow` evidence with event, edit, and unresolved-encrypted counts.
+- Recorder priority: an edit-bearing or unresolved-encrypted room can displace an ordinary retained room, and a room's first priority event at its 32-identity limit likewise displaces one retained ordinary identity so post-decryption reclassification remains possible.
 - Recorder privacy and durability: persisted room records still contain only an eight-character room hash, counts, coarse route, and thread-route presence, overflow contains counts only, and each completed batch performs one immediate storage write.
 - Recorder compatibility: storage keys, schema version 2, the 32-event ring, and the 8 KB envelope remain unchanged, while strict validation now also accepts only internally consistent fixed-shape overflow records.
-- Recorder stress contract: more than both arrival bounds are emitted before any sync boundary, no pre-boundary write occurs, retained room counts stay bounded, a late edit room is promoted, overflow counts remain useful, and the completed batch writes once.
+- Recorder stress contract: more than both arrival bounds are emitted before any sync boundary, no pre-boundary write occurs, retained room counts stay bounded, late edit and encrypted events are promoted at both bounds, encrypted-to-edit reclassification succeeds, overflow counts remain useful, and the completed batch writes once.
 - Report cleanup: this Runbook is the sole CINNY-126 implementation report, and the duplicate `.claude/REPORT.md` is removed.
 - Clean-install validation: `npm ci` reapplies both package patches successfully.
-- Focused validation: all 126 SDK, replay-safety, recorder, export, and startup tests pass, and `npm run typecheck` passes.
+- Focused validation: all 130 SDK, replay-oracle, replay-safety, recorder, export, and startup tests pass, and `npm run typecheck` passes.
 - Static and build validation: full ESLint reports zero errors and the unchanged 17-warning baseline, `git diff --check` passes, and `npm run build` completes the production/PWA build plus Element Call background verification.
-- Full-suite validation: normal Vitest discovery passes 449 files and 3,372 tests with no CINNY-126 regression.
+- Full-suite validation: normal Vitest discovery passes 450 files and 3,376 tests with no CINNY-126 regression.
 - Full-suite environment note: only the same three unrelated Xcode Cloud shell-harness tests fail because that test replaces `PATH` with `/usr/bin:/bin`, while Bash in this Nix environment is `/run/current-system/sw/bin/bash`; neither the failing test nor its scripts is changed by CINNY-126.
-- Publication: implementation commits are pushed to Gitea PR #1 and GitHub PR #185 on branch `cinny-126`, with final report publication and refreshed reviewer completion remaining.
+- Independent final review: the SDK, pinned replay oracle, live-room isolation, recorder bounds, priority promotion, and overflow schema were re-reviewed after remediation with no remaining actionable finding.
+- Publication: final implementation and this sole report are pushed to Gitea PR #1 and GitHub PR #185 on branch `cinny-126`, with refreshed hosted checks and reviewers observed before handoff.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
