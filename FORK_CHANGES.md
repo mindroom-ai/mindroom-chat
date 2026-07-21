@@ -69,6 +69,7 @@
 - Focused validation passes 148 tests across the room-input, send-session, recorder, capsule, dialog, and upload-board surfaces.
 - The full Vitest suite, typecheck, production/PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check` pass.
 - Independent second self-review found the deferred failure-dialog Retry bypass and unmounted caption-recovery gap; both are fixed with regression coverage, and the final self-review found no remaining blocker or half-refactor trace.
+- PR CI caught the forwarded recorder component using a named function expression against the repository `prefer-arrow-callback` rule; the component now uses the required arrow callback and passes direct-file ESLint plus focused regression tests.
 
 ### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
 
