@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Expose repository skills to Codex (2026-07-21)
+
+- Status: the repository-owned Claude skills are exposed through the standard agent skill discovery path.
+- `.agents/skills` is a relative symlink to `.claude/skills`, matching the MindRoom repository layout and keeping one source of truth for all agent clients.
+- Validation confirms both `pr-review` and `address-pr-review-comments` resolve through the symlink.
+
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
 - Status: the lifecycle-ownership and encryption-eligibility remediation is complete, validated, and independently approved; ready for human review.
