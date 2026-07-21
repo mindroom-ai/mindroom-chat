@@ -15,7 +15,7 @@
 - Root cause: matrix-js-sdk buffered replacement relations while the thread initialized, so overview surfaces did not observe the effective replacement or a thread update at the time the edit arrived.
 - SDK boundary: `RelationsContainer` now creates relation collections before deferred decryption, rebinds them to the freshest target object, and exposes completion to the thread without retaining replacement listeners.
 - Ordering remediation: relation insertion starts synchronously while target rebinding continues, preserving arrival order for equal-timestamp edits and immediate visibility for fire-and-forget reactions.
-- SDK coverage: real-SDK tests cover pre-initialization edits, equal-timestamp concurrent edits, immediate reactions, pagination object replacement, deferred encryption, deletion cleanup, failure propagation, listener stability, and pagination retry.
+- SDK coverage: real-SDK tests cover pre-initialization edits, bundled-summary-only targets, equal-timestamp concurrent edits, immediate reactions, pagination object replacement, deferred encryption, serialized zero-reply initialization, synchronous and asynchronous retry, deletion cleanup, failure propagation, and listener stability.
 - Offline gate: the exact trace requires all 17 ordered replacement signals and all 17 ordered thread-update identities before accepting the final replacement, shared previews, unread state, tags, summary target, and post-initialization body.
 - Private trace contract: the artifact directory is mandatory and its uncommitted manifest owns incident selectors, sender roles, artifact hashes, and expected fingerprints.
 - Oracle privacy: no incident identifier, account, default artifact path, artifact hash, or low-entropy tag fingerprint remains in committed replay source.
@@ -23,7 +23,7 @@
 - Mapping safety: every direct relation, nested reply, and tag-state reference must map to a fresh-room event ID or live replay aborts.
 - Flight recorder compatibility: strict schema-v1 current and abnormal sessions normalize to schema v2 without losing valid pre-sync evidence, while schema-v1 records containing v2-only sync events remain rejected.
 - Type safety: the repository typecheck now includes all CINNY-126 replay scripts through `tsconfig.scripts.json`.
-- Current validation: clean install reapplies both package patches, script-aware typecheck passes, focused SDK/replay/recorder coverage passes 65 tests, the production/PWA build passes, all 452 Vitest files pass with 3,432 tests, ESLint and formatting pass, and `git diff --check` passes.
+- Current validation: clean install reapplies both package patches, script-aware typecheck passes, focused SDK/replay/recorder coverage passes 68 tests, the production/PWA build passes, all 452 Vitest files pass with 3,435 tests, ESLint and formatting pass, and `git diff --check` passes.
 - Exact replay acceptance: the private incident trace passes at real cadence with all 23 events processed, all 17 ordered replacement and thread-update signals observed before initialization, all shared surfaces on the final content, both tags visible, the summary targeting the final edit, and the first thread entry on the final body.
 - Live replay acceptance: the production homeserver accepted all 23 synthetic events at real cadence in a freshly validated invite-only room containing only three non-human test actors, and every disposable login session was logged out afterward.
 - Independent review: the final SDK/decryption review and replay privacy/safety review both approve with no remaining blocker.

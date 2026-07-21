@@ -267,6 +267,68 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     ).toBe(0);
   });
 
+  it('updates a placeholder that exists only in the bundled thread summary', async () => {
+    const pagination = new Promise<boolean>(() => {
+      // Keep initialization pending so the edit must use the bundled latest-event target.
+    });
+    const placeholder = makeEvent(
+      '$bundled-only-placeholder',
+      {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    setThreadSummary(root, placeholder);
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline: vi.fn(() => pagination),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+    await flushAsyncWork();
+
+    const visiblePlaceholder = thread.replyToEvent;
+    expect(visiblePlaceholder?.getId()).toBe(placeholder.getId());
+    expect(thread.findEventById(placeholder.getId()!)).toBeUndefined();
+    expect(room.findEventById(placeholder.getId()!)).toBeUndefined();
+
+    const threadUpdateBodies: unknown[] = [];
+    thread.on(ThreadEvent.Update, () => {
+      threadUpdateBodies.push(visiblePlaceholder?.getContent().body);
+    });
+    const edit = makeEvent(
+      '$bundled-only-edit',
+      {
+        body: '* Final from bundled summary',
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': {
+          body: 'Final from bundled summary',
+          'io.mindroom.stream_status': 'completed',
+          msgtype: 'm.text',
+        },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(visiblePlaceholder?.replacingEvent()).toBe(edit);
+    expect(visiblePlaceholder?.getContent()).toMatchObject({
+      body: 'Final from bundled summary',
+      'io.mindroom.stream_status': 'completed',
+    });
+    expect(threadUpdateBodies).toEqual(['Final from bundled summary']);
+  });
+
   it('applies the first edit that arrives while initial pagination has reset the timeline', async () => {
     const pagination = deferred<boolean>();
     const placeholder = makeEvent(
@@ -881,5 +943,72 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     } finally {
       process.removeListener('unhandledRejection', onUnhandledRejection);
     }
+  });
+
+  it('serializes concurrent zero-reply initialization through parent aggregation', async () => {
+    const releaseParentAggregation = deferred<void>();
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const aggregateParentEvent = vi
+      .spyOn(RelationsContainer.prototype, 'aggregateParentEvent')
+      .mockImplementation(() => releaseParentAggregation.promise);
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline: vi.fn(),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+
+    await vi.waitFor(() => expect(aggregateParentEvent).toHaveBeenCalled());
+    await flushAsyncWork();
+    const callsBeforeConcurrentUpdate = aggregateParentEvent.mock.calls.length;
+    thread.addEvents([], false);
+    await flushAsyncWork();
+
+    expect(aggregateParentEvent).toHaveBeenCalledTimes(callsBeforeConcurrentUpdate);
+    releaseParentAggregation.resolve();
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(true);
+    expect(thread.replayEvents).toBeNull();
+    expect(loggerError).not.toHaveBeenCalledWith(
+      'Failed to load start of newly created thread: ',
+      expect.anything()
+    );
+  });
+
+  it('retries zero-reply initialization after synchronous parent aggregation failure', async () => {
+    const failure = new Error('synchronous parent aggregation failure');
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline: vi.fn(),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const aggregateParentEvent = vi
+      .spyOn(RelationsContainer.prototype, 'aggregateParentEvent')
+      .mockImplementationOnce(() => {
+        throw failure;
+      })
+      .mockResolvedValue(undefined);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(loggerError).toHaveBeenCalledWith(
+      'Failed to load start of newly created thread: ',
+      failure
+    );
+    const callsAfterFailure = aggregateParentEvent.mock.calls.length;
+
+    thread.addEvents([], false);
+    await flushAsyncWork(24);
+
+    expect(aggregateParentEvent.mock.calls.length).toBeGreaterThan(callsAfterFailure);
+    expect(thread.initialEventsFetched).toBe(true);
+    expect(thread.replayEvents).toBeNull();
   });
 });

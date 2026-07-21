@@ -20,7 +20,7 @@ index ba649eb..f8aa444 100644
  //# sourceMappingURL=relations-container.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..fb40514 100644
+index 8ccc053..ffb895d 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
 @@ -65,12 +65,14 @@ export class RelationsContainer {
@@ -112,6 +112,7 @@ index 8ccc053..fb40514 100644
    }
  }
  //# sourceMappingURL=relations-container.js.map
+\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
 index 6be66bb..e3313f3 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
@@ -144,8 +145,20 @@ index 6be66bb..e3313f3 100644
        _this5.maybeEmitCreated();
      })();
    }
+diff --git a/node_modules/matrix-js-sdk/lib/models/thread.d.ts b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
+index 6933b26..fbbaa6c 100644
+--- a/node_modules/matrix-js-sdk/lib/models/thread.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/thread.d.ts
+@@ -164,6 +164,7 @@ export declare class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEvent
+      */
+     resetLiveTimeline(backPaginationToken?: string | null, forwardPaginationToken?: string | null): Promise<void>;
+     private updateThreadFromRootEvent;
++    private initializeTimeline;
+     private updateThreadMetadata;
+     private fetchEditsWhereNeeded;
+     setEventMetadata(event: MatrixEvent | null | undefined): void;
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..10f8d15 100644
+index b02b81f..5979f58 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
 @@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
@@ -218,48 +231,119 @@ index b02b81f..10f8d15 100644
      }
    }
 +  findPreInitTargetEvent(eventId) {
-+    var _this$timelineSet$fin, _this$room$findEventB;
-+    return (_this$timelineSet$fin = this.timelineSet.findEventById(eventId)) !== null && _this$timelineSet$fin !== void 0 ? _this$timelineSet$fin : (_this$room$findEventB = this.room.findEventById(eventId)) !== null && _this$room$findEventB !== void 0 ? _this$room$findEventB : this.preInitEventTargets.get(eventId);
++    var _this$timelineSet$fin, _this$room$findEventB, _this$preInitEventTa, _this$lastEvent;
++    return (_this$timelineSet$fin = this.timelineSet.findEventById(eventId)) !== null && _this$timelineSet$fin !== void 0 ? _this$timelineSet$fin : (_this$room$findEventB = this.room.findEventById(eventId)) !== null && _this$room$findEventB !== void 0 ? _this$room$findEventB : (_this$preInitEventTa = this.preInitEventTargets.get(eventId)) !== null && _this$preInitEventTa !== void 0 ? _this$preInitEventTa : ((_this$lastEvent = this.lastEvent) === null || _this$lastEvent === void 0 ? void 0 : _this$lastEvent.getId()) === eventId ? this.lastEvent : undefined;
 +  }
    processEvent(event) {
      var _this3 = this;
      return _asyncToGenerator(function* () {
-@@ -556,7 +586,14 @@ export class Thread extends ReadReceipt {
+@@ -545,6 +575,49 @@ export class Thread extends ReadReceipt {
+       yield _this6.processRootEvent();
+     })();
+   }
++  initializeTimeline() {
++    var _this7 = this;
++    return _asyncToGenerator(function* () {
++      try {
++        // clear out any events that were added before the pagination request
++        // completed (eg. from sync). They'll be replaced by those from the pagination.
++        // Really, we should do this after the pagination request completes, but
++        // paginateEventTimeline does the request and adds the events in one go, so
++        // this would need a refactor in order to do. It's therefore possible there's
++        // a remaining race where an event comes in while the pagination request is
++        // happening.
++        _this7.timelineSet.resetLiveTimeline();
++        // if the thread has regular events, this will just load the last reply.
++        // if the thread is newly created, this will load the root event.
++        if (_this7.replyCount === 0 && _this7.rootEvent) {
++          _this7.timelineSet.addEventsToTimeline([_this7.rootEvent], true, false, _this7.liveTimeline, null);
++          _this7.liveTimeline.setPaginationToken(null, Direction.Backward);
++        } else {
++          yield _this7.client.paginateEventTimeline(_this7.liveTimeline, {
++            backwards: true
++          });
++        }
++        // We have now fetched the initial events, so set the flag. We need to do this before
++        // we actually add the events, so `this.addEvents` knows that it can now safely add
++        // them rather than buffer them in the pending event list. The main thing is that this
++        // must remain false while the async fetch happens, so we don't try to add events before
++        // the pagination has finished.
++        yield Promise.all(_this7.liveTimeline.getEvents().map(event => _this7.timelineSet.relations.aggregateParentEvent(event)));
++        _this7.initialEventsFetched = true;
++        for (var event of _this7.replayEvents) {
++          _this7.addEvent(event, false);
++        }
++        _this7.replayEvents = null;
++        _this7.preInitEventTargets.clear();
++        // just to make sure that, if we've created a timeline window for this thread before the thread itself
++        // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
++        _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
++      } catch (e) {
++        logger.error("Failed to load start of newly created thread: ", e);
++        _this7.initialEventsFetched = false;
++      }
++    })();
++  }
+   updateThreadMetadata() {
+     var _this7 = this;
+     return _asyncToGenerator(function* () {
+@@ -555,47 +628,15 @@ export class Thread extends ReadReceipt {
+       }
        yield _this7.processRootEventPromise;
        if (!_this7.initialEventsFetched) {
-         if (_this7.initalEventFetchProm) {
+-        if (_this7.initalEventFetchProm) {
 -          yield _this7.initalEventFetchProm;
-+          try {
-+            yield _this7.initalEventFetchProm;
-+          } catch (_unused) {
-+            // A concurrent metadata update owns the request and reports the failure.
-+            // Keep this waiter from surfacing the same rejection as unhandled.
+-        } else {
+-          // fetch initial events to allow proper pagination
+-          try {
+-            // clear out any events that were added before the pagination request
+-            // completed (eg. from sync). They'll be replaced by those from the pagination.
+-            // Really, we should do this after the pagination request completes, but
+-            // paginateEventTimeline does the request and adds the events in one go, so
+-            // this would need a refactor in order to do. It's therefore possible there's
+-            // a remaining race where an event comes in while the pagination request is
+-            // happening.
+-            _this7.timelineSet.resetLiveTimeline();
+-            // if the thread has regular events, this will just load the last reply.
+-            // if the thread is newly created, this will load the root event.
+-            if (_this7.replyCount === 0 && _this7.rootEvent) {
+-              _this7.timelineSet.addEventsToTimeline([_this7.rootEvent], true, false, _this7.liveTimeline, null);
+-              _this7.liveTimeline.setPaginationToken(null, Direction.Backward);
+-            } else {
+-              _this7.initalEventFetchProm = _this7.client.paginateEventTimeline(_this7.liveTimeline, {
+-                backwards: true
+-              });
+-              yield _this7.initalEventFetchProm;
+-            }
+-            // We have now fetched the initial events, so set the flag. We need to do this before
+-            // we actually add the events, so `this.addEvents` knows that it can now safely add
+-            // them rather than buffer them in the pending event list. The main thing is that this
+-            // must remain false while the async fetch happens, so we don't try to add events before
+-            // the pagination has finished. The important thing is that we're not await-ing anything
+-            // else between setting this and adding events, so no races.
+-            _this7.initialEventsFetched = true;
+-            for (var event of _this7.replayEvents) {
+-              _this7.addEvent(event, false);
+-            }
+-            _this7.replayEvents = null;
+-            // just to make sure that, if we've created a timeline window for this thread before the thread itself
+-            // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
+-            _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
+-          } catch (e) {
+-            logger.error("Failed to load start of newly created thread: ", e);
+-            _this7.initialEventsFetched = false;
++        if (!_this7.initalEventFetchProm) {
++          _this7.initalEventFetchProm = _this7.initializeTimeline();
++        }
++        var initialEventFetchPromise = _this7.initalEventFetchProm;
++        try {
++          yield initialEventFetchPromise;
++        } finally {
++          if (_this7.initalEventFetchProm === initialEventFetchPromise) {
 +            _this7.initalEventFetchProm = undefined;
-+            _this7.initialEventsFetched = false;
-+          }
-         } else {
-           // fetch initial events to allow proper pagination
-           try {
-@@ -585,16 +622,19 @@ export class Thread extends ReadReceipt {
-             // must remain false while the async fetch happens, so we don't try to add events before
-             // the pagination has finished. The important thing is that we're not await-ing anything
-             // else between setting this and adding events, so no races.
-+            yield Promise.all(_this7.liveTimeline.getEvents().map(event => _this7.timelineSet.relations.aggregateParentEvent(event)));
-             _this7.initialEventsFetched = true;
-             for (var event of _this7.replayEvents) {
-               _this7.addEvent(event, false);
-             }
-             _this7.replayEvents = null;
-+            _this7.preInitEventTargets.clear();
-             // just to make sure that, if we've created a timeline window for this thread before the thread itself
-             // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
-             _this7.emit(RoomEvent.TimelineReset, _this7.room, _this7.timelineSet, true);
-           } catch (e) {
-             logger.error("Failed to load start of newly created thread: ", e);
-+            _this7.initalEventFetchProm = undefined;
-             _this7.initialEventsFetched = false;
            }
          }
+       }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
 index 8394bc6..132010b 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
@@ -401,13 +485,15 @@ index 77ba3b3..ce2116b 100644
          this.maybeEmitCreated();
      }
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
-index 871875d..9f0f83c 100644
+index 871875d..63d0dd4 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
 +++ b/node_modules/matrix-js-sdk/src/models/thread.ts
-@@ -132,6 +132,8 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -131,7 +131,9 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+      * that we've already fetched them.
       */
      public initialEventsFetched = !Thread.hasServerSideSupport;
-     private initalEventFetchProm: Promise<boolean> | undefined;
+-    private initalEventFetchProm: Promise<boolean> | undefined;
++    private initalEventFetchProm: Promise<void> | undefined;
 +    private preInitEventTargets = new Map<string, MatrixEvent>();
 +    private preInitObserverState = { active: true };
 
@@ -481,7 +567,7 @@ index 871875d..9f0f83c 100644
              }
          } else {
              // Case 2: this is happening later, and we have a timeline. In
-@@ -474,6 +514,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -474,6 +514,15 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          }
      }
 
@@ -489,50 +575,116 @@ index 871875d..9f0f83c 100644
 +        return (
 +            this.timelineSet.findEventById(eventId) ??
 +            this.room.findEventById(eventId) ??
-+            this.preInitEventTargets.get(eventId)
++            this.preInitEventTargets.get(eventId) ??
++            (this.lastEvent?.getId() === eventId ? this.lastEvent : undefined)
 +        );
 +    }
 +
      public async processEvent(event: MatrixEvent | null | undefined): Promise<void> {
          if (event) {
              this.setEventMetadata(event);
-@@ -608,7 +656,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -597,6 +646,49 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+         await this.processRootEvent();
+     }
+
++    private async initializeTimeline(): Promise<void> {
++        try {
++            // clear out any events that were added before the pagination request
++            // completed (eg. from sync). They'll be replaced by those from the pagination.
++            // Really, we should do this after the pagination request completes, but
++            // paginateEventTimeline does the request and adds the events in one go, so
++            // this would need a refactor in order to do. It's therefore possible there's
++            // a remaining race where an event comes in while the pagination request is
++            // happening.
++            this.timelineSet.resetLiveTimeline();
++            // if the thread has regular events, this will just load the last reply.
++            // if the thread is newly created, this will load the root event.
++            if (this.replyCount === 0 && this.rootEvent) {
++                this.timelineSet.addEventsToTimeline([this.rootEvent], true, false, this.liveTimeline, null);
++                this.liveTimeline.setPaginationToken(null, Direction.Backward);
++            } else {
++                await this.client.paginateEventTimeline(this.liveTimeline, {
++                    backwards: true,
++                });
++            }
++            // We have now fetched the initial events, so set the flag. We need to do this before
++            // we actually add the events, so `this.addEvents` knows that it can now safely add
++            // them rather than buffer them in the pending event list. The main thing is that this
++            // must remain false while the async fetch happens, so we don't try to add events before
++            // the pagination has finished.
++            await Promise.all(
++                this.liveTimeline.getEvents().map((event) => this.timelineSet.relations.aggregateParentEvent(event)),
++            );
++            this.initialEventsFetched = true;
++            for (const event of this.replayEvents!) {
++                this.addEvent(event, false);
++            }
++            this.replayEvents = null;
++            this.preInitEventTargets.clear();
++            // just to make sure that, if we've created a timeline window for this thread before the thread itself
++            // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
++            this.emit(RoomEvent.TimelineReset, this.room, this.timelineSet, true);
++        } catch (e) {
++            logger.error("Failed to load start of newly created thread: ", e);
++            this.initialEventsFetched = false;
++        }
++    }
++
+     private async updateThreadMetadata(): Promise<void> {
+         this.updatePendingReplyCount();
+
+@@ -607,47 +699,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+         await this.processRootEventPromise;
 
          if (!this.initialEventsFetched) {
-             if (this.initalEventFetchProm) {
+-            if (this.initalEventFetchProm) {
 -                await this.initalEventFetchProm;
-+                try {
-+                    await this.initalEventFetchProm;
-+                } catch {
-+                    // A concurrent metadata update owns the request and reports the failure.
-+                    // Keep this waiter from surfacing the same rejection as unhandled.
+-            } else {
+-                // fetch initial events to allow proper pagination
+-                try {
+-                    // clear out any events that were added before the pagination request
+-                    // completed (eg. from sync). They'll be replaced by those from the pagination.
+-                    // Really, we should do this after the pagination request completes, but
+-                    // paginateEventTimeline does the request and adds the events in one go, so
+-                    // this would need a refactor in order to do. It's therefore possible there's
+-                    // a remaining race where an event comes in while the pagination request is
+-                    // happening.
+-                    this.timelineSet.resetLiveTimeline();
+-                    // if the thread has regular events, this will just load the last reply.
+-                    // if the thread is newly created, this will load the root event.
+-                    if (this.replyCount === 0 && this.rootEvent) {
+-                        this.timelineSet.addEventsToTimeline([this.rootEvent], true, false, this.liveTimeline, null);
+-                        this.liveTimeline.setPaginationToken(null, Direction.Backward);
+-                    } else {
+-                        this.initalEventFetchProm = this.client.paginateEventTimeline(this.liveTimeline, {
+-                            backwards: true,
+-                        });
+-                        await this.initalEventFetchProm;
+-                    }
+-                    // We have now fetched the initial events, so set the flag. We need to do this before
+-                    // we actually add the events, so `this.addEvents` knows that it can now safely add
+-                    // them rather than buffer them in the pending event list. The main thing is that this
+-                    // must remain false while the async fetch happens, so we don't try to add events before
+-                    // the pagination has finished. The important thing is that we're not await-ing anything
+-                    // else between setting this and adding events, so no races.
+-                    this.initialEventsFetched = true;
+-                    for (const event of this.replayEvents!) {
+-                        this.addEvent(event, false);
+-                    }
+-                    this.replayEvents = null;
+-                    // just to make sure that, if we've created a timeline window for this thread before the thread itself
+-                    // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
+-                    this.emit(RoomEvent.TimelineReset, this.room, this.timelineSet, true);
+-                } catch (e) {
+-                    logger.error("Failed to load start of newly created thread: ", e);
+-                    this.initialEventsFetched = false;
++            this.initalEventFetchProm ??= this.initializeTimeline();
++            const initialEventFetchPromise = this.initalEventFetchProm;
++            try {
++                await initialEventFetchPromise;
++            } finally {
++                if (this.initalEventFetchProm === initialEventFetchPromise) {
 +                    this.initalEventFetchProm = undefined;
-+                    this.initialEventsFetched = false;
-+                }
-             } else {
-                 // fetch initial events to allow proper pagination
-                 try {
-@@ -637,16 +692,23 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
-                     // must remain false while the async fetch happens, so we don't try to add events before
-                     // the pagination has finished. The important thing is that we're not await-ing anything
-                     // else between setting this and adding events, so no races.
-+                    await Promise.all(
-+                        this.liveTimeline
-+                            .getEvents()
-+                            .map((event) => this.timelineSet.relations.aggregateParentEvent(event)),
-+                    );
-                     this.initialEventsFetched = true;
-                     for (const event of this.replayEvents!) {
-                         this.addEvent(event, false);
-                     }
-                     this.replayEvents = null;
-+                    this.preInitEventTargets.clear();
-                     // just to make sure that, if we've created a timeline window for this thread before the thread itself
-                     // existed (e.g. when creating a new thread), we'll make sure the panel is force refreshed correctly.
-                     this.emit(RoomEvent.TimelineReset, this.room, this.timelineSet, true);
-                 } catch (e) {
-                     logger.error("Failed to load start of newly created thread: ", e);
-+                    this.initalEventFetchProm = undefined;
-                     this.initialEventsFetched = false;
                  }
              }
+         }
