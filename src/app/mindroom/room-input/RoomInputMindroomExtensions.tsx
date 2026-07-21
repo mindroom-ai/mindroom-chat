@@ -16,7 +16,6 @@ import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
 import {
   createRoomInputSendSessionState,
   getUploadRelationForSendSession,
-  hasMatchingReplyDraftContext,
 } from '../threads/roomInputSendSession';
 import type { TUploadContent } from '../../utils/matrix';
 import type { MindroomPasteMarker } from '../messages/pasteAttachmentMarker';
@@ -126,23 +125,6 @@ export const getMindroomRoomInputVoiceUploadRelation = (
 
   return getUploadRelationForSendSession(session, false);
 };
-
-export const hasMatchingMindroomRoomInputVoiceReplyContext = (
-  context: MindroomVoiceSendContext,
-  currentReplyDraft: IReplyDraft | undefined
-): boolean =>
-  hasMatchingReplyDraftContext(
-    {
-      roomId: context.roomId,
-      threadId: context.threadId,
-      replyDraft: context.replyDraft,
-    },
-    {
-      roomId: context.roomId,
-      threadId: context.threadId,
-      replyDraft: currentReplyDraft,
-    }
-  );
 
 export const createMindroomRoomInputPasteMarkerElement = (
   marker: MindroomPasteMarker

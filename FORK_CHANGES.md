@@ -2,9 +2,15 @@
 
 ## Runbook
 
+### Expose repository skills to Codex (2026-07-21)
+
+- Status: the repository-owned Claude skills are exposed through the standard agent skill discovery path.
+- `.agents/skills` is a relative symlink to `.claude/skills`, matching the MindRoom repository layout and keeping one source of truth for all agent clients.
+- Validation confirms both `pr-review` and `address-pr-review-comments` resolve through the symlink.
+
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: review-round-2 implementation, independent review, and local validation are complete, and final dual-remote publication will refresh GitHub PR #185 checks and AI review.
+- Status: PR #185 remediation is in progress after live-head review found SDK ordering, replay privacy and fail-closed mapping, oracle strength, script typechecking, schema migration, formatting, and documentation blockers.
 - Inputs: `plan/FINAL-PLAN.md`, the incident report, and all three authoritative trace artifacts were read before the implementation, and the replay loader verifies each artifact SHA-256 before use.
 - Root-cause gate: the exact unpatched speed-1 replay processed all 23 events but left all 17 edits buffered before thread initialization, while releasing initialization immediately exposed the completed 1,466-code-point body.
 - Gate verdict: H1 SDK pre-initialization relation buffering is confirmed, and the same exact trace disproves a presentation-helper defect on the proven path, so no presentation helper was changed.
@@ -38,8 +44,112 @@
 - Full-suite validation: normal Vitest discovery passes 450 files and 3,376 tests with no CINNY-126 regression.
 - Full-suite environment note: only the same three unrelated Xcode Cloud shell-harness tests fail because that test replaces `PATH` with `/usr/bin:/bin`, while Bash in this Nix environment is `/run/current-system/sw/bin/bash`; neither the failing test nor its scripts is changed by CINNY-126.
 - Independent final review: the SDK, pinned replay oracle, live-room isolation, recorder bounds, priority promotion, and overflow schema were re-reviewed after remediation with no remaining actionable finding.
-- Publication: final implementation and this sole report are pushed to Gitea PR #1 and GitHub PR #185 on branch `cinny-126`, with refreshed hosted checks and reviewers observed before handoff.
+- Publication: the existing ready-for-review GitHub PR #185 remains open on branch `cinny-126`; a follow-up commit, refreshed hosted checks, and available AI reviewers are required before handoff.
 
+### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
+
+- Status: the lifecycle-ownership and encryption-eligibility remediation is complete, validated, and independently approved; ready for human review.
+- Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
+- Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
+- Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
+- Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so voice is last among files that do not require a later manual retry.
+- Implemented behavior: when eligible live staged attachments exist and no send session is active, `handleVoiceSend` owns the complete accepted gesture, starts and awaits each surviving upload, refreshes the origin room's store-backed board state, and invokes the existing ordering controller only when the batch can complete within that call.
+- The recorder callback does not resolve, the durable voice serialization claim does not release, and the parked draft cannot clear until the surviving batch members have sent or an error has surfaced.
+- The lifecycle-complete controller mode fails fast, propagates the original Matrix error, clears its transient session on any incomplete result, and never depends on a later mounted-component upload effect.
+- Eligibility preserves the standalone voice path for voice-only sends, classic mode, active sessions, oversized voice, only preparation-error, marker-backed paste, or oversized companions, callbacks owned by another room, and callbacks after unmount.
+- The final companion list is read after voice preparation, so attachments canceled during preparation are omitted and attachments added before an initial voice handoff are included.
+- Combined-send enrollment excludes companions already in upload error and parked voice retries, preserving the invariant that one user gesture owns one explicit controller batch while failed or later-staged attachments remain ordinary board items.
+- `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query for enrollment exclusion and retains its ordinary retryable behavior for upload-board sends.
+- Session-owned reply and upload cleanup now targets the captured room id through room-scoped callbacks even if the composer rerenders for another room.
+- Combined-batch upload or fail-fast send failures reject the recorder callback so the existing parked-draft surface remains authoritative, while unsent companions remain staged on their origin-room board.
+- Partial Matrix delivery has deliberately simple recovery: the recorder parks the voice with its original captured context, and unsent companions remain staged without hidden thread-binding metadata.
+- The combined voice item is owned by the recorder capsule rather than rendered as a removable upload-board card.
+- The controller receives one explicit prepared batch containing both file items and upload states, so lifecycle completion does not seed or overwrite current-composer refs after an await.
+- Invariant: an accepted voice-send callback resolves only after the recorded voice and every still-enrolled companion from that gesture send under the captured room, thread, and reply context; failure parks the voice, leaves unsent companions as ordinary staged items, and never appropriates later composer intent.
+- Ownership stays at the gesture boundary: `handleVoiceSend` captures the exact batch and awaits its promise, while `useRoomInputSendSessionController` only orders that explicit batch and does not infer recovery destinations from staged-item metadata.
+- Scope leaves backend code, typed composer text, paste-marker lifecycle, and the existing root-plus-thread ordering policy unchanged.
+- Paste-converted attachments and composer text stay with the typed draft.
+- Focused validation passes 149 tests across eight room-input, send-session, recorder, capsule, dialog, and upload-card files.
+- Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, owning-hook completion after unmount, serialization lifetime, origin-room reply clearing, upload failure, and companion cancellation while recorder-owned voice remains non-removable.
+- Third-round review triage fixes Issues 1-5, 7, and 8 by deleting recovery cohorts, removing the voice upload-board card, making the explicit prepared batch authoritative, removing the post-await ref stomp, comparing reply drafts directly, and replacing cohort tests with invariant regressions.
+- Issue 6 is ignored as non-blocking translation cleanup because the surviving generic failure string predates this remediation and changing the capsule-wide error policy is outside this bug boundary.
+- The lifecycle remediation deletes the mocked upload-card auto-start implementation and synthetic controller-start failure wrapper because combined-send correctness no longer depends on either mocked boundary.
+- `PLAN.md`, `PLAN-B.md`, and `REPORT.md` are removed because this Runbook is the canonical durable record.
+- Independent review approved the simplified boundary with no findings and confirmed that no recovery-cohort, retry-context, thread-binding, or ref-stomp traces remain.
+- Validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- The full Vitest suite passes 446 of 447 files and 3340 of 3343 tests; the only failures are the three established Nix-environment Xcode Cloud Homebrew fixture tests in `xcodeCloudPostClone.test.ts`.
+- Finish-the-invariant remediation treats a still-staged companion upload failure as a companion-local result: the failed item remains visibly staged in error while surviving companions and the voice complete their captured explicit batch.
+- The reply-clear callback now advertises only the room and draft identity it consumes, and the dead thread-aware reply-context matcher and its tests are deleted.
+- Final focused validation passes 83 tests across the room-input integration, send-session controller, and send-session policy suites, including the adopted in-flight upload rejection branch.
+- Final validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`; the full suite retains only the same three Xcode fixture failures documented above.
+- Independent review approved the final reduction with no findings and confirmed that no new recovery machinery or half-refactor traces remain.
+- Encryption-transition adjudication reproduced the reported plaintext media behavior on the pre-existing ordinary upload-board path: a file staged and uploaded before encryption was enabled still sent its plaintext `mxc` and `url` after the room rerendered encrypted and the board Send action was pressed.
+- Security follow-up: attachment preparation and uploaded media must be invalidated or re-encrypted whenever a room changes from plaintext to encrypted, across ordinary board, composer, and combined-voice sends; this repo-wide transition policy is explicitly outside CINNY-128 and must not be patched only in combined enrollment.
+- Combined upload orchestration now awaits the voice upload independently from the already-observed companion settlement aggregate, so a known fatal voice failure promptly rejects and releases global serialization even if a companion never settles.
+- Lifecycle-complete text failures now restore the existing composer fallback and rethrow the original Matrix error, matching upload failure semantics; focused coverage also pins fail-fast root rejection before later batch members send.
+- Final review triage fixes Issues 2, 3, and 5 as the same fail-fast lifecycle class, records Issue 1 as a confirmed pre-existing security follow-up, and leaves the Issue 4 API redesign and Issue 6 coverage expansion out of scope.
+- Final focused validation passes 129 tests; typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The final full suite passes 446 of 447 files and 3342 of 3345 tests, with only the same three Xcode fixture failures, and independent review approved with no findings or half-refactor traces.
+- Bulk upload cancellation now intersects the upload observer with the room's actual staged board items before canceling uploads or mutating send-session refs, so a recorder-owned voice file observed only for lifecycle completion cannot be silently removed by Remove All.
+- Automatic companion enrollment now requires encryption-preparation parity with the refreshed live room (`encInfo` presence matches room encryption); stale plaintext companions remain staged while the freshly encrypted voice proceeds, without attempting the repo-wide CINNY-131 transition policy here.
+- The two boundary regressions pass with the surrounding focused room-input suite, for 131 focused tests total.
+- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The full suite passes 446 of 447 files and 3344 of 3347 tests, with only the same three Xcode fixture failures, and independent review approved the ownership and encryption fixes with no half-refactor findings.
+
+### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
+
+- Status: merged in PR #186 after live lab acceptance.
+  Retroactive review remediation, regression coverage, full local validation, and independent re-review are complete on `fix/invite-autosuggest-review`.
+  Ready follow-up PR #187 passed final CI and available AI review and is ready for human review.
+- Symptom: the invite dialog's auto-suggest never lists MindRoom agents whose display name has no spaces (e.g. `MindRoomExpert`), even though pasting the MXID resolves the user.
+- Root cause: Tuwunel matches `user_directory/search` by case-insensitive substring, so the previous `' '` bootstrap term only returned users whose display name contains a literal space and space-less users never entered the local suggestion cache.
+  A natural spaced query such as `mindroom expert` also substring-matched nothing server-side.
+- Fix: the cache bootstrap now searches `'@'`, which every MXID contains — a Tuwunel-compatible visible-user bootstrap, not a Matrix-standard match-all guarantee — and the per-keystroke server fallback additionally issues a whitespace-compacted variant for spaced queries alongside the raw term.
+- Round-1 review (5 approve / 3 changes-required) surfaced two correctness gaps, both fixed.
+  Suggestion ranking was whitespace-sensitive, so an exact compact hit such as `R2D2` for the input `r 2 d 2` exceeded the fuzzy threshold and was dropped after the server returned it.
+  `rankUsers` now ranks spaced queries against both the raw and compacted forms and keeps each user's best result.
+  The dual requests settled through a shared barrier, so one slow or hung variant withheld the sibling's fulfilled results.
+  Each variant now publishes independently as it settles, while loading remains active until every variant settles.
+  The first publish of a request replaces any previous result for the term, and later variants merge into it.
+- A failed variant contributes no users, so one failure keeps the other's results.
+  When both variants fail, an older matching server result is cleared so only local suggestions remain.
+  The request-ID, client-ownership, and liveness guards cover every settlement and are pinned by tests that fail if the guard is removed.
+  A stale settlement can neither clear the current request's loading state nor displace the current owner's published results.
+- Scope guard: the server search limit, debounce, ranking tiers beyond the dual-form query, candidate filtering, dialog accessibility, cache TTL, and Create Chat flow are untouched.
+  The strong-local-match server-fallback gate stays whitespace-sensitive, which can only under-count and trigger an extra server search, never suppress a result.
+  Tuwunel clamps the bootstrap limit to 500, so the existing `limited` handling stays load-bearing past 500 users.
+- The transient root `PLAN.md` planning artifact is removed from the branch per repo policy.
+  The plan history remains in the commit log.
+- Regression coverage pins the exact bootstrap term and limit, a space-less user entering the cache normalized, raw-plus-compact dedup with a compact-only target, a single request for space-less queries, per-variant failure isolation, incremental publication while the sibling request is still pending, a compact-only hit surviving ranking beyond the fuzzy threshold (hook and ranker level), guard-removal-detecting stale-query and owner tests, and compact results in the room-less create-chat flow.
+- Validation passes typecheck, the production/PWA build, ESLint with zero errors and 17 pre-existing warnings, Prettier on all touched files, and the Vitest suite with 442 of 443 files (3,294 of 3,297 tests).
+  The 3 failures are the pre-existing `xcodeCloudPostClone` suite, whose harness pins the child PATH to `/usr/bin:/bin` where `bash` does not exist on this NixOS runner — verified to fail identically on the parent commit.
+  RoomTimeline-area timing flakes appeared in one loaded run and pass in isolation and in clean full runs.
+- Independent round-2 review confirmed all four round-1 findings resolved with revert-detecting tests, race-safety of the incremental publish, and no half-refactor traces.
+  Its two minor notes (a test comment misattributing a tiebreak, this Runbook entry lagging round 2) are fixed.
+- Live lab acceptance confirmed that a fresh session bootstraps with `"search_term":"@"` and includes the expert.
+  `expert`, `mindroom expert`, and `MindRoomEx` listed MindRoomExpert first in a room it had not joined.
+  Joined-member suppression and Create Chat behavior also passed.
+- Retroactive PR review accepts the deployment-specific `'@'` bootstrap because both code and Runbook explicitly limit the guarantee to Tuwunel.
+  The shared compact-query rule now has one implementation used by server search and local ranking, with focused coverage for whitespace removal, the two-character threshold, and no-op queries.
+  Stale-settlement and owner-key comments document why newer effects exclusively own loading state and why both request and owner guards remain required.
+  Independent review found that returning to a previously successful query could resurrect its old server results when both fresh variants failed.
+  Query changes now invalidate mismatched server state, and a current all-failed search clears older matching server results so only fresh local suggestions remain.
+  Focused validation passes 49 invite-search, query-ranking, and directory-cache tests.
+  The full Vitest suite passes 447 files with 3,365 tests.
+  Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+  Final independent re-review found no remaining race, ownership, stale-result, test-strength, documentation, or half-refactor issue.
+  PR #187 review found one valid state-identity optimization in the all-failed path.
+  The functional update now clears only a matching nonempty stale result and preserves the current state reference when no clear is required.
+  Focused tests and typecheck pass after remediation.
+  Independent re-review approved the query, owner, and request-race behavior with no findings.
+  Greptile reviewed the final head at 5/5 confidence with no findings.
+  Android, web, and Docker CI pass.
+  CodeRabbit and Sourcery could not review because their quotas were exhausted, and Qodo was paused for the account.
+  All four retrospective review threads on PR #186 have disposition replies and are resolved.
+  An independent Claude Fable review through `agent-cli dev` verified the exact PR #186 and PR #187 diffs, all five review-thread dispositions, 78 focused tests, typecheck, and touched-file ESLint.
+  Fable found no remaining code issue and confirmed that PR #187 fully fixes the stale-result regression from PR #186.
+  Its only finding was stale PR #187 description wording that described publishing an empty result instead of conditionally clearing an older matching result.
+  The PR description now matches the final implementation.
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
 - Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan and implementation reviews, PR review remediation, and final CI are complete; ready for human review.
@@ -5317,7 +5427,7 @@ Note: the tinted dark palette was later moved behind the opt-in "Midnight" theme
   - Cleanup green check: `npm run build` (existing Vite runtime-config, sourcemap, localStorage, and chunk-size warnings only).
   - Cleanup independent review green check: separate subagent review found no issues and confirmed no `SplashScreen` caller still passes the redundant default particle background.
 
-### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
+### Point fork support links at MindRoom repository (PR #35) (2026-05-29)
 
 - Status:
   - Complete locally.

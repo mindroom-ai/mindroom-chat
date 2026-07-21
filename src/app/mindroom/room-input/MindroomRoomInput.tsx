@@ -110,6 +110,7 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout } from '../../components/message';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useMediaConfig } from '../../hooks/useMediaConfig';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import colorMXID from '../../../util/colorMXID';
@@ -132,7 +133,6 @@ import {
   removeMindroomRoomInputPasteMarkerElements,
   getMindroomRoomInputVoiceSendContext,
   getMindroomRoomInputVoiceUploadRelation,
-  hasMatchingMindroomRoomInputVoiceReplyContext,
   refreshMindroomRoomInputVoiceSendContext,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
@@ -146,6 +146,7 @@ import {
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
+import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -224,6 +225,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
+    const mediaConfig = useMediaConfig();
+    const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -657,12 +660,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const handleCancelUpload = useCallback(
       (uploadsToCancel: Upload[]) => {
-        uploadsToCancel.forEach((upload) => {
+        const boardFiles = new Set(selectedFilesRef.current.map((item) => item.file));
+        const boardUploadsToCancel = uploadsToCancel.filter((upload) =>
+          boardFiles.has(upload.file)
+        );
+        boardUploadsToCancel.forEach((upload) => {
           if (upload.status === UploadStatus.Loading) {
             mx.cancelUpload(upload.promise);
           }
         });
-        const uploadFilesToCancel = uploadsToCancel.map((upload) => upload.file);
+        const uploadFilesToCancel = boardUploadsToCancel.map((upload) => upload.file);
         const pasteFileNames = getPasteUploadFileNames(uploadFilesToCancel);
         removeUploadsFromBoard(uploadFilesToCancel);
         removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
@@ -710,10 +717,28 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [mx]
     );
 
-    const uploadVoiceItem = useCallback(
-      (fileItem: TUploadItem): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const uploadAtom = roomUploadAtomFamily(fileItem.file);
+    const uploadItem = useCallback(
+      async (fileItem: TUploadItem): Promise<string> => {
+        const uploadAtom = roomUploadAtomFamily(fileItem.file);
+        const upload = store.get(uploadAtom);
+        if (upload.status === UploadStatus.Success) return upload.mxc;
+        if (upload.status === UploadStatus.Error) throw upload.error;
+        if (upload.status === UploadStatus.Loading) {
+          try {
+            const response = await upload.promise;
+            if (!response.content_uri) {
+              throw new Error('Upload completed without a content URI.');
+            }
+            store.set(uploadAtom, { mxc: response.content_uri });
+            return response.content_uri;
+          } catch (err) {
+            const error = toMatrixUploadError(err, 'upload');
+            store.set(uploadAtom, { error });
+            throw error;
+          }
+        }
+
+        return new Promise((resolve, reject) => {
           void uploadContent(mx, fileItem.file, {
             hideFilename: !!fileItem.encInfo,
             onPromise: (promise) => store.set(uploadAtom, { promise }),
@@ -727,8 +752,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               reject(error);
             },
           }).catch(reject);
-        }),
+        });
+      },
       [mx, store]
+    );
+
+    const uploadItemWhileStaged = useCallback(
+      async (ownerRoomId: string, fileItem: TUploadItem): Promise<TUploadItem | undefined> => {
+        const uploadItemsAtom = roomIdToUploadItemsAtomFamily(ownerRoomId);
+        let unsubscribe: () => void = () => undefined;
+        const removed = new Promise<undefined>((resolve) => {
+          const resolveIfRemoved = () => {
+            if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
+              resolve(undefined);
+            }
+          };
+          unsubscribe = store.sub(uploadItemsAtom, resolveIfRemoved);
+          resolveIfRemoved();
+        });
+
+        try {
+          return await Promise.race([uploadItem(fileItem).then(() => fileItem), removed]);
+        } finally {
+          unsubscribe();
+        }
+      },
+      [store, uploadItem]
     );
 
     const sendVoiceItem = useCallback(
@@ -753,38 +802,38 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [mx, buildUploadMessageContent]
     );
 
-    const clearReplyDraftForVoiceContext = useCallback(
-      (context: MindroomVoiceSendContext) => {
+    const clearReplyDraftForSendContext = useCallback(
+      (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => {
         const replyDraftAtom = roomIdToReplyDraftAtomFamily(context.roomId);
         const currentReplyDraft = store.get(replyDraftAtom);
-        if (hasMatchingMindroomRoomInputVoiceReplyContext(context, currentReplyDraft)) {
+        if (hasMatchingReplyDraft(context.replyDraft, currentReplyDraft)) {
           store.set(replyDraftAtom, undefined);
         }
       },
       [store]
     );
 
-    const { processSendSession, startSendSession } = useRoomInputSendSessionController({
-      mx,
-      room,
-      roomId,
-      threadId,
-      replyDraft,
-      threadingEnabled,
-      setReplyDraft,
-      editor,
-      sendTypingStatus,
-      selectedFilesRef,
-      sendSessionFilesRef,
-      sendSessionUploadItemsRef,
-      setSendSessionFiles,
-      mountedRef,
-      uploadsRef,
-      buildUploadMessageContent,
-      removeUploadsFromBoard,
-      onRoomMessageSent,
-      shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
-    });
+    const { hasActiveSendSession, processSendSession, startSendSession } =
+      useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        threadId,
+        replyDraft,
+        threadingEnabled,
+        clearReplyDraft: clearReplyDraftForSendContext,
+        editor,
+        sendTypingStatus,
+        selectedFilesRef,
+        sendSessionFilesRef,
+        sendSessionUploadItemsRef,
+        setSendSessionFiles,
+        mountedRef,
+        uploadsRef,
+        buildUploadMessageContent,
+        removeUploadsFromBoard,
+        onRoomMessageSent,
+      });
 
     // Snapshot the room/thread/reply context for the next start(). The hook
     // calls this synchronously inside start() and persists the result on the
@@ -902,11 +951,71 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'create'
             );
           }
-          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
+          const pendingVoiceRetry = store.get(pendingVoiceSendDraftAtom);
+          const isParkedVoiceRetry =
+            pendingVoiceRetry?.inFlight !== undefined &&
+            pendingVoiceRetry.file === file &&
+            pendingVoiceRetry.context === context;
+          const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
+          const eligibleCompanionItems = selectedFilesRef.current.filter(
+            (item) =>
+              item !== fileItem &&
+              !item.prepError &&
+              !item.metadata.mindroomPasteAttachment &&
+              Boolean(item.encInfo) === liveRoomEncrypted &&
+              store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
+              item.file.size < allowUploadSize
+          );
+          const shouldCombineWithCompanions =
+            mountedRef.current &&
+            liveContext.roomId === roomIdRef.current &&
+            liveContext.threadingEnabled &&
+            !isParkedVoiceRetry &&
+            !hasActiveSendSession() &&
+            fileItem.file.size < allowUploadSize &&
+            eligibleCompanionItems.length > 0;
 
+          if (shouldCombineWithCompanions) {
+            const ownerRoomId = liveContext.roomId;
+            const companionUploadResultsPromise = Promise.allSettled(
+              eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item))
+            );
+            try {
+              await uploadItem(fileItem);
+            } catch (err) {
+              return logAndThrowUploadError(err, 'upload');
+            }
+            const companionUploadResults = await companionUploadResultsPromise;
+
+            const liveItems = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
+            const liveFiles = new Set(liveItems.map((item) => item.file));
+            const readyItems = [
+              ...companionUploadResults
+                .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
+                .filter(
+                  (item): item is TUploadItem => item !== undefined && liveFiles.has(item.file)
+                ),
+              fileItem,
+            ];
+            try {
+              await startSendSession({
+                batch: {
+                  fileItems: readyItems,
+                  uploads: readyItems.map((item) => store.get(roomUploadAtomFamily(item.file))),
+                },
+                context: liveContext,
+                completeWithinCall: true,
+              });
+              return;
+            } catch (err) {
+              return logAndThrowUploadError(err, 'send');
+            }
+          }
+
+          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
           let mxc: string;
           try {
-            mxc = await uploadVoiceItem(fileItem);
+            mxc = await uploadItem(fileItem);
           } catch (err) {
             return logAndThrowUploadError(err, 'upload');
           }
@@ -915,7 +1024,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           } catch (err) {
             return logAndThrowUploadError(err, 'send');
           }
-          clearReplyDraftForVoiceContext(liveContext);
+          clearReplyDraftForSendContext(liveContext);
         } finally {
           if (liveContext && fileItems.length > 0) {
             removeUploadsFromBoard(
@@ -931,15 +1040,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [
         appendUploadItemsToRoomBoard,
-        clearReplyDraftForVoiceContext,
+        allowUploadSize,
+        clearReplyDraftForSendContext,
         createVoiceUploadItems,
+        hasActiveSendSession,
         mx,
         removeUploadsFromBoard,
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
+        startSendSession,
         t,
-        uploadVoiceItem,
+        uploadItem,
+        uploadItemWhileStaged,
         onRoomMessageSent,
       ]
     );

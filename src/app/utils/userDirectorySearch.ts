@@ -47,6 +47,11 @@ const getUserLocalpart = (userId: string): string => getMxIdLocalPart(userId) ??
 const normalizeQuery = (query: string): string =>
   query.trim().toLocaleLowerCase().replace(/^@/, '');
 
+export const getUserDirectoryQueryVariants = (query: string): string[] => {
+  const compactQuery = query.replace(/\s+/g, '');
+  return compactQuery.length >= 2 && compactQuery !== query ? [query, compactQuery] : [query];
+};
+
 const getPostPrefixLocalpart = (localpart: string): string =>
   localpart.startsWith(MINDROOM_AGENT_LOCALPART_PREFIX)
     ? localpart.slice(MINDROOM_AGENT_LOCALPART_PREFIX.length)
@@ -186,13 +191,28 @@ export const rankUsers = (
     return searchSingleCharacter(users, normalizedQuery, limit);
   }
 
-  return getFuse(users)
-    .search(normalizedQuery)
-    .map((result) => ({
-      user: result.item,
-      score: result.score ?? 1,
-      tier: getRankTier(result.item, normalizedQuery),
-    }))
+  // A spaced query must also rank space-less identities (`r 2 d 2` → `R2D2`),
+  // where the added spaces can exceed the fuzzy threshold; each user keeps its
+  // best result across the raw and compacted query forms.
+  const queries = getUserDirectoryQueryVariants(normalizedQuery);
+
+  const fuse = getFuse(users);
+  const bestResultByUserId = new Map<string, UserDirectoryFuseResult>();
+  queries.forEach((rankQuery) => {
+    fuse.search(rankQuery).forEach((result) => {
+      const candidate: UserDirectoryFuseResult = {
+        user: result.item,
+        score: result.score ?? 1,
+        tier: getRankTier(result.item, rankQuery),
+      };
+      const currentBest = bestResultByUserId.get(result.item.userId);
+      if (!currentBest || compareUserDirectoryResults(candidate, currentBest) < 0) {
+        bestResultByUserId.set(result.item.userId, candidate);
+      }
+    });
+  });
+
+  return Array.from(bestResultByUserId.values())
     .sort(compareUserDirectoryResults)
     .slice(0, limit)
     .map((result) => result.user);

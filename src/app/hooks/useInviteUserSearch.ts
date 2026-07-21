@@ -14,6 +14,7 @@ import {
 import {
   countStrongInviteUserMatches,
   filterInviteUserCandidates,
+  getUserDirectoryQueryVariants,
   rankUsers,
 } from '../utils/userDirectorySearch';
 import { useAlive } from './useAlive';
@@ -131,31 +132,65 @@ export const useInviteUserSearch = (
 
       setIsServerFetching(true);
 
-      try {
-        const response = await mx.searchUserDirectory({
-          term,
-          limit: INVITE_SERVER_SEARCH_LIMIT,
-        });
+      // The server matches by case-insensitive substring, so a natural spaced
+      // query like `mindroom expert` cannot hit a space-less display name like
+      // `MindRoomExpert`. Also search a whitespace-compacted variant; the raw
+      // term stays so spaced display names keep matching.
+      const terms = getUserDirectoryQueryVariants(term);
+
+      // Each variant publishes as soon as it settles: one slow or hung request
+      // must not delay or discard the sibling's results. A failed variant adds
+      // nothing; if all fail, clear older matching hits without creating new state.
+      let unsettledVariants = terms.length;
+      let publishedThisRequest = false;
+      const settleVariant = (users: ServerUserDirectoryUser[] | undefined) => {
+        // A newer effect owns the loading state. Stale settlements must not
+        // decrement this request's counter and clear that newer request.
         if (!alive() || requestId !== requestIdRef.current) return;
 
-        setServerResult({
-          term: queryTerm,
-          ownerKey: cache.ownerKey,
-          users: normalizeUserDirectoryUsers(response.results),
-        });
-      } catch {
-        if (!alive() || requestId !== requestIdRef.current) return;
+        if (users) {
+          // The first publish of a request replaces any previous result for
+          // the same term; later variants of the same request merge into it.
+          const mergeIntoCurrent = publishedThisRequest;
+          publishedThisRequest = true;
+          setServerResult((currentResult) =>
+            // The request ID is the primary ownership boundary. Keep this
+            // owner check as defense in depth during render-to-effect handoff.
+            mergeIntoCurrent &&
+            currentResult &&
+            currentResult.term === queryTerm &&
+            currentResult.ownerKey === cache.ownerKey
+              ? { ...currentResult, users: mergeUserDirectoryUsers(currentResult.users, users) }
+              : { term: queryTerm, ownerKey: cache.ownerKey, users }
+          );
+        }
 
-        setServerResult({
-          term: queryTerm,
-          ownerKey: cache.ownerKey,
-          users: [],
-        });
-      } finally {
-        if (alive() && requestId === requestIdRef.current) {
+        unsettledVariants -= 1;
+        if (unsettledVariants === 0) {
+          if (!publishedThisRequest) {
+            setServerResult((currentResult) =>
+              currentResult?.term === queryTerm &&
+              currentResult.ownerKey === cache.ownerKey &&
+              currentResult.users.length > 0
+                ? { ...currentResult, users: [] }
+                : currentResult
+            );
+          }
           setIsServerFetching(false);
         }
-      }
+      };
+
+      await Promise.allSettled(
+        terms.map((searchTerm) =>
+          mx
+            .searchUserDirectory({
+              term: searchTerm,
+              limit: INVITE_SERVER_SEARCH_LIMIT,
+            })
+            .then((response) => normalizeUserDirectoryUsers(response.results))
+            .then(settleVariant, () => settleVariant(undefined))
+        )
+      );
     },
     [alive, cache.ownerKey, mx]
   );
@@ -164,6 +199,11 @@ export const useInviteUserSearch = (
 
   useEffect(() => {
     requestIdRef.current += 1;
+    setServerResult((currentResult) =>
+      currentResult?.term === trimmedQuery && currentResult.ownerKey === cache.ownerKey
+        ? currentResult
+        : undefined
+    );
 
     if (!needsServerSearch) {
       setIsServerFetching(false);
@@ -178,7 +218,7 @@ export const useInviteUserSearch = (
 
     setIsServerFetching(true);
     debouncedServerSearch(serverQuery, trimmedQuery, requestIdRef.current);
-  }, [debouncedServerSearch, needsServerSearch, trimmedQuery]);
+  }, [cache.ownerKey, debouncedServerSearch, needsServerSearch, trimmedQuery]);
 
   const suggestions = useMemo(() => {
     if (trimmedQuery.length === 0) return [];
