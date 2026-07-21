@@ -12,6 +12,14 @@ const flushAsyncWork = async (cycles = 12) => {
   for (let index = 0; index < cycles; index += 1) await Promise.resolve();
 };
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+};
+
 const makeEvent = (
   eventId: string,
   content: Record<string, unknown>,
@@ -32,6 +40,18 @@ const addRootToRoom = (room: Room, root: MatrixEvent) => {
     addToState: false,
     roomState: room.currentState,
     toStartOfTimeline: false,
+  });
+};
+
+const setThreadSummary = (root: MatrixEvent, latestReply: MatrixEvent) => {
+  root.setUnsigned({
+    'm.relations': {
+      'm.thread': {
+        count: 1,
+        current_user_participated: true,
+        latest_event: latestReply.event,
+      },
+    },
   });
 };
 
@@ -140,7 +160,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(threadUpdateBodies).toEqual(['First draft', 'Final answer']);
 
     const replacementListenerCount = placeholder.listenerCount(MatrixEventEvent.Replaced);
-    expect(replacementListenerCount).toBe(2);
+    expect(replacementListenerCount).toBe(1);
     const staleEdits = Array.from({ length: 25 }, (_, index) =>
       makeEvent(
         `$stale-edit-${index}`,
@@ -163,6 +183,131 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(replacementListenerCount);
   });
 
+  it('applies the first edit that arrives while initial pagination has reset the timeline', async () => {
+    const pagination = deferred<boolean>();
+    const placeholder = makeEvent(
+      '$pagination-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    setThreadSummary(root, placeholder);
+    const paginateEventTimeline = vi.fn(() => pagination.promise);
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline,
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [placeholder], false);
+
+    await flushAsyncWork();
+
+    expect(paginateEventTimeline).toHaveBeenCalledOnce();
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(thread.findEventById(placeholder.getId()!)).toBeUndefined();
+
+    const replacementSignals: string[] = [];
+    const threadUpdateBodies: unknown[] = [];
+    placeholder.on(MatrixEventEvent.Replaced, () => {
+      replacementSignals.push(placeholder.replacingEvent()?.getId() ?? 'missing');
+    });
+    thread.on(ThreadEvent.Update, () => {
+      threadUpdateBodies.push(placeholder.getContent().body);
+    });
+    const edit = makeEvent(
+      '$during-pagination-edit',
+      {
+        body: '* Final during pagination',
+        'm.new_content': { body: 'Final during pagination', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+
+    expect(placeholder.replacingEvent()).toBe(edit);
+    expect(placeholder.getContent().body).toBe('Final during pagination');
+    expect(replacementSignals).toEqual(['$during-pagination-edit']);
+    expect(threadUpdateBodies).toEqual(['Final during pagination']);
+
+    pagination.resolve(true);
+    await flushAsyncWork();
+  });
+
+  it('reapplies a pre-init edit to the fresh target instance returned by pagination', async () => {
+    const releasePagination = deferred<void>();
+    const placeholder = makeEvent(
+      '$remapped-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const freshPlaceholder = makeEvent(
+      placeholder.getId()!,
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    setThreadSummary(root, placeholder);
+    const paginateEventTimeline = vi.fn<MatrixClient['paginateEventTimeline']>(async (timeline) => {
+      await releasePagination.promise;
+      timeline
+        .getTimelineSet()
+        .addEventsToTimeline([freshPlaceholder], true, false, timeline, null);
+      return true;
+    });
+    const client = makeClient({
+      fetchRoomEvent: vi.fn().mockResolvedValue(root.event),
+      paginateEventTimeline,
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [placeholder], false);
+    const edit = makeEvent(
+      '$pre-pagination-edit',
+      {
+        body: '* Final after remap',
+        'm.new_content': { body: 'Final after remap', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+
+    thread.addEvent(edit, false);
+    await flushAsyncWork();
+
+    expect(paginateEventTimeline).toHaveBeenCalledOnce();
+    expect(placeholder.replacingEvent()).toBe(edit);
+    expect(placeholder.getContent().body).toBe('Final after remap');
+    expect(freshPlaceholder).not.toBe(placeholder);
+
+    releasePagination.resolve();
+    await flushAsyncWork(24);
+
+    expect(thread.initialEventsFetched).toBe(true);
+    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+    expect(freshPlaceholder.replacingEvent()).toBe(edit);
+    expect(freshPlaceholder.getContent().body).toBe('Final after remap');
+    expect(placeholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+    expect(freshPlaceholder.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+  });
+
   it('retries initial pagination after the first request rejects', async () => {
     const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const unhandledRejections: unknown[] = [];
@@ -180,15 +325,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       2
     );
     const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
-    root.setUnsigned({
-      'm.relations': {
-        'm.thread': {
-          count: 1,
-          current_user_participated: true,
-          latest_event: latestReply.event,
-        },
-      },
-    });
+    setThreadSummary(root, latestReply);
     const paginateEventTimeline = vi
       .fn<MatrixClient['paginateEventTimeline']>()
       .mockRejectedValueOnce(new Error('forced pagination failure'))
