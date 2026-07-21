@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
-import { getThreadScheduledDisplay } from './useThreadHeaderInfo';
 import type { ThreadRecord } from './types';
 
 const basePresentation: ThreadRecord['presentation'] = {
@@ -104,29 +103,6 @@ describe('buildThreadHeaderViewModelFromRecord', () => {
 
     expect(model.scheduledLabel).toBe('2 scheduled tasks');
     expect(model.bannerScheduledText).toBe('2 scheduled tasks');
-  });
-
-  it('normalizes an elapsed timestamp to count-only copy without future-time wording', () => {
-    const scheduledDisplay = getThreadScheduledDisplay(1, 0);
-    const record = makeRecord({
-      status: {
-        scheduledTaskCount: 1,
-        nextScheduledTs: scheduledDisplay.nextScheduledTs,
-      },
-    });
-
-    const model = buildThreadHeaderViewModelFromRecord({
-      record,
-      scheduledDisplayText: scheduledDisplay.scheduledDisplayText,
-      canEdit: false,
-      availableTags: [],
-      pickerDisabled: true,
-    });
-
-    expect(model.scheduledLabel).toBe('1 scheduled task');
-    expect(model.bannerScheduledText).toBe('1 scheduled task');
-    expect(model.bannerScheduledText).not.toContain('Next task');
-    expect(model.scheduledLabel).not.toContain('pending scheduled task,');
   });
 
   it('prefixes scheduled-only countdown copy with Next task', () => {

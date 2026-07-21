@@ -36,6 +36,23 @@ vi.mock('../useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,
 }));
+vi.mock('../scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
+  parseScheduledTaskStateEvent: (event: {
+    getStateKey: () => string;
+    getContent: () => Record<string, unknown>;
+  }) => {
+    const content = event.getContent();
+    return {
+      taskId: event.getStateKey(),
+      status: content.status as string,
+      threadId: content.thread_id as string | null,
+      newThread: content.new_thread as boolean,
+      executeAt: content.execute_at as string | null,
+    };
+  },
+}));
+
 const makeThreadRoom = () => {
   const streaming = makeEvent('$streaming-root', { isThreadRoot: true, ts: 1 });
   const scheduled = makeEvent('$scheduled-root', { isThreadRoot: true, ts: 2 });

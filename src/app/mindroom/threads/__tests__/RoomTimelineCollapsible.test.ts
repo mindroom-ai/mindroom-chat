@@ -338,6 +338,11 @@ vi.mock('../useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
 
+vi.mock('../scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
+  parseScheduledTaskStateEvent: () => null,
+}));
+
 vi.mock('../../../hooks/useDocumentFocusChange', () => ({
   useDocumentFocusChange: vi.fn(),
 }));

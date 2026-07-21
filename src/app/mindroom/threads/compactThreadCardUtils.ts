@@ -32,11 +32,10 @@ const formatRelativeDelay = (deltaMs: number): string => {
   return `in ${hours}h ${minutes}m`;
 };
 
-export const formatScheduledTime = (ts: number): string | undefined => {
+export const formatScheduledTime = (ts: number): string => {
   const now = Date.now();
   const deltaMs = ts - now;
 
-  if (deltaMs <= 0) return undefined;
   if (deltaMs < SIX_HOURS_MS) return formatRelativeDelay(deltaMs);
 
   if (isSameCalendarDay(now, ts)) {

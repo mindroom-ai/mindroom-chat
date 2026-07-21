@@ -1,12 +1,8 @@
-import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { EventStatus, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
 import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
 import { buildThreadRecord } from './threadRecord';
-import { buildRoomThreadScheduledStatusMap } from './threadScheduledStatus';
-import { useRoomThreadScheduledStatusMap } from './useRoomThreadScheduledStatusMap';
 
 const makeEvent = ({
   eventId,
@@ -75,26 +71,6 @@ const makeMx = (): MatrixClient =>
   ({
     getUserId: () => '@me:server',
   } as unknown as MatrixClient);
-
-const makeCronScheduledEvent = (): MatrixEvent =>
-  ({
-    getStateKey: () => 'cron-task',
-    getContent: () => ({
-      status: 'pending',
-      thread_id: '$root',
-      new_thread: false,
-      workflow: JSON.stringify({
-        schedule_type: 'cron',
-        cron_schedule: {
-          minute: '*/5',
-          hour: '*',
-          day: '*',
-          month: '*',
-          weekday: '*',
-        },
-      }),
-    }),
-  } as unknown as MatrixEvent);
 
 const buildModel = (
   room: Room,
@@ -256,157 +232,6 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
         avatarUrl: undefined,
       },
     ]);
-  });
-
-  it('renders a next time instead of a task count for a cron-only event', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-02-29T12:00:00.000Z'));
-
-    try {
-      const room = makeRoom();
-      const cronEvent = {
-        ...makeCronScheduledEvent(),
-        getContent: () => ({
-          status: 'pending',
-          thread_id: '$root',
-          new_thread: false,
-          workflow: JSON.stringify({
-            schedule_type: 'cron',
-            cron_schedule: {
-              minute: ' 0 ',
-              hour: ' 0 ',
-              day: ' 1,31 ',
-              month: ' * ',
-              weekday: ' * ',
-            },
-          }),
-        }),
-      } as MatrixEvent;
-      const scheduledStatus = buildRoomThreadScheduledStatusMap(
-        [cronEvent],
-        Date.parse('2024-02-29T12:00:00.000Z')
-      ).get('$root');
-
-      expect(scheduledStatus).toEqual({
-        scheduledTaskCount: 1,
-        nextScheduledTs: Date.parse('2024-03-01T00:00:00.000Z'),
-      });
-
-      const model = buildModel(room, { scheduledStatus });
-
-      expect(model.scheduledDisplayText).toBeDefined();
-      expect(model.scheduledDisplayText).not.toBe('1 scheduled task');
-      expect(model.scheduledTaskLabel).toBe(
-        `1 pending scheduled task, ${model.scheduledDisplayText}`
-      );
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('renders count-only copy when any pending task has an unresolved occurrence', () => {
-    const room = makeRoom();
-    const makeScheduledEvent = (stateKey: string, content: Record<string, unknown>): MatrixEvent =>
-      ({
-        getStateKey: () => stateKey,
-        getContent: () => ({
-          status: 'pending',
-          thread_id: '$root',
-          new_thread: false,
-          ...content,
-        }),
-      } as unknown as MatrixEvent);
-    const scheduledStatus = buildRoomThreadScheduledStatusMap(
-      [
-        makeScheduledEvent('unknown', { cron_schedule: '0 0 ? * *' }),
-        makeScheduledEvent('known', { execute_at: '2026-04-04T18:30:00.000Z' }),
-      ],
-      Date.parse('2026-04-04T18:00:00.000Z')
-    ).get('$root');
-
-    expect(scheduledStatus).toEqual({
-      scheduledTaskCount: 2,
-      nextScheduledTs: undefined,
-      nextScheduledRefreshTs: Date.parse('2026-04-04T18:30:00.000Z'),
-    });
-
-    const model = buildModel(room, { scheduledStatus });
-    expect(model.scheduledDisplayText).toBe('2 scheduled tasks');
-    expect(model.scheduledTaskLabel).toBe('2 pending scheduled tasks');
-  });
-
-  it('advances a mounted cron-only card after the occurrence with stable state events', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-04T18:02:30.000Z'));
-
-    let renderer: ReactTestRenderer | undefined;
-    try {
-      const room = makeRoom();
-      const scheduledTaskEvents = [makeCronScheduledEvent()];
-      let latestModel: ReturnType<typeof buildModel> | undefined;
-      let latestNextScheduledTs: number | undefined;
-
-      const Harness = () => {
-        const scheduledStatus = useRoomThreadScheduledStatusMap(
-          room,
-          scheduledTaskEvents,
-          true,
-          0
-        ).get('$root');
-        latestNextScheduledTs = scheduledStatus?.nextScheduledTs;
-        latestModel = buildModel(room, { scheduledStatus });
-        return null;
-      };
-
-      act(() => {
-        renderer = create(React.createElement(Harness));
-      });
-
-      expect(latestNextScheduledTs).toBe(Date.parse('2026-04-04T18:05:00.000Z'));
-      expect(latestModel?.scheduledDisplayText).toBe('in 2m 30s');
-
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
-
-      expect(latestNextScheduledTs).toBe(Date.parse('2026-04-04T18:05:00.000Z'));
-      expect(latestModel?.scheduledDisplayText).toBe('in 2m 29s');
-
-      act(() => {
-        vi.advanceTimersByTime(2 * 60 * 1000 + 29 * 1000 + 1);
-      });
-
-      expect(latestNextScheduledTs).toBe(Date.parse('2026-04-04T18:10:00.000Z'));
-      expect(latestModel?.scheduledDisplayText).toBe('in 5m');
-      expect(latestModel?.scheduledTaskLabel).toBe('1 pending scheduled task, in 5m');
-      expect(scheduledTaskEvents).toHaveLength(1);
-    } finally {
-      if (renderer) {
-        act(() => {
-          renderer?.unmount();
-        });
-      }
-      vi.useRealTimers();
-    }
-  });
-
-  it('falls back to count copy instead of formatting an elapsed card timestamp', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-04T18:00:00.000Z'));
-
-    try {
-      const model = buildModel(makeRoom(), {
-        scheduledStatus: {
-          scheduledTaskCount: 1,
-          nextScheduledTs: Date.parse('2026-04-04T17:59:00.000Z'),
-        },
-      });
-
-      expect(model.scheduledDisplayText).toBe('1 scheduled task');
-      expect(model.scheduledTaskLabel).toBe('1 pending scheduled task');
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it('uses cached root preview as the zero-reply title and recent-thread summary', () => {

@@ -28,6 +28,7 @@ const getScheduledLabel = (
 
 const getBannerScheduledText = (
   summaryText: string | undefined,
+  scheduledTaskCount: number,
   nextScheduledTs: number | undefined,
   scheduledDisplayText: string | undefined
 ): string | undefined => {
@@ -36,6 +37,10 @@ const getBannerScheduledText = (
 
   if (nextScheduledTs !== undefined) {
     return `Next task ${scheduledDisplayText}`;
+  }
+
+  if (scheduledTaskCount > 0) {
+    return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
   }
 
   return scheduledDisplayText;
@@ -62,6 +67,11 @@ export const buildThreadHeaderViewModelFromRecord = ({
     nextScheduledTs,
     scheduledDisplayText,
     scheduledLabel: getScheduledLabel(scheduledTaskCount, nextScheduledTs, scheduledDisplayText),
-    bannerScheduledText: getBannerScheduledText(summaryText, nextScheduledTs, scheduledDisplayText),
+    bannerScheduledText: getBannerScheduledText(
+      summaryText,
+      scheduledTaskCount,
+      nextScheduledTs,
+      scheduledDisplayText
+    ),
   };
 };

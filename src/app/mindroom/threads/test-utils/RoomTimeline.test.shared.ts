@@ -1227,6 +1227,26 @@ vi.mock('../useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
 
+vi.mock('../scheduledTaskContract', () => ({
+  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
+  parseScheduledTaskStateEvent: (event: {
+    getStateKey: () => string | undefined;
+    getContent: () => Record<string, unknown>;
+  }) => {
+    const taskId = event.getStateKey();
+    if (!taskId) return null;
+    const content = event.getContent();
+    if (typeof content.status !== 'string') return null;
+    return {
+      taskId,
+      status: content.status,
+      threadId: typeof content.thread_id === 'string' ? content.thread_id : null,
+      newThread: typeof content.new_thread === 'boolean' ? content.new_thread : false,
+      executeAt: typeof content.execute_at === 'string' ? content.execute_at : null,
+    };
+  },
+}));
+
 vi.mock('../useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));

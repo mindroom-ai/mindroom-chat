@@ -43,8 +43,10 @@ import {
 import { useStateEvents } from './useStateEvents';
 import { useRoomThreadList } from './useRoomThreadList';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
-import type { ThreadScheduledStatus } from './threadScheduledStatus';
-import { useRoomThreadScheduledStatusMap } from './useRoomThreadScheduledStatusMap';
+import {
+  buildRoomThreadScheduledStatusMap,
+  type ThreadScheduledStatus,
+} from './threadScheduledStatus';
 import {
   mergeCompactThreadRootBodyMaps,
   useThreadOverviewCachedMetadata,
@@ -334,12 +336,12 @@ export const useMindroomThreadIndex = ({
     [threadId, loadedTimelineEvents]
   );
   const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
-  const scheduledStatusMap = useRoomThreadScheduledStatusMap(
-    room,
-    scheduledTaskEvents,
-    threadId === undefined,
-    overviewRefreshCounter,
-    compactViewRequested
+  const scheduledStatusMap = useMemo(
+    () =>
+      threadId
+        ? new Map<string, ThreadScheduledStatus>()
+        : buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
+    [threadId, scheduledTaskEvents]
   );
   const availableRoomTags = useMemo(
     () => collectAvailableRoomTags(threadResolutionMap),

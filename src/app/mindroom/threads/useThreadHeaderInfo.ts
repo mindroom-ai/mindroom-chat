@@ -9,49 +9,30 @@ export type ThreadHeaderInfo = {
   scheduledDisplayText?: string;
 };
 
-export type ThreadScheduledDisplay = {
-  nextScheduledTs?: number;
-  scheduledDisplayText?: string;
-};
-
-export const getThreadScheduledDisplay = (
+export const getThreadHeaderScheduledDisplayText = (
   scheduledTaskCount: number,
   nextScheduledTs: number | undefined
-): ThreadScheduledDisplay => {
-  if (nextScheduledTs !== undefined) {
-    const scheduledTime = formatScheduledTime(nextScheduledTs);
-    if (scheduledTime) {
-      return {
-        nextScheduledTs,
-        scheduledDisplayText: scheduledTime,
-      };
-    }
-  }
-  if (scheduledTaskCount <= 0) {
-    return {
-      nextScheduledTs: undefined,
-      scheduledDisplayText: undefined,
-    };
-  }
-  return {
-    nextScheduledTs: undefined,
-    scheduledDisplayText: `${scheduledTaskCount} scheduled ${
-      scheduledTaskCount === 1 ? 'task' : 'tasks'
-    }`,
-  };
+): string | undefined => {
+  if (nextScheduledTs !== undefined) return formatScheduledTime(nextScheduledTs);
+  if (scheduledTaskCount <= 0) return undefined;
+  return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
 };
 
-export const useThreadHeaderInfo = (room: Room, threadId: string | undefined): ThreadHeaderInfo => {
+export const useThreadHeaderInfo = (
+  room: Room,
+  threadId: string | undefined
+): ThreadHeaderInfo => {
   const threadRootId = useThreadRootEvent(room, threadId);
   const scheduledStatus = useThreadScheduledStatus(room, threadRootId);
-  const { scheduledTaskCount } = scheduledStatus;
-  const scheduledDisplay = getThreadScheduledDisplay(
+  const { scheduledTaskCount, nextScheduledTs } = scheduledStatus;
+  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
     scheduledTaskCount,
-    scheduledStatus.nextScheduledTs
+    nextScheduledTs
   );
 
   return {
     scheduledTaskCount,
-    ...scheduledDisplay,
+    nextScheduledTs,
+    scheduledDisplayText,
   };
 };
