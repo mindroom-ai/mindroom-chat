@@ -20,13 +20,13 @@ The `warm`, `slow-init`, and `forced-init-failure` scenarios are diagnostics and
 
 Set `CINNY_126_ARTIFACT_DIR` only when the authoritative artifact directory is stored somewhere other than its default incident-report location.
 
-The live driver is pinned to `https://mindroom.chat`, refuses the incident room, refuses all three original account IDs, requires three distinct test accounts, requires the explicit `TEST_ONLY` confirmation, and requires the room topic to be exactly `CINNY-126 TEST ONLY` by default.
+The live driver is pinned to `https://mindroom.chat`, refuses all three original account IDs, requires three distinct test accounts, and requires the explicit `TEST_ONLY` confirmation.
+
+It creates a fresh invite-only room itself, sets joined-only history visibility and the fixed `CINNY-126 TEST ONLY` topic, writes a per-invocation canary state event, joins the two invited test accounts, and verifies that exactly those three accounts are present before replaying anything.
 
 It also requires a test audio MXC and three distinct test attachment IDs, rejects every verified incident media identifier, and fails closed if any replay attachment lacks a safe mapping.
 
-Required live variables are `CINNY_126_TEST_ROOM_ID`, `CINNY_126_TEST_ROOM_CONFIRM=TEST_ONLY`, `CINNY_126_USER_ACCESS_TOKEN`, `CINNY_126_ROUTER_ACCESS_TOKEN`, `CINNY_126_AGENT_ACCESS_TOKEN`, `CINNY_126_TEST_AUDIO_MXC`, and `CINNY_126_TEST_ATTACHMENT_IDS`.
-
-Set `CINNY_126_TEST_ROOM_TOPIC` only if the disposable test room uses a different explicit test-only topic marker.
+Required live variables are `CINNY_126_TEST_ROOM_CONFIRM=TEST_ONLY`, `CINNY_126_USER_ACCESS_TOKEN`, `CINNY_126_ROUTER_ACCESS_TOKEN`, `CINNY_126_AGENT_ACCESS_TOKEN`, `CINNY_126_TEST_AUDIO_MXC`, and `CINNY_126_TEST_ATTACHMENT_IDS`.
 
 `CINNY_126_TEST_ATTACHMENT_IDS` is a JSON array containing exactly three IDs.
 

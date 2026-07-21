@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertNoIncidentMediaReferences,
+  assertLiveReplayRoomIsolation,
+  buildLiveReplayRoomRequest,
   collectIncidentAttachmentIds,
+  LIVE_REPLAY_CANARY_PURPOSE,
+  LIVE_REPLAY_CANARY_TYPE,
+  LIVE_REPLAY_ROOM_TOPIC,
   parseReplacementAttachmentIds,
   rewriteReplayAttachmentIds,
   validateLiveReplayMedia,
@@ -11,6 +16,68 @@ import {
 const incidentAudioMxc = 'mxc://mindroom.chat/incident-voice';
 const incidentAttachmentIds = ['incident-a', 'incident-b', 'incident-c'];
 const replacementAttachmentIds = ['test-a', 'test-b', 'test-c'];
+
+describe('CINNY-126 disposable live room safety', () => {
+  const expectedUserIds = ['@user:test', '@router:test', '@agent:test'];
+  const canaryNonce = 'invocation-nonce';
+  const validRoomState = {
+    canary: { nonce: canaryNonce, purpose: LIVE_REPLAY_CANARY_PURPOSE },
+    canaryNonce,
+    expectedUserIds,
+    historyVisibility: 'joined',
+    joinedUserIds: expectedUserIds,
+    joinRule: 'invite',
+    tagStatePowerLevel: 0,
+    topic: LIVE_REPLAY_ROOM_TOPIC,
+  };
+
+  it('creates an invite-only room request with fixed history, topic, and canary state', () => {
+    const request = buildLiveReplayRoomRequest(expectedUserIds.slice(1), canaryNonce);
+
+    expect(request).toMatchObject({
+      invite: expectedUserIds.slice(1),
+      is_direct: false,
+      power_level_content_override: {
+        events: { 'com.mindroom.thread.tags': 0 },
+      },
+      preset: 'private_chat',
+    });
+    expect(request.initial_state).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          content: { history_visibility: 'joined' },
+          type: 'm.room.history_visibility',
+        }),
+        expect.objectContaining({
+          content: { topic: LIVE_REPLAY_ROOM_TOPIC },
+          type: 'm.room.topic',
+        }),
+        expect.objectContaining({
+          content: { nonce: canaryNonce, purpose: LIVE_REPLAY_CANARY_PURPOSE },
+          type: LIVE_REPLAY_CANARY_TYPE,
+        }),
+      ])
+    );
+  });
+
+  it('accepts only the exact isolated state created by this invocation', () => {
+    expect(() => assertLiveReplayRoomIsolation(validRoomState)).not.toThrow();
+  });
+
+  it.each([
+    [{ joinedUserIds: [...expectedUserIds, '@unexpected:test'] }, 'three test accounts'],
+    [{ joinedUserIds: expectedUserIds.slice(0, 2) }, 'three test accounts'],
+    [{ joinRule: 'public' }, 'invite-only'],
+    [{ historyVisibility: 'shared' }, 'joined members only'],
+    [{ tagStatePowerLevel: 50 }, 'write thread tags'],
+    [{ topic: 'operator supplied' }, 'topic'],
+    [{ canary: { nonce: 'other', purpose: LIVE_REPLAY_CANARY_PURPOSE } }, 'canary'],
+  ])('rejects a non-isolated room state %#', (override, expectedMessage) => {
+    expect(() => assertLiveReplayRoomIsolation({ ...validRoomState, ...override })).toThrow(
+      expectedMessage
+    );
+  });
+});
 
 describe('CINNY-126 live replay media safety', () => {
   it.each([

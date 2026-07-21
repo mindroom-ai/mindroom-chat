@@ -9,7 +9,10 @@ import {
 } from './trace';
 import {
   assertNoIncidentMediaReferences,
+  assertLiveReplayRoomIsolation,
+  buildLiveReplayRoomRequest,
   collectIncidentAttachmentIds,
+  LIVE_REPLAY_CANARY_TYPE,
   parseReplacementAttachmentIds,
   rewriteReplayAttachmentIds,
   validateLiveReplayMedia,
@@ -19,9 +22,7 @@ type Role = keyof typeof ORIGINAL_SENDERS;
 type Account = { accessToken: string; userId: string };
 
 const homeserver = 'https://mindroom.chat';
-const roomId = process.env.CINNY_126_TEST_ROOM_ID;
 const confirmation = process.env.CINNY_126_TEST_ROOM_CONFIRM;
-const requiredRoomTopic = process.env.CINNY_126_TEST_ROOM_TOPIC ?? 'CINNY-126 TEST ONLY';
 const testAudioMxc = process.env.CINNY_126_TEST_AUDIO_MXC;
 const replacementAttachmentIds = parseReplacementAttachmentIds(
   process.env.CINNY_126_TEST_ATTACHMENT_IDS
@@ -32,10 +33,9 @@ const roleTokens: Record<Role, string | undefined> = {
   agent: process.env.CINNY_126_AGENT_ACCESS_TOKEN,
 };
 
-if (!roomId || confirmation !== 'TEST_ONLY') {
-  throw new Error('Set CINNY_126_TEST_ROOM_ID and CINNY_126_TEST_ROOM_CONFIRM=TEST_ONLY');
+if (confirmation !== 'TEST_ONLY') {
+  throw new Error('Set CINNY_126_TEST_ROOM_CONFIRM=TEST_ONLY');
 }
-if (roomId === INCIDENT_ROOM_ID) throw new Error('The incident room is a forbidden replay target');
 if (Object.values(roleTokens).some((token) => !token)) {
   throw new Error('Three explicit test-account access tokens are required');
 }
@@ -93,27 +93,70 @@ const accounts = Object.fromEntries(
 if (new Set(Object.values(accounts).map(({ userId }) => userId)).size !== 3) {
   throw new Error('The user, router, and agent roles must use distinct test accounts');
 }
-await Promise.all(
-  Object.values(accounts).map(async (account) => {
-    const membership = await matrixRequest<{ membership: string }>(
-      account,
-      'GET',
-      `/rooms/${encodeURIComponent(roomId)}/state/m.room.member/${encodeURIComponent(
-        account.userId
-      )}`
-    );
-    if (membership.membership !== 'join')
-      throw new Error(`${account.userId} is not joined to ${roomId}`);
-  })
-);
-const roomTopic = await matrixRequest<{ topic?: string }>(
+const canaryNonce = randomUUID();
+const createRoomResponse = await matrixRequest<{ room_id: string }>(
   accounts.user,
-  'GET',
-  `/rooms/${encodeURIComponent(roomId)}/state/m.room.topic/`
+  'POST',
+  '/createRoom',
+  buildLiveReplayRoomRequest([accounts.router.userId, accounts.agent.userId], canaryNonce)
 );
-if (roomTopic.topic !== requiredRoomTopic) {
-  throw new Error(`Test room topic must be exactly ${JSON.stringify(requiredRoomTopic)}`);
-}
+const roomId = createRoomResponse.room_id;
+if (!roomId || roomId === INCIDENT_ROOM_ID) throw new Error('Homeserver returned an invalid room');
+await Promise.all(
+  ([accounts.router, accounts.agent] as Account[]).map((account) =>
+    matrixRequest<{ room_id: string }>(
+      account,
+      'POST',
+      `/join/${encodeURIComponent(roomId)}`,
+      {}
+    )
+  )
+);
+const [joinedMembers, joinRules, history, powerLevels, roomTopic, canary] = await Promise.all([
+  matrixRequest<{ joined: Record<string, unknown> }>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/joined_members`
+  ),
+  matrixRequest<{ join_rule?: string }>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/state/m.room.join_rules/`
+  ),
+  matrixRequest<{ history_visibility?: string }>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/state/m.room.history_visibility/`
+  ),
+  matrixRequest<{ events?: Record<string, number> }>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/state/m.room.power_levels/`
+  ),
+  matrixRequest<{ topic?: string }>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/state/m.room.topic/`
+  ),
+  matrixRequest<Record<string, unknown>>(
+    accounts.user,
+    'GET',
+    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      LIVE_REPLAY_CANARY_TYPE
+    )}/`
+  ),
+]);
+assertLiveReplayRoomIsolation({
+  canary,
+  canaryNonce,
+  expectedUserIds: Object.values(accounts).map(({ userId }) => userId),
+  historyVisibility: history.history_visibility,
+  joinedUserIds: Object.keys(joinedMembers.joined),
+  joinRule: joinRules.join_rule,
+  tagStatePowerLevel: powerLevels.events?.['com.mindroom.thread.tags'],
+  topic: roomTopic.topic,
+});
+process.stdout.write(`CINNY-126 disposable test room: ${roomId}\n`);
 
 const idMap = new Map<string, string>();
 const accountForSender = (sender: string): Account => {

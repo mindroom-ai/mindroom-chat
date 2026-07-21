@@ -1,5 +1,76 @@
 type ReplayEventContent = { content: Record<string, unknown> };
 
+export const LIVE_REPLAY_ROOM_NAME = 'CINNY-126 disposable replay';
+export const LIVE_REPLAY_ROOM_TOPIC = 'CINNY-126 TEST ONLY';
+export const LIVE_REPLAY_CANARY_TYPE = 'io.mindroom.cinny_126_replay';
+export const LIVE_REPLAY_CANARY_PURPOSE = 'CINNY-126 exact-trace test replay';
+
+export const buildLiveReplayRoomRequest = (inviteUserIds: string[], canaryNonce: string) => ({
+  initial_state: [
+    {
+      content: { topic: LIVE_REPLAY_ROOM_TOPIC },
+      state_key: '',
+      type: 'm.room.topic',
+    },
+    {
+      content: { history_visibility: 'joined' },
+      state_key: '',
+      type: 'm.room.history_visibility',
+    },
+    {
+      content: { nonce: canaryNonce, purpose: LIVE_REPLAY_CANARY_PURPOSE },
+      state_key: '',
+      type: LIVE_REPLAY_CANARY_TYPE,
+    },
+  ],
+  invite: inviteUserIds,
+  is_direct: false,
+  name: LIVE_REPLAY_ROOM_NAME,
+  power_level_content_override: {
+    events: { 'com.mindroom.thread.tags': 0 },
+  },
+  preset: 'private_chat',
+});
+
+export const assertLiveReplayRoomIsolation = ({
+  canary,
+  canaryNonce,
+  historyVisibility,
+  joinedUserIds,
+  joinRule,
+  tagStatePowerLevel,
+  topic,
+  expectedUserIds,
+}: {
+  canary: Record<string, unknown>;
+  canaryNonce: string;
+  historyVisibility: unknown;
+  joinedUserIds: string[];
+  joinRule: unknown;
+  tagStatePowerLevel: unknown;
+  topic: unknown;
+  expectedUserIds: string[];
+}): void => {
+  const actualMembers = [...joinedUserIds].sort();
+  const expectedMembers = [...expectedUserIds].sort();
+  if (JSON.stringify(actualMembers) !== JSON.stringify(expectedMembers)) {
+    throw new Error('Disposable replay room must contain exactly the three test accounts');
+  }
+  if (joinRule !== 'invite') throw new Error('Disposable replay room must be invite-only');
+  if (historyVisibility !== 'joined') {
+    throw new Error('Disposable replay room history must be visible to joined members only');
+  }
+  if (tagStatePowerLevel !== 0) {
+    throw new Error('Disposable replay room must allow test accounts to write thread tags');
+  }
+  if (topic !== LIVE_REPLAY_ROOM_TOPIC) {
+    throw new Error(`Disposable replay room topic must be ${JSON.stringify(LIVE_REPLAY_ROOM_TOPIC)}`);
+  }
+  if (canary.nonce !== canaryNonce || canary.purpose !== LIVE_REPLAY_CANARY_PURPOSE) {
+    throw new Error('Disposable replay room canary does not match this invocation');
+  }
+};
+
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
