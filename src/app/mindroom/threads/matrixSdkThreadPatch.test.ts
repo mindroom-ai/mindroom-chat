@@ -890,6 +890,70 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     }
   });
 
+  it('reports a pre-init reaction aggregation failure without an unhandled rejection', async () => {
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const rootFetch = new Promise<Record<string, unknown>>(() => {
+      // Deliberately unresolved so the aggregation error stays on the pre-init path.
+    });
+    const client = makeClient({
+      fetchRoomEvent: vi.fn(() => rootFetch),
+      paginateEventTimeline: vi.fn(),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+    const placeholder = makeEvent(
+      '$reaction-failure-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    await room.addLiveEvents([placeholder], { addToState: false, fromCache: false });
+    await flushAsyncWork();
+    const reaction = new MatrixEvent({
+      content: {
+        'm.relates_to': {
+          event_id: placeholder.getId(),
+          key: '👍',
+          rel_type: 'm.annotation',
+        },
+      },
+      event_id: '$failed-pre-init-reaction',
+      origin_server_ts: 3,
+      room_id: ROOM_ID,
+      sender: VIEWER_ID,
+      type: 'm.reaction',
+    });
+    const failure = new Error('forced reaction aggregation failure');
+    const addRelationEvent = vi
+      .spyOn(Relations.prototype, 'addEvent')
+      .mockRejectedValueOnce(failure);
+    const unhandledRejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+    process.on('unhandledRejection', onUnhandledRejection);
+
+    try {
+      thread.addEvent(reaction, false);
+      await flushAsyncWork(24);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+
+      expect(addRelationEvent).toHaveBeenCalledOnce();
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to aggregate pre-initialization thread relation: ',
+        failure
+      );
+      expect(unhandledRejections).toEqual([]);
+    } finally {
+      process.removeListener('unhandledRejection', onUnhandledRejection);
+    }
+  });
+
   it('retries initial pagination after the first request rejects', async () => {
     const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const unhandledRejections: unknown[] = [];

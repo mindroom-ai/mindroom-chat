@@ -158,7 +158,7 @@ index 6933b26..fbbaa6c 100644
      private fetchEditsWhereNeeded;
      setEventMetadata(event: MatrixEvent | null | undefined): void;
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..5979f58 100644
+index b02b81f..0aaa45c 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
 @@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
@@ -193,7 +193,7 @@ index b02b81f..5979f58 100644
 
      // Decide whether this event is going to be added at the end of the timeline.
      var lastReply = this.lastReply();
-@@ -387,12 +398,27 @@ export class Thread extends ReadReceipt {
+@@ -387,12 +398,30 @@ export class Thread extends ReadReceipt {
         */
        (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
 
@@ -210,6 +210,7 @@ index b02b81f..5979f58 100644
 +        var targetEventId = relation === null || relation === void 0 ? void 0 : relation.event_id;
 +        var targetEvent = event.isRelation(RelationType.Replace) && targetEventId ? this.findPreInitTargetEvent(targetEventId) : undefined;
 +        var aggregation = this.timelineSet.relations.aggregateChildEvent(event, this.timelineSet, targetEvent);
++        var reportAggregationFailure = error => logger.error("Failed to aggregate pre-initialization thread relation: ", error);
 +        if (event.isRelation(RelationType.Replace) && targetEventId) {
 +          var weakThread = new WeakRef(this);
 +          var observerState = this.preInitObserverState;
@@ -221,12 +222,14 @@ index b02b81f..5979f58 100644
 +            if (((_effectiveTarget$rep = effectiveTarget === null || effectiveTarget === void 0 ? void 0 : effectiveTarget.replacingEvent()) === null || _effectiveTarget$rep === void 0 ? void 0 : _effectiveTarget$rep.getId()) === event.getId()) {
 +              thread.emit(ThreadEvent.Update, thread);
 +            }
-+          }, error => logger.error("Failed to aggregate pre-initialization thread relation: ", error));
++          }, reportAggregationFailure);
++        } else {
++          void aggregation.catch(reportAggregationFailure);
 +        }
        }
      } else {
        var _this$client$canSuppo2;
-@@ -422,6 +448,10 @@ export class Thread extends ReadReceipt {
+@@ -422,6 +451,10 @@ export class Thread extends ReadReceipt {
        // Aggregation is handled by EventTimelineSet when inserting/adding.
      }
    }
@@ -237,7 +240,7 @@ index b02b81f..5979f58 100644
    processEvent(event) {
      var _this3 = this;
      return _asyncToGenerator(function* () {
-@@ -545,6 +575,49 @@ export class Thread extends ReadReceipt {
+@@ -545,6 +578,49 @@ export class Thread extends ReadReceipt {
        yield _this6.processRootEvent();
      })();
    }
@@ -287,7 +290,7 @@ index b02b81f..5979f58 100644
    updateThreadMetadata() {
      var _this7 = this;
      return _asyncToGenerator(function* () {
-@@ -555,47 +628,15 @@ export class Thread extends ReadReceipt {
+@@ -555,47 +631,15 @@ export class Thread extends ReadReceipt {
        }
        yield _this7.processRootEventPromise;
        if (!_this7.initialEventsFetched) {
@@ -485,7 +488,7 @@ index 77ba3b3..ce2116b 100644
          this.maybeEmitCreated();
      }
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
-index 871875d..63d0dd4 100644
+index 871875d..f340224 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
 +++ b/node_modules/matrix-js-sdk/src/models/thread.ts
 @@ -131,7 +131,9 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
@@ -526,7 +529,7 @@ index 871875d..63d0dd4 100644
 
          // Decide whether this event is going to be added at the end of the timeline.
          const lastReply = this.lastReply();
-@@ -438,11 +453,36 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -438,11 +453,40 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
               */
              this.replayEvents?.push(event);
 
@@ -549,6 +552,8 @@ index 871875d..63d0dd4 100644
 +                    this.timelineSet,
 +                    targetEvent,
 +                );
++                const reportAggregationFailure = (error: unknown): void =>
++                    logger.error("Failed to aggregate pre-initialization thread relation: ", error);
 +                if (event.isRelation(RelationType.Replace) && targetEventId) {
 +                    const weakThread = new WeakRef(this);
 +                    const observerState = this.preInitObserverState;
@@ -561,13 +566,15 @@ index 871875d..63d0dd4 100644
 +                                thread.emit(ThreadEvent.Update, thread);
 +                            }
 +                        },
-+                        (error) => logger.error("Failed to aggregate pre-initialization thread relation: ", error),
++                        reportAggregationFailure,
 +                    );
++                } else {
++                    void aggregation.catch(reportAggregationFailure);
 +                }
              }
          } else {
              // Case 2: this is happening later, and we have a timeline. In
-@@ -474,6 +514,15 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -474,6 +518,15 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          }
      }
 
@@ -583,7 +590,7 @@ index 871875d..63d0dd4 100644
      public async processEvent(event: MatrixEvent | null | undefined): Promise<void> {
          if (event) {
              this.setEventMetadata(event);
-@@ -597,6 +646,49 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -597,6 +650,49 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          await this.processRootEvent();
      }
 
@@ -633,7 +640,7 @@ index 871875d..63d0dd4 100644
      private async updateThreadMetadata(): Promise<void> {
          this.updatePendingReplyCount();
 
-@@ -607,47 +699,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -607,47 +703,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          await this.processRootEventPromise;
 
          if (!this.initialEventsFetched) {
