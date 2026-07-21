@@ -84,14 +84,29 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     );
     await room.addLiveEvents([placeholder], { addToState: false, fromCache: false });
 
-    let replacedSignals = 0;
-    let threadUpdates = 0;
+    const replacedEventIds: Array<string | undefined> = [];
+    const threadUpdateBodies: unknown[] = [];
     placeholder.on(MatrixEventEvent.Replaced, () => {
-      replacedSignals += 1;
+      replacedEventIds.push(placeholder.replacingEvent()?.getId());
     });
     thread.on(ThreadEvent.Update, () => {
-      threadUpdates += 1;
+      threadUpdateBodies.push(placeholder.getContent().body);
     });
+    const streamingEdit = makeEvent(
+      '$streaming-edit',
+      {
+        body: '* First draft',
+        'io.mindroom.stream_status': 'streaming',
+        'm.new_content': {
+          body: 'First draft',
+          'io.mindroom.stream_status': 'streaming',
+          msgtype: 'm.notice',
+        },
+        'm.relates_to': { event_id: '$placeholder', rel_type: 'm.replace' },
+        msgtype: 'm.notice',
+      },
+      3
+    );
     const finalEdit = makeEvent(
       '$final-edit',
       {
@@ -105,21 +120,24 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
         'm.relates_to': { event_id: '$placeholder', rel_type: 'm.replace' },
         msgtype: 'm.text',
       },
-      3
+      4
     );
 
+    await room.addLiveEvents([streamingEdit], { addToState: false, fromCache: false });
+    await flushAsyncWork();
     await room.addLiveEvents([finalEdit], { addToState: false, fromCache: false });
     await flushAsyncWork();
 
     expect(thread.initialEventsFetched).toBe(false);
+    expect(thread.replayEvents).toContain(streamingEdit);
     expect(thread.replayEvents).toContain(finalEdit);
     expect(placeholder.replacingEvent()).toBe(finalEdit);
     expect(placeholder.getContent()).toMatchObject({
       body: 'Final answer',
       'io.mindroom.stream_status': 'completed',
     });
-    expect(replacedSignals).toBe(1);
-    expect(threadUpdates).toBe(1);
+    expect(replacedEventIds).toEqual(['$streaming-edit', '$final-edit']);
+    expect(threadUpdateBodies).toEqual(['First draft', 'Final answer']);
   });
 
   it('retries initial pagination after the first request rejects', async () => {
