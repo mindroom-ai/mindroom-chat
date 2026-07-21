@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/media-has-caption */
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Avatar,
@@ -27,10 +27,12 @@ import {
 import { IRTCNotificationContent, RTCNotificationType } from 'matrix-js-sdk/lib/matrixrtc/types';
 import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import {
+  attemptCallStart,
   CallEmbedContextProvider,
   CallEmbedRefContextProvider,
-  useCallHangupEvent,
+  CallTerminationContextProvider,
   useCallJoined,
+  useCallTerminationController,
   useCallThemeSync,
   useCallMemberSoundSync,
   useCallStart,
@@ -56,7 +58,6 @@ import { getRoomPermissionsAPI } from '../hooks/useRoomPermissions';
 import { useLivekitSupport } from '../hooks/useLivekitSupport';
 import { CallAvatarAnimation } from '../styles/Animations.css';
 import { webRTCSupported } from '../utils/rtc';
-import { cleanupMindroomAgentCall } from '../mindroom/calls/agentCall';
 import { CallEmbedHost } from './CallEmbedHost';
 import { CallIframeBackground } from './CallIframeBackground';
 
@@ -332,8 +333,14 @@ function IncomingCallListener({ callEmbed, joined }: IncomingCallListenerProps) 
 
   const handleAnswer = useCallback(
     (room: Room, video: boolean) => {
-      startCall(room, { microphone: true, video, sound: true });
+      // E.g. the room was retired mid-ring (its post-call teardown already
+      // started): answering can never succeed, so dismiss the prompt without
+      // navigating instead of throwing uncaught from a click handler.
+      const refusal = attemptCallStart(() =>
+        startCall(room, { microphone: true, video, sound: true })
+      );
       setCallInfo(undefined);
+      if (refusal) return;
       navigateRoom(room.roomId);
     },
     [startCall, navigateRoom]
@@ -354,21 +361,8 @@ function IncomingCallListener({ callEmbed, joined }: IncomingCallListenerProps) 
 }
 
 function CallUtils({ embed }: { embed: CallEmbed }) {
-  const mx = useMatrixClient();
-  const setCallEmbed = useSetAtom(callEmbedAtom);
-  const cleanupStartedRef = useRef(false);
-
   useCallMemberSoundSync(embed);
   useCallThemeSync(embed);
-  useCallHangupEvent(
-    embed,
-    useCallback(() => {
-      if (cleanupStartedRef.current) return;
-      cleanupStartedRef.current = true;
-      setCallEmbed(undefined);
-      cleanupMindroomAgentCall(mx, embed.room).catch(() => undefined);
-    }, [embed.room, mx, setCallEmbed])
-  );
 
   return null;
 }
@@ -380,6 +374,7 @@ export function CallEmbedProvider({ children }: CallEmbedProviderProps) {
   const callEmbed = useAtomValue(callEmbedAtom);
   const callEmbedRef = useRef<HTMLDivElement>(null);
   const joined = useCallJoined(callEmbed);
+  const termination = useCallTerminationController(callEmbed);
 
   const selectedRoom = useSelectedRoom();
   const chat = useAtomValue(callChatAtom);
@@ -391,13 +386,15 @@ export function CallEmbedProvider({ children }: CallEmbedProviderProps) {
 
   return (
     <CallEmbedContextProvider value={callEmbed}>
-      {callEmbed && <CallUtils embed={callEmbed} />}
-      <CallEmbedRefContextProvider value={callEmbedRef}>
-        <IncomingCallListener callEmbed={callEmbed} joined={joined} />
-        {children}
-      </CallEmbedRefContextProvider>
-      <CallEmbedHost visible={Boolean(callVisible)} containerRef={callEmbedRef} />
-      <CallIframeBackground callEmbed={callEmbed} visible={Boolean(callVisible)} />
+      <CallTerminationContextProvider value={termination}>
+        {callEmbed && <CallUtils embed={callEmbed} />}
+        <CallEmbedRefContextProvider value={callEmbedRef}>
+          <IncomingCallListener callEmbed={callEmbed} joined={joined} />
+          {children}
+        </CallEmbedRefContextProvider>
+        <CallEmbedHost visible={Boolean(callVisible)} containerRef={callEmbedRef} />
+        <CallIframeBackground callEmbed={callEmbed} visible={Boolean(callVisible)} />
+      </CallTerminationContextProvider>
     </CallEmbedContextProvider>
   );
 }

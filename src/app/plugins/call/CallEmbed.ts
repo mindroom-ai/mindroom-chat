@@ -48,6 +48,20 @@ export class CallEmbed {
 
   private readonly disposables: Array<() => void> = [];
 
+  private disposed = false;
+
+  // The exact listener references registered with the MatrixClient in
+  // `start()`. `off` must receive these same references — a fresh `.bind()`
+  // at removal time removes nothing and leaks the embed (and its event
+  // decryption/forwarding) for the rest of the session.
+  private boundOnEvent?: (ev: MatrixEvent) => void;
+
+  private boundOnEventDecrypted?: (ev: MatrixEvent) => void;
+
+  private boundOnStateUpdate?: (ev: MatrixEvent) => void;
+
+  private boundOnToDeviceEvent?: (ev: MatrixEvent) => Promise<void>;
+
   static getIntent(dm: boolean, ongoing: boolean, video?: boolean): ElementCallIntent {
     if (dm && ongoing) {
       return video ? ElementCallIntent.JoinExistingDM : ElementCallIntent.JoinExistingDMVoice;
@@ -203,6 +217,15 @@ export class CallEmbed {
     return this.room.roomId;
   }
 
+  /**
+   * The Matrix client this embed was constructed over. Exposed so the
+   * embed's cleanup owner — created by the `callEmbedAtom` setter, outside
+   * any React context — can run its network cleanup against the same client.
+   */
+  get client(): MatrixClient {
+    return this.mx;
+  }
+
   get document(): Document | undefined {
     return this.iframe.contentDocument ?? this.iframe.contentWindow?.document;
   }
@@ -252,30 +275,67 @@ export class CallEmbed {
     });
 
     // Attach listeners for feeding events - the underlying widget classes handle permissions for us
-    this.mx.on(ClientEvent.Event, this.onEvent.bind(this));
-    this.mx.on(MatrixEventEvent.Decrypted, this.onEventDecrypted.bind(this));
-    this.mx.on(RoomStateEvent.Events, this.onStateUpdate.bind(this));
-    this.mx.on(ClientEvent.ToDeviceEvent, this.onToDeviceEvent.bind(this));
+    this.boundOnEvent = this.onEvent.bind(this);
+    this.boundOnEventDecrypted = this.onEventDecrypted.bind(this);
+    this.boundOnStateUpdate = this.onStateUpdate.bind(this);
+    this.boundOnToDeviceEvent = this.onToDeviceEvent.bind(this);
+    this.mx.on(ClientEvent.Event, this.boundOnEvent);
+    this.mx.on(MatrixEventEvent.Decrypted, this.boundOnEventDecrypted);
+    this.mx.on(RoomStateEvent.Events, this.boundOnStateUpdate);
+    this.mx.on(ClientEvent.ToDeviceEvent, this.boundOnToDeviceEvent);
   }
 
   /**
-   * Stops the widget messaging for if it is started. Skips stopping if it is an active
-   * widget.
-   * @param opts
+   * Tears down widget messaging, the iframe (and with it any live media),
+   * controls and listeners. Idempotent, and each step is attempted
+   * independently: the caller drops its only reference right after this
+   * returns, so one throwing step must not leave a live iframe or media
+   * session running unreachably behind a UI that reports no active call.
    */
   public dispose(): void {
-    this.disposables.forEach((disposable) => {
-      disposable();
-    });
-    this.callWidgetDriver.dispose();
-    this.call.stop();
-    this.container.removeChild(this.iframe);
-    this.control.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
 
-    this.mx.off(ClientEvent.Event, this.onEvent.bind(this));
-    this.mx.off(MatrixEventEvent.Decrypted, this.onEventDecrypted.bind(this));
-    this.mx.off(RoomStateEvent.Events, this.onStateUpdate.bind(this));
-    this.mx.off(ClientEvent.ToDeviceEvent, this.onToDeviceEvent.bind(this));
+    const attempt = (step: string, run: () => void): void => {
+      try {
+        run();
+      } catch (error) {
+        console.warn(`[call-embed] ${step} failed during dispose`, error);
+      }
+    };
+
+    this.disposables.forEach((disposable) => {
+      attempt('widget listener removal', disposable);
+    });
+    attempt('widget driver disposal', () => this.callWidgetDriver.dispose());
+    attempt('widget transport stop', () => this.call.stop());
+    attempt('iframe load handler removal', () => {
+      this.iframe.onload = null;
+    });
+    attempt('iframe removal', () => this.container.removeChild(this.iframe));
+    attempt('call control disposal', () => this.control.dispose());
+
+    // Remove exactly the references registered in start(), each attempted
+    // independently so one throwing removal cannot leak the other three.
+    const { boundOnEvent, boundOnEventDecrypted, boundOnStateUpdate, boundOnToDeviceEvent } = this;
+    if (boundOnEvent) {
+      attempt('client Event listener removal', () => this.mx.off(ClientEvent.Event, boundOnEvent));
+    }
+    if (boundOnEventDecrypted) {
+      attempt('client Decrypted listener removal', () =>
+        this.mx.off(MatrixEventEvent.Decrypted, boundOnEventDecrypted)
+      );
+    }
+    if (boundOnStateUpdate) {
+      attempt('client RoomState listener removal', () =>
+        this.mx.off(RoomStateEvent.Events, boundOnStateUpdate)
+      );
+    }
+    if (boundOnToDeviceEvent) {
+      attempt('client ToDeviceEvent listener removal', () =>
+        this.mx.off(ClientEvent.ToDeviceEvent, boundOnToDeviceEvent)
+      );
+    }
 
     // Clear internal state
     this.readUpToMap = {};
@@ -304,9 +364,18 @@ export class CallEmbed {
   }
 
   private async onToDeviceEvent(ev: MatrixEvent): Promise<void> {
-    await this.mx.decryptEventIfNeeded(ev);
-    if (ev.isDecryptionFailure()) return;
-    await this.call?.feedToDevice(ev.getEffectiveEvent() as IRoomEvent, ev.isEncrypted());
+    // The emitter never consumes an async listener's promise, so every
+    // rejection here would surface as an unhandled rejection.
+    try {
+      await this.mx.decryptEventIfNeeded(ev);
+      // The decryption await can resume after dispose() stopped the widget
+      // transport; feeding it then would only produce a rejection.
+      if (this.disposed) return;
+      if (ev.isDecryptionFailure()) return;
+      await this.call?.feedToDevice(ev.getEffectiveEvent() as IRoomEvent, ev.isEncrypted());
+    } catch (e) {
+      if (!this.disposed) console.error('Error sending to-device event to widget: ', e);
+    }
   }
 
   /**

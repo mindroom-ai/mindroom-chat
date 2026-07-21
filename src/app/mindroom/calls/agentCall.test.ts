@@ -1,6 +1,7 @@
-import { ClientEvent, Room } from 'matrix-js-sdk';
+import { ClientEvent, MatrixError, Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateEvent } from '../../../types/matrix/room';
+import { isCallRoomRetired } from '../../plugins/call/rtcMembershipCleanup';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
@@ -27,10 +28,11 @@ const mx = {
 
 const ephemeralRoom = (
   creatorUserId = '@alice:mindroom.test',
-  eventSender = '@alice:mindroom.test'
+  eventSender = '@alice:mindroom.test',
+  roomId = '!call:mindroom.test'
 ): Room =>
   ({
-    roomId: '!call:mindroom.test',
+    roomId,
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) =>
@@ -139,6 +141,48 @@ describe('MindRoom agent calls', () => {
     expect(forget).toHaveBeenCalledWith('!call:mindroom.test');
   });
 
+  it('keeps a permanent kick 403 non-blocking and still leaves and forgets', async () => {
+    // Ending a call after the creator already left the room makes the kick
+    // return M_FORBIDDEN (CINNY-129 trace operation 572); it must stay caught
+    // and must not stop the leave/forget sequence.
+    kick.mockRejectedValueOnce(
+      new MatrixError({ errcode: 'M_FORBIDDEN', error: 'You cannot kick user' }, 403)
+    );
+
+    await expect(cleanupMindroomAgentCall(mx, ephemeralRoom())).resolves.toBeUndefined();
+
+    expect(leave).toHaveBeenCalledWith('!call:mindroom.test');
+    expect(forget).toHaveBeenCalledWith('!call:mindroom.test');
+  });
+
+  it('retires the room synchronously before the first destructive request', async () => {
+    // Kick/leave/forget cannot be aborted or undone once on the wire, so the
+    // race-freedom guarantee is retirement: the room becomes permanently
+    // unusable for new call embeds *before* the kick is dispatched, and the
+    // sequence then runs to completion unguarded.
+    const roomId = '!retire-midkick:mindroom.test';
+    let settleKick!: () => void;
+    kick.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          settleKick = resolve;
+        })
+    );
+
+    const pending = cleanupMindroomAgentCall(
+      mx,
+      ephemeralRoom('@alice:mindroom.test', '@alice:mindroom.test', roomId)
+    );
+    expect(kick).toHaveBeenCalledTimes(1);
+    expect(isCallRoomRetired(roomId)).toBe(true);
+
+    settleKick();
+    await pending;
+
+    expect(leave).toHaveBeenCalledWith(roomId);
+    expect(forget).toHaveBeenCalledWith(roomId);
+  });
+
   it('does not try to forget a room when leaving fails', async () => {
     leave.mockRejectedValueOnce(new Error('leave failed'));
 
@@ -147,22 +191,29 @@ describe('MindRoom agent calls', () => {
     expect(forget).not.toHaveBeenCalled();
   });
 
-  it('does not clean up a room created by someone else', async () => {
-    await cleanupMindroomAgentCall(mx, ephemeralRoom('@bob:mindroom.test'));
-
-    expect(kick).not.toHaveBeenCalled();
-    expect(leave).not.toHaveBeenCalled();
-    expect(forget).not.toHaveBeenCalled();
-  });
-
-  it('does not trust forged creator metadata from another event sender', async () => {
+  it('does not clean up — or retire — a room created by someone else', async () => {
+    const roomId = '!foreign-creator:mindroom.test';
     await cleanupMindroomAgentCall(
       mx,
-      ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test')
+      ephemeralRoom('@bob:mindroom.test', '@alice:mindroom.test', roomId)
     );
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
+    expect(isCallRoomRetired(roomId)).toBe(false);
+  });
+
+  it('does not trust forged creator metadata from another event sender', async () => {
+    const roomId = '!forged-creator:mindroom.test';
+    await cleanupMindroomAgentCall(
+      mx,
+      ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test', roomId)
+    );
+
+    expect(kick).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
+    expect(forget).not.toHaveBeenCalled();
+    expect(isCallRoomRetired(roomId)).toBe(false);
   });
 });

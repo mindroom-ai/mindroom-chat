@@ -1,6 +1,11 @@
 import { type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CallWidgetDriver } from './CallWidgetDriver';
+import {
+  CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS,
+  roomCallMembershipWritesSettled,
+  trackRoomCallMembershipWrite,
+} from './rtcMembershipCleanup';
 
 type EncryptBatch = Awaited<
   ReturnType<NonNullable<ReturnType<MatrixClient['getCrypto']>>['encryptToDeviceMessages']>
@@ -350,5 +355,234 @@ describe('CallWidgetDriver.sendToDevice', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(queueToDevice).not.toHaveBeenCalled();
+  });
+});
+
+describe('CallWidgetDriver.sendEvent', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const flushMicrotasks = () =>
+    new Promise<void>((resolve) => {
+      process.nextTick(resolve);
+    });
+
+  const makeStateDriver = (roomId: string) => {
+    const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$published' });
+    const mx = {
+      getDeviceId: () => 'LOCAL',
+      getSafeUserId: () => '@local:example.org',
+      sendStateEvent,
+    } as unknown as MatrixClient;
+    return { driver: new CallWidgetDriver(mx, roomId), sendStateEvent };
+  };
+
+  it('serializes a membership publish behind a predecessor cleanup write still in flight', async () => {
+    // The claim fence cannot recall a `{}` PUT already on the wire, so the
+    // successor call's own membership publish must wait for it to settle —
+    // otherwise the stale write could land second and wipe the fresh state.
+    const roomId = '!driver-gate:example.org';
+    const { driver, sendStateEvent } = makeStateDriver(roomId);
+    let settleCleanup!: () => void;
+    trackRoomCallMembershipWrite(
+      roomId,
+      new Promise<void>((resolve) => {
+        settleCleanup = resolve;
+      })
+    );
+
+    const stateKey = '_@local:example.org_LOCAL_m.call';
+    const publishing = driver.sendEvent(
+      'org.matrix.msc3401.call.member',
+      { application: 'm.call' },
+      stateKey
+    );
+    await flushMicrotasks();
+    expect(sendStateEvent).not.toHaveBeenCalled();
+
+    settleCleanup();
+    await expect(publishing).resolves.toEqual({ roomId, eventId: '$published' });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      roomId,
+      'org.matrix.msc3401.call.member',
+      { application: 'm.call' },
+      stateKey
+    );
+  });
+
+  it('publishes past the bounded gate when a predecessor cleanup write never settles', async () => {
+    // A blackholed cleanup request has no local timeout in this client
+    // configuration; the successor call's join must still reach a bounded
+    // outcome instead of silently never publishing membership.
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const roomId = '!driver-bounded:example.org';
+      const { driver, sendStateEvent } = makeStateDriver(roomId);
+      trackRoomCallMembershipWrite(
+        roomId,
+        new Promise<void>(() => {
+          // never settles
+        })
+      );
+
+      const stateKey = '_@local:example.org_LOCAL_m.call';
+      const publishing = driver.sendEvent(
+        'org.matrix.msc3401.call.member',
+        { application: 'm.call' },
+        stateKey
+      );
+      await vi.advanceTimersByTimeAsync(CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS - 1);
+      expect(sendStateEvent).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(publishing).resolves.toEqual({ roomId, eventId: '$published' });
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        roomId,
+        'org.matrix.msc3401.call.member',
+        { application: 'm.call' },
+        stateKey
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('did not settle');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('refuses to publish membership when the driver was disposed while gated', async () => {
+    // Ending or replacing the embed while its publish waits at the gate must
+    // not let the suspended continuation recreate ghost membership or
+    // overwrite a newer same-room call after disposal.
+    const roomId = '!driver-disposed-gated:example.org';
+    const { driver, sendStateEvent } = makeStateDriver(roomId);
+    let settleCleanup!: () => void;
+    trackRoomCallMembershipWrite(
+      roomId,
+      new Promise<void>((resolve) => {
+        settleCleanup = resolve;
+      })
+    );
+
+    const publishing = driver.sendEvent(
+      'org.matrix.msc3401.call.member',
+      { application: 'm.call' },
+      '_@local:example.org_LOCAL_m.call'
+    );
+    const rejection = expect(publishing).rejects.toThrow('disposed');
+    await flushMicrotasks();
+    driver.dispose();
+    settleCleanup();
+    await rejection;
+
+    expect(sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  it('refuses a membership publish outright on an already-disposed driver', async () => {
+    const roomId = '!driver-predisposed:example.org';
+    const { driver, sendStateEvent } = makeStateDriver(roomId);
+    trackRoomCallMembershipWrite(
+      roomId,
+      new Promise<void>(() => {
+        // never settles: the pre-gate check must not even start waiting
+      })
+    );
+    driver.dispose();
+
+    await expect(
+      driver.sendEvent(
+        'org.matrix.msc3401.call.member',
+        { application: 'm.call' },
+        '_@local:example.org_LOCAL_m.call'
+      )
+    ).rejects.toThrow('disposed');
+    expect(sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  it('tracks a dispatched membership publish until it settles', async () => {
+    // Element Call's join/renewal PUTs cannot be aborted after disposal;
+    // the terminal residual scrub must be able to drain them before its
+    // read, or one can land after it and resurrect membership with no
+    // iframe left (review A2, round 4).
+    const roomId = '!driver-tracked:example.org';
+    const { driver, sendStateEvent } = makeStateDriver(roomId);
+    let landPublish!: (value: { event_id: string }) => void;
+    sendStateEvent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          landPublish = resolve;
+        })
+    );
+
+    const publishing = driver.sendEvent(
+      'org.matrix.msc3401.call.member',
+      { application: 'm.call' },
+      '_@local:example.org_LOCAL_m.call'
+    );
+    await flushMicrotasks();
+    expect(sendStateEvent).toHaveBeenCalledTimes(1);
+
+    let drained = false;
+    const drain = roomCallMembershipWritesSettled(roomId).then(() => {
+      drained = true;
+    });
+    await flushMicrotasks();
+    expect(drained).toBe(false);
+
+    landPublish({ event_id: '$landed' });
+    await publishing;
+    await drain;
+    expect(drained).toBe(true);
+  });
+
+  it('a later publish does not re-pay the bound on an entry an expired gate abandoned', async () => {
+    // One blackholed write must tax the room's publishes once, not forever
+    // (review A3, round 4).
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const roomId = '!driver-evict:example.org';
+      const { driver, sendStateEvent } = makeStateDriver(roomId);
+      trackRoomCallMembershipWrite(
+        roomId,
+        new Promise<void>(() => {
+          // never settles
+        })
+      );
+
+      const stateKey = '_@local:example.org_LOCAL_m.call';
+      const first = driver.sendEvent(
+        'org.matrix.msc3401.call.member',
+        { application: 'm.call' },
+        stateKey
+      );
+      await vi.advanceTimersByTimeAsync(CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS);
+      await first;
+      expect(sendStateEvent).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      // The expired gate evicted the abandoned entry: the next publish
+      // dispatches without waiting out the bound again.
+      await driver.sendEvent('org.matrix.msc3401.call.member', { application: 'm.call' }, stateKey);
+      expect(sendStateEvent).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not gate non-membership state events behind cleanup writes', async () => {
+    const roomId = '!driver-ungated:example.org';
+    const { driver, sendStateEvent } = makeStateDriver(roomId);
+    trackRoomCallMembershipWrite(
+      roomId,
+      new Promise<void>(() => {
+        // never settles: an unrelated state event must not wait for it
+      })
+    );
+
+    await driver.sendEvent('m.room.name', { name: 'renamed' }, '');
+    expect(sendStateEvent).toHaveBeenCalledWith(roomId, 'm.room.name', { name: 'renamed' }, '');
   });
 });

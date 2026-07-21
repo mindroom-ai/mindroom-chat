@@ -64,6 +64,7 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
     setError(undefined);
 
     let roomId: string | undefined;
+    let callStarted = false;
     try {
       await requestMicrophoneAccess();
       if (!mountedRef.current) return;
@@ -85,10 +86,15 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
       }
       setLoading(false);
       startCall(room, { microphone: true, video: false, sound: true });
+      callStarted = true;
       navigateRoom(roomId);
       closeUserRoomProfile();
     } catch (callError) {
-      if (roomId) await cleanupCreatedAgentCall(mx, roomId, userId);
+      // Once startCall published a live embed, the termination coordinator
+      // owns every end-of-call obligation for the room; tearing it down here
+      // (which also permanently retires the room) would kick the agent out
+      // from under an active call over a mere navigation failure.
+      if (roomId && !callStarted) await cleanupCreatedAgentCall(mx, roomId, userId);
       if (!mountedRef.current) return;
       setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
       setLoading(false);

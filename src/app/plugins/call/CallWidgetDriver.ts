@@ -24,6 +24,11 @@ import {
   MatrixClient,
 } from 'matrix-js-sdk';
 import { getCallCapabilities } from './utils';
+import {
+  CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS,
+  roomCallMembershipWritesSettled,
+  trackRoomCallMembershipWrite,
+} from './rtcMembershipCleanup';
 import { downloadMedia, mxcUrlToHttp } from '../../utils/matrix';
 
 const TO_DEVICE_ENCRYPTION_RETRY_DELAYS_MS = [0, 250, 750, 1500, 3000] as const;
@@ -64,6 +69,12 @@ export class CallWidgetDriver extends WidgetDriver {
     return new Set(allow);
   }
 
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new Error('Call widget driver is disposed; refusing to publish RTC membership.');
+    }
+  }
+
   public async sendEvent(
     eventType: string,
     content: IContent,
@@ -74,12 +85,45 @@ export class CallWidgetDriver extends WidgetDriver {
 
     let r: { event_id: string } | null;
     if (typeof stateKey === 'string') {
-      r = await this.mx.sendStateEvent(
-        roomId,
-        eventType as keyof StateEvents,
-        content as StateEvents[keyof StateEvents],
-        stateKey
-      );
+      const sendState = () =>
+        this.mx.sendStateEvent(
+          roomId,
+          eventType as keyof StateEvents,
+          content as StateEvents[keyof StateEvents],
+          stateKey
+        );
+      if (eventType === EventType.GroupCallMemberPrefix) {
+        // A predecessor call's detached cleanup can still have a membership
+        // `{}` PUT in flight for this room. Publishing this call's
+        // membership before it settles could let the stale write land after
+        // — and wipe — the fresh state, so serialize behind it (CINNY-129).
+        // Bounded: a blackholed cleanup request must not wedge this call's
+        // join forever; past the bound the residual recheck and Element
+        // Call's own missing-membership recovery repair any misordering.
+        this.assertNotDisposed();
+        const gate = await roomCallMembershipWritesSettled(
+          roomId,
+          CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS
+        );
+        if (gate === 'timed-out') {
+          console.warn(
+            `[call-widget-driver] predecessor cleanup writes for ${roomId} did not settle within ` +
+              `${CALL_MEMBERSHIP_WRITES_SETTLE_TIMEOUT_MS}ms; publishing RTC membership anyway`
+          );
+        }
+        // The embed can be ended or replaced while this send was suspended
+        // at the gate; a disposed driver must never publish ghost membership
+        // over a successor's state.
+        this.assertNotDisposed();
+        // Track the publish itself: a join or expiry-renewal PUT still in
+        // flight when the embed is disposed cannot be aborted, and if the
+        // terminal residual read ran before it landed, the resurrected
+        // membership would ghost with no iframe left to clear it. The
+        // detached cleanup drains this registry (bounded) before that read.
+        r = await trackRoomCallMembershipWrite(roomId, sendState());
+      } else {
+        r = await sendState();
+      }
     } else if (eventType === EventType.RoomRedaction) {
       // special case: extract the `redacts` property and call redact
       r = await this.mx.redactEvent(roomId, content.redacts);

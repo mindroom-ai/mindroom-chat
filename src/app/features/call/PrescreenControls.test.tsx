@@ -1,0 +1,167 @@
+// @vitest-environment jsdom
+/**
+ * Call-start surface behavior for a retired room (CINNY-129 round 4, review
+ * A6/B2): `createCallEmbed` throws once a room's destructive teardown has
+ * started, and that throw happens inside an ordinary click handler. The
+ * surface must consume it — no uncaught exception, no embed published.
+ */
+import React, { ReactNode } from 'react';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  room: { roomId: '!retired-prescreen:mindroom.test' },
+}));
+
+vi.mock('../../hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({}),
+}));
+
+// The real useTheme drags in vanilla-extract styles that cannot load in vitest.
+vi.mock('../../hooks/useTheme', () => ({
+  ThemeKind: { Dark: 'dark', Light: 'light' },
+  useTheme: () => ({ id: 'dark-theme', kind: 'dark', classNames: [] }),
+}));
+
+vi.mock('../../hooks/useCall', () => ({
+  useCallSession: () => undefined,
+  useCallMembers: () => [],
+  useCallMembersChange: () => undefined,
+}));
+
+vi.mock('../../hooks/useRoom', () => ({
+  useRoom: () => mocks.room,
+  useIsDirectRoom: () => false,
+}));
+
+vi.mock('../../state/hooks/callPreferences', () => ({
+  useCallPreferences: () => ({
+    microphone: true,
+    video: false,
+    sound: true,
+    toggleMicrophone: vi.fn(),
+    toggleVideo: vi.fn(),
+    toggleSound: vi.fn(),
+  }),
+}));
+
+vi.mock('./styles.css', () => ({
+  ControlCard: 'control-card',
+}));
+
+vi.mock('./Controls', () => ({
+  ChatButton: () => null,
+  ControlDivider: () => null,
+  MicrophoneButton: () => null,
+  SoundButton: () => null,
+  VideoButton: () => null,
+}));
+
+vi.mock('../../components/sequence-card', () => ({
+  SequenceCard: ({ children }: { children?: ReactNode }) =>
+    React.createElement('div', null, children),
+}));
+
+vi.mock('folds', () => ({
+  Box: ({ children }: { children?: ReactNode }) => React.createElement('div', null, children),
+  Button: ({
+    children,
+    before,
+    disabled,
+    onClick,
+  }: {
+    children?: ReactNode;
+    before?: ReactNode;
+    disabled?: boolean;
+    onClick?: () => void;
+  }) =>
+    React.createElement(
+      'button',
+      { 'data-mock': 'folds-button', disabled, onClick },
+      before,
+      children
+    ),
+  Icon: () => null,
+  Icons: new Proxy({}, { get: (_target, prop) => String(prop) }),
+  Spinner: () => null,
+  Text: ({ children }: { children?: ReactNode }) => React.createElement('span', null, children),
+  color: new Proxy({}, { get: () => new Proxy({}, { get: (_target, prop) => String(prop) }) }),
+}));
+
+/* eslint-disable import/first */
+import { retireCallRoom } from '../../plugins/call/rtcMembershipCleanup';
+import {
+  CALL_ROOM_RETIRED_USER_MESSAGE,
+  CallEmbedRefContextProvider,
+} from '../../hooks/useCallEmbed';
+import { PrescreenControls } from './PrescreenControls';
+/* eslint-enable import/first */
+
+const renderPrescreen = (embedRef: React.RefObject<HTMLDivElement>): ReactTestRenderer => {
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      <CallEmbedRefContextProvider value={embedRef}>
+        <PrescreenControls canJoin />
+      </CallEmbedRefContextProvider>
+    );
+  });
+  return renderer;
+};
+
+const findJoinButton = (renderer: ReactTestRenderer) => {
+  const buttons = renderer.root.findAll((node) => node.props['data-mock'] === 'folds-button');
+  expect(buttons).toHaveLength(1);
+  return buttons[0];
+};
+
+const renderedText = (renderer: ReactTestRenderer): string =>
+  JSON.stringify(renderer.toJSON() ?? '');
+
+describe('PrescreenControls on a retired room', () => {
+  it('refuses proactively: Join disabled and the retirement message shown', () => {
+    // A retired room stays reachable when its post-End leave failed or has
+    // not landed yet; the surface must say why joining is off the table.
+    retireCallRoom(mocks.room.roomId);
+    const container = document.createElement('div');
+    const embedRef = { current: container } as React.RefObject<HTMLDivElement>;
+    const renderer = renderPrescreen(embedRef);
+
+    expect(findJoinButton(renderer).props.disabled).toBe(true);
+    expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+  });
+
+  it('consumes a click-time refusal and surfaces the message instead of staying silent', () => {
+    // The room retires between render and click (its previous call's
+    // detached teardown ran while the prescreen was already on screen):
+    // the click handler must consume the throw and tell the user.
+    const lateRetiredRoomId = '!late-retired-prescreen:mindroom.test';
+    mocks.room.roomId = lateRetiredRoomId;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const container = document.createElement('div');
+    const embedRef = { current: container } as React.RefObject<HTMLDivElement>;
+    try {
+      const renderer = renderPrescreen(embedRef);
+      const button = findJoinButton(renderer);
+      expect(button.props.disabled).toBe(false);
+      expect(renderedText(renderer)).not.toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+
+      retireCallRoom(lateRetiredRoomId);
+      expect(() => {
+        act(() => {
+          button.props.onClick();
+        });
+      }).not.toThrow();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][1])).toContain('shutting down');
+      // The refusal is visible feedback, not silence...
+      expect(renderedText(renderer)).toContain(CALL_ROOM_RETIRED_USER_MESSAGE);
+      // ...and no embed was created or mounted into the host container.
+      expect(container.childElementCount).toBe(0);
+    } finally {
+      warn.mockRestore();
+      mocks.room.roomId = '!retired-prescreen:mindroom.test';
+    }
+  });
+});

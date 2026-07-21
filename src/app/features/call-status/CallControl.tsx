@@ -1,10 +1,9 @@
 import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, Tooltip, TooltipProvider } from 'folds';
 import React, { useCallback } from 'react';
-import { useSetAtom } from 'jotai';
 import { StatusDivider } from './components';
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { callEmbedAtom } from '../../state/callEmbed';
+import { useCallTermination } from '../../hooks/useCallEmbed';
 
 type MicrophoneButtonProps = {
   enabled: boolean;
@@ -162,24 +161,15 @@ export function CallControl({
   callJoined: boolean;
 }) {
   const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
-  const setCallEmbed = useSetAtom(callEmbedAtom);
 
   const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
-  const [hangupState, hangup] = useAsyncCallback(
-    useCallback(() => callEmbed.hangup(), [callEmbed])
-  );
-  const exiting =
-    hangupState.status === AsyncStatus.Loading || hangupState.status === AsyncStatus.Success;
-
-  const handleHangup = () => {
-    if (!callJoined) {
-      setCallEmbed(undefined);
-      return;
-    }
-    hangup();
-  };
+  // Shared with the in-room End surface. The coordinator also owns the
+  // not-yet-joined case, so ending a call that never joined still runs the
+  // same finalizer (including ephemeral agent-room cleanup) instead of
+  // clearing the embed atom directly.
+  const { ending: exiting, endCall } = useCallTermination();
 
   return (
     <Box shrink="No" alignItems="Center" gap="300">
@@ -222,7 +212,7 @@ export function CallControl({
         }
         disabled={exiting}
         outlined
-        onClick={handleHangup}
+        onClick={endCall}
       >
         {!compact && (
           <Text as="span" size="L400">

@@ -3,11 +3,14 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
 import {
+  CALL_ROOM_RETIRED_USER_MESSAGE,
   CallEmbedRefContextProvider,
+  attemptCallStart,
   getCallEmbedViewportPlacement,
   useCallEmbedRef,
   useCallStart,
 } from './useCallEmbed';
+import { CallRoomRetiredError } from '../plugins/call';
 
 vi.mock('./useMatrixClient', () => ({
   useMatrixClient: () => ({}),
@@ -70,6 +73,48 @@ describe('useCallStart', () => {
     expect(() => startCall!({} as Room)).toThrow(
       'Failed to start call, No embed container element found!'
     );
+  });
+});
+
+describe('attemptCallStart', () => {
+  // The shared guarded-start contract used by every call-start surface
+  // (Prescreen Join, RoomNav second click, incoming-call Answer): a refusal
+  // is consumed with one warn and mapped to user-presentable copy.
+  it('returns undefined and warns nothing when the call starts', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(attemptCallStart(() => undefined)).toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('consumes a retired-room refusal into the retirement message with one warn', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const refusal = attemptCallStart(() => {
+        throw new CallRoomRetiredError();
+      });
+      expect(refusal).toBe(CALL_ROOM_RETIRED_USER_MESSAGE);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][1])).toContain('shutting down');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('consumes any other failure into a generic message, never the raw error text', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const refusal = attemptCallStart(() => {
+        throw new Error('No embed container element found!');
+      });
+      expect(refusal).toBe('Failed to start the call.');
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

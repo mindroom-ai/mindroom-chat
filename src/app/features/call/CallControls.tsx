@@ -28,7 +28,7 @@ import {
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { useResizeObserver } from '../../hooks/useResizeObserver';
 import { stopPropagation } from '../../utils/keyboard';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { useCallTermination } from '../../hooks/useCallEmbed';
 
 type CallControlsProps = {
   callEmbed: CallEmbed;
@@ -74,11 +74,9 @@ export function CallControls({ callEmbed }: CallControlsProps) {
   const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
-  const [hangupState, hangup] = useAsyncCallback(
-    useCallback(() => callEmbed.hangup(), [callEmbed])
-  );
-  const exiting =
-    hangupState.status === AsyncStatus.Loading || hangupState.status === AsyncStatus.Success;
+  // Shared with the persistent status End surface; the provider-owned
+  // coordinator guarantees one widget request and a bounded ending interval.
+  const { ending: exiting, endCall } = useCallTermination();
 
   return (
     <Box
@@ -186,7 +184,7 @@ export function CallControls({ callEmbed }: CallControlsProps) {
               style={{ minWidth: toRem(88) }}
               variant="Critical"
               fill="Solid"
-              onClick={hangup}
+              onClick={endCall}
               before={
                 exiting ? (
                   <Spinner variant="Critical" fill="Solid" size="200" />

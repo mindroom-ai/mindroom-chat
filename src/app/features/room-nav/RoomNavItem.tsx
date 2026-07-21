@@ -52,7 +52,7 @@ import { getRoomPermissionsAPI, useRoomPermissions } from '../../hooks/useRoomPe
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
 import { useCallMembers, useCallSession } from '../../hooks/useCall';
-import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
+import { attemptCallStart, useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
 import { callChatAtom } from '../../state/callEmbed';
 import { useCallPreferencesAtom } from '../../state/hooks/callPreferences';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
@@ -308,7 +308,11 @@ export function RoomNavItem({
     // Start call in second click
     if (selected) {
       evt.preventDefault();
-      startCall(room, callPref);
+      // A refusal (e.g. the room retired mid-teardown) is consumed: this
+      // one-line nav surface has no room for feedback — like the permission
+      // and support guards above — and the selected room's own call view is
+      // already on screen with the retirement message.
+      attemptCallStart(() => startCall(room, callPref));
     }
   };
 

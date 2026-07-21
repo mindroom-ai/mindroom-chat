@@ -14,6 +14,7 @@ import {
 } from '../../components/create-room/utils';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
+import { retireCallRoom } from '../../plugins/call/rtcMembershipCleanup';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
@@ -104,6 +105,12 @@ export const cleanupCreatedAgentCall = async (
   roomId: string,
   agentUserId: string
 ): Promise<void> => {
+  // Kick/leave/forget cannot be aborted or undone once dispatched, so no
+  // ownership re-check between steps can make them safe against a successor
+  // call reusing this room. Instead the room is retired synchronously before
+  // the first request: no new call embed can ever be created for it, so the
+  // sequence below can run to completion unguarded.
+  retireCallRoom(roomId);
   try {
     await mx.kick(roomId, agentUserId, 'MindRoom agent call ended');
   } catch {

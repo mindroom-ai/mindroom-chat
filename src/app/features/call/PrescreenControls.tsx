@@ -1,10 +1,17 @@
-import React, { useCallback } from 'react';
-import { Box, Button, Icon, Icons, Spinner, Text } from 'folds';
+import React, { useCallback, useState } from 'react';
+import { Box, Button, color, Icon, Icons, Spinner, Text } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
 import * as css from './styles.css';
 import { ChatButton, ControlDivider, MicrophoneButton, SoundButton, VideoButton } from './Controls';
 import { useIsDirectRoom, useRoom } from '../../hooks/useRoom';
-import { useCallEmbed, useCallJoined, useCallStart } from '../../hooks/useCallEmbed';
+import {
+  CALL_ROOM_RETIRED_USER_MESSAGE,
+  attemptCallStart,
+  useCallEmbed,
+  useCallJoined,
+  useCallStart,
+} from '../../hooks/useCallEmbed';
+import { isCallRoomRetired } from '../../plugins/call';
 import { useCallPreferences } from '../../state/hooks/callPreferences';
 
 type PrescreenControlsProps = {
@@ -15,20 +22,30 @@ export function PrescreenControls({ canJoin }: PrescreenControlsProps) {
   const callEmbed = useCallEmbed();
   const callJoined = useCallJoined(callEmbed);
   const direct = useIsDirectRoom();
+  const [startRefusal, setStartRefusal] = useState<string>();
 
   const inOtherCall = callEmbed && callEmbed.roomId !== room.roomId;
+  // A retired room's post-call teardown already started; joining can never
+  // succeed there, so refuse proactively instead of only failing on click.
+  const retired = isCallRoomRetired(room.roomId);
 
   const startCall = useCallStart(direct);
   const joining = callEmbed?.roomId === room.roomId && !callJoined;
 
-  const disabled = inOtherCall || !canJoin;
+  const disabled = inOtherCall || !canJoin || retired;
+  const refusalMessage = startRefusal ?? (retired ? CALL_ROOM_RETIRED_USER_MESSAGE : undefined);
 
   const { microphone, video, sound, toggleMicrophone, toggleVideo, toggleSound } =
     useCallPreferences();
 
-
   const handleMicrophoneToggle = useCallback(async () => toggleMicrophone(), [toggleMicrophone]);
   const handleVideoToggle = useCallback(async () => toggleVideo(), [toggleVideo]);
+
+  const handleJoin = useCallback(() => {
+    // The room can be retired between render and click; the click handler
+    // must consume the refusal and tell the user why nothing started.
+    setStartRefusal(attemptCallStart(() => startCall(room, { microphone, video, sound })));
+  }, [startCall, room, microphone, video, sound]);
 
   return (
     <SequenceCard
@@ -49,11 +66,11 @@ export function PrescreenControls({ canJoin }: PrescreenControlsProps) {
         <VideoButton enabled={video} onToggle={handleVideoToggle} />
         <ChatButton />
       </Box>
-      <Box grow="Yes" direction="Column">
+      <Box grow="Yes" direction="Column" gap="100">
         <Button
           variant={disabled ? 'Secondary' : 'Success'}
           fill={disabled ? 'Soft' : 'Solid'}
-          onClick={() => startCall(room, { microphone, video, sound })}
+          onClick={handleJoin}
           disabled={disabled || joining}
           before={
             joining ? (
@@ -65,6 +82,11 @@ export function PrescreenControls({ canJoin }: PrescreenControlsProps) {
         >
           <Text size="B400">Join</Text>
         </Button>
+        {refusalMessage && (
+          <Text size="T200" style={{ color: color.Critical.Main }}>
+            {refusalMessage}
+          </Text>
+        )}
       </Box>
     </SequenceCard>
   );

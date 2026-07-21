@@ -185,6 +185,57 @@ describe('AgentCallButton', () => {
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
+  it('never tears down the room when a failure happens after startCall succeeded', async () => {
+    // `cleanupCreatedAgentCall` kicks the agent, leaves and permanently
+    // retires the room. Once startCall published a live embed the
+    // termination coordinator owns the room's teardown, so a mere
+    // navigation failure must not destroy the active call (review B3).
+    mocks.navigateRoom.mockImplementationOnce(() => {
+      throw new Error('router unavailable');
+    });
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.startCall).toHaveBeenCalledOnce();
+    expect(mocks.cleanupCreatedAgentCall).not.toHaveBeenCalled();
+    // The user still sees the failure and the button recovers.
+    expect(JSON.stringify(renderer.toJSON())).toContain('router unavailable');
+    expect(renderer.root.findByType('button').props.disabled).toBe(false);
+  });
+
+  it('still cleans up when startCall itself refuses (no embed was published)', async () => {
+    mocks.startCall.mockImplementationOnce(() => {
+      throw new Error('Failed to start call, this call room is already shutting down.');
+    });
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
+      expect.anything(),
+      '!call:mindroom.test',
+      '@mindroom_helper:mindroom.test'
+    );
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
+  });
+
   it('cleans up the temporary room when joining fails', async () => {
     mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
     const renderer = create(
