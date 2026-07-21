@@ -1,6 +1,6 @@
 import { createContext, RefObject, useCallback, useContext, useEffect, useState } from 'react';
 import { MatrixClient, Room } from 'matrix-js-sdk';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import {
   CallEmbed,
   ElementCallThemeKind,
@@ -9,7 +9,7 @@ import {
 } from '../plugins/call';
 import { useMatrixClient } from './useMatrixClient';
 import { ThemeKind, useTheme } from './useTheme';
-import { callEmbedAtom } from '../state/callEmbed';
+import { callEmbedAtom, callEndRequestAtom } from '../state/callEmbed';
 import { useResizeObserver } from './useResizeObserver';
 import { CallControlState } from '../plugins/call/CallControlState';
 import { useCallMembersChange, useCallSession } from './useCall';
@@ -103,6 +103,37 @@ export const useCallJoined = (embed?: CallEmbed): boolean => {
 export const useCallHangupEvent = (embed: CallEmbed, callback: () => void) => {
   useClientWidgetApiEvent(embed.call, ElementWidgetActions.HangupCall, callback);
   useClientWidgetApiEvent(embed.call, ElementWidgetActions.Close, callback);
+};
+
+export const CALL_END_FALLBACK_MS = 4_000;
+
+/** Share one bounded End request between every surface for the current call. */
+export const useCallEnd = (embed: CallEmbed): readonly [boolean, () => void] => {
+  const requestedEmbed = useAtomValue(callEndRequestAtom);
+  const setRequestedEmbed = useSetAtom(callEndRequestAtom);
+  const store = useStore();
+
+  const endCall = useCallback(() => {
+    if (store.get(callEndRequestAtom) === embed) return;
+    setRequestedEmbed(embed);
+    void Promise.resolve()
+      .then(() => embed.hangup())
+      .catch(() => undefined);
+  }, [embed, setRequestedEmbed, store]);
+
+  return [requestedEmbed === embed, endCall] as const;
+};
+
+/** Keep healthy widget completion and the bounded host fallback on one path. */
+export const useCallEndLifecycle = (embed: CallEmbed, finish: () => void): void => {
+  const requestedEmbed = useAtomValue(callEndRequestAtom);
+  useCallHangupEvent(embed, finish);
+
+  useEffect(() => {
+    if (requestedEmbed !== embed) return undefined;
+    const timeout = window.setTimeout(finish, CALL_END_FALLBACK_MS);
+    return () => window.clearTimeout(timeout);
+  }, [embed, finish, requestedEmbed]);
 };
 
 export const useCallMemberSoundSync = (embed: CallEmbed) => {

@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Minimal bounded fallback for a wedged call iframe (2026-07-21)
+
+- Status: implementation, local validation, and one independent scope review are complete on `fix/call-end-timeout-minimal`; the narrow replacement for PR #189 is ready to publish.
+- Symptom: End can spin forever when the embedded Element Call iframe stops answering its hangup request.
+- Scope: both existing End surfaces share one request flag, send at most one hangup request, and arm one 4,000 ms host fallback in the existing provider lifecycle.
+- Healthy widget Hangup or Close keeps the existing immediate disposal and ephemeral agent-room cleanup path.
+- The fallback clears only the same still-current embed, which disposes the iframe and then runs the same existing agent-room cleanup.
+- MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, call-start changes, and unrelated disposal hardening stay out of this PR.
+- Validation passes 16 focused call lifecycle tests, 3,369 full-suite tests, typecheck, production build, ESLint with only 17 pre-existing warnings, Prettier, and one independent scope review with no findings.
+
 ### Expose repository skills to Codex (2026-07-21)
 
 - Status: the repository-owned Claude skills are exposed through the standard agent skill discovery path.
