@@ -4,7 +4,7 @@
 
 ### CINNY-126 pre-initialization thread edits (2026-07-20)
 
-- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; the minimal SDK patch, retry hardening, contract tests, exact-cadence green gate, flight-recorder extension, and independent reviews are complete.
+- Status: the exact-cadence unpatched red gate confirms SDK pre-initialization edit buffering; review round 2 is replacing the transient-event-bound SDK fix with an event-ID-owned relation fix and tightening replay privacy, live-room isolation, and recorder bounds.
 - Inputs: the final plan, incident report, and all three authoritative trace artifacts were read, and their SHA-256 hashes are recorded for replay verification.
 - Safety: no live credentials were found in the worktree, so live replay remains disabled unless explicit test-room accounts are supplied; Bas's account and the incident room are forbidden targets.
 - Harness: the portable live sender requires three distinct test accounts plus replacement test media, while the offline driver feeds all 23 exact events through matrix-js-sdk 41.7.0 `Room.addLiveEvents`, a real SDK `Thread`, and the shared presentation and tag resolvers.
@@ -26,11 +26,15 @@
 - Validation: a clean `npm ci` reapplies both package patches, all 110 focused SDK/replay-safety/recorder/export/startup tests pass on current `dev`, typecheck passes, full ESLint reports zero errors and 17 pre-existing warnings, and the production/PWA build with Element Call verification passes.
 - Full-suite environment note: normal Vitest discovery passes 449 files and 3,356 tests; only the three pre-existing Xcode Cloud shell-harness tests fail because this Nix environment has Bash at `/run/current-system/sw/bin/bash` while that test replaces `PATH` with `/usr/bin:/bin`, causing `spawnSync bash ENOENT`; neither the test nor its scripts differs on this branch.
 - Publication: branch `cinny-126` is published to both the Gitea and GitHub `mindroom-cinny` remotes, with ready Gitea PR #1 open for review; Gitea's `dev` is 332 commits behind and 14 commits ahead of the canonical `origin/dev`, so Gitea reports the otherwise reviewed PR as non-mergeable and leaves its Actions checks waiting for a runner.
-- Review round 1 status: all forwarded findings are confirmed and fixed, full local validation is complete, and independent re-review reports no remaining findings.
+- Review round 1 status: all forwarded findings were fixed and locally validated, but round 2 reproduced deeper pagination-window and event-object-remapping failures in the SDK boundary.
 - Review round 1 SDK fix: pre-initialization `Thread.update` now subscribes once per target to the target event's `Event.replaced` signal and emits only after an effective edit is committed; the contract observes `First draft` and then `Final answer` from inside the two update callbacks and proves 25 older same-sender edits cannot accumulate listeners.
 - Review round 1 recorder fix: decrypted `m.replace` events are reclassified before batch closure, unresolved encrypted events are represented by `encryptedCount`, the persisted recorder schema is version 2, and each sync retains at most eight rooms prioritized by edits, unresolved encryption, then volume.
 - Review round 1 live-safety fix: verified incident MXC and attachment identifiers are forbidden, attachment input and rewrites fail closed through side-effect-free tested helpers, and offline diagnostics expose only presentation length plus SHA-256 rather than private reply text.
 - Review round 1 cleanup: replay tests are in normal Vitest discovery, the replay directory is part of the ESLint gate, private artifact prerequisites and hashes are documented, and the five transient `plan/` artifacts are removed from the product branch.
+- Review round 2 triage: A1/B1, A2/B3/B4, A3/B2, A4, B5, and B6 are all real bugs or required cleanup; no forwarded finding is ignored.
+- Review round 2 invariant: for every currently observable instance of a thread event, effective content must reflect the newest valid known `m.replace` independent of thread initialization state, pagination timing, or replacement-object identity.
+- Review round 2 owning boundary: relation collections are keyed by target event ID, so the SDK `Relations` target-binding boundary must reapply already-known replacements when pagination installs a fresh target instance; `Thread` may eagerly aggregate pre-initialization edits, but its update signal must come from the post-commit relation collection rather than a listener retained by a transient `MatrixEvent` object.
+- Review round 2 cleanup boundary: initialization-specific replacement listeners will be deleted rather than extended, and regressions will cover the first edit during deferred pagination plus a freshly mapped post-pagination placeholder.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
