@@ -16,32 +16,9 @@ vi.mock('./useThreadEventRefresh', () => ({
   useThreadEventRefresh: () => undefined,
 }));
 
-vi.mock('../../hooks/useInterval', async () => {
-  const React = await import('react');
-
-  return {
-    useInterval: (callback: () => void, ms: number) => {
-      React.useEffect(() => {
-        if (ms < 0) return undefined;
-
-        const id = globalThis.setInterval(callback, ms);
-        return () => {
-          globalThis.clearInterval(id);
-        };
-      }, [callback, ms]);
-
-      return undefined;
-    },
-  };
-});
-
 const mockedUseStateEvents = vi.mocked(useStateEvents);
 
-const makeSummaryEvent = (
-  body: string,
-  generatedAt: string,
-  eventId: string
-) =>
+const makeSummaryEvent = (body: string, generatedAt: string, eventId: string) =>
   new MatrixEvent({
     content: {
       msgtype: 'm.notice',
@@ -66,12 +43,14 @@ const makeScheduledTaskEvent = (
     newThread = false,
     executeAt,
     scheduledAt,
+    cronSchedule,
   }: {
     status?: string;
     threadId?: string | null;
     newThread?: boolean;
     executeAt?: string;
     scheduledAt?: string;
+    cronSchedule?: Record<'minute' | 'hour' | 'day' | 'month' | 'weekday', string>;
   },
   stateKey: string
 ) =>
@@ -82,6 +61,13 @@ const makeScheduledTaskEvent = (
       new_thread: newThread,
       execute_at: executeAt,
       scheduled_at: scheduledAt,
+      workflow:
+        cronSchedule === undefined
+          ? undefined
+          : JSON.stringify({
+              schedule_type: 'cron',
+              cron_schedule: cronSchedule,
+            }),
     },
     event_id: `$${stateKey}`,
     origin_server_ts: 1,
@@ -108,14 +94,17 @@ const renderHookHarness = (
   getEvents: () => MatrixEvent[]
 ): {
   getSnapshot: () => ThreadHeaderInfo;
+  getRenderCount: () => number;
   update: () => void;
   renderer: ReactTestRenderer;
 } => {
   let latestSnapshot: ThreadHeaderInfo | undefined;
+  let renderCount = 0;
   let renderer!: ReactTestRenderer;
   mockedUseStateEvents.mockImplementation(() => getEvents());
 
   const onRender = (value: ThreadHeaderInfo) => {
+    renderCount += 1;
     latestSnapshot = value;
   };
 
@@ -130,6 +119,7 @@ const renderHookHarness = (
       }
       return latestSnapshot;
     },
+    getRenderCount: () => renderCount,
     update: () => {
       act(() => {
         renderer.update(React.createElement(Harness, { room, threadId, onRender }));
@@ -160,11 +150,7 @@ const createThread = (threadRootId = '$root') => {
     sender: '@alice:example.org',
     type: 'm.room.message',
   });
-  const olderSummary = makeSummaryEvent(
-    'Older summary',
-    '2026-04-04T18:00:00.000Z',
-    '$summary-1'
-  );
+  const olderSummary = makeSummaryEvent('Older summary', '2026-04-04T18:00:00.000Z', '$summary-1');
   const latestSummary = makeSummaryEvent(
     'Latest summary',
     '2026-04-04T18:10:00.000Z',
@@ -250,6 +236,237 @@ describe('useThreadHeaderInfo', () => {
       scheduledDisplayText: 'in 15m',
     });
     expect(room.findEventById).toHaveBeenCalledWith('$reply-event');
+
+    renderer.unmount();
+  });
+
+  it('renders a next time instead of a task count for a cron-only event', () => {
+    vi.setSystemTime(new Date('2024-02-29T12:00:00.000Z'));
+    const room = createRoom();
+    const { getSnapshot, renderer } = renderHookHarness(room, '$root', () => [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: ' 0 ',
+            hour: ' 0 ',
+            day: ' 1,31 ',
+            month: ' * ',
+            weekday: ' * ',
+          },
+        },
+        'cron-task'
+      ),
+    ]);
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 1,
+      nextScheduledTs: Date.parse('2024-03-01T00:00:00.000Z'),
+      scheduledDisplayText: expect.any(String),
+    });
+    expect(getSnapshot().scheduledDisplayText).not.toBe('1 scheduled task');
+
+    renderer.unmount();
+  });
+
+  it('renders count-only banner metadata when any pending occurrence is unresolved', () => {
+    vi.setSystemTime(new Date('2026-04-04T18:00:00.000Z'));
+    const room = createRoom();
+    const { getSnapshot, renderer } = renderHookHarness(room, '$root', () => [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: '0',
+            hour: '0',
+            day: '?',
+            month: '*',
+            weekday: '*',
+          },
+        },
+        'unknown-task'
+      ),
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          executeAt: '2026-04-04T18:30:00.000Z',
+        },
+        'known-task'
+      ),
+    ]);
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 2,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '2 scheduled tasks',
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(30 * 60 * 1000 + 1);
+    });
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 1,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '1 scheduled task',
+    });
+
+    renderer.unmount();
+  });
+
+  it('caps a far-future count-only refresh boundary without a timer hot loop', () => {
+    const room = createRoom();
+    const { getRenderCount, getSnapshot, renderer } = renderHookHarness(room, '$root', () => [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: '0',
+            hour: '0',
+            day: '?',
+            month: '*',
+            weekday: '*',
+          },
+        },
+        'unknown-task'
+      ),
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          executeAt: '2027-04-04T18:00:00.000Z',
+        },
+        'far-future-task'
+      ),
+    ]);
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 2,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '2 scheduled tasks',
+    });
+    expect(getRenderCount()).toBe(1);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(getRenderCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(1);
+
+    renderer.unmount();
+  });
+
+  it('continues selected-thread cron work without publishing a partial next occurrence', () => {
+    vi.setSystemTime(new Date('2026-04-04T18:02:30.000Z'));
+    const room = createRoom();
+    const scheduledTaskEvents = [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$other',
+          cronSchedule: {
+            minute: '*/5',
+            hour: '*',
+            day: '*',
+            month: '*',
+            weekday: '*',
+          },
+        },
+        'other-task'
+      ),
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: '0',
+            hour: '0',
+            day: '1-31',
+            month: '*',
+            weekday: '1',
+          },
+        },
+        'selected-expanded-task'
+      ),
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: '*/5',
+            hour: '*',
+            day: '*',
+            month: '*',
+            weekday: '*',
+          },
+        },
+        'selected-near-task'
+      ),
+    ];
+    const { getSnapshot, renderer } = renderHookHarness(room, '$root', () => scheduledTaskEvents);
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 2,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '2 scheduled tasks',
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(getSnapshot()).toMatchObject({
+      scheduledTaskCount: 2,
+      nextScheduledTs: Date.parse('2026-04-04T18:05:00.000Z'),
+      scheduledDisplayText: expect.any(String),
+    });
+
+    renderer.unmount();
+  });
+
+  it('re-arms after an external render just after a recurring occurrence', () => {
+    vi.setSystemTime(new Date('2026-04-04T18:02:30.000Z'));
+    const room = createRoom();
+    const scheduledTaskEvents = [
+      makeScheduledTaskEvent(
+        {
+          threadId: '$root',
+          cronSchedule: {
+            minute: '*/5',
+            hour: '*',
+            day: '*',
+            month: '*',
+            weekday: '*',
+          },
+        },
+        'cron-task'
+      ),
+    ];
+    const { getSnapshot, update, renderer } = renderHookHarness(
+      room,
+      '$root',
+      () => scheduledTaskEvents
+    );
+
+    expect(getSnapshot()).toMatchObject({
+      nextScheduledTs: Date.parse('2026-04-04T18:05:00.000Z'),
+      scheduledDisplayText: 'in 2m 30s',
+    });
+
+    vi.setSystemTime(new Date('2026-04-04T18:05:00.100Z'));
+    update();
+
+    expect(getSnapshot()).toMatchObject({
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '1 scheduled task',
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(getSnapshot()).toMatchObject({
+      nextScheduledTs: Date.parse('2026-04-04T18:10:00.000Z'),
+      scheduledDisplayText: 'in 4m 59s',
+    });
+    expect(scheduledTaskEvents).toHaveLength(1);
 
     renderer.unmount();
   });
