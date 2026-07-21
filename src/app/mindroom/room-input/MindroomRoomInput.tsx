@@ -779,6 +779,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const uploadItemWhileStaged = useCallback(
       async (ownerRoomId: string, fileItem: TUploadItem): Promise<TUploadItem | undefined> => {
         const uploadItemsAtom = roomIdToUploadItemsAtomFamily(ownerRoomId);
+        if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
+          return undefined;
+        }
         let unsubscribe: () => void = () => undefined;
         const removed = new Promise<undefined>((resolve) => {
           const resolveIfRemoved = () => {
@@ -863,12 +866,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         onRoomMessageSent,
       });
 
-    // Snapshot the room/thread/reply context for the next start(). The hook
-    // calls this synchronously inside start() and persists the result on the
-    // pending draft, so a failed send can be retried against the original
-    // destination even after a RoomProvider key remount. The session id is
-    // stamped here so an account switch with a parked draft cannot leak
-    // audio across users (see draftBelongsToCurrentSession above).
+    // Provide the recording room at start and the latest relation again when Send is claimed.
+    // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
+    // and persists that effective send context so failure retries keep the attempted destination.
+    // The session id prevents a parked draft from leaking audio across account switches.
     const getVoiceSendContext = useCallback(
       (): MindroomVoiceSendContext =>
         getMindroomRoomInputVoiceSendContext({
@@ -1002,14 +1003,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'create'
             );
           }
+          const ownerRoomId = liveContext.roomId;
           const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
-          const eligibleCompanionItems = (composerBundle?.companionItems ?? []).filter(
-            (item) =>
-              !item.prepError &&
-              Boolean(item.encInfo) === liveRoomEncrypted &&
-              store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
-              item.file.size < allowUploadSize
-          );
+          const getEligibleCompanionItems = (): TUploadItem[] => {
+            const liveFiles = new Set(
+              store.get(roomIdToUploadItemsAtomFamily(ownerRoomId)).map((item) => item.file)
+            );
+            return (composerBundle?.companionItems ?? []).filter(
+              (item) =>
+                liveFiles.has(item.file) &&
+                !item.prepError &&
+                Boolean(item.encInfo) === liveRoomEncrypted &&
+                store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
+                item.file.size < allowUploadSize
+            );
+          };
+          let eligibleCompanionItems = getEligibleCompanionItems();
           if (
             composerBundle &&
             (composerBundle.textContent || eligibleCompanionItems.length > 0) &&
@@ -1018,6 +1027,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             // Give a previously failed attachment session one chance to finish after its
             // upload cards were retried or removed before parking this new voice bundle.
             await startSendSession();
+            eligibleCompanionItems = getEligibleCompanionItems();
           }
           const activeSendSession = hasActiveSendSession();
           if (
@@ -1034,7 +1044,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             (eligibleCompanionItems.length > 0 || Boolean(composerBundle.textContent));
 
           if (shouldCombineWithCompanions) {
-            const ownerRoomId = liveContext.roomId;
             const companionUploadResultsPromise = Promise.allSettled(
               eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item))
             );
@@ -1650,7 +1659,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 variant="Primary"
                 size="300"
                 radii="300"
-                aria-label="Send message"
+                aria-label={t('composer.sendMessage')}
               >
                 <Icon src={Icons.Send} />
               </IconButton>

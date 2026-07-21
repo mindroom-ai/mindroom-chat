@@ -51,10 +51,9 @@ type UseVoiceRecorderOptions = {
   onSendStopFailure?: () => void;
   onSendRecording?: SendRecordingCallback;
   /**
-   * Snapshot of the room/thread/reply context to attach to the next send.
-   * Captured fresh at start() time so a failure persists the original
-   * destination across the RoomProvider key remount that real navigation
-   * triggers, even though the hook itself unmounts with the keyed subtree.
+   * Supplies the room/thread/reply context for the next send.
+   * The room is captured at start() and remains authoritative across navigation.
+   * A same-room relation is refreshed when Send is claimed and becomes the durable retry context.
    */
   getSendContext: () => PendingVoiceSendContext;
 };
@@ -737,6 +736,23 @@ export function useVoiceRecorder({
 
       if (action === 'send' && latestOnSendStopRequestRef.current?.() === false) {
         return Promise.resolve(false);
+      }
+
+      if (action === 'send') {
+        const recordingContext = sendContextAtStartRef.current;
+        const currentContext = latestGetSendContextRef.current();
+        if (
+          recordingContext &&
+          currentContext.ownerSessionId === recordingContext.ownerSessionId &&
+          currentContext.roomId === recordingContext.roomId
+        ) {
+          sendContextAtStartRef.current = {
+            ...recordingContext,
+            threadId: currentContext.threadId,
+            replyDraft: currentContext.replyDraft,
+            threadingEnabled: currentContext.threadingEnabled,
+          };
+        }
       }
 
       elapsedAtStopRef.current = Math.max(0, Math.round(getActiveElapsedMs()));

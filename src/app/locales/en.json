@@ -251,6 +251,7 @@
   },
   "composer": {
     "placeholder": "Send a message...",
+    "sendMessage": "Send message",
     "recordVoice": "Record voice message",
     "voicePausedInOtherRoom": "Voice recording paused — finish or discard your unsent recording in {{roomName}}",
     "dropFiles": "Drop Files in \"{{roomName}}\"",

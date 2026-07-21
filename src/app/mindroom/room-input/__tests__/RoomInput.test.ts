@@ -2163,6 +2163,64 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('does not re-upload a companion completed by the inline session retry', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'retry-completed.txt', { type: 'text/plain' });
+    stageUploadItems(store, [createUploadItem(companion)], [companion]);
+    mxState.sendMessage.mockRejectedValueOnce(new Error('initial attachment send failed'));
+    const { renderer } = await renderRoomInput(store);
+
+    await submitComposer();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      companion,
+    ]);
+
+    mxState.sendMessage.mockClear();
+    await openVoiceRecorder(renderer);
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 590);
+    await submitComposer();
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['retry-completed.txt', 'voice.m4a']);
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.uploadContent.mock.calls[0][0]).toBe(voice);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('does not upload a companion removed after primary Send snapshots the bundle', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'removed-after-send.txt', {
+      type: 'text/plain',
+    });
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    stageUploadItems(store, [createUploadItem(companion)], [companion]);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    voiceRecorderState.send.mockImplementationOnce(async () => {
+      if (voiceRecorderState.props!.onSendStopRequest?.() === false) return false;
+      renderer.root
+        .findByProps({ 'aria-label': 'Remove upload removed-after-send.txt' })
+        .props.onClick();
+      await voiceRecorderState.props!.onSendRecording(voice, 585);
+      return true;
+    });
+
+    await submitComposer();
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.uploadContent.mock.calls[0][0]).toBe(voice);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
   it('keeps a parked retry context while including attachments staged later', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'later-attachment.txt', { type: 'text/plain' });

@@ -251,6 +251,7 @@
   },
   "composer": {
     "placeholder": "Stuur een bericht...",
+    "sendMessage": "Bericht verzenden",
     "recordVoice": "Spraakbericht opnemen",
     "voicePausedInOtherRoom": "Spraakopname gepauzeerd — maak je niet-verzonden opname in {{roomName}} af of verwijder deze",
     "dropFiles": "Bestanden neerzetten in \"{{roomName}}\"",

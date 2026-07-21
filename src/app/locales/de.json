@@ -251,6 +251,7 @@
   },
   "composer": {
     "placeholder": "Nachricht senden...",
+    "sendMessage": "Nachricht senden",
     "recordVoice": "Sprachnachricht aufnehmen",
     "voicePausedInOtherRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme in {{roomName}} ab oder verwirf sie",
     "dropFiles": "Dateien in \"{{roomName}}\" ablegen",

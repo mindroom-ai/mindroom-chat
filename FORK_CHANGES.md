@@ -10,7 +10,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the latest Claude Fable findings are remediated and fully validated locally; exact-head re-review remains before merge.
+- Status: the latest exact-head Claude Fable findings are remediated and fully validated locally; another exact-head review remains before merge.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -75,6 +75,10 @@
 - Remediation snapshots only the live reply/thread relation at primary Send while retaining the recording room and parked-retry context, translates actionable active-session recovery guidance in English, Dutch, and German, and deletes every non-bundle companion-enrollment branch.
 - RoomInput regression coverage now drives combined behavior through the single primary Send path and pins added, cleared, and replaced replies, thread changes, cross-room isolation, parked retries, classic mode, active-session recovery, attachment snapshot ownership, and invalid-companion handling.
 - Latest validation passes the 151 focused tests, all 447 Vitest files with 3,374 tests, typecheck, the production and PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check`.
+- The next exact-head Claude Fable review found three blockers: a companion snapshot could survive an inline attachment-session retry and start an orphan upload after that retry removed the board item, a failed live recording parked its recording-start relation instead of the relation used at primary Send, and the primary Send accessibility label bypassed localization.
+- Current remediation intersects the bundle snapshot with the live room board before enrollment and after any inline session retry, refuses to start an upload for an already-unstaged companion, persists the same-room relation visible when a live recording is claimed for Send, and translates the primary Send label in English, Dutch, and German.
+- New regressions cover both stale-companion routes, send-time relation persistence through failure and retry, and retention of the recording room after cross-room navigation.
+- Remediation validation passes 166 focused tests across nine composer, send-session, recorder, dialog, capsule, upload-board, and upload-card files; all 447 Vitest files with 3,377 tests; typecheck; the production and PWA build with Element Call verification; full ESLint with zero errors and the existing 17-warning baseline; touched-file Prettier; and `git diff --check`.
 
 ### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
 
