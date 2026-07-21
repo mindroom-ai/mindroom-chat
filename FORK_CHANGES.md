@@ -4,12 +4,15 @@
 
 ### Show backend-owned recurring schedule descriptions (2026-07-21)
 
-- Status: implementation in progress.
-- MindRoom now publishes its existing natural-language `cron_description` in scheduled-task Matrix state.
+- Status: simplified implementation and local validation are complete; PR #188 awaits its final independent review gate.
+- MindRoom PR #1615 publishes its existing natural-language `cron_description` in scheduled-task Matrix state.
 - MindRoom Chat reads that stable display field instead of parsing or evaluating cron expressions in the browser.
 - One recurring task displays the backend description, while multiple or incomplete task sets retain the honest count fallback.
 - Existing one-time `execute_at` formatting and refresh behavior remain unchanged.
 - The previous client-side Croner dependency, croniter-parity engine, evaluation budgets, continuation cache, and associated timer machinery are removed.
+- The final MindRoom Chat diff adds 62 production lines and removes 17, down from the previous 919 additions and 99 deletions.
+- Focused scheduled-task coverage passes 35 tests, typecheck passes, the production/PWA build passes, and ESLint reports zero errors with the existing 17-warning baseline.
+- The full Vitest suite passes 446 files and 3,369 tests; its one unrelated gap-fill timing failure passes immediately in isolated rerun.
 
 ### Expose repository skills to Codex (2026-07-21)
 
