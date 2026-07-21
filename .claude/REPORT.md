@@ -15,14 +15,22 @@ The presentation helper was intentionally left unchanged.
 ## Changes
 
 - Added an exact-trace replay package under `scripts/cinny-126-replay/` with SHA-256 artifact verification, exact timing, offline real-SDK scenarios, a guarded test-room-only live sender, surface assertions, and one-line diagnostic verdicts.
-- Added a patch-package patch for matrix-js-sdk 41.7.0 that aggregates pre-initialization replacements through `aggregateChildEvent` and emits `Thread.update` so existing overview consumers observe effective edited content.
+- Added a patch-package patch for matrix-js-sdk 41.7.0 that aggregates pre-initialization replacements through `aggregateChildEvent` and emits `Thread.update` only after the accepted replacement is observable so existing overview consumers read committed edited content from the callback.
 - Cleared a rejected `initalEventFetchProm` so later metadata work can retry, and absorbed the same owner-reported rejection in concurrent metadata waiters created by `Room.createThread`.
 - Added real-SDK contracts for pre-initialization replacement aggregation, replacement/update signals, retry through the production `Room.createThread` path, and zero escaped rejections.
 - Extended the native-iOS flight recorder with deduplicated per-room `matrix_sync` records closed at successful `SYNCING` boundaries and persisted once per batch.
-- Stored only event/edit counts, an eight-character stable room hash, coarse route class, and thread-route presence, with no raw room IDs, event IDs, senders, content, relation targets, URLs, or tokens.
+- Stored only event/edit/unresolved-encrypted counts, an eight-character stable room hash, coarse route class, and thread-route presence, with no raw room IDs, event IDs, senders, content, relation targets, URLs, or tokens.
 - Discarded saved-sync cache accumulators at `Prepared(fromCache: true)` so cached edits cannot be falsely attributed to the first live network batch.
 - Attached the sync recorder immediately before the authenticated main client starts, with idempotent client attachment, deterministic stop/dispose cleanup, and clean reattachment.
-- Kept combined optional `lastAction` and `matrix_sync` evidence valid inside the unchanged schema-v1 abnormal-session envelope.
+- Bumped the recorder schema to version 2 for the expanded `matrix_sync` shape and kept combined optional `lastAction` and sync evidence valid inside the strict abnormal-session envelope.
+
+## Review round 1
+
+- Confirmed and fixed every forwarded finding; none were ignored as overreach.
+- Moved `Thread.update` from the pre-aggregation call site to the target event's post-commit replacement signal and strengthened the real-SDK contract with two callback-observed effective bodies.
+- Added encrypted-event reclassification through `MatrixEventEvent.Decrypted`, an explicit unresolved-encrypted count, strict schema-v2 validation, and an eight-room per-sync retention bound that prioritizes edit-bearing evidence.
+- Made live media validation and attachment rewriting fail closed against identifiers extracted from the hash-verified trace, with normal-discovery tests for incident values, malformed input, unknown mappings, and residual nested references.
+- Replaced private offline presentation output with code-point length and SHA-256, brought the replay directory under ESLint and Vitest discovery, documented the private artifact hashes and opaque event IDs, and removed the five planning artifacts.
 
 ## Evidence
 
