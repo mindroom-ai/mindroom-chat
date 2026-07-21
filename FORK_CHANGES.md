@@ -4,22 +4,26 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the minimum-scope implementation, focused validation, full-suite audit, and independent reviews from repo-root `PLAN.md` are complete; ready for human review.
+- Status: the minimum-scope implementation, review remediation, focused and full validation, and independent re-review are complete; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
 - Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so voice is last among files that do not require a later manual retry.
 - Implemented behavior: when eligible live staged attachments exist and no send session is active, `handleVoiceSend` hands the attachments plus voice to the existing controller in board order with voice last among files that do not require a later manual retry, so a room-level batch has one attachment root and threaded children while an existing-thread batch targets the captured root.
 - Eligibility preserves the standalone voice path for voice-only sends, classic mode, active sessions, oversized voice, only preparation-error, marker-backed paste, or oversized companions, callbacks owned by another room, and callbacks after unmount.
-- The final companion list is read after voice preparation, so attachments canceled during preparation are omitted and attachments added before handoff are included.
+- The final companion list is read after voice preparation, so attachments canceled during preparation are omitted and attachments added before an initial voice handoff are included.
+- Combined-send enrollment now excludes companions already in upload error and excludes parked voice retries, preserving the invariant that one user gesture owns one controller-advanceable batch while failed or later-staged attachments remain on the board.
 - `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query whose lifecycle remains true while a session waits or is retryable and becomes false only after completion.
 - Scope leaves mode selection, the recorder stack, the upload board, backend code, typed composer text, and paste-marker lifecycle unchanged.
 - Documented trade-offs: combined-batch voice failures surface through the upload-board retry affordances instead of the parked-draft overlay, and paste-converted attachments plus composer text stay with the typed draft.
-- Focused validation passes eight behavior, controller, recorder, and room-view files with 164 tests, typecheck, touched-file ESLint, Prettier, `git diff --check`, and the production/PWA build with Element Call verification.
+- Focused validation passes eight behavior, controller, recorder, and room-view files with 166 tests, including 111 RoomInput, recorder, and controller tests rerun for remediation, plus typecheck, touched-file ESLint, Prettier, `git diff --check`, and the production/PWA build with Element Call verification.
 - Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, handoff exceptions, reply clearing, upload retry, and root cancellation.
 - Independent behavior review found one production-invalid no-upload assertion in the mocked upload-card boundary and stale pre-change Runbook tense; the assertions and prose are corrected, and a faithful board-driven upload test now proves that the appended voice card starts upload and wakes the waiting session.
 - Independent re-review found no residual production correctness, race, media-limit, ownership, scope, test-fidelity, or documentation issue.
-- The final full `npm test` rerun exercises all 447 files and 3,336 tests, with 446 files and 3,333 tests passing; the only failures are the three Xcode shell-fixture tests, which cannot spawn Bash because the fixture replaces this Nix workspace's PATH with `/usr/bin:/bin` even though Bash is installed at `/run/current-system/sw/bin/bash`.
+- Review triage accepts an already-failed companion and a parked retry capturing later attachments as real enrollment-boundary bugs, accepts the self-fulfilling parked-draft mock as test cleanup, and rejects artifact stripping, a new browser harness, early recorder-resolution redesign, and a shared size-helper refactor as out of scope for this fix round.
+- The remediation removes the test-owned parked-draft writer and makes the upload-card mock delegate to the production upload helper with the same encryption filename policy.
+- Independent remediation review found no remaining invariant, boundary, test-fidelity, half-refactor, or scope issue.
+- The final full `npm test` rerun exercises all 447 files and 3,338 tests, with 446 files and 3,335 tests passing; the only failures are the three Xcode shell-fixture tests, which cannot spawn Bash because the fixture replaces this Nix workspace's PATH with `/usr/bin:/bin` even though Bash is installed at `/run/current-system/sw/bin/bash`.
 - The three Xcode fixture failures are an environment-specific baseline that occurs before repository shell code executes, while every application test and all CINNY-128 coverage pass.
 - Full ESLint reports zero errors and the existing 17-warning baseline.
 

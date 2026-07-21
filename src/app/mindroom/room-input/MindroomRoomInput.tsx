@@ -909,12 +909,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
 
+          const pendingVoiceRetry = store.get(pendingVoiceSendDraftAtom);
+          const isParkedVoiceRetry =
+            pendingVoiceRetry?.inFlight !== undefined &&
+            pendingVoiceRetry.file === file &&
+            pendingVoiceRetry.context === context;
           const eligibleCompanionFiles = selectedFilesRef.current
             .filter(
               (item) =>
                 item !== fileItem &&
                 !item.prepError &&
                 !item.metadata.mindroomPasteAttachment &&
+                store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
                 item.file.size < allowUploadSize
             )
             .map((item) => item.file);
@@ -922,6 +928,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             mountedRef.current &&
             liveContext.roomId === roomIdRef.current &&
             liveContext.threadingEnabled &&
+            !isParkedVoiceRetry &&
             !hasActiveSendSession() &&
             fileItem.file.size < allowUploadSize &&
             eligibleCompanionFiles.length > 0;

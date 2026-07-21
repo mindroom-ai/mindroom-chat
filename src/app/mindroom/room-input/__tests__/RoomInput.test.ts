@@ -96,7 +96,6 @@ const {
     uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
   },
   sendSessionControllerState: {
-    parkRejectedVoice: false,
     startError: undefined as Error | undefined,
   },
   typingState: {
@@ -295,7 +294,7 @@ vi.mock('../../../components/upload-card', async () => {
   const { useAtom } = await import('jotai');
   const { roomUploadAtomFamily } = await import('../../../state/room/roomInputDrafts');
   const { UploadStatus } = await import('../../../state/upload');
-  const { toMatrixUploadError } = await import('../../../utils/matrix');
+  const { uploadContent } = await import('../../../utils/matrix');
 
   return {
     UploadCardRenderer: ({
@@ -317,15 +316,13 @@ vi.mock('../../../components/upload-card', async () => {
           return;
         }
 
-        const promise = mxState.uploadContent(fileItem.file, {
-          includeFilename: true,
-          progressHandler: vi.fn(),
+        void uploadContent(mxState as never, fileItem.file, {
+          hideFilename: !!fileItem.encInfo,
+          onPromise: (promise) => setUpload({ promise }),
+          onProgress: (progress) => setUpload({ progress }),
+          onSuccess: (mxc) => setUpload({ mxc }),
+          onError: (error) => setUpload({ error }),
         });
-        setUpload({ promise });
-        void promise.then(
-          ({ content_uri: mxc }) => setUpload({ mxc }),
-          (error) => setUpload({ error: toMatrixUploadError(error, 'upload') })
-        );
       }, [fileItem, setUpload, upload.status]);
 
       return React.createElement('button', {
@@ -487,8 +484,6 @@ vi.mock('../../../hooks/useCommands', () => ({
 
 vi.mock('../RoomInputMindroomExtensions', async () => {
   const reactModule = await import('react');
-  const { useSetAtom } = await import('jotai');
-  const { pendingVoiceSendDraftAtom } = await import('../../../state/room/roomInputDrafts');
   const { useRoomInputSendSessionController } = await vi.importActual<
     typeof import('../../threads/useRoomInputSendSessionController')
   >('../../threads/useRoomInputSendSessionController');
@@ -671,7 +666,6 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       ) => Promise<void>;
       getSendContext: () => unknown;
     }) => {
-      const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
       // Auto-fill the captured context from getSendContext() so existing
       // unit-style tests of handleVoiceSend keep their (file, duration,
       // waveform?) call shape. The hook's own end-to-end persistence is
@@ -680,23 +674,8 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       voiceRecorderState.props = {
         ...rest,
         getSendContext,
-        onSendRecording: async (file, duration, waveform, context) => {
-          const sendContext = context ?? getSendContext();
-          try {
-            await onSendRecording(file, duration, waveform, sendContext);
-          } catch (error) {
-            if (sendSessionControllerState.parkRejectedVoice) {
-              setPendingVoiceSendDraft({
-                file,
-                duration,
-                ...(waveform ? { waveform } : {}),
-                errorMessage: error instanceof Error ? error.message : 'Failed to send voice.',
-                context: sendContext as never,
-              });
-            }
-            throw error;
-          }
-        },
+        onSendRecording: (file, duration, waveform, context) =>
+          onSendRecording(file, duration, waveform, context ?? getSendContext()),
       };
       return React.createElement('div');
     },
@@ -970,7 +949,6 @@ afterEach(() => {
   mxState.sendMessage.mockResolvedValue({ event_id: '$sent' });
   mxState.uploadContent.mockReset();
   mxState.uploadContent.mockResolvedValue({ content_uri: 'mxc://mindroom/voice' });
-  sendSessionControllerState.parkRejectedVoice = false;
   sendSessionControllerState.startError = undefined;
   uploadCardState.autoUpload = false;
   encryptionState.encryptAttachment.mockReset();
@@ -1911,6 +1889,40 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('keeps a parked voice retry standalone from attachments staged later', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'later-attachment.txt', { type: 'text/plain' });
+    const voice = new File(['voice'], 'retry-voice.m4a', { type: 'audio/mp4' });
+    stageUploadItems(store, [createUploadItem(companion)], [companion]);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const capturedContext = voiceRecorderState.props!.getSendContext();
+    store.set(pendingVoiceSendDraftAtom, {
+      file: voice,
+      duration: 575,
+      errorMessage: undefined,
+      context: capturedContext as never,
+      inFlight: {
+        token: 'retry-attempt',
+        startedAt: 1,
+      },
+    });
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(voice, 575, undefined, capturedContext);
+    });
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'retry-voice.m4a' });
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      companion,
+    ]);
+
+    renderer.unmount();
+  });
+
   it('leaves prep-error, paste-marker, and oversized companions staged', async () => {
     const store = createStore();
     const prepFailed = new File(['bad'], 'failed.txt', { type: 'text/plain' });
@@ -1958,6 +1970,48 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('excludes an already-failed companion without stalling the surviving combined batch', async () => {
+    const store = createStore();
+    const failed = new File(['failed'], 'failed-upload.txt', { type: 'text/plain' });
+    const ready = new File(['ready'], 'ready-root.txt', { type: 'text/plain' });
+    stageUploadItems(store, [createUploadItem(failed), createUploadItem(ready)], [ready]);
+    store.set(roomUploadAtomFamily(failed), {
+      error: toMatrixUploadError(new Error('upload failed'), 'upload'),
+    });
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(
+        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        525
+      );
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'ready-root.txt' });
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+
+    const voiceItem = getVoiceUploadItem(store);
+    await act(async () => {
+      store.set(roomUploadAtomFamily(voiceItem.file), { mxc: 'mxc://mindroom/voice' });
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+      body: 'voice.m4a',
+      'm.relates_to': expect.objectContaining({
+        event_id: '$sent',
+        rel_type: RelationType.Thread,
+      }),
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      failed,
+    ]);
+
+    renderer.unmount();
+  });
+
   it('keeps oversized voice standalone even with an eligible staged attachment', async () => {
     const store = createStore();
     const companion = new File(['1234'], 'eligible.txt', { type: 'text/plain' });
@@ -1983,13 +2037,12 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('cleans only voice ownership and parks the recording when session handoff throws', async () => {
+  it('cleans only voice ownership when session handoff throws', async () => {
     const store = createStore();
     const companion = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
     const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
     stageUploadItems(store, [createUploadItem(companion)], [companion]);
     sendSessionControllerState.startError = new Error('handoff failed');
-    sendSessionControllerState.parkRejectedVoice = true;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { renderer } = await renderRoomInput(store);
     await openVoiceRecorder(renderer);
@@ -2005,11 +2058,6 @@ describe('RoomInput', () => {
       companion,
     ]);
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
-      file: voice,
-      duration: 450,
-      errorMessage: expect.stringContaining('handoff failed'),
-    });
 
     consoleError.mockRestore();
     renderer.unmount();
