@@ -18,6 +18,8 @@ import {
 import {
   hashFlightRecorderRoomId,
   installMatrixSyncFlightRecorder,
+  MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM,
+  MATRIX_SYNC_MAX_PENDING_ROOMS,
 } from './matrixSyncFlightRecorder';
 
 class MemoryStorage implements Storage {
@@ -359,8 +361,12 @@ describe('Matrix sync flight recorder', () => {
 
     const events = readCurrent(storage).events;
     expect(events.slice(0, earlierEvidence.length)).toEqual(earlierEvidence);
-    expect(events.slice(earlierEvidence.length)).toHaveLength(
+    const burstEvidence = events.slice(earlierEvidence.length);
+    expect(burstEvidence.filter((event) => event.type === 'matrix_sync')).toHaveLength(
       FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS
+    );
+    expect(burstEvidence).toContainEqual(
+      expect.objectContaining({ type: 'matrix_sync_overflow', eventCount: 32 })
     );
     expect(events).toContainEqual(
       expect.objectContaining({
@@ -369,6 +375,64 @@ describe('Matrix sync flight recorder', () => {
         editCount: 1,
       })
     );
+  });
+
+  it('bounds arrivals before a sync boundary and records explicit overflow evidence', () => {
+    disposeRecorder = installFlightRecorder(storage);
+    storage.writes.length = 0;
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+    const denseRoomId = '!dense:example.org';
+    const promotedEditRoomId = '!promoted-edit:example.org';
+
+    for (let index = 0; index < MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM + 10; index += 1) {
+      client.emitClient(
+        ClientEvent.Event,
+        makeEvent(
+          `$dense-${index}`,
+          denseRoomId,
+          index === 0 || index === MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM + 9
+        )
+      );
+    }
+    for (let index = 0; index < MATRIX_SYNC_MAX_PENDING_ROOMS + 5; index += 1) {
+      client.emitClient(
+        ClientEvent.Event,
+        makeEvent(`$room-${index}`, `!room-${index}:example.org`)
+      );
+    }
+    client.emitClient(ClientEvent.Event, makeEvent('$promoted-edit', promotedEditRoomId, true));
+
+    expect(storage.writes).toEqual([]);
+
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    const matrixEvents = readCurrent(storage).events;
+    const retainedRooms = matrixEvents.filter((event) => event.type === 'matrix_sync');
+    const overflow = matrixEvents.find((event) => event.type === 'matrix_sync_overflow');
+    expect(retainedRooms).toHaveLength(MATRIX_SYNC_MAX_PENDING_ROOMS);
+    expect(retainedRooms).toContainEqual(
+      expect.objectContaining({
+        roomHash: hashFlightRecorderRoomId(denseRoomId),
+        eventCount: MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM,
+        editCount: 1,
+      })
+    );
+    expect(retainedRooms).toContainEqual(
+      expect.objectContaining({
+        roomHash: hashFlightRecorderRoomId(promotedEditRoomId),
+        editCount: 1,
+      })
+    );
+    expect(overflow).toMatchObject({
+      type: 'matrix_sync_overflow',
+      eventCount: 17,
+      editCount: 1,
+      encryptedCount: 0,
+      route: 'home',
+      hasThreadId: false,
+    });
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
   });
 
   it('stays inert until the native flight recorder runtime is active', () => {

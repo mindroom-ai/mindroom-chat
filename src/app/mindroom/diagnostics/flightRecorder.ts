@@ -63,11 +63,24 @@ export type FlightEvent =
       encryptedCount: number;
       route: RouteClass;
       hasThreadId: boolean;
+    }
+  | {
+      at: number;
+      type: 'matrix_sync_overflow';
+      eventCount: number;
+      editCount: number;
+      encryptedCount: number;
+      route: RouteClass;
+      hasThreadId: boolean;
     };
 
 export type MatrixSyncFlightRecorderRoom = Pick<
   Extract<FlightEvent, { type: 'matrix_sync' }>,
   'roomHash' | 'eventCount' | 'editCount' | 'encryptedCount'
+>;
+export type MatrixSyncFlightRecorderOverflow = Pick<
+  Extract<FlightEvent, { type: 'matrix_sync_overflow' }>,
+  'eventCount' | 'editCount' | 'encryptedCount'
 >;
 
 export type FlightRecorderSession = {
@@ -144,6 +157,19 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
       keyCount === 8 &&
       typeof event.roomHash === 'string' &&
       /^[a-f0-9]{8}$/.test(event.roomHash) &&
+      count(event.eventCount) &&
+      event.eventCount > 0 &&
+      count(event.editCount) &&
+      event.editCount <= event.eventCount &&
+      count(event.encryptedCount) &&
+      event.encryptedCount <= event.eventCount &&
+      event.editCount + event.encryptedCount <= event.eventCount &&
+      routes.includes(event.route as RouteClass) &&
+      typeof event.hasThreadId === 'boolean'
+    );
+  if (event.type === 'matrix_sync_overflow')
+    return (
+      keyCount === 7 &&
       count(event.eventCount) &&
       event.eventCount > 0 &&
       count(event.editCount) &&
@@ -529,25 +555,36 @@ export const isFlightRecorderActive = (): boolean => {
 };
 
 export const recordFlightRecorderMatrixSyncBatch = (
-  rooms: MatrixSyncFlightRecorderRoom[]
+  rooms: MatrixSyncFlightRecorderRoom[],
+  overflow?: MatrixSyncFlightRecorderOverflow
 ): boolean => {
   const runtime = activeRuntime;
-  if (!runtime || runtime.disabled || runtime.disposed || !runtime.session || rooms.length === 0) {
+  if (
+    !runtime ||
+    runtime.disabled ||
+    runtime.disposed ||
+    !runtime.session ||
+    (rooms.length === 0 && !overflow)
+  ) {
     return false;
   }
   const at = Date.now();
   const route = classifyFlightRecorderRoute();
-  const events: FlightEvent[] = rooms.map((room) => ({
+  const roomEvents: Extract<FlightEvent, { type: 'matrix_sync' }>[] = rooms.map((room) => ({
     at,
     type: 'matrix_sync',
     ...room,
     ...route,
   }));
-  if (!events.every(eventIsValid)) return false;
-  events
+  const overflowEvent: FlightEvent | undefined = overflow
+    ? { at, type: 'matrix_sync_overflow', ...overflow, ...route }
+    : undefined;
+  if (![...roomEvents, ...(overflowEvent ? [overflowEvent] : [])].every(eventIsValid)) {
+    return false;
+  }
+  roomEvents
     .map((event, index) => ({ event, index }))
     .sort((left, right) => {
-      if (left.event.type !== 'matrix_sync' || right.event.type !== 'matrix_sync') return 0;
       return (
         right.event.editCount - left.event.editCount ||
         right.event.encryptedCount - left.event.encryptedCount ||
@@ -558,6 +595,7 @@ export const recordFlightRecorderMatrixSyncBatch = (
     .slice(0, FLIGHT_RECORDER_MAX_MATRIX_SYNC_ROOMS)
     .sort((left, right) => left.index - right.index)
     .forEach(({ event }) => add(runtime, event));
+  if (overflowEvent) add(runtime, overflowEvent);
   return flush(runtime);
 };
 
