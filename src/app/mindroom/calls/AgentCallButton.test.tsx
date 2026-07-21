@@ -185,6 +185,52 @@ describe('AgentCallButton', () => {
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
+  it('does not tear down a started call when navigation fails', async () => {
+    mocks.navigateRoom.mockImplementationOnce(() => {
+      throw new Error('router unavailable');
+    });
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.startCall).toHaveBeenCalledOnce();
+    expect(mocks.cleanupCreatedAgentCall).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain('router unavailable');
+  });
+
+  it('cleans up when call start fails before ownership transfers', async () => {
+    mocks.startCall.mockImplementationOnce(() => {
+      throw new Error('embed unavailable');
+    });
+    const renderer = create(
+      <AgentCallButton
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
+      expect.anything(),
+      '!call:mindroom.test',
+      '@mindroom_helper:mindroom.test'
+    );
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
+    expect(mocks.closeProfile).not.toHaveBeenCalled();
+  });
+
   it('cleans up the temporary room when joining fails', async () => {
     mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
     const renderer = create(

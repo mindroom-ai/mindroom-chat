@@ -11,6 +11,7 @@
 - Ending before the widget joins now enters that same finalizer immediately without sending a hangup request, so an ephemeral agent room cannot skip cleanup.
 - The fallback clears only the same still-current embed, which disposes the iframe and then runs the same existing agent-room cleanup.
 - `CallEmbed.dispose()` now removes the exact registered Matrix listeners, runs once, attempts every teardown step independently, and consumes a to-device callback that resumes over a stopped transport.
+- Once an agent call embed starts, later navigation or profile-close failures cannot destroy its active room, and joined state resets whenever the embed identity changes.
 - MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, and broad lifecycle coordination stay out of this PR.
 - Validation passes 16 focused call lifecycle tests, 3,369 full-suite tests, typecheck, production build, ESLint with only 17 pre-existing warnings, Prettier, and one independent scope review with no findings.
 

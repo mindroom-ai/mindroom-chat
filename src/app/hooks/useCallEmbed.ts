@@ -92,9 +92,7 @@ export const useCallJoined = (embed?: CallEmbed): boolean => {
   );
 
   useEffect(() => {
-    if (!embed) {
-      setJoined(false);
-    }
+    setJoined(embed?.joined ?? false);
   }, [embed]);
 
   return joined;
