@@ -4,7 +4,7 @@
 
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 
-- Status: the narrow PR #192 follow-up is preserving only independently useful lifecycle fixes from PR #189; MatrixRTC and room-retirement machinery remain excluded.
+- Status: the narrow PR #192 follow-up preserves only independently useful lifecycle fixes from PR #189 and is locally complete; MatrixRTC and room-retirement machinery remain excluded.
 - Symptom: End can spin forever when the embedded Element Call iframe stops answering its hangup request.
 - Scope: both existing End surfaces share one request flag, send at most one hangup request, and arm one 4,000 ms host fallback in the existing provider lifecycle.
 - Healthy widget Hangup or Close keeps the existing immediate disposal and ephemeral agent-room cleanup path.
@@ -13,7 +13,9 @@
 - `CallEmbed.dispose()` now removes the exact registered Matrix listeners, runs once, attempts every teardown step independently, and consumes a to-device callback that resumes over a stopped transport.
 - Once an agent call embed starts, later navigation or profile-close failures cannot destroy its active room, and joined state resets whenever the embed identity changes.
 - MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, and broad lifecycle coordination stay out of this PR.
-- Validation passes 16 focused call lifecycle tests, 3,369 full-suite tests, typecheck, production build, ESLint with only 17 pre-existing warnings, Prettier, and one independent scope review with no findings.
+- Validation passes 21 focused call lifecycle tests, all 3,377 full-suite tests across 449 files, typecheck, the production/PWA build with Element Call verification, ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Three bounded independent step reviews approved the implementation; one requested a stronger start-failure ownership regression, which was added before approval.
+- A final bounded full-diff review approved the complete small follow-up with no findings.
 
 ### Expose repository skills to Codex (2026-07-21)
 

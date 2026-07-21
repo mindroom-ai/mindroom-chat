@@ -7,6 +7,7 @@ import {
   Room,
   RoomStateEvent,
 } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import {
   ClientWidgetApi,
   IRoomEvent,
@@ -283,7 +284,7 @@ export class CallEmbed {
       try {
         run();
       } catch (error) {
-        console.warn(`[call-embed] failed to dispose ${step}`, error);
+        logger.warn(`[call-embed] failed to dispose ${step}`, error);
       }
     };
 
@@ -330,7 +331,7 @@ export class CallEmbed {
       if (this.disposed || ev.isDecryptionFailure()) return;
       await this.call?.feedToDevice(ev.getEffectiveEvent() as IRoomEvent, ev.isEncrypted());
     } catch (error) {
-      if (!this.disposed) console.error('Error sending to-device event to widget: ', error);
+      if (!this.disposed) logger.error('Error sending to-device event to widget: ', error);
     }
   }
 
