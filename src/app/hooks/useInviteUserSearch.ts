@@ -140,7 +140,7 @@ export const useInviteUserSearch = (
 
       // Each variant publishes as soon as it settles: one slow or hung request
       // must not delay or discard the sibling's results. A failed variant adds
-      // nothing; if all fail, an empty current result clears older same-term hits.
+      // nothing; if all fail, clear older matching hits without creating new state.
       let unsettledVariants = terms.length;
       let publishedThisRequest = false;
       const settleVariant = (users: ServerUserDirectoryUser[] | undefined) => {
@@ -168,7 +168,13 @@ export const useInviteUserSearch = (
         unsettledVariants -= 1;
         if (unsettledVariants === 0) {
           if (!publishedThisRequest) {
-            setServerResult({ term: queryTerm, ownerKey: cache.ownerKey, users: [] });
+            setServerResult((currentResult) =>
+              currentResult?.term === queryTerm &&
+              currentResult.ownerKey === cache.ownerKey &&
+              currentResult.users.length > 0
+                ? { ...currentResult, users: [] }
+                : currentResult
+            );
           }
           setIsServerFetching(false);
         }

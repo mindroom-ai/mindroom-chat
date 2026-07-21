@@ -68,7 +68,7 @@
   Each variant now publishes independently as it settles, while loading remains active until every variant settles.
   The first publish of a request replaces any previous result for the term, and later variants merge into it.
 - A failed variant contributes no users, so one failure keeps the other's results.
-  When both variants fail, an explicit empty current server result clears older same-term hits and preserves only local suggestions.
+  When both variants fail, an older matching server result is cleared so only local suggestions remain.
   The request-ID, client-ownership, and liveness guards cover every settlement and are pinned by tests that fail if the guard is removed.
   A stale settlement can neither clear the current request's loading state nor displace the current owner's published results.
 - Scope guard: the server search limit, debounce, ranking tiers beyond the dual-form query, candidate filtering, dialog accessibility, cache TTL, and Create Chat flow are untouched.
@@ -89,11 +89,14 @@
   The shared compact-query rule now has one implementation used by server search and local ranking, with focused coverage for whitespace removal, the two-character threshold, and no-op queries.
   Stale-settlement and owner-key comments document why newer effects exclusively own loading state and why both request and owner guards remain required.
   Independent review found that returning to a previously successful query could resurrect its old server results when both fresh variants failed.
-  Query changes now invalidate mismatched server state, and a current all-failed search publishes an empty server result so only fresh local suggestions remain.
+  Query changes now invalidate mismatched server state, and a current all-failed search clears older matching server results so only fresh local suggestions remain.
   Focused validation passes 49 invite-search, query-ranking, and directory-cache tests.
   The full Vitest suite passes 447 files with 3,365 tests.
   Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
   Final independent re-review found no remaining race, ownership, stale-result, test-strength, documentation, or half-refactor issue.
+  PR #187 review found one valid state-identity optimization in the all-failed path.
+  The functional update now clears only a matching nonempty stale result and preserves the current state reference when no clear is required.
+  Focused tests and typecheck pass after remediation, and independent re-review approved the query, owner, and request-race behavior with no findings.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
