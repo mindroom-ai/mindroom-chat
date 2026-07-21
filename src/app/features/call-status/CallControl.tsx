@@ -1,10 +1,9 @@
 import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, Tooltip, TooltipProvider } from 'folds';
 import React, { useCallback } from 'react';
-import { useSetAtom } from 'jotai';
 import { StatusDivider } from './components';
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { callEmbedAtom } from '../../state/callEmbed';
+import { useCallEnd } from '../../hooks/useCallEmbed';
 
 type MicrophoneButtonProps = {
   enabled: boolean;
@@ -14,7 +13,7 @@ type MicrophoneButtonProps = {
 function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps) {
   const [micState, toggleMic] = useAsyncCallback(onToggle);
   const loading = micState.status === AsyncStatus.Loading;
-  
+
   return (
     <TooltipProvider
       position="Top"
@@ -162,24 +161,14 @@ export function CallControl({
   callJoined: boolean;
 }) {
   const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
-  const setCallEmbed = useSetAtom(callEmbedAtom);
 
-  const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
+  const handleMicrophoneToggle = useCallback(
+    () => callEmbed.control.toggleMicrophone(),
+    [callEmbed]
+  );
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
-  const [hangupState, hangup] = useAsyncCallback(
-    useCallback(() => callEmbed.hangup(), [callEmbed])
-  );
-  const exiting =
-    hangupState.status === AsyncStatus.Loading || hangupState.status === AsyncStatus.Success;
-
-  const handleHangup = () => {
-    if (!callJoined) {
-      setCallEmbed(undefined);
-      return;
-    }
-    hangup();
-  };
+  const [exiting, endCall] = useCallEnd(callEmbed, callJoined);
 
   return (
     <Box shrink="No" alignItems="Center" gap="300">
@@ -195,11 +184,7 @@ export function CallControl({
           disabled={!callJoined}
         />
         {!compact && <StatusDivider />}
-        <VideoButton
-          enabled={video}
-          onToggle={handleVideoToggle}
-          disabled={!callJoined}
-        />
+        <VideoButton enabled={video} onToggle={handleVideoToggle} disabled={!callJoined} />
         {!compact && (
           <ScreenShareButton
             enabled={screenshare}
@@ -222,7 +207,7 @@ export function CallControl({
         }
         disabled={exiting}
         outlined
-        onClick={handleHangup}
+        onClick={endCall}
       >
         {!compact && (
           <Text as="span" size="L400">

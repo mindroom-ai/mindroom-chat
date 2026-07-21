@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/media-has-caption */
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Avatar,
@@ -29,7 +29,7 @@ import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import {
   CallEmbedContextProvider,
   CallEmbedRefContextProvider,
-  useCallHangupEvent,
+  useCallEndLifecycle,
   useCallJoined,
   useCallThemeSync,
   useCallMemberSoundSync,
@@ -355,20 +355,17 @@ function IncomingCallListener({ callEmbed, joined }: IncomingCallListenerProps) 
 
 function CallUtils({ embed }: { embed: CallEmbed }) {
   const mx = useMatrixClient();
+  const store = useStore();
   const setCallEmbed = useSetAtom(callEmbedAtom);
-  const cleanupStartedRef = useRef(false);
 
   useCallMemberSoundSync(embed);
   useCallThemeSync(embed);
-  useCallHangupEvent(
-    embed,
-    useCallback(() => {
-      if (cleanupStartedRef.current) return;
-      cleanupStartedRef.current = true;
-      setCallEmbed(undefined);
-      cleanupMindroomAgentCall(mx, embed.room).catch(() => undefined);
-    }, [embed.room, mx, setCallEmbed])
-  );
+  const finishCall = useCallback(() => {
+    if (store.get(callEmbedAtom) !== embed) return;
+    setCallEmbed(undefined);
+    cleanupMindroomAgentCall(mx, embed.room).catch(() => undefined);
+  }, [embed, mx, setCallEmbed, store]);
+  useCallEndLifecycle(embed, finishCall);
 
   return null;
 }

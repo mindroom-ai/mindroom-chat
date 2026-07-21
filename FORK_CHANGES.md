@@ -13,6 +13,22 @@
 - Focused validation passes four tests covering rapid equal-timestamp edits, pagination target replacement, deferred decryption, rejected aggregation, and initialization retry.
 - Full validation passes all 448 Vitest files with 3,388 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
 
+### Minimal bounded fallback for a wedged call iframe (2026-07-21)
+
+- Status: the narrow PR #192 follow-up preserves only independently useful lifecycle fixes from PR #189, integrates current `dev`, and is locally complete; MatrixRTC and room-retirement machinery remain excluded.
+- Symptom: End can spin forever when the embedded Element Call iframe stops answering its hangup request.
+- Scope: both existing End surfaces share one request flag, send at most one hangup request, and arm one 4,000 ms host fallback in the existing provider lifecycle.
+- Healthy widget Hangup or Close keeps the existing immediate disposal and ephemeral agent-room cleanup path.
+- Ending before the widget joins now enters that same finalizer immediately without sending a hangup request, so an ephemeral agent room cannot skip cleanup.
+- The fallback clears only the same still-current embed, which disposes the iframe and then runs the same existing agent-room cleanup.
+- `CallEmbed.dispose()` now removes the exact registered Matrix listeners, runs once, attempts every teardown step independently, and consumes a to-device callback that resumes over a stopped transport.
+- Once an agent call embed starts, later navigation or profile-close failures cannot destroy its active room, and joined state resets whenever the embed identity changes.
+- MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, and broad lifecycle coordination stay out of this PR.
+- Validation passes 21 focused call lifecycle tests, all 3,396 full-suite tests across 449 files, typecheck, the production/PWA build with Element Call verification, ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Three bounded independent step reviews approved the implementation; one requested a stronger start-failure ownership regression, which was added before approval.
+- Three final independent reviews found no code defects and blocked only on the Runbook conflict introduced when `dev` advanced.
+- Current `dev` integration preserves both Runbook entries, and an independent closure audit confirms that PR #189 has no remaining independently useful in-scope fix after PR #192 merges.
+
 ### Show backend-owned recurring schedule descriptions (2026-07-21)
 
 - Status: simplified implementation, review remediation, and local validation are complete; PR #188 awaits final exact-head Fable approval.
