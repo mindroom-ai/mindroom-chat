@@ -14,7 +14,7 @@ import {
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../../state/room/roomInputDrafts';
-import { UploadStatus } from '../../../state/upload';
+import { Upload, UploadStatus } from '../../../state/upload';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../../utils/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -309,9 +309,11 @@ vi.mock('../../../components/upload-board', async () => {
       reactModule.createElement('div', null, children),
     UploadBoardHeader: ({
       uploadFamilyObserverAtom,
+      onCancel,
       onSend,
     }: {
       uploadFamilyObserverAtom: Parameters<typeof useAtomValue>[0];
+      onCancel: (uploads: Upload[]) => void;
       onSend: () => Promise<void>;
     }) => {
       const uploads = useAtomValue(uploadFamilyObserverAtom);
@@ -330,12 +332,20 @@ vi.mock('../../../components/upload-board', async () => {
       );
       const canSend = hasMixedPrepErrorSend || hasNonPrepErrorUpload;
 
-      return canSend
-        ? reactModule.createElement('button', {
-            'aria-label': 'Upload board Send',
-            onClick: onSend,
-          })
-        : reactModule.createElement('span', { 'aria-label': 'Upload board Send hidden' });
+      return reactModule.createElement(
+        reactModule.Fragment,
+        null,
+        canSend
+          ? reactModule.createElement('button', {
+              'aria-label': 'Upload board Send',
+              onClick: onSend,
+            })
+          : reactModule.createElement('span', { 'aria-label': 'Upload board Send hidden' }),
+        reactModule.createElement('button', {
+          'aria-label': 'Upload board Remove All',
+          onClick: () => onCancel(uploads),
+        })
+      );
     },
   };
 });
@@ -1787,7 +1797,9 @@ describe('RoomInput', () => {
 
     await act(async () => {
       store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: removedItem });
-      stageUploadItems(store, [createUploadItem(added)], [added]);
+      const [addedItem] = await createMindroomRoomUploadItems([added], createRoom(ROOM_ID, true));
+      if (!addedItem) throw new Error('Expected encrypted attachment item');
+      stageUploadItems(store, [addedItem], [addedItem.file]);
     });
     await updateRoomInput(renderer, store, { encryptedRoom: true });
     await act(async () => {
@@ -1808,6 +1820,40 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['added.txt', 'voice.m4a']);
+
+    renderer.unmount();
+  });
+
+  it('leaves a plaintext-prepared companion staged after the room becomes encrypted', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'plaintext-companion.txt', {
+      type: 'text/plain',
+    });
+    stageUploadItems(store, [createUploadItem(companion)], [companion]);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    const capturedContext = voiceRecorderState.props!.getSendContext();
+
+    mxState.getRoom.mockImplementation((roomId: string) => createRoom(roomId, true));
+    await updateRoomInput(renderer, store, { encryptedRoom: true });
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(
+        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        725,
+        undefined,
+        capturedContext
+      );
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      body: 'voice.m4a',
+      file: expect.any(Object),
+    });
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('url');
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      companion,
+    ]);
 
     renderer.unmount();
   });
@@ -2201,6 +2247,48 @@ describe('RoomInput', () => {
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('keeps recorder-owned voice enrolled when Remove All clears actual board items', async () => {
+    const store = createStore();
+    const failed = new File(['failed'], 'failed.txt', { type: 'text/plain' });
+    const root = new File(['root'], 'root.txt', { type: 'text/plain' });
+    const rootSend = createDeferred<{ event_id: string }>();
+    stageUploadItems(store, [createUploadItem(failed), createUploadItem(root)], [root]);
+    store.set(roomUploadAtomFamily(failed), {
+      error: toMatrixUploadError(new Error('excluded upload failure'), 'upload'),
+    });
+    mxState.sendMessage.mockReturnValueOnce(rootSend.promise);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = voiceRecorderState.props!.onSendRecording(
+        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        275
+      ) as Promise<void>;
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': 'Upload board Remove All' }).props.onClick();
+      rootSend.resolve({ event_id: '$root' });
+      await sendPromise;
+    });
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['root.txt', 'voice.m4a']);
+    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+      'm.relates_to': expect.objectContaining({ event_id: '$root' }),
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
 
     renderer.unmount();
   });

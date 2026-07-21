@@ -660,12 +660,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const handleCancelUpload = useCallback(
       (uploadsToCancel: Upload[]) => {
-        uploadsToCancel.forEach((upload) => {
+        const boardFiles = new Set(selectedFilesRef.current.map((item) => item.file));
+        const boardUploadsToCancel = uploadsToCancel.filter((upload) =>
+          boardFiles.has(upload.file)
+        );
+        boardUploadsToCancel.forEach((upload) => {
           if (upload.status === UploadStatus.Loading) {
             mx.cancelUpload(upload.promise);
           }
         });
-        const uploadFilesToCancel = uploadsToCancel.map((upload) => upload.file);
+        const uploadFilesToCancel = boardUploadsToCancel.map((upload) => upload.file);
         const pasteFileNames = getPasteUploadFileNames(uploadFilesToCancel);
         removeUploadsFromBoard(uploadFilesToCancel);
         removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
@@ -952,11 +956,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             pendingVoiceRetry?.inFlight !== undefined &&
             pendingVoiceRetry.file === file &&
             pendingVoiceRetry.context === context;
+          const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
           const eligibleCompanionItems = selectedFilesRef.current.filter(
             (item) =>
               item !== fileItem &&
               !item.prepError &&
               !item.metadata.mindroomPasteAttachment &&
+              Boolean(item.encInfo) === liveRoomEncrypted &&
               store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
               item.file.size < allowUploadSize
           );

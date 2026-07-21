@@ -4,7 +4,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the final fail-fast adjudication, validation, and independent review are complete; ready for human review.
+- Status: the lifecycle-ownership and encryption-eligibility remediation is complete, validated, and independently approved; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -46,6 +46,11 @@
 - Final review triage fixes Issues 2, 3, and 5 as the same fail-fast lifecycle class, records Issue 1 as a confirmed pre-existing security follow-up, and leaves the Issue 4 API redesign and Issue 6 coverage expansion out of scope.
 - Final focused validation passes 129 tests; typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
 - The final full suite passes 446 of 447 files and 3342 of 3345 tests, with only the same three Xcode fixture failures, and independent review approved with no findings or half-refactor traces.
+- Bulk upload cancellation now intersects the upload observer with the room's actual staged board items before canceling uploads or mutating send-session refs, so a recorder-owned voice file observed only for lifecycle completion cannot be silently removed by Remove All.
+- Automatic companion enrollment now requires encryption-preparation parity with the refreshed live room (`encInfo` presence matches room encryption); stale plaintext companions remain staged while the freshly encrypted voice proceeds, without attempting the repo-wide CINNY-131 transition policy here.
+- The two boundary regressions pass with the surrounding focused room-input suite, for 131 focused tests total.
+- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The full suite passes 446 of 447 files and 3344 of 3347 tests, with only the same three Xcode fixture failures, and independent review approved the ownership and encryption fixes with no half-refactor findings.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
