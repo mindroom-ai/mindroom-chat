@@ -2,7 +2,7 @@ import { MatrixEvent, MatrixEventEvent, Room, type MatrixClient } from 'matrix-j
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
-import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
+import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ROOM_ID = '!cinny-126-sdk-contract:example.org';
@@ -355,19 +355,23 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     const room = new Room(ROOM_ID, client, VIEWER_ID);
     addRootToRoom(room, root);
     const thread = room.createThread(ROOT_ID, root, [placeholder], false);
-    const edit = makeEvent(
-      '$deferred-encrypted-edit',
-      {
-        body: '* Final after decryption',
-        'm.new_content': { body: 'Final after decryption', msgtype: 'm.text' },
+    const edit = new MatrixEvent({
+      content: {
+        algorithm: 'test-only',
         'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
-        msgtype: 'm.text',
       },
-      3
-    );
-    let decrypting = true;
-    vi.spyOn(edit, 'isBeingDecrypted').mockImplementation(() => decrypting);
-    vi.spyOn(edit, 'shouldAttemptDecryption').mockReturnValue(false);
+      event_id: '$deferred-encrypted-edit',
+      origin_server_ts: 3,
+      room_id: ROOM_ID,
+      sender: '@agent:example.org',
+      type: 'm.room.encrypted',
+    });
+    const decryption = deferred<{
+      clearEvent: { content: Record<string, unknown>; type: string };
+    }>();
+    const decryptionPromise = edit.attemptDecryption({
+      decryptEvent: vi.fn(() => decryption.promise),
+    } as never);
     const threadUpdateBodies: unknown[] = [];
     thread.on(ThreadEvent.Update, () => {
       threadUpdateBodies.push(freshPlaceholder.getContent().body);
@@ -376,13 +380,13 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     thread.addEvent(edit, false);
     await flushAsyncWork();
 
-    const replacements = room.relations.getChildEventsForEvent(
+    const encryptedRelations = room.relations.getChildEventsForEvent(
       placeholder.getId()!,
       'm.replace',
-      'm.room.message'
+      'm.room.encrypted'
     );
-    expect(replacements).toBeDefined();
-    expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
+    expect(encryptedRelations).toBeDefined();
+    expect(encryptedRelations?.listenerCount(RelationsEvent.Add)).toBe(0);
     expect(placeholder.replacingEvent()).toBeNull();
 
     releasePagination.resolve();
@@ -393,20 +397,38 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(freshPlaceholder.replacingEvent()).toBeNull();
     const updatesBeforeDecryption = threadUpdateBodies.length;
 
-    decrypting = false;
-    edit.emit(MatrixEventEvent.Decrypted, edit);
+    decryption.resolve({
+      clearEvent: {
+        content: {
+          body: '* Final after decryption',
+          'm.new_content': { body: 'Final after decryption', msgtype: 'm.text' },
+          'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        type: 'm.room.message',
+      },
+    });
+    await decryptionPromise;
     await flushAsyncWork(24);
 
+    const replacements = room.relations.getChildEventsForEvent(
+      placeholder.getId()!,
+      'm.replace',
+      'm.room.message'
+    );
     expect(placeholder.replacingEvent()).toBeNull();
     expect(freshPlaceholder.replacingEvent()).toBe(edit);
     expect(freshPlaceholder.getContent().body).toBe('Final after decryption');
     expect(threadUpdateBodies).toHaveLength(updatesBeforeDecryption + 1);
     expect(threadUpdateBodies.at(-1)).toBe('Final after decryption');
+    expect(encryptedRelations?.listenerCount(RelationsEvent.Add)).toBe(0);
     expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
   });
 
   it('does not retain a replacement observer after a pre-init thread is deleted', async () => {
-    const rootFetch = new Promise<Record<string, unknown>>(() => undefined);
+    const rootFetch = new Promise<Record<string, unknown>>(() => {
+      // Deliberately unresolved so deletion happens while initialization is pending.
+    });
     const client = makeClient({
       fetchRoomEvent: vi.fn(() => rootFetch),
       paginateEventTimeline: vi.fn(),
@@ -425,6 +447,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
       2
     );
     await room.addLiveEvents([placeholder], { addToState: false, fromCache: false });
+    await flushAsyncWork();
     const edit = makeEvent(
       '$deleted-thread-edit',
       {
@@ -458,6 +481,108 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
 
     expect(replacements?.listenerCount(RelationsEvent.Add)).toBe(0);
     expect(threadUpdates).toHaveBeenCalledTimes(updatesBeforeDeletion);
+  });
+
+  it('propagates a deferred relation commit failure to the aggregation caller', async () => {
+    const client = makeClient();
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    const placeholder = makeEvent('$failed-commit-placeholder', { body: 'Thinking' }, 2);
+    const edit = makeEvent(
+      '$failed-deferred-commit',
+      {
+        body: '* Never committed',
+        'm.new_content': { body: 'Never committed', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+    let decrypting = true;
+    vi.spyOn(edit, 'isBeingDecrypted').mockImplementation(() => decrypting);
+    vi.spyOn(edit, 'shouldAttemptDecryption').mockReturnValue(false);
+    const failure = new Error('forced deferred aggregation failure');
+    const addRelationEvent = vi
+      .spyOn(Relations.prototype, 'addEvent')
+      .mockRejectedValueOnce(failure);
+
+    const aggregation = room.relations.aggregateChildEvent(
+      edit,
+      room.getUnfilteredTimelineSet(),
+      placeholder
+    );
+    decrypting = false;
+    edit.emit(MatrixEventEvent.Decrypted, edit);
+
+    await expect(aggregation).rejects.toBe(failure);
+    expect(addRelationEvent).toHaveBeenCalledOnce();
+    expect(placeholder.replacingEvent()).toBeNull();
+  });
+
+  it('reports a deferred pre-init aggregation failure without an unhandled rejection', async () => {
+    const loggerError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const rootFetch = new Promise<Record<string, unknown>>(() => {
+      // Deliberately unresolved so the aggregation error stays on the pre-init path.
+    });
+    const client = makeClient({
+      fetchRoomEvent: vi.fn(() => rootFetch),
+      paginateEventTimeline: vi.fn(),
+    });
+    const room = new Room(ROOM_ID, client, VIEWER_ID);
+    const root = makeEvent(ROOT_ID, { body: 'Root', msgtype: 'm.text' }, 1, VIEWER_ID);
+    addRootToRoom(room, root);
+    const thread = room.createThread(ROOT_ID, root, [], false);
+    const placeholder = makeEvent(
+      '$reported-failure-placeholder',
+      {
+        body: 'Thinking...',
+        'm.relates_to': { event_id: ROOT_ID, rel_type: 'm.thread' },
+        msgtype: 'm.text',
+      },
+      2
+    );
+    await room.addLiveEvents([placeholder], { addToState: false, fromCache: false });
+    await flushAsyncWork();
+    const edit = makeEvent(
+      '$reported-failure-edit',
+      {
+        body: '* Never committed',
+        'm.new_content': { body: 'Never committed', msgtype: 'm.text' },
+        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      3
+    );
+    let decrypting = true;
+    vi.spyOn(edit, 'isBeingDecrypted').mockImplementation(() => decrypting);
+    vi.spyOn(edit, 'shouldAttemptDecryption').mockReturnValue(false);
+    const failure = new Error('forced thread aggregation failure');
+    const addRelationEvent = vi
+      .spyOn(Relations.prototype, 'addEvent')
+      .mockRejectedValueOnce(failure);
+    const unhandledRejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+    process.on('unhandledRejection', onUnhandledRejection);
+
+    try {
+      thread.addEvent(edit, false);
+      await flushAsyncWork();
+      decrypting = false;
+      edit.emit(MatrixEventEvent.Decrypted, edit);
+      await flushAsyncWork(24);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+
+      expect(addRelationEvent).toHaveBeenCalledOnce();
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to aggregate pre-initialization thread relation: ',
+        failure
+      );
+      expect(unhandledRejections).toEqual([]);
+      expect(placeholder.replacingEvent()).toBeNull();
+    } finally {
+      process.removeListener('unhandledRejection', onUnhandledRejection);
+    }
   });
 
   it('retries initial pagination after the first request rejects', async () => {

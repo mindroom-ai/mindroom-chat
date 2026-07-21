@@ -19,7 +19,7 @@ index ba649eb..09a1a07 100644
  }
  //# sourceMappingURL=relations-container.d.ts.map
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..3aa00b0 100644
+index 8ccc053..9bd9a92 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
 @@ -65,12 +65,14 @@ export class RelationsContainer {
@@ -71,7 +71,7 @@ index 8ccc053..3aa00b0 100644
      var relatesToEventId = relation.event_id,
        relationType = relation.rel_type;
      var eventType = event.getType();
-@@ -114,17 +101,38 @@ export class RelationsContainer {
+@@ -114,17 +101,39 @@ export class RelationsContainer {
        relationsForEvent.set(relationType, relationsWithRelType);
      }
      var relationsWithEventType = relationsWithRelType.get(eventType);
@@ -92,7 +92,7 @@ index 8ccc053..3aa00b0 100644
 +
 +    // If the event is currently encrypted, wait until it has been decrypted.
 +    if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-+      return new Promise(resolve => {
++      var decryptedCommit = new Promise((resolve, reject) => {
 +        var onEventDecrypted = () => {
 +          if (event.isDecryptionFailure()) {
 +            // This could for example happen if the encryption keys are not yet available.
@@ -104,10 +104,11 @@ index 8ccc053..3aa00b0 100644
 +          // The relation collection already exists and may have been rebound to a
 +          // fresher target while decryption was pending. Do not retain a timeline or
 +          // fallback target across that state transition.
-+          void this.aggregateChildEvent(event).then(resolve);
++          void this.aggregateChildEvent(event).then(resolve, reject);
 +        };
 +        event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
 +      });
++      return Promise.all([targetEventUpdate, decryptedCommit]).then(([, relations]) => relations);
 +    }
 +    return targetEventUpdate.then(() => relationsWithEventType.addEvent(event)).then(() => relationsWithEventType);
    }
@@ -146,7 +147,7 @@ index 6be66bb..6027092 100644
      })();
    }
 diff --git a/node_modules/matrix-js-sdk/lib/models/thread.js b/node_modules/matrix-js-sdk/lib/models/thread.js
-index b02b81f..1729ed6 100644
+index b02b81f..051a60c 100644
 --- a/node_modules/matrix-js-sdk/lib/models/thread.js
 +++ b/node_modules/matrix-js-sdk/lib/models/thread.js
 @@ -114,6 +114,10 @@ export class Thread extends ReadReceipt {
@@ -211,7 +212,7 @@ index b02b81f..1729ed6 100644
 +            if (((_effectiveTarget$rep = effectiveTarget === null || effectiveTarget === void 0 ? void 0 : effectiveTarget.replacingEvent()) === null || _effectiveTarget$rep === void 0 ? void 0 : _effectiveTarget$rep.getId()) === event.getId()) {
 +              thread.emit(ThreadEvent.Update, thread);
 +            }
-+          });
++          }, error => logger.error("Failed to aggregate pre-initialization thread relation: ", error));
 +        }
        }
      } else {
@@ -264,7 +265,7 @@ index b02b81f..1729ed6 100644
            }
          }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
-index 8394bc6..0489609 100644
+index 8394bc6..70f2921 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
 @@ -72,15 +72,17 @@ export class RelationsContainer {
@@ -339,7 +340,7 @@ index 8394bc6..0489609 100644
          if (!relationsWithEventType) {
              relationsWithEventType = new Relations(relationType!, eventType, this.client);
              relationsWithRelType.set(eventType, relationsWithEventType);
-@@ -138,12 +128,35 @@ export class RelationsContainer {
+@@ -138,12 +128,36 @@ export class RelationsContainer {
              const relatesToEvent =
                  timelineSet?.findEventById(relatesToEventId!) ??
                  room?.findEventById(relatesToEventId!) ??
@@ -356,7 +357,7 @@ index 8394bc6..0489609 100644
 -        relationsWithEventType.addEvent(event);
 +        // If the event is currently encrypted, wait until it has been decrypted.
 +        if (event.isBeingDecrypted() || event.shouldAttemptDecryption()) {
-+            return new Promise((resolve) => {
++            const decryptedCommit = new Promise<Relations | undefined>((resolve, reject) => {
 +                const onEventDecrypted = (): void => {
 +                    if (event.isDecryptionFailure()) {
 +                        // This could for example happen if the encryption keys are not yet available.
@@ -368,10 +369,11 @@ index 8394bc6..0489609 100644
 +                    // The relation collection already exists and may have been rebound to a
 +                    // fresher target while decryption was pending. Do not retain a timeline or
 +                    // fallback target across that state transition.
-+                    void this.aggregateChildEvent(event).then(resolve);
++                    void this.aggregateChildEvent(event).then(resolve, reject);
 +                };
 +                event.once(MatrixEventEvent.Decrypted, onEventDecrypted);
 +            });
++            return Promise.all([targetEventUpdate, decryptedCommit]).then(([, relations]) => relations);
 +        }
 +
 +        return targetEventUpdate
@@ -415,7 +417,7 @@ index 77ba3b3..ce2116b 100644
          this.maybeEmitCreated();
      }
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
-index 871875d..6fa9955 100644
+index 871875d..9f0f83c 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
 +++ b/node_modules/matrix-js-sdk/src/models/thread.ts
 @@ -132,6 +132,8 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
@@ -458,7 +460,7 @@ index 871875d..6fa9955 100644
 +
          // Decide whether this event is going to be added at the end of the timeline.
          const lastReply = this.lastReply();
-@@ -438,11 +453,33 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -438,11 +453,36 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
               */
              this.replayEvents?.push(event);
 -
@@ -485,19 +487,22 @@ index 871875d..6fa9955 100644
 +                if (event.isRelation(RelationType.Replace) && targetEventId) {
 +                    const weakThread = new WeakRef(this);
 +                    const observerState = this.preInitObserverState;
-+                    void aggregation.then(() => {
-+                        const thread = weakThread.deref();
-+                        if (!thread || !observerState.active) return;
-+                        const effectiveTarget = thread.findPreInitTargetEvent(targetEventId);
-+                        if (effectiveTarget?.replacingEvent()?.getId() === event.getId()) {
-+                            thread.emit(ThreadEvent.Update, thread);
-+                        }
-+                    });
++                    void aggregation.then(
++                        () => {
++                            const thread = weakThread.deref();
++                            if (!thread || !observerState.active) return;
++                            const effectiveTarget = thread.findPreInitTargetEvent(targetEventId);
++                            if (effectiveTarget?.replacingEvent()?.getId() === event.getId()) {
++                                thread.emit(ThreadEvent.Update, thread);
++                            }
++                        },
++                        (error) => logger.error("Failed to aggregate pre-initialization thread relation: ", error),
++                    );
 +                }
              }
          } else {
              // Case 2: this is happening later, and we have a timeline. In
-@@ -474,6 +511,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -474,6 +514,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          }
      }
 -
@@ -513,7 +518,7 @@ index 871875d..6fa9955 100644
      public async processEvent(event: MatrixEvent | null | undefined): Promise<void> {
          if (event) {
              this.setEventMetadata(event);
-@@ -608,7 +653,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -608,7 +656,14 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
 -
 +
          if (!this.initialEventsFetched) {
@@ -530,7 +535,7 @@ index 871875d..6fa9955 100644
              } else {
                  // fetch initial events to allow proper pagination
                  try {
-@@ -637,16 +689,23 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -637,16 +692,23 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
                      // must remain false while the async fetch happens, so we don't try to add events before
                      // the pagination has finished. The important thing is that we're not await-ing anything
                      // else between setting this and adding events, so no races.
