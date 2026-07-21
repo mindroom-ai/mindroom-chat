@@ -14,6 +14,7 @@ import {
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../../state/room/roomInputDrafts';
+import { UploadStatus } from '../../../state/upload';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../../utils/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -1706,6 +1707,53 @@ describe('RoomInput', () => {
     expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
+
+    renderer.unmount();
+  });
+
+  it('leaves a mid-upload failure staged and sends the surviving companion with voice', async () => {
+    const store = createStore();
+    const failed = new File(['failed'], 'failed-upload.txt', { type: 'text/plain' });
+    const ready = new File(['ready'], 'ready-root.txt', { type: 'text/plain' });
+    const failedUpload = createDeferred<{ content_uri: string }>();
+    stageUploadItems(store, [createUploadItem(failed), createUploadItem(ready)], [ready]);
+    mxState.uploadContent.mockReturnValueOnce(failedUpload.promise);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = voiceRecorderState.props!.onSendRecording(
+        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        650
+      ) as Promise<void>;
+      await Promise.resolve();
+    });
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(true);
+
+    await act(async () => {
+      failedUpload.reject(new Error('companion upload failed'));
+      await sendPromise;
+    });
+
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['ready-root.txt', 'voice.m4a']);
+    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+      'm.relates_to': expect.objectContaining({
+        event_id: '$sent',
+        rel_type: RelationType.Thread,
+      }),
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
+      failed,
+    ]);
+    expect(store.get(roomUploadAtomFamily(failed)).status).toBe(UploadStatus.Error);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
 
     renderer.unmount();
   });

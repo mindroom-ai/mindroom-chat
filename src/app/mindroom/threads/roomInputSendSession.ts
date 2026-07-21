@@ -22,12 +22,6 @@ export type RoomInputSendStep =
   | { kind: 'wait' }
   | { kind: 'complete' };
 
-type ReplyContext = {
-  roomId: string;
-  threadId?: string;
-  replyDraft?: IReplyDraft;
-};
-
 const hasMatchingReplyRelation = (
   expected?: IEventRelation,
   current?: IEventRelation
@@ -56,14 +50,6 @@ export const hasMatchingReplyDraft = (
     hasMatchingReplyRelation(expected.relation, current.relation)
   );
 };
-
-export const hasMatchingReplyDraftContext = (
-  expected: ReplyContext,
-  current: ReplyContext
-): boolean =>
-  expected.roomId === current.roomId &&
-  expected.threadId === current.threadId &&
-  hasMatchingReplyDraft(expected.replyDraft, current.replyDraft);
 
 export const hasExplicitThreadContext = (
   threadId?: string,

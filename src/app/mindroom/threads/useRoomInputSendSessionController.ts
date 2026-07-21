@@ -56,10 +56,7 @@ export type StartRoomInputSendSessionOptions = {
   completeWithinCall?: boolean;
 };
 
-export type RoomInputReplyDraftContext = Pick<
-  RoomInputSendContext,
-  'roomId' | 'threadId' | 'replyDraft'
->;
+export type RoomInputReplyDraftContext = Pick<RoomInputSendContext, 'roomId' | 'replyDraft'>;
 
 type UseRoomInputSendSessionControllerOptions = {
   mx: MatrixClient;
@@ -155,7 +152,6 @@ export const useRoomInputSendSessionController = ({
       session.replyCleared = true;
       clearReplyDraft({
         roomId: session.roomId,
-        threadId: session.threadId,
         replyDraft: session.replyDraft,
       });
     },

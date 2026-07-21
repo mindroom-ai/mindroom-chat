@@ -303,7 +303,6 @@ describe('useRoomInputSendSessionController active session query', () => {
 
     expect(clearReplyDraft).toHaveBeenCalledWith({
       roomId: '!room:example.org',
-      threadId: undefined,
       replyDraft,
     });
   });

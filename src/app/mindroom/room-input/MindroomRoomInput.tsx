@@ -799,7 +799,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const clearReplyDraftForSendContext = useCallback(
-      (context: Pick<MindroomVoiceSendContext, 'roomId' | 'threadId' | 'replyDraft'>) => {
+      (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => {
         const replyDraftAtom = roomIdToReplyDraftAtomFamily(context.roomId);
         const currentReplyDraft = store.get(replyDraftAtom);
         if (hasMatchingReplyDraft(context.replyDraft, currentReplyDraft)) {
@@ -983,14 +983,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             const liveItems = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
             const liveFiles = new Set(liveItems.map((item) => item.file));
             const companionUploadResults = uploadResults.slice(0, -1);
-            const failedUpload = companionUploadResults.find(
-              (result, index) =>
-                result.status === 'rejected' && liveFiles.has(eligibleCompanionItems[index]!.file)
-            );
-            if (failedUpload?.status === 'rejected') {
-              return logAndThrowUploadError(failedUpload.reason, 'upload');
-            }
-
             const readyItems = [
               ...companionUploadResults
                 .map((result) => (result.status === 'fulfilled' ? result.value : undefined))

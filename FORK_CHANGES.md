@@ -4,7 +4,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the simplified lifecycle-completion remediation, focused and full validation, and independent review are complete; ready for human review.
+- Status: the finish-the-invariant review remediation, validation, and independent review are complete; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -34,6 +34,11 @@
 - Independent review approved the simplified boundary with no findings and confirmed that no recovery-cohort, retry-context, thread-binding, or ref-stomp traces remain.
 - Validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
 - The full Vitest suite passes 446 of 447 files and 3340 of 3343 tests; the only failures are the three established Nix-environment Xcode Cloud Homebrew fixture tests in `xcodeCloudPostClone.test.ts`.
+- Finish-the-invariant remediation treats a still-staged companion upload failure as a companion-local result: the failed item remains visibly staged in error while surviving companions and the voice complete their captured explicit batch.
+- The reply-clear callback now advertises only the room and draft identity it consumes, and the dead thread-aware reply-context matcher and its tests are deleted.
+- Final focused validation passes 83 tests across the room-input integration, send-session controller, and send-session policy suites, including the adopted in-flight upload rejection branch.
+- Final validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`; the full suite retains only the same three Xcode fixture failures documented above.
+- Independent review approved the final reduction with no findings and confirmed that no new recovery machinery or half-refactor traces remain.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
