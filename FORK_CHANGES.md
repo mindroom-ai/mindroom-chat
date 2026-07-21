@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### CINNY-128 - Voice send + staged attachment same-thread grouping planning note (2026-07-20)
+
+- Status: investigation and implementation plan are complete in repo-root `PLAN-B.md`; no source changes yet.
+- Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
+- Traced actual behavior: `handleVoiceSend` is a separate single-item pipeline that computes its relation from a synthetic one-file session, so at room level the voice message sends as a plain event and becomes its own thread root, while the staged attachment silently stays parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocks the send-session path for the duration.
+- Grouping today exists only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sends the first upload as a plain root and threads the remaining uploads plus the trailing caption under it.
+- Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so the voice message must be the last batch member — attachments first, voice last.
+- Planned direction: when eligible staged attachments exist and no send session is active, `handleVoiceSend` hands the voice file to the existing send-session controller as the last file of one batch (`startSendSession({ files: [...staged, voice], context })`), keeping the standalone voice pipeline (and its parked-draft retry machinery) for voice-only sends.
+- Planned surface: expose `hasActiveSendSession` from `useRoomInputSendSessionController` and branch inside `handleVoiceSend`; no changes to mode selection, the recorder stack, the upload board, or backend code.
+- Documented trade-offs: combined-batch voice failures surface through the upload-board retry affordances instead of the parked-draft overlay, and paste-converted attachments plus composer text stay with the typed draft.
+- Docs-only validation target for this planning step is `git diff --check`.
+
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
 - Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan and implementation reviews, PR review remediation, and final CI are complete; ready for human review.
