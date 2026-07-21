@@ -4,7 +4,8 @@
 
 ### Bounded End-call teardown for a wedged Element Call iframe (2026-07-20)
 
-- Status: implementation, current `dev` integration, PR review remediation, full local validation, and independent re-review are complete on PR #189. Final CI and AI re-review are pending, and the live fixed-build acceptance gate on `chat.lab.mindroom.chat` remains open because it requires a disposable `@openclaw` call.
+- Status: implementation, current `dev` integration, PR review remediation, full local validation, independent re-review, executable CI, and the available AI re-review are complete on PR #189.
+  The PR is ready for human review, while the live fixed-build acceptance gate on `chat.lab.mindroom.chat` remains open because it requires a disposable `@openclaw` call.
 - Symptom: the End button hangs forever when the embedded Element Call iframe is wedged (e.g. after long backgrounding). Each press sent `im.vector.hangup`, waited on the widget transport, and rejected unhandled after the transport's native ten-second timeout; only leaving the room killed the call.
 - Root cause: teardown of a joined call only ever ran from the from-widget Hangup/Close signals, so a dead `CallViewModel` hangup responder left the host with no local fallback, and both End surfaces passed the `callEmbed.hangup()` promise to React without consuming rejections.
 - Fix: a React-free `CallTermination` coordinator is created and disposed synchronously by the `callEmbedAtom` transition, owns one shared `ending` state, one in-flight guard, one named 4,000 ms host deadline (`CALL_END_HOST_DEADLINE_MS`), and one idempotent local finalizer. The transport acknowledgement is recorded as delivery only; from-widget Hangup marks teardown progress without re-arming the deadline; Close finalizes healthily; rejection or deadline expiry forces local teardown (dispose embed/iframe, clear `callEmbedAtom`, reset both End surfaces). All promise outcomes are consumed, including late `Request timed out`/`Transport stopped` rejections after disposal.
@@ -47,6 +48,7 @@
 - PR #189 review remediation: room retirement now publishes an exact-room external-store notification, so an already-mounted prescreen disables Join and shows the retirement message immediately instead of waiting for another render or a failed click. Dedicated module and mounted-surface tests cover idempotent notification, exact-room isolation, listener failure containment, unsubscribe cleanup, the post-mount transition, and the render-to-click race.
 - Final local validation passes 50 directly affected surface and cleanup tests, all 454 Vitest files with 3,480 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors, Prettier across every changed file, and `git diff --check`.
 - Independent review found and verified fixes for the retained click-race test, external-store test unmounts, the atom-owned coordinator comment, and duplicate historical ticket text; its final re-review approved with no remaining blockers.
+- Final PR checks pass the title gate, web build, Android build, Docker publish, and Greptile review over 27 changed files with zero comments; CodeRabbit was rate-limited and Sourcery skipped the PR because it exceeds its review-size limit.
 
 ### Expose repository skills to Codex (2026-07-21)
 
