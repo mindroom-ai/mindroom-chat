@@ -4,7 +4,11 @@ import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { buildCrossRoomThreadIndexEntry } from '../../src/app/mindroom/cross-room-threads/crossRoomThreadIndex';
 import { buildCompactThreadCardViewModelFromRecord } from '../../src/app/mindroom/threads/compactThreadCardViewModel';
-import { getRoomThreadTagSnapshotMap } from '../../src/app/mindroom/threads/threadTagSnapshots';
+import { getThreadMessagePreviewText } from '../../src/app/mindroom/threads/threadMessagePreview';
+import {
+  buildThreadTagSnapshotMap,
+  getRoomThreadTagSnapshotMap,
+} from '../../src/app/mindroom/threads/threadTagSnapshots';
 import { buildThreadRecord } from '../../src/app/mindroom/threads/threadRecord';
 import {
   cloneTraceEvent,
@@ -46,7 +50,31 @@ const emitDiagnostic = (kind: string, value: Record<string, unknown>) => {
   process.stdout.write(`${JSON.stringify({ kind, ...value })}\n`);
 };
 
+const fingerprintText = (value: string) => ({
+  length: Array.from(value).length,
+  sha256: createHash('sha256').update(value).digest('hex'),
+});
+
+const fingerprintsMatch = (
+  actual: ReturnType<typeof fingerprintText>,
+  expected: ReturnType<typeof fingerprintText>
+) => actual.length === expected.length && actual.sha256 === expected.sha256;
+
 const trace = await loadExactTrace();
+const finalNewContent = trace.edits.at(-1)?.content['m.new_content'] as
+  | Record<string, unknown>
+  | undefined;
+const expectedEffectiveBody = finalNewContent?.body;
+const expectedPresentationBody = getThreadMessagePreviewText(finalNewContent);
+if (typeof expectedEffectiveBody !== 'string' || !expectedPresentationBody) {
+  throw new Error('Verified trace has no final effective presentation');
+}
+const expectedEffectiveBodyFingerprint = fingerprintText(expectedEffectiveBody);
+const expectedPresentationBodyFingerprint = fingerprintText(expectedPresentationBody);
+const expectedTagSnapshot = buildThreadTagSnapshotMap(
+  trace.tags.map((event) => new MatrixEvent(cloneTraceEvent(event, OFFLINE_ROOM_ID)))
+).get(INCIDENT_THREAD_ROOT_ID);
+if (!expectedTagSnapshot) throw new Error('Verified trace has no expected tag snapshot');
 const originalThreadSupport = Thread.hasServerSideSupport;
 Thread.hasServerSideSupport = FeatureSupport.Stable;
 const unhandledRejections: string[] = [];
@@ -193,19 +221,45 @@ const observeAcceptanceSurfaces = (placeholder: MatrixEvent) => {
   const content = placeholder.getContent<Record<string, unknown>>();
   const replacement = placeholder.replacingEvent();
   const presentationBody = record.presentation.latestReplyPreviewText ?? '';
+  const expectedCompactCard = buildCompactThreadCardViewModelFromRecord({
+    record: {
+      ...record,
+      presentation: { ...record.presentation, latestReplyPreviewText: expectedPresentationBody },
+    },
+    room,
+    currentUserId: ORIGINAL_SENDERS.user,
+    mx: client as never,
+    useAuthentication: false,
+  });
+  const globalPreview = globalEntry?.threadRecord.presentation.latestReplyPreviewText ?? '';
+  const compactCardFingerprint = fingerprintText(compactCard.previewText);
+  const expectedCompactCardFingerprint = fingerprintText(expectedCompactCard.previewText);
+  const globalThreadsFingerprint = fingerprintText(globalPreview);
+  const effectiveBodyFingerprint = fingerprintText(
+    typeof content.body === 'string' ? content.body : ''
+  );
   return {
-    compactCardUsesFinal: compactCard.previewText.includes('Take the 1:00 PM slot.'),
-    effectiveBodyIsFinal:
-      typeof content.body === 'string' && Array.from(content.body).length === 1466,
-    globalThreadsUsesFinal:
-      globalEntry?.threadRecord.presentation.latestReplyPreviewText?.startsWith(
-        'Take the 1:00 PM slot.'
-      ) === true,
+    compactCardPreviewLength: compactCardFingerprint.length,
+    compactCardPreviewSha256: compactCardFingerprint.sha256,
+    compactCardUsesFinal: fingerprintsMatch(
+      compactCardFingerprint,
+      expectedCompactCardFingerprint
+    ),
+    effectiveBodyIsFinal: fingerprintsMatch(
+      effectiveBodyFingerprint,
+      expectedEffectiveBodyFingerprint
+    ),
+    globalThreadsPreviewLength: globalThreadsFingerprint.length,
+    globalThreadsPreviewSha256: globalThreadsFingerprint.sha256,
+    globalThreadsUsesFinal: fingerprintsMatch(
+      globalThreadsFingerprint,
+      expectedPresentationBodyFingerprint
+    ),
     overviewTagsVisible:
       JSON.stringify(tagSnapshot?.displayTags) ===
-      JSON.stringify(['anniversary-planning', 'schedule-coordination']),
-    presentationBodyLength: Array.from(presentationBody).length,
-    presentationBodySha256: createHash('sha256').update(presentationBody).digest('hex'),
+      JSON.stringify(expectedTagSnapshot.displayTags),
+    presentationBodyLength: fingerprintText(presentationBody).length,
+    presentationBodySha256: fingerprintText(presentationBody).sha256,
     replacementEventId: replacement?.getId() ?? null,
     replacementIsFinal: replacement?.getId() === INCIDENT_FINAL_EDIT_EVENT_ID,
     roomNavUnread: record.status.isUnread,
@@ -303,9 +357,13 @@ try {
 
   emitDiagnostic('pre-init-observation', {
     allSdkEventsProcessed,
+    compactCardPreviewLength: preInitSurfaces.compactCardPreviewLength,
+    compactCardPreviewSha256: preInitSurfaces.compactCardPreviewSha256,
     compactCardUsesFinal: preInitSurfaces.compactCardUsesFinal,
     editTimelineEventCount: preInitEditTimelineCount,
     globalThreadsUsesFinal: preInitSurfaces.globalThreadsUsesFinal,
+    globalThreadsPreviewLength: preInitSurfaces.globalThreadsPreviewLength,
+    globalThreadsPreviewSha256: preInitSurfaces.globalThreadsPreviewSha256,
     overviewTagsVisible: preInitSurfaces.overviewTagsVisible,
     paginationAttempts,
     presentationBodyLength: preInitSurfaces.presentationBodyLength,
