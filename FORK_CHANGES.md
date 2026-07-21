@@ -4,7 +4,7 @@
 
 ### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
 
-- Status: the minimum-scope implementation and focused coverage from repo-root `PLAN.md` are complete; independent behavior review and full-suite validation remain pending.
+- Status: the minimum-scope implementation, focused validation, full-suite audit, and independent reviews from repo-root `PLAN.md` are complete; ready for human review.
 - Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
 - Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
 - Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
@@ -18,6 +18,10 @@
 - Focused validation passes eight behavior, controller, recorder, and room-view files with 164 tests, typecheck, touched-file ESLint, Prettier, `git diff --check`, and the production/PWA build with Element Call verification.
 - Focused coverage includes room and existing-thread topology, multiple companions, loading roots, final live-board rereads, every eligibility fallback, handoff exceptions, reply clearing, upload retry, and root cancellation.
 - Independent behavior review found one production-invalid no-upload assertion in the mocked upload-card boundary and stale pre-change Runbook tense; the assertions and prose are corrected, and a faithful board-driven upload test now proves that the appended voice card starts upload and wakes the waiting session.
+- Independent re-review found no residual production correctness, race, media-limit, ownership, scope, test-fidelity, or documentation issue.
+- The final full `npm test` rerun exercises all 447 files and 3,336 tests, with 446 files and 3,333 tests passing; the only failures are the three Xcode shell-fixture tests, which cannot spawn Bash because the fixture replaces this Nix workspace's PATH with `/usr/bin:/bin` even though Bash is installed at `/run/current-system/sw/bin/bash`.
+- The three Xcode fixture failures are an environment-specific baseline that occurs before repository shell code executes, while every application test and all CINNY-128 coverage pass.
+- Full ESLint reports zero errors and the existing 17-warning baseline.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
