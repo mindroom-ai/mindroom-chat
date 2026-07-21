@@ -15,7 +15,7 @@ The presentation helper was intentionally left unchanged.
 ## Changes
 
 - Added an exact-trace replay package under `scripts/cinny-126-replay/` with SHA-256 artifact verification, exact timing, offline real-SDK scenarios, a guarded test-room-only live sender, surface assertions, and one-line diagnostic verdicts.
-- Added a patch-package patch for matrix-js-sdk 41.7.0 that aggregates pre-initialization replacements through `aggregateChildEvent` and emits `Thread.update` only after the accepted replacement is observable so existing overview consumers read committed edited content from the callback.
+- Added a patch-package patch for matrix-js-sdk 41.7.0 that aggregates pre-initialization replacements through `aggregateChildEvent` and uses one bounded target-level listener to emit `Thread.update` only after an effective replacement is committed.
 - Cleared a rejected `initalEventFetchProm` so later metadata work can retry, and absorbed the same owner-reported rejection in concurrent metadata waiters created by `Room.createThread`.
 - Added real-SDK contracts for pre-initialization replacement aggregation, replacement/update signals, retry through the production `Room.createThread` path, and zero escaped rejections.
 - Extended the native-iOS flight recorder with deduplicated per-room `matrix_sync` records closed at successful `SYNCING` boundaries and persisted once per batch.
@@ -27,7 +27,7 @@ The presentation helper was intentionally left unchanged.
 ## Review round 1
 
 - Confirmed and fixed every forwarded finding; none were ignored as overreach.
-- Moved `Thread.update` from the pre-aggregation call site to the target event's post-commit replacement signal and strengthened the real-SDK contract with two callback-observed effective bodies.
+- Moved `Thread.update` from the pre-aggregation call site to the target event's post-commit replacement signal and strengthened the real-SDK contract with two callback-observed effective bodies plus 25 older same-sender edits that leave content, updates, and listener count unchanged.
 - Added encrypted-event reclassification through `MatrixEventEvent.Decrypted`, an explicit unresolved-encrypted count, strict schema-v2 validation, and an eight-room per-sync retention bound that prioritizes edit-bearing evidence.
 - Made live media validation and attachment rewriting fail closed against identifiers extracted from the hash-verified trace, with normal-discovery tests for incident values, malformed input, unknown mappings, and residual nested references.
 - Replaced private offline presentation output with code-point length and SHA-256, brought the replay directory under ESLint and Vitest discovery, documented the private artifact hashes and opaque event IDs, and removed the five planning artifacts.
@@ -50,14 +50,14 @@ The forced-failure verdict is `GREEN` with two pagination attempts and zero unha
 ## Validation
 
 - A clean `npm ci` completed and patch-package applied both `@tanstack/virtual-core@3.17.3` and `matrix-js-sdk@41.7.0` successfully.
-- The 85 focused SDK patch, flight recorder, and authenticated-startup tests pass on current `dev`.
+- The 110 focused SDK patch, replay-safety, flight-recorder, export, and authenticated-startup tests pass on current `dev`.
 - `npm run typecheck` passes.
 - `npm run build` passes, including the production/PWA build and Element Call background verification.
 - `npm run lint` completes with zero errors and 17 pre-existing warnings.
-- Normal `npm test` discovery passes 448 files and 3,334 tests, including every CINNY-126 test.
+- Normal `npm test` discovery passes 449 files and 3,356 tests, including every CINNY-126 test.
 - Three pre-existing `xcodeCloudPostClone.test.ts` cases fail only because this Nix environment exposes Bash at `/run/current-system/sw/bin/bash` while the test replaces `PATH` with `/usr/bin:/bin`, which makes its `spawnSync('bash')` return `ENOENT` before the test fixture runs.
 - Neither the Xcode Cloud test nor its shell scripts differs on this branch.
-- Independent review found and drove fixes for harness acceptance gaps, a concurrent SDK waiter rejection, cached-sync recorder attribution, and missing timing/lifecycle assertions, and each remediation passed independent re-review with no remaining findings.
+- Independent review found and drove fixes for harness acceptance gaps, a concurrent SDK waiter rejection, cached-sync recorder attribution, missing timing/lifecycle assertions, and an unbounded per-edit replacement-listener design, and each remediation passed independent re-review with no remaining findings.
 
 ## Not completed live
 
@@ -71,13 +71,15 @@ The clean install reported the repository's existing npm audit total of 23 depen
 
 ## Publication
 
-Branch `cinny-126` is pushed to Gitea and ready PR [#1](https://git.nijho.lt/basnijholt/mindroom-cinny/pulls/1) is open at implementation SHA `04fa2137`.
+Branch `cinny-126` is published to both the Gitea and GitHub `mindroom-cinny` remotes, with ready Gitea PR [#1](https://git.nijho.lt/basnijholt/mindroom-cinny/pulls/1) open for review.
 
 The Gitea `dev` base is 332 commits behind and 14 commits ahead of canonical `origin/dev`, so Gitea reports the PR as non-mergeable even though this branch is based on current canonical `dev`.
 
 No AI review comments were configured or returned on Gitea, and its Actions checks remain queued with `Waiting to run`, so there were no external reviewer findings to validate.
 
 Independent Codex review completed after the final clean install and found no remaining correctness, privacy, lifecycle, patch hygiene, or scope issue.
+
+The review-round-1 listener-leak remediation received a separate independent re-review with no findings.
 
 ## Commits
 
@@ -86,3 +88,9 @@ Independent Codex review completed after the final clean install and found no re
 - `0f0e0acf feat: record Matrix sync batches on iOS`
 - `06185b4d test: keep SDK patch contract lint-clean`
 - `04fa2137 test: verify merged flight recorder evidence`
+- `3a3b851f fix: emit thread updates after edit aggregation`
+- `3324a28f fix: classify encrypted sync edits safely`
+- `b5e85662 fix: fail closed in live trace replay`
+- `4d67bdf0 chore: remove CINNY-126 planning artifacts`
+- `d2f864ad test: cover visible encrypted edit relations`
+- `e2fe5e28 fix: bound pre-init replacement listeners`
