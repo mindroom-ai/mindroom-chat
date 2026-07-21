@@ -21,8 +21,29 @@ vi.mock('./useDirectUsers', () => ({
 }));
 
 type MockMatrixClient = Pick<MatrixClient, 'baseUrl' | 'getSafeUserId' | 'searchUserDirectory'>;
+type SearchUserDirectoryResponse = Awaited<ReturnType<MatrixClient['searchUserDirectory']>>;
 
 type SearchHarnessState = ReturnType<typeof useInviteUserSearch>;
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, resolve, reject };
+};
+
+// Dual-variant searches settle through Promise.allSettled, which adds
+// microtask hops beyond a single awaited request.
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 const readyCache = (
   users: UserDirectoryCacheState['users'] = [],
@@ -60,11 +81,11 @@ function SearchHarness({
   query,
   onRender,
 }: {
-  room: Pick<Room, 'getMember'>;
+  room: Pick<Room, 'getMember'> | undefined;
   query: string;
   onRender: (state: SearchHarnessState) => void;
 }) {
-  const result = useInviteUserSearch(room as Room, query);
+  const result = useInviteUserSearch(room as Room | undefined, query);
   onRender(result);
   return null;
 }
@@ -72,7 +93,7 @@ function SearchHarness({
 const searchHarnessTree = (
   store: ReturnType<typeof createStore>,
   mx: MockMatrixClient,
-  room: Pick<Room, 'getMember'>,
+  room: Pick<Room, 'getMember'> | undefined,
   query: string,
   onRender: (state: SearchHarnessState) => void
 ) =>
@@ -99,12 +120,14 @@ const renderSearch = ({
 }: {
   store?: ReturnType<typeof createStore>;
   mx?: MockMatrixClient;
-  room?: Pick<Room, 'getMember'>;
+  // Pass null to render the create-chat flow, which has no destination room.
+  room?: Pick<Room, 'getMember'> | null;
   query: string;
   cacheState?: UserDirectoryCacheState;
 }) => {
   if (cacheState) store.set(userDirectoryCacheAtom, cacheState);
 
+  const resolvedRoom = room ?? undefined;
   let latestResult!: SearchHarnessState;
   const renders: SearchHarnessState[] = [];
   let renderer!: ReturnType<typeof create>;
@@ -114,7 +137,7 @@ const renderSearch = ({
   };
 
   act(() => {
-    renderer = create(searchHarnessTree(store, mx, room, query, onRender));
+    renderer = create(searchHarnessTree(store, mx, resolvedRoom, query, onRender));
   });
 
   return {
@@ -122,10 +145,16 @@ const renderSearch = ({
     renderer,
     getResult: () => latestResult,
     getRenders: () => renders,
-    update: (nextMx: MockMatrixClient, nextCacheState?: UserDirectoryCacheState) => {
+    update: (
+      nextMx: MockMatrixClient,
+      nextCacheState?: UserDirectoryCacheState,
+      nextQuery?: string
+    ) => {
       act(() => {
         if (nextCacheState) store.set(userDirectoryCacheAtom, nextCacheState);
-        renderer.update(searchHarnessTree(store, nextMx, room, query, onRender));
+        renderer.update(
+          searchHarnessTree(store, nextMx, resolvedRoom, nextQuery ?? query, onRender)
+        );
       });
     },
   };
@@ -186,7 +215,7 @@ describe('useInviteUserSearch', () => {
     ).toBe(true);
   });
 
-  it('searches the server for a real query when local matches came only from whitespace bootstrap', async () => {
+  it('searches the server for a real query when local matches came only from the directory bootstrap', async () => {
     const mx = makeMx();
     const view = renderSearch({
       mx,
@@ -388,5 +417,383 @@ describe('useInviteUserSearch', () => {
             user.displayName?.toLocaleLowerCase().startsWith('a')
         )
     ).toBe(true);
+  });
+
+  it('merges deduplicated raw and whitespace-compacted results for a spaced query', async () => {
+    const mx = makeMx();
+    const overlappingUser = {
+      user_id: '@mindroom_shared:mindroom.chat',
+      display_name: 'Mindroom Expert Twin',
+    };
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) => {
+      if (term === 'mindroom expert') {
+        return { limited: false, results: [overlappingUser] };
+      }
+      if (term === 'mindroomexpert') {
+        return {
+          limited: false,
+          results: [
+            overlappingUser,
+            {
+              user_id: '@mindroom_mindroom_expert:mindroom.chat',
+              display_name: 'MindRoomExpert',
+            },
+          ],
+        };
+      }
+      return { limited: false, results: [] };
+    });
+    const view = renderSearch({ mx, query: 'mindroom expert', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(2);
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'mindroom expert',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'mindroomexpert',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+
+    const userIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(userIds).toContain('@mindroom_mindroom_expert:mindroom.chat');
+    expect(userIds.filter((userId) => userId === '@mindroom_shared:mindroom.chat')).toHaveLength(1);
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('issues a single request for a query without internal whitespace', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockResolvedValue({ limited: false, results: [] });
+    renderSearch({ mx, query: 'mindroomexpert', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(1);
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'mindroomexpert',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+  });
+
+  it('does not issue a compact variant when the compacted term is a single character', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockResolvedValue({ limited: false, results: [] });
+    renderSearch({ mx, query: '@ x', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(1);
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: ' x',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+  });
+
+  it('keeps compact-variant results when the raw spaced request rejects', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) => {
+      if (term === 'mindroom expert') throw new Error('raw variant failed');
+      return {
+        limited: false,
+        results: [
+          {
+            user_id: '@mindroom_mindroom_expert:mindroom.chat',
+            display_name: 'MindRoomExpert',
+          },
+        ],
+      };
+    });
+    const view = renderSearch({ mx, query: 'mindroom expert', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(2);
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@mindroom_mindroom_expert:mindroom.chat'
+    );
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('preserves local suggestions when both spaced-query requests reject', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockRejectedValue(new Error('directory unavailable'));
+    const view = renderSearch({
+      mx,
+      query: 'mindroom expert',
+      cacheState: readyCache([
+        { userId: '@legacy:example.org', displayName: 'Mindroom Expert Legacy' },
+      ]),
+    });
+
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual([
+      '@legacy:example.org',
+    ]);
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(2);
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual([
+      '@legacy:example.org',
+    ]);
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('ignores dual-request results that resolve after the query changes', async () => {
+    const mx = makeMx();
+    const staleRawDeferred = createDeferred<SearchUserDirectoryResponse>();
+    const staleCompactDeferred = createDeferred<SearchUserDirectoryResponse>();
+    const currentRawDeferred = createDeferred<SearchUserDirectoryResponse>();
+    const currentCompactDeferred = createDeferred<SearchUserDirectoryResponse>();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(({ term }) => {
+      if (term === 'mindroom expert') return staleRawDeferred.promise;
+      if (term === 'mindroomexpert') return staleCompactDeferred.promise;
+      if (term === 'zephyr crew') return currentRawDeferred.promise;
+      return currentCompactDeferred.promise;
+    });
+    const view = renderSearch({ mx, query: 'mindroom expert', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(2);
+
+    view.update(mx, undefined, 'zephyr crew');
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(4);
+
+    // The stale display names match the current query, so if the guards
+    // leaked them into the current term they would rank and become visible.
+    await act(async () => {
+      staleRawDeferred.resolve({
+        limited: false,
+        results: [{ user_id: '@stale-raw:example.org', display_name: 'Zephyr Crew Raw' }],
+      });
+      staleCompactDeferred.resolve({
+        limited: false,
+        results: [{ user_id: '@stale-compact:example.org', display_name: 'Zephyr Crew Compact' }],
+      });
+      await flushMicrotasks();
+    });
+
+    const staleUserIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(staleUserIds).not.toContain('@stale-raw:example.org');
+    expect(staleUserIds).not.toContain('@stale-compact:example.org');
+    // A stale settlement must not clear the current request's loading state.
+    expect(view.getResult().isFetching).toBe(true);
+
+    await act(async () => {
+      currentRawDeferred.resolve({
+        limited: false,
+        results: [{ user_id: '@zephyr-raw:example.org', display_name: 'Zephyr Crew' }],
+      });
+      currentCompactDeferred.resolve({
+        limited: false,
+        results: [{ user_id: '@zephyr-compact:example.org', display_name: 'ZephyrCrew' }],
+      });
+      await flushMicrotasks();
+    });
+
+    const currentUserIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(currentUserIds).toContain('@zephyr-raw:example.org');
+    expect(currentUserIds).toContain('@zephyr-compact:example.org');
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('does not expose dual-request results from a previous MatrixClient owner', async () => {
+    const clientA = makeMxForUser('@a:example.org', 'https://a.example.org');
+    const clientB = makeMxForUser('@b:example.org', 'https://b.example.org');
+    const rawDeferred = createDeferred<SearchUserDirectoryResponse>();
+    const compactDeferred = createDeferred<SearchUserDirectoryResponse>();
+    vi.mocked(clientA.searchUserDirectory).mockImplementation(({ term }) =>
+      term === 'remote crew' ? rawDeferred.promise : compactDeferred.promise
+    );
+    vi.mocked(clientB.searchUserDirectory).mockImplementation(async ({ term }) =>
+      term === 'remote crew'
+        ? {
+            limited: false,
+            results: [{ user_id: '@remote-b:b.example.org', display_name: 'Remote Crew B' }],
+          }
+        : { limited: false, results: [] }
+    );
+    const view = renderSearch({
+      mx: clientA,
+      query: 'remote crew',
+      cacheState: readyCache([], false, '@a:example.org|https://a.example.org'),
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(clientA.searchUserDirectory).toHaveBeenCalledTimes(2);
+
+    view.update(clientB, readyCache([], false, '@b:example.org|https://b.example.org'));
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@remote-b:b.example.org'
+    );
+    expect(view.getResult().isFetching).toBe(false);
+
+    // The old owner's late settlement shares the current term, so a missing
+    // guard would replace and displace the new owner's published results.
+    await act(async () => {
+      rawDeferred.resolve({
+        limited: false,
+        results: [{ user_id: '@remote-raw:a.example.org', display_name: 'Remote Crew Raw' }],
+      });
+      compactDeferred.resolve({
+        limited: false,
+        results: [
+          { user_id: '@remote-compact:a.example.org', display_name: 'Remote Crew Compact' },
+        ],
+      });
+      await flushMicrotasks();
+    });
+
+    const userIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(userIds).toContain('@remote-b:b.example.org');
+    expect(userIds).not.toContain('@remote-raw:a.example.org');
+    expect(userIds).not.toContain('@remote-compact:a.example.org');
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('publishes a settled variant while the sibling request is still pending', async () => {
+    const mx = makeMx();
+    const rawDeferred = createDeferred<SearchUserDirectoryResponse>();
+    const compactDeferred = createDeferred<SearchUserDirectoryResponse>();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(({ term }) =>
+      term === 'mindroom expert' ? rawDeferred.promise : compactDeferred.promise
+    );
+    const view = renderSearch({ mx, query: 'mindroom expert', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    await act(async () => {
+      compactDeferred.resolve({
+        limited: false,
+        results: [
+          {
+            user_id: '@mindroom_mindroom_expert:mindroom.chat',
+            display_name: 'MindRoomExpert',
+          },
+        ],
+      });
+      await flushMicrotasks();
+    });
+
+    // The compact hit is visible even though the raw request has not settled,
+    // and the still-outstanding variant keeps the loading state active.
+    expect(view.getResult().suggestions.map((user) => user.userId)).toContain(
+      '@mindroom_mindroom_expert:mindroom.chat'
+    );
+    expect(view.getResult().isFetching).toBe(true);
+
+    await act(async () => {
+      rawDeferred.resolve({
+        limited: false,
+        results: [
+          { user_id: '@mindroom_spaced:mindroom.chat', display_name: 'Mindroom Expert Spaced' },
+        ],
+      });
+      await flushMicrotasks();
+    });
+
+    const userIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(userIds).toContain('@mindroom_mindroom_expert:mindroom.chat');
+    expect(userIds).toContain('@mindroom_spaced:mindroom.chat');
+    expect(view.getResult().isFetching).toBe(false);
+  });
+
+  it('displays a compact-only hit whose spacing exceeds fuzzy tolerance', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) =>
+      term === 'r2d2'
+        ? {
+            limited: false,
+            results: [{ user_id: '@r2d2:example.org', display_name: 'R2D2' }],
+          }
+        : { limited: false, results: [] }
+    );
+    const view = renderSearch({ mx, query: 'r 2 d 2', cacheState: readyCache() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'r2d2',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+    // The server returned the user only for the compacted term; ranking must
+    // not drop it against the raw spaced query.
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual(['@r2d2:example.org']);
+  });
+
+  it('serves compact-query results in the create-chat flow without room filtering', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) =>
+      term === 'mindroomexpert'
+        ? {
+            limited: false,
+            results: [
+              {
+                user_id: '@mindroom_mindroom_expert:mindroom.chat',
+                display_name: 'MindRoomExpert',
+              },
+              { user_id: '@me:example.org', display_name: 'Mindroom Expert Self' },
+            ],
+          }
+        : { limited: false, results: [] }
+    );
+    const view = renderSearch({
+      mx,
+      room: null,
+      query: 'mindroom expert',
+      cacheState: readyCache(),
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+
+    const userIds = view.getResult().suggestions.map((user) => user.userId);
+    expect(userIds).toContain('@mindroom_mindroom_expert:mindroom.chat');
+    // Even without a destination room, the current user stays excluded.
+    expect(userIds).not.toContain('@me:example.org');
   });
 });

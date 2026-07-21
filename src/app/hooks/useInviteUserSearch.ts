@@ -131,31 +131,53 @@ export const useInviteUserSearch = (
 
       setIsServerFetching(true);
 
-      try {
-        const response = await mx.searchUserDirectory({
-          term,
-          limit: INVITE_SERVER_SEARCH_LIMIT,
-        });
+      // The server matches by case-insensitive substring, so a natural spaced
+      // query like `mindroom expert` cannot hit a space-less display name like
+      // `MindRoomExpert`. Also search a whitespace-compacted variant; the raw
+      // term stays so spaced display names keep matching.
+      const compactTerm = term.replace(/\s+/g, '');
+      const terms = compactTerm.length >= 2 && compactTerm !== term ? [term, compactTerm] : [term];
+
+      // Each variant publishes as soon as it settles: one slow or hung request
+      // must not delay or discard the sibling's results. A failed variant
+      // publishes nothing, so both failing leaves the local suggestions as-is.
+      let unsettledVariants = terms.length;
+      let publishedThisRequest = false;
+      const settleVariant = (users: ServerUserDirectoryUser[] | undefined) => {
         if (!alive() || requestId !== requestIdRef.current) return;
 
-        setServerResult({
-          term: queryTerm,
-          ownerKey: cache.ownerKey,
-          users: normalizeUserDirectoryUsers(response.results),
-        });
-      } catch {
-        if (!alive() || requestId !== requestIdRef.current) return;
+        if (users) {
+          // The first publish of a request replaces any previous result for
+          // the same term; later variants of the same request merge into it.
+          const mergeIntoCurrent = publishedThisRequest;
+          publishedThisRequest = true;
+          setServerResult((currentResult) =>
+            mergeIntoCurrent &&
+            currentResult &&
+            currentResult.term === queryTerm &&
+            currentResult.ownerKey === cache.ownerKey
+              ? { ...currentResult, users: mergeUserDirectoryUsers(currentResult.users, users) }
+              : { term: queryTerm, ownerKey: cache.ownerKey, users }
+          );
+        }
 
-        setServerResult({
-          term: queryTerm,
-          ownerKey: cache.ownerKey,
-          users: [],
-        });
-      } finally {
-        if (alive() && requestId === requestIdRef.current) {
+        unsettledVariants -= 1;
+        if (unsettledVariants === 0) {
           setIsServerFetching(false);
         }
-      }
+      };
+
+      await Promise.allSettled(
+        terms.map((searchTerm) =>
+          mx
+            .searchUserDirectory({
+              term: searchTerm,
+              limit: INVITE_SERVER_SEARCH_LIMIT,
+            })
+            .then((response) => normalizeUserDirectoryUsers(response.results))
+            .then(settleVariant, () => settleVariant(undefined))
+        )
+      );
     },
     [alive, cache.ownerKey, mx]
   );
