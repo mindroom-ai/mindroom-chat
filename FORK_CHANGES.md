@@ -102,6 +102,10 @@
   Android, web, and Docker CI pass.
   CodeRabbit and Sourcery could not review because their quotas were exhausted, and Qodo was paused for the account.
   All four retrospective review threads on PR #186 have disposition replies and are resolved.
+  An independent Claude Fable review through `agent-cli dev` verified the exact PR #186 and PR #187 diffs, all five review-thread dispositions, 78 focused tests, typecheck, and touched-file ESLint.
+  Fable found no remaining code issue and confirmed that PR #187 fully fixes the stale-result regression from PR #186.
+  Its only finding was stale PR #187 description wording that described publishing an empty result instead of conditionally clearing an older matching result.
+  The PR description now matches the final implementation.
 
 ### Opt-in native iOS deep diagnostic tracing (2026-07-20)
 
