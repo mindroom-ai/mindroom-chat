@@ -391,7 +391,7 @@ describe('Matrix sync flight recorder', () => {
         makeEvent(
           `$dense-${index}`,
           denseRoomId,
-          index === 0 || index === MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM + 9
+          index === MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM + 9
         )
       );
     }
@@ -427,12 +427,91 @@ describe('Matrix sync flight recorder', () => {
     expect(overflow).toMatchObject({
       type: 'matrix_sync_overflow',
       eventCount: 17,
-      editCount: 1,
+      editCount: 0,
       encryptedCount: 0,
       route: 'home',
       hasThreadId: false,
     });
     expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
+  });
+
+  it('retains a room first edit when it arrives at the per-room limit', () => {
+    disposeRecorder = installFlightRecorder(storage);
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+    const roomId = '!late-edit:example.org';
+
+    for (let index = 0; index < MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM; index += 1) {
+      client.emitClient(ClientEvent.Event, makeEvent(`$ordinary-${index}`, roomId));
+    }
+    client.emitClient(ClientEvent.Event, makeEvent('$first-edit', roomId, true));
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    expect(readCurrent(storage).events).toMatchObject([
+      {
+        type: 'matrix_sync',
+        roomHash: hashFlightRecorderRoomId(roomId),
+        eventCount: MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM,
+        editCount: 1,
+        encryptedCount: 0,
+      },
+      {
+        type: 'matrix_sync_overflow',
+        eventCount: 1,
+        editCount: 0,
+        encryptedCount: 0,
+      },
+    ]);
+  });
+
+  it('retains and reclassifies an encrypted edit at the per-room limit', async () => {
+    disposeRecorder = installFlightRecorder(storage);
+    const client = createClient();
+    disposeMatrix = installMatrixSyncFlightRecorder(client);
+    const roomId = '!late-encrypted-edit:example.org';
+
+    for (let index = 0; index < MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM; index += 1) {
+      client.emitClient(ClientEvent.Event, makeEvent(`$ordinary-${index}`, roomId));
+    }
+    const encryptedEdit = new MatrixEvent({
+      content: { algorithm: 'test-only' },
+      event_id: '$late-encrypted-edit',
+      origin_server_ts: 1000,
+      room_id: roomId,
+      sender: '@agent:example.org',
+      type: 'm.room.encrypted',
+    });
+    client.emitClient(ClientEvent.Event, encryptedEdit);
+    await encryptedEdit.attemptDecryption({
+      decryptEvent: vi.fn().mockResolvedValue({
+        clearEvent: {
+          content: {
+            'm.new_content': { body: 'updated', msgtype: 'm.text' },
+            'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            msgtype: 'm.text',
+          },
+          type: 'm.room.message',
+        },
+      }),
+    } as never);
+    client.emitClient(MatrixEventEvent.Decrypted, encryptedEdit);
+    client.emitClient(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+
+    expect(readCurrent(storage).events).toMatchObject([
+      {
+        type: 'matrix_sync',
+        roomHash: hashFlightRecorderRoomId(roomId),
+        eventCount: MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM,
+        editCount: 1,
+        encryptedCount: 0,
+      },
+      {
+        type: 'matrix_sync_overflow',
+        eventCount: 1,
+        editCount: 0,
+        encryptedCount: 0,
+      },
+    ]);
   });
 
   it('stays inert until the native flight recorder runtime is active', () => {

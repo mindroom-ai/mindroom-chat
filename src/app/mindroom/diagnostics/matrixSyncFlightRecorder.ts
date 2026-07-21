@@ -85,6 +85,25 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
     const counts = roomCounts(room);
     return counts.editCount > 0 || counts.encryptedCount > 0;
   };
+  const evictOrdinaryRoomEvent = (room: RoomBatch): boolean => {
+    for (const eventId of room.eventIds) {
+      if (room.editEventIds.has(eventId) || room.encryptedEventIds.has(eventId)) continue;
+      room.eventIds.delete(eventId);
+      overflow.eventCount += 1;
+      return true;
+    }
+    for (const event of room.anonymousEvents) {
+      if (room.anonymousEditEvents.has(event) || room.anonymousEncryptedEvents.has(event)) {
+        continue;
+      }
+      room.anonymousEvents.delete(event);
+      overflow.eventCount += 1;
+      return true;
+    }
+    return false;
+  };
+  const retainPriorityEventAtRoomLimit = (room: RoomBatch, event: MatrixEvent): boolean =>
+    (isEdit(event) || isUnresolvedEncrypted(event)) && evictOrdinaryRoomEvent(room);
 
   const makeRoomBatch = (): RoomBatch => ({
     eventIds: new Set(),
@@ -123,8 +142,10 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
         !room.eventIds.has(eventId) &&
         room.eventIds.size + room.anonymousEvents.size >= MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM
       ) {
-        addOverflowEvent(event);
-        return;
+        if (!retainPriorityEventAtRoomLimit(room, event)) {
+          addOverflowEvent(event);
+          return;
+        }
       }
       room.eventIds.add(eventId);
       if (isEdit(event)) {
@@ -137,8 +158,10 @@ export const installMatrixSyncFlightRecorder = (mx: MatrixClient): (() => void) 
       !room.anonymousEvents.has(event) &&
       room.eventIds.size + room.anonymousEvents.size >= MATRIX_SYNC_MAX_PENDING_EVENTS_PER_ROOM
     ) {
-      addOverflowEvent(event);
-      return;
+      if (!retainPriorityEventAtRoomLimit(room, event)) {
+        addOverflowEvent(event);
+        return;
+      }
     }
     room.anonymousEvents.add(event);
     if (isEdit(event)) {
