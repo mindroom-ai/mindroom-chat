@@ -139,7 +139,8 @@ const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction =>
       storedActionSurfaces.includes(action.surface as typeof storedActionSurfaces[number])
   );
 };
-const count = (value: unknown): value is number => Number.isSafeInteger(value) && number(value);
+const count = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const eventIsValid = (value: unknown): value is FlightEvent => {
   const event = value as Partial<FlightEvent> | null;
   if (!event || !number(event.at)) return false;

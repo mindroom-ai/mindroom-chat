@@ -239,6 +239,7 @@ try {
       addToState: true,
       fromCache: false,
     });
+    await settle();
     if (wireEvent.event_id === trace.ids.placeholder) {
       event.on(MatrixEventEvent.Replaced, () => {
         const replacementId = event.replacingEvent()?.getId();
