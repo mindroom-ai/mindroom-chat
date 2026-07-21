@@ -110,6 +110,7 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout } from '../../components/message';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useMediaConfig } from '../../hooks/useMediaConfig';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import colorMXID from '../../../util/colorMXID';
@@ -224,6 +225,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
+    const mediaConfig = useMediaConfig();
+    const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -764,27 +767,28 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store]
     );
 
-    const { processSendSession, startSendSession } = useRoomInputSendSessionController({
-      mx,
-      room,
-      roomId,
-      threadId,
-      replyDraft,
-      threadingEnabled,
-      setReplyDraft,
-      editor,
-      sendTypingStatus,
-      selectedFilesRef,
-      sendSessionFilesRef,
-      sendSessionUploadItemsRef,
-      setSendSessionFiles,
-      mountedRef,
-      uploadsRef,
-      buildUploadMessageContent,
-      removeUploadsFromBoard,
-      onRoomMessageSent,
-      shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
-    });
+    const { hasActiveSendSession, processSendSession, startSendSession } =
+      useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        threadId,
+        replyDraft,
+        threadingEnabled,
+        setReplyDraft,
+        editor,
+        sendTypingStatus,
+        selectedFilesRef,
+        sendSessionFilesRef,
+        sendSessionUploadItemsRef,
+        setSendSessionFiles,
+        mountedRef,
+        uploadsRef,
+        buildUploadMessageContent,
+        removeUploadsFromBoard,
+        onRoomMessageSent,
+        shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
+      });
 
     // Snapshot the room/thread/reply context for the next start(). The hook
     // calls this synchronously inside start() and persists the result on the
@@ -848,6 +852,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         let fileItems: TUploadItem[] = [];
         let liveContext: MindroomVoiceSendContext | null = null;
         let sentEventIdToNotify: string | undefined;
+        let handedOffToSession = false;
         const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
           const originalName =
             getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -904,6 +909,37 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
 
+          const eligibleCompanionFiles = selectedFilesRef.current
+            .filter(
+              (item) =>
+                item !== fileItem &&
+                !item.prepError &&
+                !item.metadata.mindroomPasteAttachment &&
+                item.file.size < allowUploadSize
+            )
+            .map((item) => item.file);
+          const shouldCombineWithCompanions =
+            mountedRef.current &&
+            liveContext.roomId === roomIdRef.current &&
+            liveContext.threadingEnabled &&
+            !hasActiveSendSession() &&
+            fileItem.file.size < allowUploadSize &&
+            eligibleCompanionFiles.length > 0;
+
+          if (shouldCombineWithCompanions) {
+            releaseVoiceAutoSend();
+            try {
+              await startSendSession({
+                files: [...eligibleCompanionFiles, fileItem.file],
+                context: liveContext,
+              });
+              handedOffToSession = true;
+              return;
+            } catch (err) {
+              return logAndThrowUploadError(err, 'send');
+            }
+          }
+
           let mxc: string;
           try {
             mxc = await uploadVoiceItem(fileItem);
@@ -917,7 +953,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           clearReplyDraftForVoiceContext(liveContext);
         } finally {
-          if (liveContext && fileItems.length > 0) {
+          if (!handedOffToSession && liveContext && fileItems.length > 0) {
             removeUploadsFromBoard(
               fileItems.map((fileItem) => fileItem.file),
               liveContext.roomId
@@ -931,13 +967,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [
         appendUploadItemsToRoomBoard,
+        allowUploadSize,
         clearReplyDraftForVoiceContext,
         createVoiceUploadItems,
+        hasActiveSendSession,
         mx,
         removeUploadsFromBoard,
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
+        startSendSession,
         t,
         uploadVoiceItem,
         onRoomMessageSent,
