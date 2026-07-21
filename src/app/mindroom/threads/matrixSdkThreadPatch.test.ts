@@ -156,7 +156,7 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     expect(freshPlaceholder.getContent().body).toBe('Final answer');
   });
 
-  it('commits an encrypted pre-init edit to the fresh post-pagination target', async () => {
+  it('preserves encrypted edit arrival order and rebinds after pagination', async () => {
     const releasePagination = deferred<void>();
     const placeholder = makeEvent(
       '$encrypted-placeholder',
@@ -187,47 +187,79 @@ describe('matrix-js-sdk CINNY-126 patch contract', () => {
     );
     addRootToRoom(room, root);
     const thread = room.createThread(ROOT_ID, root, [placeholder], false);
-    const edit = new MatrixEvent({
-      content: {
-        algorithm: 'test-only',
-        'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
-      },
-      event_id: '$encrypted-edit',
-      origin_server_ts: 3,
-      room_id: ROOM_ID,
-      sender: '@agent:example.org',
-      type: 'm.room.encrypted',
-    });
-    const decryption = deferred<{
+    const makeEncryptedEdit = (eventId: string) =>
+      new MatrixEvent({
+        content: {
+          algorithm: 'test-only',
+          'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+        },
+        event_id: eventId,
+        origin_server_ts: 3,
+        room_id: ROOM_ID,
+        sender: '@agent:example.org',
+        type: 'm.room.encrypted',
+      });
+    const firstEdit = makeEncryptedEdit('$encrypted-edit-1');
+    const finalEdit = makeEncryptedEdit('$encrypted-edit-2');
+    const firstDecryption = deferred<{
       clearEvent: { content: Record<string, unknown>; type: string };
     }>();
-    const decryptionPromise = edit.attemptDecryption({
-      decryptEvent: vi.fn(() => decryption.promise),
+    const finalDecryption = deferred<{
+      clearEvent: { content: Record<string, unknown>; type: string };
+    }>();
+    const firstDecryptionPromise = firstEdit.attemptDecryption({
+      decryptEvent: vi.fn(() => firstDecryption.promise),
+    } as never);
+    const finalDecryptionPromise = finalEdit.attemptDecryption({
+      decryptEvent: vi.fn(() => finalDecryption.promise),
     } as never);
 
-    thread.addEvent(edit, false);
+    thread.addEvent(firstEdit, false);
+    thread.addEvent(finalEdit, false);
     await flushAsyncWork();
-    releasePagination.resolve();
-    await flushAsyncWork(24);
-    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
-    expect(freshPlaceholder.replacingEvent()).toBeNull();
-
-    decryption.resolve({
+    finalDecryption.resolve({
       clearEvent: {
         content: {
-          body: '* Final after decryption',
-          'm.new_content': { body: 'Final after decryption', msgtype: 'm.text' },
+          body: '* Final encrypted answer',
+          'm.new_content': { body: 'Final encrypted answer', msgtype: 'm.text' },
           'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
           msgtype: 'm.text',
         },
         type: 'm.room.message',
       },
     });
-    await decryptionPromise;
+    await finalDecryptionPromise;
     await flushAsyncWork(24);
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(placeholder.replacingEvent()).toBe(finalEdit);
 
-    expect(freshPlaceholder.replacingEvent()).toBe(edit);
-    expect(freshPlaceholder.getContent().body).toBe('Final after decryption');
+    firstDecryption.resolve({
+      clearEvent: {
+        content: {
+          body: '* First encrypted draft',
+          'm.new_content': { body: 'First encrypted draft', msgtype: 'm.text' },
+          'm.relates_to': { event_id: placeholder.getId(), rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        type: 'm.room.message',
+      },
+    });
+    await firstDecryptionPromise;
+    await flushAsyncWork(24);
+    const replacements = room.relations.getChildEventsForEvent(
+      placeholder.getId()!,
+      'm.replace',
+      'm.room.message'
+    );
+    expect(replacements?.getRelations()).toEqual([firstEdit, finalEdit]);
+    expect(placeholder.replacingEvent()).toBe(finalEdit);
+    expect(placeholder.getContent().body).toBe('Final encrypted answer');
+
+    releasePagination.resolve();
+    await flushAsyncWork(24);
+    expect(thread.findEventById(placeholder.getId()!)).toBe(freshPlaceholder);
+    expect(freshPlaceholder.replacingEvent()).toBe(finalEdit);
+    expect(freshPlaceholder.getContent().body).toBe('Final encrypted answer');
   });
 
   it('reports fire-and-forget relation failures', async () => {

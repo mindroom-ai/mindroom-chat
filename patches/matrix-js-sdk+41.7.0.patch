@@ -1,8 +1,17 @@
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
-index ba649eb..f8aa444 100644
+index ba649eb..b244400 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.d.ts
-@@ -32,13 +32,13 @@ export declare class RelationsContainer {
+@@ -8,6 +8,8 @@ export declare class RelationsContainer {
+     private readonly client;
+     private readonly room?;
+     private relations;
++    private relationArrivalOrder;
++    private nextRelationArrivalOrder;
+     constructor(client: MatrixClient, room?: Room | undefined);
+     /**
+      * Get a collection of child events to a given event in this timeline set.
+@@ -32,13 +34,13 @@ export declare class RelationsContainer {
       *
       * @param event - The event to check as relation target.
       */
@@ -18,12 +27,20 @@ index ba649eb..f8aa444 100644
 +    aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet, targetEvent?: MatrixEvent): Promise<Relations | undefined>;
  }
  //# sourceMappingURL=relations-container.d.ts.map
-\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-index 8ccc053..ffb895d 100644
+index 8ccc053..e04bebc 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
-@@ -65,12 +65,14 @@ export class RelationsContainer {
+@@ -24,6 +24,8 @@ export class RelationsContainer {
+     // A tree of objects to access a set of related children for an event, as in:
+     // this.relations.get(parentEventId).get(relationType).get(relationEventType)
+     _defineProperty(this, "relations", new Map());
++    _defineProperty(this, "relationArrivalOrder", new WeakMap());
++    _defineProperty(this, "nextRelationArrivalOrder", 0);
+   }
+
+   /**
+@@ -65,12 +67,14 @@ export class RelationsContainer {
     */
    aggregateParentEvent(event) {
      var relationsForEvent = this.relations.get(event.getId());
@@ -40,7 +57,7 @@ index 8ccc053..ffb895d 100644
    }
 
    /**
-@@ -79,26 +81,29 @@ export class RelationsContainer {
+@@ -79,26 +83,34 @@ export class RelationsContainer {
     * @param event - The new child event to be aggregated.
     * @param timelineSet - The event timeline set within which to search for the related event if any.
     */
@@ -62,6 +79,11 @@ index 8ccc053..ffb895d 100644
 -      this.aggregateChildEvent(event, timelineSet);
 -    };
 +    if (!relation) return Promise.resolve(undefined);
++    var arrivalOrder = this.relationArrivalOrder.get(event);
++    if (arrivalOrder === undefined) {
++      arrivalOrder = this.nextRelationArrivalOrder++;
++      this.relationArrivalOrder.set(event, arrivalOrder);
++    }
 
 -    // If the event is currently encrypted, wait until it has been decrypted.
 +    // Wait for the clear event type before creating its relation collection.
@@ -85,7 +107,7 @@ index 8ccc053..ffb895d 100644
      }
      var relatesToEventId = relation.event_id,
        relationType = relation.rel_type;
-@@ -114,17 +119,23 @@ export class RelationsContainer {
+@@ -114,17 +126,22 @@ export class RelationsContainer {
        relationsForEvent.set(relationType, relationsWithRelType);
      }
      var relationsWithEventType = relationsWithRelType.get(eventType);
@@ -104,20 +126,60 @@ index 8ccc053..ffb895d 100644
      }
 -    relationsWithEventType.addEvent(event);
 +
-+    // addEvent mutates the insertion-ordered relation set before its first await.
-+    // Start it immediately so fire-and-forget callers and equal-timestamp edits
-+    // retain arrival order while target rebinding completes.
-+    var addEventUpdate = relationsWithEventType.addEvent(event);
++    // Pass the order reserved before decryption so equal-timestamp edits retain
++    // arrival order while target rebinding completes.
++    var addEventUpdate = relationsWithEventType.addEvent(event, arrivalOrder);
 +    return Promise.all([targetEventUpdate, addEventUpdate]).then(() => relationsWithEventType);
    }
  }
  //# sourceMappingURL=relations-container.js.map
-\ No newline at end of file
+diff --git a/node_modules/matrix-js-sdk/lib/models/relations.d.ts b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
+index 933f698..692c82a 100644
+--- a/node_modules/matrix-js-sdk/lib/models/relations.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
+@@ -27,6 +27,8 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+     readonly altEventTypes?: string[] | undefined;
+     private relationEventIds;
+     private relations;
++    private relationArrivalOrder;
++    private nextRelationArrivalOrder;
+     private annotationsByKey;
+     private annotationsBySender;
+     private sortedAnnotationsByKey;
+@@ -46,7 +48,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+      *
+      * @param event - The new relation event to be added.
+      */
+-    addEvent(event: MatrixEvent): Promise<void>;
++    addEvent(event: MatrixEvent, arrivalOrder?: number): Promise<void>;
+     /**
+      * Remove relation event from this collection.
+      *
+@@ -63,11 +65,11 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+     /**
+      * Get all relation events in this collection.
+      *
+-     * These are currently in the order of insertion to this collection, which
++     * These are currently in the order they reached relation aggregation, which
+      * won't match timeline order in the case of scrollback.
+      * TODO: Tweak `addEvent` to insert correctly for scrollback.
+      *
+-     * Relation events in insertion order.
++     * Relation events in aggregation arrival order.
+      */
+     getRelations(): MatrixEvent[];
+     private addAnnotationToAggregation;
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..e3313f3 100644
+index 6be66bb..178537f 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
-@@ -60,6 +60,7 @@ export class Relations extends TypedEventEmitter {
+@@ -56,10 +56,13 @@ export class Relations extends TypedEventEmitter {
+     this.altEventTypes = altEventTypes;
+     _defineProperty(this, "relationEventIds", new Set());
+     _defineProperty(this, "relations", new Set());
++    _defineProperty(this, "relationArrivalOrder", new WeakMap());
++    _defineProperty(this, "nextRelationArrivalOrder", 0);
+     _defineProperty(this, "annotationsByKey", {});
      _defineProperty(this, "annotationsBySender", {});
      _defineProperty(this, "sortedAnnotationsByKey", []);
      _defineProperty(this, "targetEvent", null);
@@ -125,7 +187,44 @@ index 6be66bb..e3313f3 100644
      _defineProperty(this, "creationEmitted", false);
      _defineProperty(this, "replacementUpdateId", 0);
      _defineProperty(this, "client", void 0);
-@@ -320,13 +321,16 @@ export class Relations extends TypedEventEmitter {
+@@ -119,7 +122,7 @@ export class Relations extends TypedEventEmitter {
+    *
+    * @param event - The new relation event to be added.
+    */
+-  addEvent(event) {
++  addEvent(event, arrivalOrder) {
+     var _this2 = this;
+     return _asyncToGenerator(function* () {
+       if (_this2.relationEventIds.has(event.getId())) {
+@@ -142,6 +145,9 @@ export class Relations extends TypedEventEmitter {
+       if (event.isSending()) {
+         event.on(MatrixEventEvent.Status, _this2.onEventStatus);
+       }
++      var effectiveArrivalOrder = arrivalOrder !== null && arrivalOrder !== void 0 ? arrivalOrder : _this2.nextRelationArrivalOrder;
++      _this2.nextRelationArrivalOrder = Math.max(_this2.nextRelationArrivalOrder, effectiveArrivalOrder + 1);
++      _this2.relationArrivalOrder.set(event, effectiveArrivalOrder);
+       _this2.relations.add(event);
+       _this2.relationEventIds.add(event.getId());
+       if (_this2.relationType === RelationType.Annotation) {
+@@ -178,14 +184,14 @@ export class Relations extends TypedEventEmitter {
+   /**
+    * Get all relation events in this collection.
+    *
+-   * These are currently in the order of insertion to this collection, which
++   * These are currently in the order they reached relation aggregation, which
+    * won't match timeline order in the case of scrollback.
+    * TODO: Tweak `addEvent` to insert correctly for scrollback.
+    *
+-   * Relation events in insertion order.
++   * Relation events in aggregation arrival order.
+    */
+   getRelations() {
+-    return [...this.relations];
++    return [...this.relations].sort((left, right) => this.relationArrivalOrder.get(left) - this.relationArrivalOrder.get(right));
+   }
+   addAnnotationToAggregation(event) {
+     var _event$getRelation;
+@@ -320,13 +326,16 @@ export class Relations extends TypedEventEmitter {
    setTargetEvent(event) {
      var _this5 = this;
      return _asyncToGenerator(function* () {
@@ -348,10 +447,19 @@ index b02b81f..fc5fadc 100644
          }
        }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
-index 8394bc6..132010b 100644
+index 8394bc6..3fae0fa 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
-@@ -72,15 +72,17 @@ export class RelationsContainer {
+@@ -25,6 +25,8 @@ export class RelationsContainer {
+     // A tree of objects to access a set of related children for an event, as in:
+     // this.relations.get(parentEventId).get(relationType).get(relationEventType)
+     private relations = new Map<string, Map<RelationType | string, Map<EventType | string, Relations>>>();
++    private relationArrivalOrder = new WeakMap<MatrixEvent, number>();
++    private nextRelationArrivalOrder = 0;
+
+     public constructor(
+         private readonly client: MatrixClient,
+@@ -72,15 +74,17 @@ export class RelationsContainer {
       *
       * @param event - The event to check as relation target.
       */
@@ -372,7 +480,7 @@ index 8394bc6..132010b 100644
      }
 
      /**
-@@ -89,29 +91,35 @@ export class RelationsContainer {
+@@ -89,29 +93,41 @@ export class RelationsContainer {
       * @param event - The new child event to be aggregated.
       * @param timelineSet - The event timeline set within which to search for the related event if any.
       */
@@ -401,7 +509,12 @@ index 8394bc6..132010b 100644
 -
 -            this.aggregateChildEvent(event, timelineSet);
 -        };
--
++        let arrivalOrder = this.relationArrivalOrder.get(event);
++        if (arrivalOrder === undefined) {
++            arrivalOrder = this.nextRelationArrivalOrder++;
++            this.relationArrivalOrder.set(event, arrivalOrder);
++        }
+
 -        // If the event is currently encrypted, wait until it has been decrypted.
 +        // Wait for the clear event type before creating its relation collection.
 +        // Reuse the timeline resolver after decryption so roomless containers can
@@ -425,7 +538,7 @@ index 8394bc6..132010b 100644
          }
 
          const { event_id: relatesToEventId, rel_type: relationType } = relation;
-@@ -130,6 +138,7 @@ export class RelationsContainer {
+@@ -130,6 +146,7 @@ export class RelationsContainer {
          }
 
          let relationsWithEventType = relationsWithRelType.get(eventType);
@@ -433,7 +546,7 @@ index 8394bc6..132010b 100644
          if (!relationsWithEventType) {
              relationsWithEventType = new Relations(relationType!, eventType, this.client);
              relationsWithRelType.set(eventType, relationsWithEventType);
-@@ -138,12 +147,17 @@ export class RelationsContainer {
+@@ -138,12 +155,16 @@ export class RelationsContainer {
              const relatesToEvent =
                  timelineSet?.findEventById(relatesToEventId!) ??
                  room?.findEventById(relatesToEventId!) ??
@@ -447,18 +560,23 @@ index 8394bc6..132010b 100644
          }
 
 -        relationsWithEventType.addEvent(event);
-+        // addEvent mutates the insertion-ordered relation set before its first await.
-+        // Start it immediately so fire-and-forget callers and equal-timestamp edits
-+        // retain arrival order while target rebinding completes.
-+        const addEventUpdate = relationsWithEventType.addEvent(event);
++        // Pass the order reserved before decryption so equal-timestamp edits retain
++        // arrival order while target rebinding completes.
++        const addEventUpdate = relationsWithEventType.addEvent(event, arrivalOrder);
 +        return Promise.all([targetEventUpdate, addEventUpdate]).then(() => relationsWithEventType);
      }
  }
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..ce2116b 100644
+index 77ba3b3..8112e00 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
-@@ -52,6 +52,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -48,10 +48,13 @@ const matchesEventType = (eventType: string, targetEventType: string, altTargetE
+ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap> {
+     private relationEventIds = new Set<string>();
+     private relations = new Set<MatrixEvent>();
++    private relationArrivalOrder = new WeakMap<MatrixEvent, number>();
++    private nextRelationArrivalOrder = 0;
+     private annotationsByKey: Record<string, Set<MatrixEvent>> = {};
      private annotationsBySender: Record<string, Set<MatrixEvent>> = {};
      private sortedAnnotationsByKey: [string, Set<MatrixEvent>][] = [];
      private targetEvent: MatrixEvent | null = null;
@@ -466,7 +584,46 @@ index 77ba3b3..ce2116b 100644
      private creationEmitted = false;
      private replacementUpdateId = 0;
      private readonly client: MatrixClient;
-@@ -336,14 +337,17 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -77,7 +80,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+      *
+      * @param event - The new relation event to be added.
+      */
+-    public async addEvent(event: MatrixEvent): Promise<void> {
++    public async addEvent(event: MatrixEvent, arrivalOrder?: number): Promise<void> {
+         if (this.relationEventIds.has(event.getId()!)) {
+             return;
+         }
+@@ -102,6 +105,9 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+             event.on(MatrixEventEvent.Status, this.onEventStatus);
+         }
+
++        const effectiveArrivalOrder = arrivalOrder ?? this.nextRelationArrivalOrder;
++        this.nextRelationArrivalOrder = Math.max(this.nextRelationArrivalOrder, effectiveArrivalOrder + 1);
++        this.relationArrivalOrder.set(event, effectiveArrivalOrder);
+         this.relations.add(event);
+         this.relationEventIds.add(event.getId()!);
+
+@@ -162,14 +168,16 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+     /**
+      * Get all relation events in this collection.
+      *
+-     * These are currently in the order of insertion to this collection, which
++     * These are currently in the order they reached relation aggregation, which
+      * won't match timeline order in the case of scrollback.
+      * TODO: Tweak `addEvent` to insert correctly for scrollback.
+      *
+-     * Relation events in insertion order.
++     * Relation events in aggregation arrival order.
+      */
+     public getRelations(): MatrixEvent[] {
+-        return [...this.relations];
++        return [...this.relations].sort(
++            (left, right) => this.relationArrivalOrder.get(left)! - this.relationArrivalOrder.get(right)!,
++        );
+     }
+
+     private addAnnotationToAggregation(event: MatrixEvent): void {
+@@ -336,14 +344,17 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
       * @param targetEvent - the event the relations are related to.
       */
      public async setTargetEvent(event: MatrixEvent): Promise<void> {

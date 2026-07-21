@@ -4,14 +4,15 @@
 
 ### CINNY-126 - Render rapid thread edits before initialization (2026-07-21)
 
-- Status: the oversized PR #185 is being replaced by a minimal SDK patch and focused regression coverage.
+- Status: the oversized PR #185 is being replaced by a minimal SDK patch and focused regression coverage; review remediation and local validation are complete.
 - Symptom: a streaming MindRoom reply can remain stuck on its initial placeholder in the room overview when edits arrive before the thread timeline finishes initializing.
 - Root cause: pre-initialization thread handling aggregated reactions but deferred replacements, and pagination could replace the event object that an edit had targeted.
-- Fix: aggregate pre-initialization replacements immediately, preserve deterministic edit ordering, and rebind the winning replacement to the post-pagination event object.
+- Fix: aggregate pre-initialization replacements immediately, reserve edit arrival order before decryption, and rebind the winning replacement to the post-pagination event object.
 - The same path waits for encrypted edits to decrypt, serializes initialization, permits retry after failure, and reports rejected fire-and-forget aggregation.
 - Scope is limited to the `matrix-js-sdk` patch, one focused contract test file, and this Runbook entry; the replay laboratory, flight recorder, and diagnostic configuration from PR #185 are excluded.
-- Focused validation passes four tests covering rapid equal-timestamp edits, pagination target replacement, deferred decryption, rejected aggregation, and initialization retry.
-- Full validation passes all 448 Vitest files with 3,388 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Focused validation passes four tests covering rapid equal-timestamp edits, reversed encrypted-edit decryption, pagination target replacement, rejected aggregation, and initialization retry.
+- Full validation passes all 450 Vitest files with 3,400 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Independent exact-head review found that the original encrypted test passed the unchanged SDK and that equal-timestamp encrypted edits followed decryption completion order; arrival order is now reserved before decryption and the strengthened regression proves pre-pagination aggregation plus post-pagination rebinding.
 
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 
