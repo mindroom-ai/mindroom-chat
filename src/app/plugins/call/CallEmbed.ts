@@ -7,6 +7,7 @@ import {
   Room,
   RoomStateEvent,
 } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import {
   ClientWidgetApi,
   IRoomEvent,
@@ -47,6 +48,8 @@ export class CallEmbed {
   private eventsToFeed = new WeakSet<MatrixEvent>();
 
   private readonly disposables: Array<() => void> = [];
+
+  private disposed = false;
 
   static getIntent(dm: boolean, ongoing: boolean, video?: boolean): ElementCallIntent {
     if (dm && ongoing) {
@@ -252,10 +255,20 @@ export class CallEmbed {
     });
 
     // Attach listeners for feeding events - the underlying widget classes handle permissions for us
-    this.mx.on(ClientEvent.Event, this.onEvent.bind(this));
-    this.mx.on(MatrixEventEvent.Decrypted, this.onEventDecrypted.bind(this));
-    this.mx.on(RoomStateEvent.Events, this.onStateUpdate.bind(this));
-    this.mx.on(ClientEvent.ToDeviceEvent, this.onToDeviceEvent.bind(this));
+    const onEvent = this.onEvent.bind(this);
+    const onEventDecrypted = this.onEventDecrypted.bind(this);
+    const onStateUpdate = this.onStateUpdate.bind(this);
+    const onToDeviceEvent = this.onToDeviceEvent.bind(this);
+    this.mx.on(ClientEvent.Event, onEvent);
+    this.mx.on(MatrixEventEvent.Decrypted, onEventDecrypted);
+    this.mx.on(RoomStateEvent.Events, onStateUpdate);
+    this.mx.on(ClientEvent.ToDeviceEvent, onToDeviceEvent);
+    this.disposables.push(
+      () => this.mx.off(ClientEvent.Event, onEvent),
+      () => this.mx.off(MatrixEventEvent.Decrypted, onEventDecrypted),
+      () => this.mx.off(RoomStateEvent.Events, onStateUpdate),
+      () => this.mx.off(ClientEvent.ToDeviceEvent, onToDeviceEvent)
+    );
   }
 
   /**
@@ -264,18 +277,27 @@ export class CallEmbed {
    * @param opts
    */
   public dispose(): void {
-    this.disposables.forEach((disposable) => {
-      disposable();
-    });
-    this.callWidgetDriver.dispose();
-    this.call.stop();
-    this.container.removeChild(this.iframe);
-    this.control.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
 
-    this.mx.off(ClientEvent.Event, this.onEvent.bind(this));
-    this.mx.off(MatrixEventEvent.Decrypted, this.onEventDecrypted.bind(this));
-    this.mx.off(RoomStateEvent.Events, this.onStateUpdate.bind(this));
-    this.mx.off(ClientEvent.ToDeviceEvent, this.onToDeviceEvent.bind(this));
+    const attempt = (step: string, run: () => void): void => {
+      try {
+        run();
+      } catch (error) {
+        logger.warn(`[call-embed] failed to dispose ${step}`, error);
+      }
+    };
+
+    this.disposables.splice(0).forEach((disposable) => {
+      attempt('listener', disposable);
+    });
+    attempt('widget driver', () => this.callWidgetDriver.dispose());
+    attempt('widget transport', () => this.call.stop());
+    attempt('iframe load handler', () => {
+      this.iframe.onload = null;
+    });
+    attempt('iframe', () => this.container.removeChild(this.iframe));
+    attempt('call controls', () => this.control.dispose());
 
     // Clear internal state
     this.readUpToMap = {};
@@ -304,9 +326,13 @@ export class CallEmbed {
   }
 
   private async onToDeviceEvent(ev: MatrixEvent): Promise<void> {
-    await this.mx.decryptEventIfNeeded(ev);
-    if (ev.isDecryptionFailure()) return;
-    await this.call?.feedToDevice(ev.getEffectiveEvent() as IRoomEvent, ev.isEncrypted());
+    try {
+      await this.mx.decryptEventIfNeeded(ev);
+      if (this.disposed || ev.isDecryptionFailure()) return;
+      await this.call?.feedToDevice(ev.getEffectiveEvent() as IRoomEvent, ev.isEncrypted());
+    } catch (error) {
+      if (!this.disposed) logger.error('Error sending to-device event to widget: ', error);
+    }
   }
 
   /**

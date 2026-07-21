@@ -5,9 +5,11 @@ import { Room } from 'matrix-js-sdk';
 import {
   CallEmbedRefContextProvider,
   getCallEmbedViewportPlacement,
+  useCallJoined,
   useCallEmbedRef,
   useCallStart,
 } from './useCallEmbed';
+import { CallEmbed } from '../plugins/call';
 
 vi.mock('./useMatrixClient', () => ({
   useMatrixClient: () => ({}),
@@ -85,6 +87,34 @@ describe('useCallEmbedRef', () => {
         create(<RefConsumer />);
       });
     }).toThrow('CallEmbedRef is not provided!');
+  });
+});
+
+describe('useCallJoined', () => {
+  const makeEmbed = (joined: boolean): CallEmbed =>
+    ({
+      joined,
+      call: { on: vi.fn(), off: vi.fn() },
+    } as unknown as CallEmbed);
+
+  function JoinedStatus({ embed }: { embed: CallEmbed }) {
+    return <span>{useCallJoined(embed) ? 'joined' : 'joining'}</span>;
+  }
+
+  it('resets when a joined embed is replaced by an unjoined embed', () => {
+    const first = makeEmbed(true);
+    const replacement = makeEmbed(false);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<JoinedStatus embed={first} />);
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('joined');
+
+    act(() => {
+      renderer.update(<JoinedStatus embed={replacement} />);
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('joining');
   });
 });
 
