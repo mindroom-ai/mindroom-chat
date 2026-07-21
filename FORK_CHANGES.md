@@ -57,6 +57,7 @@
 - The two boundary regressions pass with the surrounding focused room-input suite, for 131 focused tests total.
 - Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
 - The full suite passes 446 of 447 files and 3344 of 3347 tests, with only the same three Xcode fixture failures, and independent review approved the ownership and encryption fixes with no half-refactor findings.
+- PR #190 review remediation removes the always-true voice-item identity guard, rejects four optional-chaining findings because the media and atom hooks have non-null contracts, and retains unconditional final voice cleanup because it owns atom release on every exit path.
 
 ### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
 

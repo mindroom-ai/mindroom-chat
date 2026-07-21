@@ -959,7 +959,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
           const eligibleCompanionItems = selectedFilesRef.current.filter(
             (item) =>
-              item !== fileItem &&
               !item.prepError &&
               !item.metadata.mindroomPasteAttachment &&
               Boolean(item.encInfo) === liveRoomEncrypted &&
