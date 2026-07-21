@@ -47,6 +47,11 @@ const getUserLocalpart = (userId: string): string => getMxIdLocalPart(userId) ??
 const normalizeQuery = (query: string): string =>
   query.trim().toLocaleLowerCase().replace(/^@/, '');
 
+export const getUserDirectoryQueryVariants = (query: string): string[] => {
+  const compactQuery = query.replace(/\s+/g, '');
+  return compactQuery.length >= 2 && compactQuery !== query ? [query, compactQuery] : [query];
+};
+
 const getPostPrefixLocalpart = (localpart: string): string =>
   localpart.startsWith(MINDROOM_AGENT_LOCALPART_PREFIX)
     ? localpart.slice(MINDROOM_AGENT_LOCALPART_PREFIX.length)
@@ -189,11 +194,7 @@ export const rankUsers = (
   // A spaced query must also rank space-less identities (`r 2 d 2` → `R2D2`),
   // where the added spaces can exceed the fuzzy threshold; each user keeps its
   // best result across the raw and compacted query forms.
-  const compactQuery = normalizedQuery.replace(/\s+/g, '');
-  const queries =
-    compactQuery.length >= 2 && compactQuery !== normalizedQuery
-      ? [normalizedQuery, compactQuery]
-      : [normalizedQuery];
+  const queries = getUserDirectoryQueryVariants(normalizedQuery);
 
   const fuse = getFuse(users);
   const bestResultByUserId = new Map<string, UserDirectoryFuseResult>();
