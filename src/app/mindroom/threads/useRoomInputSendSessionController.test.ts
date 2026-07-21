@@ -2,11 +2,12 @@ import React, { MutableRefObject, useEffect, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TUploadItem } from '../../state/room/roomInputDrafts';
+import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
 import {
+  RoomInputSendSessionError,
   StartRoomInputSendSessionOptions,
   useRoomInputSendSessionController,
 } from './useRoomInputSendSessionController';
@@ -99,6 +100,8 @@ const TestHarness = ({
   mx,
   editor,
   sendTypingStatus,
+  replyDraft,
+  clearReplyDraft,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -109,6 +112,8 @@ const TestHarness = ({
   };
   editor: { children: unknown[] };
   sendTypingStatus: ReturnType<typeof vi.fn>;
+  replyDraft?: IReplyDraft;
+  clearReplyDraft: ReturnType<typeof vi.fn>;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -125,8 +130,8 @@ const TestHarness = ({
     } as never,
     roomId: '!room:example.org',
     threadId: undefined,
-    replyDraft: undefined,
-    setReplyDraft: vi.fn(),
+    replyDraft,
+    clearReplyDraft,
     editor: editor as never,
     sendTypingStatus,
     selectedFilesRef,
@@ -168,7 +173,10 @@ const TestHarness = ({
 };
 
 const renderHarness = (
-  options: { onRoomMessageSent?: (eventId: string) => boolean | void } = {}
+  options: {
+    onRoomMessageSent?: (eventId: string) => boolean | void;
+    replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
+  } = {}
 ) => {
   let sentEvents = 0;
   let transactionIds = 0;
@@ -191,6 +199,7 @@ const renderHarness = (
     children: [{ type: 'paragraph', children: [{ text: 'caption draft' }] }],
   };
   const sendTypingStatus = vi.fn();
+  const clearReplyDraft = vi.fn();
   let api!: HarnessApi;
 
   act(() => {
@@ -199,6 +208,8 @@ const renderHarness = (
         mx,
         editor,
         sendTypingStatus,
+        replyDraft: options.replyDraft,
+        clearReplyDraft,
         onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
           api = nextApi;
@@ -207,7 +218,7 @@ const renderHarness = (
     );
   });
 
-  return { api, mx, editor, localEvents, sendTypingStatus };
+  return { api, mx, editor, localEvents, sendTypingStatus, clearReplyDraft };
 };
 
 describe('useRoomInputSendSessionController active session query', () => {
@@ -243,6 +254,101 @@ describe('useRoomInputSendSessionController active session query', () => {
 
     expect(api.hasActiveSendSession()).toBe(false);
     expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it('preserves the root and original error when a lifecycle-complete child send fails', async () => {
+    const { api, mx } = renderHarness();
+    const root = createFile('root.txt');
+    const voice = createFile('voice.m4a');
+    const sendFailure = new Error('voice send failed');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(voice)];
+    api.uploadsRef.current = [successUpload(root), successUpload(voice)];
+    mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' }).mockRejectedValueOnce(sendFailure);
+
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await api.startSendSession({ completeWithinCall: true });
+      } catch (error) {
+        failure = error;
+      }
+    });
+
+    expect(failure).toBeInstanceOf(RoomInputSendSessionError);
+    expect(failure).toMatchObject({
+      message: 'voice send failed',
+      rootEventId: '$root',
+      failedFile: voice,
+      sendCause: sendFailure,
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'root.txt',
+      'voice.m4a',
+    ]);
+    expect(api.hasActiveSendSession()).toBe(false);
+    expect(api.sendSessionFilesRef.current).toEqual([]);
+    expect(api.sendSessionUploadItemsRef.current).toEqual([]);
+  });
+
+  it('retries only a preserved-root cohort and keeps later files staged', async () => {
+    const { api, mx } = renderHarness();
+    const failedCompanion = createFile('failed.txt');
+    const waitingCompanion = createFile('waiting.txt');
+    const laterFile = createFile('later.txt');
+    const recoveryItems = [failedCompanion, waitingCompanion].map((file) => ({
+      ...createUploadItem(file),
+      metadata: {
+        markedAsSpoiler: false,
+        sendThreadId: '$attachment-root',
+      },
+    }));
+    api.selectedFilesRef.current = [...recoveryItems, createUploadItem(laterFile)];
+    api.uploadsRef.current = [
+      successUpload(failedCompanion),
+      successUpload(waitingCompanion),
+      successUpload(laterFile),
+    ];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'failed.txt',
+      'waiting.txt',
+    ]);
+    mx.sendMessage.mock.calls.forEach((call) => {
+      expect(call[1]).toMatchObject({
+        'm.relates_to': expect.objectContaining({
+          event_id: '$attachment-root',
+        }),
+      });
+    });
+    expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([laterFile]);
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('clears a consumed reply through the captured room context', async () => {
+    const replyDraft: IReplyDraft = {
+      userId: '@alice:example.org',
+      eventId: '$reply',
+      body: 'Original reply',
+    };
+    const { api, clearReplyDraft } = renderHarness({ replyDraft });
+    const file = createFile('reply.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(clearReplyDraft).toHaveBeenCalledWith({
+      roomId: '!room:example.org',
+      threadId: undefined,
+      replyDraft,
+    });
   });
 });
 

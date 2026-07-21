@@ -11,7 +11,9 @@ import {
   VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
 import {
+  getPendingVoiceSendRetryContext,
   getVoiceRecorderErrorMessage,
+  setPendingVoiceSendRetryContext,
   useVoiceRecorder,
   VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
@@ -709,6 +711,86 @@ describe('useVoiceRecorder', () => {
     expect(onSendRecording).toHaveBeenCalledOnce();
     expect(onSendRecording.mock.calls[0][1]).toBe(500);
     expect(stream.track.stop).toHaveBeenCalled();
+  });
+
+  it('resolves an in-flight send after unmount without parking a draft', async () => {
+    let resolveSend!: () => void;
+    const onSendRecording = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve;
+        })
+    );
+    const store = createStore();
+    const { renderer } = await renderHarness({ onSendRecording }, store);
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    let sendPromise!: Promise<boolean>;
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      sendPromise = recorderState.current!.send();
+      await Promise.resolve();
+    });
+
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    act(() => {
+      renderer.unmount();
+    });
+
+    let sent: boolean | undefined;
+    await act(async () => {
+      resolveSend();
+      sent = await sendPromise;
+    });
+
+    expect(sent).toBe(true);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+  });
+
+  it('parks an in-flight send failure after unmount with its recovery context', async () => {
+    let rejectSend!: (error: Error) => void;
+    const recoveryContext = createTestSendContext(ROOM_ID, '$attachment-root');
+    const sendFailure = setPendingVoiceSendRetryContext(
+      new Error('voice send failed'),
+      recoveryContext
+    );
+    const onSendRecording = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject;
+        })
+    );
+    const store = createStore();
+    const { renderer } = await renderHarness({ onSendRecording }, store);
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    let sendPromise!: Promise<boolean>;
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      sendPromise = recorderState.current!.send();
+      await Promise.resolve();
+    });
+
+    expect(getPendingVoiceSendRetryContext(sendFailure)).toBe(recoveryContext);
+    act(() => {
+      renderer.unmount();
+    });
+
+    let sent: boolean | undefined;
+    await act(async () => {
+      rejectSend(sendFailure);
+      sent = await sendPromise;
+    });
+
+    expect(sent).toBe(false);
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
+      errorMessage: 'voice send failed',
+      context: recoveryContext,
+    });
   });
 
   it('requests send ownership before the delayed recorder stop event builds a voice file', async () => {
