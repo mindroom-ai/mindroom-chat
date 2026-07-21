@@ -10,7 +10,8 @@
 - Healthy widget Hangup or Close keeps the existing immediate disposal and ephemeral agent-room cleanup path.
 - Ending before the widget joins now enters that same finalizer immediately without sending a hangup request, so an ephemeral agent room cannot skip cleanup.
 - The fallback clears only the same still-current embed, which disposes the iframe and then runs the same existing agent-room cleanup.
-- MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, call-start changes, and unrelated disposal hardening stay out of this PR.
+- `CallEmbed.dispose()` now removes the exact registered Matrix listeners, runs once, attempts every teardown step independently, and consumes a to-device callback that resumes over a stopped transport.
+- MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, and broad lifecycle coordination stay out of this PR.
 - Validation passes 16 focused call lifecycle tests, 3,369 full-suite tests, typecheck, production build, ESLint with only 17 pre-existing warnings, Prettier, and one independent scope review with no findings.
 
 ### Expose repository skills to Codex (2026-07-21)
