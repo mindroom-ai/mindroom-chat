@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Keep Matrix IDs literal inside code (2026-07-22)
+
+- Status: implementation, review remediation, full local validation, and independent re-review are complete.
+- Formatted messages could contain generated Matrix user links inside inline or fenced code, and the custom HTML renderer converted those links into display-name mentions.
+- Code descendants now suppress linkification and mention rendering, flatten ordinary anchors, and recover the literal Matrix user ID from generated `matrix.to` user links.
+- Fenced-code Copy uses the same Matrix user-ID recovery, so copied code matches the literal value shown on screen.
+- Matrix user links outside code retain the existing display-name mention behavior.
+- Focused coverage verifies plain text, single-backtick inline code, triple-backtick fenced code, and fenced-code clipboard behavior through the production custom HTML parser.
+- The focused parser suite passes 24 tests, and the full Vitest suite passes all 449 files and 3,398 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+- Initial independent review found that fenced-code Copy still returned the generated display label; the shared extraction fix and clipboard regression close that gap, and independent re-review approved the final diff with no findings.
+
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 
 - Status: the narrow PR #192 follow-up preserves only independently useful lifecycle fixes from PR #189, integrates current `dev`, and is locally complete; MatrixRTC and room-retirement machinery remain excluded.
