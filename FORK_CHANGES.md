@@ -4,7 +4,7 @@
 
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
-- Status: implementation, review remediation, full local validation, and independent re-review are complete.
+- Status: implementation, review remediation, full local validation, and independent re-review are complete; PR #194 is open and awaiting required AI reviews.
 - Formatted messages could contain generated Matrix user links inside inline or fenced code, and the custom HTML renderer converted those links into display-name mentions.
 - Code descendants now suppress linkification and mention rendering, flatten ordinary anchors, and recover the literal Matrix user ID from generated `matrix.to` user links.
 - Fenced-code Copy uses the same Matrix user-ID recovery, so copied code matches the literal value shown on screen.
