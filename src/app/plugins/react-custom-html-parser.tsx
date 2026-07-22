@@ -48,6 +48,15 @@ const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 const EMOJI_REG_G = new RegExp(`${URL_NEG_LB}(${EMOJI_PATTERN})`, 'g');
 const TABLE_STRUCTURE_TAGS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
 
+const hasAncestorTag = (node: ChildNode, tagName: string): boolean => {
+  let ancestor = node.parent;
+  while (ancestor) {
+    if (ancestor instanceof Element && ancestor.name === tagName) return true;
+    ancestor = ancestor.parent;
+  }
+  return false;
+};
+
 export const LINKIFY_OPTS: LinkifyOpts = {
   attributes: {
     target: '_blank',
@@ -469,19 +478,27 @@ export const getReactCustomHtmlParser = (
           }
         }
 
-        if (name === 'a' && testMatrixTo(tryDecodeURIComponent(props.href))) {
-          const content = children.find((child) => !(child instanceof DOMText))
-            ? undefined
-            : children.map((c) => (c instanceof DOMText ? c.data : '')).join();
+        if (name === 'a') {
+          const href = tryDecodeURIComponent(props.href);
 
-          const mention = renderMatrixMention(
-            mx,
-            roomId,
-            tryDecodeURIComponent(props.href),
-            makeMentionCustomProps(params.handleMentionClick, content)
-          );
+          if (hasAncestorTag(domNode, 'code')) {
+            return <>{domToReact(children, opts)}</>;
+          }
 
-          if (mention) return mention;
+          if (testMatrixTo(href)) {
+            const content = children.find((child) => !(child instanceof DOMText))
+              ? undefined
+              : children.map((c) => (c instanceof DOMText ? c.data : '')).join();
+
+            const mention = renderMatrixMention(
+              mx,
+              roomId,
+              href,
+              makeMentionCustomProps(params.handleMentionClick, content)
+            );
+
+            if (mention) return mention;
+          }
         }
 
         if (name === 'span' && 'data-mx-spoiler' in props) {
@@ -536,8 +553,9 @@ export const getReactCustomHtmlParser = (
           return null;
         }
 
-        const linkify = parentName !== 'code' && parentName !== 'a';
-        const parseMath = parentName !== 'code' && parentName !== 'pre' && parentName !== 'a';
+        const insideCode = hasAncestorTag(domNode, 'code');
+        const linkify = !insideCode && parentName !== 'a';
+        const parseMath = !insideCode && parentName !== 'pre' && parentName !== 'a';
 
         if (parseMath) {
           return (

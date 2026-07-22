@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Keep Matrix IDs literal inside code (2026-07-22)
+
+- Status: PR #194 is open and ready for human review after full local validation, independent re-review, exact-head Greptile approval, and green PR checks.
+- Formatted messages could contain generated Matrix user links inside inline or fenced code, and the custom HTML renderer converted those links into display-name mentions.
+- Code descendants now suppress linkification and mention rendering while flattening anchors to their exact child text, so generated literal Matrix-ID labels stay raw and intentional custom code labels remain unchanged.
+- Fenced-code Copy uses the same literal child text shown on screen.
+- Matrix user links outside code retain the existing display-name mention behavior.
+- Focused coverage verifies plain text, single-backtick inline code, triple-backtick fenced code, and fenced-code clipboard behavior through the production custom HTML parser.
+- The focused parser suite passes 25 tests, and the full Vitest suite passes all 449 files and 3,399 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+- Initial independent review found that fenced-code display and Copy could diverge; clipboard regression coverage now requires both surfaces to preserve the same literal child text, and independent re-review approved that invariant with no findings.
+- PR #194 Greptile review found that href-based ID recovery rewrote intentional custom Matrix-link labels inside code; preserving exact anchor child text fixes that code-literal invariant while retaining raw generated IDs.
+- Exact-head Greptile re-review reports 5/5 confidence with no blocking issues, and the Android, main PR, and Docker checks pass.
+
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 
 - Status: the narrow PR #192 follow-up preserves only independently useful lifecycle fixes from PR #189, integrates current `dev`, and is locally complete; MatrixRTC and room-retirement machinery remain excluded.
