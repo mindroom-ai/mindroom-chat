@@ -4,15 +4,16 @@
 
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
-- Status: implementation, review remediation, full local validation, and independent re-review are complete; PR #194 is open and awaiting required AI reviews.
+- Status: PR #194 initial Greptile finding is remediated with full local validation and independent re-review; exact-head Greptile re-review remains.
 - Formatted messages could contain generated Matrix user links inside inline or fenced code, and the custom HTML renderer converted those links into display-name mentions.
-- Code descendants now suppress linkification and mention rendering, flatten ordinary anchors, and recover the literal Matrix user ID from generated `matrix.to` user links.
-- Fenced-code Copy uses the same Matrix user-ID recovery, so copied code matches the literal value shown on screen.
+- Code descendants now suppress linkification and mention rendering while flattening anchors to their exact child text, so generated literal Matrix-ID labels stay raw and intentional custom code labels remain unchanged.
+- Fenced-code Copy uses the same literal child text shown on screen.
 - Matrix user links outside code retain the existing display-name mention behavior.
 - Focused coverage verifies plain text, single-backtick inline code, triple-backtick fenced code, and fenced-code clipboard behavior through the production custom HTML parser.
-- The focused parser suite passes 24 tests, and the full Vitest suite passes all 449 files and 3,398 tests.
+- The focused parser suite passes 25 tests, and the full Vitest suite passes all 449 files and 3,399 tests.
 - Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
-- Initial independent review found that fenced-code Copy still returned the generated display label; the shared extraction fix and clipboard regression close that gap, and independent re-review approved the final diff with no findings.
+- Initial independent review found that fenced-code display and Copy could diverge; clipboard regression coverage now requires both surfaces to preserve the same literal child text, and independent re-review approved that invariant with no findings.
+- PR #194 Greptile review found that href-based ID recovery rewrote intentional custom Matrix-link labels inside code; preserving exact anchor child text fixes that code-literal invariant while retaining raw generated IDs.
 
 ### Minimal bounded fallback for a wedged call iframe (2026-07-21)
 

@@ -251,11 +251,6 @@ const extractTextFromChildren = (nodes: ChildNode[]): string => {
   nodes.forEach((node) => {
     if (node.type === 'text' && typeof node.data === 'string') {
       text += node.data;
-    } else if (node instanceof Element && node.name === 'a') {
-      const href = node.attribs.href;
-      const userId =
-        typeof href === 'string' ? parseMatrixToUser(tryDecodeURIComponent(href)) : null;
-      text += userId ?? extractTextFromChildren(node.children);
     } else if (Array.isArray((node as { children?: unknown }).children)) {
       text += extractTextFromChildren((node as { children: ChildNode[] }).children);
     }
@@ -487,8 +482,7 @@ export const getReactCustomHtmlParser = (
           const href = tryDecodeURIComponent(props.href);
 
           if (hasAncestorTag(domNode, 'code')) {
-            const userId = parseMatrixToUser(href);
-            return <>{userId ?? domToReact(children, opts)}</>;
+            return <>{domToReact(children, opts)}</>;
           }
 
           if (testMatrixTo(href)) {
