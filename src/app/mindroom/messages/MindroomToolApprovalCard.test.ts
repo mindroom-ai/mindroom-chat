@@ -1,12 +1,9 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
-import {
-  MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
-  ToolApprovalData,
-} from './toolApproval';
+import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
 const sendEventMock = vi.fn();
 
@@ -28,7 +25,11 @@ vi.mock('folds', () => ({
       [key: string]: unknown;
     }
   >(({ children, onClick, ...props }, ref) =>
-    React.createElement('button', { ...props, onClick, ref, type: props.type ?? 'button' }, children)
+    React.createElement(
+      'button',
+      { ...props, onClick, ref, type: props.type ?? 'button' },
+      children
+    )
   ),
   Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
   Icons: {
@@ -47,7 +48,8 @@ vi.mock('folds', () => ({
     }
   >(({ onChange, ...props }, ref) => React.createElement('input', { ...props, onChange, ref })),
   Spinner: () => React.createElement('span', null, 'spinner'),
-  Text: ({ as: Tag = 'span', children, ...props }: any) => React.createElement(Tag, props, children),
+  Text: ({ as: Tag = 'span', children, ...props }: any) =>
+    React.createElement(Tag, props, children),
 }));
 
 vi.mock('./MindroomToolApprovalCard.css.ts', () => ({
@@ -92,7 +94,7 @@ const pendingApproval: ToolApprovalData = {
   requesterId: '@alice:example.org',
   status: 'pending',
   requestedAt: '2026-04-10T12:00:00Z',
-  expiresAt: '2026-04-17T12:00:00Z',
+  expiresAt: '2999-04-17T12:00:00Z',
   threadId: '$thread-root',
   resolvedAt: null,
   resolvedBy: null,
@@ -149,6 +151,149 @@ describe('MindroomToolApprovalCard', () => {
   beforeEach(() => {
     sendEventMock.mockReset();
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders an already-expired pending approval as expired without actions', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T12:00:00Z');
+
+    const renderer = renderCard({
+      ...pendingApproval,
+      expiresAt: '2026-04-17T12:00:00Z',
+    });
+    const text = getNodeText(renderer.root);
+    const buttonLabels = renderer.root.findAllByType('button').map((node) => getNodeText(node));
+
+    expect(text).toContain('Approval expired');
+    expect(buttonLabels.some((label) => label.includes('Approve'))).toBe(false);
+    expect(buttonLabels.some((label) => label.includes('Deny'))).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('keeps a future pending approval actionable', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T11:59:59Z');
+
+    const renderer = renderCard({
+      ...pendingApproval,
+      expiresAt: '2026-04-17T12:00:00Z',
+    });
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('Pending approval');
+    expect(findButtonByText(renderer.root, 'Approve')).toBeDefined();
+    expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
+
+    renderer.unmount();
+  });
+
+  it('expires a mounted pending approval when its deadline passes', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T11:59:59Z');
+
+    let renderer!: ReturnType<typeof renderCard>;
+    act(() => {
+      renderer = renderCard({
+        ...pendingApproval,
+        expiresAt: '2026-04-17T12:00:00Z',
+      });
+    });
+
+    expect(getNodeText(renderer.root)).toContain('Pending approval');
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    const text = getNodeText(renderer.root);
+    const buttonLabels = renderer.root.findAllByType('button').map((node) => getNodeText(node));
+
+    expect(text).toContain('Approval expired');
+    expect(buttonLabels.some((label) => label.includes('Approve'))).toBe(false);
+    expect(buttonLabels.some((label) => label.includes('Deny'))).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it.each([
+    ['approved', 'Approved by @ops:example.org'],
+    ['denied', 'Denied by @ops:example.org'],
+  ] as const)('keeps the terminal %s server state authoritative', (status, expectedText) => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T12:00:00Z');
+
+    const renderer = renderCard({
+      ...pendingApproval,
+      status,
+      expiresAt: '2026-04-17T11:00:00Z',
+      resolvedAt: '2026-04-17T11:30:00Z',
+      resolvedBy: '@ops:example.org',
+    });
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain(expectedText);
+    expect(text).not.toContain('Approval expired');
+
+    renderer.unmount();
+  });
+
+  it('keeps the terminal expired server state authoritative before the deadline', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T12:00:00Z');
+
+    const renderer = renderCard({
+      ...pendingApproval,
+      status: 'expired',
+      expiresAt: '2026-04-17T13:00:00Z',
+    });
+    const buttonLabels = renderer.root.findAllByType('button').map((node) => getNodeText(node));
+
+    expect(getNodeText(renderer.root)).toContain('Approval expired');
+    expect(buttonLabels.some((label) => label.includes('Approve'))).toBe(false);
+    expect(buttonLabels.some((label) => label.includes('Deny'))).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('does not submit when an action is clicked after effective expiry', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-17T11:59:59Z');
+
+    const renderer = renderCard({
+      ...pendingApproval,
+      expiresAt: '2026-04-17T12:00:00Z',
+    });
+    const approveClick = findButtonByText(renderer.root, 'Approve').props.onClick;
+
+    vi.setSystemTime('2026-04-17T12:00:00Z');
+    act(() => {
+      approveClick();
+    });
+
+    expect(sendEventMock).not.toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
+  it.each(['not-a-timestamp', '0', '2026-02-30T12:00:00Z'])(
+    'keeps a pending approval with invalid expiry timestamp %s actionable',
+    (expiresAt) => {
+      const renderer = renderCard({
+        ...pendingApproval,
+        expiresAt,
+      });
+
+      expect(getNodeText(renderer.root)).toContain('Pending approval');
+      expect(findButtonByText(renderer.root, 'Approve')).toBeDefined();
+      expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
+
+      renderer.unmount();
+    }
+  );
 
   it('renders pending approvals with action buttons', () => {
     const renderer = renderCard();
@@ -424,10 +569,7 @@ describe('MindroomToolApprovalCard', () => {
       denyTrigger?: { focus: ReturnType<typeof vi.fn> };
     } = {};
 
-    const createNodeMock = (element: {
-      props: { [key: string]: unknown };
-      type: string;
-    }) => {
+    const createNodeMock = (element: { props: { [key: string]: unknown }; type: string }) => {
       if (element.type === 'button') {
         const label = getReactNodeText(element.props.children as React.ReactNode);
         const node = { focus: vi.fn() };
@@ -443,10 +585,7 @@ describe('MindroomToolApprovalCard', () => {
         return node;
       }
 
-      if (
-        element.type === 'input' &&
-        element.props['aria-label'] === 'Deny reason (optional)'
-      ) {
+      if (element.type === 'input' && element.props['aria-label'] === 'Deny reason (optional)') {
         const node = { focus: vi.fn() };
         nodeMocks.denyInput = node;
         return node;

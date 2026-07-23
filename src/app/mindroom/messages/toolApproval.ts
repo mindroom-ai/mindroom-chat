@@ -43,6 +43,63 @@ const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
   'expired',
 ]);
 
+const RFC3339_TIMESTAMP =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
+
+const getDaysInMonth = (year: number, month: number): number => {
+  if (month === 2) {
+    const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return isLeapYear ? 29 : 28;
+  }
+
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+};
+
+export const parseToolApprovalExpiryTimestamp = (value: string): number | undefined => {
+  const match = RFC3339_TIMESTAMP.exec(value);
+  if (!match) return undefined;
+
+  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const offsetHour = match[7] === undefined ? 0 : Number(match[7]);
+  const offsetMinute = match[8] === undefined ? 0 : Number(match[8]);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > getDaysInMonth(year, month) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return undefined;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export const getEffectiveToolApprovalStatus = (
+  status: ToolApprovalStatus,
+  expiresAt: string,
+  currentTime = Date.now()
+): ToolApprovalStatus => {
+  if (status !== 'pending') return status;
+
+  const expiresTs = parseToolApprovalExpiryTimestamp(expiresAt);
+  if (expiresTs === undefined) return status;
+
+  return expiresTs <= currentTime ? 'expired' : status;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -54,10 +111,7 @@ const getApprovalCandidates = (content: Record<string, unknown>): Record<string,
   return newContent ? [newContent, content] : [content];
 };
 
-const pickCandidateValue = (
-  content: Record<string, unknown>,
-  key: string
-): unknown | undefined => {
+const pickCandidateValue = (content: Record<string, unknown>, key: string): unknown | undefined => {
   const candidates = getApprovalCandidates(content);
 
   for (let i = 0; i < candidates.length; i += 1) {
