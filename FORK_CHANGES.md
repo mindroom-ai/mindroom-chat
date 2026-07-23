@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Default to Simple Mode with expanded long messages (2026-07-23)
+
+- Status: implementation, regression coverage, full local validation, and independent re-review are complete.
+- Accounts without explicit preferences now start in Simple Mode and show long messages expanded.
+- Explicit stored `true` or `false` values remain authoritative, so existing user choices do not change.
+- Missing, malformed, and non-boolean account-data values use the new defaults.
+- Both defaults remain independently configurable through Settings → General → Interface and continue to roam through `io.mindroom.settings`.
+- Tests that exercise advanced-only controls explicitly opt into full mode instead of depending on the application default.
+- Focused validation passes 28 settings, sidebar, and command-palette tests.
+- The full Vitest suite passes all 449 files and 3,398 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Independent zero-tolerance review and exact-diff re-review found no issues.
+
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
 - Status: PR #194 is open and ready for human review after full local validation, independent re-review, exact-head Greptile approval, and green PR checks.
@@ -284,7 +297,7 @@
 
 - Status: implementation, focused regression coverage, full local validation, real Docker Matrix plus production Chromium validation, and independent second self-review are complete.
 - Settings → General → Interface now offers an account-level option to expand long messages by default instead of folding them behind Show more.
-- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices and malformed account data keeps the current folded default.
+- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices; since 2026-07-23, missing or malformed values use the expanded default.
 - The preference supplies the timeline expansion baseline while per-message Show more and Show less choices plus the expand-all control remain higher-priority overrides.
 - The first live mid-thread toggle reproduced the scrolling concern as a 785 px displacement of the same visible message.
 - Bulk baseline changes now capture the centered visible message, fall back to a partially visible oversized message when no row fits inside the viewport, restore it before paint when mounted rows change height, and absorb the virtualizer's later ResizeObserver measurements for a bounded 30-frame window.
@@ -1715,10 +1728,10 @@ A per-account "Simple Mode" switch (Settings → General → Interface) that str
 Stored in Matrix account data under `io.mindroom.settings` — the fork's global dictionary for account-level MindRoom settings — so it roams across devices, unlike the localStorage-backed `mindroomSettingsAtom`.
 
 STORE.
-`mindroomAccountSettings.ts` owns the event type, the sanitizer (strict-boolean `simpleMode`, defaults over garbage — truthy junk from another client must not strip the UI), and a patch-merge that preserves unknown keys so an older client never destroys settings written by a newer one.
+`mindroomAccountSettings.ts` owns the event type, the sanitizer (strict-boolean preferences with defaults over garbage), and a patch-merge that preserves unknown keys so an older client never destroys settings written by a newer one.
 Future account-level settings should be added to this dictionary, not new event types.
 READ PATH IS A BOUND ATOM, NOT useAccountData: the first implementation read via `useAccountData` and made every `useSimpleMode` consumer require a Matrix client, breaking 118 component tests whose mock clients have no account-data surface.
-`useBindMindroomAccountSettingsAtom` (registered in `useBindAtoms`, the ClientBindAtoms pattern next to `mDirectAtom`) seeds a plain jotai atom unconditionally (account switches reset stale values) and tracks `ClientEvent.AccountData`; readers are client-free and default to the full interface.
+`useBindMindroomAccountSettingsAtom` (registered in `useBindAtoms`, the ClientBindAtoms pattern next to `mDirectAtom`) seeds a plain jotai atom unconditionally (account switches reset stale values) and tracks `ClientEvent.AccountData`; readers are client-free and, since 2026-07-23, default to Simple Mode.
 The write path (`useSetMindroomAccountSettings`) merges over raw stored content via `mx.setAccountData`.
 js-sdk 41.7 resolves `setAccountData` only after the sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an optimistic pending value and hands back to the store when the write settles.
 

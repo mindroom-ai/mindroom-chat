@@ -21,8 +21,8 @@ export type MindroomAccountSettings = {
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: MindroomAccountSettings = {
-  simpleMode: false,
-  expandLongMessagesByDefault: false,
+  simpleMode: true,
+  expandLongMessagesByDefault: true,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -36,8 +36,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const sanitizeMindroomAccountSettings = (content: unknown): MindroomAccountSettings => {
   if (!isRecord(content)) return DEFAULT_MINDROOM_ACCOUNT_SETTINGS;
   return {
-    simpleMode: content.simpleMode === true,
-    expandLongMessagesByDefault: content.expandLongMessagesByDefault === true,
+    simpleMode:
+      typeof content.simpleMode === 'boolean'
+        ? content.simpleMode
+        : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode,
+    expandLongMessagesByDefault:
+      typeof content.expandLongMessagesByDefault === 'boolean'
+        ? content.expandLongMessagesByDefault
+        : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault,
   };
 };
 
