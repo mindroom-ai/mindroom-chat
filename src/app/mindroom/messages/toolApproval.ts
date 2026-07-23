@@ -44,36 +44,40 @@ const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
 ]);
 
 const RFC3339_TIMESTAMP =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
-
-const getDaysInMonth = (year: number, month: number): number => {
-  if (month === 2) {
-    const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    return isLeapYear ? 29 : 28;
-  }
-
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-};
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
 
 export const parseToolApprovalExpiryTimestamp = (value: string): number | undefined => {
   const match = RFC3339_TIMESTAMP.exec(value);
   if (!match) return undefined;
 
-  const [, yearValue, monthValue, dayValue, hourValue, minuteValue, secondValue] = match;
+  const [
+    ,
+    yearValue,
+    monthValue,
+    dayValue,
+    hourValue,
+    minuteValue,
+    secondValue,
+    fractionValue,
+    timezoneValue,
+    offsetSignValue,
+    offsetHourValue,
+    offsetMinuteValue,
+  ] = match;
   const year = Number(yearValue);
   const month = Number(monthValue);
   const day = Number(dayValue);
   const hour = Number(hourValue);
   const minute = Number(minuteValue);
   const second = Number(secondValue);
-  const offsetHour = match[7] === undefined ? 0 : Number(match[7]);
-  const offsetMinute = match[8] === undefined ? 0 : Number(match[8]);
+  const millisecond = Number((fractionValue ?? '').padEnd(3, '0').slice(0, 3));
+  const offsetHour = Number(offsetHourValue ?? 0);
+  const offsetMinute = Number(offsetMinuteValue ?? 0);
 
   if (
     month < 1 ||
     month > 12 ||
     day < 1 ||
-    day > getDaysInMonth(year, month) ||
     hour > 23 ||
     minute > 59 ||
     second > 59 ||
@@ -83,7 +87,24 @@ export const parseToolApprovalExpiryTimestamp = (value: string): number | undefi
     return undefined;
   }
 
-  const parsed = Date.parse(value);
+  // Avoid Date.parse because the backend emits sub-millisecond fractions, whose support varies
+  // between browser engines.
+  const wallClockDate = new Date(0);
+  wallClockDate.setUTCFullYear(year, month - 1, day);
+  wallClockDate.setUTCHours(hour, minute, second, millisecond);
+
+  if (
+    wallClockDate.getUTCFullYear() !== year ||
+    wallClockDate.getUTCMonth() !== month - 1 ||
+    wallClockDate.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+
+  const offsetDirection = offsetSignValue === '-' ? -1 : 1;
+  const offsetMilliseconds =
+    timezoneValue === 'Z' ? 0 : offsetDirection * (offsetHour * 60 + offsetMinute) * 60_000;
+  const parsed = wallClockDate.getTime() - offsetMilliseconds;
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 

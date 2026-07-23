@@ -6,6 +6,7 @@ import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApproval,
   parseToolApprovalContent,
+  parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
 
 const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOOL_APPROVAL_EVENT) =>
@@ -17,6 +18,31 @@ const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOO
     sender: '@alice:example.org',
     type,
   });
+
+describe('parseToolApprovalExpiryTimestamp', () => {
+  it('parses sub-millisecond fractions and numeric offsets deterministically', () => {
+    const expected = Date.UTC(2026, 3, 26, 2, 46, 29, 899);
+
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T02:46:29.899252+00:00')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T04:16:29.899252+01:30')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-25T21:16:29.899252-05:30')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T02:46:29.8Z')).toBe(
+      Date.UTC(2026, 3, 26, 2, 46, 29, 800)
+    );
+  });
+
+  it('rejects invalid calendar and offset values', () => {
+    [
+      'not-a-timestamp',
+      '0',
+      '2026-02-30T12:00:00Z',
+      '2026-04-26T02:46:29+24:00',
+      '2026-04-26T02:46:29+00:60',
+    ].forEach((value) => {
+      expect(parseToolApprovalExpiryTimestamp(value)).toBeUndefined();
+    });
+  });
+});
 
 describe('parseToolApproval', () => {
   it('parses a pending approval event', () => {
@@ -199,12 +225,7 @@ describe('parseToolApproval', () => {
 
   it('builds Matrix approval response content with thread reply metadata', () => {
     expect(
-      buildToolApprovalResponseContent(
-        'denied',
-        '$thread-root',
-        '$approval',
-        'Needs human review'
-      )
+      buildToolApprovalResponseContent('denied', '$thread-root', '$approval', 'Needs human review')
     ).toEqual({
       status: 'denied',
       reason: 'Needs human review',

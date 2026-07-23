@@ -25,9 +25,10 @@
 - The submission gate re-checks expiry synchronously, so a delayed render or retained click handler cannot send a response after the deadline.
 - Approved, denied, and expired server edits remain authoritative, while invalid timestamps retain the existing pending behavior.
 - Expiry parsing requires a calendar-valid RFC 3339 timestamp, so permissive JavaScript coercions such as `0` and impossible dates cannot accidentally expire a card.
+- RFC 3339 fields, sub-millisecond fractions, and numeric offsets are converted directly instead of delegated to browser `Date.parse`, keeping production timestamps consistent across engines.
 - Scope stays inside the fork-owned tool-approval parser, card, focused tests, and this Runbook entry.
-- Focused approval parsing and card coverage passes 28 tests.
-- The full Vitest suite passes all 449 files and 3,408 tests.
+- Focused approval parsing and card coverage passes 30 tests.
+- The full Vitest suite passes all 449 files and 3,410 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, targeted ESLint, and `git diff --check` pass.
 - Full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent review found the initial permissive timestamp parse and stale focused-test count; both are fixed, and independent re-review approved the timer, terminal-state authority, action race guard, invalid fallback, tests, and scope with no remaining findings.
