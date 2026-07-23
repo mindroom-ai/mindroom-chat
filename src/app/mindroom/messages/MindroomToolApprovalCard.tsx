@@ -6,7 +6,9 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import {
   buildToolApprovalResponseContent,
+  getEffectiveToolApprovalStatus,
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+  parseToolApprovalExpiryTimestamp,
   ToolApprovalData,
 } from './toolApproval';
 import * as css from './MindroomToolApprovalCard.css';
@@ -23,6 +25,8 @@ const getTimestamp = (value: string | null): number | undefined => {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 };
+
+const MAX_TIMEOUT_DELAY = 2_147_483_647;
 
 const getActionErrorMessage = (error: unknown): string =>
   error instanceof Error && error.message
@@ -80,9 +84,12 @@ export function MindroomToolApprovalCard({
   const confirmDenyButtonRef = useRef<HTMLButtonElement>(null);
   const restoreDenyTriggerFocusRef = useRef(false);
   const requestedTs = getTimestamp(approval.requestedAt);
+  const expiresTs = parseToolApprovalExpiryTimestamp(approval.expiresAt);
   const resolvedTs = getTimestamp(approval.resolvedAt);
   const requestedRelative = useRelativeTime(requestedTs);
   const resolvedRelative = useRelativeTime(resolvedTs);
+  const [expiryCheckVersion, setExpiryCheckVersion] = useState(0);
+  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, expiresTs);
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
   const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
   const argumentsText = useMemo(
@@ -111,8 +118,23 @@ export function MindroomToolApprovalCard({
 
   const submitting = requestState.status === AsyncStatus.Loading;
   const submitted = requestState.status === AsyncStatus.Success;
-  const disableActions = submitting || submitted || !canSendResponse;
-  const displayStatus = approval.status === 'pending' && submitted ? 'submitted' : approval.status;
+  const disableActions =
+    effectiveStatus !== 'pending' || submitting || submitted || !canSendResponse;
+  const displayStatus = effectiveStatus === 'pending' && submitted ? 'submitted' : effectiveStatus;
+
+  useEffect(() => {
+    if (approval.status !== 'pending' || expiresTs === undefined) return undefined;
+
+    const timeUntilExpiry = expiresTs - Date.now();
+    if (timeUntilExpiry <= 0) return undefined;
+
+    const timeoutId = setTimeout(
+      () => setExpiryCheckVersion((version) => version + 1),
+      Math.min(timeUntilExpiry, MAX_TIMEOUT_DELAY)
+    );
+
+    return () => clearTimeout(timeoutId);
+  }, [approval.status, expiresTs, expiryCheckVersion]);
 
   useEffect(() => {
     if (requestState.status === AsyncStatus.Error) {
@@ -130,13 +152,13 @@ export function MindroomToolApprovalCard({
   }, [requestState.status]);
 
   useEffect(() => {
-    if (isResolvedApprovalStatus(approval.status)) {
+    if (isResolvedApprovalStatus(effectiveStatus)) {
       setErrorMessage(undefined);
     }
-  }, [approval.status]);
+  }, [effectiveStatus]);
 
   useEffect(() => {
-    if (!showDenyForm || approval.status !== 'pending' || submitted) return;
+    if (!showDenyForm || effectiveStatus !== 'pending' || submitted) return;
 
     if (denyReasonInputRef.current) {
       denyReasonInputRef.current.focus();
@@ -144,7 +166,7 @@ export function MindroomToolApprovalCard({
     }
 
     confirmDenyButtonRef.current?.focus();
-  }, [approval.status, showDenyForm, submitted]);
+  }, [effectiveStatus, showDenyForm, submitted]);
 
   useEffect(() => {
     if (showDenyForm || !restoreDenyTriggerFocusRef.current) return;
@@ -154,13 +176,19 @@ export function MindroomToolApprovalCard({
   }, [showDenyForm]);
 
   const cardClassName = classNames(css.Card, {
-    [css.CardApproved]: approval.status === 'approved',
-    [css.CardDenied]: approval.status === 'denied',
-    [css.CardExpired]: approval.status === 'expired',
+    [css.CardApproved]: effectiveStatus === 'approved',
+    [css.CardDenied]: effectiveStatus === 'denied',
+    [css.CardExpired]: effectiveStatus === 'expired',
   });
 
   const submitApprovalAction = (action: 'approve' | 'deny', reason?: string) => {
-    if (approval.status !== 'pending' || submitted || submittingRef.current) return;
+    if (
+      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
+      submitted ||
+      submittingRef.current
+    ) {
+      return;
+    }
 
     submittingRef.current = true;
     void submitAction(action, reason).catch(() => undefined);
@@ -171,7 +199,13 @@ export function MindroomToolApprovalCard({
   };
 
   const handleStartDeny = () => {
-    if (disableActions) return;
+    if (
+      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
+      disableActions
+    ) {
+      return;
+    }
+
     restoreDenyTriggerFocusRef.current = false;
     setShowDenyForm(true);
   };
@@ -189,22 +223,22 @@ export function MindroomToolApprovalCard({
   };
 
   const resolvedMeta =
-    approval.status === 'approved'
+    effectiveStatus === 'approved'
       ? `Approved by ${approval.resolvedBy ?? 'unknown'}`
-      : approval.status === 'denied'
-        ? `Denied by ${approval.resolvedBy ?? 'unknown'}`
-        : approval.status === 'expired'
-          ? 'Approval expired'
-          : undefined;
+      : effectiveStatus === 'denied'
+      ? `Denied by ${approval.resolvedBy ?? 'unknown'}`
+      : effectiveStatus === 'expired'
+      ? 'Approval expired'
+      : undefined;
 
-  if (isResolvedApprovalStatus(approval.status)) {
+  if (isResolvedApprovalStatus(effectiveStatus)) {
     const resolvedClassName = classNames(css.ResolvedInline, {
-      [css.ResolvedInlineApproved]: approval.status === 'approved',
-      [css.ResolvedInlineDenied]: approval.status === 'denied',
-      [css.ResolvedInlineExpired]: approval.status === 'expired',
+      [css.ResolvedInlineApproved]: effectiveStatus === 'approved',
+      [css.ResolvedInlineDenied]: effectiveStatus === 'denied',
+      [css.ResolvedInlineExpired]: effectiveStatus === 'expired',
     });
     const resolvedTooltip =
-      approval.status === 'denied' && approval.resolutionReason
+      effectiveStatus === 'denied' && approval.resolutionReason
         ? `Reason: ${approval.resolutionReason}`
         : undefined;
 
@@ -215,7 +249,7 @@ export function MindroomToolApprovalCard({
         aria-label="Resolved tool approval request"
         title={resolvedTooltip}
       >
-        <Icon size="50" src={getStatusIcon(approval.status)} />
+        <Icon size="50" src={getStatusIcon(effectiveStatus)} />
         <Text size="T200" className={css.ResolvedToolName}>
           {approval.toolName}
         </Text>
@@ -271,11 +305,11 @@ export function MindroomToolApprovalCard({
         <pre className={css.JsonBlock}>{argumentsText}</pre>
       </details>
 
-      {approval.status === 'pending' && submitted && (
+      {effectiveStatus === 'pending' && submitted && (
         <Text size="T200">Submitted. Waiting for room update.</Text>
       )}
 
-      {approval.status === 'pending' && !showDenyForm && !submitted && (
+      {effectiveStatus === 'pending' && !showDenyForm && !submitted && (
         <Box className={css.Actions}>
           <Button
             size="300"
@@ -285,7 +319,11 @@ export function MindroomToolApprovalCard({
             onClick={handleApprove}
             disabled={disableActions}
             before={
-              submitting ? <Spinner size="100" variant="Success" fill="Solid" /> : <Icon src={Icons.Check} />
+              submitting ? (
+                <Spinner size="100" variant="Success" fill="Solid" />
+              ) : (
+                <Icon src={Icons.Check} />
+              )
             }
           >
             <Text size="B300">Approve</Text>
@@ -305,7 +343,7 @@ export function MindroomToolApprovalCard({
         </Box>
       )}
 
-      {approval.status === 'pending' && showDenyForm && !submitted && (
+      {effectiveStatus === 'pending' && showDenyForm && !submitted && (
         <Box as="form" className={css.DenyForm} onSubmit={handleConfirmDeny}>
           <Text size="T200">
             <b>Deny reason</b>{' '}

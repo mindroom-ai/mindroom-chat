@@ -16,6 +16,26 @@
 - Independent zero-tolerance review and exact-diff re-review found no issues.
 - CodeRabbit found that truthy malformed-value fixtures could not distinguish strict fallback from boolean coercion; falsy non-boolean regressions now prove the defaulting contract.
 
+### Expire orphaned pending tool-approval cards client-side (2026-07-23)
+
+- Status: narrow implementation, full local validation, and independent re-review are complete.
+- Pending approval cards now derive an effective status from the server status and `expires_at`.
+- A valid deadline at or before the current time renders through the existing expired-card path and exposes no Approve or Deny actions.
+- One bounded timeout refreshes a mounted future-pending card at its deadline without polling or requiring a Matrix edit.
+- The submission gate re-checks expiry synchronously, so a delayed render or retained click handler cannot send a response after the deadline.
+- Approved, denied, and expired server edits remain authoritative, while invalid timestamps retain the existing pending behavior.
+- Expiry parsing requires a calendar-valid RFC 3339 timestamp, so permissive JavaScript coercions such as `0` and impossible dates cannot accidentally expire a card.
+- RFC 3339 fields, sub-millisecond fractions, and numeric offsets are converted directly instead of delegated to browser `Date.parse`, keeping production timestamps consistent across engines.
+- Scope stays inside the fork-owned tool-approval parser, card, focused tests, and this Runbook entry.
+- Focused approval parsing and card coverage passes 34 tests.
+- The full Vitest suite passes all 449 files and 3,414 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, targeted ESLint, and `git diff --check` pass.
+- Full ESLint reports zero errors with the existing 17-warning baseline.
+- Independent review found the initial permissive timestamp parse and stale focused-test count; both are fixed, and independent re-review approved the timer, terminal-state authority, action race guard, invalid fallback, tests, and scope with no remaining findings.
+- Cloudfable zero-tolerance review found that the expiry path lacked coverage for the live microsecond `+00:00` wire format; the elapsed and future card regressions now exercise that production format directly.
+- Cloudfable re-review found the effective-status helper and remaining calendar edges untested; `toolApproval.test.ts` now pins leap-day acceptance and rejection, 30-day-month and offset-less rejection, the exact-deadline boundary, and terminal-status passthrough.
+- The same re-review flagged the epoch finiteness guard as unreachable after the range checks, so the parser now returns the computed epoch directly.
+
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
 - Status: PR #194 is open and ready for human review after full local validation, independent re-review, exact-head Greptile approval, and green PR checks.
