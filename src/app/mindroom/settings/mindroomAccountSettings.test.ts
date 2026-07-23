@@ -18,8 +18,8 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings({}).simpleMode).toBe(true);
     expect(sanitizeMindroomAccountSettings({ simpleMode: true }).simpleMode).toBe(true);
     expect(sanitizeMindroomAccountSettings({ simpleMode: false }).simpleMode).toBe(false);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: 1 }).simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: 'false' }).simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: 0 }).simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: '' }).simpleMode).toBe(true);
   });
 
   it('defaults long messages to expanded while preserving explicit booleans', () => {
@@ -34,7 +34,7 @@ describe('sanitizeMindroomAccountSettings', () => {
         .expandLongMessagesByDefault
     ).toBe(false);
     expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 1 })
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 0 })
         .expandLongMessagesByDefault
     ).toBe(true);
   });

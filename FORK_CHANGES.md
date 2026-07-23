@@ -14,6 +14,7 @@
 - The full Vitest suite passes all 449 files and 3,398 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
 - Independent zero-tolerance review and exact-diff re-review found no issues.
+- CodeRabbit found that truthy malformed-value fixtures could not distinguish strict fallback from boolean coercion; falsy non-boolean regressions now prove the defaulting contract.
 
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
