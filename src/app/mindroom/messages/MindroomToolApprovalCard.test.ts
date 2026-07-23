@@ -156,13 +156,13 @@ describe('MindroomToolApprovalCard', () => {
     vi.useRealTimers();
   });
 
-  it('renders an already-expired pending approval as expired without actions', () => {
+  it('renders an already-expired pending approval in the live timestamp format without actions', () => {
     vi.useFakeTimers();
-    vi.setSystemTime('2026-04-17T12:00:00Z');
+    vi.setSystemTime('2026-04-26T02:46:30Z');
 
     const renderer = renderCard({
       ...pendingApproval,
-      expiresAt: '2026-04-17T12:00:00Z',
+      expiresAt: '2026-04-26T02:46:29.899252+00:00',
     });
     const text = getNodeText(renderer.root);
     const buttonLabels = renderer.root.findAllByType('button').map((node) => getNodeText(node));
@@ -174,13 +174,13 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('keeps a future pending approval actionable', () => {
+  it('keeps a future pending approval in the live timestamp format actionable', () => {
     vi.useFakeTimers();
-    vi.setSystemTime('2026-04-17T11:59:59Z');
+    vi.setSystemTime('2026-04-26T02:46:29Z');
 
     const renderer = renderCard({
       ...pendingApproval,
-      expiresAt: '2026-04-17T12:00:00Z',
+      expiresAt: '2026-04-26T02:46:29.899252+00:00',
     });
     const text = getNodeText(renderer.root);
 

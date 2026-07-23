@@ -31,6 +31,7 @@
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, targeted ESLint, and `git diff --check` pass.
 - Full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent review found the initial permissive timestamp parse and stale focused-test count; both are fixed, and independent re-review approved the timer, terminal-state authority, action race guard, invalid fallback, tests, and scope with no remaining findings.
+- Cloudfable zero-tolerance review found that the expiry path lacked coverage for the live microsecond `+00:00` wire format; the elapsed and future card regressions now exercise that production format directly.
 
 ### Keep Matrix IDs literal inside code (2026-07-22)
 
