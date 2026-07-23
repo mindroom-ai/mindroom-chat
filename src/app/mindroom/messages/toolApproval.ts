@@ -89,12 +89,10 @@ export const parseToolApprovalExpiryTimestamp = (value: string): number | undefi
 
 export const getEffectiveToolApprovalStatus = (
   status: ToolApprovalStatus,
-  expiresAt: string,
+  expiresTs: number | undefined,
   currentTime = Date.now()
 ): ToolApprovalStatus => {
   if (status !== 'pending') return status;
-
-  const expiresTs = parseToolApprovalExpiryTimestamp(expiresAt);
   if (expiresTs === undefined) return status;
 
   return expiresTs <= currentTime ? 'expired' : status;

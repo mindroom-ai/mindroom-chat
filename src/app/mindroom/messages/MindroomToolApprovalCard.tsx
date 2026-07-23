@@ -89,7 +89,7 @@ export function MindroomToolApprovalCard({
   const requestedRelative = useRelativeTime(requestedTs);
   const resolvedRelative = useRelativeTime(resolvedTs);
   const [expiryCheckVersion, setExpiryCheckVersion] = useState(0);
-  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, approval.expiresAt);
+  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, expiresTs);
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
   const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
   const argumentsText = useMemo(
@@ -183,7 +183,7 @@ export function MindroomToolApprovalCard({
 
   const submitApprovalAction = (action: 'approve' | 'deny', reason?: string) => {
     if (
-      getEffectiveToolApprovalStatus(approval.status, approval.expiresAt) !== 'pending' ||
+      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
       submitted ||
       submittingRef.current
     ) {
@@ -200,7 +200,7 @@ export function MindroomToolApprovalCard({
 
   const handleStartDeny = () => {
     if (
-      getEffectiveToolApprovalStatus(approval.status, approval.expiresAt) !== 'pending' ||
+      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
       disableActions
     ) {
       return;
