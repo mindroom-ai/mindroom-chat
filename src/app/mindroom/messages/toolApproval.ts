@@ -104,8 +104,7 @@ export const parseToolApprovalExpiryTimestamp = (value: string): number | undefi
   const offsetDirection = offsetSignValue === '-' ? -1 : 1;
   const offsetMilliseconds =
     timezoneValue === 'Z' ? 0 : offsetDirection * (offsetHour * 60 + offsetMinute) * 60_000;
-  const parsed = wallClockDate.getTime() - offsetMilliseconds;
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return wallClockDate.getTime() - offsetMilliseconds;
 };
 
 export const getEffectiveToolApprovalStatus = (
