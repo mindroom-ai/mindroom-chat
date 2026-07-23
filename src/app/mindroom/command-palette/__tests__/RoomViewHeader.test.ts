@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from '../commandPaletteState';
+import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
 const { encryptionState, screenSizeState } = vi.hoisted(() => ({
   encryptionState: {
@@ -26,9 +27,12 @@ vi.mock('folds', async (importOriginal) => {
 
   return {
     ...actual,
-    Avatar: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
-    Badge: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
-    Box: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Avatar: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Badge: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    Box: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     config: {
       ...actual.config,
       space: {
@@ -55,23 +59,32 @@ vi.mock('folds', async (importOriginal) => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Menu: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     MenuItem: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('button', { type: 'button' }, children),
-    Overlay: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Overlay: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     OverlayBackdrop: () => reactModule.createElement('div'),
     OverlayCenter: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
     PopOut: () => null,
     Spinner: () => reactModule.createElement('div'),
-    Text: ({ children }: { children: React.ReactNode }) => reactModule.createElement('span', null, children),
+    Text: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('span', null, children),
     toRem: (value: number) => `${value}rem`,
-    Tooltip: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
+    Tooltip: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     TooltipProvider: ({
       children,
     }: {
       children: (triggerRef: React.Ref<HTMLButtonElement>) => React.ReactNode;
-    }) => reactModule.createElement(reactModule.Fragment, null, children(() => undefined)),
+    }) =>
+      reactModule.createElement(
+        reactModule.Fragment,
+        null,
+        children(() => undefined)
+      ),
   };
 });
 
@@ -88,7 +101,8 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('../../../components/page', () => ({
-  PageHeader: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  PageHeader: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../../styles/ContainerColor.css', () => ({
@@ -278,13 +292,13 @@ vi.mock('../../../hooks/useRoomPermissions', () => ({
 
 const renderHeader = async () => {
   const store = createStore();
+  store.set(mindroomAccountSettingsAtom, {
+    simpleMode: false,
+    expandLongMessagesByDefault: true,
+  });
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(RoomViewHeader)
-    )
+    React.createElement(Provider, { store }, React.createElement(RoomViewHeader))
   );
 
   return { renderer, store };
@@ -314,6 +328,8 @@ describe('RoomViewHeader', () => {
 
     expect(renderer.root.findByProps({ 'aria-label': 'Open command palette' })).toBeDefined();
     expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Search')).toHaveLength(0);
-    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(
+      1
+    );
   });
 });
