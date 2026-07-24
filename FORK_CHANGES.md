@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Visual modernization: cool light palette, elevated thread cards, sheet radii fix (2026-07-24)
+
+- Status: implementation, screenshot verification, and full local validation are complete; uncommitted on `dev`.
+- Motivation: continued "make the frontend feel more modern and beautiful" feedback after CINNY-213; decisions again driven by live before/after screenshots in `ui-audit/` (`e2e/live/style-preview.spec.ts`, `SHOT_PREFIX=before|after`).
+- Light theme: the folds default light theme (dingy `#F2F2F2` grays, generic blue `#1858D5` primary) is replaced by a fork-owned palette in `src/colors.css.ts` (`lightThemeColors`): cool neutrals (`#ECEEF3` background, white `Surface`), soft-black `#17181C` text, and an indigo `#5B54E6` primary aligned with the dark themes' lavender accent; success/warning/critical ladders modernized to match.
+- Silver theme now derives from the same modern light ladder with a deeper `#DFE2E9` backdrop so the two light themes stay distinct.
+- Light and silver background constants are synchronized across `src/index.css`, `index.html` (pre-hydration bootstrap), `src/app/theme/themeBootstrap.ts`, and the silver pin in `themeBootstrap.test.ts`.
+- Dark theme keeps its neutral identity and `#1A1A1A` background (no bootstrap sync needed): surface ladders gain a subtle cool tint (`#25262B`/`#313237` steps) and `Other.Shadow` softens from opaque black to `rgba(0, 0, 0, 0.55)`; midnight and butter override those fields and are visually unchanged except the inherited softer butter shadow.
+- Thread cards (`CompactRoomView.css.ts` `Card`) and the thread-overview toolbar container (`RoomThreadOverview.css.ts` `Overview`) move from `SurfaceVariant` fills with heavy variant-line borders to elevated `Surface` fills with softer lines, `R400` radius, and diffuse `E100` shadows (`E200` on card hover).
+- Pre-existing broken `var(--radii-400)` inline styles (folds emits hashed var names, so both sheets rendered radius 0) are fixed in `CommandPaletteRenderer.tsx` and `FilterBarMobileSheet.tsx` by using the `config.radii.R400` token; the folds mocks in `CommandPaletteRenderer.test.ts`, `FilterBar.test.ts`, and `Threads.test.ts` now provide `config.radii`.
+- Validation: typecheck ✓, production build with Element Call verification ✓, full ESLint with zero errors and the existing 17-warning baseline ✓, touched-file Prettier ✓, `git diff --check` ✓.
+- Full Vitest suite: 3,423 passed; the only 4 failures (`xcodeCloudPostClone` Homebrew spawn tests, one `useRoomInputSendSessionController` caption test) reproduce identically on the pristine tree in this environment and are pre-existing.
+- Screenshot surfaces verified before/after: room thread overview (dark, midnight, light), thread view, settings, create-room, login, and mobile viewport.
+
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
 - Status: the screenshot-driven draggable redesign and collapsed-by-default follow-up are complete on `feat/restore-recent-threads`, with live coverage, full local validation, and independent exact-diff approval.

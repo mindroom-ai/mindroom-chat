@@ -394,12 +394,12 @@ describe('themeBootstrap', () => {
     expect(document.documentElement.classList.contains('silver-theme')).toBe(true);
     expect(document.documentElement.classList.contains('dark-theme')).toBe(false);
     expect(document.querySelector('meta[name="theme-color"]')?.getAttribute('content')).toBe(
-      '#DEDEDE'
+      '#DFE2E9'
     );
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'light'
     );
-    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#DEDEDE');
+    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#DFE2E9');
 
     [configClass, varsClass, ...SilverTheme.classNames].forEach((className) => {
       expect(document.body.classList.contains(className)).toBe(true);

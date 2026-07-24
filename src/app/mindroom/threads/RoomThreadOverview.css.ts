@@ -5,8 +5,9 @@ export const Overview = style({
   margin: `${config.space.S200} ${config.space.S300}`,
   padding: config.space.S200,
   borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  backgroundColor: color.Surface.Container,
+  boxShadow: config.shadow.E100,
   flexShrink: 0,
 });
 

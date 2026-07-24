@@ -7,7 +7,7 @@
 
 :root {
   --tc-link: hsl(213deg 100% 45%);
-  --app-bg-color: #1A1A1A;
+  --app-bg-color: #1a1a1a;
 
   /* user mxid colors */
   --mx-uc-1: hsl(208, 100%, 45%);
@@ -24,27 +24,27 @@
 }
 
 html.light-theme {
-  --app-bg-color: #F2F2F2;
+  --app-bg-color: #eceef3;
   color-scheme: light;
 }
 
 html.silver-theme {
-  --app-bg-color: #DEDEDE;
+  --app-bg-color: #dfe2e9;
   color-scheme: light;
 }
 
 html.dark-theme {
-  --app-bg-color: #1A1A1A;
+  --app-bg-color: #1a1a1a;
   color-scheme: dark;
 }
 
 html.midnight-theme {
-  --app-bg-color: #17161D;
+  --app-bg-color: #17161d;
   color-scheme: dark;
 }
 
 html.butter-theme {
-  --app-bg-color: #1A1916;
+  --app-bg-color: #1a1916;
   color-scheme: dark;
 }
 
@@ -67,20 +67,20 @@ html.butter-theme {
   color-scheme: dark;
 }
 .dark-theme {
-  --app-bg-color: #1A1A1A;
-  background-color: #1A1A1A;
+  --app-bg-color: #1a1a1a;
+  background-color: #1a1a1a;
 }
 .midnight-theme {
-  --app-bg-color: #17161D;
-  background-color: #17161D;
+  --app-bg-color: #17161d;
+  background-color: #17161d;
 }
 .butter-theme {
-  --app-bg-color: #1A1916;
-  background-color: #1A1916;
+  --app-bg-color: #1a1916;
+  background-color: #1a1916;
 }
 .silver-theme {
-  --app-bg-color: #DEDEDE;
-  background-color: #DEDEDE;
+  --app-bg-color: #dfe2e9;
+  background-color: #dfe2e9;
 }
 
 html {

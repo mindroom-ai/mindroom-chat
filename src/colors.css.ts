@@ -1,125 +1,142 @@
 import { createTheme } from '@vanilla-extract/css';
 import { color } from 'folds';
 
-export const silverTheme = createTheme(color, {
+// Modern light palette: cool neutrals, soft-black text, indigo primary aligned
+// with the dark themes' lavender accent. Replaces the folds default light theme.
+const lightThemeData = {
   Background: {
-    Container: '#DEDEDE',
-    ContainerHover: '#D3D3D3',
-    ContainerActive: '#C7C7C7',
-    ContainerLine: '#BBBBBB',
-    OnContainer: '#000000',
+    Container: '#ECEEF3',
+    ContainerHover: '#E1E5EC',
+    ContainerActive: '#D6DBE5',
+    ContainerLine: '#C4CBD8',
+    OnContainer: '#17181C',
   },
 
   Surface: {
-    Container: '#EAEAEA',
-    ContainerHover: '#DEDEDE',
-    ContainerActive: '#D3D3D3',
-    ContainerLine: '#C7C7C7',
-    OnContainer: '#000000',
+    Container: '#FFFFFF',
+    ContainerHover: '#F3F5F9',
+    ContainerActive: '#E7EBF2',
+    ContainerLine: '#DFE4EC',
+    OnContainer: '#17181C',
   },
 
   SurfaceVariant: {
-    Container: '#DEDEDE',
-    ContainerHover: '#D3D3D3',
-    ContainerActive: '#C7C7C7',
-    ContainerLine: '#BBBBBB',
-    OnContainer: '#000000',
+    Container: '#F0F2F7',
+    ContainerHover: '#E4E8F0',
+    ContainerActive: '#D9DEE9',
+    ContainerLine: '#CDD4E1',
+    OnContainer: '#17181C',
   },
 
   Primary: {
-    Main: '#1245A8',
-    MainHover: '#103E97',
-    MainActive: '#0F3B8F',
-    MainLine: '#0E3786',
+    Main: '#5B54E6',
+    MainHover: '#5249DC',
+    MainActive: '#4A41D2',
+    MainLine: '#4239C8',
     OnMain: '#FFFFFF',
-    Container: '#C4D0E9',
-    ContainerHover: '#B8C7E5',
-    ContainerActive: '#ACBEE1',
-    ContainerLine: '#A0B5DC',
-    OnContainer: '#0D3076',
+    Container: '#E3E2FB',
+    ContainerHover: '#D8D6F9',
+    ContainerActive: '#CCC9F7',
+    ContainerLine: '#BFBBF4',
+    OnContainer: '#2F2A8C',
   },
 
   Secondary: {
-    Main: '#000000',
-    MainHover: '#171717',
-    MainActive: '#232323',
-    MainLine: '#2F2F2F',
-    OnMain: '#EAEAEA',
-    Container: '#C7C7C7',
-    ContainerHover: '#BBBBBB',
-    ContainerActive: '#AFAFAF',
-    ContainerLine: '#A4A4A4',
-    OnContainer: '#0C0C0C',
+    Main: '#17181C',
+    MainHover: '#26282E',
+    MainActive: '#30333A',
+    MainLine: '#3B3E46',
+    OnMain: '#FFFFFF',
+    Container: '#DFE2E8',
+    ContainerHover: '#D3D7DF',
+    ContainerActive: '#C6CBD5',
+    ContainerLine: '#B9BFCA',
+    OnContainer: '#17181C',
   },
 
   Success: {
-    Main: '#017343',
-    MainHover: '#01683C',
-    MainActive: '#016239',
-    MainLine: '#015C36',
+    Main: '#0E9F6E',
+    MainHover: '#0C8E62',
+    MainActive: '#0B7E57',
+    MainLine: '#096E4C',
     OnMain: '#FFFFFF',
-    Container: '#BFDCD0',
-    ContainerHover: '#B3D5C7',
-    ContainerActive: '#A6CEBD',
-    ContainerLine: '#99C7B4',
-    OnContainer: '#01512F',
+    Container: '#D8F1E6',
+    ContainerHover: '#C8EBDC',
+    ContainerActive: '#B6E4D0',
+    ContainerLine: '#A3DCC3',
+    OnContainer: '#085C3E',
   },
 
   Warning: {
-    Main: '#864300',
-    MainHover: '#793C00',
-    MainActive: '#723900',
-    MainLine: '#6B3600',
+    Main: '#B45309',
+    MainHover: '#A34B08',
+    MainActive: '#924407',
+    MainLine: '#813C06',
     OnMain: '#FFFFFF',
-    Container: '#E1D0BF',
-    ContainerHover: '#DBC7B2',
-    ContainerActive: '#D5BDA6',
-    ContainerLine: '#CFB499',
-    OnContainer: '#5E2F00',
+    Container: '#FBEEDA',
+    ContainerHover: '#F8E5C8',
+    ContainerActive: '#F4DBB4',
+    ContainerLine: '#EFCF9E',
+    OnContainer: '#6B3A04',
   },
 
   Critical: {
-    Main: '#9D0F0F',
-    MainHover: '#8D0E0E',
-    MainActive: '#850D0D',
-    MainLine: '#7E0C0C',
+    Main: '#D92D20',
+    MainHover: '#C4271C',
+    MainActive: '#B02218',
+    MainLine: '#9B1D14',
     OnMain: '#FFFFFF',
-    Container: '#E7C3C3',
-    ContainerHover: '#E2B7B7',
-    ContainerActive: '#DDABAB',
-    ContainerLine: '#D89F9F',
-    OnContainer: '#6E0B0B',
+    Container: '#FCDFDC',
+    ContainerHover: '#FBCFCB',
+    ContainerActive: '#F9BEB8',
+    ContainerLine: '#F6ACA4',
+    OnContainer: '#8A1C13',
   },
 
   Other: {
-    FocusRing: 'rgba(0 0 0 / 50%)',
-    Shadow: 'rgba(0 0 0 / 20%)',
-    Overlay: 'rgba(0 0 0 / 50%)',
+    FocusRing: 'rgba(23 24 28 / 45%)',
+    Shadow: 'rgba(23 24 28 / 16%)',
+    Overlay: 'rgba(23 24 28 / 50%)',
+  },
+};
+
+export const lightThemeColors = createTheme(color, lightThemeData);
+
+// Silver: same modern ladder as light, but with a deeper gray backdrop so the
+// two light themes stay visually distinct.
+export const silverTheme = createTheme(color, {
+  ...lightThemeData,
+  Background: {
+    Container: '#DFE2E9',
+    ContainerHover: '#D4D8E1',
+    ContainerActive: '#C9CEDA',
+    ContainerLine: '#B6BDCC',
+    OnContainer: '#17181C',
   },
 });
 
 const darkThemeData = {
   Background: {
     Container: '#1A1A1A',
-    ContainerHover: '#262626',
-    ContainerActive: '#333333',
-    ContainerLine: '#404040',
+    ContainerHover: '#25262B',
+    ContainerActive: '#313237',
+    ContainerLine: '#3E3F46',
     OnContainer: '#F2F2F2',
   },
 
   Surface: {
-    Container: '#262626',
-    ContainerHover: '#333333',
-    ContainerActive: '#404040',
-    ContainerLine: '#4D4D4D',
+    Container: '#25262B',
+    ContainerHover: '#313237',
+    ContainerActive: '#3E3F46',
+    ContainerLine: '#4B4C55',
     OnContainer: '#F2F2F2',
   },
 
   SurfaceVariant: {
-    Container: '#333333',
-    ContainerHover: '#404040',
-    ContainerActive: '#4D4D4D',
-    ContainerLine: '#595959',
+    Container: '#313237',
+    ContainerHover: '#3E3F46',
+    ContainerActive: '#4B4C55',
+    ContainerLine: '#575863',
     OnContainer: '#F2F2F2',
   },
 
@@ -190,7 +207,7 @@ const darkThemeData = {
 
   Other: {
     FocusRing: 'rgba(255, 255, 255, 0.5)',
-    Shadow: 'rgba(0, 0, 0, 1)',
+    Shadow: 'rgba(0, 0, 0, 0.55)',
     Overlay: 'rgba(0, 0, 0, 0.8)',
   },
 };

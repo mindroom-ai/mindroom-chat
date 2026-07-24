@@ -45,14 +45,14 @@ const RESOLVED_THEME_MAP: Record<ThemeId, ResolvedTheme> = {
   [LightTheme.id]: {
     themeId: LightTheme.id,
     themeKind: LightTheme.kind,
-    bgColor: '#F2F2F2',
+    bgColor: '#ECEEF3',
     scheme: 'light',
     classNames: [configClass, varsClass, ...LightTheme.classNames],
   },
   [SilverTheme.id]: {
     themeId: SilverTheme.id,
     themeKind: SilverTheme.kind,
-    bgColor: '#DEDEDE',
+    bgColor: '#DFE2E9',
     scheme: 'light',
     classNames: [configClass, varsClass, ...SilverTheme.classNames],
   },
