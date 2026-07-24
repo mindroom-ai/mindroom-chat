@@ -235,6 +235,12 @@
     "close": "Schließen",
     "actionError": "Das Konto konnte nicht aktualisiert werden. Bitte versuche es erneut."
   },
+  "recentThreads": {
+    "title": "Zuletzt geöffnet",
+    "empty": "Keine kürzlich geöffneten Threads",
+    "resizeAria": "Zuletzt geöffnet vergrößern oder verkleinern",
+    "openedAt": "Geöffnet {{time}}"
+  },
   "threadNav": {
     "title": "Threads",
     "empty": "Noch keine Threads",

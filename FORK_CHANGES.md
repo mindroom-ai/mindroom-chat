@@ -11,6 +11,30 @@
 - Focused regression coverage verifies safe Markdown synthesis, reply-fallback trimming, reply-only previews, fenced-code isolation, inline paste markers, and the real pre-hydration render path without a sidecar download.
 - PR review follow-up confirmed that blockquote unescaping is limited to sanitized line-leading markers, consolidated paste-placeholder collision detection to one source scan, and normalized the plain preview body at the same reply-fallback boundary as its synthesized HTML.
 - Validation: focused long-text/message tests pass (86 tests), `npm run typecheck`, `npm run lint` (17 pre-existing warnings, no errors), touched-file Prettier, full `npm test` (3,422 tests), and `npm run build`.
+- Latest `dev` integration preserves both Runbook entries and passes 110 focused integration tests, all 453 Vitest files with 3,443 tests, typecheck, full lint with the existing 17-warning baseline, touched-file Prettier, `git diff --check`, and the production/PWA build.
+
+### Restore Recently Opened as a persistent bottom section (2026-07-20)
+
+- Status: the screenshot-driven draggable redesign and collapsed-by-default follow-up are complete on `feat/restore-recent-threads`, with live coverage, full local validation, and independent exact-diff approval.
+- Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
+- Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
+- Architecture decision: render Recently Opened as a bottom sidebar section outside each page navigation scroller with one per-user, per-device preferred maximum height instead of restoring the legacy viewport tracking, layout resolver, and separate mobile state.
+- The bottom section reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
+- When Recently Opened has not been initialized, it starts collapsed even if unrelated sidebar category state already exists; an explicit expanded or collapsed choice then remains authoritative across refreshes and navigation.
+- The panel is removed from flex-shrink competition, so its collapsed header remains fully visible and its expanded list can no longer be crushed by a long room list.
+- Expanded content hugs sparse results without empty dead space and scrolls internally once it reaches the user's preferred maximum height.
+- The preferred maximum defaults to 320 px, is draggable from 96 px to the smaller of 1,200 px or the sidebar height minus 140 px, and is shared across Home, Direct Messages, and Space navigation for the same local account.
+- A 12 px top-edge separator supports pointer capture, touch, Arrow keys, Home, End, Enter, and double-click reset while the existing chevron remains the only collapse control.
+- The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
+- Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
+- The redesign keeps one component-local preview, one localStorage number, and CSS `min()` clamping; it adds no viewport observer, document listener, layout context, mobile branch, or drag-to-collapse threshold.
+- Focused default-state, refresh-persistence, resize, and ownership coverage passes 43 tests.
+- The full Vitest suite passes all 453 files and 3,435 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+- Live Docker-Matrix Playwright coverage passes all five desktop, short-height, tablet, and mobile viewports, including the collapsed default, explicit expanded and collapsed refresh persistence, drag resize, route persistence, internal scrolling, and bottom anchoring.
+- Independent Fable UX review confirmed that flex-shrink, not row typography, caused both screenshots and recommended the preferred-maximum model, top-edge grip, separate collapse verb, responsive CSS clamp, and one local preference adopted here.
+- Earlier independent implementation review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed.
+- Independent exact-diff reviews found and verified fixes for sparse-content drag baselines and inconsistent upper bounds, then approved both the resizable implementation and collapsed-default follow-up with no blockers.
 
 ### Default to Simple Mode with expanded long messages (2026-07-23)
 
