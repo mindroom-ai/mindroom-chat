@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Visual modernization stage 2.3 - syntax colors on the app ramp (2026-07-24)
+
+- Status: implemented and verified live in light and dark. Colors only, so no code-block metrics change.
+- Problem: `ReactPrism.css` carried two unrelated palettes - an ad-hoc light one and Monokai for dark. Monokai's `#f92672` hot pink and `#a6e22e` acid green are a complete design language of their own, and agent output is mostly code, so the largest coloured surface in the app was the one speaking a different dialect from everything around it. The light palette had its own inversion: `#0f4777` made comments a saturated blue, louder than the code they annotate.
+- Both palettes are regenerated on the same rule as the `--mx-uc-*` colors and `accessibleColor`. Hue carries the token's identity, because that is what distinguishes a string from a keyword; lightness and chroma belong to the theme. Seven semantic hues, 20 through 300, well separated.
+- Light group sits at L 0.48 with chroma capped at 0.135 - two steps darker than the user colors, because code sits on `SurfaceVariant.Container` and silver's is darker than any message background. Worst case 4.72:1 there. Dark group is the usual L 0.82 / 0.115, worst case 6.56:1 against butter's container.
+- Three tokens sit off the semantic ramp on purpose, because they are scaffolding rather than content: `operator` at body weight (`=>`, `===` and `+` carry meaning), `punctuation` one step down, `comment` quietest. All three still clear 4.5:1; the light chain is 12.67 / 5.96 / 5.05 and the dark 10.11 / 6.38 / 4.78.
+- "Quieter" flips direction between the groups - darker in light, lighter in dark - so the dark comment comes down off the ramp's L 0.82 rather than sitting on it. The first attempt kept it on the ramp and produced the inverse of the intent: the quietest token was the brightest thing in the block.
+- Verified by loading `ReactPrism.tsx` in the running page and rendering a token sample against silver's and dark's containers, the two binding backgrounds. All nine variables resolve in both groups and match the generated values exactly.
+- The production/PWA build and Prettier pass.
+
 ### Visual modernization stage 2.5 - sidebar unread hierarchy (2026-07-24)
 
 - Status: implemented and verified live in light, silver, and dark.
