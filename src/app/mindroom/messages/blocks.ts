@@ -121,19 +121,20 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   let markdownLines: string[] = [];
   let codeFence: string | undefined;
   let pastePlaceholderIndex = 0;
+  let pastePlaceholderPrefix = '\uE000MINDROOMPASTE';
   let pastePlaceholderHtml = new Map<string, string>();
+
+  while (body.includes(pastePlaceholderPrefix)) {
+    pastePlaceholderPrefix += 'X';
+  }
 
   const replacePasteMarkersWithPlaceholders = (line: string): string => {
     let cursor = 0;
     let text = '';
 
     findMindroomPasteMarkersInText(line).forEach(({ marker, index, length }) => {
-      let placeholder = `\uE000MINDROOMPASTE${pastePlaceholderIndex}\uE001`;
+      const placeholder = `${pastePlaceholderPrefix}${pastePlaceholderIndex}\uE001`;
       pastePlaceholderIndex += 1;
-      while (body.includes(placeholder)) {
-        placeholder = `\uE000MINDROOMPASTE${pastePlaceholderIndex}\uE001`;
-        pastePlaceholderIndex += 1;
-      }
 
       text += line.slice(cursor, index);
       text += placeholder;

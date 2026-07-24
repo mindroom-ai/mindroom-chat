@@ -4,11 +4,12 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, independent review remediation, and final re-review are complete on `fix/long-text-preview-markdown`.
+- Status: implementation, local validation, PR review remediation, and final independent re-review are complete on `fix/long-text-preview-markdown`.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
 - Focused regression coverage verifies safe Markdown synthesis, reply-fallback trimming, fenced-code isolation, inline paste markers, and the real pre-hydration render path without a sidecar download.
+- PR review follow-up confirmed that blockquote unescaping is limited to sanitized line-leading markers and consolidated paste-placeholder collision detection to one source scan.
 - Validation: focused long-text/message tests pass (85 tests), `npm run typecheck`, `npm run lint` (17 pre-existing warnings, no errors), touched-file Prettier, full `npm test` (3,421 tests), and `npm run build`.
 
 ### Default to Simple Mode with expanded long messages (2026-07-23)
