@@ -109,17 +109,7 @@ export const renderMindroomMessageContent = ({
 
     const trimmedBody = trimReplyFromBody(previewContent.body);
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(trimmedBody);
-    if (!formattedBody) {
-      if (trimmedBody === previewContent.body) return source;
-
-      return {
-        ...source,
-        previewContent: {
-          ...previewContent,
-          body: trimmedBody,
-        },
-      };
-    }
+    if (!formattedBody) return source;
 
     return {
       ...source,

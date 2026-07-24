@@ -82,7 +82,7 @@ const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
 const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
-const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /[`~$]/;
+const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /[`~$]|^(?:\t| {4})/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
 
@@ -152,7 +152,9 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
 
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const hasAmbiguousMarkerContext = lines.some(
-    (line) => MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG.test(line) && !parseMindroomToolRefText(line)
+    (line) =>
+      MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG.test(line) &&
+      !(line === line.trim() && parseMindroomToolRefText(line))
   );
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];

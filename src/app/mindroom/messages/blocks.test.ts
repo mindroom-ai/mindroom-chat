@@ -186,8 +186,11 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
       ['~~~', '🔧 `run_shell_command` [1]', '~~~'].join('\n')
     );
+    const indentedCode = formatMindroomMarkdownTextBodyAsHtml(
+      ['    const answer = 42;', '', '🔧 `run_shell_command` [1]'].join('\n')
+    );
 
-    [inlinePaste, multilineCode, listFence, tildeFence].forEach((formattedBody) => {
+    [inlinePaste, multilineCode, listFence, tildeFence, indentedCode].forEach((formattedBody) => {
       expect(formattedBody).not.toContain('data-mindroom-paste-marker');
       expect(formattedBody).not.toContain('<p>🔧 <code>run_shell_command</code> [1]</p>');
     });

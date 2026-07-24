@@ -4,19 +4,21 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: the conservative implementation and local validation are complete on `fix/long-text-preview-markdown`; exact-head review is next.
+- Status: conservative review remediation and local validation are complete on `fix/long-text-preview-markdown`; fixed-head re-review is next.
 - Long-text events can carry a plain Markdown `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
 - Blank Markdown separators between root tool markers are discarded so one tool run remains one dropdown.
 - Any code, tilde, or math syntax disables rich marker promotion for that temporary preview, so ambiguous markers remain sanitized literal text until hydration.
 - Inline, indented, or container-nested markers likewise remain literal instead of invoking a second compatibility parser.
-- Matrix reply fallbacks are removed from both the preview body and its synthesized HTML, including reply-only previews.
+- Matrix reply fallbacks are removed exactly once before rendering, including reply-only previews and bounded formatter fallbacks.
 - Simple block and inline syntax budgets plus parser exception fallback keep untrusted previews bounded.
 - The implementation deliberately has no preview cache, placeholder protocol, inline-code range parser, container-fence scanner, or CommonMark fence normalization layer.
+- AgentCLI review probes found indented-code marker promotion and double reply trimming on formatter fallback; both are fixed at the existing ambiguity and fallback boundaries.
+- A proposed source-switch lifecycle reset was rejected because the base branch deliberately retains hydrated content during plain-preview updates and this PR does not worsen that behavior.
 - Earlier live verification on the reported localhost thread confirmed that nine pre-hydration tool markers render as one `9 tool calls` dropdown.
-- Focused formatter, render, and hydration coverage passes 63 tests.
-- The full Vitest suite passes all 453 files and 3,446 tests.
+- Focused formatter, render, and hydration coverage passes 64 tests.
+- The full suite passes 452 of 453 files and 3,444 of 3,447 tests; only the unrelated Xcode/Homebrew shim file fails because this Nix shell prepends real Homebrew ahead of its temporary stub.
 - Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)

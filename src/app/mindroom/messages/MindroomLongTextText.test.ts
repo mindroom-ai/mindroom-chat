@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
+import { trimReplyFromBody } from '../../utils/room';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
@@ -65,7 +66,7 @@ vi.mock('../../components/message/MsgTypeRenderers', () => ({
       'div',
       { 'data-testid': 'long-text-body' },
       renderBody({
-        body: typeof content.body === 'string' ? content.body : '',
+        body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
         customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
       }),
       renderAfterBody
@@ -838,6 +839,48 @@ describe('MindroomLongTextText hydration identity', () => {
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
     expect(renderer.root.findByProps({ 'data-testid': 'empty-content' })).toBeDefined();
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Previous reply');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('trims a reply fallback only once when preview formatting falls back', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const documentBody = [
+      'Intro paragraph',
+      '',
+      '> <@alice:example.org> Quoted detail',
+      '',
+      String.raw`\*`.repeat(513),
+    ].join('\n');
+    const content = {
+      ...createPreviewContent(),
+      body: `> <@bob:example.org> Original question\n\n${documentBody}`,
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('Intro paragraph');
+    expect(rendered).toContain('Quoted detail');
+    expect(rendered).not.toContain('Original question');
 
     await act(async () => {
       renderer.unmount();
