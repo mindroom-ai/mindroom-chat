@@ -204,57 +204,63 @@ describe('RecentlyOpenedNavCategory', () => {
     expect(renderedThreadIds()).toEqual(['$thread-4', '$thread-3', '$thread-2']);
   });
 
-  it('resizes by pointer, persists the result per account, and restores it', () => {
-    seedJoinedThreads(2);
-    renderCategory();
-    const handle = renderer!.root.findByProps({
-      'data-testid': 'recently-opened-resize-handle',
-    });
-    const resizeTarget = createResizeTarget(100);
-
-    expect(handle.props.role).toBe('separator');
-    expect(handle.props['aria-valuemin']).toBe(MIN_RECENTLY_OPENED_PANEL_HEIGHT);
-    expect(handle.props['aria-valuemax']).toBe(900 - RECENTLY_OPENED_PANEL_RESERVED_HEIGHT);
-    expect(handle.props['aria-valuenow']).toBe(DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT);
-    expect(handle.props['aria-controls']).toBe('recently-opened-nav-list');
-
-    act(() => {
-      handle.props.onPointerDown({
-        clientY: 400,
-        currentTarget: resizeTarget,
-        pointerId: 7,
-        preventDefault: vi.fn(),
+  it.each(['mouse', 'touch'] as const)(
+    'resizes by %s pointer, persists the result per account, and restores it',
+    (pointerType) => {
+      seedJoinedThreads(2);
+      renderCategory();
+      const handle = renderer!.root.findByProps({
+        'data-testid': 'recently-opened-resize-handle',
       });
-      handle.props.onPointerMove({
-        clientY: 300,
-        currentTarget: resizeTarget,
-        pointerId: 7,
+      const resizeTarget = createResizeTarget(100);
+
+      expect(handle.props.role).toBe('separator');
+      expect(handle.props['aria-valuemin']).toBe(MIN_RECENTLY_OPENED_PANEL_HEIGHT);
+      expect(handle.props['aria-valuemax']).toBe(900 - RECENTLY_OPENED_PANEL_RESERVED_HEIGHT);
+      expect(handle.props['aria-valuenow']).toBe(DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT);
+      expect(handle.props['aria-controls']).toBe('recently-opened-nav-list');
+
+      act(() => {
+        handle.props.onPointerDown({
+          clientY: 400,
+          currentTarget: resizeTarget,
+          pointerId: 7,
+          pointerType,
+          preventDefault: vi.fn(),
+        });
+        handle.props.onPointerMove({
+          clientY: 300,
+          currentTarget: resizeTarget,
+          pointerId: 7,
+          pointerType,
+        });
       });
-    });
 
-    expect(
-      renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-panel' }).props.style
-    ).toEqual({
-      maxHeight: `min(420px, calc(100% - ${RECENTLY_OPENED_PANEL_RESERVED_HEIGHT}px))`,
-    });
-
-    act(() => {
-      handle.props.onPointerUp({
-        currentTarget: resizeTarget,
-        pointerId: 7,
+      expect(
+        renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-panel' }).props.style
+      ).toEqual({
+        maxHeight: `min(420px, calc(100% - ${RECENTLY_OPENED_PANEL_RESERVED_HEIGHT}px))`,
       });
-    });
-    expect(storage.get(getRecentlyOpenedPanelHeightStoreKey(USER_ID))).toBe('420');
 
-    act(() => renderer?.unmount());
-    renderer = undefined;
-    renderCategory();
-    expect(
-      renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-panel' }).props.style
-    ).toEqual({
-      maxHeight: `min(420px, calc(100% - ${RECENTLY_OPENED_PANEL_RESERVED_HEIGHT}px))`,
-    });
-  });
+      act(() => {
+        handle.props.onPointerUp({
+          currentTarget: resizeTarget,
+          pointerId: 7,
+          pointerType,
+        });
+      });
+      expect(storage.get(getRecentlyOpenedPanelHeightStoreKey(USER_ID))).toBe('420');
+
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      renderCategory();
+      expect(
+        renderer!.root.findByProps({ 'data-testid': 'recently-opened-nav-panel' }).props.style
+      ).toEqual({
+        maxHeight: `min(420px, calc(100% - ${RECENTLY_OPENED_PANEL_RESERVED_HEIGHT}px))`,
+      });
+    }
+  );
 
   it('supports keyboard resizing and clamps to the available range', () => {
     seedJoinedThreads(1);

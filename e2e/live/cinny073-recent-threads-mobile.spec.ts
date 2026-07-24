@@ -1,4 +1,8 @@
 import { expect, type Page, test } from '@playwright/test';
+import {
+  DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT,
+  RECENTLY_OPENED_PANEL_RESERVED_HEIGHT,
+} from '../../src/app/mindroom/recent-threads/recentlyOpenedPanelHeight';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
@@ -23,9 +27,6 @@ type ViewportFixture = {
   label: string;
   width: number;
 };
-
-const DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT = 320;
-const RECENTLY_OPENED_PANEL_RESERVED_HEIGHT = 140;
 
 const VIEWPORTS: ViewportFixture[] = [
   { label: 'desktop', width: 1440, height: 900 },

@@ -16,8 +16,8 @@
 - The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - The redesign keeps one component-local preview, one localStorage number, and CSS `min()` clamping; it adds no viewport observer, document listener, layout context, mobile branch, or drag-to-collapse threshold.
-- Focused drag, keyboard, clamping, and persistence coverage passes 10 tests.
-- The full Vitest suite passes all 452 files and 3,431 tests.
+- Focused mouse, touch, keyboard, clamping, and persistence coverage passes 11 tests.
+- The full Vitest suite passes all 452 files and 3,432 tests.
 - Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
 - Live Docker-Matrix Playwright coverage passes all five desktop, short-height, tablet, and mobile viewports, including drag resize, collapse, reload, route persistence, internal scrolling, and bottom anchoring.
 - Independent Fable UX review confirmed that flex-shrink, not row typography, caused both screenshots and recommended the preferred-maximum model, top-edge grip, separate collapse verb, responsive CSS clamp, and one local preference adopted here.
