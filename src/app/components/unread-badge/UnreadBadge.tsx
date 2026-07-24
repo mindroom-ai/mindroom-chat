@@ -5,6 +5,11 @@ import { millify } from '../../plugins/millify';
 type UnreadBadgeProps = {
   highlight?: boolean;
   count: number;
+  /**
+   * Whether this badge sits on the currently-selected nav row. The soft pill's
+   * fill collides with that row's background, so it has to stay solid there.
+   */
+  selected?: boolean;
 };
 const styles: CSSProperties = {
   minWidth: toRem(16),
@@ -17,7 +22,7 @@ export function UnreadBadgeCenter({ children }: { children: ReactNode }) {
   );
 }
 
-export function UnreadBadge({ highlight, count }: UnreadBadgeProps) {
+export function UnreadBadge({ highlight, count, selected }: UnreadBadgeProps) {
   // A plain unread count is ambient: most rooms in a busy sidebar have one. A
   // mention is not. Rendering both solid put the wrong one on top, because a
   // near-black pill outweighs a green one no matter what the green means, so
@@ -28,7 +33,14 @@ export function UnreadBadge({ highlight, count }: UnreadBadgeProps) {
   // recedes. The outline is what keeps the soft pill legible as a pill on the
   // light themes, where its container is barely off the sidebar background;
   // folds draws it with `outline`, so it costs no layout.
-  const softened = !highlight && count > 0;
+  //
+  // The selected row is the exception. Secondary.Container and
+  // Background.ContainerActive are the same hex in every theme but silver, so
+  // on the row the user is actually looking at the soft pill would dissolve
+  // into the selection highlight and leave the digits floating. That row is
+  // already visually resolved by the selection itself, so there is nothing to
+  // gain by receding there — it keeps the solid fill.
+  const softened = !highlight && count > 0 && !selected;
 
   return (
     <Badge

@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Visual modernization stage 2.9 - Secondary.Container collision fallout (2026-07-24)
+
+- Status: implemented. Found by an adversarial review pass over the whole `dev...HEAD` diff, not by looking at the screen.
+- Root cause, and it is a property of the palette this branch introduced: `Secondary.Container` is now byte-identical to `SurfaceVariant.Container` in dark, midnight, and butter, and to `Background.ContainerActive` in every theme except silver.
+
+  | theme | Secondary.Container | SurfaceVariant.Container | Background.ContainerActive |
+  | --- | --- | --- | --- |
+  | light | `#DDDDE2` | `#F4F4F8` | `#DDDDE2` |
+  | silver | `#D4D4D8` | `#E1E1E6` | `#C7C7CC` |
+  | dark | `#363639` | `#363639` | `#363639` |
+  | midnight | `#363542` | `#363542` | `#363542` |
+  | butter | `#39372F` | `#39372F` | `#39372F` |
+
+  On `dev` the dark pair was `#333333` vs `#404040`. Consequence: any `Badge variant="Secondary" fill="Soft"` sitting on a `SurfaceVariant.Container` card or a selected nav row loses its slab and renders as bare digits. The text stays above 9:1, so nothing becomes unreadable - the pill shape is what goes.
+- `CompactThreadCard.tsx` message-count badge gained `outlined`, matching `RoomNavItem.tsx:371` and `MembersDrawer.tsx:178`, which already pass it. It was the outlier. The tell for this bug is that the badge reappears on hover, because hover moves the card to `ContainerHover` while the badge stays put.
+- `UnreadBadge` gained a `selected` prop; `RoomNavItem` passes it. The softening from stage 2.5 now stops at the selected row, where the soft fill would dissolve into the selection highlight. That row is already resolved by the selection itself, so it loses nothing by staying solid.
+- Deliberately NOT done: moving `Secondary.Container` off its neighbours in the palette. That is the real fix and it is one line per theme, but it repaints every Soft Secondary surface in the app and this branch has no live coverage of butter, midnight, or silver to catch the fallout. Left as the known landmine above.
+- Known gap this review did not close: `SurfaceVariant.Container` is used as a card background in 20+ places under `src/app/mindroom/`. Only the two call sites above were audited. A future Soft Secondary badge dropped on any of the others inherits the same defect silently.
+- Typecheck, the production/PWA build, ESLint, Prettier, and the full suite pass.
+
 ### Visual modernization stage 2.8 - last off-token shadows (2026-07-24)
 
 - Status: implemented and verified live in dark and light.
