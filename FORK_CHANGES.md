@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Visual modernization stage 2.5 - sidebar unread hierarchy (2026-07-24)
+
+- Status: implemented and verified live in light, silver, and dark.
+- Problem: the sidebar's visual priority was inverted. `UnreadBadge` rendered both states with `fill="Solid"`, so an ordinary unread count came out as a near-black pill in the light themes and a near-white one in the dark themes, at roughly 15:1 against the page. A mention came out as a green `Success` pill at 4-10:1. A near-black slab outweighs a green one no matter what the green means, so the sidebar shouted loudest about the thing that mattered least - and in a busy account nearly every room has an unread count, which is what turned the room list into a wall of chips.
+- `src/app/components/unread-badge/UnreadBadge.tsx` drops the counted, non-highlight badge to `fill="Soft"` with `outlined`. Mentions keep `Solid`. The number itself still reads at 10.2:1 (dark) to 13.4:1 (light) inside the soft pill; only the slab behind it recedes, from about 15:1 down to 1.1-1.5:1 against the page.
+- The outline is what keeps the soft pill legible as a pill on the light themes, where `Secondary.Container` is barely off the sidebar background - silver is the tightest at 1.10:1. folds draws `outlined` with `outline` rather than `border`, so it costs no layout; measured height stays 16px in both states.
+- The countless form is left `Solid` on purpose. It is an 8px dot standing in for "something happened here" with no text inside it to carry the meaning, so softening it would leave nothing to see. Treating it differently from the counted pill is justified by area, not inconsistency.
+- Hierarchy re-checked numerically in all five themes: the solid mention chip now reads 3x to 7x louder against the page than the softened count chip in every one, where previously it was quieter in all five.
+- Typecheck, the production/PWA build, ESLint, and Prettier on the touched file pass.
+
 ### Visual modernization stage 2.2 - unified identity colors (2026-07-24)
 
 - Status: implemented and validated in the browser in both a light and a dark theme. Stage 2 continues with the sidebar and room list (2.5), the markdown body and Prism palettes (2.3), and the tool cards (2.1) last, since those overlap active work on `fix/long-text-preview-markdown`.
