@@ -300,7 +300,7 @@ export const AddTagDropdown = style({
   borderRadius: config.radii.R300,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   backgroundColor: color.SurfaceVariant.Container,
-  boxShadow: `0 ${toRem(2)} ${toRem(8)} rgba(0, 0, 0, 0.15)`,
+  boxShadow: config.shadow.E100,
   padding: config.space.S100,
 });
 
@@ -370,7 +370,7 @@ export const PresetDropdown = style({
   borderRadius: config.radii.R300,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   backgroundColor: color.SurfaceVariant.Container,
-  boxShadow: `0 ${toRem(2)} ${toRem(8)} rgba(0, 0, 0, 0.15)`,
+  boxShadow: config.shadow.E100,
   padding: config.space.S100,
 });
 
@@ -442,7 +442,7 @@ export const InfoPopover = style({
   borderRadius: config.radii.R400,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   backgroundColor: color.SurfaceVariant.Container,
-  boxShadow: `0 ${toRem(4)} ${toRem(16)} rgba(0, 0, 0, 0.2)`,
+  boxShadow: config.shadow.E200,
 });
 
 export const InfoStatRow = style({

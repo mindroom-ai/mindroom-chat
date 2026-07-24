@@ -109,6 +109,10 @@ export const CodeBlockInternal = style([
   },
 ]);
 
+// This marks a truncated code block, so it should fade INTO the block's own
+// background the way CollapsibleGradientOverlay does for message bodies. The
+// black veil it used to paint was invisible in midnight and read as grime on
+// the light and butter code surfaces.
 export const CodeBlockBottomShadow = style({
   position: 'absolute',
   bottom: 0,
@@ -117,7 +121,7 @@ export const CodeBlockBottomShadow = style({
   pointerEvents: 'none',
 
   height: config.space.S400,
-  background: `linear-gradient(to top, #00000022, #00000000)`,
+  background: `linear-gradient(to top, ${color.SurfaceVariant.Container}, transparent)`,
 });
 
 const BaseList = style({});

@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Visual modernization stage 2.8 - last off-token shadows (2026-07-24)
+
+- Status: implemented and verified live in dark and light.
+- Problem: stage 1a put elevation on theme-aware tokens (`config.shadow.E100`-`E400`, built on `color.Other.Shadow`, which is `rgba(31, 30, 38, 0.13)` in light, `0.16` in silver, `rgba(0, 0, 0, 0.55)` in dark and midnight), but five sites still painted their own black. A shadow tuned for a dark surface disappears on light and butter; one tuned for light is invisible on midnight. These were the last of them - `src/app/**/*.css.ts` now has zero hardcoded colors.
+- `RoomThreadOverview.css.ts`: `AddTagDropdown` and `PresetDropdown` dropped `0 2px 8px rgba(0, 0, 0, 0.15)` for `config.shadow.E100`; `InfoPopover` dropped `0 4px 16px rgba(0, 0, 0, 0.2)` for `config.shadow.E200`.
+- `CollapsibleMessage.css.ts`: `pillBase` (shared by `CollapsibleShowMore` and `CollapsiblePill`) dropped `0 1px 3px rgba(0, 0, 0, 0.18)` for `config.shadow.E100`.
+- `CustomHtml.css.ts`: `CodeBlockBottomShadow` marks a truncated code block, so it should fade into the block rather than veil it. It went from `linear-gradient(#00000022, #00000000)` - which pointed the wrong way, darkening downward over a surface it did not match - to `linear-gradient(to top, ${color.SurfaceVariant.Container}, transparent)`, the same shape `CollapsibleGradientOverlay` already uses for message bodies. `BaseCode` sets that same container color as the block background, so the fade now lands on it exactly.
+- Measured live by injecting a probe element carrying each hashed class and reading `getComputedStyle`. Dark resolves all four shadows to `rgba(0, 0, 0, 0.55)` and the code fade to `rgb(54, 54, 57)`; light resolves them to `rgba(31, 30, 38, 0.13)` and the fade to `rgb(244, 244, 248)`. Offsets and blurs track the `E100`/`E200` steps as expected.
+- Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass.
+- Not done in this stage: the agent/tool-card surface from the original scope. No thread in the test account renders `<tool>` / `<tool-group>` content - `Block`, `Section`, `Extras`, `ToolGroupItem`, and `details` all count 0 live - and `MindroomHtmlBlocks.css.ts` and `MindroomMessageExtras.css.ts` are already fully tokenized, so there was no off-token work waiting there. Revisit when a thread with real tool traces is available.
+
 ### Visual modernization stage 2.7 - thread header hierarchy (2026-07-24)
 
 - Status: implemented and verified live in dark and light.
