@@ -8,6 +8,9 @@ import {
   parseMindroomToolRefText,
 } from './blocks';
 
+const PASTE_MARKER =
+  '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]';
+
 describe('MINDROOM_TOOL_REF_HTML_REG_G', () => {
   it('matches the formatted_body marker contract', () => {
     MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
@@ -216,12 +219,58 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps paste markers inside inline code literal', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
-      '`[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]`'
-    );
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(`\`${PASTE_MARKER}\``);
 
     expect(formattedBody).toContain('<code data-md="`">[[mindroom-paste:');
     expect(formattedBody).not.toContain('data-mindroom-paste-marker');
+  });
+
+  it('keeps paste markers inside variable-length and multiline code spans literal', () => {
+    const variableLength = formatMindroomMarkdownTextBodyAsHtml(
+      `\`\`before \` ${PASTE_MARKER} after\`\``
+    );
+    const multiline = formatMindroomMarkdownTextBodyAsHtml(
+      `\`\`before\n${PASTE_MARKER}\nafter\`\``
+    );
+
+    expect(variableLength).toContain('[[mindroom-paste:');
+    expect(variableLength).not.toContain('data-mindroom-paste-marker');
+    expect(variableLength).not.toContain('\uE000MINDROOMPASTE');
+    expect(multiline).toContain('[[mindroom-paste:');
+    expect(multiline).not.toContain('data-mindroom-paste-marker');
+    expect(multiline).not.toContain('\uE000MINDROOMPASTE');
+  });
+
+  it('keeps paste markers inside math and link destinations literal', () => {
+    const inlineMath = formatMindroomMarkdownTextBodyAsHtml(`$${PASTE_MARKER}$`);
+    const displayMath = formatMindroomMarkdownTextBodyAsHtml(`$$\n${PASTE_MARKER}\n$$`);
+    const linkDestination = formatMindroomMarkdownTextBodyAsHtml(
+      `[click](https://example.com/${PASTE_MARKER})`
+    );
+
+    [inlineMath, displayMath, linkDestination].forEach((formattedBody) => {
+      expect(formattedBody).toContain('[[mindroom-paste:');
+      expect(formattedBody).not.toContain('data-mindroom-paste-marker');
+      expect(formattedBody).not.toContain('\uE000MINDROOMPASTE');
+    });
+    expect(linkDestination).toContain('>click</a>');
+  });
+
+  it('falls back when markers occur inside unsupported container fences', () => {
+    expect(formatMindroomMarkdownTextBodyAsHtml(`> ~~~\n> ${PASTE_MARKER}\n> ~~~`)).toBe('');
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['- ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
+      )
+    ).toBe('');
+  });
+
+  it('still formats markers after a closed container fence', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['> ~~~', '> ordinary code', '> ~~~', '', PASTE_MARKER].join('\n')
+    );
+
+    expect(formattedBody).toContain('data-mindroom-paste-marker="true"');
   });
 
   it('sanitizes math exactly once', () => {
@@ -239,13 +288,35 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
   it('preserves escaped blockquotes and renders dash bullets as unordered lists', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
-      ['\\> literal quote marker', '', '- alpha', '- beta'].join('\n')
+      [
+        '\\> one slash',
+        '\\\\> two slashes',
+        '\\\\\\> three slashes',
+        '',
+        '- alpha',
+        '-  beta',
+        '-    gamma',
+      ].join('\n')
     );
 
-    expect(formattedBody).toContain('> literal quote marker');
-    expect(formattedBody).not.toContain('\\>');
+    expect(formattedBody).toContain('&gt; one slash');
+    expect(formattedBody).toContain('&#92;&gt; two slashes');
+    expect(formattedBody).toContain('&#92;&gt; three slashes');
     expect(formattedBody).toContain('<ul data-md="*">');
     expect(formattedBody).not.toContain('<ol');
+  });
+
+  it('normalizes empty fences and unsafe tilde info strings into code blocks', () => {
+    const emptyFence = formatMindroomMarkdownTextBodyAsHtml('```\n```');
+    const unclosedEmptyFence = formatMindroomMarkdownTextBodyAsHtml('```');
+    const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
+      ['~~~ `typescript', 'code line', '~~~'].join('\n')
+    );
+
+    expect(emptyFence).toContain('<pre');
+    expect(unclosedEmptyFence).toContain('<pre');
+    expect(tildeFence).toContain('<pre');
+    expect(tildeFence).toContain('code line');
   });
 
   it('falls back safely for recursion-heavy Markdown previews', () => {
@@ -253,5 +324,19 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
     expect(() => formatMindroomMarkdownTextBodyAsHtml(body)).not.toThrow();
     expect(formatMindroomMarkdownTextBodyAsHtml(body)).toBe('');
+  });
+
+  it('falls back before parsing recursion-heavy inline Markdown', () => {
+    const body = String.raw`\*`.repeat(513);
+
+    expect(formatMindroomMarkdownTextBodyAsHtml(body)).toBe('');
+  });
+
+  it('chooses paste placeholders in one pass when the base prefix is hostile', () => {
+    const body = `\uE000MINDROOMPASTE${'X'.repeat(2_000)}\n${PASTE_MARKER}`;
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(body);
+
+    expect(formattedBody).toContain('data-mindroom-paste-marker="true"');
+    expect(formattedBody).not.toContain('\uE000MINDROOMPASTEX0\uE001');
   });
 });

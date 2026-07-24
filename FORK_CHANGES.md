@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, PR review remediation, final independent re-review, and the live preview tool-grouping follow-up are complete on `fix/long-text-preview-markdown`.
+- Status: implementation, local validation, live preview tool grouping, and two independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-two remediation awaits exact-head re-review.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
@@ -20,6 +20,9 @@
 - A wholesale Markdown parser replacement and client-side table implementation are intentionally rejected because the fork already owns one Markdown and math parser, hydration remains authoritative, and adding a second rendering stack would be disproportionate to this preview fallback.
 - A body-only hydrated-content branch is also rejected as unreachable for MindRoom-authored messages because the sender's message builder always adds `formatted_body`; the client continues to accept malformed or third-party long-text metadata by degrading safely to plain preview text.
 - Round-one remediation passes 66 focused formatter/render/hydration tests, all 453 Vitest files with 3,449 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- AgentCLI round-two Codex and Claude reviews reproduced six remaining formatter edges: unbounded recursive inline syntax, special markers inside container fences and complex code spans, paste placeholders duplicated into math or link attributes, multi-space dash bullets, quadratic hostile-prefix scanning, and empty or malformed normalized fences.
+- The narrow follow-up adds one inline-syntax budget, linear placeholder-prefix selection, source-aware literal code-span markers, context-safe replacement of every placeholder occurrence, targeted container-fence fallback only when a special marker is inside the fence, one-to-four-space dash normalization, backslash-run parity, and parseable empty fences.
+- Round-two remediation passes 73 focused formatter/render/hydration tests, all 453 Vitest files with 3,456 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; exact-head AgentCLI re-review is next.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 

@@ -84,12 +84,16 @@ type MarkdownCodeFence = {
 type PastePlaceholder = {
   markerHtml: string;
   markerTextHtml: string;
+  literal: boolean;
 };
 
 const MARKDOWN_CODE_FENCE_OPEN_REG = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const MARKDOWN_CONTAINER_FENCE_REG = /^((?: {0,3}> ?)+| {0,3}(?:[-+*]|\d+[.)]) {1,4})(`{3,}|~{3,})/;
+const PASTE_PLACEHOLDER_BASE = '\uE000MINDROOMPASTE';
 // The in-repo parser recurses per block match, so remote preview bodies need a
 // conservative boundary below the browser stack limit.
 const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
+const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MAX_MARKDOWN_PREVIEW_CACHE_ENTRIES = 32;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
@@ -135,10 +139,14 @@ const getLongestBacktickRun = (text: string): number => {
   return longestRun;
 };
 
-const sanitizeMarkdownText = (text: string): string =>
-  sanitizeText(text)
-    .replace(/^&gt;/gm, '>')
-    .replace(/^\\&gt;/gm, '\\>');
+const sanitizeMarkdownText = (text: string): string => {
+  const sanitizedText = sanitizeText(text).replace(/^&gt;/gm, '>');
+
+  return sanitizedText.replace(/^(\\+)&gt;/gm, (_match, backslashes: string) => {
+    const literalBackslashes = '&#92;'.repeat(Math.floor(backslashes.length / 2));
+    return `${literalBackslashes}&gt;`;
+  });
+};
 
 const normalizeParsedMathEntities = (html: string): string =>
   html.replace(/<(span|div) data-mx-maths="[^"]*">[\s\S]*?<\/\1>/g, (mathHtml) =>
@@ -151,19 +159,132 @@ const replacePastePlaceholders = (
 ): string => {
   let formattedHtml = html;
 
-  pastePlaceholders.forEach(({ markerHtml, markerTextHtml }, placeholder) => {
-    const placeholderIndex = formattedHtml.indexOf(placeholder);
-    if (placeholderIndex === -1) return;
+  pastePlaceholders.forEach(({ literal, markerHtml, markerTextHtml }, placeholder) => {
+    let searchIndex = 0;
 
-    const htmlBeforePlaceholder = formattedHtml.slice(0, placeholderIndex);
-    const insideCode =
-      htmlBeforePlaceholder.lastIndexOf('<code') > htmlBeforePlaceholder.lastIndexOf('</code>');
-    formattedHtml = `${htmlBeforePlaceholder}${
-      insideCode ? markerTextHtml : markerHtml
-    }${formattedHtml.slice(placeholderIndex + placeholder.length)}`;
+    while (searchIndex < formattedHtml.length) {
+      const placeholderIndex = formattedHtml.indexOf(placeholder, searchIndex);
+      if (placeholderIndex === -1) break;
+
+      const htmlBeforePlaceholder = formattedHtml.slice(0, placeholderIndex);
+      const insideTag =
+        htmlBeforePlaceholder.lastIndexOf('<') > htmlBeforePlaceholder.lastIndexOf('>');
+      const insideCode =
+        htmlBeforePlaceholder.lastIndexOf('<code') > htmlBeforePlaceholder.lastIndexOf('</code>');
+      const insideInlineMath =
+        htmlBeforePlaceholder.lastIndexOf('<span data-mx-maths=') >
+        htmlBeforePlaceholder.lastIndexOf('</span>');
+      const insideDisplayMath =
+        htmlBeforePlaceholder.lastIndexOf('<div data-mx-maths=') >
+        htmlBeforePlaceholder.lastIndexOf('</div>');
+      const replacement =
+        literal || insideTag || insideCode || insideInlineMath || insideDisplayMath
+          ? markerTextHtml
+          : markerHtml;
+
+      formattedHtml = `${htmlBeforePlaceholder}${replacement}${formattedHtml.slice(
+        placeholderIndex + placeholder.length
+      )}`;
+      searchIndex = placeholderIndex + replacement.length;
+    }
   });
 
   return formattedHtml;
+};
+
+const exceedsInlineMarkerBudget = (text: string): boolean => {
+  let markerCount = 0;
+  for (const character of text) {
+    if (!'*_~`|$['.includes(character)) continue;
+    markerCount += 1;
+    if (markerCount > MAX_MARKDOWN_PREVIEW_INLINE_MARKERS) return true;
+  }
+  return false;
+};
+
+const getPastePlaceholderPrefix = (text: string): string => {
+  let longestSuffix = -1;
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const prefixIndex = text.indexOf(PASTE_PLACEHOLDER_BASE, cursor);
+    if (prefixIndex === -1) break;
+
+    let suffixLength = 0;
+    const suffixStart = prefixIndex + PASTE_PLACEHOLDER_BASE.length;
+    while (text[suffixStart + suffixLength] === 'X') suffixLength += 1;
+    longestSuffix = Math.max(longestSuffix, suffixLength);
+    cursor = suffixStart + Math.max(1, suffixLength);
+  }
+
+  return `${PASTE_PLACEHOLDER_BASE}${'X'.repeat(longestSuffix + 1)}`;
+};
+
+type TextRange = {
+  start: number;
+  end: number;
+};
+
+const getMarkdownCodeSpanRanges = (text: string): TextRange[] => {
+  const ranges: TextRange[] = [];
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const openingStart = text.indexOf('`', cursor);
+    if (openingStart === -1) break;
+
+    let openingEnd = openingStart;
+    while (text[openingEnd] === '`') openingEnd += 1;
+    const delimiterLength = openingEnd - openingStart;
+    let closingStart = text.indexOf('`', openingEnd);
+
+    while (closingStart !== -1) {
+      let closingEnd = closingStart;
+      while (text[closingEnd] === '`') closingEnd += 1;
+      if (closingEnd - closingStart === delimiterLength) {
+        ranges.push({ start: openingEnd, end: closingStart });
+        cursor = closingEnd;
+        break;
+      }
+      closingStart = text.indexOf('`', closingEnd);
+    }
+
+    if (closingStart === -1) cursor = openingEnd;
+  }
+
+  return ranges;
+};
+
+const hasMarkerInsideContainerFence = (body: string): boolean => {
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+
+  for (let openingIndex = 0; openingIndex < lines.length; openingIndex += 1) {
+    const openingMatch = lines[openingIndex].match(MARKDOWN_CONTAINER_FENCE_REG);
+    if (!openingMatch) continue;
+
+    const quoteContainer = openingMatch[1].includes('>');
+    const fenceCharacter = openingMatch[2][0];
+    const fenceLength = openingMatch[2].length;
+
+    for (let lineIndex = openingIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      const content = quoteContainer
+        ? lines[lineIndex].replace(/^(?: {0,3}> ?)+/, '')
+        : lines[lineIndex].replace(/^ {1,4}/, '');
+      const stripped = content.trimStart();
+      let closingRunLength = 0;
+      while (stripped[closingRunLength] === fenceCharacter) closingRunLength += 1;
+      if (closingRunLength >= fenceLength && stripped.slice(closingRunLength).trim() === '') {
+        openingIndex = lineIndex;
+        break;
+      }
+
+      if (findMindroomPasteMarkersInText(content).length > 0 || parseMindroomToolRefText(content)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
 const rememberMarkdownPreview = (body: string, html: string): string => {
@@ -222,25 +343,29 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   }
 
   const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
-  if (blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES) {
+  if (
+    blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES ||
+    exceedsInlineMarkerBudget(body) ||
+    hasMarkerInsideContainerFence(body)
+  ) {
     return rememberMarkdownPreview(body, '');
   }
 
-  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const normalizedBody = body.replace(/\r\n?/g, '\n');
+  const lines = normalizedBody.split('\n');
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];
   let codeFence: MarkdownCodeFence | undefined;
+  let codeFenceContentLineCount = 0;
   let pastePlaceholderIndex = 0;
-  let pastePlaceholderPrefix = '\uE000MINDROOMPASTE';
   let pastePlaceholders = new Map<string, PastePlaceholder>();
   let formattingFailed = false;
+  let sourceOffset = 0;
+  const codeSpanRanges = getMarkdownCodeSpanRanges(normalizedBody);
+  const pastePlaceholderPrefix = getPastePlaceholderPrefix(body);
   const normalizedFence = '`'.repeat(Math.max(3, getLongestBacktickRun(body) + 1));
 
-  while (body.includes(pastePlaceholderPrefix)) {
-    pastePlaceholderPrefix += 'X';
-  }
-
-  const replacePasteMarkersWithPlaceholders = (line: string): string => {
+  const replacePasteMarkersWithPlaceholders = (line: string, lineOffset: number): string => {
     let cursor = 0;
     let text = '';
 
@@ -253,6 +378,9 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
       pastePlaceholders.set(placeholder, {
         markerHtml: formatMindroomPasteMarkerAsHtml(marker),
         markerTextHtml: escapeHtmlText(marker.raw),
+        literal: codeSpanRanges.some(
+          (range) => lineOffset + index >= range.start && lineOffset + index < range.end
+        ),
       });
       cursor = index + length;
     });
@@ -284,12 +412,17 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   };
 
   lines.forEach((line) => {
+    const lineOffset = sourceOffset;
+    sourceOffset += line.length + 1;
+
     if (codeFence) {
       if (isMarkdownCodeFenceClose(line, codeFence)) {
+        if (codeFenceContentLineCount === 0) markdownLines.push('');
         markdownLines.push(normalizedFence);
         codeFence = undefined;
       } else {
         markdownLines.push(line);
+        codeFenceContentLineCount += 1;
       }
       return;
     }
@@ -297,7 +430,10 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     const openingFence = getMarkdownCodeFence(line);
     if (openingFence) {
       codeFence = openingFence;
-      const info = line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[2].trim().split(/\s+/, 1)[0] ?? '';
+      codeFenceContentLineCount = 0;
+      const info =
+        line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[2].trim().split(/\s+/, 1)[0].replace(/`/g, '') ??
+        '';
       markdownLines.push(`${normalizedFence}${info}`);
       return;
     }
@@ -309,11 +445,14 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
       return;
     }
 
-    const normalizedLine = line.replace(/^(\s*)- (?=\S)/, '$1* ');
-    markdownLines.push(replacePasteMarkersWithPlaceholders(normalizedLine));
+    const normalizedLine = line.replace(/^(\s*)-( {1,4})(?=\S)/, '$1*$2');
+    markdownLines.push(replacePasteMarkersWithPlaceholders(normalizedLine, lineOffset));
   });
 
-  if (codeFence) markdownLines.push(normalizedFence);
+  if (codeFence) {
+    if (codeFenceContentLineCount === 0) markdownLines.push('');
+    markdownLines.push(normalizedFence);
+  }
 
   flushMarkdown();
   return rememberMarkdownPreview(body, formattingFailed ? '' : htmlParts.join(''));
