@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, live preview tool grouping, and three independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-three remediation awaits a fourth exact-head re-review.
+- Status: implementation, local validation, live preview tool grouping, and four independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-four remediation awaits a fifth exact-head re-review.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
@@ -26,7 +26,11 @@
 - The shared container scan now preserves the exact list indent, accepts only zero-to-three-space closers, exposes its covered line indexes to the formatter, and prevents those lines from changing root-fence or tool-marker state.
 - Markdown prose is sanitized line by line while fenced content uses plain text sanitization, so prose blockquote parity no longer changes verbatim code.
 - A Claude scratch assertion that expected attacker-supplied private-use text to disappear was rejected because only generated placeholders must be absent; the measured linear prefix selection and real marker output were correct.
-- Round-three remediation passes 74 focused formatter/render/hydration tests, all 453 Vitest files with 3,457 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; fourth-round exact-head AgentCLI re-review is next.
+- AgentCLI round-four Codex and Claude reviews reproduced exact container-prefix and display-math boundaries: extra quote depth could look like a false close, an outdented root fence could be consumed as a container close, and prose dash or blockquote rewrites could mutate multiline LaTeX.
+- Container scanning now strips exactly the opener's quote depth, requires the active quote or list continuation prefix before accepting a closer, and skips container-looking text inside a real root fence.
+- One display-math state bit keeps dash and backslash syntax literal inside multiline `$$` blocks without adding another range parser.
+- Safe conservative fallback for container-looking text inside root code, cache-thrash speculation, nested-container parsing, and second-parser proposals remain deliberately rejected as disproportionate or unproven.
+- Round-four remediation passes 76 focused formatter/render/hydration tests, all 453 Vitest files with 3,459 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; fifth-round exact-head AgentCLI re-review is next.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 

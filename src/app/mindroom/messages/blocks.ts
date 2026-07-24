@@ -260,15 +260,40 @@ type ContainerFenceScan = {
   hasMarker: boolean;
 };
 
+const stripQuoteContainerPrefix = (line: string, depth: number): string | undefined => {
+  let content = line;
+
+  for (let index = 0; index < depth; index += 1) {
+    const prefix = content.match(/^ {0,3}> ?/)?.[0];
+    if (!prefix) return undefined;
+    content = content.slice(prefix.length);
+  }
+
+  return content;
+};
+
 const scanContainerFences = (body: string): ContainerFenceScan => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const lineIndexes = new Set<number>();
+  let rootFence: MarkdownCodeFence | undefined;
 
   for (let openingIndex = 0; openingIndex < lines.length; openingIndex += 1) {
+    if (rootFence) {
+      if (isMarkdownCodeFenceClose(lines[openingIndex], rootFence)) rootFence = undefined;
+      continue;
+    }
+
+    const rootOpeningFence = getMarkdownCodeFence(lines[openingIndex]);
+    if (rootOpeningFence) {
+      rootFence = rootOpeningFence;
+      continue;
+    }
+
     const openingMatch = lines[openingIndex].match(MARKDOWN_CONTAINER_FENCE_REG);
     if (!openingMatch) continue;
 
     const quoteContainer = openingMatch[1].includes('>');
+    const quoteDepth = openingMatch[1].match(/>/g)?.length ?? 0;
     const listContentIndent = quoteContainer ? 0 : openingMatch[1].length;
     const listContentPrefix = ' '.repeat(listContentIndent);
     const fence: MarkdownCodeFence = {
@@ -284,12 +309,19 @@ const scanContainerFences = (body: string): ContainerFenceScan => {
     }
 
     for (let lineIndex = openingIndex + 1; lineIndex < lines.length; lineIndex += 1) {
-      lineIndexes.add(lineIndex);
       const content = quoteContainer
-        ? lines[lineIndex].replace(/^(?: {0,3}> ?)+/, '')
+        ? stripQuoteContainerPrefix(lines[lineIndex], quoteDepth)
         : lines[lineIndex].startsWith(listContentPrefix)
         ? lines[lineIndex].slice(listContentIndent)
-        : lines[lineIndex];
+        : lines[lineIndex].trim()
+        ? undefined
+        : '';
+      if (content === undefined) {
+        openingIndex = lineIndex - 1;
+        break;
+      }
+
+      lineIndexes.add(lineIndex);
       if (isMarkdownCodeFenceClose(content, fence)) {
         openingIndex = lineIndex;
         break;
@@ -375,6 +407,7 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   let markdownLines: string[] = [];
   let codeFence: MarkdownCodeFence | undefined;
   let codeFenceContentLineCount = 0;
+  let displayMath = false;
   let pastePlaceholderIndex = 0;
   let pastePlaceholders = new Map<string, PastePlaceholder>();
   let formattingFailed = false;
@@ -446,6 +479,17 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     }
 
     const insideContainerFence = containerFenceScan.lineIndexes.has(lineIndex);
+    if (displayMath) {
+      markdownLines.push(sanitizeText(line));
+      if (line === '$$') displayMath = false;
+      return;
+    }
+    if (!insideContainerFence && line === '$$') {
+      displayMath = true;
+      markdownLines.push(line);
+      return;
+    }
+
     const openingFence = insideContainerFence ? undefined : getMarkdownCodeFence(line);
     if (openingFence) {
       codeFence = openingFence;

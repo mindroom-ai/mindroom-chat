@@ -283,6 +283,11 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
         ['- ~~~', '      ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
       )
     ).toBe('');
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['> ~~~', '> > ~~~', `> ${PASTE_MARKER}`, '> ~~~'].join('\n')
+      )
+    ).toBe('');
   });
 
   it('still formats markers after a closed container fence', () => {
@@ -297,6 +302,25 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(listFence).toContain('<p>🔧 <code>run_shell_command</code> [1]</p>');
   });
 
+  it('leaves outdented root fences outside preceding containers', () => {
+    ['- ~~~', '> ~~~'].forEach((containerOpening) => {
+      const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+        [
+          containerOpening,
+          '~~~',
+          PASTE_MARKER,
+          '🔧 `run_shell_command` [1]',
+          '~~~',
+          'after **root** fence',
+        ].join('\n')
+      );
+
+      expect(formattedBody).not.toContain('data-mindroom-paste-marker');
+      expect(formattedBody).not.toContain('<p>🔧 <code>run_shell_command</code> [1]</p>');
+      expect(formattedBody).toContain('<strong data-md="**">root</strong>');
+    });
+  });
+
   it('sanitizes math exactly once', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
       ['$x < y & z$ holds', '', '$$', 'a < b & c', '$$'].join('\n')
@@ -308,6 +332,17 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('<div data-mx-maths="a &lt; b &amp; c">a &lt; b &amp; c</div>');
     expect(formattedBody).not.toContain('&amp;lt;');
     expect(formattedBody).not.toContain('&amp;amp;');
+  });
+
+  it('keeps dash and blockquote escape syntax literal inside display math', () => {
+    const dashMath = formatMindroomMarkdownTextBodyAsHtml(['$$', '- a + b', '$$'].join('\n'));
+    const escapedGreaterThanMath = formatMindroomMarkdownTextBodyAsHtml(
+      ['$$', '\\> x', '$$'].join('\n')
+    );
+
+    expect(dashMath).toContain('data-mx-maths="- a + b"');
+    expect(dashMath).not.toContain('data-mx-maths="* a + b"');
+    expect(escapedGreaterThanMath).toContain('data-mx-maths="\\&gt; x"');
   });
 
   it('preserves escaped blockquotes and renders dash bullets as unordered lists', () => {
