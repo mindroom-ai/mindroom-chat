@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { clearRecentThreadsStore, makeRecentThreadsAtom } from './recentThreads';
+import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {
   DEFAULT_RECENTLY_OPENED_THREAD_LIMIT,
-  RECENTLY_OPENED_NAV_CATEGORY_ID,
   RecentlyOpenedNavCategory,
 } from './RecentlyOpenedNavCategory';
 import {

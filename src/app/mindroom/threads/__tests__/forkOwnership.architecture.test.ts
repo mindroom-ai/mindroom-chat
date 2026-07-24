@@ -39,6 +39,10 @@ const OWNERSHIP_EDGES = [
     owner: mindroomFile('recent-threads/RecentlyOpenedNavCategory.tsx'),
   })),
   {
+    consumer: appFile('pages/client/ClientInitStorageAtom.tsx'),
+    owner: mindroomFile('recent-threads/recentlyOpenedCategory.ts'),
+  },
+  {
     consumer: appFile('pages/client/SidebarNav.tsx'),
     owner: mindroomFile('sidebar/MindroomTab.tsx'),
   },

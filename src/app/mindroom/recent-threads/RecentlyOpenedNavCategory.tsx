@@ -7,11 +7,11 @@ import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
 import { useCategoryHandler } from '../../hooks/useCategoryHandler';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { makeNavCategoryId } from '../../state/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { makeRecentThreadsAtom, type RecentThreadItem } from './recentThreads';
 import { RecentThreadEntry } from './RecentThreadEntry';
+import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {
   DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT,
   MAX_RECENTLY_OPENED_PANEL_HEIGHT,
@@ -21,7 +21,6 @@ import {
 } from './recentlyOpenedPanelHeight';
 import * as css from './threadNav.css';
 
-export const RECENTLY_OPENED_NAV_CATEGORY_ID = makeNavCategoryId('mindroom', 'recently-opened');
 export const DEFAULT_RECENTLY_OPENED_THREAD_LIMIT = 10;
 
 const KEYBOARD_RESIZE_STEP = 16;
