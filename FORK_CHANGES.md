@@ -2,10 +2,27 @@
 
 ## Runbook
 
-### Visual modernization stage 2.9 - Secondary.Container collision fallout (2026-07-24)
+### Visual modernization (2026-07-24)
 
-- Status: implemented. Found by an adversarial review pass over the whole `dev...HEAD` diff, not by looking at the screen.
-- Root cause, and it is a property of the palette this branch introduced: `Secondary.Container` is now byte-identical to `SurfaceVariant.Container` in dark, midnight, and butter, and to `Background.ContainerActive` in every theme except silver.
+Staged refresh of the whole client: global design tokens first, chat-surface polish second, all five themes. Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass on every stage. Verified live in the browser except where the landmines below say otherwise.
+
+| stage | change |
+| --- | --- |
+| 1a color | All five palettes regenerated from one OKLCH ramp on brand hue 288, replacing folds' blue and lavender `Primary`. `ContainerLine` moved ~0.03 L off its own `Container` so borders read as edges; `Other.Shadow` made translucent everywhere. The fork now owns `lightTheme`. 155 audited pairs pass AA. Every `Background.Container` hex frozen, so no vertical metric moved. |
+| 1b type | `opticalTracking` override on all five themes - folds ships `letterSpacing: 0` for all 17 steps. `--font-mono` replaces bare `monospace` at nine sites. |
+| 1c motion | `Motion.css.ts` adds five durations and four easings; `transition()` shorthand; fifteen ad-hoc transitions adopted across eight files. `prefers-reduced-motion` clamps duration and scroll only. |
+| 2.2 identity | `--mx-uc-1`..`8` regenerated as eight OKLCH hues 45 degrees apart; `color.ts` normalizes tag colors onto the same ramp instead of only clamping LAB lightness. Worst case 4.56:1. |
+| 2.3 syntax | Both Prism palettes regenerated on the app ramp, dropping Monokai. Seven semantic hues; `operator`/`punctuation`/`comment` sit off-ramp as scaffolding. Worst case 4.72:1. |
+| 2.4 composer | `:focus-within` thickens the inset ring to `B400` in `Primary.Main`. Inset, so zero layout shift - confirmed by identical `getBoundingClientRect()`. |
+| 2.5 sidebar | Counted non-mention badges drop to `fill="Soft"` with `outlined` so mentions win. Mention chips now read 3-7x louder than counts in every theme; previously quieter in all five. |
+| 2.6 scrollbar | `Recently Opened` moved onto folds `Scroll` with the room list's exact settings. |
+| 2.7 header | `Thread View` becomes an uppercase eyebrow; the thread title takes the weight. Banner 75px to 77px, outside the virtualizer. |
+| 2.8 shadows | Last five hardcoded shadows moved to `config.shadow`; the code-block truncation fade reversed to fade into the block. `src/app/**/*.css.ts` now has zero hardcoded colors. |
+| 2.9 badges | Fallout from the palette collision below, found by an adversarial review of the whole diff rather than by looking at the screen. `CompactThreadCard` gained `outlined`; `UnreadBadge` gained a `selected` prop so the softening stops on the selected row. |
+
+**Landmines**
+
+- `Secondary.Container` collides with its neighbours. Any `Badge variant="Secondary" fill="Soft"` on one of these surfaces loses its pill and leaves bare digits; the text stays above 9:1, so only the shape goes. Patched at two call sites, not at the root - moving the token repaints every Soft Secondary surface and this branch has no live coverage of butter, midnight or silver to catch the fallout.
 
   | theme | Secondary.Container | SurfaceVariant.Container | Background.ContainerActive |
   | --- | --- | --- | --- |
@@ -15,142 +32,13 @@
   | midnight | `#363542` | `#363542` | `#363542` |
   | butter | `#39372F` | `#39372F` | `#39372F` |
 
-  On `dev` the dark pair was `#333333` vs `#404040`. Consequence: any `Badge variant="Secondary" fill="Soft"` sitting on a `SurfaceVariant.Container` card or a selected nav row loses its slab and renders as bare digits. The text stays above 9:1, so nothing becomes unreadable - the pill shape is what goes.
-- `CompactThreadCard.tsx` message-count badge gained `outlined`, matching `RoomNavItem.tsx:371` and `MembersDrawer.tsx:178`, which already pass it. It was the outlier. The tell for this bug is that the badge reappears on hover, because hover moves the card to `ContainerHover` while the badge stays put.
-- `UnreadBadge` gained a `selected` prop; `RoomNavItem` passes it. The softening from stage 2.5 now stops at the selected row, where the soft fill would dissolve into the selection highlight. That row is already resolved by the selection itself, so it loses nothing by staying solid.
-- Deliberately NOT done: moving `Secondary.Container` off its neighbours in the palette. That is the real fix and it is one line per theme, but it repaints every Soft Secondary surface in the app and this branch has no live coverage of butter, midnight, or silver to catch the fallout. Left as the known landmine above.
-- Known gap this review did not close: `SurfaceVariant.Container` is used as a card background in 20+ places under `src/app/mindroom/`. Only the two call sites above were audited. A future Soft Secondary badge dropped on any of the others inherits the same defect silently.
-- Typecheck, the production/PWA build, ESLint, Prettier, and the full suite pass.
-
-### Visual modernization stage 2.8 - last off-token shadows (2026-07-24)
-
-- Status: implemented and verified live in dark and light.
-- Problem: stage 1a put elevation on theme-aware tokens (`config.shadow.E100`-`E400`, built on `color.Other.Shadow`, which is `rgba(31, 30, 38, 0.13)` in light, `0.16` in silver, `rgba(0, 0, 0, 0.55)` in dark and midnight), but five sites still painted their own black. A shadow tuned for a dark surface disappears on light and butter; one tuned for light is invisible on midnight. These were the last of them - `src/app/**/*.css.ts` now has zero hardcoded colors.
-- `RoomThreadOverview.css.ts`: `AddTagDropdown` and `PresetDropdown` dropped `0 2px 8px rgba(0, 0, 0, 0.15)` for `config.shadow.E100`; `InfoPopover` dropped `0 4px 16px rgba(0, 0, 0, 0.2)` for `config.shadow.E200`.
-- `CollapsibleMessage.css.ts`: `pillBase` (shared by `CollapsibleShowMore` and `CollapsiblePill`) dropped `0 1px 3px rgba(0, 0, 0, 0.18)` for `config.shadow.E100`.
-- `CustomHtml.css.ts`: `CodeBlockBottomShadow` marks a truncated code block, so it should fade into the block rather than veil it. It went from `linear-gradient(#00000022, #00000000)` - which pointed the wrong way, darkening downward over a surface it did not match - to `linear-gradient(to top, ${color.SurfaceVariant.Container}, transparent)`, the same shape `CollapsibleGradientOverlay` already uses for message bodies. `BaseCode` sets that same container color as the block background, so the fade now lands on it exactly.
-- Measured live by injecting a probe element carrying each hashed class and reading `getComputedStyle`. Dark resolves all four shadows to `rgba(0, 0, 0, 0.55)` and the code fade to `rgb(54, 54, 57)`; light resolves them to `rgba(31, 30, 38, 0.13)` and the fade to `rgb(244, 244, 248)`. Offsets and blurs track the `E100`/`E200` steps as expected.
-- Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass.
-- Not done in this stage: the agent/tool-card surface from the original scope. No thread in the test account renders `<tool>` / `<tool-group>` content - `Block`, `Section`, `Extras`, `ToolGroupItem`, and `details` all count 0 live - and `MindroomHtmlBlocks.css.ts` and `MindroomMessageExtras.css.ts` are already fully tokenized, so there was no off-token work waiting there. Revisit when a thread with real tool traces is available.
-
-### Visual modernization stage 2.7 - thread header hierarchy (2026-07-24)
-
-- Status: implemented and verified live in dark and light.
-- Problem: the thread header put its emphasis on the wrong line. `Thread View` rendered at `B400` (14px / W500 / full opacity) and the thread title under it at `T200 priority=300` (12px / W400 / 0.75 opacity). The label says the same thing on every thread the user opens; the title is the only part that identifies the conversation. Same defect class as stage 2.5, where unread counts out-shouted mentions.
-- `ThreadContextBanner.tsx` swaps the two. `Thread View` becomes an eyebrow - `L400 priority=300` plus a new `ViewLabel` class with uppercase and `0.04em` tracking, matching the treatment the sidebar category headers and the `SHOW MORE` pill already use for chrome labels. The title moves to `T300` at full opacity with `W500` on `SummaryText`.
-- Measured live: eyebrow 12px/W500/0.75, title 14px/W500/1.0. Contrast against the banner container is 6.53:1 dark and 6.88:1 light for the eyebrow, 10.22:1 and 15.05:1 for the title - all above 4.5:1.
-- Banner height goes 75px to 77px. The title row is governed by the back button, not its text, so only the subtitle line grows (18px to 20px). The banner sits outside the virtualizer, so `threadRenderUtils.ts` row estimates are untouched.
-- `OverflowChip` (the `+N` chip beside the tag pills) dropped its hardcoded `rgba(128, 128, 128, 0.2)` for `SurfaceVariant.Container` with a `ContainerLine` border and `R300` radius, so it tracks the five themes and the pills it sits next to instead of being the same grey slab everywhere.
-- Typecheck, the production/PWA build, ESLint, and Prettier pass; `ThreadContextBanner.test.ts` (26 tests) passes with `ViewLabel` added to its css mock.
-
-### Visual modernization stage 2.6 - Recently Opened scrollbar (2026-07-24)
-
-- Status: implemented and verified live in dark and light. Reported by the user: the Recently Opened scrollbar "is ugly and not like the others".
-- Problem: `RecentlyOpenedList` in `src/app/mindroom/recent-threads/threadNav.css.ts` was a plain `overflowY: 'auto'` div, so it was the only scroller in the sidebar showing the platform's own scrollbar - a 15px grey slab against the folds thumb used everywhere else, sitting directly below the room list that does use folds.
-- `RecentlyOpenedNavCategory.tsx` now scrolls through folds `Scroll` with exactly the settings `PageNavContent` uses for that room list: `variant="Background" direction="Vertical" size="300" hideTrack visibility="Hover"`.
-- `Scroll` sets `height: 100%`, which only resolves correctly inside a box the flex layout has already sized, so the sizing moved to a new `RecentlyOpenedListViewport` wrapper and the scrolling stayed on the child. This is the same split `PageNavContent` uses; overriding folds' `height` from our own class would have depended on stylesheet order.
-- `paddingRight: S100` is dropped. `Scroll` reserves an 8px gutter for its own scrollbar and the room list above pads to 0 on that side for the same reason, so the old padding would have stepped the two lists out of alignment. Measured live: recently-opened rows and room rows now share the same 74px and 314px edges.
-- `overscrollBehavior: 'contain'` and the bottom padding stay on the scroller. `id`, `data-testid` and the resize handle's `aria-controls` target are unchanged, so the drag-to-resize separator still points at the same element.
-- Typecheck, the production/PWA build, ESLint, Prettier, and the full test suite pass.
-
-### Visual modernization stage 2.3 - syntax colors on the app ramp (2026-07-24)
-
-- Status: implemented and verified live in light and dark. Colors only, so no code-block metrics change.
-- Problem: `ReactPrism.css` carried two unrelated palettes - an ad-hoc light one and Monokai for dark. Monokai's `#f92672` hot pink and `#a6e22e` acid green are a complete design language of their own, and agent output is mostly code, so the largest coloured surface in the app was the one speaking a different dialect from everything around it. The light palette had its own inversion: `#0f4777` made comments a saturated blue, louder than the code they annotate.
-- Both palettes are regenerated on the same rule as the `--mx-uc-*` colors and `accessibleColor`. Hue carries the token's identity, because that is what distinguishes a string from a keyword; lightness and chroma belong to the theme. Seven semantic hues, 20 through 300, well separated.
-- Light group sits at L 0.48 with chroma capped at 0.135 - two steps darker than the user colors, because code sits on `SurfaceVariant.Container` and silver's is darker than any message background. Worst case 4.72:1 there. Dark group is the usual L 0.82 / 0.115, worst case 6.56:1 against butter's container.
-- Three tokens sit off the semantic ramp on purpose, because they are scaffolding rather than content: `operator` at body weight (`=>`, `===` and `+` carry meaning), `punctuation` one step down, `comment` quietest. All three still clear 4.5:1; the light chain is 12.67 / 5.96 / 5.05 and the dark 10.11 / 6.38 / 4.78.
-- "Quieter" flips direction between the groups - darker in light, lighter in dark - so the dark comment comes down off the ramp's L 0.82 rather than sitting on it. The first attempt kept it on the ramp and produced the inverse of the intent: the quietest token was the brightest thing in the block.
-- Verified by loading `ReactPrism.tsx` in the running page and rendering a token sample against silver's and dark's containers, the two binding backgrounds. All nine variables resolve in both groups and match the generated values exactly.
-- The production/PWA build and Prettier pass.
-
-### Visual modernization stage 2.5 - sidebar unread hierarchy (2026-07-24)
-
-- Status: implemented and verified live in light, silver, and dark.
-- Problem: the sidebar's visual priority was inverted. `UnreadBadge` rendered both states with `fill="Solid"`, so an ordinary unread count came out as a near-black pill in the light themes and a near-white one in the dark themes, at roughly 15:1 against the page. A mention came out as a green `Success` pill at 4-10:1. A near-black slab outweighs a green one no matter what the green means, so the sidebar shouted loudest about the thing that mattered least - and in a busy account nearly every room has an unread count, which is what turned the room list into a wall of chips.
-- `src/app/components/unread-badge/UnreadBadge.tsx` drops the counted, non-highlight badge to `fill="Soft"` with `outlined`. Mentions keep `Solid`. The number itself still reads at 10.2:1 (dark) to 13.4:1 (light) inside the soft pill; only the slab behind it recedes, from about 15:1 down to 1.1-1.5:1 against the page.
-- The outline is what keeps the soft pill legible as a pill on the light themes, where `Secondary.Container` is barely off the sidebar background - silver is the tightest at 1.10:1. folds draws `outlined` with `outline` rather than `border`, so it costs no layout; measured height stays 16px in both states.
-- The countless form is left `Solid` on purpose. It is an 8px dot standing in for "something happened here" with no text inside it to carry the meaning, so softening it would leave nothing to see. Treating it differently from the counted pill is justified by area, not inconsistency.
-- Hierarchy re-checked numerically in all five themes: the solid mention chip now reads 3x to 7x louder against the page than the softened count chip in every one, where previously it was quieter in all five.
-- Typecheck, the production/PWA build, ESLint, and Prettier on the touched file pass.
-
-### Visual modernization stage 2.2 - unified identity colors (2026-07-24)
-
-- Status: implemented and validated in the browser in both a light and a dark theme. Stage 2 continues with the sidebar and room list (2.5), the markdown body and Prism palettes (2.3), and the tool cards (2.1) last, since those overlap active work on `fix/long-text-preview-markdown`.
-- Problem: the two colors used to identify a person were generated by two unrelated rules and clashed. Avatar fallbacks came from eight hand-written HSL values in `src/index.css`, while sender names came from power-level tag colors passed through `accessibleColor`, which only clamped LAB lightness. The default moderator green `#1fd81f` therefore stayed fully saturated in both themes: a neon name sitting next to a muted avatar, in an app whose every other surface had just been moved onto one OKLCH ramp.
-- `src/index.css` regenerates `--mx-uc-1` through `--mx-uc-8` as eight evenly spaced OKLCH hues, 45 degrees apart, rotated 32 degrees off zero so none of them lands on the 288 degree brand hue. Light group is L 0.52 with chroma capped at 0.125, dark group L 0.82 capped at 0.115.
-- Preserving the original hues was tried first and rejected. Hues 208 and 242 collapse into two near-indistinguishable blues once they are forced to share a lightness, and telling people apart is the entire job of these colors.
-- Each value is checked in both directions, because `colorMXID` uses it as the sender name's text color and as an avatar fallback background with `Surface.Container` as the letter. The pair is the same either way, so one contrast check covers both. Worst case is 4.56:1 against silver's `Surface.Container` in the light group and 7.69:1 against butter's in the dark group.
-- `src/app/plugins/color.ts` now normalizes an arbitrary tag color onto that same ramp instead of only clamping lightness. Hue stays the caller's, since hue is what distinguishes one tag from another; lightness and chroma become the theme's. Chroma is pulled in until the color is inside sRGB rather than letting `.hex()` clip, because clipping drags hue and lightness along with it, which is the opposite of what a fixed-lightness ramp is for.
-- All seven default power-level tag colors pass 4.5:1 in both theme groups, worst case 4.59:1 light and 7.74:1 dark. Greys are handled explicitly: `oklch()` reports `NaN` hue for them, and the zero-chroma path returns a grey at the target lightness.
-- Verified live at 1440x900: `DevAgent` renders `#98D792` in dark and `#377A34` in light where it was `#1fd81f` in both, and `RouterAgent` renders `#9CC8FE` / `#2F6AAF`. Both match the offline audit exactly. `useAccessiblePowerTagColors` already memoizes on tags plus theme kind, so the added gamut loop runs at most a couple of dozen iterations per tag per theme change.
-- Typecheck, the production/PWA build, and ESLint on the touched files pass.
-
-### Visual modernization stage 2.4 - composer focus ring (2026-07-24)
-
-- Status: implemented and verified live.
-- Problem: typing into the composer was the one interaction in the app with no visual acknowledgement at all. The caret appeared and the box stayed exactly as it was.
-- `src/app/components/editor/Editor.css.ts` adds a `:focus-within` rule that thickens the existing inset ring from `B300` in `SurfaceVariant.ContainerLine` to `B400` in `Primary.Main`, on the shared `transition(['box-shadow'])` timing from stage 1c.
-- The ring is drawn inset rather than outset deliberately. It cannot be clipped by an ancestor and it cannot move anything, which matters because the composer shares a column with a virtualized timeline whose row heights come from a content-based estimator.
-- Zero layout shift confirmed by comparing `getBoundingClientRect()` focused and unfocused: `{x:339, y:824, width:818, height:48}` both times. Computed style goes from `rgb(223, 223, 228) 0px 0px 0px 1px inset` to `rgb(105, 76, 205) 0px 0px 0px 1.5px inset` over `box-shadow 0.12s cubic-bezier(0.2, 0, 0, 1)`.
-- Contrast audited across all five themes. As a non-text indicator the ring needs 3:1 against `SurfaceVariant.Container` and gets 5.30:1 (silver) to 5.76:1 (dark). It also reads at least 4.49:1 against the resting `ContainerLine` it replaces, so the state change itself is unmistakable and not just a thickness difference.
-- `:focus-within` rather than `:focus` is intentional: reaching for the emoji or attachment button keeps the composer group lit, which is the accurate description of what has focus.
-- Typecheck, the production/PWA build, and ESLint on the touched file pass.
-
-### Visual modernization stage 1c - motion tokens (2026-07-24)
-
-- Status: stage 1c (motion) is implemented and fully validated. Stage 1 is now complete; stages 2.1-2.5 (chat surfaces) are next and not started.
-- Problem: every transition in the app picked its own duration and curve by hand. Hovering across the sidebar, the thread list, and a message ran 100ms linear, 120ms ease, 0.15s with no curve at all, and 200ms `cubic-bezier(0, 0.8, 0.67, 0.97)` - three speeds at three accelerations for the same gesture.
-- `src/app/styles/Motion.css.ts` adds a `createGlobalTheme(':root', ...)` with five durations (Instant 80ms, Fast 120ms, Normal 160ms, Slow 200ms, Slower 280ms) and four easings (Standard, Decelerate, Accelerate, Linear). The steps sit deliberately close to the values already in use, so adopting them is a snap-to-grid rather than a re-timing: Fast and Slow are exactly the two most common existing values.
-- `src/app/styles/transition.ts` holds the `transition(properties, duration?, easing?)` shorthand builder. It is a separate plain module on purpose - a `.css.ts` file may only export values vanilla-extract can serialize, and exporting a function from one builds fine until a regular `.tsx` imports it, at which point the build fails with `Invalid exports`. `ThreadTagPill.tsx` is that `.tsx`.
-- Fifteen ad-hoc transitions across eight files now use the tokens: `CompactRoomView.css.ts`, `TimelineMinimap.css.ts`, `RoomThreadOverview.css.ts` (six), `threadNav.css.ts` (two), `Sidebar.css.ts` (two), `layout.css.ts`, `ImageViewer.css.ts`, and the inline style in `ThreadTagPill.tsx`.
-- `src/index.css` gained a global `prefers-reduced-motion: reduce` rule, but it clamps `transition-duration` and `scroll-behavior` only. Collapsing a transition is always safe: the end state arrives immediately and nothing is lost but the travel. Duration collapses to 0.01ms rather than 0 so `transitionend` still fires; nothing in the codebase currently listens for it, but a future caller should not have to know that.
-- Keyframe animations are deliberately excluded from that global rule. The usual blanket snippet also sets `animation-duration: 0.01ms` and `animation-iteration-count: 1`, which would freeze the folds spinner, the typing dots, and the streaming indicator on a single frame. Those animations are the only signal that something is in progress, so clamping them removes information rather than motion.
-- Instead, animations opt out individually. `src/app/styles/Animations.css.ts` disables `WobbleAnimation` under reduced motion, since translate plus rotate is exactly what the query is for, and reduces `CallAvatarAnimation` to its `glowPulse` half so the "call is live" signal survives. `GlowAnimation` only grows a box shadow and is left alone. `StreamingIndicator`, `MindroomThinkingPlaceholder`, and `ThreadIndicator` already handled themselves.
-- Left as-is on purpose: the folds spinner curve `cubic-bezier(0.73, 0.32, 0.67, 0.86)` lives in `node_modules` behind an unstable hashed class and cannot be targeted safely; the dnd-kit `transition` props in `SortableRoomNavItem.tsx` and `SpaceTabs.tsx` are library-owned; `ImageViewer.tsx` sets `transition: 'none'` while zooming as a deliberate override.
-- Verified in the built CSS: all nine tokens emit on `:root` (`--_8i8xsb0: 80ms` through `--_8i8xsb8: linear`), all four easings appear, the reduced-motion block contains only the two clamped properties, and the two `Animations.css.ts` opt-outs are present.
-- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and Prettier on all touched files pass. The full Vitest suite passes all 453 files and 3,435 tests.
-
-### Visual modernization stage 1b - typography tokens (2026-07-24)
-
-- Status: stage 1b (typography) is implemented and fully validated.
-- Problem: folds ships `letterSpacing` as literal `0` for all 17 type steps, so 45px display text reads loose and 12px labels read cramped, and every code surface asked for the bare `monospace` keyword, which is Courier New on Windows and Linux.
-- `src/config.css.ts` gained `opticalTracking`, a `createTheme(config.letterSpacing, ...)` override wired into all five themes in `src/app/hooks/useTheme.ts`. `src/app/theme/themeBootstrap.ts` picks it up for free because it spreads each theme's `classNames`.
-- Tracking tightens with size: -0.022em at D400 down to -0.006em at H6 and T500. Only the three 12px steps open up, T200 and C400 and O400 at 0.004em to 0.01em.
-- Constraint honored: T400 (15px) and T300 (14px) stay at exactly 0. They set the width of nearly every wrapped line in the timeline, and the estimator in `src/app/mindroom/threads/threadRenderUtils.ts` is calibrated against their line counts. The B500/B400/B300 button steps also stay at 0 so no label can outgrow its button. Every other non-zero value is negative, so the only steps that can grow are 12px ones with slack around them.
-- Verified live in the browser: 18px resolves to -0.198px, 16px to -0.144px, the 12px label to 0.12px, and the 12px caption to 0.048px, while body text still computes `normal`. The 1b thread screenshot lands every timeline line on the same pixel row as the 1a one.
-- `--font-mono` is now defined in the `:root` block of `src/index.css` and replaces `'monospace'` at nine call sites across message extras, tool approval cards, both `CodeFont` definitions, the timeline, and four settings and verification editors.
-- The mono swap was measured before it was made: a `<code>` at an inherited 15px renders identically wide under `monospace` and under the new stack on macOS Chrome, 90.313px for ten M glyphs either way. The monospace default-size quirk is not in play here because these elements inherit a concrete font size rather than the `medium` keyword.
-- `src/app/mindroom/threads/rideTraceRecorder.ts` keeps its bare `monospace`: it is a `console.log` `%c` format string, where `var()` does not resolve.
-- Diff noise worth knowing about: `src/index.css` had never been Prettier-clean, so formatting it lowercased every hex in the file. CI only runs `prettier --check` on changed files, so touching the file forced this. The five `Background.Container` hexes are still duplicated across `src/index.css`, `src/colors.css.ts`, `src/app/theme/themeBootstrap.ts`, and `index.html`, but the `index.css` copies are now lowercase; grep them case-insensitively.
-- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, Prettier on all twelve touched files, and `git diff --check` pass.
-- The full Vitest suite passes all 453 files and 3,435 tests.
-
-### Visual modernization stage 1a - unified color tokens (2026-07-24)
-
-- Status: stage 1a (color) is implemented and fully validated.
-- Scope agreed with the user: a staged refresh, global design tokens first and chat-surface polish second, covering the message timeline, composer, sidebar and room list, and agent/tool cards, with all five themes hand-tuned equally.
-- Screenshot evidence lives in `test-results/design-before/` and `test-results/design-after/` at 1440x900 CSS px (2x DPR), five thread views plus a light and dark room view each, so later stages can be judged against them.
-- Screenshot trap worth remembering: an earlier `test-results/design-baseline/` set was captured from a dev server on port 8080 that belonged to a different worktree, `codex/.../long-text-preview-markdown`. Its four theme files were byte-identical to this branch's parent, but it renders markdown and collapsible tool-call cards that this branch does not, so it could not serve as a before image. The before set was recaptured by detaching this checkout to the parent commit `21fdfe3e` and reloading the same origin, which keeps the logged-in Matrix session because that session is bound to the origin, not the code.
-- Verification tell: in dev builds the body class shows which palette module is live. `colors_lightTheme__*` means this fork's `lightTheme`; `oq6d071w` means folds' built-in one is still being used. Vanilla-extract debug ids are derived from file and export identity, not content, so `colors_darkTheme__*` alone proves nothing.
-- Problem: the five palettes were not one family. Light and silver used a blue `Primary` while the dark family used lavender; `ContainerLine` sat roughly 0.13 lightness from its own `Container`, so borders rendered as hard rules; the dark family set `Other.Shadow` to opaque black, which defeated the diffuse `softShadow` tokens; light and silver were pure neutral greys with pure black text.
-- All five palettes are now generated from one OKLCH ramp on a single brand hue of 288 degrees, replacing both the blue and the lavender `Primary`.
-- `src/colors.css.ts` now owns a fork-authored `lightTheme`; `src/app/hooks/useTheme.ts` no longer imports `lightTheme` from folds. No other module imported it.
-- Neutrals carry a trace of the brand hue, chroma 0.005 for dark and 0.006 for the light kinds, midnight raises it to 0.022, and butter tints warm at 95 degrees instead.
-- `ContainerLine` now sits about 0.03 lightness from its own `Container` in every theme, so borders read as edges.
-- `Other.Shadow` is translucent in every theme; the dark family moved off opaque black and butter gained its own `Other` block instead of inheriting the shared dark one.
-- The three dark-kind themes share one `darkAccents` object, so only the neutral ladders and `Secondary` differ between dark, midnight, and butter.
-- Silver keeps a separately darkened accent set because its `Background.Container` is darker than light's and the shared light accents could not hold 4.5:1 against it.
-- `--tc-link` in `src/index.css` was a standalone blue that the new violet `Primary` would have clashed with; it now tracks `Primary.Main` per theme kind, with silver taking its own darker value to hold 4.5:1 against its darker background.
-- Constraint honored: all five `Background.Container` hexes are byte-identical to before, so the duplicated values in `src/index.css`, `src/app/theme/themeBootstrap.ts`, and the pre-paint bootstrap in `index.html` needed no edit. Each hex was grepped in all four sync points after the change.
-- Deliberately deferred: the `--mx-uc-1` through `--mx-uc-8` username and avatar colors in `src/index.css` are still fully saturated `hsl(..., 100%, ...)` and read as harsh, especially in the light kinds. They belong to the timeline and sidebar stages rather than to the token stage.
-- Constraint honored: no vertical metric changed, so the height-calibrated virtualizer estimator in `src/app/mindroom/threads/threadRenderUtils.ts` is untouched.
-- Contrast was generated and audited with a throwaway `chroma-js` script; static hex is pasted into source and no color math runs at runtime.
-- All 155 audited pairs pass WCAG AA. Text-on-container pairs clear 4.5:1; `Success.Main` and `Warning.Main` on light-kind backgrounds are icon and badge colors held to the 3:1 non-text threshold.
-- Typecheck, the production/PWA build, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The full Vitest suite passes all 453 files and 3,435 tests.
-- Before/after comparison is done for all five themes. Every element lands on the same pixel row in both sets, confirming no layout or vertical-metric regression. The visible deltas are the intended ones: borders read as soft edges instead of hard rules, the dark family's opaque black shadow is gone, and accents share the violet brand hue. The change is deliberately subtle because every `Background.Container` was frozen.
-- Followed by stage 1b, typography tokens.
+- `SurfaceVariant.Container` backs 20+ cards under `src/app/mindroom/`. Only the two above were audited; a future Soft Secondary badge on any other inherits the same defect silently.
+- T400 and T300 tracking is pinned to exactly `0`. They set the width of nearly every wrapped line in the timeline, and `threadRenderUtils.ts` is calibrated against their line counts. Same reason B500/B400/B300 stay at 0 - no label may outgrow its button.
+- `transition.ts` must stay a plain module. A `.css.ts` may only export values vanilla-extract can serialize; exporting a function builds fine until a `.tsx` imports it, then fails with `Invalid exports`.
+- Reduced motion deliberately excludes keyframes. The blanket snippet would freeze the spinner, typing dots, and streaming indicator on one frame, removing information rather than motion. Animations opt out individually in `Animations.css.ts`.
+- The five `Background.Container` hexes are duplicated in `src/index.css`, `src/colors.css.ts`, `themeBootstrap.ts`, and `index.html`. The `index.css` copies are now lowercase - grep case-insensitively.
+- Screenshot trap: port 8080 may belong to a different worktree. An early baseline set was captured from `codex/.../long-text-preview-markdown`, whose theme files were byte-identical but which renders markdown and tool cards this branch does not.
+- Not done: the agent/tool-card surface from the original scope. No thread in the test account renders `<tool>` content, and `MindroomHtmlBlocks.css.ts` / `MindroomMessageExtras.css.ts` are already fully tokenized.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
