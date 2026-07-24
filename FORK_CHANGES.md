@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Visual modernization stage 2.4 - composer focus ring (2026-07-24)
+
+- Status: implemented and verified live.
+- Problem: typing into the composer was the one interaction in the app with no visual acknowledgement at all. The caret appeared and the box stayed exactly as it was.
+- `src/app/components/editor/Editor.css.ts` adds a `:focus-within` rule that thickens the existing inset ring from `B300` in `SurfaceVariant.ContainerLine` to `B400` in `Primary.Main`, on the shared `transition(['box-shadow'])` timing from stage 1c.
+- The ring is drawn inset rather than outset deliberately. It cannot be clipped by an ancestor and it cannot move anything, which matters because the composer shares a column with a virtualized timeline whose row heights come from a content-based estimator.
+- Zero layout shift confirmed by comparing `getBoundingClientRect()` focused and unfocused: `{x:339, y:824, width:818, height:48}` both times. Computed style goes from `rgb(223, 223, 228) 0px 0px 0px 1px inset` to `rgb(105, 76, 205) 0px 0px 0px 1.5px inset` over `box-shadow 0.12s cubic-bezier(0.2, 0, 0, 1)`.
+- Contrast audited across all five themes. As a non-text indicator the ring needs 3:1 against `SurfaceVariant.Container` and gets 5.30:1 (silver) to 5.76:1 (dark). It also reads at least 4.49:1 against the resting `ContainerLine` it replaces, so the state change itself is unmistakable and not just a thickness difference.
+- `:focus-within` rather than `:focus` is intentional: reaching for the emoji or attachment button keeps the composer group lit, which is the accurate description of what has focus.
+- Typecheck, the production/PWA build, and ESLint on the touched file pass.
+
 ### Visual modernization stage 1c - motion tokens (2026-07-24)
 
 - Status: stage 1c (motion) is implemented and fully validated. Stage 1 is now complete; stages 2.1-2.5 (chat surfaces) are next and not started.
