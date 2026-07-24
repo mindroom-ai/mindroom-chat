@@ -1,8 +1,7 @@
-import { lightTheme } from 'folds';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { onDarkFontWeight, onLightFontWeight, roundedRadii, softShadow } from '../../config.css';
-import { butterTheme, darkTheme, midnightTheme, silverTheme } from '../../colors.css';
+import { butterTheme, darkTheme, lightTheme, midnightTheme, silverTheme } from '../../colors.css';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 

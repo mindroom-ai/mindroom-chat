@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Visual modernization stage 1a - unified color tokens (2026-07-24)
+
+- Status: stage 1a (color) is implemented and fully validated. Stages 1b (typography), 1c (motion), and 2.1-2.5 (chat surfaces) are next and not started.
+- Scope agreed with the user: a staged refresh, global design tokens first and chat-surface polish second, covering the message timeline, composer, sidebar and room list, and agent/tool cards, with all five themes hand-tuned equally.
+- Baseline screenshots for all five themes are captured under `test-results/design-baseline/` at 1440x900 CSS px so later stages can be judged against them.
+- Problem: the five palettes were not one family. Light and silver used a blue `Primary` while the dark family used lavender; `ContainerLine` sat roughly 0.13 lightness from its own `Container`, so borders rendered as hard rules; the dark family set `Other.Shadow` to opaque black, which defeated the diffuse `softShadow` tokens; light and silver were pure neutral greys with pure black text.
+- All five palettes are now generated from one OKLCH ramp on a single brand hue of 288 degrees, replacing both the blue and the lavender `Primary`.
+- `src/colors.css.ts` now owns a fork-authored `lightTheme`; `src/app/hooks/useTheme.ts` no longer imports `lightTheme` from folds. No other module imported it.
+- Neutrals carry a trace of the brand hue, chroma 0.005 for dark and 0.006 for the light kinds, midnight raises it to 0.022, and butter tints warm at 95 degrees instead.
+- `ContainerLine` now sits about 0.03 lightness from its own `Container` in every theme, so borders read as edges.
+- `Other.Shadow` is translucent in every theme; the dark family moved off opaque black and butter gained its own `Other` block instead of inheriting the shared dark one.
+- The three dark-kind themes share one `darkAccents` object, so only the neutral ladders and `Secondary` differ between dark, midnight, and butter.
+- Silver keeps a separately darkened accent set because its `Background.Container` is darker than light's and the shared light accents could not hold 4.5:1 against it.
+- `--tc-link` in `src/index.css` was a standalone blue that the new violet `Primary` would have clashed with; it now tracks `Primary.Main` per theme kind, with silver taking its own darker value to hold 4.5:1 against its darker background.
+- Constraint honored: all five `Background.Container` hexes are byte-identical to before, so the duplicated values in `src/index.css`, `src/app/theme/themeBootstrap.ts`, and the pre-paint bootstrap in `index.html` needed no edit. Each hex was grepped in all four sync points after the change.
+- Deliberately deferred: the `--mx-uc-1` through `--mx-uc-8` username and avatar colors in `src/index.css` are still fully saturated `hsl(..., 100%, ...)` and read as harsh, especially in the light kinds. They belong to the timeline and sidebar stages rather than to the token stage.
+- Constraint honored: no vertical metric changed, so the height-calibrated virtualizer estimator in `src/app/mindroom/threads/threadRenderUtils.ts` is untouched.
+- Contrast was generated and audited with a throwaway `chroma-js` script; static hex is pasted into source and no color math runs at runtime.
+- All 155 audited pairs pass WCAG AA. Text-on-container pairs clear 4.5:1; `Success.Main` and `Warning.Main` on light-kind backgrounds are icon and badge colors held to the 3:1 non-text threshold.
+- Typecheck, the production/PWA build, and full ESLint with zero errors and the existing 17-warning baseline pass.
+- The full Vitest suite passes all 453 files and 3,435 tests.
+- Not yet done for this stage: re-capturing the five-theme screenshot set against the new tokens for side-by-side comparison with the baseline.
+
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
 - Status: the screenshot-driven draggable redesign and collapsed-by-default follow-up are complete on `feat/restore-recent-threads`, with live coverage, full local validation, and independent exact-diff approval.

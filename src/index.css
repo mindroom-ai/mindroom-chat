@@ -6,7 +6,8 @@
 }
 
 :root {
-  --tc-link: hsl(213deg 100% 45%);
+  /* Matches Primary.Main in src/colors.css.ts so links share the brand hue. */
+  --tc-link: #694CCD;
   --app-bg-color: #1A1A1A;
 
   /* user mxid colors */
@@ -30,6 +31,8 @@ html.light-theme {
 
 html.silver-theme {
   --app-bg-color: #DEDEDE;
+  /* Silver's darker background needs the darker silver Primary.Main to hold 4.5:1. */
+  --tc-link: #5F43BF;
   color-scheme: light;
 }
 
@@ -51,7 +54,7 @@ html.butter-theme {
 .dark-theme,
 .midnight-theme,
 .butter-theme {
-  --tc-link: hsl(213deg 100% 80%);
+  --tc-link: #B3A9FF;
 
   --mx-uc-1: hsl(208, 100%, 75%);
   --mx-uc-2: hsl(301, 100%, 80%);
