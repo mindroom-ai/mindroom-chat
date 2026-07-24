@@ -168,7 +168,7 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
         <TextAreaComponent
           ref={textAreaRef}
           name="contentTextArea"
-          style={{ fontFamily: 'monospace' }}
+          style={{ fontFamily: 'var(--font-mono)' }}
           onKeyDown={handleKeyDown}
           defaultValue={defaultContentStr}
           resize="None"

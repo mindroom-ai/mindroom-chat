@@ -2,6 +2,44 @@
 
 ## Runbook
 
+### Visual modernization (2026-07-24)
+
+Staged refresh of the whole client: global design tokens first, chat-surface polish second, all five themes. Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass on every stage. Verified live in the browser except where the landmines below say otherwise.
+
+| stage | change |
+| --- | --- |
+| 1a color | All five palettes regenerated from one OKLCH ramp on brand hue 288, replacing folds' blue and lavender `Primary`. `ContainerLine` moved ~0.03 L off its own `Container` so borders read as edges; `Other.Shadow` made translucent everywhere. The fork now owns `lightTheme`. 155 audited pairs pass AA. Every `Background.Container` hex frozen, so no vertical metric moved. |
+| 1b type | `opticalTracking` override on all five themes - folds ships `letterSpacing: 0` for all 17 steps. `--font-mono` replaces bare `monospace` at nine sites. |
+| 1c motion | `Motion.css.ts` adds five durations and four easings; `transition()` shorthand; fifteen ad-hoc transitions adopted across eight files. `prefers-reduced-motion` clamps duration and scroll only. |
+| 2.2 identity | `--mx-uc-1`..`8` regenerated as eight OKLCH hues 45 degrees apart; `color.ts` normalizes tag colors onto the same ramp instead of only clamping LAB lightness. Worst case 4.56:1. |
+| 2.3 syntax | Both Prism palettes regenerated on the app ramp, dropping Monokai. Seven semantic hues; `operator`/`punctuation`/`comment` sit off-ramp as scaffolding. Worst case 4.72:1. |
+| 2.4 composer | `:focus-within` thickens the inset ring to `B400` in `Primary.Main`. Inset, so zero layout shift - confirmed by identical `getBoundingClientRect()`. |
+| 2.5 sidebar | Counted non-mention badges drop to `fill="Soft"` with `outlined` so mentions win. Mention chips now read 3-7x louder than counts in every theme; previously quieter in all five. |
+| 2.6 scrollbar | `Recently Opened` moved onto folds `Scroll` with the room list's exact settings. |
+| 2.7 header | `Thread View` becomes an uppercase eyebrow; the thread title takes the weight. Banner 75px to 77px, outside the virtualizer. |
+| 2.8 shadows | Last five hardcoded shadows moved to `config.shadow`; the code-block truncation fade reversed to fade into the block. `src/app/**/*.css.ts` now has zero hardcoded colors. |
+| 2.9 badges | Fallout from the palette collision below, found by an adversarial review of the whole diff rather than by looking at the screen. `CompactThreadCard` gained `outlined`; `UnreadBadge` gained a `selected` prop so the softening stops on the selected row. |
+
+**Landmines**
+
+- `Secondary.Container` collides with its neighbours. Any `Badge variant="Secondary" fill="Soft"` on one of these surfaces loses its pill and leaves bare digits; the text stays above 9:1, so only the shape goes. Patched at two call sites, not at the root - moving the token repaints every Soft Secondary surface and this branch has no live coverage of butter, midnight or silver to catch the fallout.
+
+  | theme | Secondary.Container | SurfaceVariant.Container | Background.ContainerActive |
+  | --- | --- | --- | --- |
+  | light | `#DDDDE2` | `#F4F4F8` | `#DDDDE2` |
+  | silver | `#D4D4D8` | `#E1E1E6` | `#C7C7CC` |
+  | dark | `#363639` | `#363639` | `#363639` |
+  | midnight | `#363542` | `#363542` | `#363542` |
+  | butter | `#39372F` | `#39372F` | `#39372F` |
+
+- `SurfaceVariant.Container` backs 20+ cards under `src/app/mindroom/`. Only the two above were audited; a future Soft Secondary badge on any other inherits the same defect silently.
+- T400 and T300 tracking is pinned to exactly `0`. They set the width of nearly every wrapped line in the timeline, and `threadRenderUtils.ts` is calibrated against their line counts. Same reason B500/B400/B300 stay at 0 - no label may outgrow its button.
+- `transition.ts` must stay a plain module. A `.css.ts` may only export values vanilla-extract can serialize; exporting a function builds fine until a `.tsx` imports it, then fails with `Invalid exports`.
+- Reduced motion deliberately excludes keyframes. The blanket snippet would freeze the spinner, typing dots, and streaming indicator on one frame, removing information rather than motion. Animations opt out individually in `Animations.css.ts`.
+- The five `Background.Container` hexes are duplicated in `src/index.css`, `src/colors.css.ts`, `themeBootstrap.ts`, and `index.html`. The `index.css` copies are now lowercase - grep case-insensitively.
+- Screenshot trap: port 8080 may belong to a different worktree. An early baseline set was captured from `codex/.../long-text-preview-markdown`, whose theme files were byte-identical but which renders markdown and tool cards this branch does not.
+- Not done: the agent/tool-card surface from the original scope. No thread in the test account renders `<tool>` content, and `MindroomHtmlBlocks.css.ts` / `MindroomMessageExtras.css.ts` are already fully tokenized.
+
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
 - Status: the screenshot-driven draggable redesign and collapsed-by-default follow-up are complete on `feat/restore-recent-threads`, with live coverage, full local validation, and independent exact-diff approval.

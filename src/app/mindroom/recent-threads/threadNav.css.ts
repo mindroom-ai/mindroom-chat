@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { transition } from '../../styles/transition';
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,
@@ -46,7 +47,7 @@ export const RecentlyOpenedResizeGrip = style({
   height: '3px',
   borderRadius: '999px',
   backgroundColor: color.Background.ContainerLine,
-  transition: 'background-color 120ms ease',
+  transition: transition(['background-color']),
   selectors: {
     [`.${RecentlyOpenedResizeHandle}:hover &, .${RecentlyOpenedResizeHandle}:focus-visible &`]: {
       backgroundColor: color.Primary.Main,
@@ -61,12 +62,22 @@ export const RecentlyOpenedCategory = style({
   minHeight: 0,
 });
 
-export const RecentlyOpenedList = style({
+// The list scrolls through folds' Scroll, which sets height: 100%. That only
+// resolves to the right number inside a box whose height the flex layout has
+// already decided, so the sizing lives here and the scrolling lives on the
+// child - the same split PageNavContent uses for the room list above.
+export const RecentlyOpenedListViewport = style({
+  display: 'flex',
   flex: '1 1 auto',
+  flexDirection: 'column',
   minHeight: 0,
-  overflowY: 'auto',
+});
+
+// No paddingRight: Scroll reserves an 8px gutter for its own scrollbar, and
+// the room list above pads to 0 on that side for the same reason. Adding more
+// here would step the two lists out of alignment.
+export const RecentlyOpenedList = style({
   overscrollBehavior: 'contain',
-  paddingRight: config.space.S100,
   paddingBottom: config.space.S200,
 });
 
@@ -95,7 +106,7 @@ export const EntryActions = style({
   pointerEvents: 'none',
   borderRadius: 'inherit',
   background: `linear-gradient(to right, transparent, ${color.Background.ContainerHover} 45%)`,
-  transition: 'opacity 120ms ease',
+  transition: transition(['opacity']),
 
   selectors: {
     [`.${Entry}:hover &, .${Entry}:focus-within &`]: {

@@ -33,7 +33,7 @@ export const PlainText = style({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
   wordBreak: 'break-word',
-  fontFamily: 'monospace',
+  fontFamily: 'var(--font-mono)',
   fontSize: toRem(13),
   lineHeight: 1.45,
 });

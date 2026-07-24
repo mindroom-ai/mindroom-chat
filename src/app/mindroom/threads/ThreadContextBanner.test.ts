@@ -112,6 +112,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   TagsRow: 'TagsRow',
   TitleColumn: 'TitleColumn',
   TitleRow: 'TitleRow',
+  ViewLabel: 'ViewLabel',
 }));
 
 vi.mock('./ThreadIndicator.css', () => ({

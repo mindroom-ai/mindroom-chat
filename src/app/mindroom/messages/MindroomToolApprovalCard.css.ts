@@ -120,7 +120,7 @@ export const JsonBlock = style({
   overflowX: 'auto',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
-  fontFamily: 'monospace',
+  fontFamily: 'var(--font-mono)',
   fontSize: toRem(13),
   lineHeight: 1.45,
 });
