@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: conservative review remediation and local validation are complete on `fix/long-text-preview-markdown`; fixed-head re-review is next.
+- Status: conservative review remediation, local validation, and independent fixed-code re-review are complete on `fix/long-text-preview-markdown`.
 - Long-text events can carry a plain Markdown `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
@@ -14,7 +14,7 @@
 - Matrix reply fallbacks are removed exactly once before rendering, including reply-only previews and bounded formatter fallbacks.
 - Simple block and inline syntax budgets plus parser exception fallback keep untrusted previews bounded.
 - The implementation deliberately has no preview cache, placeholder protocol, inline-code range parser, container-fence scanner, or CommonMark fence normalization layer.
-- AgentCLI review probes found indented-code marker promotion and double reply trimming on formatter fallback; both are fixed at the existing ambiguity and fallback boundaries.
+- First AgentCLI Codex and Claude reviews found indented-code marker promotion and double reply trimming on formatter fallback; both are fixed at the existing ambiguity and fallback boundaries, and both fixed-head reviewers approved with no remaining findings.
 - A proposed source-switch lifecycle reset was rejected because the base branch deliberately retains hydrated content during plain-preview updates and this PR does not worsen that behavior.
 - Earlier live verification on the reported localhost thread confirmed that nine pre-hydration tool markers render as one `9 tool calls` dropdown.
 - Focused formatter, render, and hydration coverage passes 64 tests.
