@@ -4,7 +4,7 @@
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
-- Status: the persistent bottom implementation is merged with current `dev`; conflict resolution is complete and fresh validation plus PR review are in progress on `feat/restore-recent-threads`.
+- Status: the persistent bottom implementation is merged with current `dev`; conflict resolution, fresh full validation, and independent re-review are complete on `feat/restore-recent-threads`.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
 - Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
 - Architecture decision: render Recently Opened as a bounded bottom sidebar section outside each page navigation scroller instead of restoring a resizable panel with viewport tracking and two layout preference stores.
@@ -14,9 +14,9 @@
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.
 - The aggregate PR diff is now 742 insertions and 12 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 64%; 489 of the remaining insertions are tests.
-- Fresh merged-state validation passes 71 focused tests and typecheck; the pre-merge full gate passed 445 files and 3,295 tests, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`, while full merged-state revalidation is in progress.
+- Fresh merged-state validation passes 71 focused tests and the full Vitest suite with 451 files and 3,425 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
-- Independent review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed, and independent re-review found no remaining findings.
+- Independent implementation review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed. Independent merge review found stale validation wording; current totals are recorded, and re-review found no remaining findings.
 
 ### Default to Simple Mode with expanded long messages (2026-07-23)
 
