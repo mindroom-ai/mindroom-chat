@@ -4,19 +4,25 @@
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
-- Status: the persistent bottom implementation is merged with current `dev`; conflict resolution, fresh full validation, and independent re-review are complete on `feat/restore-recent-threads`.
+- Status: the screenshot-driven draggable redesign is complete on `feat/restore-recent-threads`, with real-browser coverage, full local validation, and independent exact-diff approval.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
 - Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
-- Architecture decision: render Recently Opened as a bounded bottom sidebar section outside each page navigation scroller instead of restoring a resizable panel with viewport tracking and two layout preference stores.
+- Architecture decision: render Recently Opened as a bottom sidebar section outside each page navigation scroller with one per-user, per-device preferred maximum height instead of restoring the legacy viewport tracking, layout resolver, and separate mobile state.
 - The bottom section reuses the existing navigation category primitives and closed-category state across Home, Direct Messages, and Space navigation, including empty Home and Direct Messages shells.
-- Expanded content is capped at 45% of the sidebar height and scrolls internally, which keeps the section anchored without a resize control.
+- The panel is removed from flex-shrink competition, so its collapsed header remains fully visible and its expanded list can no longer be crushed by a long room list.
+- Expanded content hugs sparse results without empty dead space and scrolls internally once it reaches the user's preferred maximum height.
+- The preferred maximum defaults to 320 px, is draggable from 96 px to the smaller of 1,200 px or the sidebar height minus 140 px, and is shared across Home, Direct Messages, and Space navigation for the same local account.
+- A 12 px top-edge separator supports pointer capture, touch, Arrow keys, Home, End, Enter, and double-click reset while the existing chevron remains the only collapse control.
 - The visible entry limit is parameterized with a default of 10 while the existing per-user recent-thread history remains capped and persisted independently.
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
-- The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.
-- The aggregate PR diff is now 742 insertions and 12 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 64%; 489 of the remaining insertions are tests.
-- Fresh merged-state validation passes 71 focused tests and the full Vitest suite with 451 files and 3,425 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
-- Full ESLint reports zero errors and 17 pre-existing warnings.
-- Independent implementation review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed. Independent merge review found stale validation wording; current totals are recorded, and re-review found no remaining findings.
+- The redesign keeps one component-local preview, one localStorage number, and CSS `min()` clamping; it adds no viewport observer, document listener, layout context, mobile branch, or drag-to-collapse threshold.
+- Focused drag, keyboard, clamping, and persistence coverage passes 10 tests.
+- The full Vitest suite passes all 452 files and 3,431 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+- Live Docker-Matrix Playwright coverage passes all five desktop, short-height, tablet, and mobile viewports, including drag resize, collapse, reload, route persistence, internal scrolling, and bottom anchoring.
+- Independent Fable UX review confirmed that flex-shrink, not row typography, caused both screenshots and recommended the preferred-maximum model, top-edge grip, separate collapse verb, responsive CSS clamp, and one local preference adopted here.
+- Earlier independent implementation review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed.
+- Final independent exact-diff review found and verified fixes for sparse-content drag baselines and inconsistent upper bounds, then approved the current implementation with no blockers.
 
 ### Default to Simple Mode with expanded long messages (2026-07-23)
 

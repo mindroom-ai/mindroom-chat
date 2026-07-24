@@ -238,6 +238,7 @@
   "recentThreads": {
     "title": "Recent geopend",
     "empty": "Geen recent geopende threads",
+    "resizeAria": "Grootte van Recent geopend wijzigen",
     "openedAt": "Geopend {{time}}"
   },
   "threadNav": {

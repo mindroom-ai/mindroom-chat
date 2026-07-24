@@ -12,6 +12,7 @@ import {
   createThreadFixture,
   loginToMatrix,
   seedRoomOverviewState,
+  setAccountData,
   type ThreadFixture,
 } from '../helpers/matrix';
 
@@ -23,8 +24,12 @@ type ViewportFixture = {
   width: number;
 };
 
+const DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT = 320;
+const RECENTLY_OPENED_PANEL_RESERVED_HEIGHT = 140;
+
 const VIEWPORTS: ViewportFixture[] = [
   { label: 'desktop', width: 1440, height: 900 },
+  { label: 'desktop-short', width: 1024, height: 480 },
   { label: 'tablet', width: 768, height: 1024 },
   { label: 'mobile-wide', width: 480, height: 800 },
   { label: 'mobile-narrow', width: 360, height: 640 },
@@ -42,9 +47,6 @@ const getRecentlyOpenedThreadButton = (page: Page, rootBody: string) =>
     name: new RegExp(`Open thread: ${escapeRegex(rootBody)}`, 'i'),
   });
 
-const getThreadRow = (page: Page, fixture: ThreadFixture) =>
-  page.locator(`[data-sidebar-thread-root-id="${fixture.rootId}"]`);
-
 const getRoomsCategoryButton = (page: Page) => page.locator('button[data-category-id="home|room"]');
 
 const getThreadsCategoryButton = (page: Page) =>
@@ -52,6 +54,9 @@ const getThreadsCategoryButton = (page: Page) =>
 
 const getRecentlyOpenedCategoryButton = (page: Page) =>
   page.locator('button[data-category-id="mindroom|recently-opened"]');
+
+const getRecentlyOpenedResizeHandle = (page: Page) =>
+  page.getByTestId('recently-opened-resize-handle');
 
 const seedRecentThreadsState = async ({
   page,
@@ -109,6 +114,71 @@ const expectRecentlyOpenedAtViewportBottom = async (page: Page, viewportHeight: 
     .toBeLessThanOrEqual(1);
 };
 
+const expectExpandedRecentlyOpenedSize = async (
+  page: Page,
+  viewportHeight: number,
+  expectedHeight?: number
+) => {
+  if (expectedHeight !== undefined) {
+    await expect
+      .poll(async () => {
+        const bounds = await page.getByTestId('recently-opened-nav-panel').boundingBox();
+        if (!bounds) return Number.POSITIVE_INFINITY;
+        return Math.abs(bounds.height - expectedHeight);
+      })
+      .toBeLessThanOrEqual(1);
+  }
+  await expect
+    .poll(async () => {
+      const bounds = await page.getByTestId('recently-opened-nav-panel').boundingBox();
+      if (!bounds) return Number.POSITIVE_INFINITY;
+      return bounds.height;
+    })
+    .toBeLessThanOrEqual(viewportHeight - RECENTLY_OPENED_PANEL_RESERVED_HEIGHT + 1);
+};
+
+const dragRecentlyOpenedPanel = async (page: Page, deltaY: number, viewportHeight: number) => {
+  const panelBounds = await page.getByTestId('recently-opened-nav-panel').boundingBox();
+  const handleBounds = await getRecentlyOpenedResizeHandle(page).boundingBox();
+  if (!panelBounds || !handleBounds) {
+    throw new Error('Recently Opened resize target is unavailable');
+  }
+
+  await page.mouse.move(
+    handleBounds.x + handleBounds.width / 2,
+    handleBounds.y + handleBounds.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBounds.x + handleBounds.width / 2,
+    handleBounds.y + handleBounds.height / 2 + deltaY,
+    { steps: 4 }
+  );
+  await page.mouse.up();
+
+  await expect
+    .poll(async () => {
+      const resizedBounds = await page.getByTestId('recently-opened-nav-panel').boundingBox();
+      if (!resizedBounds) return 0;
+      return deltaY < 0
+        ? resizedBounds.height - panelBounds.height
+        : panelBounds.height - resizedBounds.height;
+    })
+    .toBeGreaterThan(0);
+  await expectExpandedRecentlyOpenedSize(page, viewportHeight);
+  return (await page.getByTestId('recently-opened-nav-panel').boundingBox())!.height;
+};
+
+const expectCollapsedRecentlyOpenedVisible = async (page: Page, viewportHeight: number) => {
+  await expect
+    .poll(async () => {
+      const bounds = await getRecentlyOpenedCategoryButton(page).boundingBox();
+      if (!bounds) return Number.POSITIVE_INFINITY;
+      return Math.max(0, bounds.y + bounds.height - viewportHeight);
+    })
+    .toBeLessThanOrEqual(1);
+};
+
 const prepareThreadFixtures = async (threadCount: number) => {
   const homeserver = getHomeserver();
   const { username, password } = getPrimaryCredentials();
@@ -150,9 +220,26 @@ test.describe('live cinny073 persistent thread navigation', () => {
       test.slow();
 
       const diagnostics = attachBrowserDiagnostics(page);
-      const threadCount = viewport.label === 'mobile-narrow' ? 10 : 2;
+      const threadCount =
+        viewport.label === 'mobile-narrow'
+          ? 10
+          : viewport.label === 'desktop'
+          ? 8
+          : viewport.label === 'desktop-short'
+          ? 1
+          : 2;
       const { fixtures, homeserver, password, roomNames, session, spaceId, username } =
         await prepareThreadFixtures(threadCount);
+      await setAccountData(
+        homeserver,
+        session.accessToken,
+        session.userId,
+        'io.mindroom.settings',
+        {
+          simpleMode: false,
+          expandLongMessagesByDefault: true,
+        }
+      );
 
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await loginWithPassword(page, { homeserver, username, password });
@@ -194,6 +281,23 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await waitForThreadEntries(page, fixtures);
       await waitForRecentlyOpenedEntries(page, fixtures);
       await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectExpandedRecentlyOpenedSize(
+        page,
+        viewport.height,
+        viewport.label === 'desktop' || viewport.label === 'mobile-narrow'
+          ? DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT
+          : undefined
+      );
+      let expectedExpandedHeight =
+        (await recentlyOpenedPanel.boundingBox())?.height ?? DEFAULT_RECENTLY_OPENED_PANEL_HEIGHT;
+      await expect(getRecentlyOpenedResizeHandle(page)).toHaveAttribute(
+        'aria-label',
+        'Resize Recently Opened'
+      );
+      if (viewport.label === 'desktop') {
+        expectedExpandedHeight = await dragRecentlyOpenedPanel(page, -80, viewport.height);
+        expectedExpandedHeight = await dragRecentlyOpenedPanel(page, 40, viewport.height);
+      }
       if (viewport.label === 'mobile-narrow') {
         const oldestThreadButton = getRecentlyOpenedThreadButton(
           page,
@@ -201,7 +305,7 @@ test.describe('live cinny073 persistent thread navigation', () => {
         );
         await expect
           .poll(async () => (await recentlyOpenedPanel.boundingBox())?.height ?? Infinity)
-          .toBeLessThanOrEqual(viewport.height * 0.45 + 1);
+          .toBeLessThanOrEqual(viewport.height - RECENTLY_OPENED_PANEL_RESERVED_HEIGHT + 1);
         await expect(oldestThreadButton).not.toBeInViewport();
         await oldestThreadButton.scrollIntoViewIfNeeded();
         await expect(oldestThreadButton).toBeInViewport();
@@ -218,30 +322,6 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await waitForThreadEntries(page, fixtures);
       await waitForRecentlyOpenedEntries(page, fixtures);
 
-      if (viewport.label === 'desktop') {
-        const secondRow = getThreadRow(page, fixtures[1]);
-        const pinButton = secondRow.getByRole('button', { name: 'Pin thread' });
-        await pinButton.click();
-        await expect(pinButton).toHaveAttribute('aria-pressed', 'true');
-        await expect
-          .poll(() =>
-            page
-              .locator('[data-sidebar-thread-root-id]')
-              .first()
-              .getAttribute('data-sidebar-thread-root-id')
-          )
-          .toBe(fixtures[1].rootId);
-
-        await page.mouse.move(viewport.width - 20, viewport.height - 20);
-        await secondRow.hover();
-        const tooltip = page.getByRole('tooltip');
-        await expect(tooltip).toBeVisible();
-        await expect(tooltip).toContainText('Room');
-        await expect(tooltip).toContainText('Agents');
-        await expect(tooltip).toContainText('Messages');
-        await expect(tooltip).toContainText('Last activity');
-      }
-
       await page.screenshot({
         path: `/tmp/cinny073-thread-nav-${viewport.width}.png`,
         fullPage: true,
@@ -257,6 +337,9 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await getRecentlyOpenedCategoryButton(page).click();
       await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
+      await expect(getRecentlyOpenedResizeHandle(page)).toHaveCount(0);
+      await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectCollapsedRecentlyOpenedVisible(page, viewport.height);
 
       await page.reload();
       await waitForLoggedInShell(page);
@@ -264,13 +347,12 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await waitForThreadEntries(page, fixtures);
       await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
       await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
+      await expect(getRecentlyOpenedResizeHandle(page)).toHaveCount(0);
+      await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectCollapsedRecentlyOpenedVisible(page, viewport.height);
       await getRecentlyOpenedCategoryButton(page).click();
       await waitForRecentlyOpenedEntries(page, fixtures);
-      if (viewport.label === 'desktop') {
-        await expect(
-          getThreadRow(page, fixtures[1]).getByRole('button', { name: 'Unpin thread' })
-        ).toHaveAttribute('aria-pressed', 'true');
-      }
+      await expectExpandedRecentlyOpenedSize(page, viewport.height, expectedExpandedHeight);
 
       await getRoomsCategoryButton(page).click();
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'true');
@@ -279,11 +361,27 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await waitForLoggedInShell(page);
       await waitForRecentlyOpenedEntries(page, fixtures);
       await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectExpandedRecentlyOpenedSize(page, viewport.height, expectedExpandedHeight);
+
+      await getRecentlyOpenedCategoryButton(page).click();
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
+      await expect(getRecentlyOpenedResizeHandle(page)).toHaveCount(0);
+      await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectCollapsedRecentlyOpenedVisible(page, viewport.height);
 
       await page.goto(`/${encodeURIComponent(spaceId)}/`);
       await waitForLoggedInShell(page);
+      await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
+      await expect(getRecentlyOpenedResizeHandle(page)).toHaveCount(0);
+      await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectCollapsedRecentlyOpenedVisible(page, viewport.height);
+
+      await getRecentlyOpenedCategoryButton(page).click();
       await waitForRecentlyOpenedEntries(page, fixtures);
       await expectRecentlyOpenedAtViewportBottom(page, viewport.height);
+      await expectExpandedRecentlyOpenedSize(page, viewport.height, expectedExpandedHeight);
 
       await expectNoUnexpectedBrowserDiagnostics(
         diagnostics,

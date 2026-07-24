@@ -238,6 +238,7 @@
   "recentThreads": {
     "title": "Zuletzt geöffnet",
     "empty": "Keine kürzlich geöffneten Threads",
+    "resizeAria": "Zuletzt geöffnet vergrößern oder verkleinern",
     "openedAt": "Geöffnet {{time}}"
   },
   "threadNav": {
