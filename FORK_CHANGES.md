@@ -15,6 +15,11 @@
 - Validation: focused long-text/message tests pass (86 tests), `npm run typecheck`, `npm run lint` (17 pre-existing warnings, no errors), touched-file Prettier, full `npm test` (3,422 tests), and `npm run build`.
 - Latest `dev` integration preserves both Runbook entries and passes 110 focused integration tests, all 453 Vitest files with 3,443 tests, typecheck, full lint with the existing 17-warning baseline, touched-file Prettier, `git diff --check`, and the production/PWA build.
 - The live grouping follow-up passes 39 focused formatter and long-text tests, all 453 Vitest files with 3,444 tests, typecheck, full lint with the existing 17-warning baseline, touched-file Prettier, `git diff --check`, and the production/PWA build.
+- AgentCLI round-one Codex and Claude reviews reproduced a recursion-heavy preview crash, repeated parse cost, double-escaped math, CommonMark fence marker leaks, inline-code paste-marker promotion, escaped blockquote drift, and dash bullets rendered as ordered lists.
+- The formatter now has a bounded 32-entry result cache, declines recursion-heavy block input, catches parser failures, preserves math for its existing single sanitization pass, normalizes supported CommonMark fences into the in-repo parser, and keeps special markers literal in code.
+- A wholesale Markdown parser replacement and client-side table implementation are intentionally rejected because the fork already owns one Markdown and math parser, hydration remains authoritative, and adding a second rendering stack would be disproportionate to this preview fallback.
+- A body-only hydrated-content branch is also rejected as unreachable for MindRoom-authored messages because the sender's message builder always adds `formatted_body`; the client continues to accept malformed or third-party long-text metadata by degrading safely to plain preview text.
+- Round-one remediation passes 66 focused formatter/render/hydration tests, all 453 Vitest files with 3,449 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 

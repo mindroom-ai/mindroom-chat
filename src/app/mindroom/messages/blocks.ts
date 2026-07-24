@@ -76,9 +76,107 @@ const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
   }</p>`;
 };
 
-const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
+type MarkdownCodeFence = {
+  character: '`' | '~';
+  length: number;
+};
 
-const MARKDOWN_CODE_FENCE_OPEN_REG = /^(`{3,})(?!`)\S*$/;
+type PastePlaceholder = {
+  markerHtml: string;
+  markerTextHtml: string;
+};
+
+const MARKDOWN_CODE_FENCE_OPEN_REG = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+// The in-repo parser recurses per block match, so remote preview bodies need a
+// conservative boundary below the browser stack limit.
+const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
+const MAX_MARKDOWN_PREVIEW_CACHE_ENTRIES = 32;
+const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
+  /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
+// Timeline renders repeatedly revisit the same preview string while edits and
+// receipts arrive; keep that deterministic work bounded and reusable.
+const markdownPreviewCache = new Map<string, string>();
+
+const getMarkdownCodeFence = (line: string): MarkdownCodeFence | undefined => {
+  const match = line.match(MARKDOWN_CODE_FENCE_OPEN_REG);
+  if (!match) return undefined;
+
+  const fence = match[1];
+  const character = fence[0] as '`' | '~';
+  if (character === '`' && match[2].includes('`')) return undefined;
+
+  return {
+    character,
+    length: fence.length,
+  };
+};
+
+const isMarkdownCodeFenceClose = (line: string, fence: MarkdownCodeFence): boolean => {
+  const stripped = line.replace(/^ {0,3}/, '');
+  let runLength = 0;
+  while (stripped[runLength] === fence.character) runLength += 1;
+
+  return runLength >= fence.length && stripped.slice(runLength).trim() === '';
+};
+
+const getLongestBacktickRun = (text: string): number => {
+  let longestRun = 0;
+  let currentRun = 0;
+
+  for (const character of text) {
+    if (character === '`') {
+      currentRun += 1;
+      longestRun = Math.max(longestRun, currentRun);
+    } else {
+      currentRun = 0;
+    }
+  }
+
+  return longestRun;
+};
+
+const sanitizeMarkdownText = (text: string): string =>
+  sanitizeText(text)
+    .replace(/^&gt;/gm, '>')
+    .replace(/^\\&gt;/gm, '\\>');
+
+const normalizeParsedMathEntities = (html: string): string =>
+  html.replace(/<(span|div) data-mx-maths="[^"]*">[\s\S]*?<\/\1>/g, (mathHtml) =>
+    mathHtml.replace(/&amp;(amp|lt|gt|quot|#39);/g, '&$1;')
+  );
+
+const replacePastePlaceholders = (
+  html: string,
+  pastePlaceholders: Map<string, PastePlaceholder>
+): string => {
+  let formattedHtml = html;
+
+  pastePlaceholders.forEach(({ markerHtml, markerTextHtml }, placeholder) => {
+    const placeholderIndex = formattedHtml.indexOf(placeholder);
+    if (placeholderIndex === -1) return;
+
+    const htmlBeforePlaceholder = formattedHtml.slice(0, placeholderIndex);
+    const insideCode =
+      htmlBeforePlaceholder.lastIndexOf('<code') > htmlBeforePlaceholder.lastIndexOf('</code>');
+    formattedHtml = `${htmlBeforePlaceholder}${
+      insideCode ? markerTextHtml : markerHtml
+    }${formattedHtml.slice(placeholderIndex + placeholder.length)}`;
+  });
+
+  return formattedHtml;
+};
+
+const rememberMarkdownPreview = (body: string, html: string): string => {
+  if (markdownPreviewCache.has(body)) markdownPreviewCache.delete(body);
+  markdownPreviewCache.set(body, html);
+
+  if (markdownPreviewCache.size > MAX_MARKDOWN_PREVIEW_CACHE_ENTRIES) {
+    const oldestBody = markdownPreviewCache.keys().next().value;
+    if (typeof oldestBody === 'string') markdownPreviewCache.delete(oldestBody);
+  }
+
+  return html;
+};
 
 export const formatMindroomMessageTextBodyAsHtml = (body: string): string | undefined => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
@@ -116,13 +214,27 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
 };
 
 export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
+  const cachedHtml = markdownPreviewCache.get(body);
+  if (cachedHtml !== undefined) {
+    markdownPreviewCache.delete(body);
+    markdownPreviewCache.set(body, cachedHtml);
+    return cachedHtml;
+  }
+
+  const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
+  if (blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES) {
+    return rememberMarkdownPreview(body, '');
+  }
+
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];
-  let codeFence: string | undefined;
+  let codeFence: MarkdownCodeFence | undefined;
   let pastePlaceholderIndex = 0;
   let pastePlaceholderPrefix = '\uE000MINDROOMPASTE';
-  let pastePlaceholderHtml = new Map<string, string>();
+  let pastePlaceholders = new Map<string, PastePlaceholder>();
+  let formattingFailed = false;
+  const normalizedFence = '`'.repeat(Math.max(3, getLongestBacktickRun(body) + 1));
 
   while (body.includes(pastePlaceholderPrefix)) {
     pastePlaceholderPrefix += 'X';
@@ -138,7 +250,10 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
 
       text += line.slice(cursor, index);
       text += placeholder;
-      pastePlaceholderHtml.set(placeholder, formatMindroomPasteMarkerAsHtml(marker));
+      pastePlaceholders.set(placeholder, {
+        markerHtml: formatMindroomPasteMarkerAsHtml(marker),
+        markerTextHtml: escapeHtmlText(marker.raw),
+      });
       cursor = index + length;
     });
 
@@ -150,30 +265,40 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     const markdown = markdownLines.join('\n');
     if (!markdown.trim()) {
       markdownLines = [];
-      pastePlaceholderHtml = new Map();
+      pastePlaceholders = new Map();
       return;
     }
 
-    let html = parseBlockMD(sanitizeMarkdownText(markdown), parseInlineMD);
-    pastePlaceholderHtml.forEach((markerHtml, placeholder) => {
-      html = html.split(placeholder).join(markerHtml);
-    });
-    htmlParts.push(html);
+    try {
+      const parsedHtml = parseBlockMD(sanitizeMarkdownText(markdown), parseInlineMD);
+      const html = replacePastePlaceholders(
+        normalizeParsedMathEntities(parsedHtml),
+        pastePlaceholders
+      );
+      htmlParts.push(html);
+    } catch {
+      formattingFailed = true;
+    }
     markdownLines = [];
-    pastePlaceholderHtml = new Map();
+    pastePlaceholders = new Map();
   };
 
   lines.forEach((line) => {
     if (codeFence) {
-      markdownLines.push(line);
-      if (line.trimEnd() === codeFence) codeFence = undefined;
+      if (isMarkdownCodeFenceClose(line, codeFence)) {
+        markdownLines.push(normalizedFence);
+        codeFence = undefined;
+      } else {
+        markdownLines.push(line);
+      }
       return;
     }
 
-    const openingFence = line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[1];
+    const openingFence = getMarkdownCodeFence(line);
     if (openingFence) {
       codeFence = openingFence;
-      markdownLines.push(line);
+      const info = line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[2].trim().split(/\s+/, 1)[0] ?? '';
+      markdownLines.push(`${normalizedFence}${info}`);
       return;
     }
 
@@ -184,9 +309,12 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
       return;
     }
 
-    markdownLines.push(replacePasteMarkersWithPlaceholders(line));
+    const normalizedLine = line.replace(/^(\s*)- (?=\S)/, '$1* ');
+    markdownLines.push(replacePasteMarkersWithPlaceholders(normalizedLine));
   });
 
+  if (codeFence) markdownLines.push(normalizedFence);
+
   flushMarkdown();
-  return htmlParts.join('');
+  return rememberMarkdownPreview(body, formattingFailed ? '' : htmlParts.join(''));
 };

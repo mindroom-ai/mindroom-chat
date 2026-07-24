@@ -140,10 +140,33 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
       ].join('\n')
     );
 
-    expect(formattedBody).toContain('<pre data-md="```"><code>🔧 `run_shell_command` [1]\n');
+    expect(formattedBody).toContain('<pre data-md="````"><code>🔧 `run_shell_command` [1]\n');
     expect(formattedBody).toContain('[[mindroom-paste:{&quot;v&quot;:1');
     expect(formattedBody).not.toContain('data-mindroom-paste-marker');
     expect(formattedBody).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
+  });
+
+  it('keeps markers inside CommonMark tilde and unclosed fences as code', () => {
+    const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
+      [
+        '  ~~~~ typescript example.ts',
+        '🔧 `inside_tilde` [1]',
+        '   ~~~~~',
+        '🔧 `outside_tool` [2]',
+      ].join('\n')
+    );
+    const unclosedFence = formatMindroomMarkdownTextBodyAsHtml(
+      ['```text', '🔧 `inside_unclosed` [3]'].join('\n')
+    );
+
+    expect(tildeFence).toContain(
+      '<pre data-md="```"><code class="language-typescript">🔧 `inside_tilde` [1]\n'
+    );
+    expect(tildeFence).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
+    expect(unclosedFence).toContain(
+      '<pre data-md="````"><code class="language-text">🔧 `inside_unclosed` [3]\n'
+    );
+    expect(unclosedFence).not.toContain('<p>🔧 <code>inside_unclosed</code>');
   });
 
   it('does not turn blank lines between tool references into grouping boundaries', () => {
@@ -190,5 +213,45 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('data-mindroom-paste-marker="true"');
     expect(formattedBody).toContain('<i data-md="*">italic</i>');
     expect(formattedBody).not.toContain('**bold**');
+  });
+
+  it('keeps paste markers inside inline code literal', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      '`[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]`'
+    );
+
+    expect(formattedBody).toContain('<code data-md="`">[[mindroom-paste:');
+    expect(formattedBody).not.toContain('data-mindroom-paste-marker');
+  });
+
+  it('sanitizes math exactly once', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['$x < y & z$ holds', '', '$$', 'a < b & c', '$$'].join('\n')
+    );
+
+    expect(formattedBody).toContain(
+      '<span data-mx-maths="x &lt; y &amp; z">x &lt; y &amp; z</span> holds'
+    );
+    expect(formattedBody).toContain('<div data-mx-maths="a &lt; b &amp; c">a &lt; b &amp; c</div>');
+    expect(formattedBody).not.toContain('&amp;lt;');
+    expect(formattedBody).not.toContain('&amp;amp;');
+  });
+
+  it('preserves escaped blockquotes and renders dash bullets as unordered lists', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['\\> literal quote marker', '', '- alpha', '- beta'].join('\n')
+    );
+
+    expect(formattedBody).toContain('> literal quote marker');
+    expect(formattedBody).not.toContain('\\>');
+    expect(formattedBody).toContain('<ul data-md="*">');
+    expect(formattedBody).not.toContain('<ol');
+  });
+
+  it('falls back safely for recursion-heavy Markdown previews', () => {
+    const body = Array.from({ length: 4_000 }, (_, index) => `# heading ${index}`).join('\n');
+
+    expect(() => formatMindroomMarkdownTextBodyAsHtml(body)).not.toThrow();
+    expect(formatMindroomMarkdownTextBodyAsHtml(body)).toBe('');
   });
 });
