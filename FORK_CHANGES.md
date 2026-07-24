@@ -6,7 +6,9 @@
 
 - Status: stage 1a (color) is implemented and fully validated. Stages 1b (typography), 1c (motion), and 2.1-2.5 (chat surfaces) are next and not started.
 - Scope agreed with the user: a staged refresh, global design tokens first and chat-surface polish second, covering the message timeline, composer, sidebar and room list, and agent/tool cards, with all five themes hand-tuned equally.
-- Baseline screenshots for all five themes are captured under `test-results/design-baseline/` at 1440x900 CSS px so later stages can be judged against them.
+- Screenshot evidence lives in `test-results/design-before/` and `test-results/design-after/` at 1440x900 CSS px (2x DPR), five thread views plus a light and dark room view each, so later stages can be judged against them.
+- Screenshot trap worth remembering: an earlier `test-results/design-baseline/` set was captured from a dev server on port 8080 that belonged to a different worktree, `codex/.../long-text-preview-markdown`. Its four theme files were byte-identical to this branch's parent, but it renders markdown and collapsible tool-call cards that this branch does not, so it could not serve as a before image. The before set was recaptured by detaching this checkout to the parent commit `21fdfe3e` and reloading the same origin, which keeps the logged-in Matrix session because that session is bound to the origin, not the code.
+- Verification tell: in dev builds the body class shows which palette module is live. `colors_lightTheme__*` means this fork's `lightTheme`; `oq6d071w` means folds' built-in one is still being used. Vanilla-extract debug ids are derived from file and export identity, not content, so `colors_darkTheme__*` alone proves nothing.
 - Problem: the five palettes were not one family. Light and silver used a blue `Primary` while the dark family used lavender; `ContainerLine` sat roughly 0.13 lightness from its own `Container`, so borders rendered as hard rules; the dark family set `Other.Shadow` to opaque black, which defeated the diffuse `softShadow` tokens; light and silver were pure neutral greys with pure black text.
 - All five palettes are now generated from one OKLCH ramp on a single brand hue of 288 degrees, replacing both the blue and the lavender `Primary`.
 - `src/colors.css.ts` now owns a fork-authored `lightTheme`; `src/app/hooks/useTheme.ts` no longer imports `lightTheme` from folds. No other module imported it.
@@ -23,7 +25,8 @@
 - All 155 audited pairs pass WCAG AA. Text-on-container pairs clear 4.5:1; `Success.Main` and `Warning.Main` on light-kind backgrounds are icon and badge colors held to the 3:1 non-text threshold.
 - Typecheck, the production/PWA build, and full ESLint with zero errors and the existing 17-warning baseline pass.
 - The full Vitest suite passes all 453 files and 3,435 tests.
-- Not yet done for this stage: re-capturing the five-theme screenshot set against the new tokens for side-by-side comparison with the baseline.
+- Before/after comparison is done for all five themes. Every element lands on the same pixel row in both sets, confirming no layout or vertical-metric regression. The visible deltas are the intended ones: borders read as soft edges instead of hard rules, the dark family's opaque black shadow is gone, and accents share the violet brand hue. The change is deliberately subtle because every `Background.Container` was frozen.
+- Next: stage 1b, typography tokens.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
