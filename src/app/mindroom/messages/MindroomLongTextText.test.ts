@@ -762,11 +762,21 @@ describe('MindroomLongTextText hydration identity', () => {
     }
   });
 
-  it('renders preview Markdown and a tool card before long-text hydration', async () => {
+  it('renders preview Markdown and groups consecutive tool cards before long-text hydration', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
       ...createPreviewContent(),
-      body: 'Preview **now**\n\n🔧 `run_shell_command` [1]',
+      body: [
+        'Preview **now**',
+        '',
+        '🔧 `run_shell_command` [1]',
+        '',
+        '',
+        '🔧 `run_shell_command` [2]',
+        '',
+        '',
+        '🔧 `run_shell_command` [3]',
+      ].join('\n'),
     };
     let renderer!: ReactTestRenderer;
 
@@ -790,7 +800,8 @@ describe('MindroomLongTextText hydration identity', () => {
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
     expect(renderer.root.findByType('strong').children).toContain('now');
     const rendered = JSON.stringify(renderer.toJSON());
-    expect(rendered).toContain('1 tool call');
+    expect(rendered).toContain('3 tool calls');
+    expect(rendered).not.toContain('1 tool call');
     expect(rendered).not.toContain('🔧');
     expect(rendered).not.toContain('**now**');
 

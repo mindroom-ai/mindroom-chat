@@ -147,7 +147,14 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
 
   const flushMarkdown = () => {
     if (markdownLines.length === 0) return;
-    let html = parseBlockMD(sanitizeMarkdownText(markdownLines.join('\n')), parseInlineMD);
+    const markdown = markdownLines.join('\n');
+    if (!markdown.trim()) {
+      markdownLines = [];
+      pastePlaceholderHtml = new Map();
+      return;
+    }
+
+    let html = parseBlockMD(sanitizeMarkdownText(markdown), parseInlineMD);
     pastePlaceholderHtml.forEach((markerHtml, placeholder) => {
       html = html.split(placeholder).join(markerHtml);
     });

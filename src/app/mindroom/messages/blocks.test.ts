@@ -146,6 +146,28 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
   });
 
+  it('does not turn blank lines between tool references into grouping boundaries', () => {
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        [
+          '🔧 `run_shell_command` [1]',
+          '',
+          '',
+          '🔧 `run_shell_command` [2]',
+          '',
+          '',
+          '🔧 `run_shell_command` [3]',
+        ].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>🔧 <code>run_shell_command</code> [1]</p>',
+        '<p>🔧 <code>run_shell_command</code> [2]</p>',
+        '<p>🔧 <code>run_shell_command</code> [3]</p>',
+      ].join('')
+    );
+  });
+
   it('preserves blockquote Markdown while escaping its content', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml('> Safe <unsafe> and **quoted**');
 

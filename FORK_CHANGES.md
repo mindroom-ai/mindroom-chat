@@ -4,14 +4,17 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, PR review remediation, and final independent re-review are complete on `fix/long-text-preview-markdown`.
+- Status: implementation, local validation, PR review remediation, final independent re-review, and the live preview tool-grouping follow-up are complete on `fix/long-text-preview-markdown`.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
+- Separator-only Markdown chunks between consecutive preview tool markers are discarded so blank lines do not split one tool run into many single-call dropdowns.
 - Focused regression coverage verifies safe Markdown synthesis, reply-fallback trimming, reply-only previews, fenced-code isolation, inline paste markers, and the real pre-hydration render path without a sidecar download.
+- Live verification on the reported localhost thread confirms that nine pre-hydration tool markers now render as one `9 tool calls` dropdown.
 - PR review follow-up confirmed that blockquote unescaping is limited to sanitized line-leading markers, consolidated paste-placeholder collision detection to one source scan, and normalized the plain preview body at the same reply-fallback boundary as its synthesized HTML.
 - Validation: focused long-text/message tests pass (86 tests), `npm run typecheck`, `npm run lint` (17 pre-existing warnings, no errors), touched-file Prettier, full `npm test` (3,422 tests), and `npm run build`.
 - Latest `dev` integration preserves both Runbook entries and passes 110 focused integration tests, all 453 Vitest files with 3,443 tests, typecheck, full lint with the existing 17-warning baseline, touched-file Prettier, `git diff --check`, and the production/PWA build.
+- The live grouping follow-up passes 39 focused formatter and long-text tests, all 453 Vitest files with 3,444 tests, typecheck, full lint with the existing 17-warning baseline, touched-file Prettier, `git diff --check`, and the production/PWA build.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
