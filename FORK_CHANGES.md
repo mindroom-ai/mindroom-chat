@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Visual modernization stage 2.7 - thread header hierarchy (2026-07-24)
+
+- Status: implemented and verified live in dark and light.
+- Problem: the thread header put its emphasis on the wrong line. `Thread View` rendered at `B400` (14px / W500 / full opacity) and the thread title under it at `T200 priority=300` (12px / W400 / 0.75 opacity). The label says the same thing on every thread the user opens; the title is the only part that identifies the conversation. Same defect class as stage 2.5, where unread counts out-shouted mentions.
+- `ThreadContextBanner.tsx` swaps the two. `Thread View` becomes an eyebrow - `L400 priority=300` plus a new `ViewLabel` class with uppercase and `0.04em` tracking, matching the treatment the sidebar category headers and the `SHOW MORE` pill already use for chrome labels. The title moves to `T300` at full opacity with `W500` on `SummaryText`.
+- Measured live: eyebrow 12px/W500/0.75, title 14px/W500/1.0. Contrast against the banner container is 6.53:1 dark and 6.88:1 light for the eyebrow, 10.22:1 and 15.05:1 for the title - all above 4.5:1.
+- Banner height goes 75px to 77px. The title row is governed by the back button, not its text, so only the subtitle line grows (18px to 20px). The banner sits outside the virtualizer, so `threadRenderUtils.ts` row estimates are untouched.
+- `OverflowChip` (the `+N` chip beside the tag pills) dropped its hardcoded `rgba(128, 128, 128, 0.2)` for `SurfaceVariant.Container` with a `ContainerLine` border and `R300` radius, so it tracks the five themes and the pills it sits next to instead of being the same grey slab everywhere.
+- Typecheck, the production/PWA build, ESLint, and Prettier pass; `ThreadContextBanner.test.ts` (26 tests) passes with `ViewLabel` added to its css mock.
+
 ### Visual modernization stage 2.6 - Recently Opened scrollbar (2026-07-24)
 
 - Status: implemented and verified live in dark and light. Reported by the user: the Recently Opened scrollbar "is ugly and not like the others".
