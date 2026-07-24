@@ -1,6 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { onDarkFontWeight, onLightFontWeight, roundedRadii, softShadow } from '../../config.css';
+import {
+  onDarkFontWeight,
+  onLightFontWeight,
+  opticalTracking,
+  roundedRadii,
+  softShadow,
+} from '../../config.css';
 import { butterTheme, darkTheme, lightTheme, midnightTheme, silverTheme } from '../../colors.css';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
@@ -19,18 +25,41 @@ export type Theme = {
 export const LightTheme: Theme = {
   id: 'light-theme',
   kind: ThemeKind.Light,
-  classNames: [lightTheme, onLightFontWeight, roundedRadii, softShadow, 'prism-light'],
+  classNames: [
+    lightTheme,
+    onLightFontWeight,
+    opticalTracking,
+    roundedRadii,
+    softShadow,
+    'prism-light',
+  ],
 };
 
 export const SilverTheme: Theme = {
   id: 'silver-theme',
   kind: ThemeKind.Light,
-  classNames: ['silver-theme', silverTheme, onLightFontWeight, roundedRadii, softShadow, 'prism-light'],
+  classNames: [
+    'silver-theme',
+    silverTheme,
+    onLightFontWeight,
+    opticalTracking,
+    roundedRadii,
+    softShadow,
+    'prism-light',
+  ],
 };
 export const DarkTheme: Theme = {
   id: 'dark-theme',
   kind: ThemeKind.Dark,
-  classNames: ['dark-theme', darkTheme, onDarkFontWeight, roundedRadii, softShadow, 'prism-dark'],
+  classNames: [
+    'dark-theme',
+    darkTheme,
+    onDarkFontWeight,
+    opticalTracking,
+    roundedRadii,
+    softShadow,
+    'prism-dark',
+  ],
 };
 export const MidnightTheme: Theme = {
   id: 'midnight-theme',
@@ -39,6 +68,7 @@ export const MidnightTheme: Theme = {
     'midnight-theme',
     midnightTheme,
     onDarkFontWeight,
+    opticalTracking,
     roundedRadii,
     softShadow,
     'prism-dark',
@@ -47,7 +77,15 @@ export const MidnightTheme: Theme = {
 export const ButterTheme: Theme = {
   id: 'butter-theme',
   kind: ThemeKind.Dark,
-  classNames: ['butter-theme', butterTheme, onDarkFontWeight, roundedRadii, softShadow, 'prism-dark'],
+  classNames: [
+    'butter-theme',
+    butterTheme,
+    onDarkFontWeight,
+    opticalTracking,
+    roundedRadii,
+    softShadow,
+    'prism-dark',
+  ],
 };
 
 export const useThemes = (): Theme[] => {

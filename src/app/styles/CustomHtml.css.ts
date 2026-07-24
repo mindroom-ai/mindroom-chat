@@ -48,7 +48,7 @@ const BaseCode = style({
   borderRadius: config.radii.R300,
 });
 const CodeFont = style({
-  fontFamily: 'monospace',
+  fontFamily: 'var(--font-mono)',
 });
 
 export const Code = style([

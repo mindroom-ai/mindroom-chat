@@ -7,8 +7,8 @@
 
 :root {
   /* Matches Primary.Main in src/colors.css.ts so links share the brand hue. */
-  --tc-link: #694CCD;
-  --app-bg-color: #1A1A1A;
+  --tc-link: #694ccd;
+  --app-bg-color: #1a1a1a;
 
   /* user mxid colors */
   --mx-uc-1: hsl(208, 100%, 45%);
@@ -22,39 +22,46 @@
 
   --font-emoji: 'Twemoji_DISABLED';
   --font-secondary: 'InterVariable', var(--font-emoji), sans-serif;
+
+  /* Bare `monospace` resolves to Courier New on Windows and Linux, which is
+     the one thing agent output should not look like. The stack keeps the
+     0.6em advance of the macOS default so code block wrapping is unchanged
+     there, and the generic keyword stays last as the final fallback. */
+  --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    'Roboto Mono', monospace;
 }
 
 html.light-theme {
-  --app-bg-color: #F2F2F2;
+  --app-bg-color: #f2f2f2;
   color-scheme: light;
 }
 
 html.silver-theme {
-  --app-bg-color: #DEDEDE;
+  --app-bg-color: #dedede;
   /* Silver's darker background needs the darker silver Primary.Main to hold 4.5:1. */
-  --tc-link: #5F43BF;
+  --tc-link: #5f43bf;
   color-scheme: light;
 }
 
 html.dark-theme {
-  --app-bg-color: #1A1A1A;
+  --app-bg-color: #1a1a1a;
   color-scheme: dark;
 }
 
 html.midnight-theme {
-  --app-bg-color: #17161D;
+  --app-bg-color: #17161d;
   color-scheme: dark;
 }
 
 html.butter-theme {
-  --app-bg-color: #1A1916;
+  --app-bg-color: #1a1916;
   color-scheme: dark;
 }
 
 .dark-theme,
 .midnight-theme,
 .butter-theme {
-  --tc-link: #B3A9FF;
+  --tc-link: #b3a9ff;
 
   --mx-uc-1: hsl(208, 100%, 75%);
   --mx-uc-2: hsl(301, 100%, 80%);
@@ -70,20 +77,20 @@ html.butter-theme {
   color-scheme: dark;
 }
 .dark-theme {
-  --app-bg-color: #1A1A1A;
-  background-color: #1A1A1A;
+  --app-bg-color: #1a1a1a;
+  background-color: #1a1a1a;
 }
 .midnight-theme {
-  --app-bg-color: #17161D;
-  background-color: #17161D;
+  --app-bg-color: #17161d;
+  background-color: #17161d;
 }
 .butter-theme {
-  --app-bg-color: #1A1916;
-  background-color: #1A1916;
+  --app-bg-color: #1a1916;
+  background-color: #1a1916;
 }
 .silver-theme {
-  --app-bg-color: #DEDEDE;
-  background-color: #DEDEDE;
+  --app-bg-color: #dedede;
+  background-color: #dedede;
 }
 
 html {

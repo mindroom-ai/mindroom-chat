@@ -2,9 +2,24 @@
 
 ## Runbook
 
+### Visual modernization stage 1b - typography tokens (2026-07-24)
+
+- Status: stage 1b (typography) is implemented and fully validated. Stage 1c (motion) and stages 2.1-2.5 (chat surfaces) are next and not started.
+- Problem: folds ships `letterSpacing` as literal `0` for all 17 type steps, so 45px display text reads loose and 12px labels read cramped, and every code surface asked for the bare `monospace` keyword, which is Courier New on Windows and Linux.
+- `src/config.css.ts` gained `opticalTracking`, a `createTheme(config.letterSpacing, ...)` override wired into all five themes in `src/app/hooks/useTheme.ts`. `src/app/theme/themeBootstrap.ts` picks it up for free because it spreads each theme's `classNames`.
+- Tracking tightens with size: -0.022em at D400 down to -0.006em at H6 and T500. Only the three 12px steps open up, T200 and C400 and O400 at 0.004em to 0.01em.
+- Constraint honored: T400 (15px) and T300 (14px) stay at exactly 0. They set the width of nearly every wrapped line in the timeline, and the estimator in `src/app/mindroom/threads/threadRenderUtils.ts` is calibrated against their line counts. The B500/B400/B300 button steps also stay at 0 so no label can outgrow its button. Every other non-zero value is negative, so the only steps that can grow are 12px ones with slack around them.
+- Verified live in the browser: 18px resolves to -0.198px, 16px to -0.144px, the 12px label to 0.12px, and the 12px caption to 0.048px, while body text still computes `normal`. The 1b thread screenshot lands every timeline line on the same pixel row as the 1a one.
+- `--font-mono` is now defined in the `:root` block of `src/index.css` and replaces `'monospace'` at nine call sites across message extras, tool approval cards, both `CodeFont` definitions, the timeline, and four settings and verification editors.
+- The mono swap was measured before it was made: a `<code>` at an inherited 15px renders identically wide under `monospace` and under the new stack on macOS Chrome, 90.313px for ten M glyphs either way. The monospace default-size quirk is not in play here because these elements inherit a concrete font size rather than the `medium` keyword.
+- `src/app/mindroom/threads/rideTraceRecorder.ts` keeps its bare `monospace`: it is a `console.log` `%c` format string, where `var()` does not resolve.
+- Diff noise worth knowing about: `src/index.css` had never been Prettier-clean, so formatting it lowercased every hex in the file. CI only runs `prettier --check` on changed files, so touching the file forced this. The five `Background.Container` hexes are still duplicated across `src/index.css`, `src/colors.css.ts`, `src/app/theme/themeBootstrap.ts`, and `index.html`, but the `index.css` copies are now lowercase; grep them case-insensitively.
+- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, Prettier on all twelve touched files, and `git diff --check` pass.
+- The full Vitest suite passes all 453 files and 3,435 tests.
+
 ### Visual modernization stage 1a - unified color tokens (2026-07-24)
 
-- Status: stage 1a (color) is implemented and fully validated. Stages 1b (typography), 1c (motion), and 2.1-2.5 (chat surfaces) are next and not started.
+- Status: stage 1a (color) is implemented and fully validated.
 - Scope agreed with the user: a staged refresh, global design tokens first and chat-surface polish second, covering the message timeline, composer, sidebar and room list, and agent/tool cards, with all five themes hand-tuned equally.
 - Screenshot evidence lives in `test-results/design-before/` and `test-results/design-after/` at 1440x900 CSS px (2x DPR), five thread views plus a light and dark room view each, so later stages can be judged against them.
 - Screenshot trap worth remembering: an earlier `test-results/design-baseline/` set was captured from a dev server on port 8080 that belonged to a different worktree, `codex/.../long-text-preview-markdown`. Its four theme files were byte-identical to this branch's parent, but it renders markdown and collapsible tool-call cards that this branch does not, so it could not serve as a before image. The before set was recaptured by detaching this checkout to the parent commit `21fdfe3e` and reloading the same origin, which keeps the logged-in Matrix session because that session is bound to the origin, not the code.
@@ -26,7 +41,7 @@
 - Typecheck, the production/PWA build, and full ESLint with zero errors and the existing 17-warning baseline pass.
 - The full Vitest suite passes all 453 files and 3,435 tests.
 - Before/after comparison is done for all five themes. Every element lands on the same pixel row in both sets, confirming no layout or vertical-metric regression. The visible deltas are the intended ones: borders read as soft edges instead of hard rules, the dark family's opaque black shadow is gone, and accents share the violet brand hue. The change is deliberately subtle because every `Background.Container` was frozen.
-- Next: stage 1b, typography tokens.
+- Followed by stage 1b, typography tokens.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
