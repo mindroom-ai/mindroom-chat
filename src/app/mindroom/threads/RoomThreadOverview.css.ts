@@ -1,5 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { motion } from '../../styles/Motion.css';
+import { transition } from '../../styles/transition';
 
 export const Overview = style({
   margin: `${config.space.S200} ${config.space.S300}`,
@@ -55,7 +57,7 @@ export const ToggleButton = style({
   position: 'relative',
   overflow: 'hidden',
   opacity: config.opacity.P300,
-  transition: 'background-color 0.15s, border-color 0.15s, opacity 0.15s',
+  transition: transition(['background-color', 'border-color', 'opacity'], motion.duration.Normal),
 
   selectors: {
     '&:hover': {
@@ -132,7 +134,7 @@ export const SortButton = style({
   color: color.SurfaceVariant.OnContainer,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
-  transition: 'background-color 0.15s, border-color 0.15s',
+  transition: transition(['background-color', 'border-color'], motion.duration.Normal),
 
   selectors: {
     '&:hover': {
@@ -199,7 +201,7 @@ export const TagPill = style({
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
   overflow: 'hidden',
-  transition: 'background-color 0.15s, border-color 0.15s',
+  transition: transition(['background-color', 'border-color'], motion.duration.Normal),
 });
 
 export const TagPillInclude = style({
@@ -274,7 +276,7 @@ export const AddTagButton = style({
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   opacity: config.opacity.P300,
-  transition: 'opacity 0.15s',
+  transition: transition(['opacity'], motion.duration.Normal),
   font: 'inherit',
   selectors: {
     '&:hover': {
@@ -347,7 +349,7 @@ export const PresetButton = style({
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   font: 'inherit',
-  transition: 'background-color 0.15s, border-color 0.15s',
+  transition: transition(['background-color', 'border-color'], motion.duration.Normal),
   selectors: {
     '&:hover': {
       backgroundColor: color.SurfaceVariant.ContainerHover,
@@ -417,7 +419,7 @@ export const InfoButton = style({
   cursor: 'pointer',
   padding: 0,
   font: 'inherit',
-  transition: 'background-color 0.15s',
+  transition: transition(['background-color'], motion.duration.Normal),
   selectors: {
     '&:hover': {
       backgroundColor: color.SurfaceVariant.ContainerHover,

@@ -1,6 +1,8 @@
 import { createVar, keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { motion } from '../../../styles/Motion.css';
+import { transition } from '../../../styles/transition';
 
 export const StickySection = style({
   position: 'sticky',
@@ -119,7 +121,7 @@ export const CompactHeader = style([
 
 export const AvatarBase = style({
   paddingTop: toRem(4),
-  transition: 'transform 200ms cubic-bezier(0, 0.8, 0.67, 0.97)',
+  transition: transition(['transform'], motion.duration.Slow, motion.easing.Decelerate),
   display: 'flex',
   alignSelf: 'start',
 

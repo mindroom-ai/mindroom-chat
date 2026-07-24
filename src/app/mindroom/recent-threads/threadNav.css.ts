@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { transition } from '../../styles/transition';
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,
@@ -46,7 +47,7 @@ export const RecentlyOpenedResizeGrip = style({
   height: '3px',
   borderRadius: '999px',
   backgroundColor: color.Background.ContainerLine,
-  transition: 'background-color 120ms ease',
+  transition: transition(['background-color']),
   selectors: {
     [`.${RecentlyOpenedResizeHandle}:hover &, .${RecentlyOpenedResizeHandle}:focus-visible &`]: {
       backgroundColor: color.Primary.Main,
@@ -95,7 +96,7 @@ export const EntryActions = style({
   pointerEvents: 'none',
   borderRadius: 'inherit',
   background: `linear-gradient(to right, transparent, ${color.Background.ContainerHover} 45%)`,
-  transition: 'opacity 120ms ease',
+  transition: transition(['opacity']),
 
   selectors: {
     [`.${Entry}:hover &, .${Entry}:focus-within &`]: {

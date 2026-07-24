@@ -199,3 +199,23 @@ li p::before {
   content: '';
   display: inline-block;
 }
+
+/* One global answer to prefers-reduced-motion for transitions, so no individual
+   component has to remember. Collapsing a transition is always safe: the end
+   state is reached immediately and nothing is lost but the travel between.
+   The duration collapses rather than going to zero so that transitionend still
+   fires and any state machine waiting on it completes.
+
+   Keyframe animations are deliberately NOT clamped here. Several of them are
+   the only signal that something is in progress - the folds spinner, the typing
+   dots, the streaming indicator - and freezing those on one frame removes
+   information rather than motion. Animations that really are motion opt out
+   individually; see Animations.css.ts. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

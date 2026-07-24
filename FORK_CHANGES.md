@@ -2,9 +2,23 @@
 
 ## Runbook
 
+### Visual modernization stage 1c - motion tokens (2026-07-24)
+
+- Status: stage 1c (motion) is implemented and fully validated. Stage 1 is now complete; stages 2.1-2.5 (chat surfaces) are next and not started.
+- Problem: every transition in the app picked its own duration and curve by hand. Hovering across the sidebar, the thread list, and a message ran 100ms linear, 120ms ease, 0.15s with no curve at all, and 200ms `cubic-bezier(0, 0.8, 0.67, 0.97)` - three speeds at three accelerations for the same gesture.
+- `src/app/styles/Motion.css.ts` adds a `createGlobalTheme(':root', ...)` with five durations (Instant 80ms, Fast 120ms, Normal 160ms, Slow 200ms, Slower 280ms) and four easings (Standard, Decelerate, Accelerate, Linear). The steps sit deliberately close to the values already in use, so adopting them is a snap-to-grid rather than a re-timing: Fast and Slow are exactly the two most common existing values.
+- `src/app/styles/transition.ts` holds the `transition(properties, duration?, easing?)` shorthand builder. It is a separate plain module on purpose - a `.css.ts` file may only export values vanilla-extract can serialize, and exporting a function from one builds fine until a regular `.tsx` imports it, at which point the build fails with `Invalid exports`. `ThreadTagPill.tsx` is that `.tsx`.
+- Fifteen ad-hoc transitions across eight files now use the tokens: `CompactRoomView.css.ts`, `TimelineMinimap.css.ts`, `RoomThreadOverview.css.ts` (six), `threadNav.css.ts` (two), `Sidebar.css.ts` (two), `layout.css.ts`, `ImageViewer.css.ts`, and the inline style in `ThreadTagPill.tsx`.
+- `src/index.css` gained a global `prefers-reduced-motion: reduce` rule, but it clamps `transition-duration` and `scroll-behavior` only. Collapsing a transition is always safe: the end state arrives immediately and nothing is lost but the travel. Duration collapses to 0.01ms rather than 0 so `transitionend` still fires; nothing in the codebase currently listens for it, but a future caller should not have to know that.
+- Keyframe animations are deliberately excluded from that global rule. The usual blanket snippet also sets `animation-duration: 0.01ms` and `animation-iteration-count: 1`, which would freeze the folds spinner, the typing dots, and the streaming indicator on a single frame. Those animations are the only signal that something is in progress, so clamping them removes information rather than motion.
+- Instead, animations opt out individually. `src/app/styles/Animations.css.ts` disables `WobbleAnimation` under reduced motion, since translate plus rotate is exactly what the query is for, and reduces `CallAvatarAnimation` to its `glowPulse` half so the "call is live" signal survives. `GlowAnimation` only grows a box shadow and is left alone. `StreamingIndicator`, `MindroomThinkingPlaceholder`, and `ThreadIndicator` already handled themselves.
+- Left as-is on purpose: the folds spinner curve `cubic-bezier(0.73, 0.32, 0.67, 0.86)` lives in `node_modules` behind an unstable hashed class and cannot be targeted safely; the dnd-kit `transition` props in `SortableRoomNavItem.tsx` and `SpaceTabs.tsx` are library-owned; `ImageViewer.tsx` sets `transition: 'none'` while zooming as a deliberate override.
+- Verified in the built CSS: all nine tokens emit on `:root` (`--_8i8xsb0: 80ms` through `--_8i8xsb8: linear`), all four easings appear, the reduced-motion block contains only the two clamped properties, and the two `Animations.css.ts` opt-outs are present.
+- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and Prettier on all touched files pass. The full Vitest suite passes all 453 files and 3,435 tests.
+
 ### Visual modernization stage 1b - typography tokens (2026-07-24)
 
-- Status: stage 1b (typography) is implemented and fully validated. Stage 1c (motion) and stages 2.1-2.5 (chat surfaces) are next and not started.
+- Status: stage 1b (typography) is implemented and fully validated.
 - Problem: folds ships `letterSpacing` as literal `0` for all 17 type steps, so 45px display text reads loose and 12px labels read cramped, and every code surface asked for the bare `monospace` keyword, which is Courier New on Windows and Linux.
 - `src/config.css.ts` gained `opticalTracking`, a `createTheme(config.letterSpacing, ...)` override wired into all five themes in `src/app/hooks/useTheme.ts`. `src/app/theme/themeBootstrap.ts` picks it up for free because it spreads each theme's `classNames`.
 - Tracking tightens with size: -0.022em at D400 down to -0.006em at H6 and T500. Only the three 12px steps open up, T200 and C400 and O400 at 0.004em to 0.01em.
