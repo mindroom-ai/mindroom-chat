@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, live preview tool grouping, and four independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-four remediation awaits a fifth exact-head re-review.
+- Status: implementation, local validation, live preview tool grouping, and five independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; both final exact-head reviewers approve with no remaining findings.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
@@ -30,7 +30,8 @@
 - Container scanning now strips exactly the opener's quote depth, requires the active quote or list continuation prefix before accepting a closer, and skips container-looking text inside a real root fence.
 - One display-math state bit keeps dash and backslash syntax literal inside multiline `$$` blocks without adding another range parser.
 - Safe conservative fallback for container-looking text inside root code, cache-thrash speculation, nested-container parsing, and second-parser proposals remain deliberately rejected as disproportionate or unproven.
-- Round-four remediation passes 76 focused formatter/render/hydration tests, all 453 Vitest files with 3,459 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; fifth-round exact-head AgentCLI re-review is next.
+- Round-four remediation passes 76 focused formatter/render/hydration tests, all 453 Vitest files with 3,459 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- AgentCLI round-five Codex and Claude reviews independently probed the final code head, reran all 76 focused tests, and approved with no remaining defect; mixed nested-container completeness remains deliberately out of scope because replacing the existing preview parser would be disproportionate to this fallback.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
