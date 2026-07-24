@@ -4,7 +4,7 @@
 
 ### Visual modernization: cool light palette, elevated thread cards, sheet radii fix (2026-07-24)
 
-- Status: implementation, screenshot verification, and full local validation are complete; uncommitted on `dev`.
+- Status: PR #198 is open and ready for review after full local validation, independent diff review, and screenshot verification.
 - Motivation: continued "make the frontend feel more modern and beautiful" feedback after CINNY-213; decisions again driven by live before/after screenshots in `ui-audit/` (`e2e/live/style-preview.spec.ts`, `SHOT_PREFIX=before|after`).
 - Light theme: the folds default light theme (dingy `#F2F2F2` grays, generic blue `#1858D5` primary) is replaced by a fork-owned palette in `src/colors.css.ts` (`lightThemeColors`): cool neutrals (`#ECEEF3` background, white `Surface`), soft-black `#17181C` text, and an indigo `#5B54E6` primary aligned with the dark themes' lavender accent; success/warning/critical ladders modernized to match.
 - Silver theme now derives from the same modern light ladder with a deeper `#DFE2E9` backdrop so the two light themes stay distinct.
