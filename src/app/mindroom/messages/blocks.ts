@@ -1,4 +1,10 @@
-import { formatMindroomPasteMarkerTextAsHtml } from './pasteAttachmentMarker';
+import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
+import { sanitizeText } from '../../utils/sanitize';
+import {
+  findMindroomPasteMarkersInText,
+  formatMindroomPasteMarkerAsHtml,
+  formatMindroomPasteMarkerTextAsHtml,
+} from './pasteAttachmentMarker';
 
 export type MindroomToolRefParseResult = {
   toolName: string;
@@ -61,6 +67,19 @@ export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | unde
   return formattedBody;
 };
 
+const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
+  const toolRef = parseMindroomToolRefText(line);
+  if (!toolRef) return undefined;
+
+  return `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
+    toolRef.pending ? ' ⏳' : ''
+  }</p>`;
+};
+
+const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
+
+const MARKDOWN_CODE_FENCE_OPEN_REG = /^(`{3,})(?!`)\S*$/;
+
 export const formatMindroomMessageTextBodyAsHtml = (body: string): string | undefined => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const htmlParts: string[] = [];
@@ -74,23 +93,12 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   };
 
   lines.forEach((line) => {
-    const toolRef = parseMindroomToolRefText(line);
-    if (toolRef) {
+    const markerHtml =
+      formatMindroomToolRefLineAsHtml(line) ?? formatMindroomPasteMarkerTextAsHtml(line);
+    if (markerHtml) {
       flushParagraph();
       hasMindroomMarker = true;
-      htmlParts.push(
-        `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
-          toolRef.pending ? ' ⏳' : ''
-        }</p>`
-      );
-      return;
-    }
-
-    const pasteMarkerHtml = formatMindroomPasteMarkerTextAsHtml(line);
-    if (pasteMarkerHtml) {
-      flushParagraph();
-      hasMindroomMarker = true;
-      htmlParts.push(pasteMarkerHtml);
+      htmlParts.push(markerHtml);
       return;
     }
 
@@ -105,4 +113,72 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   flushParagraph();
 
   return hasMindroomMarker ? htmlParts.join('') : undefined;
+};
+
+export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const htmlParts: string[] = [];
+  let markdownLines: string[] = [];
+  let codeFence: string | undefined;
+  let pastePlaceholderIndex = 0;
+  let pastePlaceholderHtml = new Map<string, string>();
+
+  const replacePasteMarkersWithPlaceholders = (line: string): string => {
+    let cursor = 0;
+    let text = '';
+
+    findMindroomPasteMarkersInText(line).forEach(({ marker, index, length }) => {
+      let placeholder = `\uE000MINDROOMPASTE${pastePlaceholderIndex}\uE001`;
+      pastePlaceholderIndex += 1;
+      while (body.includes(placeholder)) {
+        placeholder = `\uE000MINDROOMPASTE${pastePlaceholderIndex}\uE001`;
+        pastePlaceholderIndex += 1;
+      }
+
+      text += line.slice(cursor, index);
+      text += placeholder;
+      pastePlaceholderHtml.set(placeholder, formatMindroomPasteMarkerAsHtml(marker));
+      cursor = index + length;
+    });
+
+    return `${text}${line.slice(cursor)}`;
+  };
+
+  const flushMarkdown = () => {
+    if (markdownLines.length === 0) return;
+    let html = parseBlockMD(sanitizeMarkdownText(markdownLines.join('\n')), parseInlineMD);
+    pastePlaceholderHtml.forEach((markerHtml, placeholder) => {
+      html = html.split(placeholder).join(markerHtml);
+    });
+    htmlParts.push(html);
+    markdownLines = [];
+    pastePlaceholderHtml = new Map();
+  };
+
+  lines.forEach((line) => {
+    if (codeFence) {
+      markdownLines.push(line);
+      if (line.trimEnd() === codeFence) codeFence = undefined;
+      return;
+    }
+
+    const openingFence = line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[1];
+    if (openingFence) {
+      codeFence = openingFence;
+      markdownLines.push(line);
+      return;
+    }
+
+    const markerHtml = formatMindroomToolRefLineAsHtml(line);
+    if (markerHtml) {
+      flushMarkdown();
+      htmlParts.push(markerHtml);
+      return;
+    }
+
+    markdownLines.push(replacePasteMarkersWithPlaceholders(line));
+  });
+
+  flushMarkdown();
+  return htmlParts.join('');
 };

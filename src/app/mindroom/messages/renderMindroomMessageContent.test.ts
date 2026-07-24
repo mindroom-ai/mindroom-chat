@@ -534,6 +534,75 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('renders sanitized Markdown from a long-text preview before hydration', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const renderer = await renderNode({
+      msgType: 'm.file',
+      hydrateLongText: false,
+      content: {
+        msgtype: 'm.file',
+        body: ['# Preview <unsafe>', '', 'Ready **now**.', '', '🔧 `run_shell_command` [1]'].join(
+          '\n'
+        ),
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+
+    const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(previewContent).toEqual(
+      expect.objectContaining({
+        format: 'org.matrix.custom.html',
+        formatted_body: expect.stringContaining('<strong data-md="**">now</strong>'),
+      })
+    );
+    expect(previewContent?.formatted_body).toContain('&lt;unsafe&gt;');
+    expect(previewContent?.formatted_body).toContain(
+      '<p>🔧 <code>run_shell_command</code> [1]</p>'
+    );
+    expect(previewContent?.formatted_body).not.toContain('<unsafe>');
+    expect(longTextTextMock).toHaveBeenCalledWith({
+      hydrate: false,
+      kind: 'text',
+    });
+
+    renderer.unmount();
+  });
+
+  it('removes the Matrix reply fallback before formatting a long-text preview', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      hydrateLongText: false,
+      content: {
+        msgtype: 'm.text',
+        body: '> <@alice:example.org> Previous **reply**\n\nActual **answer**',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+
+    const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(previewContent?.formatted_body).toContain('Actual <strong data-md="**">answer</strong>');
+    expect(previewContent?.formatted_body).not.toContain('Previous');
+
+    renderer.unmount();
+  });
+
   it('renders thread summary metadata through the MindRoom summary card', async () => {
     const renderer = await renderNode({
       msgType: 'm.notice',

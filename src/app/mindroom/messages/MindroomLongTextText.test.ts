@@ -762,6 +762,43 @@ describe('MindroomLongTextText hydration identity', () => {
     }
   });
 
+  it('renders preview Markdown and a tool card before long-text hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: 'Preview **now**\n\n🔧 `run_shell_command` [1]',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByType('strong').children).toContain('now');
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('1 tool call');
+    expect(rendered).not.toContain('🔧');
+    expect(rendered).not.toContain('**now**');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
     const { renderer, update } = await renderMindroomLongTextText(content);

@@ -3,11 +3,15 @@ import { MsgType } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
+import { trimReplyFromBody } from '../../utils/room';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { withMindroomToolTraceMarkerParserOptions } from './MindroomHtmlBlocks';
 import { isMindroomAiRunStreaming } from './aiRun';
-import { formatMindroomMessageTextBodyAsHtml } from './blocks';
+import {
+  formatMindroomMarkdownTextBodyAsHtml,
+  formatMindroomMessageTextBodyAsHtml,
+} from './blocks';
 import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
@@ -90,6 +94,33 @@ export const renderMindroomMessageContent = ({
 
   const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
     withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
+
+  const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
+    const source = getMindroomLongTextSource(bodyContent);
+    if (!source) return undefined;
+
+    const { previewContent } = source;
+    if (
+      typeof previewContent.formatted_body === 'string' ||
+      typeof previewContent.body !== 'string'
+    ) {
+      return source;
+    }
+
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      trimReplyFromBody(previewContent.body)
+    );
+    if (!formattedBody) return source;
+
+    return {
+      ...source,
+      previewContent: {
+        ...previewContent,
+        format: 'org.matrix.custom.html',
+        formatted_body: formattedBody,
+      },
+    };
+  };
 
   const renderBody =
     (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
@@ -209,7 +240,7 @@ export const renderMindroomMessageContent = ({
       );
     }
 
-    const longTextSource = getMindroomLongTextSource(content);
+    const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText
@@ -263,7 +294,7 @@ export const renderMindroomMessageContent = ({
 
   if (msgType === MsgType.Emote) {
     const isStreaming = isMindroomAiRunStreaming(content);
-    const longTextSource = getMindroomLongTextSource(content);
+    const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText
@@ -310,7 +341,7 @@ export const renderMindroomMessageContent = ({
 
   if (msgType === MsgType.Notice) {
     const isStreaming = isMindroomAiRunStreaming(content);
-    const longTextSource = getMindroomLongTextSource(content);
+    const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
         <MindroomLongTextText

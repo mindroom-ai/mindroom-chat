@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
+  formatMindroomMarkdownTextBodyAsHtml,
   formatMindroomMessageTextBodyAsHtml,
   formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
@@ -109,5 +110,63 @@ describe('formatMindroomMessageTextBodyAsHtml', () => {
 
   it('returns undefined without special MindRoom markers', () => {
     expect(formatMindroomMessageTextBodyAsHtml('plain response')).toBeUndefined();
+  });
+});
+
+describe('formatMindroomMarkdownTextBodyAsHtml', () => {
+  it('renders safe Markdown and tool references from a long-text preview body', () => {
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['# Preview <unsafe>', '', 'Ready **now**.', '', '🔧 `run_shell_command` [1]'].join('\n')
+      )
+    ).toBe(
+      [
+        '<h1 data-md="#">Preview &lt;unsafe&gt;</h1>',
+        '<br/>Ready <strong data-md="**">now</strong>.<br/>',
+        '<p>🔧 <code>run_shell_command</code> [1]</p>',
+      ].join('')
+    );
+  });
+
+  it('keeps tool markers inside fenced code as code', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      [
+        '```',
+        '🔧 `run_shell_command` [1]',
+        '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]',
+        '```',
+        '',
+        '🔧 `outside_tool` [2]',
+      ].join('\n')
+    );
+
+    expect(formattedBody).toContain('<pre data-md="```"><code>🔧 `run_shell_command` [1]\n');
+    expect(formattedBody).toContain('[[mindroom-paste:{&quot;v&quot;:1');
+    expect(formattedBody).not.toContain('data-mindroom-paste-marker');
+    expect(formattedBody).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
+  });
+
+  it('preserves blockquote Markdown while escaping its content', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml('> Safe <unsafe> and **quoted**');
+
+    expect(formattedBody).toContain('<blockquote data-md=">">');
+    expect(formattedBody).toContain('&lt;unsafe&gt;');
+    expect(formattedBody).toContain('<strong data-md="**">quoted</strong>');
+    expect(formattedBody).not.toContain('<unsafe>');
+  });
+
+  it('renders Markdown surrounding an inline paste marker', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      [
+        'Before **bold** ',
+        '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]',
+        ' after *italic*',
+      ].join('')
+    );
+
+    expect(formattedBody).toContain('<strong data-md="**">bold</strong>');
+    expect(formattedBody).toContain('data-mindroom-paste-marker="true"');
+    expect(formattedBody).toContain('<i data-md="*">italic</i>');
+    expect(formattedBody).not.toContain('**bold**');
   });
 });
