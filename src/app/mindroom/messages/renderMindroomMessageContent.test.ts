@@ -599,6 +599,7 @@ describe('renderMindroomMessageContent', () => {
 
     expect(previewContent?.formatted_body).toContain('Actual <strong data-md="**">answer</strong>');
     expect(previewContent?.formatted_body).not.toContain('Previous');
+    expect(previewContent?.body).toBe('Actual **answer**');
 
     renderer.unmount();
   });

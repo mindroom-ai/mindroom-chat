@@ -799,6 +799,40 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('keeps a reply-only long-text preview empty before hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '> <@alice:example.org> Previous reply\n\n',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-testid': 'empty-content' })).toBeDefined();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Previous reply');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
     const { renderer, update } = await renderMindroomLongTextText(content);

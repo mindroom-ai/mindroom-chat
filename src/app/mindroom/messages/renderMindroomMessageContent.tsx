@@ -107,15 +107,25 @@ export const renderMindroomMessageContent = ({
       return source;
     }
 
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
-      trimReplyFromBody(previewContent.body)
-    );
-    if (!formattedBody) return source;
+    const trimmedBody = trimReplyFromBody(previewContent.body);
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(trimmedBody);
+    if (!formattedBody) {
+      if (trimmedBody === previewContent.body) return source;
+
+      return {
+        ...source,
+        previewContent: {
+          ...previewContent,
+          body: trimmedBody,
+        },
+      };
+    }
 
     return {
       ...source,
       previewContent: {
         ...previewContent,
+        body: trimmedBody,
         format: 'org.matrix.custom.html',
         formatted_body: formattedBody,
       },
