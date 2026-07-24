@@ -149,6 +149,16 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
   });
 
+  it('keeps leading blockquote escapes verbatim inside fenced code', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['```', '\\> one slash', '\\\\> two slashes', '```'].join('\n')
+    );
+
+    expect(formattedBody).toContain('\\&gt; one slash');
+    expect(formattedBody).toContain('\\\\&gt; two slashes');
+    expect(formattedBody).not.toContain('<blockquote');
+  });
+
   it('keeps markers inside CommonMark tilde and unclosed fences as code', () => {
     const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
       [
@@ -260,17 +270,31 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formatMindroomMarkdownTextBodyAsHtml(`> ~~~\n> ${PASTE_MARKER}\n> ~~~`)).toBe('');
     expect(
       formatMindroomMarkdownTextBodyAsHtml(
+        ['> ~~~', '>     ~~~', `> ${PASTE_MARKER}`, '> ~~~'].join('\n')
+      )
+    ).toBe('');
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
         ['- ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
+      )
+    ).toBe('');
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['- ~~~', '      ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
       )
     ).toBe('');
   });
 
   it('still formats markers after a closed container fence', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const quoteFence = formatMindroomMarkdownTextBodyAsHtml(
       ['> ~~~', '> ordinary code', '> ~~~', '', PASTE_MARKER].join('\n')
     );
+    const listFence = formatMindroomMarkdownTextBodyAsHtml(
+      ['- ~~~', '  ordinary code', '  ~~~', '', '🔧 `run_shell_command` [1]'].join('\n')
+    );
 
-    expect(formattedBody).toContain('data-mindroom-paste-marker="true"');
+    expect(quoteFence).toContain('data-mindroom-paste-marker="true"');
+    expect(listFence).toContain('<p>🔧 <code>run_shell_command</code> [1]</p>');
   });
 
   it('sanitizes math exactly once', () => {

@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: implementation, local validation, live preview tool grouping, and two independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-two remediation awaits exact-head re-review.
+- Status: implementation, local validation, live preview tool grouping, and three independent AgentCLI review rounds are complete on `fix/long-text-preview-markdown`; round-three remediation awaits a fourth exact-head re-review.
 - Long-text events can carry a lightweight plain `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The normal message renderer currently paints that raw fallback until hydration completes, exposing Markdown syntax and tool-reference markers.
 - The renderer now synthesizes sanitized Matrix-compatible HTML from the preview body immediately, including existing MindRoom tool and paste marker blocks, then lets sidecar hydration replace it with authoritative content.
@@ -22,7 +22,11 @@
 - Round-one remediation passes 66 focused formatter/render/hydration tests, all 453 Vitest files with 3,449 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
 - AgentCLI round-two Codex and Claude reviews reproduced six remaining formatter edges: unbounded recursive inline syntax, special markers inside container fences and complex code spans, paste placeholders duplicated into math or link attributes, multi-space dash bullets, quadratic hostile-prefix scanning, and empty or malformed normalized fences.
 - The narrow follow-up adds one inline-syntax budget, linear placeholder-prefix selection, source-aware literal code-span markers, context-safe replacement of every placeholder occurrence, targeted container-fence fallback only when a special marker is inside the fence, one-to-four-space dash normalization, backslash-run parity, and parseable empty fences.
-- Round-two remediation passes 73 focused formatter/render/hydration tests, all 453 Vitest files with 3,456 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; exact-head AgentCLI re-review is next.
+- AgentCLI round-three Codex and Claude reviews reproduced three container and verbatim-code boundaries: over-indented fence-looking content prematurely ended the safety scan, blockquote escape normalization mutated fenced code, and a list-container closing fence opened a phantom root fence that swallowed later prose and tool calls.
+- The shared container scan now preserves the exact list indent, accepts only zero-to-three-space closers, exposes its covered line indexes to the formatter, and prevents those lines from changing root-fence or tool-marker state.
+- Markdown prose is sanitized line by line while fenced content uses plain text sanitization, so prose blockquote parity no longer changes verbatim code.
+- A Claude scratch assertion that expected attacker-supplied private-use text to disappear was rejected because only generated placeholders must be absent; the measured linear prefix selection and real marker output were correct.
+- Round-three remediation passes 74 focused formatter/render/hydration tests, all 453 Vitest files with 3,457 tests, typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`; fourth-round exact-head AgentCLI re-review is next.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 

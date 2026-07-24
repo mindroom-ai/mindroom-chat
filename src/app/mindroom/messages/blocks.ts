@@ -255,36 +255,53 @@ const getMarkdownCodeSpanRanges = (text: string): TextRange[] => {
   return ranges;
 };
 
-const hasMarkerInsideContainerFence = (body: string): boolean => {
+type ContainerFenceScan = {
+  lineIndexes: Set<number>;
+  hasMarker: boolean;
+};
+
+const scanContainerFences = (body: string): ContainerFenceScan => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const lineIndexes = new Set<number>();
 
   for (let openingIndex = 0; openingIndex < lines.length; openingIndex += 1) {
     const openingMatch = lines[openingIndex].match(MARKDOWN_CONTAINER_FENCE_REG);
     if (!openingMatch) continue;
 
     const quoteContainer = openingMatch[1].includes('>');
-    const fenceCharacter = openingMatch[2][0];
-    const fenceLength = openingMatch[2].length;
+    const listContentIndent = quoteContainer ? 0 : openingMatch[1].length;
+    const listContentPrefix = ' '.repeat(listContentIndent);
+    const fence: MarkdownCodeFence = {
+      character: openingMatch[2][0] as '`' | '~',
+      length: openingMatch[2].length,
+    };
+    lineIndexes.add(openingIndex);
+
+    if (
+      findMindroomPasteMarkersInText(lines[openingIndex].slice(openingMatch[0].length)).length > 0
+    ) {
+      return { lineIndexes, hasMarker: true };
+    }
 
     for (let lineIndex = openingIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+      lineIndexes.add(lineIndex);
       const content = quoteContainer
         ? lines[lineIndex].replace(/^(?: {0,3}> ?)+/, '')
-        : lines[lineIndex].replace(/^ {1,4}/, '');
-      const stripped = content.trimStart();
-      let closingRunLength = 0;
-      while (stripped[closingRunLength] === fenceCharacter) closingRunLength += 1;
-      if (closingRunLength >= fenceLength && stripped.slice(closingRunLength).trim() === '') {
+        : lines[lineIndex].startsWith(listContentPrefix)
+        ? lines[lineIndex].slice(listContentIndent)
+        : lines[lineIndex];
+      if (isMarkdownCodeFenceClose(content, fence)) {
         openingIndex = lineIndex;
         break;
       }
 
       if (findMindroomPasteMarkersInText(content).length > 0 || parseMindroomToolRefText(content)) {
-        return true;
+        return { lineIndexes, hasMarker: true };
       }
     }
   }
 
-  return false;
+  return { lineIndexes, hasMarker: false };
 };
 
 const rememberMarkdownPreview = (body: string, html: string): string => {
@@ -343,10 +360,11 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   }
 
   const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
+  const containerFenceScan = scanContainerFences(body);
   if (
     blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES ||
     exceedsInlineMarkerBudget(body) ||
-    hasMarkerInsideContainerFence(body)
+    containerFenceScan.hasMarker
   ) {
     return rememberMarkdownPreview(body, '');
   }
@@ -398,7 +416,7 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     }
 
     try {
-      const parsedHtml = parseBlockMD(sanitizeMarkdownText(markdown), parseInlineMD);
+      const parsedHtml = parseBlockMD(markdown, parseInlineMD);
       const html = replacePastePlaceholders(
         normalizeParsedMathEntities(parsedHtml),
         pastePlaceholders
@@ -411,7 +429,7 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     pastePlaceholders = new Map();
   };
 
-  lines.forEach((line) => {
+  lines.forEach((line, lineIndex) => {
     const lineOffset = sourceOffset;
     sourceOffset += line.length + 1;
 
@@ -421,24 +439,25 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
         markdownLines.push(normalizedFence);
         codeFence = undefined;
       } else {
-        markdownLines.push(line);
+        markdownLines.push(sanitizeText(line));
         codeFenceContentLineCount += 1;
       }
       return;
     }
 
-    const openingFence = getMarkdownCodeFence(line);
+    const insideContainerFence = containerFenceScan.lineIndexes.has(lineIndex);
+    const openingFence = insideContainerFence ? undefined : getMarkdownCodeFence(line);
     if (openingFence) {
       codeFence = openingFence;
       codeFenceContentLineCount = 0;
       const info =
         line.match(MARKDOWN_CODE_FENCE_OPEN_REG)?.[2].trim().split(/\s+/, 1)[0].replace(/`/g, '') ??
         '';
-      markdownLines.push(`${normalizedFence}${info}`);
+      markdownLines.push(sanitizeText(`${normalizedFence}${info}`));
       return;
     }
 
-    const markerHtml = formatMindroomToolRefLineAsHtml(line);
+    const markerHtml = insideContainerFence ? undefined : formatMindroomToolRefLineAsHtml(line);
     if (markerHtml) {
       flushMarkdown();
       htmlParts.push(markerHtml);
@@ -446,7 +465,9 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     }
 
     const normalizedLine = line.replace(/^(\s*)-( {1,4})(?=\S)/, '$1*$2');
-    markdownLines.push(replacePasteMarkersWithPlaceholders(normalizedLine, lineOffset));
+    markdownLines.push(
+      sanitizeMarkdownText(replacePasteMarkersWithPlaceholders(normalizedLine, lineOffset))
+    );
   });
 
   if (codeFence) {
