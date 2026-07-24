@@ -10,15 +10,27 @@
   --tc-link: #694ccd;
   --app-bg-color: #1a1a1a;
 
-  /* user mxid colors */
-  --mx-uc-1: hsl(208, 100%, 45%);
-  --mx-uc-2: hsl(302, 100%, 30%);
-  --mx-uc-3: hsl(163, 100%, 30%);
-  --mx-uc-4: hsl(343, 100%, 45%);
-  --mx-uc-5: hsl(24, 100%, 45%);
-  --mx-uc-6: hsl(181, 100%, 30%);
-  --mx-uc-7: hsl(242, 100%, 45%);
-  --mx-uc-8: hsl(94, 100%, 35%);
+  /* User mxid colors, picked by hashing the user ID in util/colorMXID.js.
+     Each one is used two ways: as the sender name's text color, and as an
+     avatar fallback background with Surface.Container as its letter. Both
+     directions are the same pair, so one contrast check covers both.
+
+     These are eight evenly spaced OKLCH hues, 45 degrees apart, rotated 32
+     degrees off zero so none of them lands on the 288 degree brand hue.
+     Preserving the old hues was tried first and rejected: 208 and 242 collapse
+     into two near-identical blues once they share a lightness, and the whole
+     job of these colors is telling people apart.
+
+     Light group: L 0.52, chroma capped at 0.125, worst contrast 4.56 against
+     silver's Surface.Container, which is the darkest surface they sit on. */
+  --mx-uc-1: #a44938;
+  --mx-uc-2: #8b5f05;
+  --mx-uc-3: #5d7303;
+  --mx-uc-4: #067c5c;
+  --mx-uc-5: #087687;
+  --mx-uc-6: #3569af;
+  --mx-uc-7: #7755a4;
+  --mx-uc-8: #9b4777;
 
   --font-emoji: 'Twemoji_DISABLED';
   --font-secondary: 'InterVariable', var(--font-emoji), sans-serif;
@@ -63,14 +75,17 @@ html.butter-theme {
 .butter-theme {
   --tc-link: #b3a9ff;
 
-  --mx-uc-1: hsl(208, 100%, 75%);
-  --mx-uc-2: hsl(301, 100%, 80%);
-  --mx-uc-3: hsl(163, 100%, 70%);
-  --mx-uc-4: hsl(343, 100%, 75%);
-  --mx-uc-5: hsl(24, 100%, 70%);
-  --mx-uc-6: hsl(181, 100%, 60%);
-  --mx-uc-7: hsl(243, 100%, 80%);
-  --mx-uc-8: hsl(94, 100%, 80%);
+  /* Same eight hues, lifted for dark surfaces: L 0.82, chroma capped at 0.115,
+     worst contrast 7.69 against butter's Surface.Container, the lightest of
+     the three dark containers. */
+  --mx-uc-1: #ffac9b;
+  --mx-uc-2: #eeba6a;
+  --mx-uc-3: #b7d07a;
+  --mx-uc-4: #72dcb4;
+  --mx-uc-5: #59d8ef;
+  --mx-uc-6: #9fc7fe;
+  --mx-uc-7: #d1b4fe;
+  --mx-uc-8: #fba5d3;
 
   --font-secondary: 'InterVariable', var(--font-emoji), sans-serif;
 
