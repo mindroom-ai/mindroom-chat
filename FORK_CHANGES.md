@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Visual modernization stage 2.6 - Recently Opened scrollbar (2026-07-24)
+
+- Status: implemented and verified live in dark and light. Reported by the user: the Recently Opened scrollbar "is ugly and not like the others".
+- Problem: `RecentlyOpenedList` in `src/app/mindroom/recent-threads/threadNav.css.ts` was a plain `overflowY: 'auto'` div, so it was the only scroller in the sidebar showing the platform's own scrollbar - a 15px grey slab against the folds thumb used everywhere else, sitting directly below the room list that does use folds.
+- `RecentlyOpenedNavCategory.tsx` now scrolls through folds `Scroll` with exactly the settings `PageNavContent` uses for that room list: `variant="Background" direction="Vertical" size="300" hideTrack visibility="Hover"`.
+- `Scroll` sets `height: 100%`, which only resolves correctly inside a box the flex layout has already sized, so the sizing moved to a new `RecentlyOpenedListViewport` wrapper and the scrolling stayed on the child. This is the same split `PageNavContent` uses; overriding folds' `height` from our own class would have depended on stylesheet order.
+- `paddingRight: S100` is dropped. `Scroll` reserves an 8px gutter for its own scrollbar and the room list above pads to 0 on that side for the same reason, so the old padding would have stepped the two lists out of alignment. Measured live: recently-opened rows and room rows now share the same 74px and 314px edges.
+- `overscrollBehavior: 'contain'` and the bottom padding stay on the scroller. `id`, `data-testid` and the resize handle's `aria-controls` target are unchanged, so the drag-to-resize separator still points at the same element.
+- Typecheck, the production/PWA build, ESLint, Prettier, and the full test suite pass.
+
 ### Visual modernization stage 2.3 - syntax colors on the app ramp (2026-07-24)
 
 - Status: implemented and verified live in light and dark. Colors only, so no code-block metrics change.
