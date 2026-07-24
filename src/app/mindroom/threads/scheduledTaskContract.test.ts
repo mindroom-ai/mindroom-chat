@@ -37,6 +37,24 @@ describe('parseScheduledTaskStateEvent', () => {
     });
   });
 
+  it('parses the backend-owned cron description', () => {
+    const event = makeScheduledTaskEvent({
+      status: 'pending',
+      thread_id: '$thread',
+      new_thread: false,
+      cron_description: '  At 09:00  ',
+    });
+
+    expect(parseScheduledTaskStateEvent(event)).toEqual({
+      taskId: 'task-1',
+      status: 'pending',
+      threadId: '$thread',
+      newThread: false,
+      executeAt: null,
+      cronDescription: 'At 09:00',
+    });
+  });
+
   it('falls back to legacy workflow JSON when top-level fields are missing', () => {
     const event = makeScheduledTaskEvent({
       status: 'pending',

@@ -1,5 +1,17 @@
 import React from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll, Button, Spinner, config, toRem } from 'folds';
+import {
+  Box,
+  Text,
+  IconButton,
+  Icon,
+  Icons,
+  Scroll,
+  Button,
+  Spinner,
+  Switch,
+  config,
+  toRem,
+} from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
@@ -13,10 +25,14 @@ import {
 } from '../../../mindroom/branding/clientBranding';
 import { isNativeIOS } from '../../../mindroom/native/nativeSso';
 import { saveFile } from '../../../mindroom/native/nativeFileSave';
+import { getFlightRecorderStatus } from '../../../mindroom/diagnostics/flightRecorder';
 import {
-  buildFlightRecorderExport,
-  getFlightRecorderStatus,
-} from '../../../mindroom/diagnostics/flightRecorder';
+  clearDeepTrace,
+  getDeepTraceEnabled,
+  setDeepTraceEnabled,
+  subscribeDeepTraceStatus,
+} from '../../../mindroom/diagnostics/deepTrace';
+import { buildDiagnosticsExport } from '../../../mindroom/diagnostics/diagnosticsExport';
 
 type AboutProps = {
   requestClose: () => void;
@@ -28,13 +44,42 @@ export function About({ requestClose }: AboutProps) {
   const [clearing, setClearing] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState(false);
+  const [deepTracing, setDeepTracing] = React.useState(getDeepTraceEnabled);
+  const [deepTraceError, setDeepTraceError] = React.useState<
+    'storage' | 'preference' | undefined
+  >();
+  const [deepTraceChanging, setDeepTraceChanging] = React.useState(false);
+  const [clearingDeepTrace, setClearingDeepTrace] = React.useState(false);
+  const deepTraceChangePending = React.useRef(false);
   const nativeIOS = isNativeIOS();
   const diagnosticsStatus = getFlightRecorderStatus();
   const diagnosticsDescription = {
-    unexpected: 'Previous session ended unexpectedly.',
+    unexpected: 'Previous session ended unexpectedly; the cause is unknown.',
     none: 'No unexpected session retained.',
     unavailable: 'Diagnostics storage unavailable.',
   }[diagnosticsStatus];
+
+  React.useEffect(
+    () =>
+      subscribeDeepTraceStatus((status) => {
+        if (!deepTraceChangePending.current) {
+          setDeepTraceChanging(status === 'starting');
+        }
+        if (status === 'unavailable') {
+          setDeepTracing(false);
+          setDeepTraceError('storage');
+        } else if (status === 'starting') {
+          setDeepTracing(true);
+          setDeepTraceError(undefined);
+        } else if (status === 'recording') {
+          setDeepTracing(true);
+          setDeepTraceError(undefined);
+        } else {
+          setDeepTracing(false);
+        }
+      }),
+    []
+  );
 
   const handleClearCache = async () => {
     if (clearing) return;
@@ -55,12 +100,45 @@ export function About({ requestClose }: AboutProps) {
     setExportError(false);
 
     try {
-      const { blob, fileName } = buildFlightRecorderExport();
+      const { blob, fileName } = await buildDiagnosticsExport();
       await saveFile(blob, fileName);
     } catch {
       setExportError(true);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleDeepTraceChange = async (enabled: boolean) => {
+    if (deepTraceChangePending.current) return;
+    deepTraceChangePending.current = true;
+    setDeepTraceChanging(true);
+    setDeepTracing(enabled);
+    setDeepTraceError(undefined);
+    let saved = false;
+    try {
+      saved = await setDeepTraceEnabled(enabled);
+    } catch {
+      saved = false;
+    }
+    if (!saved) {
+      setDeepTraceError(enabled ? 'storage' : 'preference');
+    }
+    setDeepTracing(enabled && saved);
+    deepTraceChangePending.current = false;
+    setDeepTraceChanging(false);
+  };
+
+  const handleClearDeepTrace = async () => {
+    if (clearingDeepTrace) return;
+    setClearingDeepTrace(true);
+    setDeepTraceError(undefined);
+    try {
+      await clearDeepTrace();
+    } catch {
+      setDeepTraceError('storage');
+    } finally {
+      setClearingDeepTrace(false);
     }
   };
 
@@ -157,6 +235,50 @@ export function About({ requestClose }: AboutProps) {
                       </Button>
                     }
                   />
+                  {nativeIOS && (
+                    <SettingTile
+                      title="Deep diagnostic tracing"
+                      description={`${
+                        deepTracing
+                          ? 'Recording a bounded, privacy-safe performance and interaction trace on this device.'
+                          : 'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.'
+                      }${
+                        deepTraceError === 'storage'
+                          ? ' Trace storage unavailable.'
+                          : deepTraceError === 'preference'
+                          ? ' Off for this session, but the preference could not be saved and may re-enable after restart.'
+                          : ''
+                      }`}
+                      after={
+                        <Box alignItems="Center" gap="200">
+                          <Button
+                            onClick={handleClearDeepTrace}
+                            variant="Secondary"
+                            fill="Soft"
+                            size="300"
+                            radii="300"
+                            outlined
+                            disabled={clearingDeepTrace || deepTraceChanging}
+                            before={
+                              clearingDeepTrace && (
+                                <Spinner size="200" variant="Secondary" fill="Soft" />
+                              )
+                            }
+                          >
+                            <Text size="B300">
+                              {clearingDeepTrace ? 'Clearing...' : 'Clear trace'}
+                            </Text>
+                          </Button>
+                          <Switch
+                            variant="Primary"
+                            value={deepTracing}
+                            onChange={handleDeepTraceChange}
+                            disabled={deepTraceChanging}
+                          />
+                        </Box>
+                      }
+                    />
+                  )}
                   {nativeIOS && (
                     <SettingTile
                       title="On-device diagnostics"

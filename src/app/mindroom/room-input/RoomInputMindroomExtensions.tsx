@@ -12,11 +12,11 @@ import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mi
 import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
+import type { VoiceRecorderComposerHandle } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
 import {
   createRoomInputSendSessionState,
   getUploadRelationForSendSession,
-  hasMatchingReplyDraftContext,
 } from '../threads/roomInputSendSession';
 import type { TUploadContent } from '../../utils/matrix';
 import type { MindroomPasteMarker } from '../messages/pasteAttachmentMarker';
@@ -44,6 +44,7 @@ type MindroomRoomInputThreadIndicatorProps = {
  * not need account stamping because it never outlives the active send.
  */
 export type MindroomVoiceSendContext = PendingVoiceSendContext;
+export type MindroomVoiceRecorderComposerHandle = VoiceRecorderComposerHandle;
 
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
@@ -126,23 +127,6 @@ export const getMindroomRoomInputVoiceUploadRelation = (
 
   return getUploadRelationForSendSession(session, false);
 };
-
-export const hasMatchingMindroomRoomInputVoiceReplyContext = (
-  context: MindroomVoiceSendContext,
-  currentReplyDraft: IReplyDraft | undefined
-): boolean =>
-  hasMatchingReplyDraftContext(
-    {
-      roomId: context.roomId,
-      threadId: context.threadId,
-      replyDraft: context.replyDraft,
-    },
-    {
-      roomId: context.roomId,
-      threadId: context.threadId,
-      replyDraft: currentReplyDraft,
-    }
-  );
 
 export const createMindroomRoomInputPasteMarkerElement = (
   marker: MindroomPasteMarker

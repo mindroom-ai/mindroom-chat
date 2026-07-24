@@ -234,6 +234,18 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     ]);
   });
 
+  it('shows one backend-owned cron description without evaluating cron', () => {
+    const model = buildModel(makeRoom(), {
+      scheduledStatus: {
+        scheduledTaskCount: 1,
+        cronDescription: 'At 09:00',
+      },
+    });
+
+    expect(model.scheduledDisplayText).toBe('At 09:00');
+    expect(model.scheduledTaskLabel).toBe('1 pending scheduled task, At 09:00');
+  });
+
   it('uses cached root preview as the zero-reply title and recent-thread summary', () => {
     const rootEvent = makeEvent({
       eventId: '$root',

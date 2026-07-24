@@ -41,7 +41,13 @@ const fetchFullUserDirectory = (mx: MatrixClient): Promise<UserDirectoryFetchRes
 
   const promise = mx
     .searchUserDirectory({
-      term: ' ',
+      // Every MXID contains '@', so on Tuwunel's case-insensitive substring
+      // matcher this bootstraps all visible users — unlike ' ', which missed
+      // space-less display names (e.g. MindRoomExpert). This is a
+      // Tuwunel-compatible visible-user bootstrap, NOT a Matrix-standard
+      // match-all guarantee. Tuwunel clamps the limit to 500, so the existing
+      // `limited` handling stays load-bearing past 500 users.
+      term: '@',
       limit: USER_DIRECTORY_BOOTSTRAP_LIMIT,
     })
     .then((response) => {

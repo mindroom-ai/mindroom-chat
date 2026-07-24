@@ -4,7 +4,7 @@
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 
-- Status: the persistent bottom implementation, current `dev` merge, regression coverage, full local validation, and independent re-review are complete on `feat/restore-recent-threads`.
+- Status: the persistent bottom implementation is merged with current `dev`; conflict resolution is complete and fresh validation plus PR review are in progress on `feat/restore-recent-threads`.
 - Regression: PR #163 added the persistent `Threads` navigation category but removed quick access to threads ordered by when the user last opened them.
 - Product label: `Recently Opened` distinguishes navigation history from the activity-ordered `Threads` category.
 - Architecture decision: render Recently Opened as a bounded bottom sidebar section outside each page navigation scroller instead of restoring a resizable panel with viewport tracking and two layout preference stores.
@@ -14,9 +14,251 @@
 - Recent entries retain direct compact or classic navigation, cached summary fallback, canonical root rekeying, joined-room filtering, and English, Dutch, and German labels.
 - The redesign removes the divider, viewport observers, panel-height calculations, dedicated layout CSS, and two panel preference stores.
 - The aggregate PR diff is now 742 insertions and 12 deletions instead of 2,063 insertions and 16 deletions, reducing added lines by about 64%; 489 of the remaining insertions are tests.
-- Validation passes 58 focused tests and the full Vitest suite with 445 files and 3,295 tests, as well as typecheck, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`.
+- Fresh merged-state validation passes 71 focused tests and typecheck; the pre-merge full gate passed 445 files and 3,295 tests, the production/PWA build with Element Call verification, Playwright discovery for all four viewport cases, touched-file Prettier, and `git diff --check`, while full merged-state revalidation is in progress.
 - Full ESLint reports zero errors and 17 pre-existing warnings.
 - Independent review found empty-list visibility, invalid button-descendant markup, empty-shell centering, overflow coverage, and Space-navigation coverage gaps; all were fixed, and independent re-review found no remaining findings.
+
+### Default to Simple Mode with expanded long messages (2026-07-23)
+
+- Status: implementation, regression coverage, full local validation, and independent re-review are complete.
+- Accounts without explicit preferences now start in Simple Mode and show long messages expanded.
+- Explicit stored `true` or `false` values remain authoritative, so existing user choices do not change.
+- Missing, malformed, and non-boolean account-data values use the new defaults.
+- Both defaults remain independently configurable through Settings → General → Interface and continue to roam through `io.mindroom.settings`.
+- Tests that exercise advanced-only controls explicitly opt into full mode instead of depending on the application default.
+- Focused validation passes 28 settings, sidebar, and command-palette tests.
+- The full Vitest suite passes all 449 files and 3,398 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Independent zero-tolerance review and exact-diff re-review found no issues.
+- CodeRabbit found that truthy malformed-value fixtures could not distinguish strict fallback from boolean coercion; falsy non-boolean regressions now prove the defaulting contract.
+
+### Expire orphaned pending tool-approval cards client-side (2026-07-23)
+
+- Status: narrow implementation, full local validation, and independent re-review are complete.
+- Pending approval cards now derive an effective status from the server status and `expires_at`.
+- A valid deadline at or before the current time renders through the existing expired-card path and exposes no Approve or Deny actions.
+- One bounded timeout refreshes a mounted future-pending card at its deadline without polling or requiring a Matrix edit.
+- The submission gate re-checks expiry synchronously, so a delayed render or retained click handler cannot send a response after the deadline.
+- Approved, denied, and expired server edits remain authoritative, while invalid timestamps retain the existing pending behavior.
+- Expiry parsing requires a calendar-valid RFC 3339 timestamp, so permissive JavaScript coercions such as `0` and impossible dates cannot accidentally expire a card.
+- RFC 3339 fields, sub-millisecond fractions, and numeric offsets are converted directly instead of delegated to browser `Date.parse`, keeping production timestamps consistent across engines.
+- Scope stays inside the fork-owned tool-approval parser, card, focused tests, and this Runbook entry.
+- Focused approval parsing and card coverage passes 34 tests.
+- The full Vitest suite passes all 449 files and 3,414 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, targeted ESLint, and `git diff --check` pass.
+- Full ESLint reports zero errors with the existing 17-warning baseline.
+- Independent review found the initial permissive timestamp parse and stale focused-test count; both are fixed, and independent re-review approved the timer, terminal-state authority, action race guard, invalid fallback, tests, and scope with no remaining findings.
+- Cloudfable zero-tolerance review found that the expiry path lacked coverage for the live microsecond `+00:00` wire format; the elapsed and future card regressions now exercise that production format directly.
+- Cloudfable re-review found the effective-status helper and remaining calendar edges untested; `toolApproval.test.ts` now pins leap-day acceptance and rejection, 30-day-month and offset-less rejection, the exact-deadline boundary, and terminal-status passthrough.
+- The same re-review flagged the epoch finiteness guard as unreachable after the range checks, so the parser now returns the computed epoch directly.
+
+### Keep Matrix IDs literal inside code (2026-07-22)
+
+- Status: PR #194 is open and ready for human review after full local validation, independent re-review, exact-head Greptile approval, and green PR checks.
+- Formatted messages could contain generated Matrix user links inside inline or fenced code, and the custom HTML renderer converted those links into display-name mentions.
+- Code descendants now suppress linkification and mention rendering while flattening anchors to their exact child text, so generated literal Matrix-ID labels stay raw and intentional custom code labels remain unchanged.
+- Fenced-code Copy uses the same literal child text shown on screen.
+- Matrix user links outside code retain the existing display-name mention behavior.
+- Focused coverage verifies plain text, single-backtick inline code, triple-backtick fenced code, and fenced-code clipboard behavior through the production custom HTML parser.
+- The focused parser suite passes 25 tests, and the full Vitest suite passes all 449 files and 3,399 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+- Initial independent review found that fenced-code display and Copy could diverge; clipboard regression coverage now requires both surfaces to preserve the same literal child text, and independent re-review approved that invariant with no findings.
+- PR #194 Greptile review found that href-based ID recovery rewrote intentional custom Matrix-link labels inside code; preserving exact anchor child text fixes that code-literal invariant while retaining raw generated IDs.
+- Exact-head Greptile re-review reports 5/5 confidence with no blocking issues, and the Android, main PR, and Docker checks pass.
+
+### Minimal bounded fallback for a wedged call iframe (2026-07-21)
+
+- Status: the narrow PR #192 follow-up preserves only independently useful lifecycle fixes from PR #189, integrates current `dev`, and is locally complete; MatrixRTC and room-retirement machinery remain excluded.
+- Symptom: End can spin forever when the embedded Element Call iframe stops answering its hangup request.
+- Scope: both existing End surfaces share one request flag, send at most one hangup request, and arm one 4,000 ms host fallback in the existing provider lifecycle.
+- Healthy widget Hangup or Close keeps the existing immediate disposal and ephemeral agent-room cleanup path.
+- Ending before the widget joins now enters that same finalizer immediately without sending a hangup request, so an ephemeral agent room cannot skip cleanup.
+- The fallback clears only the same still-current embed, which disposes the iframe and then runs the same existing agent-room cleanup.
+- `CallEmbed.dispose()` now removes the exact registered Matrix listeners, runs once, attempts every teardown step independently, and consumes a to-device callback that resumes over a stopped transport.
+- Once an agent call embed starts, later navigation or profile-close failures cannot destroy its active room, and joined state resets whenever the embed identity changes.
+- MatrixRTC membership rewriting, server-authoritative state reads, write registries, generation fencing, room retirement, and broad lifecycle coordination stay out of this PR.
+- Validation passes 21 focused call lifecycle tests, all 3,396 full-suite tests across 449 files, typecheck, the production/PWA build with Element Call verification, ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check`.
+- Three bounded independent step reviews approved the implementation; one requested a stronger start-failure ownership regression, which was added before approval.
+- Three final independent reviews found no code defects and blocked only on the Runbook conflict introduced when `dev` advanced.
+- Current `dev` integration preserves both Runbook entries, and an independent closure audit confirms that PR #189 has no remaining independently useful in-scope fix after PR #192 merges.
+
+### Show backend-owned recurring schedule descriptions (2026-07-21)
+
+- Status: simplified implementation, review remediation, and local validation are complete; PR #188 awaits final exact-head Fable approval.
+- Merged MindRoom PR #1615 publishes its existing natural-language `cron_description` in scheduled-task Matrix state.
+- MindRoom Chat reads that stable display field instead of parsing or evaluating cron expressions in the browser.
+- One recurring task displays the backend description, while multiple or incomplete task sets retain the honest count fallback.
+- Existing one-time `execute_at` formatting and refresh behavior remain unchanged.
+- The previous client-side Croner dependency, croniter-parity engine, evaluation budgets, continuation cache, and associated timer machinery are removed.
+- The final MindRoom Chat production diff is net +22 lines (+95/-73), down from the previous net +820 (+919/-99).
+- Focused scheduled-task and banner coverage passes 62 tests, typecheck passes, the production/PWA build passes, and ESLint reports zero errors with the existing 17-warning baseline.
+- The full Vitest suite passes all 447 files and 3,372 tests.
+- First independent Fable review found the thread banner dropped `cronDescription` between its hook and record; the propagation fix and component regression now keep summary-less banners on the backend description.
+- Second independent Fable review found duplicated card/header label policy and a missing three-task order regression; one shared display helper now owns both surfaces, and the new test kills the event-order mutant.
+
+### Expose repository skills to Codex (2026-07-21)
+
+- Status: the repository-owned Claude skills are exposed through the standard agent skill discovery path.
+- `.agents/skills` is a relative symlink to `.claude/skills`, matching the MindRoom repository layout and keeping one source of truth for all agent clients.
+- Validation confirms both `pr-review` and `address-pr-review-comments` resolve through the symlink.
+
+### CINNY-128 - Voice send + staged attachment same-thread grouping (2026-07-20)
+
+- Status: the latest exact-head Claude Fable findings are remediated and fully validated locally; another exact-head review remains before merge.
+- Reported symptom: staging an attachment in the room-level composer and then sending a voice message does not send both together into one thread.
+- Pre-change behavior: `handleVoiceSend` was a separate single-item pipeline that computed its relation from a synthetic one-file session, so at room level the voice message sent as a plain event and became its own thread root, while the staged attachment silently stayed parked on the per-room upload board; the `voiceAutoSendPendingAtom` claim also blocked the send-session path for the duration.
+- Pre-change grouping existed only in the `submit()`/`startSendSession` path: `auto-thread-upload-root` sent the first upload as a plain root and threaded the remaining uploads plus the trailing caption under it.
+- Backend equivalence check: the MindRoom `matrix_message` tool produces the same one-root-plus-threaded-members shape, and the coalescing policy treats voice transcripts as burst-terminating text, so voice is last among files that do not require a later manual retry.
+- Implemented behavior: primary Send snapshots eligible staged attachments, typed text, and the live reply/thread relation for an active recording, while `handleVoiceSend` owns the complete accepted gesture and invokes the existing ordering controller only when the batch can complete within that call.
+- The recorder callback does not resolve, the durable voice serialization claim does not release, and the parked draft cannot clear until the surviving batch members have sent or an error has surfaced.
+- The lifecycle-complete controller mode fails fast, propagates the original Matrix error, clears its transient session on any incomplete result, and never depends on a later mounted-component upload effect.
+- Eligibility preserves the standalone voice path for voice-only sends, oversized voice, only invalid or oversized companions, callbacks owned by another room, and callbacks after unmount; classic mode still sends all eligible members without thread relations.
+- The explicit primary-Send snapshot is authoritative, so attachments removed during voice preparation are omitted and attachments added after the accepted gesture remain staged for the next send.
+- Recorder-owned automatic enrollment excludes companions already in upload error and legacy parked-voice retry callbacks, while the unified primary Send explicitly snapshots the current eligible board for both initial sends and parked retries.
+- `useRoomInputSendSessionController` exposes a read-only `hasActiveSendSession` query for enrollment exclusion and retains its ordinary retryable behavior for upload-board sends.
+- Session-owned reply and upload cleanup now targets the captured room id through room-scoped callbacks even if the composer rerenders for another room.
+- Combined-batch upload or fail-fast send failures reject the recorder callback so the existing parked-draft surface remains authoritative, while unsent companions remain staged on their origin-room board.
+- Partial Matrix delivery has deliberately simple recovery: an unsent voice parks with its original captured context, unsent companions remain staged without hidden thread-binding metadata, and a voice already accepted by Matrix is never parked again when only trailing text fails.
+- The combined voice item is owned by the recorder capsule rather than rendered as a removable upload-board card.
+- The controller receives one explicit prepared batch containing both file items and upload states, so lifecycle completion does not seed or overwrite current-composer refs after an await.
+- Invariant: an accepted voice-send callback resolves only after the recorded voice and every still-enrolled companion from that gesture send under the recording's room and the live reply/thread selected at primary Send; parked retries preserve their durable original relation context.
+- Ownership stays at the gesture boundary: `handleVoiceSend` captures the exact batch and awaits its promise, while `useRoomInputSendSessionController` only orders that explicit batch and does not infer recovery destinations from staged-item metadata.
+- The original lifecycle remediation left backend code, typed composer text, paste-marker lifecycle, and the existing root-plus-thread ordering policy unchanged; the unified primary-Send follow-up now extends that same controller ownership to typed text.
+- A valid paste-converted attachment is part of an explicit primary-Send bundle, while a failed paste marker still blocks submission so neither its text nor a simultaneous voice recording is silently consumed.
+- Focused validation passes 149 tests across eight room-input, send-session, recorder, capsule, dialog, and upload-card files.
+- Focused coverage includes room and existing-thread topology, multiple companions, loading roots, authoritative attachment snapshots, every eligibility fallback, owning-hook completion after unmount, serialization lifetime, origin-room reply clearing, upload failure, and companion cancellation while recorder-owned voice remains non-removable.
+- Third-round review triage fixes Issues 1-5, 7, and 8 by deleting recovery cohorts, removing the voice upload-board card, making the explicit prepared batch authoritative, removing the post-await ref stomp, comparing reply drafts directly, and replacing cohort tests with invariant regressions.
+- Issue 6 is ignored as non-blocking translation cleanup because the surviving generic failure string predates this remediation and changing the capsule-wide error policy is outside this bug boundary.
+- The lifecycle remediation deletes the mocked upload-card auto-start implementation and synthetic controller-start failure wrapper because combined-send correctness no longer depends on either mocked boundary.
+- `PLAN.md`, `PLAN-B.md`, and `REPORT.md` are removed because this Runbook is the canonical durable record.
+- Independent review approved the simplified boundary with no findings and confirmed that no recovery-cohort, retry-context, thread-binding, or ref-stomp traces remain.
+- Validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- The full Vitest suite passes 446 of 447 files and 3340 of 3343 tests; the only failures are the three established Nix-environment Xcode Cloud Homebrew fixture tests in `xcodeCloudPostClone.test.ts`.
+- Finish-the-invariant remediation treats a still-staged companion upload failure as a companion-local result: the failed item remains visibly staged in error while surviving companions and the voice complete their captured explicit batch.
+- The reply-clear callback now advertises only the room and draft identity it consumes, and the dead thread-aware reply-context matcher and its tests are deleted.
+- Final focused validation passes 83 tests across the room-input integration, send-session controller, and send-session policy suites, including the adopted in-flight upload rejection branch.
+- Final validation passes typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`; the full suite retains only the same three Xcode fixture failures documented above.
+- Independent review approved the final reduction with no findings and confirmed that no new recovery machinery or half-refactor traces remain.
+- Encryption-transition adjudication reproduced the reported plaintext media behavior on the pre-existing ordinary upload-board path: a file staged and uploaded before encryption was enabled still sent its plaintext `mxc` and `url` after the room rerendered encrypted and the board Send action was pressed.
+- Security follow-up: attachment preparation and uploaded media must be invalidated or re-encrypted whenever a room changes from plaintext to encrypted, across ordinary board, composer, and combined-voice sends; this repo-wide transition policy is explicitly outside CINNY-128 and must not be patched only in combined enrollment.
+- Combined upload orchestration now awaits the voice upload independently from the already-observed companion settlement aggregate, so a known fatal voice failure promptly rejects and releases global serialization even if a companion never settles.
+- Lifecycle-complete text failures now restore the existing composer fallback and rethrow the original Matrix error, matching upload failure semantics; focused coverage also pins fail-fast root rejection before later batch members send.
+- Final review triage fixes Issues 2, 3, and 5 as the same fail-fast lifecycle class, records Issue 1 as a confirmed pre-existing security follow-up, and leaves the Issue 4 API redesign and Issue 6 coverage expansion out of scope.
+- Final focused validation passes 129 tests; typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The final full suite passes 446 of 447 files and 3342 of 3345 tests, with only the same three Xcode fixture failures, and independent review approved with no findings or half-refactor traces.
+- Bulk upload cancellation now intersects the upload observer with the room's actual staged board items before canceling uploads or mutating send-session refs, so a recorder-owned voice file observed only for lifecycle completion cannot be silently removed by Remove All.
+- Automatic companion enrollment now requires encryption-preparation parity with the refreshed live room (`encInfo` presence matches room encryption); stale plaintext companions remain staged while the freshly encrypted voice proceeds, without attempting the repo-wide CINNY-131 transition policy here.
+- The two boundary regressions pass with the surrounding focused room-input suite, for 131 focused tests total.
+- Typecheck, the production/PWA build, full ESLint with zero errors and the existing 17-warning baseline, formatting, and `git diff --check` pass.
+- The full suite passes 446 of 447 files and 3344 of 3347 tests, with only the same three Xcode fixture failures, and independent review approved the ownership and encryption fixes with no half-refactor findings.
+- PR #190 review remediation removes the always-true voice-item identity guard, rejects four optional-chaining findings because the media and atom hooks have non-null contracts, and retains unconditional final voice cleanup because it owns atom release on every exit path.
+- Product follow-up: the room composer will expose one primary Send action instead of separate upload-board and voice-capsule Send actions.
+- Unified-send invariant: pressing primary Send while voice is active or parked snapshots visible typed text and staged attachments, uses the live reply/thread for a live recording or the durable original relation context for a parked retry, and sends every eligible member through the recording's captured room.
+- Media ordering remains attachments first, voice next, and typed text last so MindRoom receives one media burst terminated by the caption.
+- Failure ownership must never retry a voice event that Matrix already accepted; unsent text returns to the composer and unsent attachments remain staged.
+- The voice-failure dialog's Retry action delegates back to primary Send, so recovery snapshots the same visible text and attachment bundle instead of bypassing it with a voice-only retry.
+- The upload-board header and recorder capsule retain progress, remove, discard, and pause/resume controls but no longer render their own Send actions, while the composer Send is the single visually primary action.
+- Primary Send snapshots attachments and typed content before stopping or retrying voice, keeps paste-converted attachments claimed across the editor reset, and completes the captured bundle after an initiating composer unmount.
+- Lifecycle-complete failures restore captured text through the mounted editor or the room draft store, and a trailing text failure after Matrix accepts voice closes the recorder without making that voice retryable.
+- Focused validation passes 151 tests across the room-input, send-session, recorder, capsule, dialog, and upload-board surfaces.
+- The full Vitest suite, typecheck, production/PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check` pass.
+- Independent second self-review found the deferred failure-dialog Retry bypass and unmounted caption-recovery gap; both are fixed with regression coverage, and the final self-review found no remaining blocker or half-refactor trace.
+- PR CI caught the forwarded recorder component using a named function expression against the repository `prefer-arrow-callback` rule; the component now uses the required arrow callback and passes direct-file ESLint plus focused regression tests.
+- Independent Claude Fable review rejected the optional voice-only failure-dialog Retry fallback as a half-refactor trace; `onRetryRequest` is now required and Retry always delegates to the unified primary Send path.
+- Fresh exact-head Claude Fable review found three blockers: live recordings reused stale recording-start reply/thread state, an active attachment-session error was hardcoded and misleading, and production-dead non-bundle companion enrollment duplicated the primary-Send policy.
+- Remediation snapshots only the live reply/thread relation at primary Send while retaining the recording room and parked-retry context, translates actionable active-session recovery guidance in English, Dutch, and German, and deletes every non-bundle companion-enrollment branch.
+- RoomInput regression coverage now drives combined behavior through the single primary Send path and pins added, cleared, and replaced replies, thread changes, cross-room isolation, parked retries, classic mode, active-session recovery, attachment snapshot ownership, and invalid-companion handling.
+- Latest validation passes the 151 focused tests, all 447 Vitest files with 3,374 tests, typecheck, the production and PWA build with Element Call verification, full ESLint, touched-file Prettier, and `git diff --check`.
+- The next exact-head Claude Fable review found three blockers: a companion snapshot could survive an inline attachment-session retry and start an orphan upload after that retry removed the board item, a failed live recording parked its recording-start relation instead of the relation used at primary Send, and the primary Send accessibility label bypassed localization.
+- Current remediation intersects the bundle snapshot with the live room board before enrollment and after any inline session retry, refuses to start an upload for an already-unstaged companion, persists the same-room relation visible when a live recording is claimed for Send, and translates the primary Send label in English, Dutch, and German.
+- New regressions cover both stale-companion routes, send-time relation persistence through failure and retry, and retention of the recording room after cross-room navigation.
+- Remediation validation passes 166 focused tests across nine composer, send-session, recorder, dialog, capsule, upload-board, and upload-card files; all 447 Vitest files with 3,377 tests; typecheck; the production and PWA build with Element Call verification; full ESLint with zero errors and the existing 17-warning baseline; touched-file Prettier; and `git diff --check`.
+
+### Invite autocomplete finds space-less display names (CINNY-130) (2026-07-20)
+
+- Status: merged in PR #186 after live lab acceptance.
+  Retroactive review remediation, regression coverage, full local validation, and independent re-review are complete on `fix/invite-autosuggest-review`.
+  Ready follow-up PR #187 passed final CI and available AI review and is ready for human review.
+- Symptom: the invite dialog's auto-suggest never lists MindRoom agents whose display name has no spaces (e.g. `MindRoomExpert`), even though pasting the MXID resolves the user.
+- Root cause: Tuwunel matches `user_directory/search` by case-insensitive substring, so the previous `' '` bootstrap term only returned users whose display name contains a literal space and space-less users never entered the local suggestion cache.
+  A natural spaced query such as `mindroom expert` also substring-matched nothing server-side.
+- Fix: the cache bootstrap now searches `'@'`, which every MXID contains — a Tuwunel-compatible visible-user bootstrap, not a Matrix-standard match-all guarantee — and the per-keystroke server fallback additionally issues a whitespace-compacted variant for spaced queries alongside the raw term.
+- Round-1 review (5 approve / 3 changes-required) surfaced two correctness gaps, both fixed.
+  Suggestion ranking was whitespace-sensitive, so an exact compact hit such as `R2D2` for the input `r 2 d 2` exceeded the fuzzy threshold and was dropped after the server returned it.
+  `rankUsers` now ranks spaced queries against both the raw and compacted forms and keeps each user's best result.
+  The dual requests settled through a shared barrier, so one slow or hung variant withheld the sibling's fulfilled results.
+  Each variant now publishes independently as it settles, while loading remains active until every variant settles.
+  The first publish of a request replaces any previous result for the term, and later variants merge into it.
+- A failed variant contributes no users, so one failure keeps the other's results.
+  When both variants fail, an older matching server result is cleared so only local suggestions remain.
+  The request-ID, client-ownership, and liveness guards cover every settlement and are pinned by tests that fail if the guard is removed.
+  A stale settlement can neither clear the current request's loading state nor displace the current owner's published results.
+- Scope guard: the server search limit, debounce, ranking tiers beyond the dual-form query, candidate filtering, dialog accessibility, cache TTL, and Create Chat flow are untouched.
+  The strong-local-match server-fallback gate stays whitespace-sensitive, which can only under-count and trigger an extra server search, never suppress a result.
+  Tuwunel clamps the bootstrap limit to 500, so the existing `limited` handling stays load-bearing past 500 users.
+- The transient root `PLAN.md` planning artifact is removed from the branch per repo policy.
+  The plan history remains in the commit log.
+- Regression coverage pins the exact bootstrap term and limit, a space-less user entering the cache normalized, raw-plus-compact dedup with a compact-only target, a single request for space-less queries, per-variant failure isolation, incremental publication while the sibling request is still pending, a compact-only hit surviving ranking beyond the fuzzy threshold (hook and ranker level), guard-removal-detecting stale-query and owner tests, and compact results in the room-less create-chat flow.
+- Validation passes typecheck, the production/PWA build, ESLint with zero errors and 17 pre-existing warnings, Prettier on all touched files, and the Vitest suite with 442 of 443 files (3,294 of 3,297 tests).
+  The 3 failures are the pre-existing `xcodeCloudPostClone` suite, whose harness pins the child PATH to `/usr/bin:/bin` where `bash` does not exist on this NixOS runner — verified to fail identically on the parent commit.
+  RoomTimeline-area timing flakes appeared in one loaded run and pass in isolation and in clean full runs.
+- Independent round-2 review confirmed all four round-1 findings resolved with revert-detecting tests, race-safety of the incremental publish, and no half-refactor traces.
+  Its two minor notes (a test comment misattributing a tiebreak, this Runbook entry lagging round 2) are fixed.
+- Live lab acceptance confirmed that a fresh session bootstraps with `"search_term":"@"` and includes the expert.
+  `expert`, `mindroom expert`, and `MindRoomEx` listed MindRoomExpert first in a room it had not joined.
+  Joined-member suppression and Create Chat behavior also passed.
+- Retroactive PR review accepts the deployment-specific `'@'` bootstrap because both code and Runbook explicitly limit the guarantee to Tuwunel.
+  The shared compact-query rule now has one implementation used by server search and local ranking, with focused coverage for whitespace removal, the two-character threshold, and no-op queries.
+  Stale-settlement and owner-key comments document why newer effects exclusively own loading state and why both request and owner guards remain required.
+  Independent review found that returning to a previously successful query could resurrect its old server results when both fresh variants failed.
+  Query changes now invalidate mismatched server state, and a current all-failed search clears older matching server results so only fresh local suggestions remain.
+  Focused validation passes 49 invite-search, query-ranking, and directory-cache tests.
+  The full Vitest suite passes 447 files with 3,365 tests.
+  Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+  Final independent re-review found no remaining race, ownership, stale-result, test-strength, documentation, or half-refactor issue.
+  PR #187 review found one valid state-identity optimization in the all-failed path.
+  The functional update now clears only a matching nonempty stale result and preserves the current state reference when no clear is required.
+  Focused tests and typecheck pass after remediation.
+  Independent re-review approved the query, owner, and request-race behavior with no findings.
+  Greptile reviewed the final head at 5/5 confidence with no findings.
+  Android, web, and Docker CI pass.
+  CodeRabbit and Sourcery could not review because their quotas were exhausted, and Qodo was paused for the account.
+  All four retrospective review threads on PR #186 have disposition replies and are resolved.
+  An independent Claude Fable review through `agent-cli dev` verified the exact PR #186 and PR #187 diffs, all five review-thread dispositions, 78 focused tests, typecheck, and touched-file ESLint.
+  Fable found no remaining code issue and confirmed that PR #187 fully fixes the stale-result regression from PR #186.
+  Its only finding was stale PR #187 description wording that described publishing an empty result instead of conditionally clearing an older matching result.
+  The PR description now matches the final implementation.
+
+### Opt-in native iOS deep diagnostic tracing (2026-07-20)
+
+- Status: the narrowed implementation, current `dev` integration, focused and full local validation, independent Claude Fable plan and implementation reviews, PR review remediation, and final CI are complete; ready for human review.
+- Motivation: preserve enough device-local evidence to reconstruct the last interaction, in-flight Matrix request, recovered event-loop stall, route, lifecycle transition, or private error category before an iOS freeze.
+- The always-on localStorage flight recorder gains one optional categorical `lastAction` field that is written synchronously on opt-in pointer activation so the triggering task can survive an immediate JavaScript hang.
+- The opt-in IndexedDB trace keeps bounded retention, queue backpressure, dropped-event accounting, clear and fault-isolated export, lifecycle and connectivity, route changes, recovered event-loop stalls, private global error locations, categorical pointer history, and categorized request timing.
+- Matrix request-start events flush immediately so a request that never settles still leaves durable evidence.
+- Keyboard, scroll, console patching, unsupported WebKit long-task and heap probes, Matrix counters, and thread-list, resume, cross-room bootstrap, and index-flush spans are removed.
+- Privacy remains allowlist-based and excludes message text, typed keys, console text, error text, URLs, identifiers, tokens, and coordinates.
+- Activation keeps one generation token, a writable-storage check, a first-event durability handshake, and fail-closed storage behavior while the settings switch is disabled during a pending change.
+- The final deep-trace tail remains best-effort, while synchronous `lastAction` and Matrix request starts define the durable terminal-hang boundary.
+- An abnormal end cannot distinguish a force-close, jetsam, native crash, or WebKit content-process termination.
+- A native WebKit termination marker is required in a follow-up before this feature is advertised for release, with MetricKit hang and crash evidence following separately.
+- Physical-iPhone acceptance remains release-blocking and must cover terminal and recovered stalls, background force-close behavior, relaunch persistence, Files export, and measured tracing overhead.
+- The trim reduces the PR from 24 files and 2,745 added lines to 17 files and 2,085 added lines, restores the original feature-layer behavior, and reduces the central recorder from 1,140 to 826 lines.
+- The independent implementation review found one unreachable settings-surface category and a disposer ordering bug that suppressed clean stop markers.
+- Both findings are fixed, and legacy settings-surface evidence remains readable without allowing new events to emit that dead category.
+- Final focused validation passes 78 tests, and the full Vitest suite passes 447 files with 3,321 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and the existing 17-warning baseline.
+- Fable's final targeted re-review found no remaining correctness, privacy, storage-race, durability, or over-engineering issue.
+- Greptile rated the pushed implementation 5/5 with no regression, and its remaining pending-flag ownership concern is fixed with one synchronous in-flight guard plus a regression test; CodeRabbit, Sourcery, Gemini, and Qodo could not run on the final head because of service quota or account limits.
+
+### Stop cyclic Matrix timeline links from crashing room and thread views (2026-07-20)
+
+- Status: implementation, regression coverage, full local validation, independent review, PR review, and final CI are complete on PR #184; ready for human review.
+- Root cause: timeline pagination recursively followed Matrix SDK backward neighbour links until reaching `null`, while forward collection used an unbounded loop. A self-link or multi-timeline cycle therefore exhausted the JavaScript call stack, matching the repeated `getFirstLinkedTimeline` frames in the deployed production bundle.
+- Fix: traverse backward iteratively and track visited timeline identities in both directions. A malformed backward cycle falls back to the caller's known timeline, forward collection yields each reachable timeline at most once, and unusually deep valid chains no longer consume call-stack frames.
+- Coverage and validation: focused helper tests exercise a two-timeline backward cycle, a 20,000-timeline valid chain, and a forward self-cycle without relying on a hanging test timeout. The focused suite passes 9 tests and the full Vitest suite passes 443 files with 3,287 tests; typecheck, the production/PWA build with Element Call verification, touched-file and full ESLint, Prettier, and `git diff --check` pass, with full ESLint reporting zero errors and 17 pre-existing warnings.
+- Independent review found no correctness, scope, TypeScript, or test defects; its Runbook formatting suggestion was adopted for consistency with current entries.
+- PR review: Gemini reported no comments and Greptile rated the change 5/5 with no findings. Qodo, CodeRabbit, and Sourcery could not review because of account limits; title, web build, Android build, and Docker publish checks passed, and CodeRabbit's quota-only status is the sole non-passing check.
 
 ### Keep spaces visible in Simple Mode (2026-07-20)
 
@@ -92,7 +334,7 @@
 
 - Status: implementation, focused regression coverage, full local validation, real Docker Matrix plus production Chromium validation, and independent second self-review are complete.
 - Settings → General → Interface now offers an account-level option to expand long messages by default instead of folding them behind Show more.
-- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices and malformed account data keeps the current folded default.
+- The strict-boolean preference is stored in the existing `io.mindroom.settings` dictionary so it roams across devices; since 2026-07-23, missing or malformed values use the expanded default.
 - The preference supplies the timeline expansion baseline while per-message Show more and Show less choices plus the expand-all control remain higher-priority overrides.
 - The first live mid-thread toggle reproduced the scrolling concern as a 785 px displacement of the same visible message.
 - Bulk baseline changes now capture the centered visible message, fall back to a partially visible oversized message when no row fits inside the viewport, restore it before paint when mounted rows change height, and absorb the virtualizer's later ResizeObserver measurements for a bounded 30-frame window.
@@ -1523,10 +1765,10 @@ A per-account "Simple Mode" switch (Settings → General → Interface) that str
 Stored in Matrix account data under `io.mindroom.settings` — the fork's global dictionary for account-level MindRoom settings — so it roams across devices, unlike the localStorage-backed `mindroomSettingsAtom`.
 
 STORE.
-`mindroomAccountSettings.ts` owns the event type, the sanitizer (strict-boolean `simpleMode`, defaults over garbage — truthy junk from another client must not strip the UI), and a patch-merge that preserves unknown keys so an older client never destroys settings written by a newer one.
+`mindroomAccountSettings.ts` owns the event type, the sanitizer (strict-boolean preferences with defaults over garbage), and a patch-merge that preserves unknown keys so an older client never destroys settings written by a newer one.
 Future account-level settings should be added to this dictionary, not new event types.
 READ PATH IS A BOUND ATOM, NOT useAccountData: the first implementation read via `useAccountData` and made every `useSimpleMode` consumer require a Matrix client, breaking 118 component tests whose mock clients have no account-data surface.
-`useBindMindroomAccountSettingsAtom` (registered in `useBindAtoms`, the ClientBindAtoms pattern next to `mDirectAtom`) seeds a plain jotai atom unconditionally (account switches reset stale values) and tracks `ClientEvent.AccountData`; readers are client-free and default to the full interface.
+`useBindMindroomAccountSettingsAtom` (registered in `useBindAtoms`, the ClientBindAtoms pattern next to `mDirectAtom`) seeds a plain jotai atom unconditionally (account switches reset stale values) and tracks `ClientEvent.AccountData`; readers are client-free and, since 2026-07-23, default to Simple Mode.
 The write path (`useSetMindroomAccountSettings`) merges over raw stored content via `mx.setAccountData`.
 js-sdk 41.7 resolves `setAccountData` only after the sync echo, so the Settings switch (`MindroomInterfaceSettings.tsx`) shows an optimistic pending value and hands back to the store when the write settles.
 
@@ -5264,7 +5506,7 @@ Note: the tinted dark palette was later moved behind the opt-in "Midnight" theme
   - Cleanup green check: `npm run build` (existing Vite runtime-config, sourcemap, localStorage, and chunk-size warnings only).
   - Cleanup independent review green check: separate subagent review found no issues and confirmed no `SplashScreen` caller still passes the redundant default particle background.
 
-### CINNY-130 - Point fork support links at MindRoom repository (2026-05-29)
+### Point fork support links at MindRoom repository (PR #35) (2026-05-29)
 
 - Status:
   - Complete locally.

@@ -6,7 +6,6 @@ import {
   createRoomInputSendSessionState,
   getTextRelationForSendSession,
   getUploadRelationForSendSession,
-  hasMatchingReplyDraftContext,
   resolveRoomInputSendStep,
 } from './roomInputSendSession';
 
@@ -447,57 +446,5 @@ describe('roomInputSendSession', () => {
         [first, second]
       )
     ).toEqual({ kind: 'wait' });
-  });
-
-  it('only matches reply-draft clearing when the live send context still matches the session snapshot', () => {
-    const replyDraft = plainReplyDraft('$reply-a');
-
-    expect(
-      hasMatchingReplyDraftContext(
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-a',
-          replyDraft,
-        },
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-a',
-          replyDraft: {
-            ...replyDraft,
-            body: 'updated preview text',
-          },
-        }
-      )
-    ).toBe(true);
-
-    expect(
-      hasMatchingReplyDraftContext(
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-a',
-          replyDraft,
-        },
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-b',
-          replyDraft,
-        }
-      )
-    ).toBe(false);
-
-    expect(
-      hasMatchingReplyDraftContext(
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-a',
-          replyDraft,
-        },
-        {
-          roomId: '!room:example.org',
-          threadId: '$thread-a',
-          replyDraft: plainReplyDraft('$reply-b'),
-        }
-      )
-    ).toBe(false);
   });
 });

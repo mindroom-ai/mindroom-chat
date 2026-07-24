@@ -11,11 +11,9 @@ type VoiceRecordingCapsuleProps = {
   waveform: number[];
   canPause: boolean;
   hasPendingSend?: boolean;
-  sendDisabled?: boolean;
   onDiscard: () => void;
   onPause: () => void;
   onResume: () => void;
-  onSend: () => void;
 };
 
 const isBusyPhase = (phase: VoiceRecorderPhase): boolean =>
@@ -35,19 +33,15 @@ export function VoiceRecordingCapsule({
   waveform,
   canPause,
   hasPendingSend,
-  sendDisabled: sendDisabledProp,
   onDiscard,
   onPause,
   onResume,
-  onSend,
 }: VoiceRecordingCapsuleProps) {
   const busy = isBusyPhase(phase);
   const paused = phase === 'paused';
   const recording = phase === 'recording';
   const pendingReady = hasPendingSend && phase === 'idle';
   const pauseDisabled = pendingReady || busy || (!paused && (!recording || !canPause));
-  const sendDisabled = sendDisabledProp || busy || (!pendingReady && !recording && !paused);
-  const sendLabel = pendingReady ? 'Retry sending voice recording' : 'Send voice recording';
   const statusText = pendingReady ? 'Voice recording ready to retry' : getStatusText(phase);
 
   return (
@@ -79,20 +73,6 @@ export function VoiceRecordingCapsule({
           <Spinner size="50" variant="Secondary" />
         ) : (
           <Icon src={paused ? Icons.Play : Icons.Pause} size="50" />
-        )}
-      </IconButton>
-      <IconButton
-        variant="Primary"
-        size="300"
-        radii="300"
-        onClick={onSend}
-        disabled={sendDisabled}
-        aria-label={sendLabel}
-      >
-        {phase === 'sending' ? (
-          <Spinner size="50" variant="Primary" fill="Solid" />
-        ) : (
-          <Icon src={Icons.Send} size="50" />
         )}
       </IconButton>
       <span className={css.HiddenStatus} aria-live="polite">

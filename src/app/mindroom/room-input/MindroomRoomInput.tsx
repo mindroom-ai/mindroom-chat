@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
-import { Editor, Transforms } from 'slate';
+import { Descendant, Editor, Transforms } from 'slate';
 import {
   Box,
   Dialog,
@@ -110,6 +110,7 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { ReplyLayout } from '../../components/message';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { useMediaConfig } from '../../hooks/useMediaConfig';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import colorMXID from '../../../util/colorMXID';
@@ -132,12 +133,13 @@ import {
   removeMindroomRoomInputPasteMarkerElements,
   getMindroomRoomInputVoiceSendContext,
   getMindroomRoomInputVoiceUploadRelation,
-  hasMatchingMindroomRoomInputVoiceReplyContext,
   refreshMindroomRoomInputVoiceSendContext,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
+  type MindroomVoiceRecorderComposerHandle,
   type MindroomVoiceSendContext,
 } from './RoomInputMindroomExtensions';
+import { restoreEditorContent } from '../../components/editor/utils';
 import {
   createMindroomPasteAttachment,
   isMindroomPasteFileName,
@@ -146,6 +148,8 @@ import {
 } from '../messages/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
+import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
+import { hasFailedPasteMarkerInText } from '../threads/useRoomInputSendSessionController';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -207,6 +211,17 @@ export interface RoomInputProps {
   threadingEnabled?: boolean;
   onRoomMessageSent?: (eventId: string) => boolean | void;
 }
+
+type PendingVoiceComposerBundle = {
+  roomId: string;
+  relationContext?: Pick<MindroomVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
+  textContent?: IContent;
+  composerFallback?: Descendant[];
+  companionItems: TUploadItem[];
+  composerReset: boolean;
+  handedOff: boolean;
+};
+
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   (
     {
@@ -224,6 +239,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
+    const mediaConfig = useMediaConfig();
+    const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -319,6 +336,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const voiceAutoSendClaimedRef = useRef(false);
     const voiceAutoSendInFlightRef = useRef(false);
     const submitInFlightRef = useRef(false);
+    const voiceRecorderRef = useRef<MindroomVoiceRecorderComposerHandle>(null);
+    const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
 
     // When this room owns a pending failed-send draft (e.g. survived a
     // RoomProvider key remount on real navigation), surface the recorder so
@@ -657,12 +676,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const handleCancelUpload = useCallback(
       (uploadsToCancel: Upload[]) => {
-        uploadsToCancel.forEach((upload) => {
+        const boardFiles = new Set(selectedFilesRef.current.map((item) => item.file));
+        const boardUploadsToCancel = uploadsToCancel.filter((upload) =>
+          boardFiles.has(upload.file)
+        );
+        boardUploadsToCancel.forEach((upload) => {
           if (upload.status === UploadStatus.Loading) {
             mx.cancelUpload(upload.promise);
           }
         });
-        const uploadFilesToCancel = uploadsToCancel.map((upload) => upload.file);
+        const uploadFilesToCancel = boardUploadsToCancel.map((upload) => upload.file);
         const pasteFileNames = getPasteUploadFileNames(uploadFilesToCancel);
         removeUploadsFromBoard(uploadFilesToCancel);
         removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
@@ -680,7 +703,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         return (
           !sendSessionFilesRef.current.includes(fileItem.file) &&
-          !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file)
+          !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file) &&
+          !pendingVoiceComposerBundleRef.current?.companionItems.some(
+            (sendItem) => sendItem.file === fileItem.file
+          )
         );
       });
 
@@ -710,10 +736,28 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [mx]
     );
 
-    const uploadVoiceItem = useCallback(
-      (fileItem: TUploadItem): Promise<string> =>
-        new Promise((resolve, reject) => {
-          const uploadAtom = roomUploadAtomFamily(fileItem.file);
+    const uploadItem = useCallback(
+      async (fileItem: TUploadItem): Promise<string> => {
+        const uploadAtom = roomUploadAtomFamily(fileItem.file);
+        const upload = store.get(uploadAtom);
+        if (upload.status === UploadStatus.Success) return upload.mxc;
+        if (upload.status === UploadStatus.Error) throw upload.error;
+        if (upload.status === UploadStatus.Loading) {
+          try {
+            const response = await upload.promise;
+            if (!response.content_uri) {
+              throw new Error('Upload completed without a content URI.');
+            }
+            store.set(uploadAtom, { mxc: response.content_uri });
+            return response.content_uri;
+          } catch (err) {
+            const error = toMatrixUploadError(err, 'upload');
+            store.set(uploadAtom, { error });
+            throw error;
+          }
+        }
+
+        return new Promise((resolve, reject) => {
           void uploadContent(mx, fileItem.file, {
             hideFilename: !!fileItem.encInfo,
             onPromise: (promise) => store.set(uploadAtom, { promise }),
@@ -727,8 +771,35 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               reject(error);
             },
           }).catch(reject);
-        }),
+        });
+      },
       [mx, store]
+    );
+
+    const uploadItemWhileStaged = useCallback(
+      async (ownerRoomId: string, fileItem: TUploadItem): Promise<TUploadItem | undefined> => {
+        const uploadItemsAtom = roomIdToUploadItemsAtomFamily(ownerRoomId);
+        if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
+          return undefined;
+        }
+        let unsubscribe: () => void = () => undefined;
+        const removed = new Promise<undefined>((resolve) => {
+          const resolveIfRemoved = () => {
+            if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
+              resolve(undefined);
+            }
+          };
+          unsubscribe = store.sub(uploadItemsAtom, resolveIfRemoved);
+          resolveIfRemoved();
+        });
+
+        try {
+          return await Promise.race([uploadItem(fileItem).then(() => fileItem), removed]);
+        } finally {
+          unsubscribe();
+        }
+      },
+      [store, uploadItem]
     );
 
     const sendVoiceItem = useCallback(
@@ -753,45 +824,52 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [mx, buildUploadMessageContent]
     );
 
-    const clearReplyDraftForVoiceContext = useCallback(
-      (context: MindroomVoiceSendContext) => {
+    const clearReplyDraftForSendContext = useCallback(
+      (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => {
         const replyDraftAtom = roomIdToReplyDraftAtomFamily(context.roomId);
         const currentReplyDraft = store.get(replyDraftAtom);
-        if (hasMatchingMindroomRoomInputVoiceReplyContext(context, currentReplyDraft)) {
+        if (hasMatchingReplyDraft(context.replyDraft, currentReplyDraft)) {
           store.set(replyDraftAtom, undefined);
         }
       },
       [store]
     );
 
-    const { processSendSession, startSendSession } = useRoomInputSendSessionController({
-      mx,
-      room,
-      roomId,
-      threadId,
-      replyDraft,
-      threadingEnabled,
-      setReplyDraft,
-      editor,
-      sendTypingStatus,
-      selectedFilesRef,
-      sendSessionFilesRef,
-      sendSessionUploadItemsRef,
-      setSendSessionFiles,
-      mountedRef,
-      uploadsRef,
-      buildUploadMessageContent,
-      removeUploadsFromBoard,
-      onRoomMessageSent,
-      shouldBlockStartSendSession: () => store.get(voiceAutoSendPendingAtom),
-    });
+    const restoreComposerFallbackForRoom = useCallback(
+      (ownerRoomId: string, fragment: Descendant[]) => {
+        const msgDraftAtom = roomIdToMsgDraftAtomFamily(ownerRoomId);
+        store.set(msgDraftAtom, [...fragment, ...store.get(msgDraftAtom)]);
+      },
+      [store]
+    );
 
-    // Snapshot the room/thread/reply context for the next start(). The hook
-    // calls this synchronously inside start() and persists the result on the
-    // pending draft, so a failed send can be retried against the original
-    // destination even after a RoomProvider key remount. The session id is
-    // stamped here so an account switch with a parked draft cannot leak
-    // audio across users (see draftBelongsToCurrentSession above).
+    const { hasActiveSendSession, processSendSession, startSendSession } =
+      useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        threadId,
+        replyDraft,
+        threadingEnabled,
+        clearReplyDraft: clearReplyDraftForSendContext,
+        editor,
+        sendTypingStatus,
+        selectedFilesRef,
+        sendSessionFilesRef,
+        sendSessionUploadItemsRef,
+        setSendSessionFiles,
+        mountedRef,
+        uploadsRef,
+        buildUploadMessageContent,
+        removeUploadsFromBoard,
+        restoreComposerFallbackForRoom,
+        onRoomMessageSent,
+      });
+
+    // Provide the recording room at start and the latest relation again when Send is claimed.
+    // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
+    // and persists that effective send context so failure retries keep the attempted destination.
+    // The session id prevents a parked draft from leaking audio across account switches.
     const getVoiceSendContext = useCallback(
       (): MindroomVoiceSendContext =>
         getMindroomRoomInputVoiceSendContext({
@@ -819,16 +897,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
       voiceAutoSendClaimedRef.current = true;
       store.set(voiceAutoSendPendingAtom, true);
+      const bundle = pendingVoiceComposerBundleRef.current;
+      if (bundle?.textContent && !bundle.composerReset) {
+        bundle.composerReset = true;
+        resetEditor(editor);
+        resetEditorHistory(editor);
+        sendTypingStatus(false);
+      }
       return true;
-    }, [store]);
+    }, [editor, sendTypingStatus, store]);
 
     const releaseVoiceAutoSend = useCallback(() => {
       if (!voiceAutoSendClaimedRef.current) return;
 
+      const bundle = pendingVoiceComposerBundleRef.current;
+      if (bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
+        if (mountedRef.current && bundle.roomId === roomIdRef.current) {
+          restoreEditorContent(editor, bundle.composerFallback);
+        } else {
+          restoreComposerFallbackForRoom(bundle.roomId, bundle.composerFallback);
+        }
+      }
+      pendingVoiceComposerBundleRef.current = undefined;
       voiceAutoSendInFlightRef.current = false;
       voiceAutoSendClaimedRef.current = false;
       store.set(voiceAutoSendPendingAtom, false);
-    }, [store]);
+    }, [editor, restoreComposerFallbackForRoom, store]);
 
     const handleVoiceSend = useCallback(
       async (
@@ -848,6 +942,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         let fileItems: TUploadItem[] = [];
         let liveContext: MindroomVoiceSendContext | null = null;
         let sentEventIdToNotify: string | undefined;
+        let voiceSent = false;
         const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
           const originalName =
             getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -873,7 +968,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // between original failure and retry would otherwise be sent
           // unencrypted because context.room.hasEncryptionStateEvent()
           // returns the cached value.
-          liveContext = refreshMindroomRoomInputVoiceSendContext(mx, context);
+          const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
+          const composerBundle =
+            pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
+          const sendContext = composerBundle?.relationContext
+            ? { ...context, ...composerBundle.relationContext }
+            : context;
+          liveContext = refreshMindroomRoomInputVoiceSendContext(mx, sendContext);
           if (!liveContext) {
             throw new Error(t('composer.voiceRoomUnavailable'));
           }
@@ -902,11 +1003,103 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               'create'
             );
           }
-          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
+          const ownerRoomId = liveContext.roomId;
+          const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
+          const getEligibleCompanionItems = (): TUploadItem[] => {
+            const liveFiles = new Set(
+              store.get(roomIdToUploadItemsAtomFamily(ownerRoomId)).map((item) => item.file)
+            );
+            return (composerBundle?.companionItems ?? []).filter(
+              (item) =>
+                liveFiles.has(item.file) &&
+                !item.prepError &&
+                Boolean(item.encInfo) === liveRoomEncrypted &&
+                store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
+                item.file.size < allowUploadSize
+            );
+          };
+          let eligibleCompanionItems = getEligibleCompanionItems();
+          if (
+            composerBundle &&
+            (composerBundle.textContent || eligibleCompanionItems.length > 0) &&
+            hasActiveSendSession()
+          ) {
+            // Give a previously failed attachment session one chance to finish after its
+            // upload cards were retried or removed before parking this new voice bundle.
+            await startSendSession();
+            eligibleCompanionItems = getEligibleCompanionItems();
+          }
+          const activeSendSession = hasActiveSendSession();
+          if (
+            composerBundle &&
+            (composerBundle.textContent || eligibleCompanionItems.length > 0) &&
+            activeSendSession
+          ) {
+            throw new Error(t('composer.voiceBundleBlocked'));
+          }
+          const shouldCombineWithCompanions =
+            composerBundle !== undefined &&
+            !activeSendSession &&
+            fileItem.file.size < allowUploadSize &&
+            (eligibleCompanionItems.length > 0 || Boolean(composerBundle.textContent));
 
+          if (shouldCombineWithCompanions) {
+            const companionUploadResultsPromise = Promise.allSettled(
+              eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item))
+            );
+            try {
+              await uploadItem(fileItem);
+            } catch (err) {
+              return logAndThrowUploadError(err, 'upload');
+            }
+            const companionUploadResults = await companionUploadResultsPromise;
+
+            const liveItems = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
+            const liveFiles = new Set(liveItems.map((item) => item.file));
+            const readyItems = [
+              ...companionUploadResults
+                .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
+                .filter(
+                  (item): item is TUploadItem => item !== undefined && liveFiles.has(item.file)
+                ),
+              fileItem,
+            ];
+            try {
+              if (composerBundle) {
+                composerBundle.handedOff = true;
+              }
+              await startSendSession({
+                textContent: composerBundle?.textContent,
+                batch: {
+                  fileItems: readyItems,
+                  uploads: readyItems.map((item) => store.get(roomUploadAtomFamily(item.file))),
+                },
+                context: liveContext,
+                completeWithinCall: true,
+                composerFallback: composerBundle?.composerFallback,
+                composerAlreadyReset: composerBundle?.composerReset,
+                onUploadSent: (sentFile) => {
+                  if (sentFile === fileItem.file) {
+                    voiceSent = true;
+                  }
+                },
+              });
+              return;
+            } catch (err) {
+              if (voiceSent) {
+                // Uploads and voice already reached Matrix; lifecycle-complete sending restores
+                // the failed trailing text. Treat voice as consumed so recorder retry cannot
+                // duplicate an event that the homeserver accepted.
+                return;
+              }
+              return logAndThrowUploadError(err, 'send');
+            }
+          }
+
+          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
           let mxc: string;
           try {
-            mxc = await uploadVoiceItem(fileItem);
+            mxc = await uploadItem(fileItem);
           } catch (err) {
             return logAndThrowUploadError(err, 'upload');
           }
@@ -915,7 +1108,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           } catch (err) {
             return logAndThrowUploadError(err, 'send');
           }
-          clearReplyDraftForVoiceContext(liveContext);
+          clearReplyDraftForSendContext(liveContext);
         } finally {
           if (liveContext && fileItems.length > 0) {
             removeUploadsFromBoard(
@@ -931,15 +1124,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [
         appendUploadItemsToRoomBoard,
-        clearReplyDraftForVoiceContext,
+        allowUploadSize,
+        clearReplyDraftForSendContext,
         createVoiceUploadItems,
+        hasActiveSendSession,
         mx,
         removeUploadsFromBoard,
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
+        startSendSession,
         t,
-        uploadVoiceItem,
+        uploadItem,
+        uploadItemWhileStaged,
         onRoomMessageSent,
       ]
     );
@@ -996,7 +1193,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
         const hasText = plainText !== '';
         const hasUploads = selectedFilesRef.current.length > 0;
-        if (!hasText && !hasUploads) return;
 
         let content: IContent | undefined;
         if (hasText) {
@@ -1021,6 +1217,44 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             content.formatted_body = formattedBody;
           }
         }
+
+        if (voiceRecorderOpen || ownsPendingVoiceDraft) {
+          if (hasFailedPasteMarkerInText(content, selectedFilesRef.current)) return;
+
+          const recorder = voiceRecorderRef.current;
+          if (!recorder) return;
+
+          pendingVoiceComposerBundleRef.current = {
+            roomId,
+            // A live recording follows the reply/thread visible when primary Send is pressed.
+            // A parked retry keeps the durable context captured with the failed recording.
+            relationContext: ownsPendingVoiceDraft
+              ? undefined
+              : {
+                  threadId: threadIdRef.current,
+                  replyDraft: replyDraftRef.current,
+                  threadingEnabled,
+                },
+            textContent: content,
+            composerFallback: content ? structuredClone(editor.children) : undefined,
+            companionItems: [...selectedFilesRef.current],
+            composerReset: false,
+            handedOff: false,
+          };
+          try {
+            await recorder.send();
+          } finally {
+            // A request rejected before onSendStopRequest never owns editor state.
+            // Drop only that untouched snapshot; claimed requests clear through
+            // releaseVoiceAutoSend after send, failure, or retry settlement.
+            if (!voiceAutoSendClaimedRef.current) {
+              pendingVoiceComposerBundleRef.current = undefined;
+            }
+          }
+          return;
+        }
+
+        if (!hasText && !hasUploads) return;
 
         if (hasUploads) {
           await startSendSession({ textContent: content });
@@ -1050,13 +1284,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       commands,
       startSendSession,
       store,
+      voiceRecorderOpen,
+      ownsPendingVoiceDraft,
+      threadingEnabled,
     ]);
-
-    const handleUploadBoardSend = useCallback(async () => {
-      // Intentional CINNY-067 behavior: the upload board Send action now shares the unified
-      // submit path, so pending text and attachments stay in the same send session.
-      await submit();
-    }, [submit]);
 
     useEffect(() => {
       processSendSession();
@@ -1152,7 +1383,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 open={uploadBoard}
                 onToggle={() => setUploadBoard(!uploadBoard)}
                 uploadFamilyObserverAtom={uploadFamilyObserverAtom}
-                onSend={handleUploadBoardSend}
                 onCancel={handleCancelUpload}
               />
             }
@@ -1296,11 +1526,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 )}
                 {(voiceRecorderOpen || ownsPendingVoiceDraft) && (
                   <MindroomVoiceRecorderComposer
+                    ref={voiceRecorderRef}
                     active={voiceRecorderOpen}
                     sendDisabled={voiceAutoSendPending}
                     onClose={handleCloseVoiceRecorder}
                     onSendStopRequest={claimVoiceAutoSend}
                     onSendStopFailure={releaseVoiceAutoSend}
+                    onRetryRequest={() => void submit()}
                     onSendRecording={handleVoiceSend}
                     getSendContext={getVoiceSendContext}
                   />
@@ -1422,7 +1654,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   </PopOut>
                 )}
               </UseStateProvider>
-              <IconButton onClick={submit} variant="SurfaceVariant" size="300" radii="300">
+              <IconButton
+                onClick={submit}
+                variant="Primary"
+                size="300"
+                radii="300"
+                aria-label={t('composer.sendMessage')}
+              >
                 <Icon src={Icons.Send} />
               </IconButton>
             </>

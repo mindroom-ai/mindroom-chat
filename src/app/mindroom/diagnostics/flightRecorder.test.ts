@@ -21,6 +21,7 @@ import {
   getFlightRecorderStatus,
   installFlightRecorder,
   normalizeFlightRecorderBuildVersion,
+  setFlightRecorderLastAction,
   setFlightRecorderVoiceCaptureState,
 } from './flightRecorder';
 
@@ -339,6 +340,31 @@ describe('iOS freeze flight recorder', () => {
     expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).not.toContain('secret');
   });
 
+  it('writes one categorical last action synchronously in the triggering task', () => {
+    dispose = installFlightRecorder(storage);
+
+    const triggerThenHang = () => {
+      setFlightRecorderLastAction({ kind: 'button', surface: 'timeline' }, 1001);
+      throw new Error('simulated same-task hang');
+    };
+
+    expect(triggerThenHang).toThrow('simulated same-task hang');
+    expect(readCurrent(storage).lastAction).toEqual({
+      at: 1001,
+      kind: 'button',
+      surface: 'timeline',
+    });
+  });
+
+  it('rejects non-categorical last actions without changing durable evidence', () => {
+    dispose = installFlightRecorder(storage);
+    const before = storage.getItem(FLIGHT_RECORDER_CURRENT_KEY);
+
+    setFlightRecorderLastAction({ kind: 'private-label' as 'button', surface: 'timeline' });
+
+    expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe(before);
+  });
+
   it('makes repeated active installation idempotent without replacing trace evidence', () => {
     const firstDispose = installFlightRecorder(storage);
     const firstSessionId = readCurrent(storage).sessionId;
@@ -452,7 +478,9 @@ describe('iOS freeze flight recorder', () => {
   });
 
   it('retains every valid marker-free prior session even after a fast relaunch', () => {
-    const prior = makePriorSession();
+    const prior = makePriorSession({
+      lastAction: { at: 940, kind: 'range', surface: 'settings' },
+    });
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
 
     dispose = installFlightRecorder(storage);
@@ -462,6 +490,7 @@ describe('iOS freeze flight recorder', () => {
       sessionId: prior.sessionId,
       detectedAt: 1000,
       startupGapMs: 50,
+      lastAction: { at: 940, kind: 'range', surface: 'settings' },
     });
     expect(abnormal.events).not.toContainEqual(expect.objectContaining({ type: 'heartbeat_gap' }));
     expect(readCurrent(storage).sessionId).not.toBe(prior.sessionId);

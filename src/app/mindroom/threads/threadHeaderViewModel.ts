@@ -1,4 +1,5 @@
 import type { ThreadHeaderViewModel, ThreadRecord } from './types';
+import { getThreadScheduledLabel } from './compactThreadCardUtils';
 
 type BuildThreadHeaderViewModelOptions = {
   record: ThreadRecord;
@@ -8,42 +9,14 @@ type BuildThreadHeaderViewModelOptions = {
   pickerDisabled: boolean;
 };
 
-const getScheduledLabel = (
-  scheduledTaskCount: number,
-  nextScheduledTs: number | undefined,
-  scheduledDisplayText: string | undefined
-): string | undefined => {
-  if (scheduledTaskCount <= 0) return undefined;
-
-  if (nextScheduledTs === undefined) {
-    return scheduledDisplayText;
-  }
-
-  const taskCopy = `${scheduledTaskCount} pending scheduled ${
-    scheduledTaskCount === 1 ? 'task' : 'tasks'
-  }`;
-
-  return scheduledDisplayText ? `${taskCopy}, ${scheduledDisplayText}` : taskCopy;
-};
-
 const getBannerScheduledText = (
   summaryText: string | undefined,
-  scheduledTaskCount: number,
   nextScheduledTs: number | undefined,
   scheduledDisplayText: string | undefined
 ): string | undefined => {
   if (!scheduledDisplayText) return undefined;
-  if (summaryText) return scheduledDisplayText;
-
-  if (nextScheduledTs !== undefined) {
-    return `Next task ${scheduledDisplayText}`;
-  }
-
-  if (scheduledTaskCount > 0) {
-    return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
-  }
-
-  return scheduledDisplayText;
+  if (summaryText || nextScheduledTs === undefined) return scheduledDisplayText;
+  return `Next task ${scheduledDisplayText}`;
 };
 
 export const buildThreadHeaderViewModelFromRecord = ({
@@ -53,7 +26,7 @@ export const buildThreadHeaderViewModelFromRecord = ({
   availableTags,
   pickerDisabled,
 }: BuildThreadHeaderViewModelOptions): ThreadHeaderViewModel => {
-  const { scheduledTaskCount, nextScheduledTs } = record.status;
+  const { scheduledTaskCount, nextScheduledTs, cronDescription } = record.status;
   const summaryText = record.presentation.summaryText;
 
   return {
@@ -66,12 +39,12 @@ export const buildThreadHeaderViewModelFromRecord = ({
     scheduledTaskCount,
     nextScheduledTs,
     scheduledDisplayText,
-    scheduledLabel: getScheduledLabel(scheduledTaskCount, nextScheduledTs, scheduledDisplayText),
-    bannerScheduledText: getBannerScheduledText(
-      summaryText,
+    scheduledLabel: getThreadScheduledLabel(
       scheduledTaskCount,
       nextScheduledTs,
+      cronDescription,
       scheduledDisplayText
     ),
+    bannerScheduledText: getBannerScheduledText(summaryText, nextScheduledTs, scheduledDisplayText),
   };
 };
