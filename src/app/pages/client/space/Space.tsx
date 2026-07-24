@@ -105,6 +105,7 @@ import { ContainerColor } from '../../../styles/ContainerColor.css';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { BreakWord } from '../../../styles/Text.css';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
+import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { useRoomOrderBySpaceAtom } from '../../../state/hooks/sidebarOrder';
@@ -729,6 +730,7 @@ export function Space() {
           <ThreadNavCategory sidebarScrollRef={scrollRef} spaceId={space.roomId} />
         </Box>
       </PageNavContent>
+      <RecentlyOpenedNavCategory />
     </PageNav>
   );
 }
