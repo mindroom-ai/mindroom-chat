@@ -31,3 +31,21 @@ index c914e96..5f4f056 100644
    }
    ._4yxtfde {
      scrollbar-width: none;
+@@ -2001,7 +2001,7 @@
+   font-size: var(--ay20pp5);
+   line-height: var(--ay20pp6);
+   letter-spacing: var(--ay20pp7);
+-  scrollbar-color: var(--ay20pp3) transparent;
++  scrollbar-color: var(--mr-scrollbar-thumb-color, var(--ay20pp3)) transparent;
+   scrollbar-width: thin;
+ }
+ .ay20pp9:focus {
+@@ -2024,7 +2024,7 @@
+   background-clip: padding-box;
+ }
+ .ay20pp9::-webkit-scrollbar-thumb {
+-  background-color: var(--ay20pp3);
++  background-color: var(--mr-scrollbar-thumb-color, var(--ay20pp3));
+   border-radius: var(--_164xfge23);
+   min-height: 1.25rem;
+ }

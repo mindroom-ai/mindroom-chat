@@ -28,8 +28,12 @@ describe('scrollbar theme', () => {
       expect(chroma.contrast(renderedThumb, track), track).toBeGreaterThanOrEqual(3);
     });
 
-    const thumbFallback = 'var(--mr-scrollbar-thumb-color, var(--_4yxtfd1))';
-    expect(foldsCss.split(thumbFallback)).toHaveLength(5);
-    expect(foldsCss).toContain(`scrollbar-color: ${thumbFallback} var(--_4yxtfd0)`);
+    const scrollFallback = 'var(--mr-scrollbar-thumb-color, var(--_4yxtfd1))';
+    expect(foldsCss.split(scrollFallback)).toHaveLength(5);
+    expect(foldsCss).toContain(`scrollbar-color: ${scrollFallback} var(--_4yxtfd0)`);
+
+    const textAreaFallback = 'var(--mr-scrollbar-thumb-color, var(--ay20pp3))';
+    expect(foldsCss.split(textAreaFallback)).toHaveLength(3);
+    expect(foldsCss).toContain(`scrollbar-color: ${textAreaFallback} transparent`);
   });
 });

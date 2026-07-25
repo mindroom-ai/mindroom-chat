@@ -7,14 +7,14 @@
 - Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
 - Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
 - The dark-family theme classes now define one 55%-opaque neutral thumb color in `index.css`.
-- Four versioned folds declarations cover WebKit and standards-based scrollbars while retaining the library line color as their fallback.
+- Six versioned folds declarations cover WebKit and standards-based scrollbars, including textareas, while retaining the library line color as their fallback.
 - Scrollbar size, track colors, hover-only visibility, and light-theme behavior remain unchanged.
 - Focused coverage reads the real CSS token and actual dark palette source, then checks every dark track for at least 3:1 contrast.
 - The final PR diff is four files; the first revision's theme helpers and palette rewiring are removed.
 - A clean dependency install applies the patch, and the focused test, typecheck, production/PWA build, Prettier, ESLint with the existing 17-warning baseline, and `git diff --check` pass.
-- The full suite passes 453 of 454 files and 3,433 of 3,436 tests, retaining only the three pre-existing Nix-environment Xcode Cloud fixture failures documented below.
+- The full suite passes 452 of 454 files and 3,432 of 3,436 tests: three pre-existing Nix-environment Xcode Cloud fixture failures plus one unrelated gap-fill concurrency flake that passes all 19 tests on immediate isolated rerun.
 - Live dark-theme verification resolves `#ececef8c` and finds both patched WebKit thumb rules.
-- Independent review caught and fixed the missing standards-based fallback and copied-track test drift; final review state is tracked on GitHub.
+- Independent review caught and fixed missing standards and textarea paths plus copied-track test drift; final review state is tracked on GitHub.
 
 ### Visual modernization (2026-07-24)
 
