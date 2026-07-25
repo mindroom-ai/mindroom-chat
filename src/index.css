@@ -74,6 +74,7 @@ html.butter-theme {
 .midnight-theme,
 .butter-theme {
   --tc-link: #b3a9ff;
+  --mr-scrollbar-thumb-color: #ececef8c;
 
   /* Same eight hues, lifted for dark surfaces: L 0.82, chroma capped at 0.115,
      worst contrast 7.69 against butter's Surface.Container, the lightest of
