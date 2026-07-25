@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
+
+- Status: implementation, local validation, and independent re-review are complete on `caveman/visible-dark-scrollbar`; PR review remains.
+- Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
+- Direction: keep border tokens unchanged and give folds scrollbars one fork-owned neutral thumb token instead.
+- The token follows each theme's neutral foreground at 55% opacity, preserving the existing scrollbar size, track, hover-only visibility, and semantic surface variants.
+- The weakest audited thumb-to-track pair across all five palettes clears the 3:1 non-text contrast threshold.
+- A versioned `folds` patch consumes the token and retains the library line color as its fallback outside MindRoom Chat.
+- Focused scrollbar and bootstrap coverage passes 5 tests.
+- The full Vitest suite passes 453 of 454 files and 3,433 of 3,436 tests, with only the three pre-existing Nix-environment Xcode Cloud Homebrew fixture failures documented below.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Live dark-theme verification resolves `--mr-scrollbar-thumb-color` to `#ECECEF8C` and confirms the folds thumb consumes that value.
+- Independent review found that the first regression test copied its weakest track colors, so a later palette edit could bypass it.
+- Every folds scrollbar track now consumes the same shared 40-pair palette source audited by the test.
+- A clean dependency install applies the versioned folds patch successfully.
+- Independent exact-diff re-review approved the shared palette source, all theme variants, compiled CSS wiring, and patch-package path with no remaining blockers.
+- Ready-PR AI review remains pending.
+
 ### Visual modernization (2026-07-24)
 
 Staged refresh of the whole client: global design tokens first, chat-surface polish second, all five themes. Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass on every stage. Verified live in the browser except where the landmines below say otherwise.

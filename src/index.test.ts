@@ -79,6 +79,8 @@ vi.mock('./app/pages/App', () => ({
 
 vi.mock('./app/i18n', () => ({}));
 
+vi.mock('./app/styles/Scrollbar.css', () => ({}));
+
 describe('application diagnostics bootstrap', () => {
   beforeEach(() => {
     vi.resetModules();
