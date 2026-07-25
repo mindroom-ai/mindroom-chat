@@ -7,14 +7,14 @@
 - Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
 - Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
 - The dark-family theme classes now define one 55%-opaque neutral thumb color in `index.css`.
-- Two versioned folds declarations consume that color and retain the library line color as their fallback.
+- Four versioned folds declarations cover WebKit and standards-based scrollbars while retaining the library line color as their fallback.
 - Scrollbar size, track colors, hover-only visibility, and light-theme behavior remain unchanged.
 - Focused coverage reads the real CSS token and checks at least 3:1 contrast against the weakest dark track.
 - The final PR diff is four files; the first revision's theme helpers and palette rewiring are removed.
 - A clean dependency install applies the patch, and the focused test, typecheck, production/PWA build, Prettier, ESLint with the existing 17-warning baseline, and `git diff --check` pass.
 - The full suite passes 453 of 454 files and 3,433 of 3,436 tests, retaining only the three pre-existing Nix-environment Xcode Cloud fixture failures documented below.
-- Live dark-theme verification resolves `#ececef8c` and finds both patched folds thumb rules.
-- Independent review and ready-PR AI review remain pending.
+- Live dark-theme verification resolves `#ececef8c` and finds both patched WebKit thumb rules.
+- Independent review caught and fixed the missing standards-based scrollbar fallback; final review state is tracked on GitHub.
 
 ### Visual modernization (2026-07-24)
 

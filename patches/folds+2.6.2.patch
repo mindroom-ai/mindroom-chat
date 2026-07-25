@@ -1,5 +1,5 @@
 diff --git a/node_modules/folds/dist/style.css b/node_modules/folds/dist/style.css
-index c914e96..ebe7fbe 100644
+index c914e96..5f4f056 100644
 --- a/node_modules/folds/dist/style.css
 +++ b/node_modules/folds/dist/style.css
 @@ -1652,13 +1652,13 @@
@@ -18,3 +18,16 @@ index c914e96..ebe7fbe 100644
  }
  ._4yxtfdc:hover::-webkit-scrollbar-track {
    background-color: var(--_4yxtfd0);
+@@ -1723,10 +1723,10 @@
+     scrollbar-color: transparent transparent;
+   }
+   ._4yxtfdb {
+-    scrollbar-color: var(--_4yxtfd1) var(--_4yxtfd0);
++    scrollbar-color: var(--mr-scrollbar-thumb-color, var(--_4yxtfd1)) var(--_4yxtfd0);
+   }
+   ._4yxtfdc:hover {
+-    scrollbar-color: var(--_4yxtfd1) var(--_4yxtfd0);
++    scrollbar-color: var(--mr-scrollbar-thumb-color, var(--_4yxtfd1)) var(--_4yxtfd0);
+   }
+   ._4yxtfde {
+     scrollbar-width: none;
