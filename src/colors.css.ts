@@ -1,7 +1,5 @@
 import { createTheme } from '@vanilla-extract/css';
 import { color } from 'folds';
-import { butterNeutralOn, darkNeutralOn, lightNeutralOn } from './app/theme/neutralColors';
-import { scrollbarTrackColors } from './app/theme/scrollbarTrackColors';
 
 /**
  * All five palettes are generated from one OKLCH ramp so they read as a family:
@@ -24,10 +22,14 @@ import { scrollbarTrackColors } from './app/theme/scrollbarTrackColors';
  * badge colors held to the 3:1 non-text threshold.
  */
 
+const lightNeutralOn = '#1F1E26';
+const darkNeutralOn = '#ECECEF';
+const butterNeutralOn = '#FBF6DC';
+
 export const lightTheme = createTheme(color, {
   Background: {
     Container: '#F2F2F2',
-    ContainerHover: scrollbarTrackColors.light.Background,
+    ContainerHover: '#E7E7EB',
     ContainerActive: '#DDDDE2',
     ContainerLine: '#E1E1E6',
     OnContainer: lightNeutralOn,
@@ -35,7 +37,7 @@ export const lightTheme = createTheme(color, {
 
   Surface: {
     Container: '#FFFFFF',
-    ContainerHover: scrollbarTrackColors.light.Surface,
+    ContainerHover: '#F6F6FB',
     ContainerActive: '#EEEEF3',
     ContainerLine: '#EAEAEE',
     OnContainer: lightNeutralOn,
@@ -43,7 +45,7 @@ export const lightTheme = createTheme(color, {
 
   SurfaceVariant: {
     Container: '#F4F4F8',
-    ContainerHover: scrollbarTrackColors.light.SurfaceVariant,
+    ContainerHover: '#ECECF0',
     ContainerActive: '#E4E4E8',
     ContainerLine: '#DFDFE4',
     OnContainer: lightNeutralOn,
@@ -56,7 +58,7 @@ export const lightTheme = createTheme(color, {
     MainLine: '#5132AA',
     OnMain: '#FFFFFF',
     Container: '#EFEEFF',
-    ContainerHover: scrollbarTrackColors.light.Primary,
+    ContainerHover: '#E4E3FF',
     ContainerActive: '#DAD8FD',
     ContainerLine: '#D7D4FC',
     OnContainer: '#462C93',
@@ -69,7 +71,7 @@ export const lightTheme = createTheme(color, {
     MainLine: '#47474D',
     OnMain: '#FFFFFF',
     Container: '#DDDDE2',
-    ContainerHover: scrollbarTrackColors.light.Secondary,
+    ContainerHover: '#D4D4D8',
     ContainerActive: '#CACACE',
     ContainerLine: '#C4C3C8',
     OnContainer: '#16151B',
@@ -82,7 +84,7 @@ export const lightTheme = createTheme(color, {
     MainLine: '#006626',
     OnMain: '#FFFFFF',
     Container: '#E2F6E8',
-    ContainerHover: scrollbarTrackColors.light.Success,
+    ContainerHover: '#D2EFDB',
     ContainerActive: '#C3E7CE',
     ContainerLine: '#BDE4CA',
     OnContainer: '#005822',
@@ -95,7 +97,7 @@ export const lightTheme = createTheme(color, {
     MainLine: '#8A4200',
     OnMain: '#FFFFFF',
     Container: '#FDEDDC',
-    ContainerHover: scrollbarTrackColors.light.Warning,
+    ContainerHover: '#F8E2CA',
     ContainerActive: '#F2D7B9',
     ContainerLine: '#F1D4B2',
     OnContainer: '#783B00',
@@ -108,7 +110,7 @@ export const lightTheme = createTheme(color, {
     MainLine: '#8A161B',
     OnMain: '#FFFFFF',
     Container: '#FFE9E7',
-    ContainerHover: scrollbarTrackColors.light.Critical,
+    ContainerHover: '#FFDDD9',
     ContainerActive: '#FCD0CC',
     ContainerLine: '#FCCCC7',
     OnContainer: '#761619',
@@ -126,7 +128,7 @@ export const lightTheme = createTheme(color, {
 export const silverTheme = createTheme(color, {
   Background: {
     Container: '#DEDEDE',
-    ContainerHover: scrollbarTrackColors.silver.Background,
+    ContainerHover: '#D0D0D4',
     ContainerActive: '#C7C7CC',
     ContainerLine: '#CCCBD0',
     OnContainer: lightNeutralOn,
@@ -134,7 +136,7 @@ export const silverTheme = createTheme(color, {
 
   Surface: {
     Container: '#F0EFF4',
-    ContainerHover: scrollbarTrackColors.silver.Surface,
+    ContainerHover: '#E7E7EB',
     ContainerActive: '#DEDEE2',
     ContainerLine: '#E2E2E7',
     OnContainer: lightNeutralOn,
@@ -142,7 +144,7 @@ export const silverTheme = createTheme(color, {
 
   SurfaceVariant: {
     Container: '#E1E1E6',
-    ContainerHover: scrollbarTrackColors.silver.SurfaceVariant,
+    ContainerHover: '#D9D9DD',
     ContainerActive: '#D0D0D5',
     ContainerLine: '#D5D5D9',
     OnContainer: lightNeutralOn,
@@ -155,7 +157,7 @@ export const silverTheme = createTheme(color, {
     MainLine: '#48289C',
     OnMain: '#FFFFFF',
     Container: '#EFEEFF',
-    ContainerHover: scrollbarTrackColors.silver.Primary,
+    ContainerHover: '#E4E3FF',
     ContainerActive: '#DAD8FD',
     ContainerLine: '#D7D4FC',
     OnContainer: '#3D2286',
@@ -168,7 +170,7 @@ export const silverTheme = createTheme(color, {
     MainLine: '#47474D',
     OnMain: '#F0EFF4',
     Container: '#D4D4D8',
-    ContainerHover: scrollbarTrackColors.silver.Secondary,
+    ContainerHover: '#CACACE',
     ContainerActive: '#C4C3C8',
     ContainerLine: '#BBBABF',
     OnContainer: '#16151B',
@@ -181,7 +183,7 @@ export const silverTheme = createTheme(color, {
     MainLine: '#005D1E',
     OnMain: '#FFFFFF',
     Container: '#E2F6E8',
-    ContainerHover: scrollbarTrackColors.silver.Success,
+    ContainerHover: '#D2EFDB',
     ContainerActive: '#C3E7CE',
     ContainerLine: '#BDE4CA',
     OnContainer: '#004F1A',
@@ -194,7 +196,7 @@ export const silverTheme = createTheme(color, {
     MainLine: '#813900',
     OnMain: '#FFFFFF',
     Container: '#FDEDDC',
-    ContainerHover: scrollbarTrackColors.silver.Warning,
+    ContainerHover: '#F8E2CA',
     ContainerActive: '#F2D7B9',
     ContainerLine: '#F1D4B2',
     OnContainer: '#6F3300',
@@ -207,7 +209,7 @@ export const silverTheme = createTheme(color, {
     MainLine: '#810914',
     OnMain: '#FFFFFF',
     Container: '#FFE9E7',
-    ContainerHover: scrollbarTrackColors.silver.Critical,
+    ContainerHover: '#FFDDD9',
     ContainerActive: '#FCD0CC',
     ContainerLine: '#FCCCC7',
     OnContainer: '#6D0B12',
@@ -230,7 +232,7 @@ const darkAccents = {
     MainLine: '#A49AF4',
     OnMain: '#1E1B35',
     Container: '#36315C',
-    ContainerHover: scrollbarTrackColors.dark.Primary,
+    ContainerHover: '#423C6C',
     ContainerActive: '#4E477C',
     ContainerLine: '#494276',
     OnContainer: '#E1DFFD',
@@ -243,7 +245,7 @@ const darkAccents = {
     MainLine: '#71C38F',
     OnMain: '#072614',
     Container: '#0D4326',
-    ContainerHover: scrollbarTrackColors.dark.Success,
+    ContainerHover: '#175030',
     ContainerActive: '#215D3B',
     ContainerLine: '#1A5835',
     OnContainer: '#CFEBD8',
@@ -256,7 +258,7 @@ const darkAccents = {
     MainLine: '#DDA96B',
     OnMain: '#2E1A01',
     Container: '#503000',
-    ContainerHover: scrollbarTrackColors.dark.Warning,
+    ContainerHover: '#5E3B05',
     ContainerActive: '#6D4610',
     ContainerLine: '#674107',
     OnContainer: '#F5DFC7',
@@ -269,7 +271,7 @@ const darkAccents = {
     MainLine: '#DA827B',
     OnMain: '#331513',
     Container: '#592624',
-    ContainerHover: scrollbarTrackColors.dark.Critical,
+    ContainerHover: '#68312D',
     ContainerActive: '#783B38',
     ContainerLine: '#723632',
     OnContainer: '#FDD9D6',
@@ -287,7 +289,7 @@ export const darkTheme = createTheme(color, {
 
   Background: {
     Container: '#1A1A1A',
-    ContainerHover: scrollbarTrackColors.dark.Background,
+    ContainerHover: '#2B2B2E',
     ContainerActive: '#363639',
     ContainerLine: '#2F2F31',
     OnContainer: darkNeutralOn,
@@ -295,7 +297,7 @@ export const darkTheme = createTheme(color, {
 
   Surface: {
     Container: '#2B2B2E',
-    ContainerHover: scrollbarTrackColors.dark.Surface,
+    ContainerHover: '#363639',
     ContainerActive: '#424144',
     ContainerLine: '#3A3A3D',
     OnContainer: darkNeutralOn,
@@ -303,7 +305,7 @@ export const darkTheme = createTheme(color, {
 
   SurfaceVariant: {
     Container: '#363639',
-    ContainerHover: scrollbarTrackColors.dark.SurfaceVariant,
+    ContainerHover: '#424144',
     ContainerActive: '#4D4D50',
     ContainerLine: '#464649',
     OnContainer: darkNeutralOn,
@@ -316,7 +318,7 @@ export const darkTheme = createTheme(color, {
     MainLine: '#B1B1B3',
     OnMain: '#1A1A1A',
     Container: '#363639',
-    ContainerHover: scrollbarTrackColors.dark.Secondary,
+    ContainerHover: '#424144',
     ContainerActive: '#4D4D50',
     ContainerLine: '#47474A',
     OnContainer: darkNeutralOn,
@@ -330,7 +332,7 @@ export const midnightTheme = createTheme(color, {
 
   Background: {
     Container: '#17161D',
-    ContainerHover: scrollbarTrackColors.midnight.Background,
+    ContainerHover: '#2B2A36',
     ContainerActive: '#363542',
     ContainerLine: '#2E2D3A',
     OnContainer: darkNeutralOn,
@@ -338,7 +340,7 @@ export const midnightTheme = createTheme(color, {
 
   Surface: {
     Container: '#2B2A36',
-    ContainerHover: scrollbarTrackColors.midnight.Surface,
+    ContainerHover: '#363542',
     ContainerActive: '#41404D',
     ContainerLine: '#3A3946',
     OnContainer: darkNeutralOn,
@@ -346,7 +348,7 @@ export const midnightTheme = createTheme(color, {
 
   SurfaceVariant: {
     Container: '#363542',
-    ContainerHover: scrollbarTrackColors.midnight.SurfaceVariant,
+    ContainerHover: '#41404D',
     ContainerActive: '#4C4B59',
     ContainerLine: '#454552',
     OnContainer: darkNeutralOn,
@@ -359,7 +361,7 @@ export const midnightTheme = createTheme(color, {
     MainLine: '#B1B1B3',
     OnMain: '#17161D',
     Container: '#363542',
-    ContainerHover: scrollbarTrackColors.midnight.Secondary,
+    ContainerHover: '#41404D',
     ContainerActive: '#4C4B59',
     ContainerLine: '#454552',
     OnContainer: darkNeutralOn,
@@ -372,7 +374,7 @@ export const butterTheme = createTheme(color, {
 
   Background: {
     Container: '#1A1916',
-    ContainerHover: scrollbarTrackColors.butter.Background,
+    ContainerHover: '#2D2B24',
     ContainerActive: '#39372F',
     ContainerLine: '#312F27',
     OnContainer: butterNeutralOn,
@@ -380,7 +382,7 @@ export const butterTheme = createTheme(color, {
 
   Surface: {
     Container: '#2D2B24',
-    ContainerHover: scrollbarTrackColors.butter.Surface,
+    ContainerHover: '#39372F',
     ContainerActive: '#44423A',
     ContainerLine: '#3D3B32',
     OnContainer: butterNeutralOn,
@@ -388,7 +390,7 @@ export const butterTheme = createTheme(color, {
 
   SurfaceVariant: {
     Container: '#39372F',
-    ContainerHover: scrollbarTrackColors.butter.SurfaceVariant,
+    ContainerHover: '#44423A',
     ContainerActive: '#4F4D45',
     ContainerLine: '#49463E',
     OnContainer: butterNeutralOn,
@@ -401,7 +403,7 @@ export const butterTheme = createTheme(color, {
     MainLine: '#BEB9A3',
     OnMain: '#1A1916',
     Container: '#39372F',
-    ContainerHover: scrollbarTrackColors.butter.Secondary,
+    ContainerHover: '#44423A',
     ContainerActive: '#4F4D45',
     ContainerLine: '#49463E',
     OnContainer: butterNeutralOn,

@@ -1,48 +1,20 @@
 diff --git a/node_modules/folds/dist/style.css b/node_modules/folds/dist/style.css
-index c914e96..5f62aa4 100644
+index c914e96..ebe7fbe 100644
 --- a/node_modules/folds/dist/style.css
 +++ b/node_modules/folds/dist/style.css
-@@ -1621,35 +1621,35 @@
- }
- ._4yxtfd3 {
-   --_4yxtfd0: var(--oq6d071);
--  --_4yxtfd1: var(--oq6d073);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d073));
- }
- ._4yxtfd4 {
-   --_4yxtfd0: var(--oq6d076);
--  --_4yxtfd1: var(--oq6d078);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d078));
- }
- ._4yxtfd5 {
-   --_4yxtfd0: var(--oq6d07b);
--  --_4yxtfd1: var(--oq6d07d);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d07d));
- }
- ._4yxtfd6 {
-   --_4yxtfd0: var(--oq6d07l);
--  --_4yxtfd1: var(--oq6d07n);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d07n));
- }
- ._4yxtfd7 {
-   --_4yxtfd0: var(--oq6d07v);
--  --_4yxtfd1: var(--oq6d07x);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d07x));
- }
- ._4yxtfd8 {
-   --_4yxtfd0: var(--oq6d0715);
--  --_4yxtfd1: var(--oq6d0717);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d0717));
- }
- ._4yxtfd9 {
-   --_4yxtfd0: var(--oq6d071f);
--  --_4yxtfd1: var(--oq6d071h);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d071h));
- }
- ._4yxtfda {
-   --_4yxtfd0: var(--oq6d071p);
--  --_4yxtfd1: var(--oq6d071r);
-+  --_4yxtfd1: var(--mr-scrollbar-thumb-color, var(--oq6d071r));
+@@ -1652,13 +1652,13 @@
+   --_4yxtfd1: var(--oq6d071r);
  }
  ._4yxtfdb::-webkit-scrollbar-thumb {
-   background-color: var(--_4yxtfd1);
+-  background-color: var(--_4yxtfd1);
++  background-color: var(--mr-scrollbar-thumb-color, var(--_4yxtfd1));
+ }
+ ._4yxtfdb::-webkit-scrollbar-track {
+   background-color: var(--_4yxtfd0);
+ }
+ ._4yxtfdc:hover::-webkit-scrollbar-thumb {
+-  background-color: var(--_4yxtfd1);
++  background-color: var(--mr-scrollbar-thumb-color, var(--_4yxtfd1));
+ }
+ ._4yxtfdc:hover::-webkit-scrollbar-track {
+   background-color: var(--_4yxtfd0);

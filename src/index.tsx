@@ -10,7 +10,6 @@ import 'katex/dist/katex.min.css';
 enableMapSet();
 
 import './index.css';
-import './app/styles/Scrollbar.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
 import {
