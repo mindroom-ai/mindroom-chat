@@ -33,6 +33,11 @@ vi.mock('folds', () => ({
     Cross: 'Cross',
     Filter: 'Filter',
   },
+  config: {
+    radii: {
+      R400: '0.75rem',
+    },
+  },
 }));
 
 vi.mock('react-aria', () => ({
