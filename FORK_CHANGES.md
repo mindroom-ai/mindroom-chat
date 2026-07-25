@@ -4,7 +4,7 @@
 
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 
-- Status: implementation, local validation, and independent re-review are complete on `caveman/visible-dark-scrollbar`; PR review remains.
+- Status: implementation, local validation, and independent re-review are complete on `caveman/visible-dark-scrollbar`; ready PR #201 is open.
 - Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
 - Direction: keep border tokens unchanged and give folds scrollbars one fork-owned neutral thumb token instead.
 - The token follows each theme's neutral foreground at 55% opacity, preserving the existing scrollbar size, track, hover-only visibility, and semantic surface variants.
@@ -18,7 +18,7 @@
 - Every folds scrollbar track now consumes the same shared 40-pair palette source audited by the test.
 - A clean dependency install applies the versioned folds patch successfully.
 - Independent exact-diff re-review approved the shared palette source, all theme variants, compiled CSS wiring, and patch-package path with no remaining blockers.
-- Ready-PR AI review remains pending.
+- Ready-PR AI review and CI are tracked on GitHub.
 
 ### Visual modernization (2026-07-24)
 
