@@ -4,7 +4,7 @@
 
 ### Fix bottom sheets rendering with zero radius (2026-07-24)
 
-- Status: narrow fix split out of the closed PR #198 after PR #199 superseded its palette and surface work.
+- Status: PR #200 is open and ready for review; split out of the closed PR #198 after PR #199 superseded its palette and surface work.
 - `CommandPaletteRenderer.tsx` and `FilterBarMobileSheet.tsx` set their mobile bottom-sheet radius through `var(--radii-400)`, but folds emits hashed CSS variable names, so the variable never resolved and both sheets rendered with square top corners.
 - Both now use the `config.radii.R400` token, which also keeps them on the fork's modernized radius scale from CINNY-213.
 - The folds mocks in `CommandPaletteRenderer.test.ts`, `FilterBar.test.ts`, and `Threads.test.ts` now provide `config.radii`; the command-palette expectation pins the resolved value instead of the broken variable name.
