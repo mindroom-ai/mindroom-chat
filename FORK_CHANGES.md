@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Preserve browser tab shortcuts while composing (2026-07-27)
+
+- Status: narrow implementation, regression coverage, and full local validation are complete.
+- The inherited editor mapped `Cmd/Ctrl+1`, `Cmd/Ctrl+2`, and `Cmd/Ctrl+3` to heading levels and prevented the browser from using those shortcuts while the composer was focused.
+- The editor now leaves all three number shortcuts unhandled so browser tab navigation continues to work from the composer.
+- Heading levels remain available through the formatting toolbar, whose tooltips no longer advertise the removed shortcuts.
+- Focused regression coverage passes all three number-key cases and proves they leave the current paragraph unchanged.
+- The full Vitest suite passes all 455 files with 3,439 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 
 - Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
