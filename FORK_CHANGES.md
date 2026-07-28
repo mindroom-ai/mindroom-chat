@@ -12,6 +12,8 @@
 - Independent review caught missing explicit Cmd coverage, which is now included alongside Ctrl coverage.
 - The full Vitest suite passes all 455 files with 3,442 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Risks: none identified beyond browser-specific shortcut conventions, which remain browser-owned.
+- Next step: after merge, verify `Cmd+1` through `Cmd+3` in the shipped client while the composer is focused.
 
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 

@@ -1,6 +1,6 @@
 import { KeyboardEvent } from 'react';
 import { createEditor } from 'slate';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { toggleKeyboardShortcut } from './keyboard';
 import { BlockType } from './types';
 
@@ -13,6 +13,7 @@ const modNumberEvent = (key: string, modifierKey: ModifierKey) =>
     ctrlKey: modifierKey === 'ctrlKey',
     metaKey: modifierKey === 'metaKey',
     shiftKey: false,
+    preventDefault: vi.fn(),
   } as KeyboardEvent<Element>);
 
 const shortcutCases = [
@@ -42,7 +43,9 @@ describe('toggleKeyboardShortcut', () => {
         focus: { path: [0, 0], offset: 0 },
       };
 
-      expect(toggleKeyboardShortcut(editor, modNumberEvent(key, modifierKey))).toBe(false);
+      const event = modNumberEvent(key, modifierKey);
+      expect(toggleKeyboardShortcut(editor, event)).toBe(false);
+      expect(event.preventDefault).not.toHaveBeenCalled();
       expect(editor.children).toEqual([
         {
           type: BlockType.Paragraph,
