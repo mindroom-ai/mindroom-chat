@@ -20,12 +20,16 @@ type RenderPaletteProps = {
 };
 
 const MOBILE_SHEET_HEIGHT = 'min(85svh, 700px)';
+// CINNY-132: viewport units track the layout viewport, which iOS does not
+// shrink for the keyboard. A bottom-docked sheet sized in `dvh`/`svh` docks
+// below the visible window — behind the keyboard it just summoned by focusing
+// its own search input. `--app-height` is the visible window; see src/index.css.
 const MOBILE_SHEET_CONTAINER_STYLE: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'flex-end',
-  minHeight: '100svh',
-  height: '100dvh',
+  minHeight: 'var(--app-height, 100svh)',
+  height: 'var(--app-height, 100dvh)',
   width: '100vw',
 };
 const MOBILE_SHEET_STYLE: React.CSSProperties = {
@@ -36,7 +40,7 @@ const MOBILE_SHEET_STYLE: React.CSSProperties = {
   width: '100vw',
 };
 const DESKTOP_MODAL_STYLE: React.CSSProperties = {
-  maxHeight: 'calc(100dvh - 32px)',
+  maxHeight: 'calc(var(--app-height, 100dvh) - 32px)',
 };
 
 function RenderPalette({ mobileSheet, requestClose, children }: RenderPaletteProps) {

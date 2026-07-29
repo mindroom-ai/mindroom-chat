@@ -208,18 +208,22 @@ describe('CommandPaletteRenderer', () => {
       1
     );
     expect(modal.props.flexHeight).toBe(true);
-    expect(modal.props.style).toEqual({ maxHeight: 'calc(100dvh - 32px)' });
+    expect(modal.props.style).toEqual({ maxHeight: 'calc(var(--app-height, 100dvh) - 32px)' });
   });
 
-  it('uses the mobile bottom-sheet layout with dynamic viewport units on the mobile breakpoint', () => {
+  it('measures the mobile bottom sheet against the visible window, not the layout viewport', () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = renderRenderer(true);
     const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
+    // CINNY-132: `svh`/`dvh` track the layout viewport, which iOS does not
+    // shrink for the keyboard, so a sheet sized in them docks behind the
+    // keyboard its own search input just summoned. `--app-height` is the
+    // visible window.
     const sheetContainer = renderer.root.find(
       (node) =>
         node.type === 'div' &&
-        node.props.style?.minHeight === '100svh' &&
-        node.props.style?.height === '100dvh'
+        node.props.style?.minHeight === 'var(--app-height, 100svh)' &&
+        node.props.style?.height === 'var(--app-height, 100dvh)'
     );
 
     expect(modal.props.style).toEqual({

@@ -1398,7 +1398,7 @@ describe('RoomView', () => {
     expect(store.get(lastExitedThreadAtom)).toBeNull();
   });
 
-  it('renders the room page with the app-height lock style', async () => {
+  it('lets the app shell own the viewport height (CINNY-132)', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom('!room-a:example.org');
 
@@ -1406,7 +1406,9 @@ describe('RoomView', () => {
       create(React.createElement(RoomView, { room: room as never }));
     });
 
-    expect(pageState.props?.style).toMatchObject({ height: 'var(--app-height, 100%)' });
+    // #root is the visual-viewport follower; a second --app-height authority
+    // here is what left a gap between the composer and the iOS keyboard.
+    expect(JSON.stringify(pageState.props?.style ?? {})).not.toContain('--app-height');
   });
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {

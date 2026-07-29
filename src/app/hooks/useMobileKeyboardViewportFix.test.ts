@@ -25,10 +25,12 @@ type ViewportTestEnv = {
   emitKeyboard: (eventName: string) => void;
   emitWindow: (eventName: string) => void;
   emitVisualViewportResize: () => void;
+  emitVisualViewportScroll: () => void;
   flushAnimationFrames: () => void;
   setActiveElement: (element: 'editable' | 'none') => void;
   setInnerHeight: (height: number) => void;
   setVisualViewportHeight: (height: number) => void;
+  setVisualViewportOffsetTop: (offsetTop: number) => void;
   styleValues: Map<string, string>;
 };
 
@@ -95,6 +97,7 @@ const installViewportTestEnv = ({
   const styleValues = new Map<string, string>();
   let innerHeight = 800;
   let visualViewportHeight = 800;
+  let visualViewportOffsetTop = 0;
   let activeElement: Pick<Element, 'getAttribute' | 'nodeName'> | undefined;
   const animationFrames = new Map<number, FrameRequestCallback>();
 
@@ -141,6 +144,9 @@ const installViewportTestEnv = ({
       ),
       get height() {
         return visualViewportHeight;
+      },
+      get offsetTop() {
+        return visualViewportOffsetTop;
       },
       removeEventListener: vi.fn((eventName: string, listener: Listener) =>
         removeListener(visualViewportListeners, eventName, listener)
@@ -193,6 +199,7 @@ const installViewportTestEnv = ({
     emitKeyboard: (eventName) => emit(keyboardListeners, eventName),
     emitWindow: (eventName) => emit(windowListeners, eventName),
     emitVisualViewportResize: () => emit(visualViewportListeners, 'resize'),
+    emitVisualViewportScroll: () => emit(visualViewportListeners, 'scroll'),
     flushAnimationFrames: () => {
       const pendingAnimationFrames = Array.from(animationFrames.values());
       animationFrames.clear();
@@ -210,6 +217,9 @@ const installViewportTestEnv = ({
     },
     setVisualViewportHeight: (height) => {
       visualViewportHeight = height;
+    },
+    setVisualViewportOffsetTop: (offsetTop) => {
+      visualViewportOffsetTop = offsetTop;
     },
     styleValues,
   };
@@ -311,5 +321,138 @@ describe('useMobileKeyboardViewportFix', () => {
     });
 
     expect(env.styleValues.get('--app-height')).toBeUndefined();
+  });
+
+  it('publishes the visual viewport offset so the shell can follow the keyboard pan', async () => {
+    const env = installViewportTestEnv({
+      isNativePlatform: false,
+      keyboardAvailable: false,
+      platform: 'web',
+      userAgent: IOS_USER_AGENT,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    env.setVisualViewportHeight(457);
+    env.setVisualViewportOffsetTop(170);
+    await act(async () => {
+      env.emitVisualViewportScroll();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('457px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+  });
+
+  it('resets the viewport offset when the keyboard hides', async () => {
+    const env = installViewportTestEnv();
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(500);
+    env.setVisualViewportOffsetTop(120);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('120px');
+
+    env.setInnerHeight(800);
+    await act(async () => {
+      env.emitKeyboard('keyboardDidHide');
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('800px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('keeps the pan geometry when the device rotates with the keyboard still open', async () => {
+    const env = installViewportTestEnv({
+      autoFlushAnimationFrames: false,
+      isNativePlatform: false,
+      keyboardAvailable: false,
+      platform: 'web',
+      userAgent: IOS_USER_AGENT,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(457);
+    env.setVisualViewportOffsetTop(170);
+    await act(async () => {
+      env.emitVisualViewportScroll();
+      env.flushAnimationFrames();
+    });
+
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
+
+    // Rotating does not dismiss the keyboard, so neither the immediate write
+    // nor the delayed settle write may fall back to the layout viewport.
+    await act(async () => {
+      env.emitWindow('orientationchange');
+      env.flushAnimationFrames();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('457px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
+
+    await act(async () => {
+      await new Promise((resolve) => {
+        globalThis.setTimeout(resolve, 120);
+      });
+      env.flushAnimationFrames();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('457px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('never calls window.scrollTo (CINNY-053 regression lock)', async () => {
+    const env = installViewportTestEnv({
+      isNativePlatform: false,
+      keyboardAvailable: false,
+      platform: 'web',
+      userAgent: IOS_USER_AGENT,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(457);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(window.scrollTo).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
   });
 });
