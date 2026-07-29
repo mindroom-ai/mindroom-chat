@@ -473,6 +473,61 @@ describe('useMobileKeyboardViewportFix', () => {
     });
   });
 
+  it.each([0, 24])(
+    'ignores the iOS 26 stale 24px viewport after keyboard close with offset %i',
+    async (staleOffsetTop) => {
+      const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+      env.setActiveElement('editable');
+
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        renderer = create(React.createElement(TestViewportHook));
+      });
+
+      env.setVisualViewportHeight(457);
+      env.setVisualViewportOffsetTop(170);
+      await act(async () => {
+        env.emitVisualViewportResize();
+      });
+      expect(env.styleValues.get('--app-height')).toBe('457px');
+
+      env.setVisualViewportHeight(776);
+      env.setVisualViewportOffsetTop(staleOffsetTop);
+      await act(async () => {
+        env.emitVisualViewportResize();
+      });
+
+      expect(env.styleValues.get('--app-height')).toBeUndefined();
+      expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+
+      await act(async () => {
+        renderer?.unmount();
+      });
+    }
+  );
+
+  it('accepts a 48px viewport reduction as keyboard geometry', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(752);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('752px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
   it('remeasures after WebKit publishes a delayed keyboard offset', async () => {
     const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
     env.setActiveElement('editable');

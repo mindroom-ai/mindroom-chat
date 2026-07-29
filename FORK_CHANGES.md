@@ -8,16 +8,19 @@
 - Root cause: some software keyboards shrink and pan only `visualViewport`, while the layout viewport and `100dvh` remain full-height, so a shell sized from visual height at layout `y=0` ends above the visible bottom by `visualViewport.offsetTop`.
 - Browser scope is geometry-based rather than user-agent-based, so Safari tabs, standalone PWAs, iOS browser shells, older or nonconforming Android browsers, and unknown engines take the fix whenever they expose the affected geometry.
 - Chrome 108+ and Firefox 131+ support `interactive-widget=resizes-content`, which is already requested in `index.html`, so compliant versions resize both viewports and naturally take the no-op path.
-- The hook activates only while a text editor is focused, visual scale is approximately `1`, and visual height is smaller than layout height.
+- The hook activates only while a text editor is focused, visual scale is approximately `1`, and visual height is at least 48 px smaller than layout height.
 - Pinch zoom, browser-chrome movement without an editor, desktop layout changes, and web browsers that resize both viewports leave the original layout untouched.
+- The 48 px significance floor rejects the persistent 24 px visual-viewport height error reported after iOS 26 keyboard dismissal while retaining ordinary software-keyboard reductions.
 - Native keyboard-hide, page-show, and orientation signals retain the previous explicit layout-height recovery so a stale `visualViewport` or `100dvh` cannot strand the Capacitor shell at keyboard height.
 - Every viewport, focus, page-show, and orientation signal gets an immediate animation-frame read plus one 80ms settle read for WebKit's delayed `offsetTop` publication.
 - `#root` remains in normal flow and consumes the correction as visible height plus `margin-top`, avoiding fixed-root containing-block, stacking, portal, and whole-app compositing changes.
 - The earlier fixed `#root`, fixed `#portalContainer`, pointer-event restoration, command-palette sizing, filter-sheet sizing, and editor fallback changes are removed.
 - `App` owns the single global hook because `#root` is the single geometry consumer, while room view no longer keeps a competing height authority.
 - TDD reproduced five failures in the broad implementation: Chrome and Firefox web UAs were skipped, browser chrome was misclassified, pinch zoom was misclassified, and delayed WebKit offset publication was missed.
-- Focused coverage now exercises Safari, Chrome, Firefox, an unknown browser, resize-content no-op behavior, keyboard close restoration, zoom rejection, delayed metrics, cleanup, and the real App-to-hook-to-CSS chain in Chromium.
-- Final validation passes 455 Vitest files with 3,454 tests, typecheck, the production/PWA build, two Chromium layout tests, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- Fresh review reproduced two more failures for stale 24 px iOS 26 viewport geometry with zero and positive offsets before the significance floor was added.
+- Independent follow-up review reproduced an exact 48 px boundary failure before the inclusive threshold was added.
+- Focused coverage now exercises Safari, Chrome, Firefox, an unknown browser, resize-content clearing from an active state, keyboard close restoration, stale 24 px geometry, zoom rejection, delayed metrics, cleanup, and the real App-to-hook-to-CSS chain in Chromium.
+- Final validation passes 455 Vitest files with 3,457 tests, typecheck, the production/PWA build, two Chromium layout tests, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
 - Physical-device confirmation remains outstanding because this host has no iOS Simulator, attached iOS tooling, or Android device tooling.
 
 ### Preserve browser tab shortcuts while composing (2026-07-27)

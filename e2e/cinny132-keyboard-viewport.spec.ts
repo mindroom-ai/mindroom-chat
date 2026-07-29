@@ -111,19 +111,46 @@ test('fills a keyboard-panned visual viewport while keeping root in normal flow'
 
 test('does nothing when the browser resizes both viewports', async ({ page }) => {
   await page.goto('/');
+  await page.evaluate(
+    ([height, offsetTop]) => {
+      const editor = document.createElement('textarea');
+      document.body.append(editor);
+      editor.focus();
+      window.__setVisualViewport?.(height, offsetTop, 'scroll');
+    },
+    [KEYBOARD_HEIGHT, KEYBOARD_OFFSET]
+  );
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
+    )
+    .toBe(`${KEYBOARD_HEIGHT}px`);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue('--app-viewport-offset-top')
+      )
+    )
+    .toBe(`${KEYBOARD_OFFSET}px`);
+
   await page.setViewportSize({ width: LAYOUT_WIDTH, height: KEYBOARD_HEIGHT });
   await page.evaluate((height) => {
     window.__setVisualViewport?.(height, 0, 'resize');
   }, KEYBOARD_HEIGHT);
 
-  expect(
-    await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
-  ).toBe('');
-  expect(
-    await page.evaluate(() =>
-      document.documentElement.style.getPropertyValue('--app-viewport-offset-top')
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
     )
-  ).toBe('');
+    .toBe('');
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue('--app-viewport-offset-top')
+      )
+    )
+    .toBe('');
 
   expect(await readRootBox(page)).toEqual({
     position: 'static',

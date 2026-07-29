@@ -4,7 +4,8 @@ import { Keyboard } from '@capacitor/keyboard';
 
 const APP_HEIGHT = '--app-height';
 const APP_VIEWPORT_OFFSET_TOP = '--app-viewport-offset-top';
-const VIEWPORT_EPSILON = 2;
+// iOS 26 can leave visualViewport 24px shorter after keyboard dismissal.
+const MIN_KEYBOARD_VIEWPORT_REDUCTION = 48;
 const SETTLE_DELAY_MS = 80;
 
 const NON_TEXT_INPUT_TYPES = new Set([
@@ -80,11 +81,9 @@ export function useMobileKeyboardViewportFix(): void {
       const innerHeight = positiveFinite(window.innerHeight);
       const clientHeight = positiveFinite(document.documentElement.clientHeight);
       const layoutHeight =
-        innerHeight === undefined
-          ? clientHeight
-          : clientHeight === undefined
-          ? innerHeight
-          : Math.max(innerHeight, clientHeight);
+        innerHeight !== undefined && clientHeight !== undefined
+          ? Math.max(innerHeight, clientHeight)
+          : innerHeight ?? clientHeight;
 
       if (nativeLayoutHeightForced) {
         keyboardGeometryActive = false;
@@ -101,7 +100,7 @@ export function useMobileKeyboardViewportFix(): void {
       const layoutStillFullHeight =
         viewportHeight !== undefined &&
         layoutHeight !== undefined &&
-        viewportHeight < layoutHeight - VIEWPORT_EPSILON;
+        viewportHeight <= layoutHeight - MIN_KEYBOARD_VIEWPORT_REDUCTION;
 
       if (
         !unzoomed ||
