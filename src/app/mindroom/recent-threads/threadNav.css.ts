@@ -81,6 +81,35 @@ export const RecentlyOpenedList = style({
   paddingBottom: config.space.S200,
 });
 
+// Recently Opened rows are two text lines. folds line boxes leave 3px of
+// half-leading on each side, so the 4px column gap that used to sit between the
+// two lines made them 10px apart while adjacent rows were only 6px apart - the
+// list grouped each title with the NEXT row's room name. The 4px moves out to
+// the row boundary, which inverts the proximity without changing the 42px pitch.
+export const RecentlyOpenedEntry = style({
+  position: 'relative',
+  selectors: {
+    '& + &': {
+      marginTop: config.space.S100,
+    },
+    // Hairline inside that 4px band. Absolutely positioned, so it costs no
+    // layout height, and it sits outside every row box so it never paints on a
+    // hovered row's rounded rect. Insets match NavItemContent's text paddings.
+    // -2px, deliberately not the centered -2.5px: an integer offset keeps a 1px
+    // rule crisp at DPR 1 instead of antialiasing it across two device pixels.
+    '& + &::before': {
+      content: '""',
+      position: 'absolute',
+      top: `calc(-1 * ${config.space.S100} / 2)`,
+      right: config.space.S300,
+      left: config.space.S200,
+      height: config.borderWidth.B300,
+      backgroundColor: color.Background.ContainerLine,
+      pointerEvents: 'none',
+    },
+  },
+});
+
 export const Entry = style({
   position: 'relative',
 });

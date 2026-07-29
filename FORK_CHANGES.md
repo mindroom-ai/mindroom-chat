@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### CINNY-133 — Separate Recently Opened rows without changing their pitch (2026-07-29)
+
+- Status: the implementation and independent review are complete locally; the issue remains open and is not marked fixed.
+- The existing T300 summary now starts each row, followed by the unchanged room-name and relative-timestamp metadata pair.
+- The outer two-line column no longer owns the S100 gap; the same 4px moves to `& + &` between adjacent entries.
+- Each adjacent boundary receives one absolutely positioned B300 `Background.ContainerLine` hairline inset by S200 on the left and S300 on the right.
+- The row box changes from 42px to 38px, while the 4px boundary preserves the repeated 42px top-to-top pitch.
+- The first row has no leading boundary, so N entries change from `42N` to `38N + 4(N - 1) = 42N - 4`.
+- `recentlyOpenedPanelHeight.ts` and its test remain unchanged.
+- TDD red check: `npm test -- src/app/mindroom/recent-threads/RecentThreadEntry.test.ts` failed on title order, the outer `gap="100"`, and the absent `RecentlyOpenedEntry` class without loading the real vanilla-extract module.
+- TDD green check: `npm test -- src/app/mindroom/recent-threads/RecentThreadEntry.test.ts` passes all 5 tests.
+- Unchanged category and panel-height check: `npm test -- src/app/mindroom/recent-threads/RecentlyOpenedNavCategory.test.ts src/app/mindroom/recent-threads/recentlyOpenedPanelHeight.test.ts` passes 2 files and 11 tests.
+- The full recent-threads directory passes 8 files and 46 tests with the existing React Router future-flag warnings.
+- `npm run typecheck` and `npm run build` pass; the build emits the existing Vite CJS, runtime-config, dependency-sourcemap, and chunk-size warnings.
+- `npm run lint` passes with 17 existing warnings and zero errors.
+- Touched-file Prettier and `git diff --check` pass.
+- `npm test` remains red on the same four unrelated failures reproduced before implementation: three Nix-host Xcode Cloud fixture failures because `/usr/bin:/bin` has no Bash, plus one send-session test whose negative `File` argument assertion deep-compares equal files on this host.
+- The final full-suite run passes 453 of 455 files and 3,454 of 3,458 tests; `RecentThreadEntry.test.ts` passes all 5 tests within that run.
+- The existing Docker-Matrix live spec passes desktop, tablet, 480px, and 360px viewports on the first instrumented run; its 1024x480 cross-route height poll passes on an isolated rerun after one transient failure.
+- Live screenshots confirm title-first rendering, intact metadata and truncation at 1440px and 360px, inset dividers between adjacent rows, and no adjacency divider for a single row.
+- Independent zero-tolerance review approved the exact implementation diff with no findings.
+
 ### CINNY-132 — capability-based keyboard viewport correction (2026-07-28)
 
 - Status: redesign and independent code review are complete with no code blockers.
