@@ -130,72 +130,26 @@ body {
   /*Why font-variant-ligatures => https://github.com/rsms/inter/issues/222 */
   font-variant-ligatures: no-contextual;
 }
-/* CINNY-132: iOS Safari does not shrink the layout viewport for the software
-   keyboard. It pans the *visual* viewport down over the layout viewport to
-   reveal the focused composer, and reports that displacement as
-   `visualViewport.offsetTop`. Pin the shell to the visible window instead of
-   to the layout viewport, so nothing can show between the composer and the
-   keyboard and the shell cannot drift relative to the screen.
-   `useMobileKeyboardViewportFix` publishes both variables.
+/* CINNY-132: when a focused editor opens a software keyboard without shrinking
+   the layout viewport, `useMobileKeyboardViewportFix` publishes the visible
+   viewport height and top offset.
 
-   `top` rather than `transform`, and this is a trade rather than a free win.
-   A transform would make #root the containing block for its `position: fixed`
-   descendants — the call embed host and the two particle backgrounds — which
-   would have made those follow the pan too; `top` leaves them anchored to the
-   layout viewport. It buys not creating a compositing layer for the whole
-   shell on the device class that is already struggling. Modals, popovers and
-   tooltips are unaffected either way: they portal to #portalContainer, a
-   sibling of #root, not a descendant.
-
-   The fallbacks apply only where the hook does not run — desktop and Android
-   web, where the layout viewport already tracks the visible window. On iOS the
-   hook always runs, Capacitor wrapper included; there `Keyboard.resize:
-   'native'` resizes the WebView, so the published pixel values are
-   `innerHeight` and `0` and reproduce the pre-fix box exactly. */
+   Keep the shell in normal flow. `margin-top` moves it into the visible window
+   without creating the fixed-position containing block or stacking-context
+   changes caused by `position: fixed` or `transform`. Body overflow establishes
+   a formatting context, so this first-child margin does not collapse through
+   the body. Browsers that resize the layout viewport publish nothing and use
+   the original 100% geometry. */
 #root {
-  position: fixed;
-  top: var(--app-viewport-offset-top, 0px);
-  left: 0;
   width: 100%;
-  height: var(--app-height, 100dvh);
+  height: var(--app-height, 100%);
+  margin-top: var(--app-viewport-offset-top, 0px);
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top, 0px);
   padding-right: env(safe-area-inset-right, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   background-color: var(--app-bg-color);
-}
-
-/* The portal host is a sibling of #root and needs the same visible window, or
-   the fix survives in only one of the two hosts. Folds `Overlay` is
-   `position: absolute` with `inset: 0`, so an unpositioned host lets it fall
-   through to the initial containing block — the layout viewport iOS refuses to
-   shrink — and a bottom-docked sheet ends up behind the keyboard.
-
-   No safe-area padding here, unlike #root: overlay backdrops are deliberately
-   full-bleed under the notch.
-
-   Sizing the host means an empty host would otherwise swallow every click
-   meant for the shell, so it is inert and each portalled surface takes its own
-   pointer events back. The restore is wrapped in `:where()` to keep it at zero
-   specificity, so folds' own `pointer-events: none` on the tooltip container
-   still wins and tooltips stay click-through.
-
-   Folds `PopOut` is `position: fixed` and is NOT captured by positioning this
-   host — only transform/filter/containment would do that. Pop-outs and
-   tooltips stay layout-viewport anchored; they are small surfaces placed from
-   a measured `getBoundingClientRect()`, so they degrade far more gracefully
-   than a full-height sheet. Known limitation, not addressed here. */
-#portalContainer {
-  position: fixed;
-  top: var(--app-viewport-offset-top, 0px);
-  left: 0;
-  width: 100%;
-  height: var(--app-height, 100dvh);
-  pointer-events: none;
-}
-:where(#portalContainer) > * {
-  pointer-events: auto;
 }
 
 *,

@@ -1,116 +1,172 @@
 import { useEffect } from 'react';
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
-import { isIOS } from '../utils/user-agent';
 
 const APP_HEIGHT = '--app-height';
 const APP_VIEWPORT_OFFSET_TOP = '--app-viewport-offset-top';
+const VIEWPORT_EPSILON = 2;
+const SETTLE_DELAY_MS = 80;
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'hidden',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+]);
+
+const isTextEditor = (element: Element | null | undefined): boolean => {
+  if (!element) return false;
+
+  const nodeName = element.nodeName.toUpperCase();
+  if (nodeName === 'TEXTAREA') return true;
+  if (nodeName === 'INPUT') {
+    const inputType = element.getAttribute('type')?.toLowerCase() ?? 'text';
+    return !NON_TEXT_INPUT_TYPES.has(inputType);
+  }
+
+  const contentEditable = element.getAttribute('contenteditable')?.toLowerCase();
+  return (
+    contentEditable === '' ||
+    contentEditable === 'true' ||
+    contentEditable === 'plaintext-only' ||
+    (element as HTMLElement).isContentEditable === true
+  );
+};
+
+const positiveFinite = (value: number | undefined): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 
 /**
- * iOS Safari never shrinks the layout viewport for the software keyboard, and
- * `100dvh` tracks the layout viewport. So in a standalone PWA the shell ends up
- * one keyboard-height taller than what is on screen, and WebKit pans the visual
- * viewport down over it to reveal the focused composer — leaving app background
- * between the composer and the keyboard (CINNY-132).
+ * Some mobile browsers keep the layout viewport full-height while the software
+ * keyboard shrinks and pans only the visual viewport.
  *
- * Publish the visible window as two custom properties so `#root` can be pinned
- * to it as a fixed follower (see `src/index.css`):
+ * Detect that geometry directly instead of guessing from the browser name.
+ * Browsers honoring `interactive-widget=resizes-content` naturally no-op
+ * because their layout and visual viewports remain equal.
  *
- *   --app-height              visualViewport.height
- *   --app-viewport-offset-top visualViewport.offsetTop
- *
- * The pan is a visual-viewport *scroll*, not a resize — a user drag fires no
- * resize at all — so both events must be observed.
- *
- * The hook still runs inside the Capacitor wrapper, because that is iOS too.
- * There `Keyboard.resize: 'native'` already resizes the WebView, so it
- * publishes `innerHeight` and `0` — pixel values, not the CSS fallbacks, but
- * geometrically the identity case.
+ * The CSS consumer keeps `#root` in normal flow and applies these values as
+ * height plus top margin, avoiding a new fixed-position containing block.
  */
 export function useMobileKeyboardViewportFix(): void {
   useEffect(() => {
-    const nativePlatform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : undefined;
-    const mobileViewportNeedsSync = isIOS() || nativePlatform === 'android';
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return undefined;
 
-    if (!mobileViewportNeedsSync) return undefined;
-
-    const { visualViewport } = window;
-    const rafIds = new Set<number>();
-    const timeoutIds = new Set<number>();
+    const nativePlatform = Capacitor.isNativePlatform();
     const keyboardHandles: PluginListenerHandle[] = [];
+    let animationFrameId: number | undefined;
+    let settleTimeoutId: number | undefined;
+    let keyboardGeometryActive = false;
+    let nativeLayoutHeightForced = false;
+    let retainWithoutFocusForQueuedFrame = false;
     let disposed = false;
 
-    const getPositiveViewportHeight = (height: number | undefined): number | undefined =>
-      typeof height === 'number' && Number.isFinite(height) && height > 0 ? height : undefined;
-
-    const getVisualViewportHeight = (): number | undefined =>
-      getPositiveViewportHeight(window.visualViewport?.height);
-
-    const getLayoutViewportHeight = (): number | undefined => {
-      const innerHeight = getPositiveViewportHeight(window.innerHeight);
-      const clientHeight = getPositiveViewportHeight(document.documentElement.clientHeight);
-
-      if (innerHeight === undefined) return clientHeight;
-      if (clientHeight === undefined) return innerHeight;
-      return Math.max(innerHeight, clientHeight);
+    const clearGeometry = () => {
+      keyboardGeometryActive = false;
+      document.documentElement.style.removeProperty(APP_HEIGHT);
+      document.documentElement.style.removeProperty(APP_VIEWPORT_OFFSET_TOP);
     };
 
-    const getViewportHeight = (preferLayoutViewport: boolean): number | undefined => {
-      const visualHeight = getVisualViewportHeight();
-      const layoutHeight = getLayoutViewportHeight();
+    const syncGeometry = (retainWithoutFocus: boolean) => {
+      if (disposed) return;
 
-      if (!preferLayoutViewport) return visualHeight ?? layoutHeight;
-      if (visualHeight === undefined) return layoutHeight;
-      if (layoutHeight === undefined) return visualHeight;
-      return Math.max(visualHeight, layoutHeight);
-    };
+      const viewportHeight = positiveFinite(window.visualViewport?.height);
+      const innerHeight = positiveFinite(window.innerHeight);
+      const clientHeight = positiveFinite(document.documentElement.clientHeight);
+      const layoutHeight =
+        innerHeight === undefined
+          ? clientHeight
+          : clientHeight === undefined
+          ? innerHeight
+          : Math.max(innerHeight, clientHeight);
 
-    const getViewportOffsetTop = (): number => {
-      const offsetTop = window.visualViewport?.offsetTop;
-      if (typeof offsetTop !== 'number' || !Number.isFinite(offsetTop) || offsetTop <= 0) return 0;
-      return offsetTop;
-    };
-
-    const updateViewport = (preferLayoutViewport = false) => {
-      const rafId = requestAnimationFrame(() => {
-        rafIds.delete(rafId);
-        if (disposed) return;
-
-        const viewportHeight = getViewportHeight(preferLayoutViewport);
-        if (viewportHeight !== undefined) {
-          document.documentElement.style.setProperty(APP_HEIGHT, `${viewportHeight}px`);
+      if (nativeLayoutHeightForced) {
+        keyboardGeometryActive = false;
+        if (layoutHeight !== undefined) {
+          document.documentElement.style.setProperty(APP_HEIGHT, `${layoutHeight}px`);
+          document.documentElement.style.setProperty(APP_VIEWPORT_OFFSET_TOP, '0px');
         }
+        return;
+      }
 
-        // Restoring after a keyboard hide means the pan is gone by definition;
-        // reading offsetTop mid-animation would re-pin the shell to a stale pan.
-        const offsetTop = preferLayoutViewport ? 0 : getViewportOffsetTop();
-        document.documentElement.style.setProperty(APP_VIEWPORT_OFFSET_TOP, `${offsetTop}px`);
+      const scale = window.visualViewport?.scale ?? 1;
+      const unzoomed = Number.isFinite(scale) && Math.abs(scale - 1) < 0.01;
+      const editorFocused = isTextEditor(document.activeElement);
+      const layoutStillFullHeight =
+        viewportHeight !== undefined &&
+        layoutHeight !== undefined &&
+        viewportHeight < layoutHeight - VIEWPORT_EPSILON;
+
+      if (
+        !unzoomed ||
+        !layoutStillFullHeight ||
+        (!editorFocused && (!keyboardGeometryActive || !retainWithoutFocus)) ||
+        viewportHeight === undefined
+      ) {
+        clearGeometry();
+        return;
+      }
+
+      const rawOffsetTop = window.visualViewport?.offsetTop;
+      const offsetTop =
+        typeof rawOffsetTop === 'number' && Number.isFinite(rawOffsetTop) && rawOffsetTop > 0
+          ? rawOffsetTop
+          : 0;
+
+      keyboardGeometryActive = true;
+      document.documentElement.style.setProperty(APP_HEIGHT, `${viewportHeight}px`);
+      document.documentElement.style.setProperty(APP_VIEWPORT_OFFSET_TOP, `${offsetTop}px`);
+    };
+
+    const scheduleFrame = (retainWithoutFocus: boolean) => {
+      if (animationFrameId !== undefined) {
+        retainWithoutFocusForQueuedFrame = retainWithoutFocusForQueuedFrame && retainWithoutFocus;
+        return;
+      }
+
+      retainWithoutFocusForQueuedFrame = retainWithoutFocus;
+      animationFrameId = requestAnimationFrame(() => {
+        animationFrameId = undefined;
+        const shouldRetainWithoutFocus = retainWithoutFocusForQueuedFrame;
+        retainWithoutFocusForQueuedFrame = false;
+        syncGeometry(shouldRetainWithoutFocus);
       });
-      rafIds.add(rafId);
     };
 
-    // Both settle paths write twice, because the viewport metrics that follow
-    // these events are not final when the event fires.
-    const scheduleViewportSettle = (preferLayoutViewport: boolean) => {
-      updateViewport(preferLayoutViewport);
+    const scheduleSync = () => {
+      scheduleFrame(true);
 
-      const timeoutId = window.setTimeout(() => {
-        timeoutIds.delete(timeoutId);
-        updateViewport(preferLayoutViewport);
-      }, 80);
-      timeoutIds.add(timeoutId);
+      if (settleTimeoutId !== undefined) {
+        window.clearTimeout(settleTimeoutId);
+      }
+      settleTimeoutId = window.setTimeout(() => {
+        settleTimeoutId = undefined;
+        scheduleFrame(false);
+      }, SETTLE_DELAY_MS);
     };
 
-    // A native keyboard-hide event does prove the pan is gone, so prefer the
-    // layout viewport over a visual viewport still mid-dismiss-animation.
-    const restoreAfterKeyboardHide = () => scheduleViewportSettle(true);
+    const forceNativeLayoutHeight = () => {
+      nativeLayoutHeightForced = true;
+      scheduleSync();
+    };
 
-    // Rotation and bfcache restore prove nothing of the sort: the keyboard can
-    // still be open across both. Forcing the layout viewport there would write
-    // exactly the pre-fix geometry — full layout height, zero offset — and the
-    // delayed second write would clobber any correct visualViewport event in
-    // between. Re-measure on the same delay, but from what is actually there.
-    const remeasureAfterViewportSettle = () => scheduleViewportSettle(false);
+    const startNativeKeyboardShow = () => {
+      nativeLayoutHeightForced = false;
+      scheduleSync();
+    };
+
+    const handleFocusIn = () => {
+      if (nativePlatform) nativeLayoutHeightForced = false;
+      scheduleSync();
+    };
+
+    const handleOrientationOrPageShow = nativePlatform ? forceNativeLayoutHeight : scheduleSync;
 
     const addKeyboardListener = (promise: Promise<PluginListenerHandle>) => {
       void promise
@@ -119,44 +175,44 @@ export function useMobileKeyboardViewportFix(): void {
             void handle.remove();
             return;
           }
-
           keyboardHandles.push(handle);
         })
         .catch(() => undefined);
     };
-    const handleViewportChange = () => updateViewport();
 
-    updateViewport();
+    scheduleSync();
 
-    visualViewport?.addEventListener('resize', handleViewportChange);
-    visualViewport?.addEventListener('scroll', handleViewportChange);
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('orientationchange', remeasureAfterViewportSettle);
-    window.addEventListener('pageshow', remeasureAfterViewportSettle);
-    window.addEventListener('focusout', handleViewportChange);
+    visualViewport.addEventListener('resize', scheduleSync);
+    visualViewport.addEventListener('scroll', scheduleSync);
+    window.addEventListener('resize', scheduleSync);
+    window.addEventListener('orientationchange', handleOrientationOrPageShow);
+    window.addEventListener('pageshow', handleOrientationOrPageShow);
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', scheduleSync);
 
-    if (Capacitor.isPluginAvailable('Keyboard')) {
-      addKeyboardListener(Keyboard.addListener('keyboardWillShow', () => updateViewport()));
-      addKeyboardListener(Keyboard.addListener('keyboardDidShow', () => updateViewport()));
-      addKeyboardListener(Keyboard.addListener('keyboardWillHide', restoreAfterKeyboardHide));
-      addKeyboardListener(Keyboard.addListener('keyboardDidHide', restoreAfterKeyboardHide));
+    if (nativePlatform && Capacitor.isPluginAvailable('Keyboard')) {
+      addKeyboardListener(Keyboard.addListener('keyboardWillShow', startNativeKeyboardShow));
+      addKeyboardListener(Keyboard.addListener('keyboardDidShow', startNativeKeyboardShow));
+      addKeyboardListener(Keyboard.addListener('keyboardWillHide', forceNativeLayoutHeight));
+      addKeyboardListener(Keyboard.addListener('keyboardDidHide', forceNativeLayoutHeight));
     }
 
     return () => {
       disposed = true;
-      visualViewport?.removeEventListener('resize', handleViewportChange);
-      visualViewport?.removeEventListener('scroll', handleViewportChange);
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('orientationchange', remeasureAfterViewportSettle);
-      window.removeEventListener('pageshow', remeasureAfterViewportSettle);
-      window.removeEventListener('focusout', handleViewportChange);
-      rafIds.forEach((rafId) => cancelAnimationFrame(rafId));
-      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      visualViewport.removeEventListener('resize', scheduleSync);
+      visualViewport.removeEventListener('scroll', scheduleSync);
+      window.removeEventListener('resize', scheduleSync);
+      window.removeEventListener('orientationchange', handleOrientationOrPageShow);
+      window.removeEventListener('pageshow', handleOrientationOrPageShow);
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', scheduleSync);
+
+      if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId);
+      if (settleTimeoutId !== undefined) window.clearTimeout(settleTimeoutId);
       keyboardHandles.forEach((handle) => {
         void handle.remove();
       });
-      document.documentElement.style.removeProperty(APP_HEIGHT);
-      document.documentElement.style.removeProperty(APP_VIEWPORT_OFFSET_TOP);
+      clearGeometry();
     };
   }, []);
 }

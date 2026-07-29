@@ -2,104 +2,23 @@
 
 ## Runbook
 
-### CINNY-132 — review remediation: portal host, real geometry lock, reverted over-reach (2026-07-28)
+### CINNY-132 — capability-based keyboard viewport correction (2026-07-28)
 
-- Status: all six review findings are closed locally; the physical-device matrix is still not runnable on this host.
-- Finding 1 — `#root` followed the visual viewport but its sibling `#portalContainer` did not, so the same bug survived in the second host: folds `Overlay` is `position: absolute; inset: 0` and fell through to the layout viewport iOS refuses to shrink.
-  `#portalContainer` now takes the same `position: fixed`, `top: var(--app-viewport-offset-top)`, `height: var(--app-height)` geometry, without `#root`'s safe-area padding because backdrops are deliberately full-bleed.
-  A sized host would swallow every click when empty, so it is `pointer-events: none` with the restore on direct children written as `:where(#portalContainer) > *` — zero specificity, so folds' own `pointer-events: none` on the tooltip container still wins and tooltips stay click-through.
-- Positioning the host is not sufficient on its own: the mobile command palette and the thread filter-bar sheet sized themselves in `svh`/`dvh`, which track the layout viewport regardless of the parent box, so both now measure `var(--app-height, …)`.
-- Known limitation, deliberately not addressed: folds `PopOut` is `position: fixed` and is not captured by positioning the host — only transform/filter/containment would capture it. Pop-outs and tooltips stay layout-viewport anchored; they are small surfaces placed from a measured rect, so they degrade far more gracefully than a full-height sheet.
-- Finding 2 — `mobileKeyboardViewportArchitecture.test.ts` asserted on `readFileSync` substrings of App/RoomView/CSS, locking the spelling of the implementation rather than its behavior. It is deleted and replaced by two real tests.
-  `src/app/hooks/mobileKeyboardViewportGeometry.test.ts` mounts the real `App` in jsdom with the shipped `src/index.css` parsed into CSSOM, pans a fake visual viewport to height `457` / offset `170` against a `793` layout viewport, dispatches only `scroll`, and asserts both hosts resolve to `fixed` / `top 170` / `height 457` with a bottom of exactly `627`.
-  jsdom does no layout, so that file resolves the box from real declarations plus the real published custom properties and says so in its header; `e2e/cinny132-keyboard-viewport.spec.ts` measures the same invariant in Chromium with `getBoundingClientRect()`, where nothing is modelled.
-- Both files were verified to have teeth by reverting each protected element one at a time and confirming RED: the `App` hook mount, `#root { position: fixed }`, `#root { top }`, `#root { height }`, and the `#portalContainer` rule — five for five in jsdom and five for five in Chromium, restored after each.
-- Finding 3 — `orientationchange` and `pageshow` shared the keyboard-hide restore path, which forces the layout viewport. The keyboard can still be open across both, so that wrote exactly the pre-fix geometry and the delayed second write clobbered any correct visual-viewport event in between. Those two now re-measure from what is actually there; only native keyboard-hide still prefers the layout viewport.
-- Finding 4 — the `#root` rationale claimed the `top`-over-`transform` choice was free and that Capacitor uses the CSS fallbacks. It is a trade (a transform would have pulled the call embed host and the two particle backgrounds along with the pan) and Capacitor publishes pixel values that are arithmetically the identity, not an absence. The comment now says both.
-- Finding 5 — Task 0b's three containing-block remediations are reverted. The two visually hidden live regions have all-`auto` insets and explicit 1px geometry, so their containing block cannot move them; the added `ClientRoot` wrapper started inside `#root`'s safe-area padding and shifted the recovery control down and inward, which is a real regression on the error path. `ClientRootOptions` anchors correctly to the now-fixed root. The tests added alongside those changes are removed with them.
-- Finding 6 — `PLAN.md`, `REPORT.md`, and `.claude/LIVE-TEST-OUTPUT.txt` are removed; this Runbook is the canonical durable record and the entries below now carry their evidence inline. `.superpowers/` was never tracked.
-- Not verifiable here, unchanged from before: this host is Linux with no `xcrun`, `simctl`, `idevice_id`, `ios-deploy`, or `adb`. No physical iOS standalone, Android PWA, or Capacitor run happened, and the Chromium spec fakes the pan because no desktop browser performs one.
-
-### CINNY-132 — final review hardening and remaining device gate (2026-07-28)
-
-- Status: implementation and automated validation are complete, while the physical-device matrix remains outstanding.
-- Persistent architecture coverage locked the single App-owned viewport hook mount and the fixed/top/height `#root` contract by matching source text; the remediation entry above replaces it with behavioral coverage.
-- The fixed-root comment now accurately distinguishes desktop fallbacks from Capacitor's published identity geometry.
-- Ignored `.superpowers/sdd` scratch reports are not referenced or committed; durable results are in this Runbook and the focused git history.
-- The final automated gates pass: 456 Vitest files with 3,449 tests, typecheck, ESLint with the established 17-warning baseline, the production/PWA build, and diff checks.
-- This host is Linux and has no `xcrun`, `simctl`, `idevice_id`, `ios-deploy`, or `adb`, so it cannot execute the physical iOS standalone, Android PWA, or Capacitor matrix.
-- Rows 1, 2, and 9 of the device matrix remain blocking release evidence and must not be represented as passed.
-
-### CINNY-132 — live build and deterministic jsdom evidence (2026-07-28)
-
-- Status: complete locally.
-- `npm run build` emitted `dist/assets/index-fAmcFbet.css` with SHA-256 `3f20f8b194ebfb4da7ce49ace12da6e003db6b1ff2ea5ebb65eb27c460b6b656`.
-- Its single emitted `#root` rule contains `position:fixed`, `top:var(--app-viewport-offset-top, 0px)`, and `height:var(--app-height, 100dvh)`.
-- A Vite preview at `127.0.0.1:4173` served HTML whose `index-BeJOVfzp.js` and `index-fAmcFbet.css` asset references matched the files in `dist/assets` by SHA-256, and only that preview process was stopped afterward.
-- The temporary real-hook jsdom harness used an iPhone Safari user agent, iOS-web Capacitor boundary mocks, queued animation frames, and the built CSS.
-- After both visual-viewport `resize` and `scroll` events at height `457` and offset top `170`, it reported `--app-height: 457px`, `--app-viewport-offset-top: 170px`, root screen top `0`, composer screen bottom `457`, and composer layout bottom `627`.
-- The harness passed 1/1 and confirmed cleanup removes both custom properties before its test file was deleted.
-- `viewport-fit=cover` and `interactive-widget=resizes-content` remain in `index.html`, and no service was restarted.
-- Limitation: this deterministic jsdom result is not a physical iPhone or Capacitor device run.
-
-### CINNY-132 — supplemental baseline test repair clears the final validation gate (2026-07-28)
-
-- Status: validation gate cleared.
-- The Xcode Cloud Homebrew fixture resolves Bash from the current environment, uses that executable for its harness and fake-tool shebangs, and retains fake-tool precedence in its restricted child `PATH`.
-- The room-input lifecycle assertion now verifies the sent upload by object identity instead of Vitest deep equality for platform `File` objects.
-- The prescribed focused command is GREEN at 20/20 tests after reproducing its 4/20 RED baseline.
-- The final `npm test` suite passes 456 files and 3,449 tests, while typecheck, ESLint, the production/PWA build, and `git diff --check` pass.
-- Root cause: the hook published only visual-viewport height and listened only for `resize`, so an offset-only keyboard pan was missed entirely.
-
-### CINNY-132 — Task 5 simplifies the composer max height (2026-07-28)
-
-- Status: complete locally.
-- `CustomEditor` now defaults to half of authoritative `--app-height`, with `100dvh` as the mobile-safe fallback.
-- The editor and room-input suites pass 98/98 tests, and typecheck passes.
-- The full suite reproduces four documented baseline failures: three Xcode Cloud Homebrew fixture tests and one room-input caption lifecycle test.
-- ESLint passes with the existing 17-warning baseline, and the production/PWA build passes.
-
-### CINNY-132 — Task 4 mounts the viewport hook at App (2026-07-28)
-
-- Status: complete locally.
-- `App` mounts `useMobileKeyboardViewportFix` once after composition tracking, and `RoomView` no longer imports or invokes it.
-- This keeps the global `#root` viewport variables alive while navigating away from a room and covers non-room keyboards.
-- The focused viewport-hook and RoomView suites pass 41/41 tests; typecheck, lint, and the production/PWA build pass.
-- The required full suite reproduces four documented baseline failures: three Xcode Cloud Homebrew fixture tests and one room-input caption lifecycle test.
-
-### CINNY-132 — Task 3 removes the RoomView height authority (2026-07-28)
-
-- Status: complete locally.
-- `RoomView` now renders its `Page` without an inline `--app-height` height lock, leaving Task 2's `#root` visual-viewport follower as the sole viewport-height authority.
-- Focused TDD first proved the new inverse assertion RED against the old `var(--app-height, 100%)` style, then the complete RoomView suite passed 35/35 after the one-line deletion.
-- Typecheck, full ESLint, and the production/PWA build pass.
-- The required full suite reproduces its four documented baseline failures: three Xcode Cloud Homebrew fixture tests and one room-input caption lifecycle test.
-
-### CINNY-132 — Task 2 fixed `#root` visual-viewport follower (2026-07-28)
-
-- Status: complete locally.
-- `#root` is fixed at Task 1's visual-viewport offset and uses its published visible height.
-- Desktop uses the `0px` and `100dvh` fallbacks, while Capacitor publishes equivalent identity geometry from its natively resized WebView.
-- The deliberate `top` positioning avoids changing the fixed-position containing block; the cleared Task 0 gate remains valid.
-- Typecheck, lint, production/PWA build, and `git diff --check` pass; the required full suite reproduces four pre-existing baseline failures, so finalization remains gated outside Task 2.
-
-### CINNY-132 — Task 1 visual viewport offset publisher (2026-07-28)
-
-- Status: complete locally with focused TDD coverage and the required build checks.
-- `useMobileKeyboardViewportFix` now publishes `--app-height` and `--app-viewport-offset-top`, listens to visual-viewport `resize` and `scroll`, resets the offset to `0px` during keyboard-hide restoration, and removes both properties on cleanup.
-- The focused hook suite has six passing tests, including new coverage for scroll-only keyboard pan, hide reset, cleanup, and the CINNY-053 `window.scrollTo` regression lock.
-- Typecheck, ESLint, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
-- The full `npm test` run has four unrelated failures: three Xcode Cloud Homebrew fixture tests and one room-input caption lifecycle test.
-
-### CINNY-132 — Task 0 `position: absolute` containing-block audit (2026-07-28)
-
-- Status: CLEARED by Task 0b, so the fixed-root CSS gate is open for Task 2.
-- The previously flagged surfaces were `ClientRootOptions` at `src/app/pages/client/ClientRoot.tsx:130`, `HiddenStatus` at `src/app/mindroom/voice/VoiceRecordingCapsule.css.ts:30`, and the room-thread overview live region at `src/app/mindroom/threads/RoomThreadOverview.tsx:910`.
-- The audit enumerated all 50 non-test hits across 33 source files and classified every other hit as safe because it has a relative, absolute, sticky, or fixed ancestor below `#root`.
-- Task 0b places `ClientRootOptions` and `ClientRootLoading` in a relative startup `Box`, makes the `VoiceRecordingCapsule` root relative, and makes both `RoomThreadOverview` render roots relative without changing normal-flow geometry.
-- The audit's enumeration was sound but its necessity conclusion for those three surfaces was not; see the remediation entry above, which reverts Task 0b.
-- Adjacent fixed surfaces remain non-blocking as specified: the full-viewport particle backgrounds still cover the visible window, while Call iframe surfaces are not made worse.
-- `#portalContainer` remains a later auto-stacked sibling above the root subtree, in-shell overview z-index values only order in-shell controls, and the ride-trace overlay mounts directly on `document.body`.
+- Status: redesign and independent code review are complete with no code blockers.
+- Root cause: some software keyboards shrink and pan only `visualViewport`, while the layout viewport and `100dvh` remain full-height, so a shell sized from visual height at layout `y=0` ends above the visible bottom by `visualViewport.offsetTop`.
+- Browser scope is geometry-based rather than user-agent-based, so Safari tabs, standalone PWAs, iOS browser shells, older or nonconforming Android browsers, and unknown engines take the fix whenever they expose the affected geometry.
+- Chrome 108+ and Firefox 131+ support `interactive-widget=resizes-content`, which is already requested in `index.html`, so compliant versions resize both viewports and naturally take the no-op path.
+- The hook activates only while a text editor is focused, visual scale is approximately `1`, and visual height is smaller than layout height.
+- Pinch zoom, browser-chrome movement without an editor, desktop layout changes, and web browsers that resize both viewports leave the original layout untouched.
+- Native keyboard-hide, page-show, and orientation signals retain the previous explicit layout-height recovery so a stale `visualViewport` or `100dvh` cannot strand the Capacitor shell at keyboard height.
+- Every viewport, focus, page-show, and orientation signal gets an immediate animation-frame read plus one 80ms settle read for WebKit's delayed `offsetTop` publication.
+- `#root` remains in normal flow and consumes the correction as visible height plus `margin-top`, avoiding fixed-root containing-block, stacking, portal, and whole-app compositing changes.
+- The earlier fixed `#root`, fixed `#portalContainer`, pointer-event restoration, command-palette sizing, filter-sheet sizing, and editor fallback changes are removed.
+- `App` owns the single global hook because `#root` is the single geometry consumer, while room view no longer keeps a competing height authority.
+- TDD reproduced five failures in the broad implementation: Chrome and Firefox web UAs were skipped, browser chrome was misclassified, pinch zoom was misclassified, and delayed WebKit offset publication was missed.
+- Focused coverage now exercises Safari, Chrome, Firefox, an unknown browser, resize-content no-op behavior, keyboard close restoration, zoom rejection, delayed metrics, cleanup, and the real App-to-hook-to-CSS chain in Chromium.
+- Final validation passes 455 Vitest files with 3,454 tests, typecheck, the production/PWA build, two Chromium layout tests, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- Physical-device confirmation remains outstanding because this host has no iOS Simulator, attached iOS tooling, or Android device tooling.
 
 ### Preserve browser tab shortcuts while composing (2026-07-27)
 
