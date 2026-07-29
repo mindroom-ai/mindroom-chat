@@ -11,6 +11,7 @@ import { FeatureCheck } from './FeatureCheck';
 import { createRouter } from './Router';
 import { ScreenSizeProvider, useScreenSize } from '../hooks/useScreenSize';
 import { useCompositionEndTracking } from '../hooks/useComposingCheck';
+import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewportFix';
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { ReactQueryDevtoolsToggle } from '../components/ReactQueryDevtoolsToggle';
 import { PersistentParticleBackgroundProvider } from '../components/particle-background';
@@ -20,6 +21,7 @@ const queryClient = new QueryClient();
 function App() {
   const screenSize = useScreenSize();
   useCompositionEndTracking();
+  useMobileKeyboardViewportFix();
 
   React.useEffect(() => setImperativeJotaiStore(appJotaiStore), []);
 
