@@ -1,4 +1,4 @@
-import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
+import { escapeMarkdownInlineSequences, parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 import { sanitizeText } from '../../utils/sanitize';
 import {
   formatMindroomPasteMarkerAsHtml,
@@ -84,6 +84,7 @@ const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
 const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /[`~$]|^(?:\t| {4})/;
 const MARKDOWN_ROOT_CODE_FENCE_REG = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const MARKDOWN_LIST_ITEM_REG = /^( *)([-*]|[\dA-Za-z]\.)( +)(.+)$/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
 
@@ -140,10 +141,26 @@ const normalizeMarkdownDashLists = (markdown: string): string => {
         return line;
       }
 
-      return line.replace(/^(\s*)-( +)(?=\S)/, '$1*$2');
+      const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+      if (!listItem || listItem[2] !== '-') return line;
+
+      return `${listItem[1]}*${listItem[3]}${listItem[4]}`;
     })
     .join('\n');
 };
+
+const preserveListContainedToolMarkers = (markdown: string): string =>
+  markdown
+    .split('\n')
+    .map((line) => {
+      const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+      if (!listItem || !parseMindroomToolRefText(listItem[4])) return line;
+
+      return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
+        listItem[4]
+      )}`;
+    })
+    .join('\n');
 
 const exceedsInlineMarkerBudget = (text: string): boolean => {
   let markerCount = 0;
@@ -229,7 +246,8 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
 
     try {
       const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
-      const parsedHtml = parseBlockMD(sanitizeMarkdownText(normalizedMarkdown), parseInlineMD);
+      const literalMarkerMarkdown = preserveListContainedToolMarkers(normalizedMarkdown);
+      const parsedHtml = parseBlockMD(sanitizeMarkdownText(literalMarkerMarkdown), parseInlineMD);
       htmlParts.push(normalizeParsedMathEntities(parsedHtml));
     } catch {
       formattingFailed = true;

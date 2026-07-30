@@ -811,6 +811,41 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('keeps a list-contained tool marker literal before long-text hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '- 🔧 `run_shell_command` [1]',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('run_shell_command');
+    expect(rendered).not.toContain('1 tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('keeps a reply-only long-text preview empty before hydration', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {

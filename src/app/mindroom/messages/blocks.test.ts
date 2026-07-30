@@ -263,6 +263,19 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).not.toContain('<ol');
   });
 
+  it('leaves tab-indented dash text literal', () => {
+    expect(formatMindroomMarkdownTextBodyAsHtml('\t- item')).toBe('\t- item');
+  });
+
+  it('keeps parser-accepted dash items unordered when content starts with whitespace', () => {
+    ['-  ', '- \titem'].forEach((body) => {
+      const formattedBody = formatMindroomMarkdownTextBodyAsHtml(body);
+
+      expect(formattedBody).toContain('<ul data-md="*">');
+      expect(formattedBody).not.toContain('<ol');
+    });
+  });
+
   it('falls back before recursive block or inline input reaches the parser', () => {
     const blockHeavy = Array.from({ length: 4_000 }, (_, index) => `# heading ${index}`).join('\n');
     const inlineHeavy = String.raw`\*`.repeat(513);

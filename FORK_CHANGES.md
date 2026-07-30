@@ -10,7 +10,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: conservative review remediation, current `dev` integration, and local validation are complete on `fix/long-text-preview-markdown`; fresh fixed-head re-review is pending.
+- Status: conservative review remediation, current `dev` integration, and local validation are complete on `fix/long-text-preview-markdown`.
 - Long-text events can carry a plain Markdown `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
@@ -23,10 +23,11 @@
 - First AgentCLI Codex and Claude reviews found indented-code marker promotion and double reply trimming on formatter fallback; both are fixed at the existing ambiguity and fallback boundaries, and both fixed-head reviewers approved with no remaining findings.
 - Post-PR #204 exact-head review reproduced double-sanitized math entities and unrelated inline syntax flipping dash lists to ordered lists; both are fixed with one-level math-output normalization and root-context-aware dash normalization.
 - Subsequent fixed-head review reproduced wide-spaced and nested dash markers remaining ordered plus a quoted URL being corrupted by a downstream second reply trim; normalization now matches the parser's dash-list grammar, and formatted previews keep the original body for the renderer-owned trim.
+- Final parser-boundary review reproduced tab-indented text mutation, whitespace-content dash lists remaining ordered, and list-contained tool markers becoming rich; dash normalization now mirrors the parser grammar exactly, and list-contained markers retain literal inline syntax.
 - A proposed source-switch lifecycle reset was rejected because the base branch deliberately retains hydrated content during plain-preview updates and this PR does not worsen that behavior.
 - Earlier live verification on the reported localhost thread confirmed that nine pre-hydration tool markers render as one `9 tool calls` dropdown.
-- Focused formatter, render, and hydration coverage passes 69 tests, including red-green regressions for inline and display math, root and nested list semantics, and single reply trimming.
-- The full suite passes all 455 files and 3,475 tests.
+- Focused formatter, render, and hydration coverage passes 72 tests, including red-green regressions for inline and display math, exact parser-list semantics, container-contained marker handling, and single reply trimming.
+- The full suite passes all 455 files and 3,478 tests.
 - Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
 
 ### CINNY-133 — Separate Recently Opened rows without changing their pitch (2026-07-29)
