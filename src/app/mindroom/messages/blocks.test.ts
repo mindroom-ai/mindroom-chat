@@ -273,6 +273,15 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(mathBody).toContain('data-mx-maths="- a + b"');
   });
 
+  it('preserves inline Markdown in ordinary wrench list prose', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['- prose 🔧 ordinary **bold** text', '- 🔧 ordinary **strong** text'].join('\n')
+    );
+
+    expect(formattedBody).toContain('<strong data-md="**">bold</strong>');
+    expect(formattedBody).toContain('<strong data-md="**">strong</strong>');
+  });
+
   it('sanitizes display math exactly once', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
       ['$$', String.raw`\begin{aligned}a & b\end{aligned}`, '$$'].join('\n')

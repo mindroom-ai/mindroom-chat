@@ -155,14 +155,25 @@ const normalizeMarkdownDashLists = (markdown: string): string =>
       .join('\n')
   );
 
+const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
+  if (!markdown.includes('🔧')) return false;
+
+  const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
+  // The downstream tool parser flattens leading span wrappers but preserves other inline elements.
+  const flattenedInline = parsedInline
+    .replace(/^(?:<span(?:\s[^>]*)?>)+(\s*🔧\s*)(?:<\/span>)+/u, '$1')
+    .replace(/<code(?:\s[^>]*)?>/g, '<code>');
+  MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
+  return MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim())?.index === 0;
+};
+
 const preserveListContainedToolMarkers = (markdown: string): string =>
   mapMarkdownOutsideParserBlocks(markdown, (text) =>
     text
       .split('\n')
       .map((line) => {
         const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-        // Inline syntax can wrap the wrench in spans that the downstream tool parser flattens.
-        if (!listItem || !listItem[4].includes('🔧')) return line;
+        if (!listItem || !listItemCanFlattenToToolRefPrefix(listItem[4])) return line;
 
         return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
           unescapeMarkdownInlineSequences(listItem[4])

@@ -886,7 +886,12 @@ describe('MindroomLongTextText hydration identity', () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
       ...createPreviewContent(),
-      body: ['- ||🔧|| `tool` [1]', '1. $🔧$ `tool` [2]'].join('\n'),
+      body: [
+        '- ||🔧|| `tool` [1]',
+        '1. $🔧$ `tool` [2]',
+        '- ||$🔧$|| `tool` [3]',
+        '1. || 🔧 || `tool` [4]',
+      ].join('\n'),
     };
     let renderer!: ReactTestRenderer;
 
