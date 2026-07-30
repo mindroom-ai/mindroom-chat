@@ -576,15 +576,24 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
-  it('removes the Matrix reply fallback before formatting a long-text preview', async () => {
+  it('formats a reply-stripped copy while preserving the original body for downstream trimming', async () => {
     toolTraceParserOptionsMock.mockClear();
+    const body = [
+      '> <@bob:example.org> Original question',
+      '',
+      'Intro paragraph',
+      '',
+      '> <@alice:example.org> Quoted detail https://example.org',
+      '',
+      'Tail',
+    ].join('\n');
 
     const renderer = await renderNode({
       msgType: 'm.text',
       hydrateLongText: false,
       content: {
         msgtype: 'm.text',
-        body: '> <@alice:example.org> Previous **reply**\n\nActual **answer**',
+        body,
         url: 'mxc://example.org/long-text',
         'io.mindroom.long_text': {
           version: 2,
@@ -597,9 +606,11 @@ describe('renderMindroomMessageContent', () => {
       | Record<string, unknown>
       | undefined;
 
-    expect(previewContent?.formatted_body).toContain('Actual <strong data-md="**">answer</strong>');
-    expect(previewContent?.formatted_body).not.toContain('Previous');
-    expect(previewContent?.body).toBe('Actual **answer**');
+    expect(previewContent?.formatted_body).toContain('Intro paragraph');
+    expect(previewContent?.formatted_body).toContain('Quoted detail https://example.org');
+    expect(previewContent?.formatted_body).toContain('Tail');
+    expect(previewContent?.formatted_body).not.toContain('Original question');
+    expect(previewContent?.body).toBe(body);
 
     renderer.unmount();
   });

@@ -115,7 +115,6 @@ export const renderMindroomMessageContent = ({
       ...source,
       previewContent: {
         ...previewContent,
-        body: trimmedBody,
         format: 'org.matrix.custom.html',
         formatted_body: formattedBody,
       },

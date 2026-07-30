@@ -245,6 +245,24 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('<code data-md="`">x</code>');
   });
 
+  it('keeps root dash lists unordered with wide marker spacing', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['-     first', '-     second'].join('\n')
+    );
+
+    expect(formattedBody).toContain('<ul data-md="*">');
+    expect(formattedBody).not.toContain('<ol');
+  });
+
+  it('keeps nested dash lists unordered', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['- parent', '    - child'].join('\n')
+    );
+
+    expect(formattedBody.match(/<ul data-md="\*">/g)).toHaveLength(2);
+    expect(formattedBody).not.toContain('<ol');
+  });
+
   it('falls back before recursive block or inline input reaches the parser', () => {
     const blockHeavy = Array.from({ length: 4_000 }, (_, index) => `# heading ${index}`).join('\n');
     const inlineHeavy = String.raw`\*`.repeat(513);

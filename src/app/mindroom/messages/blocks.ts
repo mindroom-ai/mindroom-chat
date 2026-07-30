@@ -140,8 +140,7 @@ const normalizeMarkdownDashLists = (markdown: string): string => {
         return line;
       }
 
-      if (/^(?:\t| {4})/.test(line)) return line;
-      return line.replace(/^(\s*)-( {1,4})(?=\S)/, '$1*$2');
+      return line.replace(/^(\s*)-( +)(?=\S)/, '$1*$2');
     })
     .join('\n');
 };
