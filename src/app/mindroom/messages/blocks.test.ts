@@ -275,11 +275,16 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
   it('preserves inline Markdown in ordinary wrench list prose', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
-      ['- prose 🔧 ordinary **bold** text', '- 🔧 ordinary **strong** text'].join('\n')
+      [
+        '- prose 🔧 ordinary **bold** text',
+        '- 🔧 ordinary **strong** text',
+        '- 🔧 `tool` [0] **invalid** marker',
+      ].join('\n')
     );
 
     expect(formattedBody).toContain('<strong data-md="**">bold</strong>');
     expect(formattedBody).toContain('<strong data-md="**">strong</strong>');
+    expect(formattedBody).toContain('<strong data-md="**">invalid</strong>');
   });
 
   it('sanitizes display math exactly once', () => {

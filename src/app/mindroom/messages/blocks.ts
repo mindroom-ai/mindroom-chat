@@ -164,7 +164,8 @@ const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
     .replace(/^(?:<span(?:\s[^>]*)?>)+(\s*🔧\s*)(?:<\/span>)+/u, '$1')
     .replace(/<code(?:\s[^>]*)?>/g, '<code>');
   MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
-  return MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim())?.index === 0;
+  const match = MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim());
+  return match?.index === 0 && parseMindroomToolRefHtml(match[0]) !== undefined;
 };
 
 const preserveListContainedToolMarkers = (markdown: string): string =>
