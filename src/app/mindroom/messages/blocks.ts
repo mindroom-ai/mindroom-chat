@@ -1,5 +1,5 @@
 import { escapeMarkdownInlineSequences, parseBlockMD, parseInlineMD } from '../../plugins/markdown';
-import { findDisplayLatexBlockMatch } from '../../plugins/math';
+import { findDisplayLatexBlockMatch, findInlineLatexMatch } from '../../plugins/math';
 import { CodeBlockRule } from '../../plugins/markdown/block/rules';
 import { sanitizeText } from '../../utils/sanitize';
 import {
@@ -84,7 +84,7 @@ const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
 const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
-const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /(?<!\\)[`~$]|^(?:\t| {4})/;
+const MARKDOWN_INDENTED_CONTEXT_REG = /^(?:\t| {4})/;
 const MARKDOWN_LIST_ITEM_REG = /^( *)([-*]|[\dA-Za-z]\.)( +)(.+)$/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
@@ -174,6 +174,18 @@ const exceedsInlineMarkerBudget = (text: string): boolean => {
   return false;
 };
 
+const hasAmbiguousMarkdownMarkerContext = (body: string, lines: string[]): boolean => {
+  if (findDisplayLatexBlockMatch(body)) return true;
+
+  return lines.some((line) => {
+    if (line === line.trim() && parseMindroomToolRefText(line)) return false;
+    if (MARKDOWN_INDENTED_CONTEXT_REG.test(line) || findInlineLatexMatch(line)) return true;
+
+    const unescapedMarkerText = line.replace(/\\([`~])/g, '');
+    return unescapedMarkerText.includes('`') || unescapedMarkerText.includes('~~');
+  });
+};
+
 const formatStandaloneMindroomMarkerAsHtml = (
   line: string,
   allowRichMarkers: boolean
@@ -228,12 +240,9 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     return '';
   }
 
-  const lines = body.replace(/\r\n?/g, '\n').split('\n');
-  const hasAmbiguousMarkerContext = lines.some(
-    (line) =>
-      MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG.test(line) &&
-      !(line === line.trim() && parseMindroomToolRefText(line))
-  );
+  const normalizedBody = body.replace(/\r\n?/g, '\n');
+  const lines = normalizedBody.split('\n');
+  const hasAmbiguousMarkerContext = hasAmbiguousMarkdownMarkerContext(normalizedBody, lines);
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];
   let formattingFailed = false;

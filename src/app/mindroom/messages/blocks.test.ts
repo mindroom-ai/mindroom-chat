@@ -196,7 +196,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
   it('promotes root markers when earlier inline syntax is escaped', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
-      ['Use \\`literal\\`.', '', '🔧 `tool` [1]'].join('\n')
+      ['Use \\`literal\\` and \\~~also literal\\~~.', '', '🔧 `tool` [1]'].join('\n')
     );
 
     expect(formattedBody).toContain('<p>🔧 <code>tool</code> [1]</p>');

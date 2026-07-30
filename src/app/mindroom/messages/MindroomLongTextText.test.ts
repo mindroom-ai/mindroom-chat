@@ -811,6 +811,40 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('renders a root tool card after escaped multi-character inline syntax', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: ['Use \\~~literal\\~~.', '', '🔧 `run_shell_command` [1]'].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('1 tool call');
+    expect(rendered).not.toContain('🔧');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('keeps a list-contained tool marker literal before long-text hydration', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
