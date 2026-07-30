@@ -815,7 +815,7 @@ describe('MindroomLongTextText hydration identity', () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
       ...createPreviewContent(),
-      body: ['Use \\~~literal\\~~.', '', '🔧 `run_shell_command` [1]'].join('\n'),
+      body: ['Use \\~~literal~~.', '', '🔧 `run_shell_command` [1]'].join('\n'),
     };
     let renderer!: ReactTestRenderer;
 
@@ -845,11 +845,11 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
-  it('keeps a list-contained tool marker literal before long-text hydration', async () => {
+  it('keeps a list-contained tool marker prefix literal before long-text hydration', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
       ...createPreviewContent(),
-      body: '- 🔧 `run_shell_command` [1]',
+      body: '- 🔧 `run_shell_command` [1] trailing text',
     };
     let renderer!: ReactTestRenderer;
 
@@ -873,6 +873,7 @@ describe('MindroomLongTextText hydration identity', () => {
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('🔧');
     expect(rendered).toContain('run_shell_command');
+    expect(rendered).toContain('trailing text');
     expect(rendered).not.toContain('1 tool call');
 
     await act(async () => {
