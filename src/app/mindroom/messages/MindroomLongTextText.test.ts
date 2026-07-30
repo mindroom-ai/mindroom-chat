@@ -891,6 +891,8 @@ describe('MindroomLongTextText hydration identity', () => {
         '1. $🔧$ `tool` [2]',
         '- ||$🔧$|| `tool` [3]',
         '1. || 🔧 || `tool` [4]',
+        '- || $🔧$|| `tool` [5] **tail**',
+        '1. || ||🔧 `tool` [6]',
       ].join('\n'),
     };
     let renderer!: ReactTestRenderer;

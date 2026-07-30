@@ -279,12 +279,14 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
         '- prose 🔧 ordinary **bold** text',
         '- 🔧 ordinary **strong** text',
         '- 🔧 `tool` [0] **invalid** marker',
+        '- 🔧 `tool<name` [1] **entity** marker',
       ].join('\n')
     );
 
     expect(formattedBody).toContain('<strong data-md="**">bold</strong>');
     expect(formattedBody).toContain('<strong data-md="**">strong</strong>');
     expect(formattedBody).toContain('<strong data-md="**">invalid</strong>');
+    expect(formattedBody).toContain('<strong data-md="**">entity</strong>');
   });
 
   it('sanitizes display math exactly once', () => {

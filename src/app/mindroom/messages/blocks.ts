@@ -1,3 +1,5 @@
+import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
+import type { DOMNode } from 'html-react-parser';
 import {
   escapeMarkdownInlineSequences,
   parseBlockMD,
@@ -155,17 +157,40 @@ const normalizeMarkdownDashLists = (markdown: string): string =>
       .join('\n')
   );
 
+const isDomTextNode = (node: DOMNode): node is DOMText => node.type === 'text';
+
+const isDomElementNode = (node: DOMNode): node is Element => node.type === 'tag';
+
+const extractDomText = (nodes: DOMNode[]): string =>
+  nodes
+    .map((node) => {
+      if (isDomTextNode(node)) return node.data;
+      if (isDomElementNode(node)) return extractDomText(node.children as DOMNode[]);
+      return '';
+    })
+    .join('');
+
 const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
   if (!markdown.includes('🔧')) return false;
 
   const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
-  // The downstream tool parser flattens leading span wrappers but preserves other inline elements.
-  const flattenedInline = parsedInline
-    .replace(/^(?:<span(?:\s[^>]*)?>)+(\s*🔧\s*)(?:<\/span>)+/u, '$1')
-    .replace(/<code(?:\s[^>]*)?>/g, '<code>');
+  let flattenedInline = '';
+  for (const node of htmlToDOM(parsedInline)) {
+    if (isDomTextNode(node)) {
+      flattenedInline += node.data;
+    } else if (isDomElementNode(node) && node.name === 'code') {
+      flattenedInline += `<code>${extractDomText(node.children as DOMNode[])}</code>`;
+    } else if (isDomElementNode(node) && node.name === 'span') {
+      flattenedInline += extractDomText(node.children as DOMNode[]);
+    } else {
+      break;
+    }
+  }
+
   MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
   const match = MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim());
-  return match?.index === 0 && parseMindroomToolRefHtml(match[0]) !== undefined;
+  if (match?.index !== 0) return false;
+  return parseMindroomToolRefHtml(match[0]) !== undefined;
 };
 
 const preserveListContainedToolMarkers = (markdown: string): string =>
