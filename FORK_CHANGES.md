@@ -2,14 +2,59 @@
 
 ## Runbook
 
-### Fix bottom sheets rendering with zero radius (2026-07-24)
+### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
-- Status: PR #200 is open and ready for review; split out of the closed PR #198 after PR #199 superseded its palette and surface work.
-- `CommandPaletteRenderer.tsx` and `FilterBarMobileSheet.tsx` set their mobile bottom-sheet radius through `var(--radii-400)`, but folds emits hashed CSS variable names, so the variable never resolved and both sheets rendered with square top corners.
-- Both now use the `config.radii.R400` token, which also keeps them on the fork's modernized radius scale from CINNY-213.
-- The folds mocks in `CommandPaletteRenderer.test.ts`, `FilterBar.test.ts`, and `Threads.test.ts` now provide `config.radii`; the command-palette expectation pins the resolved value instead of the broken variable name.
-- The broken variable was first recorded in the CINNY-213 visual-audit backlog; the `WelcomePage.tsx:94` hardcoded radius noted there is unaffected by this change.
-- Validation: the three touched test files pass 14 tests; typecheck, touched-file Prettier and ESLint, and `git diff --check` pass.
+- Status: implementation and regression coverage are complete in PR #200; final post-integration validation is pending.
+- The command-palette and thread-filter sheets now consume Folds `config.radii.R400` instead of the undefined unhashed `--radii-400` variable, so the active fork theme controls both top corners.
+- Focused coverage pins both mobile sheets to distinct mocked radius tokens, so dead-variable and hardcoded-radius regressions fail.
+
+### CINNY-132 — capability-based keyboard viewport correction (2026-07-28)
+
+- Status: redesign and independent code review are complete with no code blockers.
+- Root cause: some software keyboards shrink and pan only `visualViewport`, while the layout viewport and `100dvh` remain full-height, so a shell sized from visual height at layout `y=0` ends above the visible bottom by `visualViewport.offsetTop`.
+- Browser scope is geometry-based rather than user-agent-based, so Safari tabs, standalone PWAs, iOS browser shells, older or nonconforming Android browsers, and unknown engines take the fix whenever they expose the affected geometry.
+- Chrome 108+ and Firefox 131+ support `interactive-widget=resizes-content`, which is already requested in `index.html`, so compliant versions resize both viewports and naturally take the no-op path.
+- The hook activates only while a text editor is focused, visual scale is approximately `1`, and visual height is at least 48 px smaller than layout height.
+- Pinch zoom, browser-chrome movement without an editor, desktop layout changes, and web browsers that resize both viewports leave the original layout untouched.
+- The 48 px significance floor rejects the persistent 24 px visual-viewport height error reported after iOS 26 keyboard dismissal while retaining ordinary software-keyboard reductions.
+- Native keyboard-hide, page-show, and orientation signals retain the previous explicit layout-height recovery so a stale `visualViewport` or `100dvh` cannot strand the Capacitor shell at keyboard height.
+- Every viewport, focus, page-show, and orientation signal gets an immediate animation-frame read plus one 80ms settle read for WebKit's delayed `offsetTop` publication.
+- `#root` remains in normal flow and consumes the correction as visible height plus `margin-top`, avoiding fixed-root containing-block, stacking, portal, and whole-app compositing changes.
+- The earlier fixed `#root`, fixed `#portalContainer`, pointer-event restoration, command-palette sizing, filter-sheet sizing, and editor fallback changes are removed.
+- `App` owns the single global hook because `#root` is the single geometry consumer, while room view no longer keeps a competing height authority.
+- TDD reproduced five failures in the broad implementation: Chrome and Firefox web UAs were skipped, browser chrome was misclassified, pinch zoom was misclassified, and delayed WebKit offset publication was missed.
+- Fresh review reproduced two more failures for stale 24 px iOS 26 viewport geometry with zero and positive offsets before the significance floor was added.
+- Independent follow-up review reproduced an exact 48 px boundary failure before the inclusive threshold was added.
+- Focused coverage now exercises Safari, Chrome, Firefox, an unknown browser, resize-content clearing from an active state, keyboard close restoration, stale 24 px geometry, zoom rejection, delayed metrics, cleanup, and the real App-to-hook-to-CSS chain in Chromium.
+- Final validation passes 455 Vitest files with 3,457 tests, typecheck, the production/PWA build, two Chromium layout tests, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- Physical-device confirmation remains outstanding because this host has no iOS Simulator, attached iOS tooling, or Android device tooling.
+
+### Preserve browser tab shortcuts while composing (2026-07-27)
+
+- Status: narrow implementation, regression coverage, and full local validation are complete.
+- The inherited editor mapped `Cmd/Ctrl+1`, `Cmd/Ctrl+2`, and `Cmd/Ctrl+3` to heading levels and prevented the browser from using those shortcuts while the composer was focused.
+- The editor now leaves all three number shortcuts unhandled so browser tab navigation continues to work from the composer.
+- Heading levels remain available through the formatting toolbar, whose tooltips no longer advertise the removed shortcuts.
+- Focused regression coverage passes all six Cmd/Ctrl number-key cases and proves they leave the current paragraph unchanged.
+- Independent review caught missing explicit Cmd coverage, which is now included alongside Ctrl coverage.
+- The full Vitest suite passes all 455 files with 3,442 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Risks: none identified beyond browser-specific shortcut conventions, which remain browser-owned.
+- Next step: after merge, verify `Cmd+1` through `Cmd+3` in the shipped client while the composer is focused.
+
+### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
+
+- Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
+- Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
+- The dark-family theme classes now define one 55%-opaque neutral thumb color in `index.css`.
+- Six versioned folds declarations cover WebKit and standards-based scrollbars, including textareas, while retaining the library line color as their fallback.
+- Scrollbar size, track colors, hover-only visibility, and light-theme behavior remain unchanged.
+- Focused coverage reads the real CSS token and actual dark palette source, then checks every dark track for at least 3:1 contrast.
+- The final PR diff is four files; the first revision's theme helpers and palette rewiring are removed.
+- A clean dependency install applies the patch, and the focused test, typecheck, production/PWA build, Prettier, ESLint with the existing 17-warning baseline, and `git diff --check` pass.
+- The full suite passes 452 of 454 files and 3,432 of 3,436 tests: three pre-existing Nix-environment Xcode Cloud fixture failures plus one unrelated gap-fill concurrency flake that passes all 19 tests on immediate isolated rerun.
+- Live dark-theme verification resolves `#ececef8c` and finds both patched WebKit thumb rules.
+- Independent review caught and fixed missing standards and textarea paths plus copied-track test drift; final review state is tracked on GitHub.
 
 ### Visual modernization (2026-07-24)
 

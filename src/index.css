@@ -74,6 +74,7 @@ html.butter-theme {
 .midnight-theme,
 .butter-theme {
   --tc-link: #b3a9ff;
+  --mr-scrollbar-thumb-color: #ececef8c;
 
   /* Same eight hues, lifted for dark surfaces: L 0.82, chroma capped at 0.115,
      worst contrast 7.69 against butter's Surface.Container, the lightest of
@@ -129,9 +130,20 @@ body {
   /*Why font-variant-ligatures => https://github.com/rsms/inter/issues/222 */
   font-variant-ligatures: no-contextual;
 }
+/* CINNY-132: when a focused editor opens a software keyboard without shrinking
+   the layout viewport, `useMobileKeyboardViewportFix` publishes the visible
+   viewport height and top offset.
+
+   Keep the shell in normal flow. `margin-top` moves it into the visible window
+   without creating the fixed-position containing block or stacking-context
+   changes caused by `position: fixed` or `transform`. Body overflow establishes
+   a formatting context, so this first-child margin does not collapse through
+   the body. Browsers that resize the layout viewport publish nothing and use
+   the original 100% geometry. */
 #root {
   width: 100%;
-  height: 100%;
+  height: var(--app-height, 100%);
+  margin-top: var(--app-viewport-offset-top, 0px);
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top, 0px);
