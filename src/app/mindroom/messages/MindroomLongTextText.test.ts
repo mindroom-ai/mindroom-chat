@@ -882,6 +882,77 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it('keeps span-wrapped list-contained tool markers literal before hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: ['- ||🔧|| `tool` [1]', '1. $🔧$ `tool` [2]'].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('tool');
+    expect(rendered).not.toContain('tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not expose added escapes in a list-contained tool marker', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '- 🔧 \\`tool\\` [1]',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('`tool` [1]');
+    expect(rendered).not.toContain('\\\\');
+    expect(rendered).not.toContain('tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('keeps a reply-only long-text preview empty before hydration', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {

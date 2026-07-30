@@ -1,4 +1,9 @@
-import { escapeMarkdownInlineSequences, parseBlockMD, parseInlineMD } from '../../plugins/markdown';
+import {
+  escapeMarkdownInlineSequences,
+  parseBlockMD,
+  parseInlineMD,
+  unescapeMarkdownInlineSequences,
+} from '../../plugins/markdown';
 import { findDisplayLatexBlockMatch, findInlineLatexMatch } from '../../plugins/math';
 import { CodeBlockRule } from '../../plugins/markdown/block/rules';
 import { CodeRule, StrikeRule } from '../../plugins/markdown/inline/rules';
@@ -156,10 +161,11 @@ const preserveListContainedToolMarkers = (markdown: string): string =>
       .split('\n')
       .map((line) => {
         const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-        if (!listItem || !listItem[4].trimStart().startsWith('🔧')) return line;
+        // Inline syntax can wrap the wrench in spans that the downstream tool parser flattens.
+        if (!listItem || !listItem[4].includes('🔧')) return line;
 
         return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
-          listItem[4]
+          unescapeMarkdownInlineSequences(listItem[4])
         )}`;
       })
       .join('\n')
