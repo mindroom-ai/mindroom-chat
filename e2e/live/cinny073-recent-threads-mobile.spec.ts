@@ -114,6 +114,71 @@ const waitForRecentlyOpenedEntries = async (page: Page, fixtures: ThreadFixture[
   );
 };
 
+type RecentlyOpenedRowMetrics = {
+  dividerContent: string;
+  dividerHeight: string;
+  dividerLeft: string;
+  dividerRight: string;
+  dividerTop: string;
+  height: number;
+  marginTop: string;
+  top: number;
+};
+
+const readRecentlyOpenedRowMetrics = async (page: Page): Promise<RecentlyOpenedRowMetrics[]> =>
+  page
+    .getByTestId('recently-opened-nav-list')
+    .getByRole('button', { name: /^Open thread:/i })
+    .evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const row = button.parentElement;
+        if (!row) throw new Error('Recently Opened row is unavailable');
+
+        const bounds = row.getBoundingClientRect();
+        const rowStyle = getComputedStyle(row);
+        const dividerStyle = getComputedStyle(row, '::before');
+        return {
+          dividerContent: dividerStyle.content,
+          dividerHeight: dividerStyle.height,
+          dividerLeft: dividerStyle.left,
+          dividerRight: dividerStyle.right,
+          dividerTop: dividerStyle.top,
+          height: bounds.height,
+          marginTop: rowStyle.marginTop,
+          top: bounds.top,
+        };
+      })
+    );
+
+const expectRecentlyOpenedRowGrouping = async (page: Page, expectedRowCount: number) => {
+  await expect
+    .poll(async () => (await readRecentlyOpenedRowMetrics(page)).length)
+    .toBe(expectedRowCount);
+
+  const rows = await readRecentlyOpenedRowMetrics(page);
+  expect.soft(rows[0].marginTop).toBe('0px');
+  expect.soft(rows[0].dividerContent).toBe('none');
+  expect.soft(rows[0].height).toBe(38);
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const previousRow = rows[index - 1];
+    const row = rows[index];
+    expect.soft(row.top - previousRow.top).toBe(42);
+    expect.soft(row.top - (previousRow.top + previousRow.height)).toBe(4);
+    expect.soft(row.height).toBe(38);
+    expect.soft(row.marginTop).toBe('4px');
+    expect.soft(row.dividerContent).toBe('""');
+    expect.soft(row.dividerHeight).toBe('1px');
+    expect.soft(row.dividerTop).toBe('-2px');
+    expect.soft(row.dividerLeft).toBe('8px');
+    expect.soft(row.dividerRight).toBe('12px');
+  }
+
+  expect(rows.filter((row) => row.dividerContent === '""')).toHaveLength(
+    Math.max(0, rows.length - 1)
+  );
+};
+
 const expectRecentlyOpenedAtViewportBottom = async (page: Page, viewportHeight: number) => {
   await expect
     .poll(async () => {
@@ -222,6 +287,52 @@ const prepareThreadFixtures = async (threadCount: number) => {
 
 test.describe('live cinny073 persistent thread navigation', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
+
+  test('keeps two-line rows grouped at a 42px pitch with dividers only between entries', async ({
+    page,
+  }) => {
+    test.slow();
+
+    const diagnostics = attachBrowserDiagnostics(page);
+    const { fixtures, homeserver, password, session, username } = await prepareThreadFixtures(2);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      simpleMode: false,
+      expandLongMessagesByDefault: true,
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await seedExistingNavState(page, session.userId);
+    await loginWithPassword(page, { homeserver, username, password });
+
+    for (const fixture of fixtures) {
+      await seedRoomOverviewState({
+        page,
+        roomId: fixture.roomId,
+        userId: session.userId,
+        viewMode: 'threaded',
+        filterState: createDefaultThreadFilterState(),
+      });
+    }
+    await seedRecentThreadsState({ page, userId: session.userId, fixtures });
+
+    await page.goto('/home/');
+    await waitForLoggedInShell(page);
+    await getRecentlyOpenedCategoryButton(page).click();
+    await waitForRecentlyOpenedEntries(page, fixtures);
+    await expectRecentlyOpenedRowGrouping(page, 2);
+
+    await seedRecentThreadsState({ page, userId: session.userId, fixtures: fixtures.slice(0, 1) });
+    await page.reload();
+    await waitForLoggedInShell(page);
+    await waitForRecentlyOpenedEntries(page, fixtures.slice(0, 1));
+    await expectRecentlyOpenedRowGrouping(page, 1);
+
+    await expectNoUnexpectedBrowserDiagnostics(
+      diagnostics,
+      'cinny133-recently-opened-row-grouping'
+    );
+  });
 
   for (const viewport of VIEWPORTS) {
     test(`keeps Recently Opened at the bottom at ${viewport.width}x${viewport.height}`, async ({

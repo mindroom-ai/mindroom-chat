@@ -8,6 +8,34 @@
 - The command-palette and thread-filter sheets now consume Folds `config.radii.R400` instead of the undefined unhashed `--radii-400` variable, so the active fork theme controls both top corners.
 - Focused coverage pins both mobile sheets to distinct mocked radius tokens, so dead-variable and hardcoded-radius regressions fail.
 
+### CINNY-133 — Separate Recently Opened rows without changing their pitch (2026-07-29)
+
+- Status: exact-head review remediation and full local validation are complete; the issue remains open and is not marked fixed.
+- The existing T300 summary now starts each row, followed by the unchanged room-name and relative-timestamp metadata pair.
+- The outer two-line column no longer owns the S100 gap; the same 4px moves to `& + &` between adjacent entries.
+- Each adjacent boundary receives one absolutely positioned B300 `Background.ContainerLine` hairline inset by S200 on the left and S300 on the right.
+- The row box changes from 42px to 38px, while the 4px boundary preserves the repeated 42px top-to-top pitch.
+- The first row has no leading boundary, so N entries change from `42N` to `38N + 4(N - 1) = 42N - 4`.
+- `recentlyOpenedPanelHeight.ts` and its test remain unchanged.
+- Review remediation adds a live browser regression that reads computed row and `::before` styles for two entries and then one entry.
+- The regression checks 38px rows, the 4px inter-row band, the repeated 42px pitch, the inset 1px divider on later rows, and no divider on the first or only row.
+- Review-remediation RED check: with the adjacency selectors removed, the browser regression failed on the 38px pitch, absent 4px band, zero margin, and absent divider.
+- Review-remediation GREEN check: `E2E_ENABLE_DEPLOYED_FIXTURE=0 E2E_MATRIX_AUTO_DOWN=1 ./scripts/test-e2e-docker-matrix.sh e2e/live/cinny073-recent-threads-mobile.spec.ts --grep 'keeps two-line rows grouped'` passes one Chromium test against Docker Matrix.
+- TDD red check: `npm test -- src/app/mindroom/recent-threads/RecentThreadEntry.test.ts` failed on title order, the outer `gap="100"`, and the absent `RecentlyOpenedEntry` class without loading the real vanilla-extract module.
+- TDD green check: `npm test -- src/app/mindroom/recent-threads/RecentThreadEntry.test.ts` passes all 5 tests.
+- Unchanged category and panel-height check: `npm test -- src/app/mindroom/recent-threads/RecentlyOpenedNavCategory.test.ts src/app/mindroom/recent-threads/recentlyOpenedPanelHeight.test.ts` passes 2 files and 11 tests.
+- The full recent-threads directory passes 8 files and 46 tests with the existing React Router future-flag warnings.
+- `npm run typecheck` and `npm run build` pass; the build emits the existing Vite CJS, runtime-config, dependency-sourcemap, and chunk-size warnings.
+- `npm run lint` passes with 17 existing warnings and zero errors.
+- Touched-file Prettier and `git diff --check` pass.
+- The default parallel `npm test` run passed the changed recent-thread tests but hit 14 timing and order failures across 8 unrelated files.
+- All 8 affected files pass 210 of 210 tests when rerun with one worker.
+- The final `npm test -- --maxWorkers=1 --minWorkers=1` run passes all 455 files and 3,458 tests.
+- The existing Docker-Matrix live spec passes desktop, tablet, 480px, and 360px viewports on the first instrumented run; its 1024x480 cross-route height poll passes on an isolated rerun after one transient failure.
+- Live screenshots confirm title-first rendering, intact metadata and truncation at 1440px and 360px, inset dividers between adjacent rows, and no adjacency divider for a single row.
+- Exact-head PR review found a missing real-style regression, hard-wrapped prose, and no explicit next step; this follow-up addresses all three.
+- Next step: after PR #204 merges, verify the row grouping in the shipped client and close CINNY-133.
+
 ### CINNY-132 — capability-based keyboard viewport correction (2026-07-28)
 
 - Status: redesign and independent code review are complete with no code blockers.
