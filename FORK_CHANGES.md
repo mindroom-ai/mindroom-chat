@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Restore rounded mobile bottom-sheet corners (2026-07-30)
+
+- Status: implementation, regression coverage, and post-integration validation are complete in PR #200.
+- The command-palette and thread-filter sheets now consume Folds `config.radii.R400` instead of the undefined unhashed `--radii-400` variable, so the active fork theme controls both top corners.
+- Focused coverage pins both mobile sheets to distinct mocked radius tokens, so dead-variable and hardcoded-radius regressions fail.
+
 ### CINNY-133 — Separate Recently Opened rows without changing their pitch (2026-07-29)
 
 - Status: exact-head review remediation and full local validation are complete; the issue remains open and is not marked fixed.
