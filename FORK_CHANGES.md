@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Restore rounded mobile bottom-sheet corners (2026-07-30)
+
+- Status: implementation, regression coverage, and post-integration validation are complete in PR #200.
+- The command-palette and thread-filter sheets now consume Folds `config.radii.R400` instead of the undefined unhashed `--radii-400` variable, so the active fork theme controls both top corners.
+- Focused coverage pins both mobile sheets to distinct mocked radius tokens, so dead-variable and hardcoded-radius regressions fail.
+
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
 - Status: conservative review remediation, current `dev` integration, local validation, and independent fixed-code re-review are complete on `fix/long-text-preview-markdown`.

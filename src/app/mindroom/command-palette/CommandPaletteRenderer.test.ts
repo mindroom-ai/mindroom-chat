@@ -149,6 +149,9 @@ vi.mock('folds', async () => {
       space: {
         S400: '16px',
       },
+      radii: {
+        R400: '0.75rem',
+      },
     },
   };
 });
@@ -223,7 +226,7 @@ describe('CommandPaletteRenderer', () => {
     );
 
     expect(modal.props.style).toEqual({
-      borderRadius: 'var(--radii-400) var(--radii-400) 0 0',
+      borderRadius: '0.75rem 0.75rem 0 0',
       height: 'min(85svh, 700px)',
       maxHeight: 'min(85svh, 700px)',
       maxWidth: '100vw',

@@ -1,5 +1,16 @@
 import React, { ReactNode, useRef } from 'react';
-import { Box, Header, Icon, IconButton, Icons, Modal, Overlay, OverlayBackdrop, Text } from 'folds';
+import {
+  Box,
+  config,
+  Header,
+  Icon,
+  IconButton,
+  Icons,
+  Modal,
+  Overlay,
+  OverlayBackdrop,
+  Text,
+} from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import * as css from './FilterBarMobileSheet.css';
@@ -12,7 +23,7 @@ type FilterBarMobileSheetProps = {
 
 const MOBILE_SHEET_HEIGHT = 'min(85svh, 700px)';
 const MOBILE_SHEET_STYLE: React.CSSProperties = {
-  borderRadius: 'var(--radii-400) var(--radii-400) 0 0',
+  borderRadius: `${config.radii.R400} ${config.radii.R400} 0 0`,
   height: MOBILE_SHEET_HEIGHT,
   maxHeight: MOBILE_SHEET_HEIGHT,
   maxWidth: '100vw',
