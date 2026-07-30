@@ -18,9 +18,7 @@ export type MindroomToolRefParseResult = {
 // Contract for matching formatted_body markers emitted by the server (v2).
 export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\]( ⏳)?/g;
 
-const MINDROOM_TOOL_REF_TEXT_PATTERN = '\\s*🔧\\s+`([^`]+)`\\s+\\[(\\d+)\\](?:\\s+(⏳))?';
-const MINDROOM_TOOL_REF_TEXT_REG = new RegExp(`^${MINDROOM_TOOL_REF_TEXT_PATTERN}\\s*$`, 'u');
-const MINDROOM_TOOL_REF_TEXT_PREFIX_REG = new RegExp(`^${MINDROOM_TOOL_REF_TEXT_PATTERN}`, 'u');
+const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
 
 const parseToolRefMatch = (match: RegExpExecArray): MindroomToolRefParseResult | undefined => {
   const toolName = match[1]?.trim();
@@ -47,12 +45,6 @@ export const parseMindroomToolRefHtml = (html: string): MindroomToolRefParseResu
 
 export const parseMindroomToolRefText = (text: string): MindroomToolRefParseResult | undefined => {
   const match = MINDROOM_TOOL_REF_TEXT_REG.exec(text);
-  if (!match) return undefined;
-  return parseToolRefMatch(match);
-};
-
-const parseMindroomToolRefTextPrefix = (text: string): MindroomToolRefParseResult | undefined => {
-  const match = MINDROOM_TOOL_REF_TEXT_PREFIX_REG.exec(text);
   if (!match) return undefined;
   return parseToolRefMatch(match);
 };
@@ -164,7 +156,7 @@ const preserveListContainedToolMarkers = (markdown: string): string =>
       .split('\n')
       .map((line) => {
         const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-        if (!listItem || !parseMindroomToolRefTextPrefix(listItem[4])) return line;
+        if (!listItem || !listItem[4].trimStart().startsWith('🔧')) return line;
 
         return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
           listItem[4]

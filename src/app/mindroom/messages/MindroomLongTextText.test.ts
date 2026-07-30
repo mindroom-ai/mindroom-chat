@@ -849,7 +849,7 @@ describe('MindroomLongTextText hydration identity', () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {
       ...createPreviewContent(),
-      body: '- 🔧 `run_shell_command` [1] trailing text',
+      body: '- 🔧 `foo\\`bar` [1] trailing text',
     };
     let renderer!: ReactTestRenderer;
 
@@ -872,7 +872,8 @@ describe('MindroomLongTextText hydration identity', () => {
 
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('🔧');
-    expect(rendered).toContain('run_shell_command');
+    expect(rendered).toContain('foo');
+    expect(rendered).toContain('bar');
     expect(rendered).toContain('trailing text');
     expect(rendered).not.toContain('1 tool call');
 
