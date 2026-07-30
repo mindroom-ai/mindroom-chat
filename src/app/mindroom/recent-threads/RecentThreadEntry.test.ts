@@ -207,7 +207,7 @@ describe('RecentThreadEntry', () => {
     );
   });
 
-  it('renders the title first and separates adjacent row content without losing metadata', () => {
+  it('renders the title before metadata without losing content or accessibility context', () => {
     summaryTextState.value = '🧵 Thread summary';
     act(() => {
       renderer = create(
