@@ -3395,7 +3395,7 @@ export function RoomTimeline({
                   color: color.Primary.Main,
                   cursor: 'pointer',
                   fontSize: '0.75rem',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--font-mono)',
                   opacity: 0.7,
                   background: 'none',
                   border: 'none',

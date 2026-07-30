@@ -4,7 +4,7 @@
 
 ### Render long-text preview Markdown before sidecar hydration (2026-07-23)
 
-- Status: conservative review remediation, local validation, and independent fixed-code re-review are complete on `fix/long-text-preview-markdown`.
+- Status: conservative review remediation, current `dev` integration, local validation, and independent fixed-code re-review are complete on `fix/long-text-preview-markdown`.
 - Long-text events can carry a plain Markdown `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
@@ -18,8 +18,94 @@
 - A proposed source-switch lifecycle reset was rejected because the base branch deliberately retains hydrated content during plain-preview updates and this PR does not worsen that behavior.
 - Earlier live verification on the reported localhost thread confirmed that nine pre-hydration tool markers render as one `9 tool calls` dropdown.
 - Focused formatter, render, and hydration coverage passes 64 tests.
-- The full suite passes 452 of 453 files and 3,444 of 3,447 tests; only the unrelated Xcode/Homebrew shim file fails because this Nix shell prepends real Homebrew ahead of its temporary stub.
+- After applying the current dependency patches, the serial full suite passes all 455 files and 3,469 tests; the default highly parallel run only hit host-load timeouts in files that pass focused.
 - Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+
+### CINNY-132 — capability-based keyboard viewport correction (2026-07-28)
+
+- Status: redesign and independent code review are complete with no code blockers.
+- Root cause: some software keyboards shrink and pan only `visualViewport`, while the layout viewport and `100dvh` remain full-height, so a shell sized from visual height at layout `y=0` ends above the visible bottom by `visualViewport.offsetTop`.
+- Browser scope is geometry-based rather than user-agent-based, so Safari tabs, standalone PWAs, iOS browser shells, older or nonconforming Android browsers, and unknown engines take the fix whenever they expose the affected geometry.
+- Chrome 108+ and Firefox 131+ support `interactive-widget=resizes-content`, which is already requested in `index.html`, so compliant versions resize both viewports and naturally take the no-op path.
+- The hook activates only while a text editor is focused, visual scale is approximately `1`, and visual height is at least 48 px smaller than layout height.
+- Pinch zoom, browser-chrome movement without an editor, desktop layout changes, and web browsers that resize both viewports leave the original layout untouched.
+- The 48 px significance floor rejects the persistent 24 px visual-viewport height error reported after iOS 26 keyboard dismissal while retaining ordinary software-keyboard reductions.
+- Native keyboard-hide, page-show, and orientation signals retain the previous explicit layout-height recovery so a stale `visualViewport` or `100dvh` cannot strand the Capacitor shell at keyboard height.
+- Every viewport, focus, page-show, and orientation signal gets an immediate animation-frame read plus one 80ms settle read for WebKit's delayed `offsetTop` publication.
+- `#root` remains in normal flow and consumes the correction as visible height plus `margin-top`, avoiding fixed-root containing-block, stacking, portal, and whole-app compositing changes.
+- The earlier fixed `#root`, fixed `#portalContainer`, pointer-event restoration, command-palette sizing, filter-sheet sizing, and editor fallback changes are removed.
+- `App` owns the single global hook because `#root` is the single geometry consumer, while room view no longer keeps a competing height authority.
+- TDD reproduced five failures in the broad implementation: Chrome and Firefox web UAs were skipped, browser chrome was misclassified, pinch zoom was misclassified, and delayed WebKit offset publication was missed.
+- Fresh review reproduced two more failures for stale 24 px iOS 26 viewport geometry with zero and positive offsets before the significance floor was added.
+- Independent follow-up review reproduced an exact 48 px boundary failure before the inclusive threshold was added.
+- Focused coverage now exercises Safari, Chrome, Firefox, an unknown browser, resize-content clearing from an active state, keyboard close restoration, stale 24 px geometry, zoom rejection, delayed metrics, cleanup, and the real App-to-hook-to-CSS chain in Chromium.
+- Final validation passes 455 Vitest files with 3,457 tests, typecheck, the production/PWA build, two Chromium layout tests, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check`.
+- Physical-device confirmation remains outstanding because this host has no iOS Simulator, attached iOS tooling, or Android device tooling.
+
+### Preserve browser tab shortcuts while composing (2026-07-27)
+
+- Status: narrow implementation, regression coverage, and full local validation are complete.
+- The inherited editor mapped `Cmd/Ctrl+1`, `Cmd/Ctrl+2`, and `Cmd/Ctrl+3` to heading levels and prevented the browser from using those shortcuts while the composer was focused.
+- The editor now leaves all three number shortcuts unhandled so browser tab navigation continues to work from the composer.
+- Heading levels remain available through the formatting toolbar, whose tooltips no longer advertise the removed shortcuts.
+- Focused regression coverage passes all six Cmd/Ctrl number-key cases and proves they leave the current paragraph unchanged.
+- Independent review caught missing explicit Cmd coverage, which is now included alongside Ctrl coverage.
+- The full Vitest suite passes all 455 files with 3,442 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Risks: none identified beyond browser-specific shortcut conventions, which remain browser-owned.
+- Next step: after merge, verify `Cmd+1` through `Cmd+3` in the shipped client while the composer is focused.
+
+### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
+
+- Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
+- Regression: the visual modernization moved each `ContainerLine` close to its container so borders stay subtle, but folds also used that line token for scrollbar thumbs and reduced dark thumb-to-track contrast to about 1.08:1.
+- The dark-family theme classes now define one 55%-opaque neutral thumb color in `index.css`.
+- Six versioned folds declarations cover WebKit and standards-based scrollbars, including textareas, while retaining the library line color as their fallback.
+- Scrollbar size, track colors, hover-only visibility, and light-theme behavior remain unchanged.
+- Focused coverage reads the real CSS token and actual dark palette source, then checks every dark track for at least 3:1 contrast.
+- The final PR diff is four files; the first revision's theme helpers and palette rewiring are removed.
+- A clean dependency install applies the patch, and the focused test, typecheck, production/PWA build, Prettier, ESLint with the existing 17-warning baseline, and `git diff --check` pass.
+- The full suite passes 452 of 454 files and 3,432 of 3,436 tests: three pre-existing Nix-environment Xcode Cloud fixture failures plus one unrelated gap-fill concurrency flake that passes all 19 tests on immediate isolated rerun.
+- Live dark-theme verification resolves `#ececef8c` and finds both patched WebKit thumb rules.
+- Independent review caught and fixed missing standards and textarea paths plus copied-track test drift; final review state is tracked on GitHub.
+
+### Visual modernization (2026-07-24)
+
+Staged refresh of the whole client: global design tokens first, chat-surface polish second, all five themes. Typecheck, the production/PWA build, ESLint, Prettier, and the full suite (453 files, 3435 tests) pass on every stage. Verified live in the browser except where the landmines below say otherwise.
+
+| stage | change |
+| --- | --- |
+| 1a color | All five palettes regenerated from one OKLCH ramp on brand hue 288, replacing folds' blue and lavender `Primary`. `ContainerLine` moved ~0.03 L off its own `Container` so borders read as edges; `Other.Shadow` made translucent everywhere. The fork now owns `lightTheme`. 155 audited pairs pass AA. Every `Background.Container` hex frozen, so no vertical metric moved. |
+| 1b type | `opticalTracking` override on all five themes - folds ships `letterSpacing: 0` for all 17 steps. `--font-mono` replaces bare `monospace` at nine sites. |
+| 1c motion | `Motion.css.ts` adds five durations and four easings; `transition()` shorthand; fifteen ad-hoc transitions adopted across eight files. `prefers-reduced-motion` clamps duration and scroll only. |
+| 2.2 identity | `--mx-uc-1`..`8` regenerated as eight OKLCH hues 45 degrees apart; `color.ts` normalizes tag colors onto the same ramp instead of only clamping LAB lightness. Worst case 4.56:1. |
+| 2.3 syntax | Both Prism palettes regenerated on the app ramp, dropping Monokai. Seven semantic hues; `operator`/`punctuation`/`comment` sit off-ramp as scaffolding. Worst case 4.72:1. |
+| 2.4 composer | `:focus-within` thickens the inset ring to `B400` in `Primary.Main`. Inset, so zero layout shift - confirmed by identical `getBoundingClientRect()`. |
+| 2.5 sidebar | Counted non-mention badges drop to `fill="Soft"` with `outlined` so mentions win. Mention chips now read 3-7x louder than counts in every theme; previously quieter in all five. |
+| 2.6 scrollbar | `Recently Opened` moved onto folds `Scroll` with the room list's exact settings. |
+| 2.7 header | `Thread View` becomes an uppercase eyebrow; the thread title takes the weight. Banner 75px to 77px, outside the virtualizer. |
+| 2.8 shadows | Last five hardcoded shadows moved to `config.shadow`; the code-block truncation fade reversed to fade into the block. `src/app/**/*.css.ts` now has zero hardcoded colors. |
+| 2.9 badges | Fallout from the palette collision below, found by an adversarial review of the whole diff rather than by looking at the screen. `CompactThreadCard` gained `outlined`; `UnreadBadge` gained a `selected` prop so the softening stops on the selected row. |
+
+**Landmines**
+
+- `Secondary.Container` collides with its neighbours. Any `Badge variant="Secondary" fill="Soft"` on one of these surfaces loses its pill and leaves bare digits; the text stays above 9:1, so only the shape goes. Patched at two call sites, not at the root - moving the token repaints every Soft Secondary surface and this branch has no live coverage of butter, midnight or silver to catch the fallout.
+
+  | theme | Secondary.Container | SurfaceVariant.Container | Background.ContainerActive |
+  | --- | --- | --- | --- |
+  | light | `#DDDDE2` | `#F4F4F8` | `#DDDDE2` |
+  | silver | `#D4D4D8` | `#E1E1E6` | `#C7C7CC` |
+  | dark | `#363639` | `#363639` | `#363639` |
+  | midnight | `#363542` | `#363542` | `#363542` |
+  | butter | `#39372F` | `#39372F` | `#39372F` |
+
+- `SurfaceVariant.Container` backs 20+ cards under `src/app/mindroom/`. Only the two above were audited; a future Soft Secondary badge on any other inherits the same defect silently.
+- T400 and T300 tracking is pinned to exactly `0`. They set the width of nearly every wrapped line in the timeline, and `threadRenderUtils.ts` is calibrated against their line counts. Same reason B500/B400/B300 stay at 0 - no label may outgrow its button.
+- `transition.ts` must stay a plain module. A `.css.ts` may only export values vanilla-extract can serialize; exporting a function builds fine until a `.tsx` imports it, then fails with `Invalid exports`.
+- Reduced motion deliberately excludes keyframes. The blanket snippet would freeze the spinner, typing dots, and streaming indicator on one frame, removing information rather than motion. Animations opt out individually in `Animations.css.ts`.
+- The five `Background.Container` hexes are duplicated in `src/index.css`, `src/colors.css.ts`, `themeBootstrap.ts`, and `index.html`. The `index.css` copies are now lowercase - grep case-insensitively.
+- Screenshot trap: port 8080 may belong to a different worktree. An early baseline set was captured from `codex/.../long-text-preview-markdown`, whose theme files were byte-identical but which renders markdown and tool cards this branch does not.
+- Not done: the agent/tool-card surface from the original scope. No thread in the test account renders `<tool>` content, and `MindroomHtmlBlocks.css.ts` / `MindroomMessageExtras.css.ts` are already fully tokenized.
 
 ### Restore Recently Opened as a persistent bottom section (2026-07-20)
 

@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
+import { transition } from '../../styles/transition';
 
 export const Editor = style([
   DefaultReset,
@@ -9,6 +10,18 @@ export const Editor = style([
     boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
     borderRadius: config.radii.R400,
     overflow: 'hidden',
+    transition: transition(['box-shadow']),
+
+    selectors: {
+      // Typing into the composer was the one interaction with no visual
+      // acknowledgement at all: the caret appeared and the box stayed exactly
+      // as it was. The ring is drawn inset rather than outset so it cannot be
+      // clipped by an ancestor and cannot move anything, which matters because
+      // the composer shares a column with a virtualized timeline.
+      '&:focus-within': {
+        boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
+      },
+    },
   },
 ]);
 

@@ -1,5 +1,7 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { motion } from '../../styles/Motion.css';
+import { transition } from '../../styles/transition';
 
 /**
  * Left-edge conversation minimap ported from the t3code timeline. The rail
@@ -58,7 +60,7 @@ const MinimapStripBase = style({
   borderRadius: config.radii.Pill,
   backgroundColor: color.SurfaceVariant.OnContainer,
   opacity: 0.35,
-  transition: 'background-color 150ms, width 150ms, opacity 150ms',
+  transition: transition(['background-color', 'width', 'opacity'], motion.duration.Normal),
   selectors: {
     '&[data-in-view="true"]': {
       backgroundColor: color.Surface.OnContainer,

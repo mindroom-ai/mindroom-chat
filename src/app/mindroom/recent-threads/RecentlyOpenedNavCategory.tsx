@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Text } from 'folds';
+import { Scroll, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
@@ -229,26 +229,37 @@ export function RecentlyOpenedNavCategory({
           </RoomNavCategoryButton>
         </NavCategoryHeader>
         {!closed && (
-          <div
-            className={css.RecentlyOpenedList}
-            data-testid="recently-opened-nav-list"
-            id="recently-opened-nav-list"
-          >
-            {entries.length === 0 ? (
-              <Text className={css.CategoryState} as="p" size="T200">
-                {t('recentThreads.empty')}
-              </Text>
-            ) : (
-              entries.map((entry) => (
-                <RecentThreadEntry
-                  key={`${entry.roomId}|${entry.threadId}`}
-                  room={entry.room}
-                  threadId={entry.threadId}
-                  openedAt={entry.openedAt}
-                  summaryText={entry.summaryText}
-                />
-              ))
-            )}
+          <div className={css.RecentlyOpenedListViewport}>
+            {/* Same Scroll settings as PageNavContent, which scrolls the room
+                list directly above this panel. This list used to be a plain
+                overflow: auto div, so it was the one place in the sidebar that
+                showed the platform's own scrollbar. */}
+            <Scroll
+              className={css.RecentlyOpenedList}
+              data-testid="recently-opened-nav-list"
+              direction="Vertical"
+              hideTrack
+              id="recently-opened-nav-list"
+              size="300"
+              variant="Background"
+              visibility="Hover"
+            >
+              {entries.length === 0 ? (
+                <Text className={css.CategoryState} as="p" size="T200">
+                  {t('recentThreads.empty')}
+                </Text>
+              ) : (
+                entries.map((entry) => (
+                  <RecentThreadEntry
+                    key={`${entry.roomId}|${entry.threadId}`}
+                    room={entry.room}
+                    threadId={entry.threadId}
+                    openedAt={entry.openedAt}
+                    summaryText={entry.summaryText}
+                  />
+                ))
+              )}
+            </Scroll>
           </div>
         )}
       </NavCategory>

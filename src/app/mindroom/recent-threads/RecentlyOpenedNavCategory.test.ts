@@ -31,6 +31,21 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('folds', () => ({
+  Scroll: ({
+    children,
+    direction,
+    hideTrack,
+    size,
+    variant,
+    visibility,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    direction?: string;
+    hideTrack?: boolean;
+    size?: string;
+    variant?: string;
+    visibility?: string;
+  }) => React.createElement('div', props, children),
   Text: ({
     as: asElement = 'span',
     children,
@@ -68,6 +83,7 @@ vi.mock('./threadNav.css', () => ({
   CategoryState: 'CategoryState',
   RecentlyOpenedCategory: 'RecentlyOpenedCategory',
   RecentlyOpenedList: 'RecentlyOpenedList',
+  RecentlyOpenedListViewport: 'RecentlyOpenedListViewport',
   RecentlyOpenedPanel: 'RecentlyOpenedPanel',
   RecentlyOpenedResizeGrip: 'RecentlyOpenedResizeGrip',
   RecentlyOpenedResizeHandle: 'RecentlyOpenedResizeHandle',

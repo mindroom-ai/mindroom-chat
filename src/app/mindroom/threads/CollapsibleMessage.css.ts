@@ -42,7 +42,7 @@ const pillBase = {
   lineHeight: 1,
   letterSpacing: '0.04em',
   textTransform: 'uppercase' as const,
-  boxShadow: `0 1px 3px rgba(0, 0, 0, 0.18)`,
+  boxShadow: config.shadow.E100,
   whiteSpace: 'nowrap' as const,
 };
 

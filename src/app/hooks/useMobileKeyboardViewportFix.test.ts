@@ -25,10 +25,13 @@ type ViewportTestEnv = {
   emitKeyboard: (eventName: string) => void;
   emitWindow: (eventName: string) => void;
   emitVisualViewportResize: () => void;
+  emitVisualViewportScroll: () => void;
   flushAnimationFrames: () => void;
   setActiveElement: (element: 'editable' | 'none') => void;
   setInnerHeight: (height: number) => void;
   setVisualViewportHeight: (height: number) => void;
+  setVisualViewportOffsetTop: (offsetTop: number) => void;
+  setVisualViewportScale: (scale: number) => void;
   styleValues: Map<string, string>;
 };
 
@@ -46,6 +49,11 @@ const ANDROID_USER_AGENT =
 
 const IOS_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Version/17.5 Mobile/15E148 Safari/604.1';
+
+const FIREFOX_ANDROID_USER_AGENT =
+  'Mozilla/5.0 (Android 15; Mobile; rv:136.0) Gecko/136.0 Firefox/136.0';
+
+const UNKNOWN_BROWSER_USER_AGENT = 'ExampleBrowser/1.0';
 
 function TestViewportHook() {
   useMobileKeyboardViewportFix();
@@ -84,9 +92,9 @@ const createActiveElement = (): Pick<Element, 'getAttribute' | 'nodeName'> => ({
 const installViewportTestEnv = ({
   autoFlushAnimationFrames = true,
   honorCancelAnimationFrame = true,
-  isNativePlatform = true,
-  keyboardAvailable = true,
-  platform = 'android',
+  isNativePlatform = false,
+  keyboardAvailable = false,
+  platform = 'web',
   userAgent = ANDROID_USER_AGENT,
 }: ViewportTestEnvOptions = {}): ViewportTestEnv => {
   const visualViewportListeners = createListenerMap();
@@ -95,6 +103,8 @@ const installViewportTestEnv = ({
   const styleValues = new Map<string, string>();
   let innerHeight = 800;
   let visualViewportHeight = 800;
+  let visualViewportOffsetTop = 0;
+  let visualViewportScale = 1;
   let activeElement: Pick<Element, 'getAttribute' | 'nodeName'> | undefined;
   const animationFrames = new Map<number, FrameRequestCallback>();
 
@@ -141,6 +151,12 @@ const installViewportTestEnv = ({
       ),
       get height() {
         return visualViewportHeight;
+      },
+      get offsetTop() {
+        return visualViewportOffsetTop;
+      },
+      get scale() {
+        return visualViewportScale;
       },
       removeEventListener: vi.fn((eventName: string, listener: Listener) =>
         removeListener(visualViewportListeners, eventName, listener)
@@ -193,6 +209,7 @@ const installViewportTestEnv = ({
     emitKeyboard: (eventName) => emit(keyboardListeners, eventName),
     emitWindow: (eventName) => emit(windowListeners, eventName),
     emitVisualViewportResize: () => emit(visualViewportListeners, 'resize'),
+    emitVisualViewportScroll: () => emit(visualViewportListeners, 'scroll'),
     flushAnimationFrames: () => {
       const pendingAnimationFrames = Array.from(animationFrames.values());
       animationFrames.clear();
@@ -211,6 +228,12 @@ const installViewportTestEnv = ({
     setVisualViewportHeight: (height) => {
       visualViewportHeight = height;
     },
+    setVisualViewportOffsetTop: (offsetTop) => {
+      visualViewportOffsetTop = offsetTop;
+    },
+    setVisualViewportScale: (scale) => {
+      visualViewportScale = scale;
+    },
     styleValues,
   };
 };
@@ -224,65 +247,310 @@ describe('useMobileKeyboardViewportFix', () => {
     vi.unstubAllGlobals();
   });
 
-  it('restores Android native app height after keyboard hide when visual viewport is stale', async () => {
-    const env = installViewportTestEnv();
+  it.each([
+    ['Safari on iOS', IOS_USER_AGENT],
+    ['Chrome on Android', ANDROID_USER_AGENT],
+    ['Firefox on Android', FIREFOX_ANDROID_USER_AGENT],
+    ['an unknown browser', UNKNOWN_BROWSER_USER_AGENT],
+  ])(
+    'follows a keyboard-panned visual viewport in %s when it exposes affected geometry',
+    async (_browser, userAgent) => {
+      const env = installViewportTestEnv({ userAgent });
+      env.setActiveElement('editable');
+
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        renderer = create(React.createElement(TestViewportHook));
+      });
+
+      env.setVisualViewportHeight(457);
+      env.setVisualViewportOffsetTop(170);
+      await act(async () => {
+        env.emitVisualViewportScroll();
+      });
+
+      expect(env.styleValues.get('--app-height')).toBe('457px');
+      expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
+
+      await act(async () => {
+        renderer?.unmount();
+      });
+    }
+  );
+
+  it('does not treat browser chrome movement as a keyboard without a focused editor', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
       renderer = create(React.createElement(TestViewportHook));
     });
 
-    expect(env.styleValues.get('--app-height')).toBe('800px');
-
-    env.setInnerHeight(500);
-    env.setVisualViewportHeight(500);
+    env.setVisualViewportHeight(700);
+    env.setVisualViewportOffsetTop(100);
     await act(async () => {
-      env.emitVisualViewportResize();
+      env.emitVisualViewportScroll();
     });
 
-    expect(env.styleValues.get('--app-height')).toBe('500px');
-
-    env.setInnerHeight(800);
-    env.setVisualViewportHeight(500);
-    await act(async () => {
-      env.emitKeyboard('keyboardDidHide');
-    });
-
-    expect(env.styleValues.get('--app-height')).toBe('800px');
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
 
     await act(async () => {
       renderer?.unmount();
     });
   });
 
-  it('keeps iOS browser app height at the visual viewport during input focus transfer', async () => {
-    const env = installViewportTestEnv({
-      isNativePlatform: false,
-      keyboardAvailable: false,
-      platform: 'web',
-      userAgent: IOS_USER_AGENT,
-    });
+  it('stops following browser chrome after the editor loses focus', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
       renderer = create(React.createElement(TestViewportHook));
     });
 
-    expect(env.styleValues.get('--app-height')).toBe('800px');
+    env.setVisualViewportHeight(457);
+    env.setVisualViewportOffsetTop(170);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-height')).toBe('457px');
 
-    env.setVisualViewportHeight(500);
+    env.setActiveElement('none');
+    env.setVisualViewportHeight(700);
+    env.setVisualViewportOffsetTop(0);
+    await act(async () => {
+      env.emitWindow('focusout');
+      await new Promise((resolve) => {
+        globalThis.setTimeout(resolve, 120);
+      });
+    });
+
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('does not treat pinch zoom as a software keyboard', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(400);
+    env.setVisualViewportOffsetTop(120);
+    env.setVisualViewportScale(2);
+    await act(async () => {
+      env.emitVisualViewportScroll();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('does nothing when the browser already resizes the layout viewport', async () => {
+    const env = installViewportTestEnv({ userAgent: ANDROID_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setInnerHeight(457);
+    env.setVisualViewportHeight(457);
     await act(async () => {
       env.emitVisualViewportResize();
     });
 
-    expect(env.styleValues.get('--app-height')).toBe('500px');
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
 
-    env.setActiveElement('editable');
     await act(async () => {
-      env.emitWindow('focusout');
+      renderer?.unmount();
+    });
+  });
+
+  it('restores native app height when keyboard hide leaves visualViewport stale', async () => {
+    const env = installViewportTestEnv({
+      isNativePlatform: true,
+      keyboardAvailable: true,
+      platform: 'android',
+    });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
     });
 
-    expect(env.styleValues.get('--app-height')).toBe('500px');
+    env.setInnerHeight(500);
+    env.setVisualViewportHeight(500);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+
+    env.setInnerHeight(800);
+    await act(async () => {
+      env.emitKeyboard('keyboardDidHide');
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('800px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it.each(['orientationchange', 'pageshow'])(
+    'uses native layout height after %s when visualViewport is stale',
+    async (eventName) => {
+      const env = installViewportTestEnv({
+        isNativePlatform: true,
+        keyboardAvailable: false,
+        platform: 'ios',
+      });
+
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        renderer = create(React.createElement(TestViewportHook));
+      });
+
+      env.setInnerHeight(800);
+      env.setVisualViewportHeight(500);
+      await act(async () => {
+        env.emitWindow(eventName);
+      });
+
+      expect(env.styleValues.get('--app-height')).toBe('800px');
+      expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+      await act(async () => {
+        renderer?.unmount();
+      });
+    }
+  );
+
+  it('restores normal flow when the keyboard closes with the editor still focused', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(457);
+    env.setVisualViewportOffsetTop(170);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-height')).toBe('457px');
+
+    env.setVisualViewportHeight(800);
+    env.setVisualViewportOffsetTop(0);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it.each([0, 24])(
+    'ignores the iOS 26 stale 24px viewport after keyboard close with offset %i',
+    async (staleOffsetTop) => {
+      const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+      env.setActiveElement('editable');
+
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        renderer = create(React.createElement(TestViewportHook));
+      });
+
+      env.setVisualViewportHeight(457);
+      env.setVisualViewportOffsetTop(170);
+      await act(async () => {
+        env.emitVisualViewportResize();
+      });
+      expect(env.styleValues.get('--app-height')).toBe('457px');
+
+      env.setVisualViewportHeight(776);
+      env.setVisualViewportOffsetTop(staleOffsetTop);
+      await act(async () => {
+        env.emitVisualViewportResize();
+      });
+
+      expect(env.styleValues.get('--app-height')).toBeUndefined();
+      expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+
+      await act(async () => {
+        renderer?.unmount();
+      });
+    }
+  );
+
+  it('accepts a 48px viewport reduction as keyboard geometry', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(752);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(env.styleValues.get('--app-height')).toBe('752px');
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    await act(async () => {
+      renderer?.unmount();
+    });
+  });
+
+  it('remeasures after WebKit publishes a delayed keyboard offset', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+    env.setActiveElement('editable');
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(457);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('0px');
+
+    env.setVisualViewportOffsetTop(170);
+    await act(async () => {
+      await new Promise((resolve) => {
+        globalThis.setTimeout(resolve, 120);
+      });
+    });
+
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBe('170px');
 
     await act(async () => {
       renderer?.unmount();
@@ -294,6 +562,8 @@ describe('useMobileKeyboardViewportFix', () => {
       autoFlushAnimationFrames: false,
       honorCancelAnimationFrame: false,
     });
+    env.setActiveElement('editable');
+    env.setVisualViewportHeight(457);
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
@@ -304,12 +574,31 @@ describe('useMobileKeyboardViewportFix', () => {
       renderer?.unmount();
     });
 
-    expect(env.styleValues.get('--app-height')).toBeUndefined();
-
     await act(async () => {
       env.flushAnimationFrames();
     });
 
     expect(env.styleValues.get('--app-height')).toBeUndefined();
+    expect(env.styleValues.get('--app-viewport-offset-top')).toBeUndefined();
+  });
+
+  it('never calls window.scrollTo (CINNY-053 regression lock)', async () => {
+    const env = installViewportTestEnv({ userAgent: IOS_USER_AGENT });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(TestViewportHook));
+    });
+
+    env.setVisualViewportHeight(457);
+    await act(async () => {
+      env.emitVisualViewportResize();
+    });
+
+    expect(window.scrollTo).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer?.unmount();
+    });
   });
 });
