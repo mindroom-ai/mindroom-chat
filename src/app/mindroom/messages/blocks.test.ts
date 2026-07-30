@@ -212,6 +212,39 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(mathBody).toContain('data-mx-maths="- a + b"');
   });
 
+  it('sanitizes display math exactly once', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['$$', String.raw`\begin{aligned}a & b\end{aligned}`, '$$'].join('\n')
+    );
+
+    expect(formattedBody).toContain(
+      String.raw`data-mx-maths="\begin{aligned}a &amp; b\end{aligned}"`
+    );
+    expect(formattedBody).not.toContain('&amp;amp;');
+  });
+
+  it('sanitizes inline math exactly once', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      String.raw`When $a < b & c$, continue.`
+    );
+
+    expect(formattedBody).toContain(
+      String.raw`<span data-mx-maths="a &lt; b &amp; c">a &lt; b &amp; c</span>`
+    );
+    expect(formattedBody).not.toContain('&amp;lt;');
+    expect(formattedBody).not.toContain('&amp;amp;');
+  });
+
+  it('keeps dash lists unordered when later text contains inline code', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['- first', '- second', '', 'Use `x`'].join('\n')
+    );
+
+    expect(formattedBody).toContain('<ul data-md="*">');
+    expect(formattedBody).not.toContain('<ol');
+    expect(formattedBody).toContain('<code data-md="`">x</code>');
+  });
+
   it('falls back before recursive block or inline input reaches the parser', () => {
     const blockHeavy = Array.from({ length: 4_000 }, (_, index) => `# heading ${index}`).join('\n');
     const inlineHeavy = String.raw`\*`.repeat(513);

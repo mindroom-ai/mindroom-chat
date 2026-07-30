@@ -83,8 +83,68 @@ const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
 const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /[`~$]|^(?:\t| {4})/;
+const MARKDOWN_ROOT_CODE_FENCE_REG = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
+
+const normalizeParsedMathEntities = (html: string): string =>
+  html.replace(/<(span|div) data-mx-maths="[^"]*">[\s\S]*?<\/\1>/g, (mathHtml) =>
+    mathHtml.replace(/&amp;(amp|lt|gt|quot|#39);/g, '&$1;')
+  );
+
+type MarkdownCodeFence = {
+  character: '`' | '~';
+  length: number;
+};
+
+const getMarkdownCodeFence = (line: string): MarkdownCodeFence | undefined => {
+  const match = line.match(MARKDOWN_ROOT_CODE_FENCE_REG);
+  if (!match) return undefined;
+
+  const fence = match[1];
+  const character = fence[0] as '`' | '~';
+  if (character === '`' && match[2].includes('`')) return undefined;
+
+  return { character, length: fence.length };
+};
+
+const isMarkdownCodeFenceClose = (line: string, fence: MarkdownCodeFence): boolean => {
+  const stripped = line.replace(/^ {0,3}/, '');
+  let runLength = 0;
+  while (stripped[runLength] === fence.character) runLength += 1;
+
+  return runLength >= fence.length && stripped.slice(runLength).trim() === '';
+};
+
+const normalizeMarkdownDashLists = (markdown: string): string => {
+  let codeFence: MarkdownCodeFence | undefined;
+  let displayMath = false;
+
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (codeFence) {
+        if (isMarkdownCodeFenceClose(line, codeFence)) codeFence = undefined;
+        return line;
+      }
+
+      if (line === '$$') {
+        displayMath = !displayMath;
+        return line;
+      }
+      if (displayMath) return line;
+
+      const openingFence = getMarkdownCodeFence(line);
+      if (openingFence) {
+        codeFence = openingFence;
+        return line;
+      }
+
+      if (/^(?:\t| {4})/.test(line)) return line;
+      return line.replace(/^(\s*)-( {1,4})(?=\S)/, '$1*$2');
+    })
+    .join('\n');
+};
 
 const exceedsInlineMarkerBudget = (text: string): boolean => {
   let markerCount = 0;
@@ -169,10 +229,9 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
     }
 
     try {
-      const normalizedMarkdown = hasAmbiguousMarkerContext
-        ? markdown
-        : markdown.replace(/^(\s*)-( {1,4})(?=\S)/gm, '$1*$2');
-      htmlParts.push(parseBlockMD(sanitizeMarkdownText(normalizedMarkdown), parseInlineMD));
+      const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
+      const parsedHtml = parseBlockMD(sanitizeMarkdownText(normalizedMarkdown), parseInlineMD);
+      htmlParts.push(normalizeParsedMathEntities(parsedHtml));
     } catch {
       formattingFailed = true;
     }
