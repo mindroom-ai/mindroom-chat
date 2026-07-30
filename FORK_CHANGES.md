@@ -8,6 +8,33 @@
 - The command-palette and thread-filter sheets now consume Folds `config.radii.R400` instead of the undefined unhashed `--radii-400` variable, so the active fork theme controls both top corners.
 - Focused coverage pins both mobile sheets to distinct mocked radius tokens, so dead-variable and hardcoded-radius regressions fail.
 
+### Render long-text preview Markdown before sidecar hydration (2026-07-23)
+
+- Status: conservative review remediation, current `dev` integration, and local validation are complete on `fix/long-text-preview-markdown`.
+- Long-text events can carry a plain Markdown `body` while the authoritative `formatted_body` lives in a Matrix media sidecar.
+- The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
+- Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
+- Blank Markdown separators between root tool markers are discarded so one tool run remains one dropdown.
+- Any code, tilde, or math syntax disables rich marker promotion for that temporary preview, so ambiguous markers remain sanitized literal text until hydration.
+- Inline, indented, or container-nested markers likewise remain literal instead of invoking a second compatibility parser.
+- Matrix reply fallbacks are removed exactly once before rendering, including reply-only previews and bounded formatter fallbacks.
+- Simple block and inline syntax budgets plus parser exception fallback keep untrusted previews bounded.
+- The implementation deliberately has no preview cache, placeholder protocol, inline-code range parser, container-fence scanner, or general CommonMark fence normalization layer.
+- First AgentCLI Codex and Claude reviews found indented-code marker promotion and double reply trimming on formatter fallback; both are fixed at the existing ambiguity and fallback boundaries, and both fixed-head reviewers approved with no remaining findings.
+- Post-PR #204 exact-head review reproduced double-sanitized math entities and unrelated inline syntax flipping dash lists to ordered lists; both are fixed with one-level math-output normalization and root-context-aware dash normalization.
+- Subsequent fixed-head review reproduced wide-spaced and nested dash markers remaining ordered plus a quoted URL being corrupted by a downstream second reply trim; normalization now matches the parser's dash-list grammar, and formatted previews keep the original body for the renderer-owned trim.
+- Final parser-boundary review reproduced tab-indented text mutation, whitespace-content dash lists remaining ordered, and list-contained tool marker prefixes becoming rich; dash normalization now mirrors the parser grammar exactly, and list content that can flatten to a tool-reference prefix retains literal inline syntax without duplicating downstream tool-name grammar.
+- Exact-parser review then found the custom code-fence and display-math tracker diverged from the parser on valid, invalid, and unmatched delimiters; protected ranges now come directly from the parser's code and math matchers, eliminating that duplicate grammar.
+- The same review found escaped single-, multi-character, and single-sided inline syntax unnecessarily disabled exact root markers and an empty formatted body suppressed preview generation; escaped literals now remain unambiguous, while only non-empty formatted bodies bypass preview Markdown.
+- Final fixed-head review found spoiler- and math-wrapped wrench markers could be flattened into rich cards inside lists, while already escaped marker syntax gained visible backslashes; matching list items now canonicalize their escapes before becoming literal, closing both cases without another marker grammar.
+- The next exact-head review found that broad wrench-item protection removed formatting from ordinary list prose; protection now follows actual inline-parser output, the downstream span-flattening boundary, and the validated tool parser, while ordinary and invalid-marker wrench prose keeps its Markdown.
+- The latest exact-head review found the span-regex approximation missed nested and sibling span whitespace while validating entities before DOM decoding; preview classification now uses the same HTML DOM parser and text/code/span flattening boundary as downstream rendering before shared tool validation.
+- A proposed source-switch lifecycle reset was rejected because the base branch deliberately retains hydrated content during plain-preview updates and this PR does not worsen that behavior.
+- Earlier live verification on the reported localhost thread confirmed that nine pre-hydration tool markers render as one `9 tool calls` dropdown.
+- Focused formatter, render, and hydration coverage passes 82 tests, including red-green regressions for inline and display math, exact parser-list and protected-block semantics, container-contained marker handling, escaped syntax, ordinary wrench prose, empty formatted bodies, and single reply trimming.
+- The full suite passes all 455 files and 3,488 tests.
+- Typecheck, the production/PWA build with Element Call verification, full ESLint with zero errors and the existing 17-warning baseline, touched-file Prettier, and `git diff --check` pass.
+
 ### CINNY-133 — Separate Recently Opened rows without changing their pitch (2026-07-29)
 
 - Status: exact-head review remediation and full local validation are complete; the issue remains open and is not marked fixed.
