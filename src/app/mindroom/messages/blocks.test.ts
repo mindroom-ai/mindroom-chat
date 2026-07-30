@@ -141,6 +141,67 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('outside_tool');
   });
 
+  it('uses the parser code-fence grammar when preserving dash text', () => {
+    const infoBacktick = formatMindroomMarkdownTextBodyAsHtml(
+      ['```foo`bar', '- item', '```'].join('\n')
+    );
+    const exactClose = formatMindroomMarkdownTextBodyAsHtml(
+      ['```', '- inside one', '````', '- inside two', '```'].join('\n')
+    );
+
+    expect(infoBacktick).toContain('<code class="language-foo`bar">- item\n');
+    expect(infoBacktick).not.toContain('* item');
+    expect(exactClose).toContain('- inside one\n````\n- inside two\n');
+    expect(exactClose).not.toContain('* inside');
+  });
+
+  it('does not add Markdown escapes to list-shaped tool text inside code fences', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['```', '- 🔧 `tool_name` [1]', '```'].join('\n')
+    );
+
+    expect(formattedBody).toContain('- 🔧 `tool_name` [1]');
+    expect(formattedBody).not.toContain('\\`tool\\_name\\`');
+  });
+
+  it('normalizes dash lists outside parser-recognized code and math blocks', () => {
+    const bodies = [
+      ['~~~', '- item', '~~~'].join('\n'),
+      ['   ```', '- item', '   ```'].join('\n'),
+      ['$$', '- item'].join('\n'),
+    ];
+
+    bodies.forEach((body) => {
+      const formattedBody = formatMindroomMarkdownTextBodyAsHtml(body);
+
+      expect(formattedBody).toContain('<ul data-md="*">');
+      expect(formattedBody).not.toContain('<ol');
+    });
+  });
+
+  it('uses the parser display-math grammar when preserving dash text', () => {
+    const sameLineDelimiters = formatMindroomMarkdownTextBodyAsHtml(
+      ['$$a', '- b', 'c$$'].join('\n')
+    );
+    const contentLineClose = formatMindroomMarkdownTextBodyAsHtml(
+      ['$$', '- a', 'b$$', '- outside'].join('\n')
+    );
+
+    expect(sameLineDelimiters).toContain('data-mx-maths="a\n- b\nc"');
+    expect(sameLineDelimiters).not.toContain('* b');
+    expect(contentLineClose).toContain('data-mx-maths="- a\nb"');
+    expect(contentLineClose).toContain('<ul data-md="*">');
+    expect(contentLineClose).not.toContain('<ol');
+  });
+
+  it('promotes root markers when earlier inline syntax is escaped', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['Use \\`literal\\`.', '', '🔧 `tool` [1]'].join('\n')
+    );
+
+    expect(formattedBody).toContain('<p>🔧 <code>tool</code> [1]</p>');
+  });
+
   it('drops blank separators between consecutive tool references', () => {
     expect(
       formatMindroomMarkdownTextBodyAsHtml(

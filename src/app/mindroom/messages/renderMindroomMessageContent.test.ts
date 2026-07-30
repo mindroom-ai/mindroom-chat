@@ -576,6 +576,34 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('replaces an empty formatted body with the long-text Markdown preview', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const renderer = await renderNode({
+      msgType: 'm.file',
+      hydrateLongText: false,
+      content: {
+        msgtype: 'm.file',
+        body: 'Preview **now**',
+        format: 'org.matrix.custom.html',
+        formatted_body: '',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+
+    const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(previewContent?.formatted_body).toContain('<strong data-md="**">now</strong>');
+
+    renderer.unmount();
+  });
+
   it('formats a reply-stripped copy while preserving the original body for downstream trimming', async () => {
     toolTraceParserOptionsMock.mockClear();
     const body = [

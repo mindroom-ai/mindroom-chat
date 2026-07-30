@@ -101,7 +101,8 @@ export const renderMindroomMessageContent = ({
 
     const { previewContent } = source;
     if (
-      typeof previewContent.formatted_body === 'string' ||
+      (typeof previewContent.formatted_body === 'string' &&
+        previewContent.formatted_body.length > 0) ||
       typeof previewContent.body !== 'string'
     ) {
       return source;

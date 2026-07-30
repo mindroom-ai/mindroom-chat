@@ -1,4 +1,6 @@
 import { escapeMarkdownInlineSequences, parseBlockMD, parseInlineMD } from '../../plugins/markdown';
+import { findDisplayLatexBlockMatch } from '../../plugins/math';
+import { CodeBlockRule } from '../../plugins/markdown/block/rules';
 import { sanitizeText } from '../../utils/sanitize';
 import {
   formatMindroomPasteMarkerAsHtml,
@@ -82,8 +84,7 @@ const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
 const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
-const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /[`~$]|^(?:\t| {4})/;
-const MARKDOWN_ROOT_CODE_FENCE_REG = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+const MARKDOWN_AMBIGUOUS_MARKER_CONTEXT_REG = /(?<!\\)[`~$]|^(?:\t| {4})/;
 const MARKDOWN_LIST_ITEM_REG = /^( *)([-*]|[\dA-Za-z]\.)( +)(.+)$/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
@@ -93,74 +94,75 @@ const normalizeParsedMathEntities = (html: string): string =>
     mathHtml.replace(/&amp;(amp|lt|gt|quot|#39);/g, '&$1;')
   );
 
-type MarkdownCodeFence = {
-  character: '`' | '~';
-  length: number;
+type MarkdownProtectedBlock = {
+  start: number;
+  end: number;
 };
 
-const getMarkdownCodeFence = (line: string): MarkdownCodeFence | undefined => {
-  const match = line.match(MARKDOWN_ROOT_CODE_FENCE_REG);
-  if (!match) return undefined;
+const findNextMarkdownProtectedBlock = (markdown: string): MarkdownProtectedBlock | undefined => {
+  const codeMatch = CodeBlockRule.match(markdown);
+  const codeBlock =
+    codeMatch && codeMatch.index !== undefined
+      ? { start: codeMatch.index, end: codeMatch.index + codeMatch[0].length }
+      : undefined;
+  const mathMatch = findDisplayLatexBlockMatch(markdown);
+  const mathBlock = mathMatch ? { start: mathMatch.start, end: mathMatch.end } : undefined;
 
-  const fence = match[1];
-  const character = fence[0] as '`' | '~';
-  if (character === '`' && match[2].includes('`')) return undefined;
-
-  return { character, length: fence.length };
+  if (!codeBlock) return mathBlock;
+  if (!mathBlock) return codeBlock;
+  return codeBlock.start <= mathBlock.start ? codeBlock : mathBlock;
 };
 
-const isMarkdownCodeFenceClose = (line: string, fence: MarkdownCodeFence): boolean => {
-  const stripped = line.replace(/^ {0,3}/, '');
-  let runLength = 0;
-  while (stripped[runLength] === fence.character) runLength += 1;
+const mapMarkdownOutsideParserBlocks = (
+  markdown: string,
+  mapUnprotected: (text: string) => string
+): string => {
+  let cursor = 0;
+  let output = '';
 
-  return runLength >= fence.length && stripped.slice(runLength).trim() === '';
+  while (cursor < markdown.length) {
+    const remaining = markdown.slice(cursor);
+    const protectedBlock = findNextMarkdownProtectedBlock(remaining);
+    if (!protectedBlock) {
+      output += mapUnprotected(remaining);
+      break;
+    }
+
+    output += mapUnprotected(remaining.slice(0, protectedBlock.start));
+    output += remaining.slice(protectedBlock.start, protectedBlock.end);
+    cursor += protectedBlock.end;
+  }
+
+  return output;
 };
 
-const normalizeMarkdownDashLists = (markdown: string): string => {
-  let codeFence: MarkdownCodeFence | undefined;
-  let displayMath = false;
+const normalizeMarkdownDashLists = (markdown: string): string =>
+  mapMarkdownOutsideParserBlocks(markdown, (text) =>
+    text
+      .split('\n')
+      .map((line) => {
+        const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+        if (!listItem || listItem[2] !== '-') return line;
 
-  return markdown
-    .split('\n')
-    .map((line) => {
-      if (codeFence) {
-        if (isMarkdownCodeFenceClose(line, codeFence)) codeFence = undefined;
-        return line;
-      }
-
-      if (line === '$$') {
-        displayMath = !displayMath;
-        return line;
-      }
-      if (displayMath) return line;
-
-      const openingFence = getMarkdownCodeFence(line);
-      if (openingFence) {
-        codeFence = openingFence;
-        return line;
-      }
-
-      const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-      if (!listItem || listItem[2] !== '-') return line;
-
-      return `${listItem[1]}*${listItem[3]}${listItem[4]}`;
-    })
-    .join('\n');
-};
+        return `${listItem[1]}*${listItem[3]}${listItem[4]}`;
+      })
+      .join('\n')
+  );
 
 const preserveListContainedToolMarkers = (markdown: string): string =>
-  markdown
-    .split('\n')
-    .map((line) => {
-      const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-      if (!listItem || !parseMindroomToolRefText(listItem[4])) return line;
+  mapMarkdownOutsideParserBlocks(markdown, (text) =>
+    text
+      .split('\n')
+      .map((line) => {
+        const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+        if (!listItem || !parseMindroomToolRefText(listItem[4])) return line;
 
-      return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
-        listItem[4]
-      )}`;
-    })
-    .join('\n');
+        return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
+          listItem[4]
+        )}`;
+      })
+      .join('\n')
+  );
 
 const exceedsInlineMarkerBudget = (text: string): boolean => {
   let markerCount = 0;
