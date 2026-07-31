@@ -14,6 +14,9 @@
 - Focused GREEN: `npm test -- src/app/mindroom/diagnostics/deepTraceFailure.test.ts src/app/mindroom/diagnostics/deepTrace.test.ts src/app/features/settings/about/About.test.tsx src/app/mindroom/diagnostics/diagnosticsExport.test.ts` passes 4 files and 37 tests.
 - Touched-file Prettier, `git diff --check`, typecheck, ESLint, production/PWA build with Element Call verification, and the full suite pass.
 - The full suite passes 455 files and 3,488 tests.
+- Review remediation adds a direct failed-enable regression where the preference writes successfully, the runtime publishes unavailable, and activation returns false.
+- Remediation RED temporarily restored `enabled && saved` and the new About test failed with the switch unchecked.
+- Remediation GREEN passes About plus deep-trace focused coverage with 3 files and 35 tests.
 - Next step: independent review and ready PR follow-up after this work integrates.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
