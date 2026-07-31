@@ -4,40 +4,13 @@
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
-- Status: implementation, focused TDD coverage, full exact-head validation, independent review, PR #205 remediation, and fresh AI review are complete; ready for human merge.
-- Observed symptom: after an iOS crash/relaunch, a transient IndexedDB activation failure erased the saved deep-trace opt-in, so the next launch stayed disabled.
-- Root cause: `markUnavailable()` treated runtime storage loss as a preference change and deleted the durable enabled key.
-- Runtime availability now stops recording without clearing the durable opt-in; only an explicit disable removes that key.
-- About keeps the switch checked from saved intent when runtime storage is unavailable and says `Enabled, but trace storage is currently unavailable.` instead of claiming recording.
-- Recorder RED: `npm test -- src/app/mindroom/diagnostics/deepTraceFailure.test.ts` failed because the unavailable path removed the key.
-- About RED: `npm test -- src/app/features/settings/about/About.test.tsx` failed because the unavailable subscription unchecked a saved opt-in.
-- Focused GREEN: `npm test -- src/app/mindroom/diagnostics/deepTraceFailure.test.ts src/app/mindroom/diagnostics/deepTrace.test.ts src/app/features/settings/about/About.test.tsx src/app/mindroom/diagnostics/diagnosticsExport.test.ts` passes 4 files and 37 tests.
-- Touched-file Prettier, `git diff --check`, typecheck, ESLint, production/PWA build with Element Call verification, and the full suite pass.
-- The full suite passes 455 files and 3,488 tests.
-- Review remediation adds a direct failed-enable regression where the preference writes successfully, the runtime publishes unavailable, and activation returns false.
-- Remediation RED temporarily restored `enabled && saved` and the new About test failed with the switch unchecked.
-- Remediation GREEN passes About plus deep-trace focused coverage with 3 files and 35 tests.
-- Final review remediation stores runtime status independently from saved intent, including the already-unavailable mount state and later subscription updates.
-- The tracing description now reports unavailable runtime storage after a successful clear instead of relying on a transient UI error flag.
-- Final remediation RED had two new About regressions fail with `Recording` for an already-unavailable mount and for clear-while-unavailable.
-- Final remediation GREEN passes About plus diagnostic coverage with 4 files and 40 tests, and typecheck passes.
-- Final touched-file Prettier and `git diff --check` pass, and the full suite passes 455 files and 3,491 tests.
-- Independent task review found the missing failed-enable UI regression, and the final whole-branch review found that runtime availability still needed separate state to prevent false recording copy on mount and after Clear trace.
-- Both findings are fixed, and scoped re-reviews approve the current implementation with no remaining blockers.
-- PR #205 review remediation extracts the status/error description from the nested JSX branch into one typed helper and fixes the Runbook plural typo.
-- The storage reads remain intentional because durable opt-in, not React state or runtime status, decides whether an unavailable or failed activation remains enabled for the next launch.
-- Sourcery remediation is validated, and both handled threads are resolved.
-- Qodo then found that snapshots and the unavailable-export fallback still reported runtime activity as the `enabled` value instead of the saved opt-in.
-- Qodo remediation RED adds regressions for both readable snapshots after a transient activation failure and exports while deep-trace storage remains unavailable; both failed with `enabled: false`.
-- Snapshots now read saved intent from the recorder storage, and the unavailable export fallback reads the durable opt-in instead of hardcoding disabled.
-- Qodo remediation GREEN passes the two focused files and all 5 tests, plus typecheck, touched-file Prettier, and `git diff --check`.
-- Independent review approves the Qodo remediation with no Critical or Important findings.
-- The final exact-head full suite passes 455 files and 3,491 tests.
-- Final exact-head typecheck, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
-- Final exact-head ESLint passes with zero errors and the existing 17-warning baseline.
-- Qodo's fresh review reports zero bugs and marks its confirmed finding resolved, while Sourcery's fresh review passes without new comments.
-- CodeRabbit's initial review reports no actionable comments, its incremental reviews are rate-limited, and Gemini reports that its consumer review service has ceased.
-- PR #205 web, Android debug APK, and Docker image checks pass on the remediated code head.
+- Status: implemented and validated in ready PR #205.
+- A transient IndexedDB failure after an iOS crash/relaunch used to make `markUnavailable()` erase the saved deep-trace opt-in.
+- Runtime storage loss now stops capture without clearing durable intent; only explicit disable removes the opt-in.
+- About tracks saved intent separately from runtime status, keeps the switch checked while storage is unavailable, and never claims unavailable tracing is recording.
+- Snapshots and unavailable export fallbacks report saved intent through `enabled` and runtime availability through `status`.
+- Regression coverage includes failed activation, relaunch recovery, already-unavailable mount, background failure, clear-while-unavailable, and unavailable export.
+- Full Vitest, typecheck, ESLint, production/PWA build, touched-file Prettier, `git diff --check`, web CI, Android debug APK, and Docker checks pass.
 - Next step: human merge of ready PR #205.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
