@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Persist deep trace intent through runtime storage failure (2026-07-31)
+
+- Status: implemented and validated in ready PR #205.
+- A transient IndexedDB failure after an iOS crash/relaunch used to make `markUnavailable()` erase the saved deep-trace opt-in.
+- Runtime storage loss now stops capture without clearing durable intent; only explicit disable removes the opt-in.
+- About tracks saved intent separately from runtime status, keeps the switch checked while storage is unavailable, and never claims unavailable tracing is recording.
+- Snapshots and unavailable export fallbacks report saved intent through `enabled` and runtime availability through `status`.
+- Regression coverage includes failed activation, relaunch recovery, already-unavailable mount, background failure, clear-while-unavailable, and unavailable export.
+- Full Vitest, typecheck, ESLint, production/PWA build, touched-file Prettier, `git diff --check`, web CI, Android debug APK, and Docker checks pass.
+- Next step: human merge of ready PR #205.
+
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
 - Status: implementation, regression coverage, and post-integration validation are complete in PR #200.

@@ -29,14 +29,55 @@ import { getFlightRecorderStatus } from '../../../mindroom/diagnostics/flightRec
 import {
   clearDeepTrace,
   getDeepTraceEnabled,
+  getDeepTraceRuntimeStatus,
   setDeepTraceEnabled,
   subscribeDeepTraceStatus,
+  type DeepTraceRuntimeStatus,
 } from '../../../mindroom/diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../../mindroom/diagnostics/diagnosticsExport';
 
 type AboutProps = {
   requestClose: () => void;
 };
+
+type DeepTraceError = 'storage' | 'preference' | undefined;
+
+const getDeepTraceDescription = ({
+  runtimeStatus,
+  enabled,
+  error,
+}: {
+  runtimeStatus: DeepTraceRuntimeStatus;
+  enabled: boolean;
+  error: DeepTraceError;
+}): string => {
+  let description: string;
+
+  if (runtimeStatus === 'unavailable') {
+    description = enabled
+      ? 'Enabled, but trace storage is currently unavailable.'
+      : 'Trace storage unavailable.';
+  } else if (error === 'storage') {
+    description = 'Trace storage unavailable.';
+  } else if (runtimeStatus === 'recording') {
+    description =
+      'Recording a bounded, privacy-safe performance and interaction trace on this device.';
+  } else if (runtimeStatus === 'starting') {
+    description =
+      'Starting a bounded, privacy-safe performance and interaction trace on this device.';
+  } else {
+    description =
+      'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.';
+  }
+
+  if (error === 'preference') {
+    description +=
+      ' Off for this session, but the preference could not be saved and may re-enable after restart.';
+  }
+
+  return description;
+};
+
 export function About({ requestClose }: AboutProps) {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
@@ -45,9 +86,9 @@ export function About({ requestClose }: AboutProps) {
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState(false);
   const [deepTracing, setDeepTracing] = React.useState(getDeepTraceEnabled);
-  const [deepTraceError, setDeepTraceError] = React.useState<
-    'storage' | 'preference' | undefined
-  >();
+  const [deepTraceRuntimeStatus, setDeepTraceRuntimeStatus] =
+    React.useState(getDeepTraceRuntimeStatus);
+  const [deepTraceError, setDeepTraceError] = React.useState<DeepTraceError>();
   const [deepTraceChanging, setDeepTraceChanging] = React.useState(false);
   const [clearingDeepTrace, setClearingDeepTrace] = React.useState(false);
   const deepTraceChangePending = React.useRef(false);
@@ -62,11 +103,12 @@ export function About({ requestClose }: AboutProps) {
   React.useEffect(
     () =>
       subscribeDeepTraceStatus((status) => {
+        setDeepTraceRuntimeStatus(status);
         if (!deepTraceChangePending.current) {
           setDeepTraceChanging(status === 'starting');
         }
         if (status === 'unavailable') {
-          setDeepTracing(false);
+          setDeepTracing(getDeepTraceEnabled());
           setDeepTraceError('storage');
         } else if (status === 'starting') {
           setDeepTracing(true);
@@ -124,7 +166,7 @@ export function About({ requestClose }: AboutProps) {
     if (!saved) {
       setDeepTraceError(enabled ? 'storage' : 'preference');
     }
-    setDeepTracing(enabled && saved);
+    setDeepTracing(enabled ? getDeepTraceEnabled() : false);
     deepTraceChangePending.current = false;
     setDeepTraceChanging(false);
   };
@@ -238,17 +280,11 @@ export function About({ requestClose }: AboutProps) {
                   {nativeIOS && (
                     <SettingTile
                       title="Deep diagnostic tracing"
-                      description={`${
-                        deepTracing
-                          ? 'Recording a bounded, privacy-safe performance and interaction trace on this device.'
-                          : 'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.'
-                      }${
-                        deepTraceError === 'storage'
-                          ? ' Trace storage unavailable.'
-                          : deepTraceError === 'preference'
-                          ? ' Off for this session, but the preference could not be saved and may re-enable after restart.'
-                          : ''
-                      }`}
+                      description={getDeepTraceDescription({
+                        runtimeStatus: deepTraceRuntimeStatus,
+                        enabled: deepTracing,
+                        error: deepTraceError,
+                      })}
                       after={
                         <Box alignItems="Center" gap="200">
                           <Button

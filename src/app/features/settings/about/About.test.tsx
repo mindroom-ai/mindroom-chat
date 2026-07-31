@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getFlightRecorderStatus: vi.fn(),
   buildDiagnosticsExport: vi.fn(),
   getDeepTraceEnabled: vi.fn(),
+  getDeepTraceRuntimeStatus: vi.fn(),
   setDeepTraceEnabled: vi.fn(),
   subscribeDeepTraceStatus: vi.fn(),
   clearDeepTrace: vi.fn(),
@@ -127,6 +128,7 @@ vi.mock('../../../mindroom/diagnostics/flightRecorder', () => ({
 
 vi.mock('../../../mindroom/diagnostics/deepTrace', () => ({
   getDeepTraceEnabled: mocks.getDeepTraceEnabled,
+  getDeepTraceRuntimeStatus: mocks.getDeepTraceRuntimeStatus,
   setDeepTraceEnabled: mocks.setDeepTraceEnabled,
   subscribeDeepTraceStatus: mocks.subscribeDeepTraceStatus,
   clearDeepTrace: mocks.clearDeepTrace,
@@ -160,6 +162,7 @@ describe('About diagnostics export', () => {
     deepTracePreference = false;
     deepTraceRuntimeStatus = 'disabled';
     mocks.getDeepTraceEnabled.mockImplementation(() => deepTracePreference);
+    mocks.getDeepTraceRuntimeStatus.mockImplementation(() => deepTraceRuntimeStatus);
     deepTraceStatusListener = undefined;
     mocks.setDeepTraceEnabled.mockImplementation(async (enabled: boolean) => {
       deepTracePreference = enabled;
@@ -322,7 +325,32 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('reports a background trace storage failure from the runtime status', () => {
+  it('keeps newly saved trace intent when runtime activation fails', async () => {
+    mocks.setDeepTraceEnabled.mockImplementation(async (enabled: boolean) => {
+      if (!enabled) return true;
+      deepTracePreference = true;
+      deepTraceRuntimeStatus = 'unavailable';
+      deepTraceStatusListener?.('unavailable');
+      return false;
+    });
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    await act(async () => {
+      deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
+      await Promise.resolve();
+    });
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Enabled, but trace storage is currently unavailable.'
+    );
+    expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
+    renderer.unmount();
+  });
+
+  it('keeps saved trace intent while reporting a background storage failure', () => {
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'recording';
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(<About requestClose={vi.fn()} />);
@@ -332,10 +360,31 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('unavailable');
     });
 
-    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
     expect(deepTraceTile(renderer).props['data-description']).toContain(
-      'Trace storage unavailable.'
+      'Enabled, but trace storage is currently unavailable.'
     );
+    expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
+    renderer.unmount();
+  });
+
+  it('shows unavailable trace storage on an already-unavailable mount', () => {
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'unavailable';
+    mocks.subscribeDeepTraceStatus.mockImplementation((listener: (status: string) => void) => {
+      deepTraceStatusListener = listener;
+      return () => {
+        if (deepTraceStatusListener === listener) deepTraceStatusListener = undefined;
+      };
+    });
+
+    const renderer = create(<About requestClose={vi.fn()} />);
+
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Enabled, but trace storage is currently unavailable.'
+    );
+    expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
     renderer.unmount();
   });
 
@@ -458,6 +507,28 @@ describe('About diagnostics export', () => {
 
     expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
     expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    renderer.unmount();
+  });
+
+  it('keeps unavailable trace storage truthful after clearing', async () => {
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'unavailable';
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
+    const clearButton = deepTraceTile(renderer).findByType('button');
+
+    await act(async () => {
+      await clearButton.props.onClick();
+    });
+
+    expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toContain(
+      'Enabled, but trace storage is currently unavailable.'
+    );
+    expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
     renderer.unmount();
   });
 });

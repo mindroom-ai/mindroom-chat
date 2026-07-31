@@ -4,7 +4,7 @@ import {
   FLIGHT_RECORDER_SCHEMA_VERSION,
   normalizeFlightRecorderBuildVersion,
 } from './flightRecorder';
-import { DEEP_TRACE_SCHEMA_VERSION, readDeepTraceSnapshot } from './deepTrace';
+import { DEEP_TRACE_SCHEMA_VERSION, getDeepTraceEnabled, readDeepTraceSnapshot } from './deepTrace';
 
 export const DIAGNOSTICS_EXPORT_SCHEMA_VERSION = 2;
 
@@ -35,7 +35,7 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
   } catch {
     deepTrace = {
       schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
-      enabled: false,
+      enabled: getDeepTraceEnabled(),
       status: 'unavailable',
       stats: {
         eventCount: 0,
