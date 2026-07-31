@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Persist deep trace intent through runtime storage failure (2026-07-31)
+
+- Status: implementation, focused TDD coverage, and full validation are complete.
+- Observed symptom: after an iOS crash/relaunch, a transient IndexedDB activation failure erased the saved deep-trace opt-in, so the next launch stayed disabled.
+- Root cause: `markUnavailable()` treated runtime storage loss as a preference change and deleted the durable enabled key.
+- Runtime availability now stops recording without clearing the durable opt-in; only an explicit disable removes that key.
+- About keeps the switch checked from saved intent when runtime storage is unavailable and says `Enabled, but trace storage is currently unavailable.` instead of claiming recording.
+- Recorder RED: `npm test -- src/app/mindroom/diagnostics/deepTraceFailure.test.ts` failed because the unavailable path removed the key.
+- About RED: `npm test -- src/app/features/settings/about/About.test.tsx` failed because the unavailable subscription unchecked a saved opt-in.
+- Focused GREEN: `npm test -- src/app/mindroom/diagnostics/deepTraceFailure.test.ts src/app/mindroom/diagnostics/deepTrace.test.ts src/app/features/settings/about/About.test.tsx src/app/mindroom/diagnostics/diagnosticsExport.test.ts` passes 4 files and 37 tests.
+- Touched-file Prettier, `git diff --check`, typecheck, ESLint, production/PWA build with Element Call verification, and the full suite pass.
+- The full suite passes 455 files and 3,488 tests.
+- Next step: independent review and ready PR follow-up after this work integrates.
+
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
 - Status: implementation, regression coverage, and post-integration validation are complete in PR #200.

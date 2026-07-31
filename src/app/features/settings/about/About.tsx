@@ -66,7 +66,7 @@ export function About({ requestClose }: AboutProps) {
           setDeepTraceChanging(status === 'starting');
         }
         if (status === 'unavailable') {
-          setDeepTracing(false);
+          setDeepTracing(getDeepTraceEnabled());
           setDeepTraceError('storage');
         } else if (status === 'starting') {
           setDeepTracing(true);
@@ -124,7 +124,7 @@ export function About({ requestClose }: AboutProps) {
     if (!saved) {
       setDeepTraceError(enabled ? 'storage' : 'preference');
     }
-    setDeepTracing(enabled && saved);
+    setDeepTracing(enabled ? getDeepTraceEnabled() : false);
     deepTraceChangePending.current = false;
     setDeepTraceChanging(false);
   };
@@ -239,13 +239,15 @@ export function About({ requestClose }: AboutProps) {
                     <SettingTile
                       title="Deep diagnostic tracing"
                       description={`${
-                        deepTracing
+                        deepTraceError === 'storage'
+                          ? deepTracing
+                            ? 'Enabled, but trace storage is currently unavailable.'
+                            : 'Trace storage unavailable.'
+                          : deepTracing
                           ? 'Recording a bounded, privacy-safe performance and interaction trace on this device.'
                           : 'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.'
                       }${
-                        deepTraceError === 'storage'
-                          ? ' Trace storage unavailable.'
-                          : deepTraceError === 'preference'
+                        deepTraceError === 'preference'
                           ? ' Off for this session, but the preference could not be saved and may re-enable after restart.'
                           : ''
                       }`}

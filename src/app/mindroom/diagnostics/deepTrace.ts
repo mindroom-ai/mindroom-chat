@@ -666,7 +666,6 @@ const markUnavailable = (target: Runtime): void => {
   target.droppedQueueEvents = 0;
   if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
   target.flushTimer = undefined;
-  removeStorageItemSafe(target.storage, DEEP_TRACE_ENABLED_KEY);
   notifyStatus(target);
 };
 

@@ -34,24 +34,18 @@ describe('deep diagnostic trace storage failure', () => {
     const unsubscribe = trace.subscribeDeepTraceStatus((status) => statuses.push(status));
 
     expect(await trace.setDeepTraceEnabled(true, storage)).toBe(false);
-    expect(storage.getItem(trace.DEEP_TRACE_ENABLED_KEY)).toBeNull();
+    expect(storage.getItem(trace.DEEP_TRACE_ENABLED_KEY)).toBe('1');
     expect(trace.getDeepTraceRuntimeStatus()).toBe('unavailable');
     expect(statuses).toEqual(expect.arrayContaining(['starting', 'unavailable']));
 
-    const openAttempts = mocks.openDB.mock.calls.length;
-    expect(await trace.setDeepTraceEnabled(false, storage)).toBe(true);
-    await Promise.resolve();
-    expect(trace.getDeepTraceRuntimeStatus()).toBe('disabled');
-    expect(statuses.at(-1)).toBe('disabled');
-    expect(mocks.openDB).toHaveBeenCalledTimes(openAttempts);
-
-    expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+    dispose();
+    const restartedDispose = trace.initializeDeepTraceRecorder(storage);
+    await vi.waitFor(() => expect(trace.getDeepTraceRuntimeStatus()).toBe('recording'));
     expect(storage.getItem(trace.DEEP_TRACE_ENABLED_KEY)).toBe('1');
-    expect(trace.getDeepTraceRuntimeStatus()).toBe('recording');
 
     unsubscribe();
     await trace.setDeepTraceEnabled(false, storage);
-    dispose();
+    restartedDispose();
   });
 
   it('ignores an old open failure after disable and re-enable', async () => {

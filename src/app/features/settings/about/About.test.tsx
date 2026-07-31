@@ -322,7 +322,9 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('reports a background trace storage failure from the runtime status', () => {
+  it('keeps saved trace intent while reporting a background storage failure', () => {
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'recording';
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(<About requestClose={vi.fn()} />);
@@ -332,10 +334,11 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('unavailable');
     });
 
-    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
     expect(deepTraceTile(renderer).props['data-description']).toContain(
-      'Trace storage unavailable.'
+      'Enabled, but trace storage is currently unavailable.'
     );
+    expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
     renderer.unmount();
   });
 
