@@ -17,6 +17,11 @@
 - Review remediation adds a direct failed-enable regression where the preference writes successfully, the runtime publishes unavailable, and activation returns false.
 - Remediation RED temporarily restored `enabled && saved` and the new About test failed with the switch unchecked.
 - Remediation GREEN passes About plus deep-trace focused coverage with 3 files and 35 tests.
+- Final review remediation stores runtime status independently from saved intent, including the already-unavailable mount state and later subscription updates.
+- The tracing description now reports unavailable runtime storage after a successful clear instead of relying on a transient UI error flag.
+- Final remediation RED had two new About regressions fail with `Recording` for an already-unavailable mount and for clear-while-unavailable.
+- Final remediation GREEN passes About plus diagnostic coverage with 4 files and 40 tests, and typecheck passes.
+- Final touched-file Prettier and `git diff --check` pass, and the full suite passes 455 files and 3,491 tests.
 - Next step: independent review and ready PR follow-up after this work integrates.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)

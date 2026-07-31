@@ -29,6 +29,7 @@ import { getFlightRecorderStatus } from '../../../mindroom/diagnostics/flightRec
 import {
   clearDeepTrace,
   getDeepTraceEnabled,
+  getDeepTraceRuntimeStatus,
   setDeepTraceEnabled,
   subscribeDeepTraceStatus,
 } from '../../../mindroom/diagnostics/deepTrace';
@@ -45,6 +46,8 @@ export function About({ requestClose }: AboutProps) {
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState(false);
   const [deepTracing, setDeepTracing] = React.useState(getDeepTraceEnabled);
+  const [deepTraceRuntimeStatus, setDeepTraceRuntimeStatus] =
+    React.useState(getDeepTraceRuntimeStatus);
   const [deepTraceError, setDeepTraceError] = React.useState<
     'storage' | 'preference' | undefined
   >();
@@ -62,6 +65,7 @@ export function About({ requestClose }: AboutProps) {
   React.useEffect(
     () =>
       subscribeDeepTraceStatus((status) => {
+        setDeepTraceRuntimeStatus(status);
         if (!deepTraceChangePending.current) {
           setDeepTraceChanging(status === 'starting');
         }
@@ -239,12 +243,16 @@ export function About({ requestClose }: AboutProps) {
                     <SettingTile
                       title="Deep diagnostic tracing"
                       description={`${
-                        deepTraceError === 'storage'
+                        deepTraceRuntimeStatus === 'unavailable'
                           ? deepTracing
                             ? 'Enabled, but trace storage is currently unavailable.'
                             : 'Trace storage unavailable.'
-                          : deepTracing
+                          : deepTraceError === 'storage'
+                          ? 'Trace storage unavailable.'
+                          : deepTraceRuntimeStatus === 'recording'
                           ? 'Recording a bounded, privacy-safe performance and interaction trace on this device.'
+                          : deepTraceRuntimeStatus === 'starting'
+                          ? 'Starting a bounded, privacy-safe performance and interaction trace on this device.'
                           : 'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.'
                       }${
                         deepTraceError === 'preference'
