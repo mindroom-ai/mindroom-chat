@@ -4,7 +4,7 @@
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
-- Status: implementation, focused TDD coverage, full validation, independent task review, and final exact-diff review are complete; ready for PR review.
+- Status: implementation, focused TDD coverage, full exact-head validation, independent review, PR #205 remediation, and fresh AI review are complete; ready for human merge.
 - Observed symptom: after an iOS crash/relaunch, a transient IndexedDB activation failure erased the saved deep-trace opt-in, so the next launch stayed disabled.
 - Root cause: `markUnavailable()` treated runtime storage loss as a preference change and deleted the durable enabled key.
 - Runtime availability now stops recording without clearing the durable opt-in; only an explicit disable removes that key.
@@ -31,8 +31,14 @@
 - Qodo remediation RED adds regressions for both readable snapshots after a transient activation failure and exports while deep-trace storage remains unavailable; both failed with `enabled: false`.
 - Snapshots now read saved intent from the recorder storage, and the unavailable export fallback reads the durable opt-in instead of hardcoding disabled.
 - Qodo remediation GREEN passes the two focused files and all 5 tests, plus typecheck, touched-file Prettier, and `git diff --check`.
-- CodeRabbit's initial review reports no actionable comments, its incremental review is rate-limited, and Gemini reports that its consumer review service has ceased.
-- Next step: independently review the Qodo remediation, push it, resolve the confirmed finding, and wait for fresh exact-head CI and AI review.
+- Independent review approves the Qodo remediation with no Critical or Important findings.
+- The final exact-head full suite passes 455 files and 3,491 tests.
+- Final exact-head typecheck, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
+- Final exact-head ESLint passes with zero errors and the existing 17-warning baseline.
+- Qodo's fresh review reports zero bugs and marks its confirmed finding resolved, while Sourcery's fresh review passes without new comments.
+- CodeRabbit's initial review reports no actionable comments, its incremental reviews are rate-limited, and Gemini reports that its consumer review service has ceased.
+- PR #205 web, Android debug APK, and Docker image checks pass on the remediated code head.
+- Next step: human merge of ready PR #205.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
