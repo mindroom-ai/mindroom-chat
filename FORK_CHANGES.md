@@ -4,7 +4,7 @@
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
-- Status: implementation, focused TDD coverage, and full validation are complete.
+- Status: implementation, focused TDD coverage, full validation, independent task review, and final exact-diff review are complete; ready for PR review.
 - Observed symptom: after an iOS crash/relaunch, a transient IndexedDB activation failure erased the saved deep-trace opt-in, so the next launch stayed disabled.
 - Root cause: `markUnavailable()` treated runtime storage loss as a preference change and deleted the durable enabled key.
 - Runtime availability now stops recording without clearing the durable opt-in; only an explicit disable removes that key.
@@ -22,7 +22,9 @@
 - Final remediation RED had two new About regressions fail with `Recording` for an already-unavailable mount and for clear-while-unavailable.
 - Final remediation GREEN passes About plus diagnostic coverage with 4 files and 40 tests, and typecheck passes.
 - Final touched-file Prettier and `git diff --check` pass, and the full suite passes 455 files and 3,491 tests.
-- Next step: independent review and ready PR follow-up after this work integrates.
+- Independent task review found the missing failed-enable UI regression, and the final whole-branch review found that runtime availability still needed separate state to prevent false recording copy on mount and after Clear trace.
+- Both findings are fixed, and scoped re-reviews approve the current implementation with no remaining blocker.
+- Next step: open the ready PR, wait for AI reviewers and CI, and address every confirmed finding.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
