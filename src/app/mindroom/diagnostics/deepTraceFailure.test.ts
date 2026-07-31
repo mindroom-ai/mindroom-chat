@@ -37,6 +37,10 @@ describe('deep diagnostic trace storage failure', () => {
     expect(storage.getItem(trace.DEEP_TRACE_ENABLED_KEY)).toBe('1');
     expect(trace.getDeepTraceRuntimeStatus()).toBe('unavailable');
     expect(statuses).toEqual(expect.arrayContaining(['starting', 'unavailable']));
+    expect(await trace.readDeepTraceSnapshot()).toMatchObject({
+      enabled: true,
+      status: 'unavailable',
+    });
 
     dispose();
     const restartedDispose = trace.initializeDeepTraceRecorder(storage);

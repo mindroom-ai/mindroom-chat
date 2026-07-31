@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   buildFlightRecorderPayload: vi.fn(),
+  getDeepTraceEnabled: vi.fn(),
   readDeepTraceSnapshot: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock('./flightRecorder', () => ({
 
 vi.mock('./deepTrace', () => ({
   DEEP_TRACE_SCHEMA_VERSION: 1,
+  getDeepTraceEnabled: mocks.getDeepTraceEnabled,
   readDeepTraceSnapshot: mocks.readDeepTraceSnapshot,
 }));
 
@@ -45,6 +47,7 @@ describe('combined diagnostics export', () => {
       },
       events: [{ name: 'thread_resume.visibility.start' }],
     });
+    mocks.getDeepTraceEnabled.mockReturnValue(false);
   });
 
   it('exports flight evidence and the retained deep trace under a versioned envelope', async () => {
@@ -71,13 +74,14 @@ describe('combined diagnostics export', () => {
 
   it('still exports the flight record when deep trace storage is unavailable', async () => {
     mocks.readDeepTraceSnapshot.mockRejectedValue(new Error('IndexedDB blocked'));
+    mocks.getDeepTraceEnabled.mockReturnValue(true);
 
     const payload = JSON.parse(await (await buildDiagnosticsExport()).blob.text());
 
     expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
     expect(payload.deepTrace).toEqual({
       schemaVersion: 1,
-      enabled: false,
+      enabled: true,
       status: 'unavailable',
       stats: {
         eventCount: 0,

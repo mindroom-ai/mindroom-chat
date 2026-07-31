@@ -817,7 +817,7 @@ export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {
   const { stats, events } = await readStoredEvents();
   return {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
-    enabled: target?.enabled ?? getDeepTraceEnabled(),
+    enabled: getDeepTraceEnabled(target?.storage),
     status: target?.unavailable ? 'unavailable' : target?.enabled ? 'recording' : 'disabled',
     stats,
     events,

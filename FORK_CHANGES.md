@@ -26,8 +26,13 @@
 - Both findings are fixed, and scoped re-reviews approve the current implementation with no remaining blockers.
 - PR #205 review remediation extracts the status/error description from the nested JSX branch into one typed helper and fixes the Runbook plural typo.
 - The storage reads remain intentional because durable opt-in, not React state or runtime status, decides whether an unavailable or failed activation remains enabled for the next launch.
-- CodeRabbit reports no actionable comments, Qodo recommends the current approach, and Gemini reports that its consumer review service has ceased.
-- Next step: validate the Sourcery remediation, resolve its handled threads, and wait for the remaining CI checks.
+- Sourcery remediation is validated, and both handled threads are resolved.
+- Qodo then found that snapshots and the unavailable-export fallback still reported runtime activity as the `enabled` value instead of the saved opt-in.
+- Qodo remediation RED adds regressions for both readable snapshots after a transient activation failure and exports while deep-trace storage remains unavailable; both failed with `enabled: false`.
+- Snapshots now read saved intent from the recorder storage, and the unavailable export fallback reads the durable opt-in instead of hardcoding disabled.
+- Qodo remediation GREEN passes the two focused files and all 5 tests, plus typecheck, touched-file Prettier, and `git diff --check`.
+- CodeRabbit's initial review reports no actionable comments, its incremental review is rate-limited, and Gemini reports that its consumer review service has ceased.
+- Next step: independently review the Qodo remediation, push it, resolve the confirmed finding, and wait for fresh exact-head CI and AI review.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
