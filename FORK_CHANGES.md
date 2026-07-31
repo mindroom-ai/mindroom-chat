@@ -23,8 +23,11 @@
 - Final remediation GREEN passes About plus diagnostic coverage with 4 files and 40 tests, and typecheck passes.
 - Final touched-file Prettier and `git diff --check` pass, and the full suite passes 455 files and 3,491 tests.
 - Independent task review found the missing failed-enable UI regression, and the final whole-branch review found that runtime availability still needed separate state to prevent false recording copy on mount and after Clear trace.
-- Both findings are fixed, and scoped re-reviews approve the current implementation with no remaining blocker.
-- Next step: open the ready PR, wait for AI reviewers and CI, and address every confirmed finding.
+- Both findings are fixed, and scoped re-reviews approve the current implementation with no remaining blockers.
+- PR #205 review remediation extracts the status/error description from the nested JSX branch into one typed helper and fixes the Runbook plural typo.
+- The storage reads remain intentional because durable opt-in, not React state or runtime status, decides whether an unavailable or failed activation remains enabled for the next launch.
+- CodeRabbit reports no actionable comments, Qodo recommends the current approach, and Gemini reports that its consumer review service has ceased.
+- Next step: validate the Sourcery remediation, resolve its handled threads, and wait for the remaining CI checks.
 
 ### Restore rounded mobile bottom-sheet corners (2026-07-30)
 
