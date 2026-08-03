@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import type { ThreadCacheCoverage, ThreadRecord, ThreadReplyCountSnapshotEvidence } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
@@ -56,6 +56,7 @@ export type FetchedRelationOverviewUpdateOptions = {
   relationSnapshotComplete?: boolean;
   snapshotComplete?: boolean;
   tailLoaded?: boolean;
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence;
 };
 
 type ResolveCachedOverviewUpdateOptions = {
@@ -150,6 +151,7 @@ export const buildCachedOverviewCoverage = (
     hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
     expectedReplyCount: cachedPage.expectedReplyCount,
     expectedReplyCountSnapshotTs: cachedPage.expectedReplyCountSnapshotTs,
+    expectedReplyCountEvidence: cachedPage.expectedReplyCountEvidence,
     relationSnapshotComplete: cachedPage.relationSnapshotComplete,
     snapshotComplete: cachedPage.snapshotComplete,
     tailLoaded: cachedPage.tailLoaded,
@@ -167,6 +169,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
   relationSnapshotComplete,
   snapshotComplete,
   tailLoaded,
+  replyCountEvidence,
 }: FetchedRelationOverviewUpdateOptions): CachedOverviewUpdate | null => {
   const { oldestTs, newestTs } = getMatrixEventTsRange(events);
   const liveActivityTs = currentRecord?.status.lastActivityTs ?? 0;
@@ -215,9 +218,28 @@ export const resolveFetchedRelationOverviewUpdate = ({
   const fetchedRelationSnapshotTs =
     getMatrixRelationSnapshotTs(events) ?? rootEvent?.getTs() ?? undefined;
   const nextExpectedReplyCount = authoritativeFetchedMessageCount ?? expectedReplyCount;
+  const resolvedReplyCountEvidence =
+    relationSnapshotComplete === true
+      ? replyCountEvidence ?? {
+          knownEventIds: [
+            ...new Set(
+              events
+                .map((event) => event.getId())
+                .filter((eventId): eventId is string => !!eventId && eventId !== rootId)
+            ),
+          ],
+          visibleEventIds: [
+            ...new Set(
+              getPreferredVisibleThreadReplyEvents({ events, timeline: events })
+                .map((event) => event.getId())
+                .filter((eventId): eventId is string => !!eventId)
+            ),
+          ],
+        }
+      : undefined;
   const expectedReplyCountSnapshotTs =
     relationSnapshotComplete === true
-      ? Math.max(Date.now(), fetchedRelationSnapshotTs ?? 0)
+      ? fetchedRelationSnapshotTs
       : nextExpectedReplyCount !== undefined &&
         nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
       ? currentRecord.cache.expectedReplyCountSnapshotTs
@@ -231,6 +253,12 @@ export const resolveFetchedRelationOverviewUpdate = ({
     hasMoreBackward: typeof beforeToken === 'string',
     expectedReplyCount: nextExpectedReplyCount,
     expectedReplyCountSnapshotTs,
+    expectedReplyCountEvidence:
+      relationSnapshotComplete === true
+        ? resolvedReplyCountEvidence
+        : nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
+        ? currentRecord?.cache.expectedReplyCountEvidence
+        : undefined,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,

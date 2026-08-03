@@ -5,7 +5,11 @@ import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
-import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
+import {
+  createPreferLiveEventMapper,
+  loadThreadCachedSnapshot,
+  type CachedThreadEventPage,
+} from './eventRepository';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -45,6 +49,32 @@ export type ThreadOpenCacheController = {
       allowWhenThreadClosed?: boolean;
     }
   ) => Promise<boolean>;
+};
+
+export const resolveThreadOpenExpectedReplyCount = ({
+  liveRootEvent,
+  cachedRootEvent,
+  cachedPage,
+}: {
+  liveRootEvent?: MatrixEvent;
+  cachedRootEvent?: MatrixEvent;
+  cachedPage: Pick<
+    CachedThreadEventPage,
+    'expectedReplyCount' | 'expectedReplyCountEvidence' | 'relationSnapshotComplete'
+  >;
+}): number | undefined => {
+  if (
+    cachedPage.relationSnapshotComplete === true &&
+    cachedPage.expectedReplyCountEvidence !== undefined &&
+    typeof cachedPage.expectedReplyCount === 'number'
+  ) {
+    return cachedPage.expectedReplyCount;
+  }
+  return getAuthoritativeCachedThreadReplyCount({
+    rootEvent: liveRootEvent,
+    cachedRootEvent,
+    expectedReplyCount: cachedPage.expectedReplyCount,
+  });
 };
 
 export const useThreadOpenCacheController = ({
@@ -131,10 +161,10 @@ export const useThreadOpenCacheController = ({
         undefined;
       const cachedRootMatrixEvent =
         cachedEvents.find((mEvent) => mEvent.getId() === expectedThreadId) ?? undefined;
-      const authoritativeExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
-        rootEvent: liveRootMatrixEvent,
+      const authoritativeExpectedReplyCount = resolveThreadOpenExpectedReplyCount({
+        liveRootEvent: liveRootMatrixEvent,
         cachedRootEvent: cachedRootMatrixEvent,
-        expectedReplyCount: cachedPage.expectedReplyCount,
+        cachedPage,
       });
       const snapshotComplete = isCompleteCachedThreadSnapshot({
         room,
@@ -156,6 +186,10 @@ export const useThreadOpenCacheController = ({
         expectedReplyCountSnapshotTs:
           authoritativeExpectedReplyCount === cachedPage.expectedReplyCount
             ? cachedPage.expectedReplyCountSnapshotTs
+            : undefined,
+        expectedReplyCountEvidence:
+          authoritativeExpectedReplyCount === cachedPage.expectedReplyCount
+            ? cachedPage.expectedReplyCountEvidence
             : undefined,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,

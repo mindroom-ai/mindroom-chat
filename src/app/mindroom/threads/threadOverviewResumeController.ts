@@ -18,6 +18,7 @@ import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
+import type { ThreadReplyCountSnapshotEvidence } from './types';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -27,7 +28,8 @@ type PersistThreadEventCache = (
   tailLoaded?: boolean,
   snapshotComplete?: boolean,
   expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
+  relationSnapshotComplete?: boolean,
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence
 ) => void;
 
 export const useThreadOverviewResumeController = ({

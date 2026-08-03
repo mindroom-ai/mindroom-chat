@@ -1,5 +1,6 @@
 import type { IEvent } from 'matrix-js-sdk';
 import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
+import type { ThreadReplyCountSnapshotEvidence } from '../types';
 
 // CINNY-207 P2.1: single-DB schema v3 for the unified CacheStore. The
 // per-domain caches (`roomEventCache`, `threadEventCache`,
@@ -101,6 +102,7 @@ export type CachedMetaRecord = {
   expectedReplyCount?: number;
   /** Latest relation activity covered by `expectedReplyCount`. */
   expectedReplyCountSnapshotTs?: number;
+  expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;

@@ -1,4 +1,4 @@
-import type { ThreadCacheCoverage } from './types';
+import type { ThreadCacheCoverage, ThreadReplyCountSnapshotEvidence } from './types';
 
 type BuildThreadCacheCoverageOptions = {
   eventCount: number;
@@ -12,6 +12,7 @@ type BuildThreadCacheCoverageOptions = {
   tailLoaded?: boolean;
   expectedReplyCount?: number;
   expectedReplyCountSnapshotTs?: number;
+  expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
 };
 
 export const buildThreadCacheCoverage = ({
@@ -26,6 +27,7 @@ export const buildThreadCacheCoverage = ({
   tailLoaded,
   expectedReplyCount,
   expectedReplyCountSnapshotTs,
+  expectedReplyCountEvidence,
 }: BuildThreadCacheCoverageOptions): ThreadCacheCoverage => ({
   eventCount,
   oldestTs,
@@ -38,6 +40,7 @@ export const buildThreadCacheCoverage = ({
   tailLoaded: tailLoaded === true,
   expectedReplyCount,
   expectedReplyCountSnapshotTs,
+  expectedReplyCountEvidence,
 });
 
 export const hasThreadCacheBackwardGap = (coverage: ThreadCacheCoverage): boolean =>

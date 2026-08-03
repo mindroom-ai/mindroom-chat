@@ -367,6 +367,10 @@ describe('buildThreadRecord', () => {
         eventCount: 32,
         expectedReplyCount: 282,
         expectedReplyCountSnapshotTs: 33,
+        expectedReplyCountEvidence: {
+          knownEventIds: replies.map((event) => event.getId() ?? ''),
+          visibleEventIds: replies.map((event) => event.getId() ?? ''),
+        },
         hasMoreBackward: true,
         oldestVisibleReplyEventId: '$reply-0',
         relationSnapshotComplete: false,
@@ -377,7 +381,7 @@ describe('buildThreadRecord', () => {
     expect(record.presentation.messageCount).toBe(281);
   });
 
-  it('adds a new live reply beyond an overlapping durable tail without waiting for a summary', () => {
+  it('adds a new live reply sharing the snapshot timestamp without waiting for a summary', () => {
     const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
     const cachedTail = Array.from({ length: 32 }, (_, index) =>
       makeEvent({
@@ -391,7 +395,7 @@ describe('buildThreadRecord', () => {
       eventId: '$reply-new',
       threadRootId: '$root',
       body: 'New reply',
-      ts: 100,
+      ts: 33,
     });
     const replies = [...cachedTail, newReply, newReply];
     const room = makeRoom({
@@ -407,6 +411,10 @@ describe('buildThreadRecord', () => {
         eventCount: 32,
         expectedReplyCount: 282,
         expectedReplyCountSnapshotTs: 33,
+        expectedReplyCountEvidence: {
+          knownEventIds: cachedTail.map((event) => event.getId() ?? ''),
+          visibleEventIds: cachedTail.map((event) => event.getId() ?? ''),
+        },
         hasMoreBackward: true,
         oldestVisibleReplyEventId: '$reply-0',
         relationSnapshotComplete: true,
@@ -442,6 +450,10 @@ describe('buildThreadRecord', () => {
         eventCount: 32,
         expectedReplyCount: 281,
         expectedReplyCountSnapshotTs: 100,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$reply-redacted'],
+          visibleEventIds: [],
+        },
         hasMoreBackward: true,
         relationSnapshotComplete: false,
         tailLoaded: true,
@@ -551,6 +563,10 @@ describe('buildThreadRecord', () => {
         eventCount: 24,
         expectedReplyCount: 24,
         expectedReplyCountSnapshotTs: 25,
+        expectedReplyCountEvidence: {
+          knownEventIds: replies.map((event) => event.getId() ?? ''),
+          visibleEventIds: replies.map((event) => event.getId() ?? ''),
+        },
         hasMoreBackward: true,
         oldestVisibleReplyEventId: '$reply-0',
         relationSnapshotComplete: true,
@@ -584,6 +600,10 @@ describe('buildThreadRecord', () => {
         eventCount: 23,
         expectedReplyCount: 23,
         expectedReplyCountSnapshotTs: 100,
+        expectedReplyCountEvidence: {
+          knownEventIds: replies.map((event) => event.getId() ?? ''),
+          visibleEventIds: replies.slice(1).map((event) => event.getId() ?? ''),
+        },
         hasMoreBackward: true,
         relationSnapshotComplete: true,
         tailLoaded: true,

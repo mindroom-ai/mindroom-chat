@@ -19,14 +19,15 @@
 - Equal 32-event SDK/cache tails keep the durable total while it exceeds the loaded visible count; loaded redactions remain authoritative, stale-low cache hydration cannot lower newer live state, and exhausted relation counts deduplicate event IDs consistently.
 - Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
 - Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
-- Durable counts now carry the relation-activity horizon they cover, allowing the shared record builder to add later unique replies and subtract later redactions exactly once.
-- Only relation-proven snapshots receive an exact horizon; a higher bundled root count remains a conservative lower bound because it cannot prove which loaded reply identities it already includes.
+- Durable relation counts now carry identity evidence for the event IDs known at fetch start and the visible reply IDs counted by the exhausted response.
+- The shared record builder adds later IDs that were not known, subtracts later redactions whose IDs were visible in the snapshot, and never compares client wall time with Matrix server timestamps.
+- A higher bundled root count remains a conservative lower bound because it cannot prove which loaded reply identities it already includes.
+- Legacy relation-complete rows without identity evidence are downgraded to unproven coverage and refreshed instead of being trusted as exact.
 - Exhausted relation snapshots are authoritative even when the redacted event was the newest SDK event, so a completed decrease survives cache hydrate, record reconstruction, and remount.
 - Redaction reconciliation covers every visible reply envelope, including encrypted and sticker events, rather than only `m.room.message`.
 - Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 35 tests, and the full Vitest suite passes 456 files with 3,513 tests.
-- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
+- Validation in progress: eight focused record, hydration, prefetch, open-cache, persistence, and engine suites pass 95 tests, and typecheck passes.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)

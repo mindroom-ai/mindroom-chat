@@ -1,5 +1,7 @@
 import type { IEvent } from 'matrix-js-sdk';
 import { countCacheProbe } from '../cacheProbe';
+import type { ThreadReplyCountSnapshotEvidence } from '../types';
+import { isVisibleThreadReplyEventType } from '../threadUtils';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   collectEmbeddedRelationEventIds,
@@ -65,6 +67,38 @@ const getExpectedReplyCountSnapshotTs = (
     .map(getRawEventRelationActivityTs)
     .filter((timestamp): timestamp is number => timestamp !== undefined);
   return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+};
+
+const normalizeReplyCountEvidence = (
+  evidence: ThreadReplyCountSnapshotEvidence
+): ThreadReplyCountSnapshotEvidence => ({
+  knownEventIds: [...new Set(evidence.knownEventIds.filter((eventId) => !!eventId))],
+  visibleEventIds: [...new Set(evidence.visibleEventIds.filter((eventId) => !!eventId))],
+});
+
+const buildRawReplyCountEvidence = (
+  events: readonly Partial<IEvent>[],
+  threadId: string
+): ThreadReplyCountSnapshotEvidence => {
+  const knownEventIds = new Set<string>();
+  const visibleEventIds = new Set<string>();
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (typeof eventId !== 'string' || eventId === threadId) return;
+    knownEventIds.add(eventId);
+    const relatesTo = rawEvent.content?.['m.relates_to'] as
+      | { event_id?: unknown; rel_type?: unknown }
+      | undefined;
+    if (
+      !rawEvent.unsigned?.redacted_because &&
+      relatesTo?.event_id === threadId &&
+      relatesTo.rel_type === 'm.thread' &&
+      isVisibleThreadReplyEventType(rawEvent.type)
+    ) {
+      visibleEventIds.add(eventId);
+    }
+  });
+  return { knownEventIds: [...knownEventIds], visibleEventIds: [...visibleEventIds] };
 };
 
 // One marker row per redacted id gives later stale event pages an O(batch)
@@ -333,6 +367,7 @@ export type CachedThreadEventPage = {
   beforeToken?: string | null;
   expectedReplyCount?: number;
   expectedReplyCountSnapshotTs?: number;
+  expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;
@@ -708,6 +743,7 @@ const runSaveRoomEventsTxn = async (
           rootEvent: currentMeta?.rootEvent,
           expectedReplyCount: currentMeta?.expectedReplyCount,
           expectedReplyCountSnapshotTs: currentMeta?.expectedReplyCountSnapshotTs,
+          expectedReplyCountEvidence: currentMeta?.expectedReplyCountEvidence,
           snapshotComplete: currentMeta?.snapshotComplete,
           relationSnapshotComplete: currentMeta?.relationSnapshotComplete,
           tailLoaded: currentMeta?.tailLoaded,
@@ -858,8 +894,10 @@ const buildThreadEventPage = (
   beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
   expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
   expectedReplyCountSnapshotTs: meta?.expectedReplyCountSnapshotTs,
+  expectedReplyCountEvidence: meta?.expectedReplyCountEvidence,
   snapshotComplete: meta?.snapshotComplete === true,
-  relationSnapshotComplete: meta?.relationSnapshotComplete === true,
+  relationSnapshotComplete:
+    meta?.relationSnapshotComplete === true && meta.expectedReplyCountEvidence !== undefined,
   tailLoaded: meta?.tailLoaded === true,
 });
 
@@ -1020,7 +1058,8 @@ export const saveThreadEventsToCacheCommitted = async (
   snapshotComplete?: boolean,
   expectedReplyCount?: number,
   relationSnapshotComplete?: boolean,
-  relationSnapshotMode: RelationSnapshotMode = 'partial'
+  relationSnapshotMode: RelationSnapshotMode = 'partial',
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence
 ): Promise<boolean> => {
   // CINNY-207 P2.3: cache health gate (same rationale as the room save).
   if (!isCacheWritable()) return false;
@@ -1062,7 +1101,8 @@ export const saveThreadEventsToCacheCommitted = async (
       expectedReplyCount,
       relationSnapshotComplete,
       relationSnapshotMode,
-      redactedEventIds
+      redactedEventIds,
+      replyCountEvidence
     );
   } catch (error) {
     reportCacheWriteError('threadEventCache.save', error);
@@ -1092,7 +1132,8 @@ const runSaveThreadEventsTxn = async (
   expectedReplyCount: number | undefined,
   relationSnapshotComplete: boolean | undefined,
   relationSnapshotMode: RelationSnapshotMode,
-  redactedEventIds: ReadonlySet<string>
+  redactedEventIds: ReadonlySet<string>,
+  replyCountEvidence: ThreadReplyCountSnapshotEvidence | undefined
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
@@ -1112,10 +1153,13 @@ const runSaveThreadEventsTxn = async (
       normalizedExpectedReplyCount === undefined
         ? undefined
         : getExpectedReplyCountSnapshotTs(normalizedEvents, rootEvent);
-    const incomingExpectedReplyCountSnapshotTs =
+    const incomingExpectedReplyCountSnapshotTs = incomingRelationActivityTs;
+    const incomingReplyCountEvidence =
       relationSnapshotComplete === true
-        ? Math.max(Date.now(), incomingRelationActivityTs ?? 0)
-        : incomingRelationActivityTs;
+        ? normalizeReplyCountEvidence(
+            replyCountEvidence ?? buildRawReplyCountEvidence(normalizedEvents, threadId)
+          )
+        : undefined;
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
 
     loadKnownRedactedRelationEventIds(
@@ -1145,6 +1189,7 @@ const runSaveThreadEventsTxn = async (
               snapshotComplete
             );
             let expectedReplyCountSnapshotTs = currentMeta?.expectedReplyCountSnapshotTs;
+            let expectedReplyCountEvidence = currentMeta?.expectedReplyCountEvidence;
             if (normalizedExpectedReplyCount !== undefined) {
               if (relationSnapshotComplete === true) {
                 expectedReplyCountSnapshotTs =
@@ -1152,14 +1197,15 @@ const runSaveThreadEventsTxn = async (
                     currentMeta?.expectedReplyCountSnapshotTs ?? 0,
                     incomingExpectedReplyCountSnapshotTs ?? 0
                   ) || undefined;
-              } else if (
-                currentMeta?.expectedReplyCount === undefined ||
-                normalizedExpectedReplyCount > currentMeta.expectedReplyCount
-              ) {
+                expectedReplyCountEvidence = incomingReplyCountEvidence;
+              } else if (mergedExpectedReplyCount !== currentMeta?.expectedReplyCount) {
                 // A bundled root count can be fresher than the stored total,
                 // but it cannot prove which loaded relation events it covers.
                 expectedReplyCountSnapshotTs = undefined;
+                expectedReplyCountEvidence = undefined;
               }
+            } else if (relationSnapshotComplete === true) {
+              expectedReplyCountEvidence = incomingReplyCountEvidence;
             }
             const cacheableRootEvent =
               incomingRootEvent &&
@@ -1189,6 +1235,7 @@ const runSaveThreadEventsTxn = async (
                 : currentMeta?.rootEvent,
               expectedReplyCount: mergedExpectedReplyCount,
               expectedReplyCountSnapshotTs,
+              expectedReplyCountEvidence,
               snapshotComplete: mergeThreadCacheFlag(
                 currentMeta?.snapshotComplete,
                 snapshotComplete

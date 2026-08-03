@@ -89,14 +89,6 @@ type CachedMessageCountResolution = {
   authoritative: boolean;
 };
 
-const getRedactionTs = (event: MatrixEvent): number | undefined => {
-  const redactedBecause = event.getUnsigned()?.redacted_because as
-    | { origin_server_ts?: unknown }
-    | undefined;
-  const timestamp = redactedBecause?.origin_server_ts;
-  return typeof timestamp === 'number' && Number.isFinite(timestamp) ? timestamp : undefined;
-};
-
 const resolveCachedMessageCount = (
   room: Room,
   threadRootId: string,
@@ -118,17 +110,19 @@ const resolveCachedMessageCount = (
   const candidateMessageCount = durableMessageCount ?? safeFallbackMessageCount;
   const visibleLoadedReplyCount =
     buildVisibleThreadReplyCountMap(loadedThreadEvents).get(threadRootId) ?? 0;
-  const countSnapshotTs = cacheCoverage?.expectedReplyCountSnapshotTs;
+  const countEvidence = cacheCoverage?.expectedReplyCountEvidence;
 
   if (candidateMessageCount !== undefined) {
     let adjustedCandidateMessageCount = candidateMessageCount;
-    if (durableMessageCount !== undefined && typeof countSnapshotTs === 'number') {
+    if (durableMessageCount !== undefined && countEvidence !== undefined) {
+      const knownEventIds = new Set(countEvidence.knownEventIds);
+      const visibleSnapshotEventIds = new Set(countEvidence.visibleEventIds);
       const newVisibleReplyIds = new Set(
         loadedThreadEvents
           .filter(
             (event) =>
               event.threadRootId === threadRootId &&
-              event.getTs() > countSnapshotTs &&
+              !knownEventIds.has(event.getId() ?? '') &&
               isVisibleThreadReplyEvent(event)
           )
           .map((event) => event.getId())
@@ -137,14 +131,11 @@ const resolveCachedMessageCount = (
       const newlyRedactedSnapshotReplyIds = new Set(
         loadedThreadEvents
           .filter((event) => {
-            const redactionTs = getRedactionTs(event);
             return (
               event.isRedacted() &&
               event.threadRootId === threadRootId &&
               isVisibleThreadReplyEventType(event.getType()) &&
-              event.getTs() <= countSnapshotTs &&
-              redactionTs !== undefined &&
-              redactionTs > countSnapshotTs
+              visibleSnapshotEventIds.has(event.getId() ?? '')
             );
           })
           .map((event) => event.getId())
@@ -158,7 +149,7 @@ const resolveCachedMessageCount = (
     const authoritative =
       durableMessageCount !== undefined &&
       cacheCoverage?.relationSnapshotComplete === true &&
-      typeof countSnapshotTs === 'number';
+      countEvidence !== undefined;
     if (authoritative || adjustedCandidateMessageCount > visibleLoadedReplyCount) {
       return { messageCount: adjustedCandidateMessageCount, authoritative };
     }
