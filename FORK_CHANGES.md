@@ -20,6 +20,7 @@
 - Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
 - Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
 - Durable counts now carry the relation-activity horizon they cover, allowing the shared record builder to add later unique replies and subtract later redactions exactly once.
+- Only relation-proven snapshots receive an exact horizon; a higher bundled root count remains a conservative lower bound because it cannot prove which loaded reply identities it already includes.
 - Exhausted relation snapshots are authoritative even when the redacted event was the newest SDK event, so a completed decrease survives cache hydrate, record reconstruction, and remount.
 - Redaction reconciliation covers every visible reply envelope, including encrypted and sticker events, rather than only `m.room.message`.
 - Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.

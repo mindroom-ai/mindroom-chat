@@ -214,6 +214,14 @@ export const resolveFetchedRelationOverviewUpdate = ({
     : undefined;
   const fetchedRelationSnapshotTs =
     getMatrixRelationSnapshotTs(events) ?? rootEvent?.getTs() ?? undefined;
+  const nextExpectedReplyCount = authoritativeFetchedMessageCount ?? expectedReplyCount;
+  const expectedReplyCountSnapshotTs =
+    relationSnapshotComplete === true
+      ? Math.max(Date.now(), fetchedRelationSnapshotTs ?? 0)
+      : nextExpectedReplyCount !== undefined &&
+        nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
+      ? currentRecord.cache.expectedReplyCountSnapshotTs
+      : undefined;
   const nextCacheCoverage = buildThreadCacheCoverage({
     eventCount: events.length,
     oldestTs,
@@ -221,11 +229,8 @@ export const resolveFetchedRelationOverviewUpdate = ({
     newestTs,
     backwardToken: beforeToken,
     hasMoreBackward: typeof beforeToken === 'string',
-    expectedReplyCount: authoritativeFetchedMessageCount ?? expectedReplyCount,
-    expectedReplyCountSnapshotTs:
-      relationSnapshotComplete === true
-        ? Math.max(Date.now(), fetchedRelationSnapshotTs ?? 0)
-        : fetchedRelationSnapshotTs,
+    expectedReplyCount: nextExpectedReplyCount,
+    expectedReplyCountSnapshotTs,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,

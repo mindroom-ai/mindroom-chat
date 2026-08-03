@@ -103,7 +103,7 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(await storedCount()).toBe(282);
   });
 
-  it('advances the count snapshot timestamp only for accepted count observations', async () => {
+  it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (
       count: number,
@@ -128,14 +128,17 @@ describe('thread meta expectedReplyCount merge policy', () => {
       (await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5))
         .expectedReplyCountSnapshotTs;
 
-    await save(20, undefined, '$timestamp-1', 1_000);
-    await save(282, undefined, '$timestamp-2', 2_000);
-    expect(await loadSnapshotTs()).toBe(2_000);
+    await save(282, true, '$timestamp-1', 1_000, true);
+    const completeSnapshotTs = await loadSnapshotTs();
+    expect(completeSnapshotTs).toBeGreaterThanOrEqual(1_000);
 
     await save(20, undefined, '$timestamp-3', 3_000);
-    expect(await loadSnapshotTs()).toBe(2_000);
+    expect(await loadSnapshotTs()).toBe(completeSnapshotTs);
 
-    await save(200, true, '$timestamp-4', 4_000, true);
-    expect(await loadSnapshotTs()).toBeGreaterThanOrEqual(4_000);
+    await save(300, undefined, '$timestamp-4', 4_000);
+    expect(await loadSnapshotTs()).toBeUndefined();
+
+    await save(299, true, '$timestamp-5', 5_000, true);
+    expect(await loadSnapshotTs()).toBeGreaterThanOrEqual(5_000);
   });
 });

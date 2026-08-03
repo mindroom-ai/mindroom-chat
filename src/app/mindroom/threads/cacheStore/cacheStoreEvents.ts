@@ -1144,17 +1144,23 @@ const runSaveThreadEventsTxn = async (
               normalizedExpectedReplyCount,
               snapshotComplete
             );
-            const expectedReplyCountObservationAccepted =
-              normalizedExpectedReplyCount !== undefined &&
-              (relationSnapshotComplete === true ||
+            let expectedReplyCountSnapshotTs = currentMeta?.expectedReplyCountSnapshotTs;
+            if (normalizedExpectedReplyCount !== undefined) {
+              if (relationSnapshotComplete === true) {
+                expectedReplyCountSnapshotTs =
+                  Math.max(
+                    currentMeta?.expectedReplyCountSnapshotTs ?? 0,
+                    incomingExpectedReplyCountSnapshotTs ?? 0
+                  ) || undefined;
+              } else if (
                 currentMeta?.expectedReplyCount === undefined ||
-                normalizedExpectedReplyCount > currentMeta.expectedReplyCount);
-            const expectedReplyCountSnapshotTs = expectedReplyCountObservationAccepted
-              ? Math.max(
-                  currentMeta?.expectedReplyCountSnapshotTs ?? 0,
-                  incomingExpectedReplyCountSnapshotTs ?? 0
-                ) || undefined
-              : currentMeta?.expectedReplyCountSnapshotTs;
+                normalizedExpectedReplyCount > currentMeta.expectedReplyCount
+              ) {
+                // A bundled root count can be fresher than the stored total,
+                // but it cannot prove which loaded relation events it covers.
+                expectedReplyCountSnapshotTs = undefined;
+              }
+            }
             const cacheableRootEvent =
               incomingRootEvent &&
               !isRawLocalEchoEventPublic(incomingRootEvent) &&
