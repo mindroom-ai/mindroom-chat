@@ -118,21 +118,34 @@ const normalizeReplyCountEvidence = (
   if (!Array.isArray(candidate.knownEventIds) || !Array.isArray(candidate.visibleEventIds)) {
     return undefined;
   }
+  const knownEventIds = [...candidate.knownEventIds];
+  const visibleEventIds = [...candidate.visibleEventIds];
   if (
-    candidate.knownEventIds.some((eventId) => typeof eventId !== 'string' || !eventId) ||
-    candidate.visibleEventIds.some((eventId) => typeof eventId !== 'string' || !eventId)
+    knownEventIds.some((eventId) => typeof eventId !== 'string' || !eventId) ||
+    visibleEventIds.some((eventId) => typeof eventId !== 'string' || !eventId)
   ) {
     return undefined;
   }
-  const knownEventIds = [...new Set(candidate.knownEventIds)];
-  const knownEventIdSet = new Set(knownEventIds);
-  if (candidate.visibleEventIds.some((eventId) => !knownEventIdSet.has(eventId))) {
+  const uniqueKnownEventIds = [...new Set(knownEventIds)];
+  const knownEventIdSet = new Set(uniqueKnownEventIds);
+  if (visibleEventIds.some((eventId) => !knownEventIdSet.has(eventId))) {
     return undefined;
   }
   return {
-    knownEventIds,
-    visibleEventIds: [...new Set(candidate.visibleEventIds)],
+    knownEventIds: uniqueKnownEventIds,
+    visibleEventIds: [...new Set(visibleEventIds)],
   };
+};
+
+const normalizeReplyCountEvidenceForCount = (
+  expectedReplyCount: number | undefined,
+  evidence: unknown
+): ThreadReplyCountSnapshotEvidence | undefined => {
+  const normalizedEvidence = normalizeReplyCountEvidence(evidence);
+  return expectedReplyCount !== undefined &&
+    normalizedEvidence?.visibleEventIds.length === expectedReplyCount
+    ? normalizedEvidence
+    : undefined;
 };
 
 const buildRawReplyCountEvidence = (
@@ -1032,13 +1045,17 @@ const buildThreadEventPage = (
   orderedEvents: CachedThreadEvent[],
   hasMoreBefore: boolean
 ): CachedThreadEventPage => {
-  const expectedReplyCountEvidence = normalizeReplyCountEvidence(meta?.expectedReplyCountEvidence);
+  const expectedReplyCount = normalizeExpectedReplyCount(meta?.expectedReplyCount);
+  const expectedReplyCountEvidence = normalizeReplyCountEvidenceForCount(
+    expectedReplyCount,
+    meta?.expectedReplyCountEvidence
+  );
   return {
     rootEvent: meta?.rootEvent,
     events: orderedEvents,
     hasMoreBefore,
     beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-    expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+    expectedReplyCount,
     expectedReplyCountSnapshotTs:
       typeof meta?.expectedReplyCountSnapshotTs === 'number' &&
       Number.isFinite(meta.expectedReplyCountSnapshotTs)
@@ -1326,7 +1343,7 @@ const runSaveThreadEventsTxn = async (
         ? undefined
         : relationSnapshotComplete === true &&
           normalizedExpectedReplyCount !== undefined &&
-          incomingReplyCountEvidence !== undefined;
+          incomingReplyCountEvidence?.visibleEventIds.length === normalizedExpectedReplyCount;
     const incomingRelationActivityTs =
       normalizedExpectedReplyCount === undefined
         ? undefined
@@ -1355,8 +1372,11 @@ const runSaveThreadEventsTxn = async (
           const metaRequest = metaStore.get(metaKey);
           metaRequest.onsuccess = () => {
             const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
+            const currentExpectedReplyCount = normalizeExpectedReplyCount(
+              currentMeta?.expectedReplyCount
+            );
             let mergedExpectedReplyCount = mergeThreadExpectedReplyCount(
-              currentMeta?.expectedReplyCount,
+              currentExpectedReplyCount,
               normalizedExpectedReplyCount,
               snapshotComplete
             );
@@ -1365,7 +1385,8 @@ const runSaveThreadEventsTxn = async (
               Number.isFinite(currentMeta.expectedReplyCountSnapshotTs)
                 ? currentMeta.expectedReplyCountSnapshotTs
                 : undefined;
-            const currentExpectedReplyCountEvidence = normalizeReplyCountEvidence(
+            const currentExpectedReplyCountEvidence = normalizeReplyCountEvidenceForCount(
+              currentExpectedReplyCount,
               currentMeta?.expectedReplyCountEvidence
             );
             let expectedReplyCountEvidence = currentExpectedReplyCountEvidence;
@@ -1377,16 +1398,13 @@ const runSaveThreadEventsTxn = async (
                     incomingExpectedReplyCountSnapshotTs ?? 0
                   ) || undefined;
                 expectedReplyCountEvidence = incomingReplyCountEvidence;
-              } else if (mergedExpectedReplyCount !== currentMeta?.expectedReplyCount) {
+              } else if (mergedExpectedReplyCount !== currentExpectedReplyCount) {
                 // A bundled root count can be fresher than the stored total,
                 // but it cannot prove which loaded relation events it covers.
                 expectedReplyCountSnapshotTs = undefined;
                 expectedReplyCountEvidence = undefined;
               }
             }
-            const currentExpectedReplyCount = normalizeExpectedReplyCount(
-              currentMeta?.expectedReplyCount
-            );
             const shouldReconcileIncomingSnapshot =
               incomingRelationSnapshotComplete === true &&
               mergedExpectedReplyCount !== undefined &&

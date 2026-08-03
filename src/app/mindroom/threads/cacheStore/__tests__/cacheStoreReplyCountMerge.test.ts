@@ -19,7 +19,7 @@
  */
 
 import 'fake-indexeddb/auto';
-import type { IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   loadLatestCachedThreadEvents,
@@ -29,6 +29,7 @@ import {
 } from '..';
 import { openCacheStore } from '../cacheStoreDb';
 import { buildMetaKey, META_STORE, type CachedMetaRecord } from '../cacheStoreSchema';
+import { resolveThreadOpenExpectedReplyCount } from '../../threadOpenCacheController';
 
 const SESSION_ID = 'reply-count-merge-session';
 const ROOM_ID = '!room:example.org';
@@ -199,6 +200,21 @@ describe('thread meta expectedReplyCount merge policy', () => {
       ...newReplies.map((event) => event.event_id),
     ]);
     expect(page.relationSnapshotComplete).toBe(false);
+    const staleLiveRootEvent = new MatrixEvent({
+      content: { body: 'Root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 282 } } },
+    });
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent: staleLiveRootEvent,
+        cachedPage: page,
+      })
+    ).toBe(322);
   });
 
   it('downgrades an explicit partial relation write without erasing its count baseline', async () => {
@@ -454,6 +470,10 @@ describe('thread meta expectedReplyCount merge policy', () => {
 
   it('applies a marker when the incoming bundled count is stale and lower', async () => {
     const sessionId = `${SESSION_ID}-lower-bundled-marker`;
+    const baselineEventIds = [
+      '$reply',
+      ...Array.from({ length: 281 }, (_, index) => `$historical-${index}`),
+    ];
     await saveThreadEventsToCache(
       sessionId,
       ROOM_ID,
@@ -466,7 +486,7 @@ describe('thread meta expectedReplyCount merge policy', () => {
       282,
       true,
       'partial',
-      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+      { knownEventIds: baselineEventIds, visibleEventIds: baselineEventIds }
     );
     await saveRoomEventsToCache(sessionId, ROOM_ID, [
       {
@@ -496,14 +516,18 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(page.expectedReplyCount).toBe(281);
     expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
     expect(page.expectedReplyCountEvidence).toEqual({
-      knownEventIds: ['$reply'],
-      visibleEventIds: [],
+      knownEventIds: baselineEventIds,
+      visibleEventIds: baselineEventIds.slice(1),
     });
     expect(page.relationSnapshotComplete).toBe(true);
   });
 
   it('keeps an authoritative lower snapshot instead of reviving the old baseline', async () => {
     const sessionId = `${SESSION_ID}-absolute-lower-marker`;
+    const baselineEventIds = [
+      '$reply',
+      ...Array.from({ length: 281 }, (_, index) => `$historical-${index}`),
+    ];
     await saveThreadEventsToCache(
       sessionId,
       ROOM_ID,
@@ -516,7 +540,7 @@ describe('thread meta expectedReplyCount merge policy', () => {
       282,
       true,
       'partial',
-      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+      { knownEventIds: baselineEventIds, visibleEventIds: baselineEventIds }
     );
     await saveRoomEventsToCache(sessionId, ROOM_ID, [
       {
@@ -746,8 +770,11 @@ describe('thread meta expectedReplyCount merge policy', () => {
       id: string,
       ts: number,
       relationComplete = false
-    ) =>
-      saveThreadEventsToCache(
+    ) => {
+      const evidenceEventIds = Array.from({ length: count }, (_, index) =>
+        index === 0 ? id : `${id}-evidence-${index}`
+      );
+      return saveThreadEventsToCache(
         sessionId,
         ROOM_ID,
         THREAD_ID,
@@ -757,8 +784,13 @@ describe('thread meta expectedReplyCount merge policy', () => {
         undefined,
         complete,
         count,
-        relationComplete || undefined
+        relationComplete || undefined,
+        'partial',
+        relationComplete
+          ? { knownEventIds: evidenceEventIds, visibleEventIds: evidenceEventIds }
+          : undefined
       );
+    };
     const loadSnapshotTs = async () =>
       (await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5))
         .expectedReplyCountSnapshotTs;
@@ -767,10 +799,9 @@ describe('thread meta expectedReplyCount merge policy', () => {
     const completePage = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
     const completeSnapshotTs = completePage.expectedReplyCountSnapshotTs;
     expect(completeSnapshotTs).toBeGreaterThanOrEqual(1_000);
-    expect(completePage.expectedReplyCountEvidence).toEqual({
-      knownEventIds: ['$timestamp-1'],
-      visibleEventIds: ['$timestamp-1'],
-    });
+    expect(completePage.expectedReplyCountEvidence?.knownEventIds).toHaveLength(282);
+    expect(completePage.expectedReplyCountEvidence?.visibleEventIds).toHaveLength(282);
+    expect(completePage.expectedReplyCountEvidence?.visibleEventIds).toContain('$timestamp-1');
 
     await save(20, undefined, '$timestamp-3', 3_000);
     expect(await loadSnapshotTs()).toBe(completeSnapshotTs);
@@ -853,6 +884,112 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(page.relationSnapshotComplete).toBe(false);
   });
 
+  it('normalizes a malformed persisted count before merging a later write', async () => {
+    const sessionId = `${SESSION_ID}-malformed-count`;
+    const db = await openCacheStore(sessionId);
+    expect(db).toBeDefined();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(ROOM_ID, THREAD_ID),
+        roomId: ROOM_ID,
+        scope: THREAD_ID,
+        expectedReplyCount: 23n,
+        updatedAt: 1,
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 2_000)],
+      undefined,
+      undefined,
+      true,
+      false,
+      24,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(24);
+  });
+
+  it('downgrades persisted evidence whose visible cardinality does not match its count', async () => {
+    const sessionId = `${SESSION_ID}-mismatched-evidence-count`;
+    const db = await openCacheStore(sessionId);
+    expect(db).toBeDefined();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(ROOM_ID, THREAD_ID),
+        roomId: ROOM_ID,
+        scope: THREAD_ID,
+        expectedReplyCount: 24,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$one'],
+          visibleEventIds: ['$one'],
+        },
+        relationSnapshotComplete: true,
+        updatedAt: 1,
+      } satisfies CachedMetaRecord);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$historical', 2_000)],
+      undefined,
+      undefined,
+      true,
+      false,
+      undefined,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(24);
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.relationSnapshotComplete).toBe(false);
+  });
+
+  it('rejects a fractional persisted reply count', async () => {
+    const sessionId = `${SESSION_ID}-fractional-count`;
+    const db = await openCacheStore(sessionId);
+    expect(db).toBeDefined();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(ROOM_ID, THREAD_ID),
+        roomId: ROOM_ID,
+        scope: THREAD_ID,
+        expectedReplyCount: 1.5,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$one'],
+          visibleEventIds: ['$one'],
+        },
+        relationSnapshotComplete: true,
+        updatedAt: 1,
+      } satisfies CachedMetaRecord);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBeUndefined();
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.relationSnapshotComplete).toBe(false);
+  });
+
   it.each([
     {
       name: 'non-string identities',
@@ -861,6 +998,10 @@ describe('thread meta expectedReplyCount merge policy', () => {
     {
       name: 'visible identities outside the known set',
       evidence: { knownEventIds: ['$known'], visibleEventIds: ['$unknown'] },
+    },
+    {
+      name: 'sparse identity arrays',
+      evidence: { knownEventIds: Array<string>(1), visibleEventIds: [] },
     },
   ])('rejects persisted evidence with $name', async ({ name, evidence }) => {
     const sessionId = `${SESSION_ID}-malformed-evidence-${name}`;

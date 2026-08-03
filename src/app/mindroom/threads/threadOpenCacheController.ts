@@ -53,17 +53,33 @@ export const resolveThreadOpenExpectedReplyCount = ({
     'expectedReplyCount' | 'expectedReplyCountEvidence' | 'relationSnapshotComplete'
   >;
 }): number | undefined => {
+  const cachedExpectedReplyCount =
+    typeof cachedPage.expectedReplyCount === 'number' &&
+    Number.isSafeInteger(cachedPage.expectedReplyCount) &&
+    cachedPage.expectedReplyCount >= 0
+      ? cachedPage.expectedReplyCount
+      : undefined;
   if (
     cachedPage.relationSnapshotComplete === true &&
     cachedPage.expectedReplyCountEvidence !== undefined &&
-    typeof cachedPage.expectedReplyCount === 'number'
+    cachedExpectedReplyCount !== undefined
   ) {
-    return cachedPage.expectedReplyCount;
+    return cachedExpectedReplyCount;
+  }
+  const rootExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
+    rootEvent: liveRootEvent,
+    cachedRootEvent,
+  });
+  if (
+    cachedPage.expectedReplyCountEvidence !== undefined &&
+    cachedExpectedReplyCount !== undefined
+  ) {
+    return Math.max(rootExpectedReplyCount ?? 0, cachedExpectedReplyCount);
   }
   return getAuthoritativeCachedThreadReplyCount({
     rootEvent: liveRootEvent,
     cachedRootEvent,
-    expectedReplyCount: cachedPage.expectedReplyCount,
+    expectedReplyCount: cachedExpectedReplyCount,
   });
 };
 

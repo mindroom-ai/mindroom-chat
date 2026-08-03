@@ -147,6 +147,32 @@ describe('resolveThreadOpenExpectedReplyCount', () => {
       })
     ).toBe(25);
   });
+
+  it('keeps an evidenced partial durable total above stale live-root metadata', () => {
+    const liveRootEvent = new MatrixEvent({
+      content: { body: 'root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 282 } } },
+    });
+
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent,
+        cachedPage: {
+          expectedReplyCount: 322,
+          expectedReplyCountEvidence: {
+            knownEventIds: ['$known'],
+            visibleEventIds: ['$known'],
+          },
+          relationSnapshotComplete: false,
+        },
+      })
+    ).toBe(322);
+  });
 });
 
 describe('refreshLatestThreadSlice', () => {
