@@ -279,11 +279,12 @@ const loadKnownRedactedRelationEventIds = (
   roomId: string,
   candidates: ReadonlySet<string>,
   current: ReadonlySet<string>,
-  onReady: (eventIds: Set<string>) => void,
+  onReady: (eventIds: Set<string>, activityTsByEventId: Map<string, number>) => void,
   onError: (error: DOMException | null) => void
 ): void => {
+  const activityTsByEventId = new Map<string, number>();
   if (candidates.size === 0) {
-    onReady(new Set(current));
+    onReady(new Set(current), activityTsByEventId);
     return;
   }
   const knownEventIds = new Set(current);
@@ -291,7 +292,7 @@ const loadKnownRedactedRelationEventIds = (
     (eventId) => !knownEventIds.has(eventId)
   );
   if (unresolvedEventIds.length === 0) {
-    onReady(knownEventIds);
+    onReady(knownEventIds, activityTsByEventId);
     return;
   }
 
@@ -301,9 +302,15 @@ const loadKnownRedactedRelationEventIds = (
     const request = metaStore.get(getRedactedRelationMetaKey(roomId, eventId));
     request.onsuccess = () => {
       if (failed) return;
-      if (request.result) knownEventIds.add(eventId);
+      const marker = request.result as CachedMetaRecord | undefined;
+      if (marker) {
+        knownEventIds.add(eventId);
+        if (typeof marker.redactionActivityTs === 'number') {
+          activityTsByEventId.set(eventId, marker.redactionActivityTs);
+        }
+      }
       pending -= 1;
-      if (pending === 0) onReady(knownEventIds);
+      if (pending === 0) onReady(knownEventIds, activityTsByEventId);
     };
     request.onerror = () => {
       if (failed) return;
@@ -368,7 +375,8 @@ const runScrubRedactedRelationsTxn = async (
   db: IDBDatabase,
   roomId: string,
   redactedEventIds: ReadonlySet<string>,
-  tombstones: ReadonlyMap<string, Partial<IEvent>>
+  tombstones: ReadonlyMap<string, Partial<IEvent>>,
+  redactionActivityTsByEventId: ReadonlyMap<string, number>
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
@@ -383,6 +391,7 @@ const runScrubRedactedRelationsTxn = async (
         metaKey: buildMetaKey(roomId, scope),
         roomId,
         scope,
+        redactionActivityTs: redactionActivityTsByEventId.get(eventId),
         updatedAt: Date.now(),
       } satisfies CachedMetaRecord);
     });
@@ -697,6 +706,7 @@ export const saveRoomEventsToCacheCommitted = async (
     if (!db) return false;
 
     const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
+    const redactionActivityTsByEventId = collectRedactionActivityTsByEventId(rawEvents);
     const redactedTombstones = collectRedactedTombstones(rawEvents);
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
     if (redactedEventIds.size > 0) {
@@ -705,7 +715,13 @@ export const saveRoomEventsToCacheCommitted = async (
       // repaired on its first save and re-scrubbing is pure work.
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (unscrubbedIds.size > 0) {
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          redactionActivityTsByEventId
+        );
       }
     }
     if (normalizedEvents.length === 0) return true;
@@ -1192,7 +1208,13 @@ export const saveThreadEventsToCacheCommitted = async (
       // Gate the room-wide scrub on marker presence (see room-save above).
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (unscrubbedIds.size > 0) {
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          redactionActivityTsByEventId
+        );
       }
     }
     if (normalizedEvents.length === 0 && !rootEvent && redactedEventIds.size === 0) return true;
@@ -1294,7 +1316,7 @@ const runSaveThreadEventsTxn = async (
         rootEvent ? [...normalizedEvents, rootEvent] : normalizedEvents
       ),
       redactedEventIds,
-      (knownRedactedEventIds) => {
+      (knownRedactedEventIds, storedRedactionActivityTsByEventId) => {
         const eventsToConsider = stripKnownRedactedRelations(
           normalizedEvents,
           knownRedactedEventIds
@@ -1334,7 +1356,7 @@ const runSaveThreadEventsTxn = async (
               currentMeta?.expectedReplyCount
             );
             if (
-              relationSnapshotComplete === false &&
+              (relationSnapshotComplete === false || knownRedactedEventIds.size > 0) &&
               currentExpectedReplyCount !== undefined &&
               currentMeta?.expectedReplyCountEvidence !== undefined &&
               (normalizedExpectedReplyCount === undefined ||
@@ -1358,7 +1380,10 @@ const runSaveThreadEventsTxn = async (
                     undefined
                   ) ?? 0,
                   ...[...incorporatedEventIds].map(
-                    (eventId) => redactionActivityTsByEventId.get(eventId) ?? 0
+                    (eventId) =>
+                      redactionActivityTsByEventId.get(eventId) ??
+                      storedRedactionActivityTsByEventId.get(eventId) ??
+                      0
                   )
                 ) || undefined;
             }

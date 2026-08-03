@@ -35,9 +35,10 @@
 - A persistence-to-reload-to-record regression proves a reply found by a partial fetch remains counted after remount.
 - Partial persistence now folds every incoming reply/redaction into the matching durable count, evidence, and horizon before the overview reload truncates cached events to 32; the regression crosses that boundary with 40 new replies.
 - Durable redaction markers are applied before partial metadata reconciliation, so a standalone redaction decrements a baseline and a later stale visible revision cannot re-add the reply.
+- Marker rows persist Matrix redaction activity time, letting a later thread-cache write advance the count horizon from room-scope evidence without comparing server timestamps to client wall time.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 133 tests; the latest full Vitest run is pending after the redaction-marker regression.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 134 tests; the latest full Vitest run is pending after the durable marker-horizon regression.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 

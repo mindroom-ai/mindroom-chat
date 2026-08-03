@@ -24,6 +24,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
+  saveRoomEventsToCache,
   saveThreadEventsToCache,
 } from '..';
 import { openCacheStore } from '../cacheStoreDb';
@@ -215,8 +216,17 @@ describe('thread meta expectedReplyCount merge policy', () => {
       true,
       false,
       undefined,
-      false
+      undefined
     );
+    const redactedPage = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(redactedPage.expectedReplyCount).toBe(0);
+    expect(redactedPage.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(2_000);
+    expect(redactedPage.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+    expect(redactedPage.relationSnapshotComplete).toBe(true);
+
     await saveThreadEventsToCache(
       sessionId,
       ROOM_ID,
@@ -239,6 +249,55 @@ describe('thread meta expectedReplyCount merge policy', () => {
       visibleEventIds: [],
     });
     expect(page.relationSnapshotComplete).toBe(false);
+  });
+
+  it('loads a room-scope marker timestamp before reconciling a stale thread reply', async () => {
+    const sessionId = `${SESSION_ID}-stored-marker-horizon`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      false,
+      1,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
   });
 
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {

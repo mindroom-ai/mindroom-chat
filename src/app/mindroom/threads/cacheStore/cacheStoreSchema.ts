@@ -103,6 +103,8 @@ export type CachedMetaRecord = {
   /** Latest relation activity covered by `expectedReplyCount`. */
   expectedReplyCountSnapshotTs?: number;
   expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
+  /** Matrix activity timestamp for `__redactedRelation:*` marker rows. */
+  redactionActivityTs?: number;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;
