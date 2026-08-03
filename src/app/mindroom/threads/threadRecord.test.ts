@@ -338,6 +338,10 @@ describe('buildThreadRecord', () => {
         'm.relates_to': { event_id: threadRootId, rel_type: 'm.thread' },
       },
     });
+    const baselineEventIds = [
+      '$known-reply',
+      ...Array.from({ length: 281 }, (_, index) => `$historical-reply-${index}`),
+    ];
 
     await saveThreadEventsToCache(
       sessionId,
@@ -351,7 +355,7 @@ describe('buildThreadRecord', () => {
       282,
       true,
       'partial',
-      { knownEventIds: ['$known-reply'], visibleEventIds: ['$known-reply'] }
+      { knownEventIds: baselineEventIds, visibleEventIds: baselineEventIds }
     );
     const newReplies = Array.from({ length: 40 }, (_, index) =>
       rawReply(`$new-reply-${index}`, 200 + index)
@@ -374,8 +378,8 @@ describe('buildThreadRecord', () => {
     expect(cachedPage.expectedReplyCount).toBe(322);
     expect(cachedPage.relationSnapshotComplete).toBe(false);
     expect(cachedPage.expectedReplyCountEvidence).toEqual({
-      knownEventIds: ['$known-reply', ...newReplies.map((event) => event.event_id)],
-      visibleEventIds: ['$known-reply', ...newReplies.map((event) => event.event_id)],
+      knownEventIds: [...baselineEventIds, ...newReplies.map((event) => event.event_id)],
+      visibleEventIds: [...baselineEventIds, ...newReplies.map((event) => event.event_id)],
     });
     const cachedEvents = cachedPage.events.map((rawEvent) =>
       makeEvent({
