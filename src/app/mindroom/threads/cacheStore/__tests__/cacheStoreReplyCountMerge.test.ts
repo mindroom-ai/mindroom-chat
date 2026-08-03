@@ -527,6 +527,104 @@ describe('thread meta expectedReplyCount merge policy', () => {
     });
   });
 
+  it('advances already-excluded retained evidence from a newer marker', async () => {
+    const sessionId = `${SESSION_ID}-excluded-retained-marker`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [],
+      {
+        event_id: THREAD_ID,
+        origin_server_ts: 1_000,
+        room_id: ROOM_ID,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: { body: 'Root', msgtype: 'm.text' },
+      },
+      undefined,
+      true,
+      true,
+      0,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: [] }
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [
+        {
+          ...rawReply('$reply', 1_000),
+          unsigned: { redacted_because: { origin_server_ts: 2_000 } },
+        },
+      ],
+      undefined,
+      undefined,
+      true,
+      false,
+      0,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+  });
+
+  it('keeps the newest redaction timestamp when one batch repeats a target', async () => {
+    const sessionId = `${SESSION_ID}-batch-redaction-max`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [
+        {
+          event_id: '$redaction',
+          origin_server_ts: 2_000,
+          room_id: ROOM_ID,
+          sender: '@moderator:example.org',
+          type: 'm.room.redaction',
+          redacts: '$reply',
+          content: {},
+        },
+        {
+          ...rawReply('$reply', 1_000),
+          unsigned: { redacted_because: { origin_server_ts: 1_500 } },
+        },
+      ],
+      undefined,
+      undefined,
+      true,
+      false,
+      1,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+  });
+
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (

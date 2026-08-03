@@ -73,11 +73,15 @@ const collectRedactionActivityTsByEventId = (
   events: readonly Partial<IEvent>[]
 ): Map<string, number> => {
   const timestamps = new Map<string, number>();
+  const recordTimestamp = (eventId: string, timestamp: number | undefined): void => {
+    if (timestamp === undefined || !Number.isFinite(timestamp)) return;
+    timestamps.set(eventId, Math.max(timestamps.get(eventId) ?? 0, timestamp));
+  };
   const collect = (rawEvent: Partial<IEvent>): void => {
     const ownEventId = rawEvent.event_id;
     if (typeof ownEventId === 'string' && rawEvent.unsigned?.redacted_because) {
       const timestamp = getRawEventRelationActivityTs(rawEvent);
-      if (timestamp !== undefined) timestamps.set(ownEventId, timestamp);
+      recordTimestamp(ownEventId, timestamp);
     }
     if (rawEvent.type === 'm.room.redaction') {
       const contentRedacts = rawEvent.content?.redacts;
@@ -87,9 +91,7 @@ const collectRedactionActivityTsByEventId = (
           : typeof contentRedacts === 'string'
           ? contentRedacts
           : undefined;
-      if (redactedEventId && typeof rawEvent.origin_server_ts === 'number') {
-        timestamps.set(redactedEventId, rawEvent.origin_server_ts);
-      }
+      if (redactedEventId) recordTimestamp(redactedEventId, rawEvent.origin_server_ts);
     }
     const relations = rawEvent.unsigned?.['m.relations'] as Record<string, unknown> | undefined;
     const replacement = relations?.['m.replace'];
@@ -1384,12 +1386,10 @@ const runSaveThreadEventsTxn = async (
               mergedExpectedReplyCount = reconciledSnapshot.replyCount;
               expectedReplyCountEvidence = reconciledSnapshot.evidence;
               const incorporatedEventIds = new Set(reconciledSnapshot.incorporatedEventIds);
-              if (shouldReconcileIncomingSnapshot) {
-                const snapshotKnownEventIds = new Set(reconciliationEvidence.knownEventIds);
-                knownRedactedEventIds.forEach((eventId) => {
-                  if (snapshotKnownEventIds.has(eventId)) incorporatedEventIds.add(eventId);
-                });
-              }
+              const snapshotKnownEventIds = new Set(reconciliationEvidence.knownEventIds);
+              knownRedactedEventIds.forEach((eventId) => {
+                if (snapshotKnownEventIds.has(eventId)) incorporatedEventIds.add(eventId);
+              });
               expectedReplyCountSnapshotTs =
                 Math.max(
                   expectedReplyCountSnapshotTs ?? 0,
