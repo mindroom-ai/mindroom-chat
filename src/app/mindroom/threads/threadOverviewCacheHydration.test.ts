@@ -354,6 +354,46 @@ describe('resolveCachedOverviewUpdate', () => {
     });
   });
 
+  it('adds a cached reply absent from complete-snapshot identity evidence', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const cachedTail = Array.from({ length: 33 }, (_, index) => ({
+      event_id: `$cached-reply-${index}`,
+      origin_server_ts: 100 + index,
+      sender: '@cached:example.org',
+      content: { body: `Cached reply ${index}`, msgtype: 'm.text' },
+      threadRootId,
+      relation: { rel_type: 'm.thread', event_id: threadRootId },
+    }));
+    const snapshotEventIds = cachedTail.slice(0, 32).map((event) => event.event_id);
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room: makeRoom([rootEvent]),
+      mapper: mapRawCachedEvent,
+      cachedPage: {
+        events: cachedTail,
+        hasMoreBefore: true,
+        expectedReplyCount: 282,
+        expectedReplyCountEvidence: {
+          knownEventIds: snapshotEventIds,
+          visibleEventIds: snapshotEventIds,
+        },
+        relationSnapshotComplete: true,
+      },
+      currentRecord: makeRecord({
+        presentation: { messageCount: 282 },
+        status: { replyCount: 282 },
+      }),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update?.nextMessageCount).toBe(283);
+  });
+
   it('does not let a stale lower durable count replace newer live state', () => {
     const threadRootId = '$thread-root';
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
@@ -558,6 +598,54 @@ describe('resolveCachedOverviewUpdate', () => {
         relationSnapshotComplete: true,
         snapshotComplete: true,
         tailLoaded: true,
+      },
+    });
+  });
+
+  it('adds a partial fetched reply absent from retained snapshot identity evidence', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const replies = ['$reply-a', '$reply-b', '$reply-new'].map((eventId, index) =>
+      makeEvent(eventId, {
+        relation: { rel_type: 'm.thread', event_id: threadRootId },
+        threadRootId,
+        ts: 100 + index,
+      })
+    );
+    const snapshotEventIds = ['$reply-a', '$reply-b'];
+
+    const update = resolveFetchedRelationOverviewUpdate({
+      rootId: threadRootId,
+      room: makeRoom([rootEvent, ...replies]),
+      events: replies,
+      rootEvent,
+      currentRecord: makeRecord({
+        cache: {
+          eventCount: 2,
+          expectedReplyCount: 282,
+          expectedReplyCountEvidence: {
+            knownEventIds: snapshotEventIds,
+            visibleEventIds: snapshotEventIds,
+          },
+          relationSnapshotComplete: true,
+          tailLoaded: true,
+        },
+        presentation: { messageCount: 282 },
+        status: { replyCount: 282 },
+      }),
+      expectedReplyCount: 282,
+      relationSnapshotComplete: false,
+      tailLoaded: true,
+    });
+
+    expect(update).toMatchObject({
+      nextMessageCount: 283,
+      nextCacheCoverage: {
+        expectedReplyCount: 282,
+        expectedReplyCountEvidence: {
+          knownEventIds: snapshotEventIds,
+          visibleEventIds: snapshotEventIds,
+        },
       },
     });
   });

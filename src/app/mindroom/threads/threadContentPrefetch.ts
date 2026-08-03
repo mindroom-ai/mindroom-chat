@@ -25,6 +25,7 @@ import {
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
+import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import {
   buildVisibleThreadReplyCountMap,
@@ -104,6 +105,7 @@ export const fetchAndPersistThreadContent = async ({
   const threadAtFetchStart = room.getThread(threadId);
   const knownEventIdsBeforeFetch = new Set(
     [...(threadAtFetchStart?.events ?? []), ...(threadAtFetchStart?.timeline ?? [])]
+      .filter((event) => !isPendingLocalEchoEvent(event) && !isFailedLocalEchoEvent(event))
       .map((event) => event.getId())
       .filter((eventId): eventId is string => !!eventId && eventId !== threadId)
   );

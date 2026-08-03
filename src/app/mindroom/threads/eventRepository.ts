@@ -334,7 +334,6 @@ export type ThreadCachedSnapshot = {
   hasMoreBefore: boolean;
   expectedReplyCount?: number;
   relationSnapshotComplete?: boolean;
-  replyCountEvidence?: ThreadReplyCountSnapshotEvidence;
   snapshotComplete?: boolean;
   tailLoaded?: boolean;
 };

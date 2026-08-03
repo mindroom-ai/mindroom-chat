@@ -19,8 +19,7 @@ import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
-  isVisibleThreadReplyEvent,
-  isVisibleThreadReplyEventType,
+  reconcileThreadReplyCountWithEvidence,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
@@ -115,36 +114,12 @@ const resolveCachedMessageCount = (
   if (candidateMessageCount !== undefined) {
     let adjustedCandidateMessageCount = candidateMessageCount;
     if (durableMessageCount !== undefined && countEvidence !== undefined) {
-      const knownEventIds = new Set(countEvidence.knownEventIds);
-      const visibleSnapshotEventIds = new Set(countEvidence.visibleEventIds);
-      const newVisibleReplyIds = new Set(
-        loadedThreadEvents
-          .filter(
-            (event) =>
-              event.threadRootId === threadRootId &&
-              !knownEventIds.has(event.getId() ?? '') &&
-              isVisibleThreadReplyEvent(event)
-          )
-          .map((event) => event.getId())
-          .filter((eventId): eventId is string => !!eventId)
-      );
-      const newlyRedactedSnapshotReplyIds = new Set(
-        loadedThreadEvents
-          .filter((event) => {
-            return (
-              event.isRedacted() &&
-              event.threadRootId === threadRootId &&
-              isVisibleThreadReplyEventType(event.getType()) &&
-              visibleSnapshotEventIds.has(event.getId() ?? '')
-            );
-          })
-          .map((event) => event.getId())
-          .filter((eventId): eventId is string => !!eventId)
-      );
-      adjustedCandidateMessageCount = Math.max(
-        0,
-        candidateMessageCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size
-      );
+      adjustedCandidateMessageCount = reconcileThreadReplyCountWithEvidence({
+        baseCount: candidateMessageCount,
+        events: loadedThreadEvents,
+        evidence: countEvidence,
+        threadRootId,
+      });
     }
     const authoritative =
       durableMessageCount !== undefined &&

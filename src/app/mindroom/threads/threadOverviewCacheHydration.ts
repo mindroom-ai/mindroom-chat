@@ -14,6 +14,7 @@ import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
+  reconcileThreadReplyCountWithEvidence,
 } from './threadUtils';
 import type {
   ThreadOverviewCachedMetadataController,
@@ -201,11 +202,26 @@ export const resolveFetchedRelationOverviewUpdate = ({
   const authoritativeFetchedMessageCount = relationSnapshotComplete
     ? buildVisibleThreadReplyCountMap(events).get(rootId) ?? 0
     : undefined;
+  const nextExpectedReplyCount = authoritativeFetchedMessageCount ?? expectedReplyCount;
+  const retainedReplyCountEvidence =
+    nextExpectedReplyCount !== undefined &&
+    nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
+      ? currentRecord.cache.expectedReplyCountEvidence
+      : undefined;
+  const evidenceAdjustedExpectedReplyCount =
+    getSafeMessageCount(nextExpectedReplyCount) !== undefined && retainedReplyCountEvidence
+      ? reconcileThreadReplyCountWithEvidence({
+          baseCount: getSafeMessageCount(nextExpectedReplyCount) ?? 0,
+          events,
+          evidence: retainedReplyCountEvidence,
+          threadRootId: rootId,
+        })
+      : getSafeMessageCount(nextExpectedReplyCount);
   const observedMessageCount =
     authoritativeFetchedMessageCount ??
     Math.max(
       buildVisibleThreadReplyCountMap(events).get(rootId) ?? 0,
-      getSafeMessageCount(expectedReplyCount) ?? 0
+      evidenceAdjustedExpectedReplyCount ?? 0
     );
   const nextMessageCount = resolveNextMessageCount({
     currentMessageCount,
@@ -217,7 +233,6 @@ export const resolveFetchedRelationOverviewUpdate = ({
     : undefined;
   const fetchedRelationSnapshotTs =
     getMatrixRelationSnapshotTs(events) ?? rootEvent?.getTs() ?? undefined;
-  const nextExpectedReplyCount = authoritativeFetchedMessageCount ?? expectedReplyCount;
   const resolvedReplyCountEvidence =
     relationSnapshotComplete === true
       ? replyCountEvidence ?? {
@@ -254,11 +269,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
     expectedReplyCount: nextExpectedReplyCount,
     expectedReplyCountSnapshotTs,
     expectedReplyCountEvidence:
-      relationSnapshotComplete === true
-        ? resolvedReplyCountEvidence
-        : nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
-        ? currentRecord?.cache.expectedReplyCountEvidence
-        : undefined,
+      relationSnapshotComplete === true ? resolvedReplyCountEvidence : retainedReplyCountEvidence,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,
@@ -350,9 +361,20 @@ export const resolveCachedOverviewUpdate = ({
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const durableMessageCount = getSafeMessageCount(cachedPage.expectedReplyCount);
   const cachedVisibleMessageCount = buildVisibleThreadReplyCountMap(cachedEvents).get(rootId) ?? 0;
+  const evidenceAdjustedDurableMessageCount =
+    durableMessageCount !== undefined && cachedPage.expectedReplyCountEvidence
+      ? reconcileThreadReplyCountWithEvidence({
+          baseCount: durableMessageCount,
+          events: cachedEvents,
+          evidence: cachedPage.expectedReplyCountEvidence,
+          threadRootId: rootId,
+        })
+      : durableMessageCount;
   const observedMessageCount =
     durableMessageCount === undefined
       ? cachedVisibleMessageCount
+      : cachedPage.expectedReplyCountEvidence
+      ? evidenceAdjustedDurableMessageCount ?? cachedVisibleMessageCount
       : Math.max(durableMessageCount, cachedVisibleMessageCount);
   const nextMessageCount = resolveNextMessageCount({
     currentMessageCount,

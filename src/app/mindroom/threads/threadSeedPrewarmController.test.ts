@@ -1,6 +1,6 @@
 import React from 'react';
 import 'fake-indexeddb/auto';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { EventStatus, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,11 +95,19 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     const knownStaleReply = new MatrixEvent(
       rawReply('$known-stale-reply', 1_500) as ConstructorParameters<typeof MatrixEvent>[0]
     );
+    const pendingLocalEcho = new MatrixEvent(
+      rawReply('~pending-local-echo', 1_600) as ConstructorParameters<typeof MatrixEvent>[0]
+    );
+    pendingLocalEcho.status = EventStatus.SENDING;
     const room = {
       roomId: ROOM_ID,
       getThread: () =>
         withKnownStaleReply
-          ? { rootEvent, events: [knownStaleReply], timeline: [knownStaleReply] }
+          ? {
+              rootEvent,
+              events: [knownStaleReply, pendingLocalEcho],
+              timeline: [knownStaleReply, pendingLocalEcho],
+            }
           : null,
       findEventById: (eventId: string) => (eventId === THREAD_ID ? rootEvent : undefined),
       getLastActiveTimestamp: () => 0,

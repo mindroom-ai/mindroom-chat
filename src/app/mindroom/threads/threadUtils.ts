@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
+import type { ThreadReplyCountSnapshotEvidence } from './types';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -210,6 +211,41 @@ export const buildVisibleThreadReplyCountMap = (
   });
 
   return counts;
+};
+
+export const reconcileThreadReplyCountWithEvidence = ({
+  baseCount,
+  events,
+  evidence,
+  threadRootId,
+}: {
+  baseCount: number;
+  events: VisibleThreadEventLike[];
+  evidence: ThreadReplyCountSnapshotEvidence;
+  threadRootId: string;
+}): number => {
+  const knownEventIds = new Set(evidence.knownEventIds);
+  const visibleSnapshotEventIds = new Set(evidence.visibleEventIds);
+  const newVisibleReplyIds = new Set<string>();
+  const newlyRedactedSnapshotReplyIds = new Set<string>();
+
+  events.forEach((event) => {
+    const eventId = event.getId();
+    if (!eventId || event.threadRootId !== threadRootId) return;
+    if (isVisibleThreadReplyEvent(event)) {
+      if (!knownEventIds.has(eventId)) newVisibleReplyIds.add(eventId);
+      return;
+    }
+    if (
+      event.isRedacted?.() &&
+      isVisibleThreadReplyEventType(event.getType?.()) &&
+      visibleSnapshotEventIds.has(eventId)
+    ) {
+      newlyRedactedSnapshotReplyIds.add(eventId);
+    }
+  });
+
+  return Math.max(0, baseCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size);
 };
 
 export const buildThreadParticipantMap = (

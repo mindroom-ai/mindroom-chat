@@ -26,8 +26,10 @@
 - Exhausted relation snapshots are authoritative even when the redacted event was the newest SDK event, so a completed decrease survives cache hydrate, record reconstruction, and remount.
 - Redaction reconciliation covers every visible reply envelope, including encrypted and sticker events, rather than only `m.room.message`.
 - Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.
+- Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation in progress: eight focused record, hydration, prefetch, open-cache, persistence, and engine suites pass 95 tests, and typecheck passes.
+- Validation: eight focused record, hydration, prefetch, open-cache, persistence, and engine suites pass 95 tests, and the full Vitest suite passes 456 files with 3,516 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
