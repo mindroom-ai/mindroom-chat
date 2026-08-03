@@ -4,17 +4,19 @@
 
 ### Keep compact thread counts above partial SDK windows (2026-08-02)
 
-- Status: implementation, full local validation, PR publication, and first review remediation are complete; exact-head re-review and hosted checks remain in progress.
+- Status: implementation, full local validation, PR publication, and review remediations are complete; exact-head re-review and hosted checks remain in progress.
 - Reproduction: the compact overview for `#personal_7z8wmvew:mindroom.chat` displayed `13 msgs`, while opening that card immediately rendered at least 22 replies and still offered older-message pagination.
 - Root cause: overview cache hydration had already discovered a larger loaded-history count, but `resolveThreadPresentationSnapshot` discarded that cached lower bound whenever the Matrix SDK exposed any reply events, even when those events were only a partial tail window.
-- Fix: when cache coverage proves older history remains beyond the partial SDK window, the shared thread presentation snapshot takes the maximum of that cached lower bound, the SDK window, and MindRoom summary metadata.
+- Fix: when the oldest visible cached reply is absent from the loaded SDK event identities, the shared thread presentation snapshot takes the maximum of that cached lower bound, the SDK window, and MindRoom summary metadata.
 - Complete loaded SDK collections remain authoritative over a stale cached count, so a newer redaction can still reduce the visible count.
 - Scope: the change affects only compact/overview message-count presentation; reply rendering, pagination, summaries, and thread status remain unchanged.
 - Coverage: the focused regression pins a 13-reply SDK tail, a stale 13-message summary, and a 24-message cached lower bound, requiring the card presentation to report 24 only while older cached history is known to remain.
 - A counter-regression pins a complete 24-event SDK collection with one redacted reply and a stale cached count of 24, requiring the presentation to report the 23 still-visible replies.
-- Validation: the five focused presentation, record, cache-hydration, card, and summary suites pass 55 tests, and the full Vitest suite passes 455 files with 3,494 tests.
+- Hosted review additionally identified malformed non-integer fallback counts; the presentation boundary now accepts only nonnegative safe integers, with infinity and fractional regressions.
+- Record-level regressions cover both a genuinely partial SDK window and a complete SDK collection whose cache still advertises older pagination, preventing pagination metadata from becoming a false incompleteness signal.
+- Validation: the focused presentation, record, and cache-hydration suites pass 22 tests, and the full Vitest suite passes 455 files with 3,497 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
-- Independent zero-tolerance review identified the stale-count-after-redaction edge case; the cache lower bound is now gated by explicit incomplete-history coverage and both directions have regression tests.
+- Independent zero-tolerance review identified the stale-count-after-redaction edge case and rejected pagination metadata as proof of SDK incompleteness; the cache lower bound is now gated by a missing cached reply identity and both directions have record-level regressions.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

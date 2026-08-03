@@ -11,6 +11,7 @@ import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '.
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
+import { getPreferredVisibleThreadReplyEvents } from './threadUtils';
 import type {
   ThreadOverviewCachedMetadataController,
   ThreadOverviewCachedMetadataUpdate,
@@ -92,14 +93,24 @@ const getMatrixEventTsRange = (
   };
 };
 
+const getOldestVisibleReplyEventId = (events: MatrixEvent[]): string | undefined =>
+  getPreferredVisibleThreadReplyEvents({ events, timeline: events })
+    .reduce<MatrixEvent | undefined>((oldestEvent, event) => {
+      if (!oldestEvent || event.getTs() < oldestEvent.getTs()) return event;
+      return oldestEvent;
+    }, undefined)
+    ?.getId();
+
 export const buildCachedOverviewCoverage = (
-  cachedPage: CachedThreadEventPage
+  cachedPage: CachedThreadEventPage,
+  cachedEvents: MatrixEvent[] = []
 ): ThreadCacheCoverage => {
   const { oldestTs, newestTs } = getCachedEventTsRange(cachedPage);
 
   return buildThreadCacheCoverage({
     eventCount: cachedPage.events.length,
     oldestTs,
+    oldestVisibleReplyEventId: getOldestVisibleReplyEventId(cachedEvents),
     newestTs,
     backwardToken: cachedPage.beforeToken,
     hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
@@ -159,6 +170,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
   const nextCacheCoverage = buildThreadCacheCoverage({
     eventCount: events.length,
     oldestTs,
+    oldestVisibleReplyEventId: getOldestVisibleReplyEventId(events),
     newestTs,
     backwardToken: beforeToken,
     hasMoreBackward: typeof beforeToken === 'string',
@@ -260,7 +272,7 @@ export const resolveCachedOverviewUpdate = ({
     ? cachedPresentation.summaryInfo
     : undefined;
   const nextCacheCoverage = hasCachedOverviewCoverage(cachedPage)
-    ? buildCachedOverviewCoverage(cachedPage)
+    ? buildCachedOverviewCoverage(cachedPage, cachedEvents)
     : undefined;
 
   let nextPreview: string | undefined;

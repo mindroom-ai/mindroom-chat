@@ -82,6 +82,18 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
     ? thread.timeline
     : undefined;
 
+const cacheProvesLoadedThreadWindowIsPartial = (
+  thread: ReturnType<Room['getThread']>,
+  cacheCoverage: ThreadCacheCoverage | undefined
+): boolean => {
+  const oldestCachedReplyId = cacheCoverage?.oldestVisibleReplyEventId;
+  if (!oldestCachedReplyId) return false;
+
+  return !(getLoadedThreadEvents(thread) ?? []).some(
+    (event) => event.getId() === oldestCachedReplyId
+  );
+};
+
 const isPendingThreadEvent = (event: MatrixEvent | undefined): boolean =>
   isPendingLocalEchoEvent(event) || isPendingLocalEchoEvent(event?.replacingEvent?.());
 
@@ -303,7 +315,7 @@ export const buildThreadRecord = ({
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
     fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
-    fallbackMessageCountIsLowerBound: cacheCoverage?.hasMoreBackward === true,
+    fallbackMessageCountIsLowerBound: cacheProvesLoadedThreadWindowIsPartial(thread, cacheCoverage),
     fallbackParticipantIds,
   });
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;

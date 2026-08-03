@@ -107,12 +107,16 @@ export const resolveThreadPresentationSnapshot = ({
     preferredSummaryInfo,
     thread,
   });
-  const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
-  const minimumMessageCount =
-    fallbackMessageCountIsLowerBound &&
+  const safeFallbackMessageCount =
     typeof fallbackMessageCount === 'number' &&
-    Number.isFinite(fallbackMessageCount)
+    Number.isSafeInteger(fallbackMessageCount) &&
+    fallbackMessageCount >= 0
       ? fallbackMessageCount
+      : undefined;
+  const visibleMessageCount = getVisibleThreadMessageCount(thread, safeFallbackMessageCount);
+  const minimumMessageCount =
+    fallbackMessageCountIsLowerBound && safeFallbackMessageCount !== undefined
+      ? safeFallbackMessageCount
       : 0;
 
   return {

@@ -3,6 +3,7 @@ import type { ThreadCacheCoverage } from './types';
 type BuildThreadCacheCoverageOptions = {
   eventCount: number;
   oldestTs?: number;
+  oldestVisibleReplyEventId?: string;
   newestTs?: number;
   backwardToken?: string | null;
   hasMoreBackward?: boolean;
@@ -15,6 +16,7 @@ type BuildThreadCacheCoverageOptions = {
 export const buildThreadCacheCoverage = ({
   eventCount,
   oldestTs,
+  oldestVisibleReplyEventId,
   newestTs,
   backwardToken,
   hasMoreBackward,
@@ -25,6 +27,7 @@ export const buildThreadCacheCoverage = ({
 }: BuildThreadCacheCoverageOptions): ThreadCacheCoverage => ({
   eventCount,
   oldestTs,
+  oldestVisibleReplyEventId,
   newestTs,
   backwardToken,
   hasMoreBackward: hasMoreBackward ?? (typeof backwardToken === 'string' ? true : undefined),

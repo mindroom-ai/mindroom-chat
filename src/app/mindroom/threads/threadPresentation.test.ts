@@ -212,6 +212,20 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(presentation.messageCount).toBe(23);
   });
 
+  it.each([Number.POSITIVE_INFINITY, 24.5])(
+    'rejects invalid fallback message count %s',
+    (fallbackMessageCount) => {
+      const presentation = resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: '$root',
+        fallbackMessageCount,
+        fallbackMessageCountIsLowerBound: true,
+      });
+
+      expect(presentation.messageCount).toBe(0);
+    }
+  );
+
   it('falls back to the root preview for zero-reply threads', () => {
     const rootEvent = makeRootEvent('$root', 'Standalone thread root');
 

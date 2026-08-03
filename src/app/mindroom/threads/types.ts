@@ -38,6 +38,7 @@ export type ThreadStatusSnapshot = {
 export type ThreadCacheCoverage = {
   eventCount: number;
   oldestTs?: number;
+  oldestVisibleReplyEventId?: string;
   newestTs?: number;
   backwardToken?: string | null;
   hasMoreBackward?: boolean;

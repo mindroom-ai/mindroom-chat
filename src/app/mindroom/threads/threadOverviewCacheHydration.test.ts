@@ -268,6 +268,7 @@ describe('resolveCachedOverviewUpdate', () => {
       nextCacheCoverage: {
         eventCount: 1,
         oldestTs: 90,
+        oldestVisibleReplyEventId: '$cached-reply',
         newestTs: 90,
         hasMoreBackward: false,
         relationSnapshotComplete: false,
@@ -373,6 +374,7 @@ describe('resolveCachedOverviewUpdate', () => {
       nextCacheCoverage: {
         eventCount: 1,
         oldestTs: 120,
+        oldestVisibleReplyEventId: '$fetched-reply',
         newestTs: 120,
         backwardToken: null,
         hasMoreBackward: false,

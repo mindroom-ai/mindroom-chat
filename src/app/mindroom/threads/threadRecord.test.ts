@@ -246,12 +246,61 @@ describe('buildThreadRecord', () => {
       cacheCoverage: {
         eventCount: 24,
         hasMoreBackward: true,
+        oldestVisibleReplyEventId: '$cached-oldest-reply',
         relationSnapshotComplete: false,
         tailLoaded: true,
       },
     });
 
     expect(record.presentation.messageCount).toBe(24);
+  });
+
+  it('lets a complete cached collection lower its count after redaction', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const replies = Array.from({ length: 24 }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: index + 2,
+      })
+    );
+    replies[0] = {
+      ...replies[0],
+      isRedacted: () => true,
+    } as MatrixEvent;
+    const room = makeRoom({
+      rootEvent,
+      thread: {
+        rootEvent,
+        events: replies,
+        timeline: replies,
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, ...replies],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 24,
+      cacheCoverage: {
+        eventCount: 24,
+        hasMoreBackward: true,
+        oldestVisibleReplyEventId: '$reply-0',
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(23);
   });
 
   it('builds a per-room record map from direct source maps', () => {
