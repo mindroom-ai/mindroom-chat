@@ -101,6 +101,24 @@ const getOldestVisibleReplyEventId = (events: MatrixEvent[]): string | undefined
     }, undefined)
     ?.getId();
 
+const getSafeMessageCount = (value: number | undefined): number | undefined =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+
+const resolveNextMessageCount = ({
+  currentMessageCount,
+  observedMessageCount,
+  authoritative,
+}: {
+  currentMessageCount: number;
+  observedMessageCount: number;
+  authoritative: boolean;
+}): number | undefined => {
+  if (authoritative) {
+    return observedMessageCount !== currentMessageCount ? observedMessageCount : undefined;
+  }
+  return observedMessageCount > currentMessageCount ? observedMessageCount : undefined;
+};
+
 export const buildCachedOverviewCoverage = (
   cachedPage: CachedThreadEventPage,
   cachedEvents: MatrixEvent[] = []
@@ -160,10 +178,17 @@ export const resolveFetchedRelationOverviewUpdate = ({
       : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
-  const nextMessageCount =
-    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
-      ? cachedPresentation.messageCount
-      : undefined;
+  const authoritativeFetchedMessageCount = relationSnapshotComplete
+    ? getPreferredVisibleThreadReplyEvents({ events, timeline: events }).length
+    : undefined;
+  const observedMessageCount =
+    authoritativeFetchedMessageCount ??
+    Math.max(cachedPresentation.messageCount, getSafeMessageCount(expectedReplyCount) ?? 0);
+  const nextMessageCount = resolveNextMessageCount({
+    currentMessageCount,
+    observedMessageCount,
+    authoritative: authoritativeFetchedMessageCount !== undefined,
+  });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;
@@ -174,7 +199,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
     newestTs,
     backwardToken: beforeToken,
     hasMoreBackward: typeof beforeToken === 'string',
-    expectedReplyCount,
+    expectedReplyCount: authoritativeFetchedMessageCount ?? expectedReplyCount,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,
@@ -264,10 +289,13 @@ export const resolveCachedOverviewUpdate = ({
       : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
-  const nextMessageCount =
-    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
-      ? cachedPresentation.messageCount
-      : undefined;
+  const durableMessageCount = getSafeMessageCount(cachedPage.expectedReplyCount);
+  const observedMessageCount = durableMessageCount ?? cachedPresentation.messageCount;
+  const nextMessageCount = resolveNextMessageCount({
+    currentMessageCount,
+    observedMessageCount,
+    authoritative: durableMessageCount !== undefined,
+  });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;

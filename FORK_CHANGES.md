@@ -14,7 +14,9 @@
 - A counter-regression pins a complete 24-event SDK collection with one redacted reply and a stale cached count of 24, requiring the presentation to report the 23 still-visible replies.
 - Hosted review additionally identified malformed non-integer fallback counts; the presentation boundary now accepts only nonnegative safe integers, with infinity and fractional regressions.
 - Record-level regressions cover both a genuinely partial SDK window and a complete SDK collection whose cache still advertises older pagination, preventing pagination metadata from becoming a false incompleteness signal.
-- Validation: the focused presentation, record, and cache-hydration suites pass 22 tests, and the full Vitest suite passes 455 files with 3,497 tests.
+- Final review found that overview hydration's 32-record tail was not a total and that complete refreshes could not lower in-memory counts.
+- Overview hydration now uses the durable `expectedReplyCount`, while an exhausted relation refresh replaces that durable count with its observed visible total so redactions survive both the live state update and the next cache hydrate.
+- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 26 tests, and the full Vitest suite passes 456 files with 3,501 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction edge case and rejected pagination metadata as proof of SDK incompleteness; the cache lower bound is now gated by a missing cached reply identity and both directions have record-level regressions.
 

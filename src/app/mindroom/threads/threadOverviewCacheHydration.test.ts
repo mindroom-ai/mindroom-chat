@@ -308,6 +308,50 @@ describe('resolveCachedOverviewUpdate', () => {
     });
   });
 
+  it('uses the durable reply total instead of capping the count at the cached tail slice', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const room = makeRoom([rootEvent]);
+    const cachedTail = Array.from({ length: 32 }, (_, index) => ({
+      event_id: `$cached-reply-${index}`,
+      origin_server_ts: 100 + index,
+      sender: '@cached:example.org',
+      content: { body: `Cached reply ${index}`, msgtype: 'm.text' },
+      threadRootId,
+      relation: { rel_type: 'm.thread', event_id: threadRootId },
+    }));
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room,
+      mapper: mapRawCachedEvent,
+      cachedPage: {
+        events: cachedTail,
+        hasMoreBefore: true,
+        beforeToken: 'older',
+        expectedReplyCount: 282,
+      },
+      currentRecord: makeRecord({
+        presentation: { messageCount: 13 },
+        status: { replyCount: 13 },
+      }),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update).toMatchObject({
+      nextMessageCount: 282,
+      nextCacheCoverage: {
+        eventCount: 32,
+        expectedReplyCount: 282,
+        hasMoreBackward: true,
+        oldestVisibleReplyEventId: '$cached-reply-0',
+      },
+    });
+  });
+
   it('does not treat an empty cache miss as record coverage', () => {
     const threadRootId = '$thread-root';
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
@@ -382,6 +426,44 @@ describe('resolveCachedOverviewUpdate', () => {
         relationSnapshotComplete: true,
         snapshotComplete: true,
         tailLoaded: true,
+      },
+    });
+  });
+
+  it('lets an exhausted relation refresh replace a stale higher count after redaction', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const replies = Array.from({ length: 23 }, (_, index) =>
+      makeEvent(`$reply-${index}`, {
+        content: { body: `Reply ${index}`, msgtype: 'm.text' },
+        relation: { rel_type: 'm.thread', event_id: threadRootId },
+        threadRootId,
+        ts: index + 20,
+      })
+    );
+
+    const update = resolveFetchedRelationOverviewUpdate({
+      rootId: threadRootId,
+      room: makeRoom([rootEvent, ...replies]),
+      events: replies,
+      rootEvent,
+      currentRecord: makeRecord({
+        presentation: { messageCount: 24 },
+        status: { replyCount: 24 },
+      }),
+      beforeToken: null,
+      expectedReplyCount: 24,
+      relationSnapshotComplete: true,
+      snapshotComplete: true,
+      tailLoaded: true,
+    });
+
+    expect(update).toMatchObject({
+      nextMessageCount: 23,
+      nextCacheCoverage: {
+        expectedReplyCount: 23,
+        hasMoreBackward: false,
+        relationSnapshotComplete: true,
       },
     });
   });
