@@ -116,7 +116,8 @@ describe('thread meta expectedReplyCount merge policy', () => {
       undefined,
       undefined,
       undefined,
-      24
+      24,
+      true
     );
     const completeReplies = Array.from({ length: 23 }, (_, index) =>
       rawReply(`$complete-reply-${index}`, 2_000 + index)
@@ -137,6 +138,39 @@ describe('thread meta expectedReplyCount merge policy', () => {
 
     const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 32);
     expect(page.expectedReplyCount).toBe(24);
+    expect(page.relationSnapshotComplete).toBe(false);
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+  });
+
+  it('lets an explicit unproven relation write downgrade prior complete coverage', async () => {
+    const sessionId = `${SESSION_ID}-explicit-incomplete`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$proven-reply', 1_000)],
+      undefined,
+      undefined,
+      undefined,
+      true,
+      1,
+      true
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$partial-reply', 2_000)],
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(1);
     expect(page.relationSnapshotComplete).toBe(false);
     expect(page.expectedReplyCountEvidence).toBeUndefined();
   });

@@ -235,6 +235,13 @@ export const resolveFetchedRelationOverviewUpdate = ({
     : undefined;
   const fetchedRelationSnapshotTs =
     getMatrixRelationSnapshotTs(events) ?? rootEvent?.getTs() ?? undefined;
+  const reconciledRelationSnapshotTs = retainedReplyCountSnapshot
+    ? getMatrixRelationSnapshotTs(
+        events.filter((event) =>
+          retainedReplyCountSnapshot.incorporatedEventIds.includes(event.getId() ?? '')
+        )
+      )
+    : undefined;
   const resolvedReplyCountEvidence =
     relationSnapshotComplete === true
       ? replyCountEvidence ?? {
@@ -261,9 +268,14 @@ export const resolveFetchedRelationOverviewUpdate = ({
   const expectedReplyCountSnapshotTs =
     relationSnapshotComplete === true
       ? fetchedRelationSnapshotTs
+      : retainedReplyCountSnapshot
+      ? Math.max(
+          currentRecord?.cache.expectedReplyCountSnapshotTs ?? 0,
+          reconciledRelationSnapshotTs ?? 0
+        ) || undefined
       : nextExpectedReplyCount !== undefined &&
         nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
-      ? currentRecord.cache.expectedReplyCountSnapshotTs
+      ? currentRecord?.cache.expectedReplyCountSnapshotTs
       : undefined;
   const nextCacheCoverage = buildThreadCacheCoverage({
     eventCount: events.length,
@@ -403,6 +415,15 @@ export const resolveCachedOverviewUpdate = ({
       ? {
           ...cachedOverviewCoverage,
           expectedReplyCount: reconciledDurableSnapshot.replyCount,
+          expectedReplyCountSnapshotTs:
+            Math.max(
+              cachedOverviewCoverage.expectedReplyCountSnapshotTs ?? 0,
+              getMatrixRelationSnapshotTs(
+                cachedEvents.filter((event) =>
+                  reconciledDurableSnapshot.incorporatedEventIds.includes(event.getId() ?? '')
+                )
+              ) ?? 0
+            ) || undefined,
           expectedReplyCountEvidence: reconciledDurableSnapshot.evidence,
         }
       : cachedOverviewCoverage;

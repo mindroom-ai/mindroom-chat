@@ -1162,11 +1162,11 @@ const runSaveThreadEventsTxn = async (
         ? incomingReplyCountEvidence?.visibleEventIds.length
         : undefined);
     const incomingRelationSnapshotComplete =
-      relationSnapshotComplete === true &&
-      normalizedExpectedReplyCount !== undefined &&
-      incomingReplyCountEvidence !== undefined
-        ? true
-        : undefined;
+      relationSnapshotComplete === undefined
+        ? undefined
+        : relationSnapshotComplete === true &&
+          normalizedExpectedReplyCount !== undefined &&
+          incomingReplyCountEvidence !== undefined;
     const incomingRelationActivityTs =
       normalizedExpectedReplyCount === undefined
         ? undefined
@@ -1216,6 +1216,10 @@ const runSaveThreadEventsTxn = async (
                 expectedReplyCountSnapshotTs = undefined;
                 expectedReplyCountEvidence = undefined;
               }
+            }
+            if (incomingRelationSnapshotComplete === false) {
+              expectedReplyCountSnapshotTs = undefined;
+              expectedReplyCountEvidence = undefined;
             }
             const cacheableRootEvent =
               incomingRootEvent &&

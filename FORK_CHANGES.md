@@ -29,9 +29,12 @@
 - Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.
 - Cache and partial-fetch reconciliation now advance the durable count and its identity evidence together, so rebuilding a record cannot discard a newly observed reply.
 - A relation-complete write without either a count or caller-supplied identity evidence remains unproven instead of attaching fresh evidence to an inherited total.
+- Evidence advancement preserves IDs deliberately excluded by an authoritative snapshot, preventing a stale visible revision followed by its redaction from subtracting twice.
+- Reconciled relation activity advances the count horizon with the count and evidence, so older summary metadata cannot restore a pre-redaction total.
+- Explicit incomplete relation writes and complete writes lacking count proof downgrade prior complete coverage and clear its stale evidence.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: eight focused record, hydration, prefetch, open-cache, persistence, and engine suites pass 98 tests, and the full Vitest suite passes 456 files with 3,519 tests.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 131 tests; the latest full Vitest run is pending after four new regressions.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 

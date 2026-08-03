@@ -223,29 +223,38 @@ export const reconcileThreadReplyCountSnapshotWithEvidence = ({
   events: VisibleThreadEventLike[];
   evidence: ThreadReplyCountSnapshotEvidence;
   threadRootId: string;
-}): { replyCount: number; evidence: ThreadReplyCountSnapshotEvidence } => {
+}): {
+  replyCount: number;
+  evidence: ThreadReplyCountSnapshotEvidence;
+  incorporatedEventIds: string[];
+} => {
   const knownEventIds = new Set(evidence.knownEventIds);
   const visibleSnapshotEventIds = new Set(evidence.visibleEventIds);
   const newVisibleReplyIds = new Set<string>();
   const newlyRedactedSnapshotReplyIds = new Set<string>();
+  const incorporatedEventIds = new Set<string>();
 
   events.forEach((event) => {
     const eventId = event.getId();
     if (!eventId || event.threadRootId !== threadRootId) return;
     if (isVisibleThreadReplyEvent(event)) {
-      if (!knownEventIds.has(eventId)) newVisibleReplyIds.add(eventId);
-      knownEventIds.add(eventId);
-      visibleSnapshotEventIds.add(eventId);
+      if (!knownEventIds.has(eventId)) {
+        newVisibleReplyIds.add(eventId);
+        knownEventIds.add(eventId);
+        visibleSnapshotEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      }
       return;
     }
-    if (
-      event.isRedacted?.() &&
-      isVisibleThreadReplyEventType(event.getType?.()) &&
-      visibleSnapshotEventIds.has(eventId)
-    ) {
-      newlyRedactedSnapshotReplyIds.add(eventId);
-      knownEventIds.add(eventId);
-      visibleSnapshotEventIds.delete(eventId);
+    if (event.isRedacted?.() && isVisibleThreadReplyEventType(event.getType?.())) {
+      if (!knownEventIds.has(eventId)) {
+        knownEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      } else if (visibleSnapshotEventIds.has(eventId)) {
+        newlyRedactedSnapshotReplyIds.add(eventId);
+        visibleSnapshotEventIds.delete(eventId);
+        incorporatedEventIds.add(eventId);
+      }
     }
   });
 
@@ -258,6 +267,7 @@ export const reconcileThreadReplyCountSnapshotWithEvidence = ({
       knownEventIds: [...knownEventIds],
       visibleEventIds: [...visibleSnapshotEventIds],
     },
+    incorporatedEventIds: [...incorporatedEventIds],
   };
 };
 

@@ -16,6 +16,7 @@ type RawCachedEvent = {
   content?: Record<string, unknown>;
   threadRootId?: string;
   relation?: { rel_type?: string; event_id?: string };
+  unsigned?: Record<string, unknown>;
 };
 
 const makeEvent = (
@@ -28,6 +29,8 @@ const makeEvent = (
     isThreadRoot?: boolean;
     threadRootId?: string;
     relation?: { rel_type?: string; event_id?: string };
+    redacted?: boolean;
+    redactionTs?: number;
   } = {}
 ) =>
   ({
@@ -39,8 +42,11 @@ const makeEvent = (
     getSender: () => opts.sender ?? '@alice:example.org',
     getTs: () => opts.ts ?? 0,
     getType: () => opts.type ?? 'm.room.message',
-    getUnsigned: () => ({}),
-    isRedacted: () => false,
+    getUnsigned: () =>
+      opts.redactionTs === undefined
+        ? {}
+        : { redacted_because: { origin_server_ts: opts.redactionTs } },
+    isRedacted: () => opts.redacted ?? false,
     isRedaction: () => false,
     replacingEvent: () => undefined,
   } as MatrixEvent);
@@ -67,6 +73,9 @@ const mapRawCachedEvent = (rawEvent: IEvent): MatrixEvent => {
     sender: raw.sender,
     threadRootId: raw.threadRootId,
     ts: raw.origin_server_ts,
+    redacted: !!raw.unsigned?.redacted_because,
+    redactionTs: (raw.unsigned?.redacted_because as { origin_server_ts?: number } | undefined)
+      ?.origin_server_ts,
   }) as MatrixEvent;
 };
 
@@ -410,6 +419,70 @@ describe('resolveCachedOverviewUpdate', () => {
       cacheCoverage: update?.nextCacheCoverage,
     });
     expect(rebuiltRecord.presentation.messageCount).toBe(283);
+  });
+
+  it('advances the count horizon so a stale summary cannot undo a cached redaction', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const cachedRedaction = {
+      event_id: '$reply',
+      origin_server_ts: 50,
+      sender: '@cached:example.org',
+      content: { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRootId } },
+      threadRootId,
+      relation: { rel_type: 'm.thread', event_id: threadRootId },
+      unsigned: { redacted_because: { origin_server_ts: 200 } },
+    };
+    const room = makeRoom([rootEvent]);
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room,
+      mapper: mapRawCachedEvent,
+      cachedPage: {
+        events: [cachedRedaction],
+        hasMoreBefore: true,
+        expectedReplyCount: 24,
+        expectedReplyCountSnapshotTs: 100,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$reply'],
+          visibleEventIds: ['$reply'],
+        },
+        relationSnapshotComplete: true,
+      },
+      currentRecord: makeRecord({
+        presentation: { messageCount: 24 },
+        status: { lastActivityTs: 0, replyCount: 24 },
+      }),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update).toMatchObject({
+      nextMessageCount: 23,
+      nextCacheCoverage: {
+        expectedReplyCount: 23,
+        expectedReplyCountSnapshotTs: 200,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$reply'],
+          visibleEventIds: [],
+        },
+      },
+    });
+    const rebuiltRecord = buildThreadRecord({
+      room,
+      threadRootId,
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: update?.nextMessageCount,
+      summaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 150,
+        messageCount: 24,
+      },
+      cacheCoverage: update?.nextCacheCoverage,
+    });
+    expect(rebuiltRecord.presentation.messageCount).toBe(23);
   });
 
   it('does not let a stale lower durable count replace newer live state', () => {
