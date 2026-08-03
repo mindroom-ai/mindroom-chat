@@ -389,6 +389,144 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(page.relationSnapshotComplete).toBe(true);
   });
 
+  it('keeps an authoritative lower snapshot instead of reviving the old baseline', async () => {
+    const sessionId = `${SESSION_ID}-absolute-lower-marker`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      282,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      24,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(24);
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.relationSnapshotComplete).toBe(false);
+  });
+
+  it('advances a complete snapshot that already excludes the marked reply', async () => {
+    const sessionId = `${SESSION_ID}-excluded-complete-marker`;
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      0,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: [] }
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+    expect(page.relationSnapshotComplete).toBe(true);
+  });
+
+  it('prefers a newer stored marker horizon over a stale duplicate redaction', async () => {
+    const sessionId = `${SESSION_ID}-duplicate-redaction-horizon`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [
+        {
+          ...rawReply('$reply', 1_000),
+          unsigned: { redacted_because: { origin_server_ts: 1_500 } },
+        },
+      ],
+      undefined,
+      undefined,
+      true,
+      false,
+      1,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+  });
+
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (

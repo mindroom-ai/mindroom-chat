@@ -37,9 +37,11 @@
 - Durable redaction markers are applied before partial metadata reconciliation, so a standalone redaction decrements a baseline and a later stale visible revision cannot re-add the reply.
 - Marker rows persist Matrix redaction activity time, letting a later thread-cache write advance the count horizon from room-scope evidence without comparing server timestamps to client wall time.
 - Marker sanitation applies to new relation-complete snapshots as well as retained baselines, and a lower stale bundled count cannot block a marker-confirmed decrement.
+- Retained-baseline reconciliation now follows the merged count policy, so an absolute complete write can still lower the total; complete evidence that already excludes a marker inherits its horizon.
+- Marker lookup unions current and stored redaction evidence and takes the newer Matrix timestamp, preventing a stale duplicate redaction from weakening freshness.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 136 tests; the latest full Vitest run is pending after complete-snapshot and stale-bundle marker regressions.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 139 tests; the latest full Vitest run is pending after the marker-ordering regressions.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 

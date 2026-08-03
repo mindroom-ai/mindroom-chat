@@ -283,14 +283,13 @@ const loadKnownRedactedRelationEventIds = (
   onError: (error: DOMException | null) => void
 ): void => {
   const activityTsByEventId = new Map<string, number>();
-  if (candidates.size === 0) {
+  const markerIdsToLoad = new Set([...candidates, ...current]);
+  if (markerIdsToLoad.size === 0) {
     onReady(new Set(current), activityTsByEventId);
     return;
   }
   const knownEventIds = new Set(current);
-  const unresolvedEventIds = Array.from(candidates).filter(
-    (eventId) => !knownEventIds.has(eventId)
-  );
+  const unresolvedEventIds = [...markerIdsToLoad];
   if (unresolvedEventIds.length === 0) {
     onReady(knownEventIds, activityTsByEventId);
     return;
@@ -1363,8 +1362,7 @@ const runSaveThreadEventsTxn = async (
               (relationSnapshotComplete === false || knownRedactedEventIds.size > 0) &&
               currentExpectedReplyCount !== undefined &&
               currentMeta?.expectedReplyCountEvidence !== undefined &&
-              (normalizedExpectedReplyCount === undefined ||
-                normalizedExpectedReplyCount <= currentExpectedReplyCount);
+              mergedExpectedReplyCount === currentExpectedReplyCount;
             const reconciliationBaseCount = shouldReconcileIncomingSnapshot
               ? mergedExpectedReplyCount
               : shouldReconcileRetainedSnapshot
@@ -1386,6 +1384,12 @@ const runSaveThreadEventsTxn = async (
               mergedExpectedReplyCount = reconciledSnapshot.replyCount;
               expectedReplyCountEvidence = reconciledSnapshot.evidence;
               const incorporatedEventIds = new Set(reconciledSnapshot.incorporatedEventIds);
+              if (shouldReconcileIncomingSnapshot) {
+                const snapshotKnownEventIds = new Set(reconciliationEvidence.knownEventIds);
+                knownRedactedEventIds.forEach((eventId) => {
+                  if (snapshotKnownEventIds.has(eventId)) incorporatedEventIds.add(eventId);
+                });
+              }
               expectedReplyCountSnapshotTs =
                 Math.max(
                   expectedReplyCountSnapshotTs ?? 0,
@@ -1393,11 +1397,11 @@ const runSaveThreadEventsTxn = async (
                     normalizedEvents.filter((event) => incorporatedEventIds.has(event.event_id)),
                     undefined
                   ) ?? 0,
-                  ...[...incorporatedEventIds].map(
-                    (eventId) =>
-                      redactionActivityTsByEventId.get(eventId) ??
-                      storedRedactionActivityTsByEventId.get(eventId) ??
-                      0
+                  ...[...incorporatedEventIds].map((eventId) =>
+                    Math.max(
+                      redactionActivityTsByEventId.get(eventId) ?? 0,
+                      storedRedactionActivityTsByEventId.get(eventId) ?? 0
+                    )
                   )
                 ) || undefined;
             }
