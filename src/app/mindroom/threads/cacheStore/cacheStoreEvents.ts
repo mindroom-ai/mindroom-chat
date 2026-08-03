@@ -1148,18 +1148,30 @@ const runSaveThreadEventsTxn = async (
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = hasEventPuts ? transaction.objectStore(ROOM_LEDGER_STORE) : undefined;
     const metaKey = buildMetaKey(roomId, threadId);
-    const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
+    const explicitExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
+    const incomingReplyCountEvidence =
+      relationSnapshotComplete === true &&
+      (explicitExpectedReplyCount !== undefined || replyCountEvidence !== undefined)
+        ? normalizeReplyCountEvidence(
+            replyCountEvidence ?? buildRawReplyCountEvidence(normalizedEvents, threadId)
+          )
+        : undefined;
+    const normalizedExpectedReplyCount =
+      explicitExpectedReplyCount ??
+      (relationSnapshotComplete === true && replyCountEvidence !== undefined
+        ? incomingReplyCountEvidence?.visibleEventIds.length
+        : undefined);
+    const incomingRelationSnapshotComplete =
+      relationSnapshotComplete === true &&
+      normalizedExpectedReplyCount !== undefined &&
+      incomingReplyCountEvidence !== undefined
+        ? true
+        : undefined;
     const incomingRelationActivityTs =
       normalizedExpectedReplyCount === undefined
         ? undefined
         : getExpectedReplyCountSnapshotTs(normalizedEvents, rootEvent);
     const incomingExpectedReplyCountSnapshotTs = incomingRelationActivityTs;
-    const incomingReplyCountEvidence =
-      relationSnapshotComplete === true
-        ? normalizeReplyCountEvidence(
-            replyCountEvidence ?? buildRawReplyCountEvidence(normalizedEvents, threadId)
-          )
-        : undefined;
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
 
     loadKnownRedactedRelationEventIds(
@@ -1191,7 +1203,7 @@ const runSaveThreadEventsTxn = async (
             let expectedReplyCountSnapshotTs = currentMeta?.expectedReplyCountSnapshotTs;
             let expectedReplyCountEvidence = currentMeta?.expectedReplyCountEvidence;
             if (normalizedExpectedReplyCount !== undefined) {
-              if (relationSnapshotComplete === true) {
+              if (incomingRelationSnapshotComplete === true) {
                 expectedReplyCountSnapshotTs =
                   Math.max(
                     currentMeta?.expectedReplyCountSnapshotTs ?? 0,
@@ -1204,8 +1216,6 @@ const runSaveThreadEventsTxn = async (
                 expectedReplyCountSnapshotTs = undefined;
                 expectedReplyCountEvidence = undefined;
               }
-            } else if (relationSnapshotComplete === true) {
-              expectedReplyCountEvidence = incomingReplyCountEvidence;
             }
             const cacheableRootEvent =
               incomingRootEvent &&
@@ -1242,7 +1252,7 @@ const runSaveThreadEventsTxn = async (
               ),
               relationSnapshotComplete: mergeThreadCacheFlag(
                 currentMeta?.relationSnapshotComplete,
-                relationSnapshotComplete
+                incomingRelationSnapshotComplete
               ),
               tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
               threadReconcileContinuation: currentMeta?.threadReconcileContinuation,

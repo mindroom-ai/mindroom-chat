@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { ThreadRecord } from './types';
+import { buildThreadRecord } from './threadRecord';
 import {
   buildCachedOverviewCoverage,
   resolveFetchedRelationOverviewUpdate,
@@ -391,7 +392,24 @@ describe('resolveCachedOverviewUpdate', () => {
       compactThreadRootBodyMap: new Map(),
     });
 
-    expect(update?.nextMessageCount).toBe(283);
+    expect(update).toMatchObject({
+      nextMessageCount: 283,
+      nextCacheCoverage: {
+        expectedReplyCount: 283,
+        expectedReplyCountEvidence: {
+          knownEventIds: cachedTail.map((event) => event.event_id),
+          visibleEventIds: cachedTail.map((event) => event.event_id),
+        },
+      },
+    });
+    const rebuiltRecord = buildThreadRecord({
+      room: makeRoom([rootEvent]),
+      threadRootId,
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: update?.nextMessageCount,
+      cacheCoverage: update?.nextCacheCoverage,
+    });
+    expect(rebuiltRecord.presentation.messageCount).toBe(283);
   });
 
   it('does not let a stale lower durable count replace newer live state', () => {
@@ -641,13 +659,21 @@ describe('resolveCachedOverviewUpdate', () => {
     expect(update).toMatchObject({
       nextMessageCount: 283,
       nextCacheCoverage: {
-        expectedReplyCount: 282,
+        expectedReplyCount: 283,
         expectedReplyCountEvidence: {
-          knownEventIds: snapshotEventIds,
-          visibleEventIds: snapshotEventIds,
+          knownEventIds: replies.map((event) => event.getId()),
+          visibleEventIds: replies.map((event) => event.getId()),
         },
       },
     });
+    const rebuiltRecord = buildThreadRecord({
+      room: makeRoom([rootEvent]),
+      threadRootId,
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: update?.nextMessageCount,
+      cacheCoverage: update?.nextCacheCoverage,
+    });
+    expect(rebuiltRecord.presentation.messageCount).toBe(283);
   });
 
   it('lets an exhausted relation refresh replace a stale higher count after redaction', () => {

@@ -105,6 +105,42 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(await storedCount()).toBe(282);
   });
 
+  it('downgrades a relation-complete write that omits both count and evidence', async () => {
+    const sessionId = `${SESSION_ID}-countless-complete`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$stale-reply', 1_000)],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      24
+    );
+    const completeReplies = Array.from({ length: 23 }, (_, index) =>
+      rawReply(`$complete-reply-${index}`, 2_000 + index)
+    );
+
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      completeReplies,
+      undefined,
+      undefined,
+      true,
+      true,
+      undefined,
+      true
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 32);
+    expect(page.expectedReplyCount).toBe(24);
+    expect(page.relationSnapshotComplete).toBe(false);
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+  });
+
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (

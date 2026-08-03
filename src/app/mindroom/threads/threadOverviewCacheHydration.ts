@@ -14,7 +14,7 @@ import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
-  reconcileThreadReplyCountWithEvidence,
+  reconcileThreadReplyCountSnapshotWithEvidence,
 } from './threadUtils';
 import type {
   ThreadOverviewCachedMetadataController,
@@ -208,15 +208,17 @@ export const resolveFetchedRelationOverviewUpdate = ({
     nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
       ? currentRecord.cache.expectedReplyCountEvidence
       : undefined;
-  const evidenceAdjustedExpectedReplyCount =
+  const retainedReplyCountSnapshot =
     getSafeMessageCount(nextExpectedReplyCount) !== undefined && retainedReplyCountEvidence
-      ? reconcileThreadReplyCountWithEvidence({
+      ? reconcileThreadReplyCountSnapshotWithEvidence({
           baseCount: getSafeMessageCount(nextExpectedReplyCount) ?? 0,
           events,
           evidence: retainedReplyCountEvidence,
           threadRootId: rootId,
         })
-      : getSafeMessageCount(nextExpectedReplyCount);
+      : undefined;
+  const evidenceAdjustedExpectedReplyCount =
+    retainedReplyCountSnapshot?.replyCount ?? getSafeMessageCount(nextExpectedReplyCount);
   const observedMessageCount =
     authoritativeFetchedMessageCount ??
     Math.max(
@@ -251,7 +253,11 @@ export const resolveFetchedRelationOverviewUpdate = ({
             ),
           ],
         }
-      : undefined;
+      : retainedReplyCountSnapshot?.evidence ?? retainedReplyCountEvidence;
+  const resolvedExpectedReplyCount =
+    relationSnapshotComplete === true
+      ? nextExpectedReplyCount
+      : retainedReplyCountSnapshot?.replyCount ?? nextExpectedReplyCount;
   const expectedReplyCountSnapshotTs =
     relationSnapshotComplete === true
       ? fetchedRelationSnapshotTs
@@ -266,10 +272,9 @@ export const resolveFetchedRelationOverviewUpdate = ({
     newestTs,
     backwardToken: beforeToken,
     hasMoreBackward: typeof beforeToken === 'string',
-    expectedReplyCount: nextExpectedReplyCount,
+    expectedReplyCount: resolvedExpectedReplyCount,
     expectedReplyCountSnapshotTs,
-    expectedReplyCountEvidence:
-      relationSnapshotComplete === true ? resolvedReplyCountEvidence : retainedReplyCountEvidence,
+    expectedReplyCountEvidence: resolvedReplyCountEvidence,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,
@@ -361,15 +366,17 @@ export const resolveCachedOverviewUpdate = ({
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const durableMessageCount = getSafeMessageCount(cachedPage.expectedReplyCount);
   const cachedVisibleMessageCount = buildVisibleThreadReplyCountMap(cachedEvents).get(rootId) ?? 0;
-  const evidenceAdjustedDurableMessageCount =
+  const reconciledDurableSnapshot =
     durableMessageCount !== undefined && cachedPage.expectedReplyCountEvidence
-      ? reconcileThreadReplyCountWithEvidence({
+      ? reconcileThreadReplyCountSnapshotWithEvidence({
           baseCount: durableMessageCount,
           events: cachedEvents,
           evidence: cachedPage.expectedReplyCountEvidence,
           threadRootId: rootId,
         })
-      : durableMessageCount;
+      : undefined;
+  const evidenceAdjustedDurableMessageCount =
+    reconciledDurableSnapshot?.replyCount ?? durableMessageCount;
   const observedMessageCount =
     durableMessageCount === undefined
       ? cachedVisibleMessageCount
@@ -388,9 +395,17 @@ export const resolveCachedOverviewUpdate = ({
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;
-  const nextCacheCoverage = hasCachedOverviewCoverage(cachedPage)
+  const cachedOverviewCoverage = hasCachedOverviewCoverage(cachedPage)
     ? buildCachedOverviewCoverage(cachedPage, cachedEvents)
     : undefined;
+  const nextCacheCoverage =
+    cachedOverviewCoverage && reconciledDurableSnapshot
+      ? {
+          ...cachedOverviewCoverage,
+          expectedReplyCount: reconciledDurableSnapshot.replyCount,
+          expectedReplyCountEvidence: reconciledDurableSnapshot.evidence,
+        }
+      : cachedOverviewCoverage;
 
   let nextPreview: string | undefined;
   let nextPreviewSourceTs: number | undefined;

@@ -213,7 +213,7 @@ export const buildVisibleThreadReplyCountMap = (
   return counts;
 };
 
-export const reconcileThreadReplyCountWithEvidence = ({
+export const reconcileThreadReplyCountSnapshotWithEvidence = ({
   baseCount,
   events,
   evidence,
@@ -223,7 +223,7 @@ export const reconcileThreadReplyCountWithEvidence = ({
   events: VisibleThreadEventLike[];
   evidence: ThreadReplyCountSnapshotEvidence;
   threadRootId: string;
-}): number => {
+}): { replyCount: number; evidence: ThreadReplyCountSnapshotEvidence } => {
   const knownEventIds = new Set(evidence.knownEventIds);
   const visibleSnapshotEventIds = new Set(evidence.visibleEventIds);
   const newVisibleReplyIds = new Set<string>();
@@ -234,6 +234,8 @@ export const reconcileThreadReplyCountWithEvidence = ({
     if (!eventId || event.threadRootId !== threadRootId) return;
     if (isVisibleThreadReplyEvent(event)) {
       if (!knownEventIds.has(eventId)) newVisibleReplyIds.add(eventId);
+      knownEventIds.add(eventId);
+      visibleSnapshotEventIds.add(eventId);
       return;
     }
     if (
@@ -242,11 +244,26 @@ export const reconcileThreadReplyCountWithEvidence = ({
       visibleSnapshotEventIds.has(eventId)
     ) {
       newlyRedactedSnapshotReplyIds.add(eventId);
+      knownEventIds.add(eventId);
+      visibleSnapshotEventIds.delete(eventId);
     }
   });
 
-  return Math.max(0, baseCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size);
+  return {
+    replyCount: Math.max(
+      0,
+      baseCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size
+    ),
+    evidence: {
+      knownEventIds: [...knownEventIds],
+      visibleEventIds: [...visibleSnapshotEventIds],
+    },
+  };
 };
+
+export const reconcileThreadReplyCountWithEvidence = (
+  options: Parameters<typeof reconcileThreadReplyCountSnapshotWithEvidence>[0]
+): number => reconcileThreadReplyCountSnapshotWithEvidence(options).replyCount;
 
 export const buildThreadParticipantMap = (
   events: ThreadEventLike[],
