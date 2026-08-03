@@ -106,10 +106,15 @@ const resolveCachedMessageCount = (
     Number.isSafeInteger(fallbackMessageCount) && (fallbackMessageCount ?? 0) >= 0
       ? fallbackMessageCount
       : undefined;
-  const candidateMessageCount = durableMessageCount ?? safeFallbackMessageCount;
+  const countEvidence = cacheCoverage?.expectedReplyCountEvidence;
+  const candidateMessageCount =
+    durableMessageCount === undefined
+      ? safeFallbackMessageCount
+      : countEvidence
+      ? durableMessageCount
+      : Math.max(durableMessageCount, safeFallbackMessageCount ?? 0);
   const visibleLoadedReplyCount =
     buildVisibleThreadReplyCountMap(loadedThreadEvents).get(threadRootId) ?? 0;
-  const countEvidence = cacheCoverage?.expectedReplyCountEvidence;
 
   if (candidateMessageCount !== undefined) {
     let adjustedCandidateMessageCount = candidateMessageCount;

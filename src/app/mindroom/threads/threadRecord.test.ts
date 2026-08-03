@@ -323,6 +323,34 @@ describe('buildThreadRecord', () => {
     expect(record.presentation.messageCount).toBe(282);
   });
 
+  it('keeps a newer fallback above an evidence-less legacy durable total', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const replies = Array.from({ length: 13 }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: index + 2,
+      })
+    );
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 25,
+      cacheCoverage: {
+        eventCount: 13,
+        expectedReplyCount: 24,
+        hasMoreBackward: true,
+        relationSnapshotComplete: false,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(25);
+  });
+
   it('adjusts a durable total for a redaction inside a partial SDK tail', () => {
     const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
     const replies = Array.from({ length: 32 }, (_, index) =>
