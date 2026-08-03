@@ -65,6 +65,7 @@ export const resolveThreadRootPreviewText = ({
   });
 
 type ResolveThreadPresentationSnapshotOptions = {
+  fallbackMessageCountIsLowerBound?: boolean;
   fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
   fallbackLatestReplyPreviewText?: string;
@@ -89,6 +90,7 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLastSenderId,
   fallbackLastSenderDisplayName,
   fallbackMessageCount,
+  fallbackMessageCountIsLowerBound = false,
   fallbackParticipantIds,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
@@ -105,12 +107,13 @@ export const resolveThreadPresentationSnapshot = ({
     preferredSummaryInfo,
     thread,
   });
-  const visibleMessageCount = Math.max(
-    getVisibleThreadMessageCount(thread, fallbackMessageCount),
-    typeof fallbackMessageCount === 'number' && Number.isFinite(fallbackMessageCount)
+  const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
+  const minimumMessageCount =
+    fallbackMessageCountIsLowerBound &&
+    typeof fallbackMessageCount === 'number' &&
+    Number.isFinite(fallbackMessageCount)
       ? fallbackMessageCount
-      : 0
-  );
+      : 0;
 
   return {
     summaryInfo,
@@ -127,8 +130,8 @@ export const resolveThreadPresentationSnapshot = ({
     lastSenderDisplayName,
     messageCount:
       typeof summaryInfo?.messageCount === 'number'
-        ? Math.max(summaryInfo.messageCount, visibleMessageCount)
-        : visibleMessageCount,
+        ? Math.max(summaryInfo.messageCount, visibleMessageCount, minimumMessageCount)
+        : Math.max(visibleMessageCount, minimumMessageCount),
   };
 };
 

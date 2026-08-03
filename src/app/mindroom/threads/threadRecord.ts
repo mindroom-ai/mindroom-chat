@@ -303,6 +303,7 @@ export const buildThreadRecord = ({
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
     fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
+    fallbackMessageCountIsLowerBound: cacheCoverage?.hasMoreBackward === true,
     fallbackParticipantIds,
   });
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;

@@ -176,9 +176,40 @@ describe('resolveThreadPresentationSnapshot', () => {
         messageCount: 13,
       },
       fallbackMessageCount: 24,
+      fallbackMessageCountIsLowerBound: true,
     });
 
     expect(presentation.messageCount).toBe(24);
+  });
+
+  it('lets a complete loaded collection replace a stale cached count after redaction', () => {
+    const rootEvent = makeRootEvent('$root', 'Root question');
+    const replies = Array.from({ length: 24 }, (_, index) =>
+      makeThreadReplyEvent(
+        `$reply-${index}`,
+        '$root',
+        `Reply ${index}`,
+        '@alice:example.org',
+        index + 2
+      )
+    );
+    replies[0] = {
+      ...replies[0],
+      isRedacted: () => true,
+    } as MatrixEvent;
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: {
+        events: replies,
+        timeline: replies,
+      },
+      rootEvent,
+      fallbackMessageCount: 24,
+    });
+
+    expect(presentation.messageCount).toBe(23);
   });
 
   it('falls back to the root preview for zero-reply threads', () => {
