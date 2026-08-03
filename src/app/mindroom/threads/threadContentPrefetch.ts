@@ -31,19 +31,7 @@ import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
 } from './threadUtils';
-import type { ThreadReplyCountSnapshotEvidence } from './types';
-
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean,
-  replyCountEvidence?: ThreadReplyCountSnapshotEvidence
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export type FetchAndPersistThreadContentResult = {
   fetchedCount: number;

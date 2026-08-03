@@ -247,23 +247,7 @@ describe('buildThreadRecord', () => {
         ts: index + 2,
       })
     );
-    const room = makeRoom({
-      rootEvent,
-      thread: {
-        rootEvent,
-        events: replies,
-        timeline: replies,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, ...replies],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
 
     const record = buildThreadRecord({
       room,
@@ -291,23 +275,7 @@ describe('buildThreadRecord', () => {
         ts: index + 2,
       })
     );
-    const room = makeRoom({
-      rootEvent,
-      thread: {
-        rootEvent,
-        events: replies,
-        timeline: replies,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, ...replies],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
 
     const record = buildThreadRecord({
       room,
@@ -450,23 +418,7 @@ describe('buildThreadRecord', () => {
       redacted: true,
       redactionTs: 100,
     });
-    const room = makeRoom({
-      rootEvent,
-      thread: {
-        rootEvent,
-        events: replies,
-        timeline: replies,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, ...replies],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
 
     const record = buildThreadRecord({
       room,
@@ -582,23 +534,7 @@ describe('buildThreadRecord', () => {
         ts: 251 + index,
       })
     );
-    const room = makeRoom({
-      rootEvent,
-      thread: {
-        rootEvent,
-        events: replies,
-        timeline: replies,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, ...replies],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
 
     const record = buildThreadRecord({
       room,
@@ -641,23 +577,7 @@ describe('buildThreadRecord', () => {
       redacted: true,
       redactionTs: 100,
     });
-    const room = makeRoom({
-      rootEvent,
-      thread: {
-        rootEvent,
-        events: replies,
-        timeline: replies,
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => ({
-            getEvents: () => [rootEvent, ...replies],
-            getNeighbouringTimeline: () => undefined,
-          }),
-          relations: {
-            getChildEventsForEvent: () => undefined,
-          },
-        }),
-      } as unknown as ReturnType<Room['getThread']>,
-    });
+    const room = makeRoom({ rootEvent, thread: makeThread(rootEvent, replies) });
 
     const record = buildThreadRecord({
       room,

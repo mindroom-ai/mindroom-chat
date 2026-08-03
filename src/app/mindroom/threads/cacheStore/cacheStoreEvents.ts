@@ -118,17 +118,20 @@ const normalizeReplyCountEvidence = (
   if (!Array.isArray(candidate.knownEventIds) || !Array.isArray(candidate.visibleEventIds)) {
     return undefined;
   }
+  if (
+    candidate.knownEventIds.some((eventId) => typeof eventId !== 'string' || !eventId) ||
+    candidate.visibleEventIds.some((eventId) => typeof eventId !== 'string' || !eventId)
+  ) {
+    return undefined;
+  }
+  const knownEventIds = [...new Set(candidate.knownEventIds)];
+  const knownEventIdSet = new Set(knownEventIds);
+  if (candidate.visibleEventIds.some((eventId) => !knownEventIdSet.has(eventId))) {
+    return undefined;
+  }
   return {
-    knownEventIds: [
-      ...new Set(
-        candidate.knownEventIds.filter((eventId) => typeof eventId === 'string' && eventId)
-      ),
-    ],
-    visibleEventIds: [
-      ...new Set(
-        candidate.visibleEventIds.filter((eventId) => typeof eventId === 'string' && eventId)
-      ),
-    ],
+    knownEventIds,
+    visibleEventIds: [...new Set(candidate.visibleEventIds)],
   };
 };
 
@@ -307,10 +310,6 @@ const loadKnownRedactedRelationEventIds = (
   }
   const knownEventIds = new Set(current);
   const unresolvedEventIds = [...markerIdsToLoad];
-  if (unresolvedEventIds.length === 0) {
-    onReady(knownEventIds, activityTsByEventId);
-    return;
-  }
 
   let pending = unresolvedEventIds.length;
   let failed = false;
@@ -321,7 +320,10 @@ const loadKnownRedactedRelationEventIds = (
       const marker = request.result as CachedMetaRecord | undefined;
       if (marker) {
         knownEventIds.add(eventId);
-        if (typeof marker.redactionActivityTs === 'number') {
+        if (
+          typeof marker.redactionActivityTs === 'number' &&
+          Number.isFinite(marker.redactionActivityTs)
+        ) {
           activityTsByEventId.set(eventId, marker.redactionActivityTs);
         }
       }
@@ -1390,7 +1392,9 @@ const runSaveThreadEventsTxn = async (
               mergedExpectedReplyCount !== undefined &&
               expectedReplyCountEvidence !== undefined;
             const shouldReconcileRetainedSnapshot =
-              (relationSnapshotComplete === false || knownRedactedEventIds.size > 0) &&
+              (relationSnapshotComplete === false ||
+                incomingRelationSnapshotComplete === false ||
+                knownRedactedEventIds.size > 0) &&
               currentExpectedReplyCount !== undefined &&
               currentExpectedReplyCountEvidence !== undefined &&
               mergedExpectedReplyCount === currentExpectedReplyCount;

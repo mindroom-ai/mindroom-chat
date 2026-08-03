@@ -23,17 +23,7 @@ import {
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
 import type { HydratedThreadCachePage } from './types';
-
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export type ThreadOpenCacheController = {
   hydrateThreadFromCache: (

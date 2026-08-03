@@ -100,6 +100,7 @@ const renderController = async (
 
 describe('resolveThreadOpenExpectedReplyCount', () => {
   it('keeps a relation-complete durable decrease over stale live-root metadata', () => {
+    const replyEventIds = Array.from({ length: 23 }, (_, index) => `$reply-${index}`);
     const liveRootEvent = new MatrixEvent({
       content: { body: 'root', msgtype: 'm.text' },
       event_id: THREAD_ID,
@@ -115,7 +116,10 @@ describe('resolveThreadOpenExpectedReplyCount', () => {
         liveRootEvent,
         cachedPage: {
           expectedReplyCount: 23,
-          expectedReplyCountEvidence: { knownEventIds: [], visibleEventIds: [] },
+          expectedReplyCountEvidence: {
+            knownEventIds: replyEventIds,
+            visibleEventIds: replyEventIds,
+          },
           relationSnapshotComplete: true,
         },
       })
