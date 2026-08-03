@@ -34,7 +34,7 @@
 - Explicit incomplete relation writes and complete writes lacking count proof downgrade prior complete coverage and clear its stale evidence.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 131 tests; the latest full Vitest run is pending after four new regressions.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 131 tests, and the full Vitest suite passes 456 files with 3,524 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 
