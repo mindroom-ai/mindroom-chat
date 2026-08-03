@@ -354,7 +354,7 @@ describe('buildThreadRecord', () => {
     expect(record.presentation.messageCount).toBe(25);
   });
 
-  it('preserves a new partial-fetch reply across persistence and record rebuild', async () => {
+  it('preserves a partial fetch larger than the reload slice across record rebuild', async () => {
     const sessionId = 'thread-record-partial-evidence';
     const roomId = '!room:server';
     const threadRootId = '$root';
@@ -385,11 +385,14 @@ describe('buildThreadRecord', () => {
       'partial',
       { knownEventIds: ['$known-reply'], visibleEventIds: ['$known-reply'] }
     );
+    const newReplies = Array.from({ length: 40 }, (_, index) =>
+      rawReply(`$new-reply-${index}`, 200 + index)
+    );
     await saveThreadEventsToCache(
       sessionId,
       roomId,
       threadRootId,
-      [rawReply('$new-reply', 200)],
+      newReplies,
       undefined,
       'older',
       true,
@@ -398,11 +401,13 @@ describe('buildThreadRecord', () => {
       false
     );
 
-    const cachedPage = await loadLatestCachedThreadEvents(sessionId, roomId, threadRootId, 5);
+    const cachedPage = await loadLatestCachedThreadEvents(sessionId, roomId, threadRootId, 32);
+    expect(cachedPage.events).toHaveLength(32);
+    expect(cachedPage.expectedReplyCount).toBe(322);
     expect(cachedPage.relationSnapshotComplete).toBe(false);
     expect(cachedPage.expectedReplyCountEvidence).toEqual({
-      knownEventIds: ['$known-reply'],
-      visibleEventIds: ['$known-reply'],
+      knownEventIds: ['$known-reply', ...newReplies.map((event) => event.event_id)],
+      visibleEventIds: ['$known-reply', ...newReplies.map((event) => event.event_id)],
     });
     const cachedEvents = cachedPage.events.map((rawEvent) =>
       makeEvent({
@@ -424,7 +429,7 @@ describe('buildThreadRecord', () => {
       cacheCoverage: buildCachedOverviewCoverage(cachedPage, cachedEvents),
     });
 
-    expect(record.presentation.messageCount).toBe(283);
+    expect(record.presentation.messageCount).toBe(322);
   });
 
   it('adjusts a durable total for a redaction inside a partial SDK tail', () => {

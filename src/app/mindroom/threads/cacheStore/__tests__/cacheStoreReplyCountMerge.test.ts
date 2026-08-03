@@ -170,12 +170,12 @@ describe('thread meta expectedReplyCount merge policy', () => {
     );
 
     const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
-    expect(page.expectedReplyCount).toBe(1);
+    expect(page.expectedReplyCount).toBe(2);
     expect(page.relationSnapshotComplete).toBe(false);
-    expect(page.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(1_000);
+    expect(page.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(2_000);
     expect(page.expectedReplyCountEvidence).toEqual({
-      knownEventIds: ['$proven-reply'],
-      visibleEventIds: ['$proven-reply'],
+      knownEventIds: ['$proven-reply', '$partial-reply'],
+      visibleEventIds: ['$proven-reply', '$partial-reply'],
     });
   });
 

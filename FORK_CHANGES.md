@@ -33,9 +33,10 @@
 - Reconciled relation activity advances the count horizon with the count and evidence, so older summary metadata cannot restore a pre-redaction total.
 - Explicit partial relation writes downgrade complete coverage while retaining the still-matching count/evidence baseline; complete writes lacking count proof downgrade and clear the unusable baseline.
 - A persistence-to-reload-to-record regression proves a reply found by a partial fetch remains counted after remount.
+- Partial persistence now folds every incoming reply/redaction into the matching durable count, evidence, and horizon before the overview reload truncates cached events to 32; the regression crosses that boundary with 40 new replies.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 132 tests; the latest full Vitest run is pending after the persistence/remount regression.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 132 tests; the latest full Vitest run is pending after the 40-reply persistence/remount boundary regression.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 

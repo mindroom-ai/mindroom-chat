@@ -101,6 +101,64 @@ const buildRawReplyCountEvidence = (
   return { knownEventIds: [...knownEventIds], visibleEventIds: [...visibleEventIds] };
 };
 
+const reconcileRawReplyCountSnapshot = (
+  baseCount: number,
+  evidence: ThreadReplyCountSnapshotEvidence,
+  events: readonly CachedThreadEvent[],
+  threadId: string
+): {
+  replyCount: number;
+  evidence: ThreadReplyCountSnapshotEvidence;
+  incorporatedEventIds: string[];
+} => {
+  const knownEventIds = new Set(evidence.knownEventIds);
+  const visibleEventIds = new Set(evidence.visibleEventIds);
+  const addedEventIds = new Set<string>();
+  const removedEventIds = new Set<string>();
+  const incorporatedEventIds = new Set<string>();
+
+  events.forEach((rawEvent) => {
+    const eventId = rawEvent.event_id;
+    if (!eventId || eventId === threadId) return;
+    const relatesTo = rawEvent.content?.['m.relates_to'] as
+      | { event_id?: unknown; rel_type?: unknown }
+      | undefined;
+    const isVisible =
+      !rawEvent.unsigned?.redacted_because &&
+      relatesTo?.event_id === threadId &&
+      relatesTo.rel_type === 'm.thread' &&
+      isVisibleThreadReplyEventType(rawEvent.type);
+    if (isVisible) {
+      if (!knownEventIds.has(eventId)) {
+        knownEventIds.add(eventId);
+        visibleEventIds.add(eventId);
+        addedEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      }
+      return;
+    }
+    if (rawEvent.unsigned?.redacted_because) {
+      if (!knownEventIds.has(eventId)) {
+        knownEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      } else if (visibleEventIds.has(eventId)) {
+        visibleEventIds.delete(eventId);
+        removedEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      }
+    }
+  });
+
+  return {
+    replyCount: Math.max(0, baseCount + addedEventIds.size - removedEventIds.size),
+    evidence: {
+      knownEventIds: [...knownEventIds],
+      visibleEventIds: [...visibleEventIds],
+    },
+    incorporatedEventIds: [...incorporatedEventIds],
+  };
+};
+
 // One marker row per redacted id gives later stale event pages an O(batch)
 // lookup without replaying an ever-growing room-wide registry. Whole-room
 // eviction removes these rows with the rest of the room's meta records.
@@ -1195,7 +1253,7 @@ const runSaveThreadEventsTxn = async (
           const metaRequest = metaStore.get(metaKey);
           metaRequest.onsuccess = () => {
             const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
-            const mergedExpectedReplyCount = mergeThreadExpectedReplyCount(
+            let mergedExpectedReplyCount = mergeThreadExpectedReplyCount(
               currentMeta?.expectedReplyCount,
               normalizedExpectedReplyCount,
               snapshotComplete
@@ -1216,6 +1274,34 @@ const runSaveThreadEventsTxn = async (
                 expectedReplyCountSnapshotTs = undefined;
                 expectedReplyCountEvidence = undefined;
               }
+            }
+            const currentExpectedReplyCount = normalizeExpectedReplyCount(
+              currentMeta?.expectedReplyCount
+            );
+            if (
+              relationSnapshotComplete === false &&
+              currentExpectedReplyCount !== undefined &&
+              currentMeta?.expectedReplyCountEvidence !== undefined &&
+              (normalizedExpectedReplyCount === undefined ||
+                normalizedExpectedReplyCount === currentExpectedReplyCount)
+            ) {
+              const reconciledSnapshot = reconcileRawReplyCountSnapshot(
+                currentExpectedReplyCount,
+                currentMeta.expectedReplyCountEvidence,
+                normalizedEvents,
+                threadId
+              );
+              mergedExpectedReplyCount = reconciledSnapshot.replyCount;
+              expectedReplyCountEvidence = reconciledSnapshot.evidence;
+              const incorporatedEventIds = new Set(reconciledSnapshot.incorporatedEventIds);
+              expectedReplyCountSnapshotTs =
+                Math.max(
+                  currentMeta.expectedReplyCountSnapshotTs ?? 0,
+                  getExpectedReplyCountSnapshotTs(
+                    normalizedEvents.filter((event) => incorporatedEventIds.has(event.event_id)),
+                    undefined
+                  ) ?? 0
+                ) || undefined;
             }
             if (relationSnapshotComplete === true && incomingRelationSnapshotComplete === false) {
               expectedReplyCountSnapshotTs = undefined;
