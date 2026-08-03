@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Keep compact thread counts above partial SDK windows (2026-08-02)
+
+- Status: implementation, full local validation, and independent review are complete; PR publication and exact-head review remain in progress.
+- Reproduction: the compact overview for `#personal_7z8wmvew:mindroom.chat` displayed `13 msgs`, while opening that card immediately rendered at least 22 replies and still offered older-message pagination.
+- Root cause: overview cache hydration had already discovered a larger loaded-history count, but `resolveThreadPresentationSnapshot` discarded that cached lower bound whenever the Matrix SDK exposed any reply events, even when those events were only a partial tail window.
+- Fix: the shared thread presentation snapshot now takes the maximum of the partial SDK window, the cached loaded-history count, and MindRoom summary metadata.
+- Scope: the change affects only compact/overview message-count presentation; reply rendering, pagination, summaries, and thread status remain unchanged.
+- Coverage: the focused regression pins a 13-reply SDK tail, a stale 13-message summary, and a 24-message cached lower bound, requiring the card presentation to report 24.
+- Validation: the five focused presentation, record, cache-hydration, card, and summary suites pass 53 tests, and the full Vitest suite passes 455 files with 3,492 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
+- Independent zero-tolerance review approved the merge policy, regression coverage, and scope with no findings.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.

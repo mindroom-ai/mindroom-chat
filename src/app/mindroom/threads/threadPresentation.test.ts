@@ -150,6 +150,37 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(presentation.messageCount).toBe(5);
   });
 
+  it('does not let a partial SDK reply window hide a larger cached count', () => {
+    const rootEvent = makeRootEvent('$root', 'Root question');
+    const partialReplies = Array.from({ length: 13 }, (_, index) =>
+      makeThreadReplyEvent(
+        `$reply-${index}`,
+        '$root',
+        `Reply ${index}`,
+        '@alice:example.org',
+        index + 2
+      )
+    );
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: {
+        events: partialReplies,
+        timeline: partialReplies,
+      },
+      rootEvent,
+      preferredSummaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 13,
+      },
+      fallbackMessageCount: 24,
+    });
+
+    expect(presentation.messageCount).toBe(24);
+  });
+
   it('falls back to the root preview for zero-reply threads', () => {
     const rootEvent = makeRootEvent('$root', 'Standalone thread root');
 
