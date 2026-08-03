@@ -4,7 +4,7 @@
 
 ### Keep compact thread counts above partial SDK windows (2026-08-02)
 
-- Status: PR #206 is open and ready for review; final exact-count freshness remediation is implemented, with full revalidation and exact-head review in progress.
+- Status: PR #206 is open and ready for review; hosted-review remediation, full local validation, and two independent exact-head reviews are complete.
 - Reproduction: the compact overview for `#personal_7z8wmvew:mindroom.chat` displayed `13 msgs`, while opening that card immediately rendered at least 22 replies and still offered older-message pagination.
 - Root cause: overview cache hydration had already discovered a larger loaded-history count, but `resolveThreadPresentationSnapshot` discarded that cached lower bound whenever the Matrix SDK exposed any reply events, even when those events were only a partial tail window.
 - Fix: when the oldest visible cached reply is absent from the loaded SDK event identities, the shared thread presentation snapshot takes the maximum of that cached lower bound, the SDK window, and MindRoom summary metadata.
@@ -42,11 +42,13 @@
 - Already-excluded retained evidence inherits newer marker activity, and repeated same-target redaction observations retain the maximum finite Matrix timestamp independent of batch order.
 - Hosted review hardened IndexedDB reads and rewrites against malformed count horizons/evidence, rejecting non-finite timestamps, invalid identity arrays, and visible identities outside the known set while downgrading malformed complete rows without throwing.
 - A proofless complete write now downgrades exactness while retaining and advancing its still-paired historical count/evidence baseline for non-authoritative later reconciliation.
+- Durable count snapshots now require nonnegative safe-integer totals, dense identity arrays, visible identities contained in the known set, and visible-evidence cardinality equal to the total; an invalid pair cannot retain an exactness flag or orphaned freshness horizon.
+- Thread-open hydration preserves valid paired cache totals over stale root aggregation metadata in both directions, while malformed live and cached-root counts are ignored.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: the eight directly affected utility, record, hydration, prefetch, open-cache, persistence, and prewarm suites pass 104 tests; full revalidation is pending after hosted-review remediation.
+- Validation: nine directly affected utility, normalization, record, hydration, prefetch, open-cache, persistence, and prewarm suites pass 135 tests; the full Vitest suite passes 456 files with 3,549 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
-- Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
+- Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, duplicate-ID, malformed persistence, orphan-horizon, and thread-open precedence edge cases; each now has focused coverage, and two exact-head reviewers approve the final code without blockers.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
