@@ -99,6 +99,8 @@ export type CachedMetaRecord = {
   beforeTokens?: CachedPaginationTokenMap;
   rootEvent?: Partial<IEvent>;
   expectedReplyCount?: number;
+  /** Latest relation activity covered by `expectedReplyCount`. */
+  expectedReplyCountSnapshotTs?: number;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;

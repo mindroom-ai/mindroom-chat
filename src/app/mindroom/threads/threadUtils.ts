@@ -112,16 +112,13 @@ export const getPreferredVisibleThreadReplyEvents = (
   const replyEvents = thread?.events?.length
     ? thread.events
     : thread?.timeline?.length
-      ? thread.timeline
-      : thread?.events ?? thread?.timeline ?? [];
+    ? thread.timeline
+    : thread?.events ?? thread?.timeline ?? [];
   return replyEvents.filter(isVisibleThreadReplyEvent);
 };
 
 export const hasLoadedThreadReplyEvents = (
-  thread:
-    | Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'>
-    | null
-    | undefined
+  thread: Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'> | null | undefined
 ): boolean => {
   if (thread?.events && thread.events.length > 0) return true;
   return !!thread?.timeline && thread.timeline.length > 0;
@@ -132,7 +129,9 @@ export const getVisibleThreadMessageCount = (
   fallbackMessageCount?: number
 ): number => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
-  if (replyEvents.length > 0) return replyEvents.length;
+  if (replyEvents.length > 0) {
+    return new Set(replyEvents.map((event) => event.getId())).size;
+  }
   if (hasLoadedThreadReplyEvents(thread)) return 0;
   if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
   if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
@@ -160,7 +159,11 @@ export const getVisibleThreadParticipantIds = (
   }
 
   const rootSenderId = threadRootEvent?.getSender?.();
-  if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+  if (
+    participantIds.length < maxParticipants &&
+    rootSenderId &&
+    !seenParticipantIds.has(rootSenderId)
+  ) {
     participantIds.push(rootSenderId);
   }
 

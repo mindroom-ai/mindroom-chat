@@ -11,6 +11,7 @@ type BuildThreadCacheCoverageOptions = {
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;
   expectedReplyCount?: number;
+  expectedReplyCountSnapshotTs?: number;
 };
 
 export const buildThreadCacheCoverage = ({
@@ -24,6 +25,7 @@ export const buildThreadCacheCoverage = ({
   relationSnapshotComplete,
   tailLoaded,
   expectedReplyCount,
+  expectedReplyCountSnapshotTs,
 }: BuildThreadCacheCoverageOptions): ThreadCacheCoverage => ({
   eventCount,
   oldestTs,
@@ -35,6 +37,7 @@ export const buildThreadCacheCoverage = ({
   relationSnapshotComplete: relationSnapshotComplete === true,
   tailLoaded: tailLoaded === true,
   expectedReplyCount,
+  expectedReplyCountSnapshotTs,
 });
 
 export const hasThreadCacheBackwardGap = (coverage: ThreadCacheCoverage): boolean =>

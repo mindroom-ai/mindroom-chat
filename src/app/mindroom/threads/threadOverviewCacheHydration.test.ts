@@ -291,6 +291,7 @@ describe('resolveCachedOverviewUpdate', () => {
         hasMoreBefore: true,
         beforeToken: 'older',
         expectedReplyCount: 7,
+        expectedReplyCountSnapshotTs: 175,
         relationSnapshotComplete: true,
         snapshotComplete: false,
         tailLoaded: true,
@@ -302,6 +303,7 @@ describe('resolveCachedOverviewUpdate', () => {
       backwardToken: 'older',
       hasMoreBackward: true,
       expectedReplyCount: 7,
+      expectedReplyCountSnapshotTs: 175,
       relationSnapshotComplete: true,
       snapshotComplete: false,
       tailLoaded: true,
@@ -414,6 +416,36 @@ describe('resolveCachedOverviewUpdate', () => {
     expect(update?.nextMessageCount).toBe(32);
   });
 
+  it('deduplicates overlapping cached page events when no durable total exists', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+    const cachedReply = {
+      event_id: '$cached-reply',
+      origin_server_ts: 100,
+      sender: '@cached:example.org',
+      content: { body: 'Cached reply', msgtype: 'm.text' },
+      threadRootId,
+      relation: { rel_type: 'm.thread', event_id: threadRootId },
+    };
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room: makeRoom([rootEvent]),
+      mapper: mapRawCachedEvent,
+      cachedPage: { events: [cachedReply, cachedReply], hasMoreBefore: true },
+      currentRecord: makeRecord({
+        presentation: { messageCount: 0 },
+        status: { replyCount: 0 },
+      }),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update?.nextMessageCount).toBe(1);
+  });
+
   it('restores an authoritative redaction decrease from complete durable cache', () => {
     const threadRootId = '$thread-root';
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
@@ -522,6 +554,7 @@ describe('resolveCachedOverviewUpdate', () => {
         backwardToken: null,
         hasMoreBackward: false,
         expectedReplyCount: 1,
+        expectedReplyCountSnapshotTs: expect.any(Number),
         relationSnapshotComplete: true,
         snapshotComplete: true,
         tailLoaded: true,

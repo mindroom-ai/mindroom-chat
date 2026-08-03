@@ -4,7 +4,7 @@
 
 ### Keep compact thread counts above partial SDK windows (2026-08-02)
 
-- Status: implementation, full local validation, PR publication, and review remediations are complete; exact-head re-review and hosted checks remain in progress.
+- Status: PR #206 is open and ready for review; final exact-count freshness remediation is implemented, with full revalidation and exact-head review in progress.
 - Reproduction: the compact overview for `#personal_7z8wmvew:mindroom.chat` displayed `13 msgs`, while opening that card immediately rendered at least 22 replies and still offered older-message pagination.
 - Root cause: overview cache hydration had already discovered a larger loaded-history count, but `resolveThreadPresentationSnapshot` discarded that cached lower bound whenever the Matrix SDK exposed any reply events, even when those events were only a partial tail window.
 - Fix: when the oldest visible cached reply is absent from the loaded SDK event identities, the shared thread presentation snapshot takes the maximum of that cached lower bound, the SDK window, and MindRoom summary metadata.
@@ -19,11 +19,14 @@
 - Equal 32-event SDK/cache tails keep the durable total while it exceeds the loaded visible count; loaded redactions remain authoritative, stale-low cache hydration cannot lower newer live state, and exhausted relation counts deduplicate event IDs consistently.
 - Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
 - Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
-- A complete durable relation snapshot can restore a lower redaction count on remount only when its latest cached activity is at least as fresh as live state, so it cannot overwrite a newer reply.
-- Cached totals are maxed with concrete visible cached replies, partial-window totals subtract known loaded redactions, and a newer summary can raise an older complete-cache total after a new reply.
-- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 32 tests, and the full Vitest suite passes 456 files with 3,507 tests.
+- Durable counts now carry the relation-activity horizon they cover, allowing the shared record builder to add later unique replies and subtract later redactions exactly once.
+- Exhausted relation snapshots are authoritative even when the redacted event was the newest SDK event, so a completed decrease survives cache hydrate, record reconstruction, and remount.
+- Redaction reconciliation covers every visible reply envelope, including encrypted and sticker events, rather than only `m.room.message`.
+- Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.
+- A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
+- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 35 tests, and the full Vitest suite passes 456 files with 3,513 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
-- Independent zero-tolerance review identified the stale-count-after-redaction and overlapping-tail edge cases; the lower bound now requires either a larger durable total or a missing cached reply identity, with loaded redactions authoritative and both directions covered at record level.
+- Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

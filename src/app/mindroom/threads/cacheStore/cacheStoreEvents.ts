@@ -48,6 +48,25 @@ import {
 const isRawLocalEchoEventId = (eventId: unknown): boolean =>
   typeof eventId === 'string' && eventId.startsWith('~');
 
+const getRawEventRelationActivityTs = (rawEvent: Partial<IEvent>): number | undefined => {
+  const eventTs = rawEvent.origin_server_ts;
+  const redactionTs = rawEvent.unsigned?.redacted_because?.origin_server_ts;
+  const timestamps = [eventTs, redactionTs].filter(
+    (timestamp): timestamp is number => typeof timestamp === 'number' && Number.isFinite(timestamp)
+  );
+  return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+};
+
+const getExpectedReplyCountSnapshotTs = (
+  events: readonly Partial<IEvent>[],
+  rootEvent: Partial<IEvent> | undefined
+): number | undefined => {
+  const timestamps = [...events, ...(rootEvent ? [rootEvent] : [])]
+    .map(getRawEventRelationActivityTs)
+    .filter((timestamp): timestamp is number => timestamp !== undefined);
+  return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+};
+
 // One marker row per redacted id gives later stale event pages an O(batch)
 // lookup without replaying an ever-growing room-wide registry. Whole-room
 // eviction removes these rows with the rest of the room's meta records.
@@ -313,6 +332,7 @@ export type CachedThreadEventPage = {
   hasMoreBefore: boolean;
   beforeToken?: string | null;
   expectedReplyCount?: number;
+  expectedReplyCountSnapshotTs?: number;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;
@@ -687,6 +707,7 @@ const runSaveRoomEventsTxn = async (
           ),
           rootEvent: currentMeta?.rootEvent,
           expectedReplyCount: currentMeta?.expectedReplyCount,
+          expectedReplyCountSnapshotTs: currentMeta?.expectedReplyCountSnapshotTs,
           snapshotComplete: currentMeta?.snapshotComplete,
           relationSnapshotComplete: currentMeta?.relationSnapshotComplete,
           tailLoaded: currentMeta?.tailLoaded,
@@ -836,6 +857,7 @@ const buildThreadEventPage = (
   hasMoreBefore,
   beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
   expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+  expectedReplyCountSnapshotTs: meta?.expectedReplyCountSnapshotTs,
   snapshotComplete: meta?.snapshotComplete === true,
   relationSnapshotComplete: meta?.relationSnapshotComplete === true,
   tailLoaded: meta?.tailLoaded === true,
@@ -1086,6 +1108,14 @@ const runSaveThreadEventsTxn = async (
     const ledgerStore = hasEventPuts ? transaction.objectStore(ROOM_LEDGER_STORE) : undefined;
     const metaKey = buildMetaKey(roomId, threadId);
     const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
+    const incomingRelationActivityTs =
+      normalizedExpectedReplyCount === undefined
+        ? undefined
+        : getExpectedReplyCountSnapshotTs(normalizedEvents, rootEvent);
+    const incomingExpectedReplyCountSnapshotTs =
+      relationSnapshotComplete === true
+        ? Math.max(Date.now(), incomingRelationActivityTs ?? 0)
+        : incomingRelationActivityTs;
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
 
     loadKnownRedactedRelationEventIds(
@@ -1109,6 +1139,22 @@ const runSaveThreadEventsTxn = async (
           const metaRequest = metaStore.get(metaKey);
           metaRequest.onsuccess = () => {
             const currentMeta = metaRequest.result as CachedMetaRecord | undefined;
+            const mergedExpectedReplyCount = mergeThreadExpectedReplyCount(
+              currentMeta?.expectedReplyCount,
+              normalizedExpectedReplyCount,
+              snapshotComplete
+            );
+            const expectedReplyCountObservationAccepted =
+              normalizedExpectedReplyCount !== undefined &&
+              (relationSnapshotComplete === true ||
+                currentMeta?.expectedReplyCount === undefined ||
+                normalizedExpectedReplyCount > currentMeta.expectedReplyCount);
+            const expectedReplyCountSnapshotTs = expectedReplyCountObservationAccepted
+              ? Math.max(
+                  currentMeta?.expectedReplyCountSnapshotTs ?? 0,
+                  incomingExpectedReplyCountSnapshotTs ?? 0
+                ) || undefined
+              : currentMeta?.expectedReplyCountSnapshotTs;
             const cacheableRootEvent =
               incomingRootEvent &&
               !isRawLocalEchoEventPublic(incomingRootEvent) &&
@@ -1135,11 +1181,8 @@ const runSaveThreadEventsTxn = async (
                     relationSnapshotMode
                   )
                 : currentMeta?.rootEvent,
-              expectedReplyCount: mergeThreadExpectedReplyCount(
-                currentMeta?.expectedReplyCount,
-                normalizedExpectedReplyCount,
-                snapshotComplete
-              ),
+              expectedReplyCount: mergedExpectedReplyCount,
+              expectedReplyCountSnapshotTs,
               snapshotComplete: mergeThreadCacheFlag(
                 currentMeta?.snapshotComplete,
                 snapshotComplete

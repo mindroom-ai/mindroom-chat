@@ -10,25 +10,34 @@ const makeEvent = ({
   sender = '@sender:server',
   body,
   ts = 1000,
+  eventType = 'm.room.message',
+  redacted = false,
+  redactionTs,
 }: {
   eventId: string;
   threadRootId?: string;
   sender?: string;
   body?: string;
   ts?: number;
+  eventType?: string;
+  redacted?: boolean;
+  redactionTs?: number;
 }): MatrixEvent =>
   ({
     getId: () => eventId,
     threadRootId,
     getSender: () => sender,
     getContent: () => (body ? { body, msgtype: 'm.text' } : {}),
-    getType: () => 'm.room.message',
+    getType: () => eventType,
     getRelation: () => (threadRootId ? { rel_type: 'm.thread' } : undefined),
     isRelation: (relType: string) => !!threadRootId && relType === 'm.thread',
     getTs: () => ts,
     replacingEvent: () => undefined,
-    getUnsigned: () => undefined,
-    isRedacted: () => false,
+    getUnsigned: () =>
+      redactionTs === undefined
+        ? undefined
+        : { redacted_because: { origin_server_ts: redactionTs } },
+    isRedacted: () => redacted,
     isRedaction: () => false,
   } as unknown as MatrixEvent);
 
@@ -50,6 +59,20 @@ const makeRoom = ({
     })),
     getMember: vi.fn(() => undefined),
   } as unknown as Room);
+
+const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): ReturnType<Room['getThread']> =>
+  ({
+    rootEvent,
+    events,
+    timeline: events,
+    getUnfilteredTimelineSet: () => ({
+      getLiveTimeline: () => ({
+        getEvents: () => [rootEvent, ...events],
+        getNeighbouringTimeline: () => undefined,
+      }),
+      relations: { getChildEventsForEvent: () => undefined },
+    }),
+  } as unknown as ReturnType<Room['getThread']>);
 
 describe('buildThreadRecord', () => {
   it('does not depend on legacy overview metadata compatibility inputs', () => {
@@ -310,10 +333,14 @@ describe('buildThreadRecord', () => {
         ts: index + 2,
       })
     );
-    replies[0] = {
-      ...replies[0],
-      isRedacted: () => true,
-    } as MatrixEvent;
+    replies[0] = makeEvent({
+      eventId: '$reply-0',
+      threadRootId: '$root',
+      body: 'Reply 0',
+      ts: 2,
+      redacted: true,
+      redactionTs: 100,
+    });
     const room = makeRoom({
       rootEvent,
       thread: {
@@ -339,8 +366,83 @@ describe('buildThreadRecord', () => {
       cacheCoverage: {
         eventCount: 32,
         expectedReplyCount: 282,
+        expectedReplyCountSnapshotTs: 33,
         hasMoreBackward: true,
         oldestVisibleReplyEventId: '$reply-0',
+        relationSnapshotComplete: false,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(281);
+  });
+
+  it('adds a new live reply beyond an overlapping durable tail without waiting for a summary', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const cachedTail = Array.from({ length: 32 }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: index + 2,
+      })
+    );
+    const newReply = makeEvent({
+      eventId: '$reply-new',
+      threadRootId: '$root',
+      body: 'New reply',
+      ts: 100,
+    });
+    const replies = [...cachedTail, newReply, newReply];
+    const room = makeRoom({
+      rootEvent,
+      thread: makeThread(rootEvent, replies),
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 282,
+      cacheCoverage: {
+        eventCount: 32,
+        expectedReplyCount: 282,
+        expectedReplyCountSnapshotTs: 33,
+        hasMoreBackward: true,
+        oldestVisibleReplyEventId: '$reply-0',
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(283);
+  });
+
+  it('does not subtract a redaction already covered by the durable count snapshot', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const replies = [
+      makeEvent({
+        eventId: '$reply-redacted',
+        threadRootId: '$root',
+        ts: 10,
+        eventType: 'm.room.encrypted',
+        redacted: true,
+        redactionTs: 100,
+      }),
+    ];
+    const room = makeRoom({
+      rootEvent,
+      thread: makeThread(rootEvent, replies),
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 281,
+      cacheCoverage: {
+        eventCount: 32,
+        expectedReplyCount: 281,
+        expectedReplyCountSnapshotTs: 100,
+        hasMoreBackward: true,
         relationSnapshotComplete: false,
         tailLoaded: true,
       },
@@ -410,10 +512,14 @@ describe('buildThreadRecord', () => {
         ts: index + 2,
       })
     );
-    replies[0] = {
-      ...replies[0],
-      isRedacted: () => true,
-    } as MatrixEvent;
+    replies[0] = makeEvent({
+      eventId: '$reply-0',
+      threadRootId: '$root',
+      ts: 2,
+      eventType: 'm.room.encrypted',
+      redacted: true,
+      redactionTs: 100,
+    });
     const room = makeRoom({
       rootEvent,
       thread: {
@@ -443,6 +549,8 @@ describe('buildThreadRecord', () => {
       },
       cacheCoverage: {
         eventCount: 24,
+        expectedReplyCount: 24,
+        expectedReplyCountSnapshotTs: 25,
         hasMoreBackward: true,
         oldestVisibleReplyEventId: '$reply-0',
         relationSnapshotComplete: true,
@@ -451,6 +559,49 @@ describe('buildThreadRecord', () => {
     });
 
     expect(record.presentation.messageCount).toBe(23);
+  });
+
+  it('uses a completed durable decrease over stale visible SDK replies after remount', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const replies = Array.from({ length: 24 }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: index + 2,
+      })
+    );
+    const room = makeRoom({
+      rootEvent,
+      thread: makeThread(rootEvent, replies),
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 23,
+      cacheCoverage: {
+        eventCount: 23,
+        expectedReplyCount: 23,
+        expectedReplyCountSnapshotTs: 100,
+        hasMoreBackward: true,
+        relationSnapshotComplete: true,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(23);
+  });
+
+  it('deduplicates duplicate reply ids in final presentation', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const reply = makeEvent({ eventId: '$reply', threadRootId: '$root', body: 'Reply' });
+    const room = makeRoom({
+      rootEvent,
+      thread: makeThread(rootEvent, [reply, reply]),
+    });
+
+    expect(buildThreadRecord({ room, threadRootId: '$root' }).presentation.messageCount).toBe(1);
   });
 
   it('builds a per-room record map from direct source maps', () => {

@@ -65,6 +65,7 @@ export const resolveThreadRootPreviewText = ({
   });
 
 type ResolveThreadPresentationSnapshotOptions = {
+  authoritativeMessageCount?: number;
   fallbackMessageCountIsLowerBound?: boolean;
   fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
@@ -94,6 +95,7 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackMessageCountIsLowerBound = false,
   fallbackParticipantIds,
   ignoreSummaryMessageCount = false,
+  authoritativeMessageCount,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
@@ -127,6 +129,12 @@ export const resolveThreadPresentationSnapshot = ({
     summaryInfo.messageCount >= 0
       ? summaryInfo.messageCount
       : 0;
+  const safeAuthoritativeMessageCount =
+    typeof authoritativeMessageCount === 'number' &&
+    Number.isSafeInteger(authoritativeMessageCount) &&
+    authoritativeMessageCount >= 0
+      ? authoritativeMessageCount
+      : undefined;
 
   return {
     summaryInfo,
@@ -141,7 +149,9 @@ export const resolveThreadPresentationSnapshot = ({
       getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText,
     lastSenderId,
     lastSenderDisplayName,
-    messageCount: Math.max(summaryMessageCount, visibleMessageCount, minimumMessageCount),
+    messageCount:
+      safeAuthoritativeMessageCount ??
+      Math.max(summaryMessageCount, visibleMessageCount, minimumMessageCount),
   };
 };
 

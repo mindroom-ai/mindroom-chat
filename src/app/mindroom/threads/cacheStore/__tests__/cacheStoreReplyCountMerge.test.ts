@@ -46,13 +46,14 @@ const rawReply = (id: string, ts: number): Partial<IEvent> => ({
 const saveWithCount = (
   expectedReplyCount: number | undefined,
   snapshotComplete: boolean | undefined,
-  eventId = '$reply-1'
+  eventId = '$reply-1',
+  eventTs = 1_000
 ) =>
   saveThreadEventsToCache(
     SESSION_ID,
     ROOM_ID,
     THREAD_ID,
-    [rawReply(eventId, 1_000)],
+    [rawReply(eventId, eventTs)],
     undefined,
     undefined,
     undefined,
@@ -69,20 +70,20 @@ describe('thread meta expectedReplyCount merge policy', () => {
   afterEach(() => resetCacheStoreForTesting());
 
   it('a non-complete write with a stale-LOW count cannot lower the stored value', async () => {
-    await saveWithCount(282, undefined, '$reply-1');
-    await saveWithCount(20, undefined, '$reply-2');
+    await saveWithCount(282, undefined, '$reply-1', 1_000);
+    await saveWithCount(20, undefined, '$reply-2', 2_000);
     expect(await storedCount()).toBe(282);
   });
 
   it('a non-complete write with a HIGHER count raises the stored value', async () => {
-    await saveWithCount(20, undefined, '$reply-1');
-    await saveWithCount(282, undefined, '$reply-2');
+    await saveWithCount(20, undefined, '$reply-1', 1_000);
+    await saveWithCount(282, undefined, '$reply-2', 2_000);
     expect(await storedCount()).toBe(282);
   });
 
   it('a complete-proof write may LOWER the stored value (redactions shrink threads)', async () => {
-    await saveWithCount(282, undefined, '$reply-1');
-    await saveWithCount(200, true, '$reply-2');
+    await saveWithCount(282, undefined, '$reply-1', 1_000);
+    await saveWithCount(200, true, '$reply-2', 3_000);
     expect(await storedCount()).toBe(200);
   });
 
@@ -100,5 +101,41 @@ describe('thread meta expectedReplyCount merge policy', () => {
     await saveWithCount(282, undefined, '$reply-1');
     await saveWithCount(undefined, true, '$reply-2');
     expect(await storedCount()).toBe(282);
+  });
+
+  it('advances the count snapshot timestamp only for accepted count observations', async () => {
+    const sessionId = `${SESSION_ID}-snapshot-timestamp`;
+    const save = (
+      count: number,
+      complete: boolean | undefined,
+      id: string,
+      ts: number,
+      relationComplete = false
+    ) =>
+      saveThreadEventsToCache(
+        sessionId,
+        ROOM_ID,
+        THREAD_ID,
+        [rawReply(id, ts)],
+        undefined,
+        undefined,
+        undefined,
+        complete,
+        count,
+        relationComplete || undefined
+      );
+    const loadSnapshotTs = async () =>
+      (await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5))
+        .expectedReplyCountSnapshotTs;
+
+    await save(20, undefined, '$timestamp-1', 1_000);
+    await save(282, undefined, '$timestamp-2', 2_000);
+    expect(await loadSnapshotTs()).toBe(2_000);
+
+    await save(20, undefined, '$timestamp-3', 3_000);
+    expect(await loadSnapshotTs()).toBe(2_000);
+
+    await save(200, true, '$timestamp-4', 4_000, true);
+    expect(await loadSnapshotTs()).toBeGreaterThanOrEqual(4_000);
   });
 });

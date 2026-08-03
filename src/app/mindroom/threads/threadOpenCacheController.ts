@@ -153,6 +153,10 @@ export const useThreadOpenCacheController = ({
         backwardToken: cachedPage.beforeToken,
         hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
         expectedReplyCount: authoritativeExpectedReplyCount,
+        expectedReplyCountSnapshotTs:
+          authoritativeExpectedReplyCount === cachedPage.expectedReplyCount
+            ? cachedPage.expectedReplyCountSnapshotTs
+            : undefined,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
         tailLoaded,

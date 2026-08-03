@@ -19,6 +19,8 @@ import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
+  isVisibleThreadReplyEvent,
+  isVisibleThreadReplyEventType,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
@@ -82,13 +84,26 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
     ? thread.timeline
     : undefined;
 
-const resolveCachedMessageCountLowerBound = (
+type CachedMessageCountResolution = {
+  messageCount: number;
+  authoritative: boolean;
+};
+
+const getRedactionTs = (event: MatrixEvent): number | undefined => {
+  const redactedBecause = event.getUnsigned()?.redacted_because as
+    | { origin_server_ts?: unknown }
+    | undefined;
+  const timestamp = redactedBecause?.origin_server_ts;
+  return typeof timestamp === 'number' && Number.isFinite(timestamp) ? timestamp : undefined;
+};
+
+const resolveCachedMessageCount = (
   room: Room,
   threadRootId: string,
   thread: ReturnType<Room['getThread']>,
   cacheCoverage: ThreadCacheCoverage | undefined,
   fallbackMessageCount: number | undefined
-): number | undefined => {
+): CachedMessageCountResolution | undefined => {
   const oldestCachedReplyId = cacheCoverage?.oldestVisibleReplyEventId;
   const loadedThreadEvents = getLoadedThreadEvents(thread) ?? [];
   const expectedReplyCount = cacheCoverage?.expectedReplyCount;
@@ -103,26 +118,49 @@ const resolveCachedMessageCountLowerBound = (
   const candidateMessageCount = durableMessageCount ?? safeFallbackMessageCount;
   const visibleLoadedReplyCount =
     buildVisibleThreadReplyCountMap(loadedThreadEvents).get(threadRootId) ?? 0;
-  const redactedLoadedReplyIds = new Set(
-    loadedThreadEvents
-      .filter(
-        (event) =>
-          event.isRedacted() &&
-          event.threadRootId === threadRootId &&
-          event.getType() === 'm.room.message'
-      )
-      .map((event) => event.getId())
-      .filter((eventId): eventId is string => !!eventId)
-  );
-  const redactedLoadedReplyCount = redactedLoadedReplyIds.size;
+  const countSnapshotTs = cacheCoverage?.expectedReplyCountSnapshotTs;
 
   if (candidateMessageCount !== undefined) {
-    const adjustedCandidateMessageCount =
-      durableMessageCount !== undefined && cacheCoverage?.relationSnapshotComplete === true
-        ? candidateMessageCount
-        : Math.max(0, candidateMessageCount - redactedLoadedReplyCount);
-    if (adjustedCandidateMessageCount > visibleLoadedReplyCount) {
-      return adjustedCandidateMessageCount;
+    let adjustedCandidateMessageCount = candidateMessageCount;
+    if (durableMessageCount !== undefined && typeof countSnapshotTs === 'number') {
+      const newVisibleReplyIds = new Set(
+        loadedThreadEvents
+          .filter(
+            (event) =>
+              event.threadRootId === threadRootId &&
+              event.getTs() > countSnapshotTs &&
+              isVisibleThreadReplyEvent(event)
+          )
+          .map((event) => event.getId())
+          .filter((eventId): eventId is string => !!eventId)
+      );
+      const newlyRedactedSnapshotReplyIds = new Set(
+        loadedThreadEvents
+          .filter((event) => {
+            const redactionTs = getRedactionTs(event);
+            return (
+              event.isRedacted() &&
+              event.threadRootId === threadRootId &&
+              isVisibleThreadReplyEventType(event.getType()) &&
+              event.getTs() <= countSnapshotTs &&
+              redactionTs !== undefined &&
+              redactionTs > countSnapshotTs
+            );
+          })
+          .map((event) => event.getId())
+          .filter((eventId): eventId is string => !!eventId)
+      );
+      adjustedCandidateMessageCount = Math.max(
+        0,
+        candidateMessageCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size
+      );
+    }
+    const authoritative =
+      durableMessageCount !== undefined &&
+      cacheCoverage?.relationSnapshotComplete === true &&
+      typeof countSnapshotTs === 'number';
+    if (authoritative || adjustedCandidateMessageCount > visibleLoadedReplyCount) {
+      return { messageCount: adjustedCandidateMessageCount, authoritative };
     }
   }
 
@@ -131,7 +169,9 @@ const resolveCachedMessageCountLowerBound = (
     !room.findEventById(oldestCachedReplyId)?.isRedacted() &&
     !loadedThreadEvents.some((event) => event.getId() === oldestCachedReplyId)
   ) {
-    return safeFallbackMessageCount;
+    return safeFallbackMessageCount === undefined
+      ? undefined
+      : { messageCount: safeFallbackMessageCount, authoritative: false };
   }
 
   return undefined;
@@ -348,7 +388,7 @@ export const buildThreadRecord = ({
     THREAD_PARTICIPANT_LIMIT
   );
   const fallbackPresentationMessageCount = fallbackMessageCount ?? recordReplyCount;
-  const cachedMessageCountLowerBound = resolveCachedMessageCountLowerBound(
+  const cachedMessageCount = resolveCachedMessageCount(
     room,
     threadRootId,
     thread,
@@ -357,8 +397,13 @@ export const buildThreadRecord = ({
   );
   const preferredSummaryIsNewerThanCache =
     typeof preferredSummaryInfo?.generatedTs === 'number' &&
-    typeof cacheCoverage?.newestTs === 'number' &&
-    preferredSummaryInfo.generatedTs > cacheCoverage.newestTs;
+    typeof (cacheCoverage?.expectedReplyCountSnapshotTs ?? cacheCoverage?.newestTs) === 'number' &&
+    preferredSummaryInfo.generatedTs >
+      (cacheCoverage?.expectedReplyCountSnapshotTs ?? cacheCoverage?.newestTs ?? 0);
+  const authoritativeCachedMessageCount =
+    cachedMessageCount?.authoritative && !preferredSummaryIsNewerThanCache
+      ? cachedMessageCount.messageCount
+      : undefined;
   const presentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId,
@@ -369,8 +414,9 @@ export const buildThreadRecord = ({
     fallbackLatestReplyPreviewText,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
-    fallbackMessageCount: cachedMessageCountLowerBound ?? fallbackPresentationMessageCount,
-    fallbackMessageCountIsLowerBound: cachedMessageCountLowerBound !== undefined,
+    fallbackMessageCount: cachedMessageCount?.messageCount ?? fallbackPresentationMessageCount,
+    fallbackMessageCountIsLowerBound: cachedMessageCount !== undefined,
+    authoritativeMessageCount: authoritativeCachedMessageCount,
     fallbackParticipantIds,
     ignoreSummaryMessageCount:
       !preferredSummaryIsNewerThanCache &&

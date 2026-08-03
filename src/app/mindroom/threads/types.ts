@@ -46,6 +46,7 @@ export type ThreadCacheCoverage = {
   relationSnapshotComplete: boolean;
   tailLoaded: boolean;
   expectedReplyCount?: number;
+  expectedReplyCountSnapshotTs?: number;
 };
 
 /**
