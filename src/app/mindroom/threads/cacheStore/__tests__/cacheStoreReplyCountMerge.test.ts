@@ -300,6 +300,95 @@ describe('thread meta expectedReplyCount merge policy', () => {
     });
   });
 
+  it('sanitizes a stale relation-complete snapshot against durable markers', async () => {
+    const sessionId = `${SESSION_ID}-marked-complete`;
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.events.map((event) => event.event_id)).not.toContain('$reply');
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+    expect(page.relationSnapshotComplete).toBe(true);
+  });
+
+  it('applies a marker when the incoming bundled count is stale and lower', async () => {
+    const sessionId = `${SESSION_ID}-lower-bundled-marker`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      282,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveRoomEventsToCache(sessionId, ROOM_ID, [
+      {
+        event_id: '$redaction',
+        origin_server_ts: 2_000,
+        room_id: ROOM_ID,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        redacts: '$reply',
+        content: {},
+      },
+    ]);
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      undefined,
+      24,
+      undefined
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(281);
+    expect(page.expectedReplyCountSnapshotTs).toBe(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+    expect(page.relationSnapshotComplete).toBe(true);
+  });
+
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (

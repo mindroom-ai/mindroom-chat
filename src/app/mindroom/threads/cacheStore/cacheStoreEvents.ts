@@ -1355,16 +1355,30 @@ const runSaveThreadEventsTxn = async (
             const currentExpectedReplyCount = normalizeExpectedReplyCount(
               currentMeta?.expectedReplyCount
             );
-            if (
+            const shouldReconcileIncomingSnapshot =
+              incomingRelationSnapshotComplete === true &&
+              mergedExpectedReplyCount !== undefined &&
+              expectedReplyCountEvidence !== undefined;
+            const shouldReconcileRetainedSnapshot =
               (relationSnapshotComplete === false || knownRedactedEventIds.size > 0) &&
               currentExpectedReplyCount !== undefined &&
               currentMeta?.expectedReplyCountEvidence !== undefined &&
               (normalizedExpectedReplyCount === undefined ||
-                normalizedExpectedReplyCount === currentExpectedReplyCount)
-            ) {
+                normalizedExpectedReplyCount <= currentExpectedReplyCount);
+            const reconciliationBaseCount = shouldReconcileIncomingSnapshot
+              ? mergedExpectedReplyCount
+              : shouldReconcileRetainedSnapshot
+              ? currentExpectedReplyCount
+              : undefined;
+            const reconciliationEvidence = shouldReconcileIncomingSnapshot
+              ? expectedReplyCountEvidence
+              : shouldReconcileRetainedSnapshot
+              ? currentMeta?.expectedReplyCountEvidence
+              : undefined;
+            if (reconciliationBaseCount !== undefined && reconciliationEvidence !== undefined) {
               const reconciledSnapshot = reconcileRawReplyCountSnapshot(
-                currentExpectedReplyCount,
-                currentMeta.expectedReplyCountEvidence,
+                reconciliationBaseCount,
+                reconciliationEvidence,
                 normalizedEvents,
                 threadId,
                 knownRedactedEventIds
@@ -1374,7 +1388,7 @@ const runSaveThreadEventsTxn = async (
               const incorporatedEventIds = new Set(reconciledSnapshot.incorporatedEventIds);
               expectedReplyCountSnapshotTs =
                 Math.max(
-                  currentMeta.expectedReplyCountSnapshotTs ?? 0,
+                  expectedReplyCountSnapshotTs ?? 0,
                   getExpectedReplyCountSnapshotTs(
                     normalizedEvents.filter((event) => incorporatedEventIds.has(event.event_id)),
                     undefined
