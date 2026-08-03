@@ -352,6 +352,34 @@ describe('resolveCachedOverviewUpdate', () => {
     });
   });
 
+  it('does not let a stale lower durable count replace newer live state', () => {
+    const threadRootId = '$thread-root';
+    const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
+
+    const update = resolveCachedOverviewUpdate({
+      rootId: threadRootId,
+      room: makeRoom([rootEvent]),
+      mapper: mapRawCachedEvent,
+      cachedPage: {
+        events: [],
+        hasMoreBefore: false,
+        expectedReplyCount: 24,
+        snapshotComplete: true,
+        tailLoaded: true,
+      },
+      currentRecord: makeRecord({
+        presentation: { messageCount: 25 },
+        status: { replyCount: 25 },
+      }),
+      currentRootEvent: rootEvent,
+      showCompactRoomView: true,
+      compactCachedThreadRootBodyMap: new Map(),
+      compactThreadRootBodyMap: new Map(),
+    });
+
+    expect(update?.nextMessageCount).toBeUndefined();
+  });
+
   it('does not treat an empty cache miss as record coverage', () => {
     const threadRootId = '$thread-root';
     const rootEvent = makeEvent(threadRootId, { isThreadRoot: true, ts: 10 });
@@ -445,7 +473,7 @@ describe('resolveCachedOverviewUpdate', () => {
     const update = resolveFetchedRelationOverviewUpdate({
       rootId: threadRootId,
       room: makeRoom([rootEvent, ...replies]),
-      events: replies,
+      events: [...replies, replies[0]],
       rootEvent,
       currentRecord: makeRecord({
         presentation: { messageCount: 24 },
@@ -461,6 +489,7 @@ describe('resolveCachedOverviewUpdate', () => {
     expect(update).toMatchObject({
       nextMessageCount: 23,
       nextCacheCoverage: {
+        eventCount: 24,
         expectedReplyCount: 23,
         hasMoreBackward: false,
         relationSnapshotComplete: true,

@@ -255,6 +255,51 @@ describe('buildThreadRecord', () => {
     expect(record.presentation.messageCount).toBe(24);
   });
 
+  it('keeps the durable total when SDK and cache share the same 32-event tail', () => {
+    const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
+    const replies = Array.from({ length: 32 }, (_, index) =>
+      makeEvent({
+        eventId: `$reply-${index}`,
+        threadRootId: '$root',
+        body: `Reply ${index}`,
+        ts: index + 2,
+      })
+    );
+    const room = makeRoom({
+      rootEvent,
+      thread: {
+        rootEvent,
+        events: replies,
+        timeline: replies,
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => [rootEvent, ...replies],
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      fallbackMessageCount: 282,
+      cacheCoverage: {
+        eventCount: 32,
+        expectedReplyCount: 282,
+        hasMoreBackward: true,
+        oldestVisibleReplyEventId: '$reply-0',
+        relationSnapshotComplete: false,
+        tailLoaded: true,
+      },
+    });
+
+    expect(record.presentation.messageCount).toBe(282);
+  });
+
   it('lets a complete cached collection lower its count after redaction', () => {
     const rootEvent = makeEvent({ eventId: '$root', body: 'Root body' });
     const replies = Array.from({ length: 24 }, (_, index) =>
@@ -291,6 +336,11 @@ describe('buildThreadRecord', () => {
       room,
       threadRootId: '$root',
       fallbackMessageCount: 24,
+      summaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 24,
+      },
       cacheCoverage: {
         eventCount: 24,
         hasMoreBackward: true,

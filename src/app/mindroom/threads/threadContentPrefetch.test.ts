@@ -30,7 +30,7 @@ describe('resolveFetchedThreadExpectedReplyCount', () => {
     expect(
       resolveFetchedThreadExpectedReplyCount({
         threadId: THREAD_ID,
-        relationEvents,
+        relationEvents: [...relationEvents, relationEvents[0]],
         rootEvent: makeRootEvent(),
         relationSnapshotComplete: true,
       })

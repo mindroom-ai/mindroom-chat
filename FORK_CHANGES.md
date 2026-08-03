@@ -16,9 +16,12 @@
 - Record-level regressions cover both a genuinely partial SDK window and a complete SDK collection whose cache still advertises older pagination, preventing pagination metadata from becoming a false incompleteness signal.
 - Final review found that overview hydration's 32-record tail was not a total and that complete refreshes could not lower in-memory counts.
 - Overview hydration now uses the durable `expectedReplyCount`, while an exhausted relation refresh replaces that durable count with its observed visible total so redactions survive both the live state update and the next cache hydrate.
-- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 26 tests, and the full Vitest suite passes 456 files with 3,501 tests.
+- Equal 32-event SDK/cache tails keep the durable total while it exceeds the loaded visible count; loaded redactions remain authoritative, stale-low cache hydration cannot lower newer live state, and exhausted relation counts deduplicate event IDs consistently.
+- Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
+- Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
+- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 28 tests, and the full Vitest suite passes 456 files with 3,503 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
-- Independent zero-tolerance review identified the stale-count-after-redaction edge case and rejected pagination metadata as proof of SDK incompleteness; the cache lower bound is now gated by a missing cached reply identity and both directions have record-level regressions.
+- Independent zero-tolerance review identified the stale-count-after-redaction and overlapping-tail edge cases; the lower bound now requires either a larger durable total or a missing cached reply identity, with loaded redactions authoritative and both directions covered at record level.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

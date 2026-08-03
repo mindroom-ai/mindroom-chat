@@ -11,7 +11,10 @@ import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '.
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
-import { getPreferredVisibleThreadReplyEvents } from './threadUtils';
+import {
+  buildVisibleThreadReplyCountMap,
+  getPreferredVisibleThreadReplyEvents,
+} from './threadUtils';
 import type {
   ThreadOverviewCachedMetadataController,
   ThreadOverviewCachedMetadataUpdate,
@@ -179,7 +182,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const authoritativeFetchedMessageCount = relationSnapshotComplete
-    ? getPreferredVisibleThreadReplyEvents({ events, timeline: events }).length
+    ? buildVisibleThreadReplyCountMap(events).get(rootId) ?? 0
     : undefined;
   const observedMessageCount =
     authoritativeFetchedMessageCount ??
@@ -294,7 +297,7 @@ export const resolveCachedOverviewUpdate = ({
   const nextMessageCount = resolveNextMessageCount({
     currentMessageCount,
     observedMessageCount,
-    authoritative: durableMessageCount !== undefined,
+    authoritative: false,
   });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo

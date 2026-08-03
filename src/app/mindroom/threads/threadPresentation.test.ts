@@ -206,7 +206,13 @@ describe('resolveThreadPresentationSnapshot', () => {
         timeline: replies,
       },
       rootEvent,
+      preferredSummaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 24,
+      },
       fallbackMessageCount: 24,
+      ignoreSummaryMessageCount: true,
     });
 
     expect(presentation.messageCount).toBe(23);

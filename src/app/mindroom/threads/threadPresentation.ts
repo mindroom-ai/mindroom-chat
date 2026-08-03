@@ -73,6 +73,7 @@ type ResolveThreadPresentationSnapshotOptions = {
   fallbackParticipantIds?: string[];
   preferredRootPreviewText?: string;
   preferredSummaryInfo?: MindroomThreadSummaryInfo;
+  ignoreSummaryMessageCount?: boolean;
   room: Room;
   rootEvent?: MatrixEvent;
   thread?: VisibleThreadEventCollectionLike | null;
@@ -92,6 +93,7 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackMessageCount,
   fallbackMessageCountIsLowerBound = false,
   fallbackParticipantIds,
+  ignoreSummaryMessageCount = false,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
@@ -118,6 +120,13 @@ export const resolveThreadPresentationSnapshot = ({
     fallbackMessageCountIsLowerBound && safeFallbackMessageCount !== undefined
       ? safeFallbackMessageCount
       : 0;
+  const summaryMessageCount =
+    !ignoreSummaryMessageCount &&
+    typeof summaryInfo?.messageCount === 'number' &&
+    Number.isSafeInteger(summaryInfo.messageCount) &&
+    summaryInfo.messageCount >= 0
+      ? summaryInfo.messageCount
+      : 0;
 
   return {
     summaryInfo,
@@ -132,10 +141,7 @@ export const resolveThreadPresentationSnapshot = ({
       getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText,
     lastSenderId,
     lastSenderDisplayName,
-    messageCount:
-      typeof summaryInfo?.messageCount === 'number'
-        ? Math.max(summaryInfo.messageCount, visibleMessageCount, minimumMessageCount)
-        : Math.max(visibleMessageCount, minimumMessageCount),
+    messageCount: Math.max(summaryMessageCount, visibleMessageCount, minimumMessageCount),
   };
 };
 

@@ -83,14 +83,30 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
     : undefined;
 
 const cacheProvesLoadedThreadWindowIsPartial = (
+  room: Room,
+  threadRootId: string,
   thread: ReturnType<Room['getThread']>,
   cacheCoverage: ThreadCacheCoverage | undefined
 ): boolean => {
   const oldestCachedReplyId = cacheCoverage?.oldestVisibleReplyEventId;
-  if (!oldestCachedReplyId) return false;
+  const loadedThreadEvents = getLoadedThreadEvents(thread) ?? [];
+  if (
+    loadedThreadEvents.some((event) => event.isRedacted()) ||
+    (oldestCachedReplyId && room.findEventById(oldestCachedReplyId)?.isRedacted())
+  ) {
+    return false;
+  }
 
-  return !(getLoadedThreadEvents(thread) ?? []).some(
-    (event) => event.getId() === oldestCachedReplyId
+  const expectedReplyCount = cacheCoverage?.expectedReplyCount;
+  if (Number.isSafeInteger(expectedReplyCount) && (expectedReplyCount ?? 0) >= 0) {
+    const visibleLoadedReplyCount =
+      buildVisibleThreadReplyCountMap(loadedThreadEvents).get(threadRootId) ?? 0;
+    if ((expectedReplyCount ?? 0) > visibleLoadedReplyCount) return true;
+  }
+
+  return (
+    !!oldestCachedReplyId &&
+    !loadedThreadEvents.some((event) => event.getId() === oldestCachedReplyId)
   );
 };
 
@@ -315,8 +331,16 @@ export const buildThreadRecord = ({
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
     fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
-    fallbackMessageCountIsLowerBound: cacheProvesLoadedThreadWindowIsPartial(thread, cacheCoverage),
+    fallbackMessageCountIsLowerBound: cacheProvesLoadedThreadWindowIsPartial(
+      room,
+      threadRootId,
+      thread,
+      cacheCoverage
+    ),
     fallbackParticipantIds,
+    ignoreSummaryMessageCount:
+      (getLoadedThreadEvents(thread) ?? []).some((event) => event.isRedacted()) ||
+      cacheCoverage?.relationSnapshotComplete === true,
   });
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =
