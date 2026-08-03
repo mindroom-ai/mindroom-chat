@@ -19,7 +19,9 @@
 - Equal 32-event SDK/cache tails keep the durable total while it exceeds the loaded visible count; loaded redactions remain authoritative, stale-low cache hydration cannot lower newer live state, and exhausted relation counts deduplicate event IDs consistently.
 - Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
 - Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
-- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 28 tests, and the full Vitest suite passes 456 files with 3,503 tests.
+- A complete durable relation snapshot can restore a lower redaction count on remount only when its latest cached activity is at least as fresh as live state, so it cannot overwrite a newer reply.
+- Cached totals are maxed with concrete visible cached replies, partial-window totals subtract known loaded redactions, and a newer summary can raise an older complete-cache total after a new reply.
+- Validation: the four focused presentation, record, cache-hydration, and fetch-persistence suites pass 32 tests, and the full Vitest suite passes 456 files with 3,507 tests.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction and overlapping-tail edge cases; the lower bound now requires either a larger durable total or a missing cached reply identity, with loaded redactions authoritative and both directions covered at record level.
 

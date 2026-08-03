@@ -293,11 +293,19 @@ export const resolveCachedOverviewUpdate = ({
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const durableMessageCount = getSafeMessageCount(cachedPage.expectedReplyCount);
-  const observedMessageCount = durableMessageCount ?? cachedPresentation.messageCount;
+  const cachedVisibleMessageCount = buildVisibleThreadReplyCountMap(cachedEvents).get(rootId) ?? 0;
+  const observedMessageCount =
+    durableMessageCount === undefined
+      ? cachedPresentation.messageCount
+      : Math.max(durableMessageCount, cachedVisibleMessageCount);
   const nextMessageCount = resolveNextMessageCount({
     currentMessageCount,
     observedMessageCount,
-    authoritative: false,
+    authoritative:
+      durableMessageCount !== undefined &&
+      cachedPage.relationSnapshotComplete === true &&
+      cachedActivityTs !== undefined &&
+      cachedActivityTs >= liveActivityTs,
   });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
