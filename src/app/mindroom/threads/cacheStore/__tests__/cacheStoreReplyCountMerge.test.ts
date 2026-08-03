@@ -961,6 +961,57 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(page.relationSnapshotComplete).toBe(false);
   });
 
+  it('does not let an orphan persisted horizon outrank a later valid snapshot', async () => {
+    const sessionId = `${SESSION_ID}-orphan-horizon`;
+    const db = await openCacheStore(sessionId);
+    expect(db).toBeDefined();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(ROOM_ID, THREAD_ID),
+        roomId: ROOM_ID,
+        scope: THREAD_ID,
+        expectedReplyCount: 1,
+        expectedReplyCountSnapshotTs: 10_000,
+        expectedReplyCountEvidence: {
+          knownEventIds: ['$known'],
+          visibleEventIds: ['$unknown'],
+        },
+        relationSnapshotComplete: true,
+        updatedAt: 1,
+      } satisfies CachedMetaRecord);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    const malformedPage = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(malformedPage.expectedReplyCountSnapshotTs).toBeUndefined();
+
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCountSnapshotTs).toBe(1_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: ['$reply'],
+    });
+    expect(page.relationSnapshotComplete).toBe(true);
+  });
+
   it('rejects a fractional persisted reply count', async () => {
     const sessionId = `${SESSION_ID}-fractional-count`;
     const db = await openCacheStore(sessionId);

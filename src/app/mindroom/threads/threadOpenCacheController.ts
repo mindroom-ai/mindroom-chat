@@ -11,10 +11,7 @@ import {
   type CachedThreadEventPage,
 } from './eventRepository';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
-import {
-  getAuthoritativeCachedThreadReplyCount,
-  isCompleteCachedThreadSnapshot,
-} from './threadCacheSnapshot';
+import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
   hasThreadCacheBackwardGap,
@@ -53,34 +50,20 @@ export const resolveThreadOpenExpectedReplyCount = ({
     'expectedReplyCount' | 'expectedReplyCountEvidence' | 'relationSnapshotComplete'
   >;
 }): number | undefined => {
-  const cachedExpectedReplyCount =
-    typeof cachedPage.expectedReplyCount === 'number' &&
-    Number.isSafeInteger(cachedPage.expectedReplyCount) &&
-    cachedPage.expectedReplyCount >= 0
-      ? cachedPage.expectedReplyCount
-      : undefined;
+  const getSafeReplyCount = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  const cachedExpectedReplyCount = getSafeReplyCount(cachedPage.expectedReplyCount);
   if (
-    cachedPage.relationSnapshotComplete === true &&
     cachedPage.expectedReplyCountEvidence !== undefined &&
     cachedExpectedReplyCount !== undefined
   ) {
     return cachedExpectedReplyCount;
   }
-  const rootExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
-    rootEvent: liveRootEvent,
-    cachedRootEvent,
-  });
-  if (
-    cachedPage.expectedReplyCountEvidence !== undefined &&
-    cachedExpectedReplyCount !== undefined
-  ) {
-    return Math.max(rootExpectedReplyCount ?? 0, cachedExpectedReplyCount);
-  }
-  return getAuthoritativeCachedThreadReplyCount({
-    rootEvent: liveRootEvent,
-    cachedRootEvent,
-    expectedReplyCount: cachedExpectedReplyCount,
-  });
+  return (
+    getSafeReplyCount(liveRootEvent ? getKnownThreadReplyCount(liveRootEvent) : undefined) ??
+    getSafeReplyCount(cachedRootEvent ? getKnownThreadReplyCount(cachedRootEvent) : undefined) ??
+    cachedExpectedReplyCount
+  );
 };
 
 export const useThreadOpenCacheController = ({

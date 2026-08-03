@@ -1050,17 +1050,19 @@ const buildThreadEventPage = (
     expectedReplyCount,
     meta?.expectedReplyCountEvidence
   );
+  const expectedReplyCountSnapshotTs =
+    expectedReplyCountEvidence !== undefined &&
+    typeof meta?.expectedReplyCountSnapshotTs === 'number' &&
+    Number.isFinite(meta.expectedReplyCountSnapshotTs)
+      ? meta.expectedReplyCountSnapshotTs
+      : undefined;
   return {
     rootEvent: meta?.rootEvent,
     events: orderedEvents,
     hasMoreBefore,
     beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
     expectedReplyCount,
-    expectedReplyCountSnapshotTs:
-      typeof meta?.expectedReplyCountSnapshotTs === 'number' &&
-      Number.isFinite(meta.expectedReplyCountSnapshotTs)
-        ? meta.expectedReplyCountSnapshotTs
-        : undefined,
+    expectedReplyCountSnapshotTs,
     expectedReplyCountEvidence,
     snapshotComplete: meta?.snapshotComplete === true,
     relationSnapshotComplete:
@@ -1380,15 +1382,16 @@ const runSaveThreadEventsTxn = async (
               normalizedExpectedReplyCount,
               snapshotComplete
             );
-            let expectedReplyCountSnapshotTs =
-              typeof currentMeta?.expectedReplyCountSnapshotTs === 'number' &&
-              Number.isFinite(currentMeta.expectedReplyCountSnapshotTs)
-                ? currentMeta.expectedReplyCountSnapshotTs
-                : undefined;
             const currentExpectedReplyCountEvidence = normalizeReplyCountEvidenceForCount(
               currentExpectedReplyCount,
               currentMeta?.expectedReplyCountEvidence
             );
+            let expectedReplyCountSnapshotTs =
+              currentExpectedReplyCountEvidence !== undefined &&
+              typeof currentMeta?.expectedReplyCountSnapshotTs === 'number' &&
+              Number.isFinite(currentMeta.expectedReplyCountSnapshotTs)
+                ? currentMeta.expectedReplyCountSnapshotTs
+                : undefined;
             let expectedReplyCountEvidence = currentExpectedReplyCountEvidence;
             if (normalizedExpectedReplyCount !== undefined) {
               if (incomingRelationSnapshotComplete === true) {
