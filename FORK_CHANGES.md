@@ -40,9 +40,11 @@
 - Retained-baseline reconciliation now follows the merged count policy, so an absolute complete write can still lower the total; complete evidence that already excludes a marker inherits its horizon.
 - Marker lookup unions current and stored redaction evidence and takes the newer Matrix timestamp, preventing a stale duplicate redaction from weakening freshness.
 - Already-excluded retained evidence inherits newer marker activity, and repeated same-target redaction observations retain the maximum finite Matrix timestamp independent of batch order.
+- Hosted review hardened IndexedDB reads and rewrites against malformed count horizons/evidence, downgrading malformed complete rows without throwing.
+- A proofless complete write now downgrades exactness while retaining its still-paired historical count/evidence baseline for non-authoritative later reconciliation.
 - Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
 - A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
-- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 141 tests, and the full Vitest suite passes 456 files with 3,534 tests.
+- Validation: nine focused utility, record, hydration, prefetch, open-cache, persistence, and engine suites pass 142 tests; full revalidation is pending after hosted-review remediation.
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
 - Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, and duplicate-ID edge cases; each now has record or hydration coverage.
 

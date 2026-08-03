@@ -106,7 +106,7 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(await storedCount()).toBe(282);
   });
 
-  it('downgrades a relation-complete write that omits both count and evidence', async () => {
+  it('downgrades a proofless complete write without discarding its prior baseline', async () => {
     const sessionId = `${SESSION_ID}-countless-complete`;
     await saveThreadEventsToCache(
       sessionId,
@@ -139,8 +139,12 @@ describe('thread meta expectedReplyCount merge policy', () => {
 
     const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 32);
     expect(page.expectedReplyCount).toBe(24);
+    expect(page.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(1_000);
     expect(page.relationSnapshotComplete).toBe(false);
-    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$stale-reply'],
+      visibleEventIds: ['$stale-reply'],
+    });
   });
 
   it('downgrades an explicit partial relation write without erasing its count baseline', async () => {
@@ -690,10 +694,53 @@ describe('thread meta expectedReplyCount merge policy', () => {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 2_000)],
+      undefined,
+      undefined,
+      true,
+      false,
+      23,
+      false
+    );
 
     const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
     expect(page.expectedReplyCount).toBe(23);
     expect(page.relationSnapshotComplete).toBe(false);
     expect(page.expectedReplyCountEvidence).toBeUndefined();
+  });
+
+  it('rejects malformed persisted reply-count evidence and horizons', async () => {
+    const sessionId = `${SESSION_ID}-malformed-evidence`;
+    const db = await openCacheStore(sessionId);
+    expect(db).toBeDefined();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(ROOM_ID, THREAD_ID),
+        roomId: ROOM_ID,
+        scope: THREAD_ID,
+        expectedReplyCount: 23,
+        expectedReplyCountSnapshotTs: 'not-a-number',
+        expectedReplyCountEvidence: {
+          knownEventIds: { bad: true },
+          visibleEventIds: null,
+        },
+        relationSnapshotComplete: true,
+        updatedAt: 1,
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.expectedReplyCount).toBe(23);
+    expect(page.expectedReplyCountSnapshotTs).toBeUndefined();
+    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.relationSnapshotComplete).toBe(false);
   });
 });

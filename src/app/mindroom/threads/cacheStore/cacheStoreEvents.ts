@@ -111,11 +111,26 @@ const collectRedactionActivityTsByEventId = (
 };
 
 const normalizeReplyCountEvidence = (
-  evidence: ThreadReplyCountSnapshotEvidence
-): ThreadReplyCountSnapshotEvidence => ({
-  knownEventIds: [...new Set(evidence.knownEventIds.filter((eventId) => !!eventId))],
-  visibleEventIds: [...new Set(evidence.visibleEventIds.filter((eventId) => !!eventId))],
-});
+  evidence: unknown
+): ThreadReplyCountSnapshotEvidence | undefined => {
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return undefined;
+  const candidate = evidence as Partial<ThreadReplyCountSnapshotEvidence>;
+  if (!Array.isArray(candidate.knownEventIds) || !Array.isArray(candidate.visibleEventIds)) {
+    return undefined;
+  }
+  return {
+    knownEventIds: [
+      ...new Set(
+        candidate.knownEventIds.filter((eventId) => typeof eventId === 'string' && eventId)
+      ),
+    ],
+    visibleEventIds: [
+      ...new Set(
+        candidate.visibleEventIds.filter((eventId) => typeof eventId === 'string' && eventId)
+      ),
+    ],
+  };
+};
 
 const buildRawReplyCountEvidence = (
   events: readonly Partial<IEvent>[],
@@ -1014,19 +1029,26 @@ const buildThreadEventPage = (
   meta: CachedMetaRecord | undefined,
   orderedEvents: CachedThreadEvent[],
   hasMoreBefore: boolean
-): CachedThreadEventPage => ({
-  rootEvent: meta?.rootEvent,
-  events: orderedEvents,
-  hasMoreBefore,
-  beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-  expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
-  expectedReplyCountSnapshotTs: meta?.expectedReplyCountSnapshotTs,
-  expectedReplyCountEvidence: meta?.expectedReplyCountEvidence,
-  snapshotComplete: meta?.snapshotComplete === true,
-  relationSnapshotComplete:
-    meta?.relationSnapshotComplete === true && meta.expectedReplyCountEvidence !== undefined,
-  tailLoaded: meta?.tailLoaded === true,
-});
+): CachedThreadEventPage => {
+  const expectedReplyCountEvidence = normalizeReplyCountEvidence(meta?.expectedReplyCountEvidence);
+  return {
+    rootEvent: meta?.rootEvent,
+    events: orderedEvents,
+    hasMoreBefore,
+    beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+    expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+    expectedReplyCountSnapshotTs:
+      typeof meta?.expectedReplyCountSnapshotTs === 'number' &&
+      Number.isFinite(meta.expectedReplyCountSnapshotTs)
+        ? meta.expectedReplyCountSnapshotTs
+        : undefined,
+    expectedReplyCountEvidence,
+    snapshotComplete: meta?.snapshotComplete === true,
+    relationSnapshotComplete:
+      meta?.relationSnapshotComplete === true && expectedReplyCountEvidence !== undefined,
+    tailLoaded: meta?.tailLoaded === true,
+  };
+};
 
 export const loadLatestCachedThreadEvents = async (
   sessionId: string,
@@ -1336,13 +1358,20 @@ const runSaveThreadEventsTxn = async (
               normalizedExpectedReplyCount,
               snapshotComplete
             );
-            let expectedReplyCountSnapshotTs = currentMeta?.expectedReplyCountSnapshotTs;
-            let expectedReplyCountEvidence = currentMeta?.expectedReplyCountEvidence;
+            let expectedReplyCountSnapshotTs =
+              typeof currentMeta?.expectedReplyCountSnapshotTs === 'number' &&
+              Number.isFinite(currentMeta.expectedReplyCountSnapshotTs)
+                ? currentMeta.expectedReplyCountSnapshotTs
+                : undefined;
+            const currentExpectedReplyCountEvidence = normalizeReplyCountEvidence(
+              currentMeta?.expectedReplyCountEvidence
+            );
+            let expectedReplyCountEvidence = currentExpectedReplyCountEvidence;
             if (normalizedExpectedReplyCount !== undefined) {
               if (incomingRelationSnapshotComplete === true) {
                 expectedReplyCountSnapshotTs =
                   Math.max(
-                    currentMeta?.expectedReplyCountSnapshotTs ?? 0,
+                    expectedReplyCountSnapshotTs ?? 0,
                     incomingExpectedReplyCountSnapshotTs ?? 0
                   ) || undefined;
                 expectedReplyCountEvidence = incomingReplyCountEvidence;
@@ -1363,7 +1392,7 @@ const runSaveThreadEventsTxn = async (
             const shouldReconcileRetainedSnapshot =
               (relationSnapshotComplete === false || knownRedactedEventIds.size > 0) &&
               currentExpectedReplyCount !== undefined &&
-              currentMeta?.expectedReplyCountEvidence !== undefined &&
+              currentExpectedReplyCountEvidence !== undefined &&
               mergedExpectedReplyCount === currentExpectedReplyCount;
             const reconciliationBaseCount = shouldReconcileIncomingSnapshot
               ? mergedExpectedReplyCount
@@ -1373,7 +1402,7 @@ const runSaveThreadEventsTxn = async (
             const reconciliationEvidence = shouldReconcileIncomingSnapshot
               ? expectedReplyCountEvidence
               : shouldReconcileRetainedSnapshot
-              ? currentMeta?.expectedReplyCountEvidence
+              ? currentExpectedReplyCountEvidence
               : undefined;
             if (reconciliationBaseCount !== undefined && reconciliationEvidence !== undefined) {
               const reconciledSnapshot = reconcileRawReplyCountSnapshot(
@@ -1404,10 +1433,6 @@ const runSaveThreadEventsTxn = async (
                     )
                   )
                 ) || undefined;
-            }
-            if (relationSnapshotComplete === true && incomingRelationSnapshotComplete === false) {
-              expectedReplyCountSnapshotTs = undefined;
-              expectedReplyCountEvidence = undefined;
             }
             const cacheableRootEvent =
               incomingRootEvent &&
