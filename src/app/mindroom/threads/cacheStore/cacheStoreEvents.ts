@@ -1217,7 +1217,7 @@ const runSaveThreadEventsTxn = async (
                 expectedReplyCountEvidence = undefined;
               }
             }
-            if (incomingRelationSnapshotComplete === false) {
+            if (relationSnapshotComplete === true && incomingRelationSnapshotComplete === false) {
               expectedReplyCountSnapshotTs = undefined;
               expectedReplyCountEvidence = undefined;
             }

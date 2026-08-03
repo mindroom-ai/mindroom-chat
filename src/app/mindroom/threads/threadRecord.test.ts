@@ -1,7 +1,10 @@
+import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
+import { loadLatestCachedThreadEvents, saveThreadEventsToCache } from './cacheStore';
+import { buildCachedOverviewCoverage } from './threadOverviewCacheHydration';
 import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
 
 const makeEvent = ({
@@ -349,6 +352,79 @@ describe('buildThreadRecord', () => {
     });
 
     expect(record.presentation.messageCount).toBe(25);
+  });
+
+  it('preserves a new partial-fetch reply across persistence and record rebuild', async () => {
+    const sessionId = 'thread-record-partial-evidence';
+    const roomId = '!room:server';
+    const threadRootId = '$root';
+    const rawReply = (eventId: string, ts: number): Partial<IEvent> => ({
+      event_id: eventId,
+      origin_server_ts: ts,
+      room_id: roomId,
+      sender: '@sender:server',
+      type: 'm.room.message',
+      content: {
+        body: eventId,
+        msgtype: 'm.text',
+        'm.relates_to': { event_id: threadRootId, rel_type: 'm.thread' },
+      },
+    });
+
+    await saveThreadEventsToCache(
+      sessionId,
+      roomId,
+      threadRootId,
+      [rawReply('$known-reply', 100)],
+      undefined,
+      undefined,
+      true,
+      true,
+      282,
+      true,
+      'partial',
+      { knownEventIds: ['$known-reply'], visibleEventIds: ['$known-reply'] }
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      roomId,
+      threadRootId,
+      [rawReply('$new-reply', 200)],
+      undefined,
+      'older',
+      true,
+      false,
+      282,
+      false
+    );
+
+    const cachedPage = await loadLatestCachedThreadEvents(sessionId, roomId, threadRootId, 5);
+    expect(cachedPage.relationSnapshotComplete).toBe(false);
+    expect(cachedPage.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$known-reply'],
+      visibleEventIds: ['$known-reply'],
+    });
+    const cachedEvents = cachedPage.events.map((rawEvent) =>
+      makeEvent({
+        eventId: rawEvent.event_id ?? '',
+        threadRootId,
+        body: rawEvent.content?.body as string,
+        ts: rawEvent.origin_server_ts ?? 0,
+      })
+    );
+    const rootEvent = makeEvent({ eventId: threadRootId, body: 'Root body' });
+    const room = makeRoom({
+      rootEvent,
+      thread: makeThread(rootEvent, cachedEvents),
+    });
+    const record = buildThreadRecord({
+      room,
+      threadRootId,
+      fallbackMessageCount: 282,
+      cacheCoverage: buildCachedOverviewCoverage(cachedPage, cachedEvents),
+    });
+
+    expect(record.presentation.messageCount).toBe(283);
   });
 
   it('adjusts a durable total for a redaction inside a partial SDK tail', () => {

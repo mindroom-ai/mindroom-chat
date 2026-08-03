@@ -142,7 +142,7 @@ describe('thread meta expectedReplyCount merge policy', () => {
     expect(page.expectedReplyCountEvidence).toBeUndefined();
   });
 
-  it('lets an explicit unproven relation write downgrade prior complete coverage', async () => {
+  it('downgrades an explicit partial relation write without erasing its count baseline', async () => {
     const sessionId = `${SESSION_ID}-explicit-incomplete`;
     await saveThreadEventsToCache(
       sessionId,
@@ -172,7 +172,11 @@ describe('thread meta expectedReplyCount merge policy', () => {
     const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
     expect(page.expectedReplyCount).toBe(1);
     expect(page.relationSnapshotComplete).toBe(false);
-    expect(page.expectedReplyCountEvidence).toBeUndefined();
+    expect(page.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(1_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$proven-reply'],
+      visibleEventIds: ['$proven-reply'],
+    });
   });
 
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
