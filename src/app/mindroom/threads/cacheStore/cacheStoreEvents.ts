@@ -69,6 +69,45 @@ const getExpectedReplyCountSnapshotTs = (
   return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
 };
 
+const collectRedactionActivityTsByEventId = (
+  events: readonly Partial<IEvent>[]
+): Map<string, number> => {
+  const timestamps = new Map<string, number>();
+  const collect = (rawEvent: Partial<IEvent>): void => {
+    const ownEventId = rawEvent.event_id;
+    if (typeof ownEventId === 'string' && rawEvent.unsigned?.redacted_because) {
+      const timestamp = getRawEventRelationActivityTs(rawEvent);
+      if (timestamp !== undefined) timestamps.set(ownEventId, timestamp);
+    }
+    if (rawEvent.type === 'm.room.redaction') {
+      const contentRedacts = rawEvent.content?.redacts;
+      const redactedEventId =
+        typeof rawEvent.redacts === 'string'
+          ? rawEvent.redacts
+          : typeof contentRedacts === 'string'
+          ? contentRedacts
+          : undefined;
+      if (redactedEventId && typeof rawEvent.origin_server_ts === 'number') {
+        timestamps.set(redactedEventId, rawEvent.origin_server_ts);
+      }
+    }
+    const relations = rawEvent.unsigned?.['m.relations'] as Record<string, unknown> | undefined;
+    const replacement = relations?.['m.replace'];
+    if (replacement && typeof replacement === 'object' && !Array.isArray(replacement)) {
+      collect(replacement as Partial<IEvent>);
+    }
+    const thread = relations?.['m.thread'];
+    if (thread && typeof thread === 'object' && !Array.isArray(thread)) {
+      const latestEvent = (thread as Record<string, unknown>).latest_event;
+      if (latestEvent && typeof latestEvent === 'object' && !Array.isArray(latestEvent)) {
+        collect(latestEvent as Partial<IEvent>);
+      }
+    }
+  };
+  events.forEach(collect);
+  return timestamps;
+};
+
 const normalizeReplyCountEvidence = (
   evidence: ThreadReplyCountSnapshotEvidence
 ): ThreadReplyCountSnapshotEvidence => ({
@@ -105,7 +144,8 @@ const reconcileRawReplyCountSnapshot = (
   baseCount: number,
   evidence: ThreadReplyCountSnapshotEvidence,
   events: readonly CachedThreadEvent[],
-  threadId: string
+  threadId: string,
+  knownRedactedEventIds: ReadonlySet<string>
 ): {
   replyCount: number;
   evidence: ThreadReplyCountSnapshotEvidence;
@@ -117,9 +157,21 @@ const reconcileRawReplyCountSnapshot = (
   const removedEventIds = new Set<string>();
   const incorporatedEventIds = new Set<string>();
 
+  knownRedactedEventIds.forEach((eventId) => {
+    if (!knownEventIds.has(eventId)) {
+      knownEventIds.add(eventId);
+      incorporatedEventIds.add(eventId);
+    } else if (visibleEventIds.has(eventId)) {
+      visibleEventIds.delete(eventId);
+      removedEventIds.add(eventId);
+      incorporatedEventIds.add(eventId);
+    }
+  });
+
   events.forEach((rawEvent) => {
     const eventId = rawEvent.event_id;
     if (!eventId || eventId === threadId) return;
+    if (knownRedactedEventIds.has(eventId)) return;
     const relatesTo = rawEvent.content?.['m.relates_to'] as
       | { event_id?: unknown; rel_type?: unknown }
       | undefined;
@@ -1130,6 +1182,7 @@ export const saveThreadEventsToCacheCommitted = async (
 
     const redactionEvidence = rootEvent ? [...rawEvents, rootEvent] : rawEvents;
     const redactedEventIds = collectExplicitRedactedEventIds(redactionEvidence);
+    const redactionActivityTsByEventId = collectRedactionActivityTsByEventId(redactionEvidence);
     const redactedTombstones = collectRedactedTombstones(redactionEvidence);
     const normalizedEvents = filterPageableCachedThreadEvents(
       normalizeCachedThreadEvents(rawEvents),
@@ -1142,7 +1195,7 @@ export const saveThreadEventsToCacheCommitted = async (
         await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
       }
     }
-    if (normalizedEvents.length === 0 && !rootEvent) return true;
+    if (normalizedEvents.length === 0 && !rootEvent && redactedEventIds.size === 0) return true;
 
     countCacheProbe('threadSaveCalls');
     countCacheProbe('threadMetaPuts');
@@ -1160,7 +1213,8 @@ export const saveThreadEventsToCacheCommitted = async (
       relationSnapshotComplete,
       relationSnapshotMode,
       redactedEventIds,
-      replyCountEvidence
+      replyCountEvidence,
+      redactionActivityTsByEventId
     );
   } catch (error) {
     reportCacheWriteError('threadEventCache.save', error);
@@ -1191,7 +1245,8 @@ const runSaveThreadEventsTxn = async (
   relationSnapshotComplete: boolean | undefined,
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
-  replyCountEvidence: ThreadReplyCountSnapshotEvidence | undefined
+  replyCountEvidence: ThreadReplyCountSnapshotEvidence | undefined,
+  redactionActivityTsByEventId: ReadonlyMap<string, number>
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
@@ -1289,7 +1344,8 @@ const runSaveThreadEventsTxn = async (
                 currentExpectedReplyCount,
                 currentMeta.expectedReplyCountEvidence,
                 normalizedEvents,
-                threadId
+                threadId,
+                knownRedactedEventIds
               );
               mergedExpectedReplyCount = reconciledSnapshot.replyCount;
               expectedReplyCountEvidence = reconciledSnapshot.evidence;
@@ -1300,7 +1356,10 @@ const runSaveThreadEventsTxn = async (
                   getExpectedReplyCountSnapshotTs(
                     normalizedEvents.filter((event) => incorporatedEventIds.has(event.event_id)),
                     undefined
-                  ) ?? 0
+                  ) ?? 0,
+                  ...[...incorporatedEventIds].map(
+                    (eventId) => redactionActivityTsByEventId.get(eventId) ?? 0
+                  )
                 ) || undefined;
             }
             if (relationSnapshotComplete === true && incomingRelationSnapshotComplete === false) {

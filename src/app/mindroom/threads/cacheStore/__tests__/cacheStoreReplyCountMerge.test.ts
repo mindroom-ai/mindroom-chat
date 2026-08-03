@@ -179,6 +179,68 @@ describe('thread meta expectedReplyCount merge policy', () => {
     });
   });
 
+  it('applies durable redaction markers before reconciling partial metadata', async () => {
+    const sessionId = `${SESSION_ID}-marked-redaction`;
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 1_000)],
+      undefined,
+      undefined,
+      true,
+      true,
+      1,
+      true,
+      'partial',
+      { knownEventIds: ['$reply'], visibleEventIds: ['$reply'] }
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [
+        {
+          event_id: '$redaction',
+          origin_server_ts: 2_000,
+          room_id: ROOM_ID,
+          sender: '@moderator:example.org',
+          type: 'm.room.redaction',
+          redacts: '$reply',
+          content: {},
+        },
+      ],
+      undefined,
+      undefined,
+      true,
+      false,
+      undefined,
+      false
+    );
+    await saveThreadEventsToCache(
+      sessionId,
+      ROOM_ID,
+      THREAD_ID,
+      [rawReply('$reply', 3_000)],
+      undefined,
+      undefined,
+      true,
+      false,
+      0,
+      false
+    );
+
+    const page = await loadLatestCachedThreadEvents(sessionId, ROOM_ID, THREAD_ID, 5);
+    expect(page.events.map((event) => event.event_id)).not.toContain('$reply');
+    expect(page.expectedReplyCount).toBe(0);
+    expect(page.expectedReplyCountSnapshotTs).toBeGreaterThanOrEqual(2_000);
+    expect(page.expectedReplyCountEvidence).toEqual({
+      knownEventIds: ['$reply'],
+      visibleEventIds: [],
+    });
+    expect(page.relationSnapshotComplete).toBe(false);
+  });
+
   it('keeps a count horizon only when relation coverage proves what the count includes', async () => {
     const sessionId = `${SESSION_ID}-snapshot-timestamp`;
     const save = (
