@@ -1,7 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- Chrome's translator reparents React-owned text nodes into <font>
+         wrappers, which crashes the commit phase with NotFoundError on
+         removeChild. Cost: browser page translation of message content is off
+         for everyone. The Settings language picker localizes UI strings only
+         (en/de/nl) and is not a substitute. A narrower placement is not
+         available: the nodes that crash are the message bodies themselves. -->
+    <meta name="google" content="notranslate" />
     <base href="/" />
     <meta name="theme-color" content="#1A1A1A" />
     <meta name="color-scheme" content="dark light" />
