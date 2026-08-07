@@ -108,19 +108,51 @@ describe('installDomMutationGuard', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps sibling order when the insertBefore anchor moved into a wrapper', () => {
+  it('keeps document order when the insertBefore anchor moved into a wrapper', () => {
     guard();
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const parent = document.createElement('div');
-    const leading = document.createElement('em');
-    const wrapper = document.createElement('font');
-    const anchor = document.createElement('b');
-    wrapper.appendChild(anchor);
-    parent.append(leading, wrapper);
-    const inserted = document.createElement('i');
+    parent.innerHTML = '<em>L</em><font><i>I</i><b>A</b></font>';
+    const anchor = parent.querySelector('b') as HTMLElement;
+    const inserted = document.createElement('u');
+    inserted.textContent = 'U';
 
     expect(parent.insertBefore(inserted, anchor)).toBe(inserted);
-    expect(Array.from(parent.childNodes)).toEqual([leading, inserted, wrapper]);
+    // Asserting the parent's childNodes would pass for either recovery, since
+    // the wrapper occupies one slot regardless. Document order is what breaks.
+    expect(parent.textContent).toBe('LIUA');
+  });
+
+  it('places the node mid-run when the translator merged the whole run', () => {
+    guard();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const Para = ({ show }: { show: boolean }): React.ReactElement =>
+      React.createElement(
+        'p',
+        null,
+        'prefix ',
+        show ? React.createElement('mark', null, 'NEW') : null,
+        ' suffix'
+      );
+    act(() => {
+      root.render(React.createElement(Para, { show: false }));
+    });
+
+    // Chrome merges an entire inline run into ONE <font>, so the anchor sits
+    // mid-wrapper rather than at its start.
+    const paragraph = container.firstElementChild as HTMLElement;
+    const font = document.createElement('font');
+    paragraph.insertBefore(font, paragraph.firstChild);
+    while (paragraph.childNodes[1]) font.appendChild(paragraph.childNodes[1]);
+
+    act(() => {
+      root.render(React.createElement(Para, { show: true }));
+    });
+
+    expect(container.textContent).toBe('prefix NEW suffix');
   });
 
   it('appends when the insertBefore anchor left this subtree entirely', () => {

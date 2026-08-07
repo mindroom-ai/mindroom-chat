@@ -4,23 +4,30 @@
 
 ### Survive third-party DOM mutation (Google Translate crash) (2026-08-07)
 
-- Status: implemented and locally validated on `dev`; not yet in a PR.
+- Status: implemented, subagent-reviewed, and validated in open PR #207.
 - Reported symptom: a Dutch-locale Chrome on `chat.mindroom.chat` replaced a thread with react-router's default error page and `NotFoundError: Failed to execute 'removeChild' on 'Node'`.
 - Root cause: Chrome's translator moves React-owned text nodes into injected `<font>` wrappers, so the next commit calls `removeChild` on the wrong parent and the throw escapes to the router boundary. The reported stack was itself translated (`at` rendered as `op`/`bij` inside the `<pre>`), which is the proof that translation was live on the document.
 - The crash reproduces deterministically: render a text node, reparent it into a `<font>`, commit again.
 - Ruled out app-side causes: the only `removeChild` in `src` is `CallEmbed.ts`'s guarded `attempt()`, and `dom.ts` appends its temporary clipboard input outside the React root.
-- Layer one: `index.html` sets `translate="no"` on `<html>` plus `<meta name="google" content="notranslate">`, which stops Chrome's translator. The in-app language picker already covers en/de/nl, and `i18next-browser-languagedetector` already resolves `navigator` ahead of `htmlTag`, so a Dutch browser gets a Dutch UI without the browser translator.
-- Layer two: `installDomMutationGuard()` (`src/app/utils/domMutationGuard.ts`) patches `Node.prototype.removeChild`/`insertBefore` so a wrong-parent call no-ops (or appends) instead of throwing. It covers extensions that ignore `notranslate`.
+- Layer one: `index.html` sets `translate="no"` on `<html>` plus `<meta name="google" content="notranslate">`, which stops Chrome's translator.
+- The real cost of layer one is that browser page translation of message bodies, room names, topics, and agent output is now off for everyone. The Settings language picker is not a substitute: it localizes 275 UI strings in en/de/nl and never touches user-generated content. A speaker of any other language now gets an English UI and no way to read a foreign-language message.
+- A narrower placement was considered and rejected. `translate` is inheritable and overridable per subtree, but the nodes that crash are the message bodies themselves, and they re-commit on edits, reactions, receipts, and pagination — so exempting them would re-enable translation on exactly the DOM that breaks.
+- `i18next-browser-languagedetector` resolves `navigator` ahead of `htmlTag`, so a Dutch browser still gets the Dutch UI without the browser translator.
+- Layer two: `installDomMutationGuard()` (`src/app/utils/domMutationGuard.ts`) patches `Node.prototype.removeChild`/`insertBefore` so a wrong-parent call recovers the node's real position instead of throwing. It covers extensions that ignore `notranslate`.
 - The guard runs in `src/index.tsx` before the first React commit, is idempotent, returns an uninstall function for tests, and logs one `console.warn` per session so genuine app-side DOM bugs stay visible.
-- Both recovery paths use the node's real position instead of giving up: `removeChild` detaches the node from wherever the translator moved it, and `insertBefore` re-anchors on the wrapper that still belongs to the parent, falling back to append only when the anchor left the subtree.
+- Both recovery paths use the node's real position instead of giving up: `removeChild` detaches the node from wherever the translator moved it, and `insertBefore` inserts at the anchor inside the anchor's real parent, falling back to the owning ancestor and then to append.
 - Self-review found that an early `return child` traded the crash for permanent stale content — the superseded reply text stayed on screen inside its `<font>` wrapper, and the original test asserted only that surviving content was still present, so the defect passed green.
 - The same review found the idempotence marker was an enumerable own property on the global `Node.prototype`, visible to every `for...in` over a DOM node; it is now installed with `Object.defineProperty`.
-- Coverage in `domMutationGuard.test.tsx`: the unguarded crash, the guarded recovery asserting the removed text is gone, cross-parent detachment, warn-once, anchor re-anchoring, the append fallback, marker non-enumerability, well-formed calls untouched, idempotence, and uninstall restoration.
+- A subagent review then found that inserting before the wrapper mis-orders content, because Chrome merges a whole inline run into one `<font>` and the anchor lands mid-wrapper. `<p>prefix {el} suffix</p>` rendered as `NEWprefix  suffix`, so any element markdown puts between two text runs — inline code, links, bold spans, tool-trace chips — jumped to the front of its paragraph.
+- That defect survived the first review because the sibling-order test used a wrapper containing only the anchor, where the correct and the incorrect recovery produce identical output. The test now asserts document order through `textContent` and is joined by a merged-run React regression.
+- Coverage in `domMutationGuard.test.tsx`: the unguarded crash, the guarded recovery asserting the removed text is gone, cross-parent detachment, warn-once, mid-wrapper document order, the merged-run React case, the append fallback, marker non-enumerability, well-formed calls untouched, idempotence, and uninstall restoration.
 - `notranslateDocument.test.ts` pins both `index.html` markers, since that file is edited routinely for the theme bootstrap and it carries the primary fix.
 - Every new assertion was RED-checked by reverting the corresponding fix.
-- Validation: typecheck clean, production/PWA build clean with both attributes present in `dist/index.html`, full ESLint at the existing 17-warning baseline with zero errors, and Vitest at 3,497 passed.
+- Validation: typecheck clean, production/PWA build clean with both attributes present in `dist/index.html`, full ESLint at the existing 17-warning baseline with zero errors, and Vitest at 3,503 passed on a tree with no untracked scratch tests.
 - Known unrelated failure: `src/app/styles/scrollbarTheme.test.ts` fails on `dev` because it asserts on hashed selectors in `node_modules/folds/dist/style.css`; it reads no file this change touches.
-- Next step: PR and deploy — cached clients keep crashing until they pick up the new `index.html`.
+- Deploy: this ships through a release tag (latest is `v4.12.3-mindroom.124`) and the tag-based Cinny procedure in the meta-repo `CLAUDE.md`; no `nixos-rebuild` is involved.
+- An already-crashed client recovers with a plain reload. `serviceWorkerNavigation.ts` fetches navigations network-first with `cache: 'no-store'` and only falls back to the precached shell offline, so no cache eviction is needed — but `startAppVersionMonitor` never navigates on its own, so recovery is user-initiated.
+- Next step: human merge of PR #207, then the tagged Cinny deploy.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

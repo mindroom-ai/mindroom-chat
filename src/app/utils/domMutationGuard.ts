@@ -77,9 +77,16 @@ export const installDomMutationGuard = (): (() => void) => {
   ): T {
     if (referenceNode && referenceNode.parentNode !== this) {
       reportOnce('insertBefore', this, referenceNode);
-      // The anchor moved into a wrapper that is still ours, so insert before
-      // the wrapper and keep sibling order. Appending is the last resort for
-      // an anchor that left this subtree entirely.
+      // The translator merges a whole inline run into one <font>, so the anchor
+      // usually sits mid-wrapper. Insert at the anchor inside its real parent;
+      // inserting before the wrapper would jump the node to the front of the
+      // run.
+      const realParent = referenceNode.parentNode;
+      if (realParent && this.contains(realParent)) {
+        return originalInsertBefore.call(realParent, node, referenceNode) as T;
+      }
+      // The anchor left this parent but an ancestor of it is still ours, so
+      // fall back to that boundary, then to appending.
       const anchor = childOfContaining(this, referenceNode);
       if (anchor) return originalInsertBefore.call(this, node, anchor) as T;
       return this.appendChild(node);
