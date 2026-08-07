@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Mark the document notranslate to stop the Google Translate crash (2026-08-07)
+
+- Status: implemented and validated in open PR #209.
+- Reported symptom: a Dutch-locale Chrome on `chat.mindroom.chat` replaced a thread with react-router's default error page and `NotFoundError: Failed to execute 'removeChild' on 'Node'`.
+- Root cause: Chrome's translator moves React-owned text nodes into injected `<font>` wrappers, so the next commit calls `removeChild` on the wrong parent and the throw escapes to the router boundary. Streaming MindRoom replies commit constantly, so a translated thread crashes fast.
+- The reported stack was itself translated — `at` rendered as `op`/`bij` inside the `<pre>` — which is the proof that translation was live on the document, because V8 never localizes that prefix. The heading told the same story: react-router hardcodes the English `"Unexpected Application Error!"`, the screenshot showed `"Onverwachte toepassingsfout!"`, and that Dutch string appears nowhere in `src/app/locales/nl.json`.
+- The crash reproduces deterministically: render a text node, reparent it into a `<font>`, commit again.
+- Ruled out app-side causes: the only `removeChild` in `src` is `CallEmbed.ts`'s guarded `attempt()`, and `dom.ts` appends its temporary clipboard input outside the React root.
+- Fix: `index.html` sets `translate="no"` on `<html>` plus `<meta name="google" content="notranslate">`, which stops Chrome's translator.
+- The real cost is that browser page translation of message bodies, room names, topics, and agent output is now off for everyone. The Settings language picker is not a substitute: it localizes 275 UI strings in en/de/nl and never touches user-generated content. A speaker of any other language now gets an English UI and no way to read a foreign-language message.
+- A narrower placement was considered and rejected. `translate` is inheritable and overridable per subtree, but the nodes that crash are the message bodies themselves, and they re-commit on edits, reactions, receipts, and pagination — so exempting them would re-enable translation on exactly the DOM that breaks.
+- `i18next-browser-languagedetector` resolves `navigator` ahead of `htmlTag`, so a Dutch browser still gets the Dutch UI without the browser translator.
+- `translate` is a translation-tool hint with no ARIA or accessibility-tree mapping; screen readers key off `lang`, which is unchanged.
+- `git ls-files '*.html'` returns exactly one tracked shell. The Capacitor asset dirs are gitignored and regenerated from `dist`, and neither WKWebView nor Android WebView has page translation. `public/element-call/index.html` is copied from the package at build time and is only reachable as an iframe of the now-`notranslate` top document.
+- `notranslateDocument.test.ts` pins both markers, since `index.html` is edited routinely for the CINNY-087 theme bootstrap and nothing else would catch their removal. Both assertions were RED-checked by stripping the markers.
+- A runtime `Node.prototype` guard for extensions that ignore `notranslate` was split out to its own PR (#210). No user has reported that case, and it should be judged on its own merits rather than riding along with the crash fix.
+- Deploy: this ships through a release tag (latest is `v4.12.3-mindroom.124`) and the tag-based Cinny procedure in the meta-repo `CLAUDE.md`; no `nixos-rebuild` is involved.
+- An already-crashed client recovers with a plain reload. `serviceWorkerNavigation.ts` fetches navigations network-first with `cache: 'no-store'` and only falls back to the precached shell offline, so no cache eviction is needed — but `startAppVersionMonitor` never navigates on its own, so recovery is user-initiated.
+- Next step: human merge of PR #209, then the tagged Cinny deploy.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.

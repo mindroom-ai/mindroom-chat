@@ -1,7 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- Chrome's translator reparents React-owned text nodes into <font>
+         wrappers and crashes the commit phase. Removing this also re-enables
+         browser translation of message content; see the notranslate entry in
+         FORK_CHANGES.md before changing either marker. -->
+    <meta name="google" content="notranslate" />
     <base href="/" />
     <meta name="theme-color" content="#1A1A1A" />
     <meta name="color-scheme" content="dark light" />
