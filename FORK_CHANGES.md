@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Optional DOM mutation guard for extensions that ignore notranslate (2026-08-07)
+
+- Status: implemented and validated in open PR #210. This is defense in depth, not the crash fix — PR #209 carries that.
+- Scope split: the reported Google Translate crash is fixed by the `notranslate` markers in #209. This PR only covers rewriters that ignore those markers, such as Grammarly-class extensions. No user has reported that case.
+- `installDomMutationGuard()` (`src/app/utils/domMutationGuard.ts`) patches `Node.prototype.removeChild`/`insertBefore` so a wrong-parent call recovers the node's real position instead of throwing.
+- It runs in `src/index.tsx` before the first React commit, is idempotent, returns an uninstall function for tests, and logs one `console.warn` per session so genuine app-side DOM bugs stay visible.
+- `removeChild` detaches the node from wherever the rewriter moved it. Returning early instead trades the crash for permanent stale content, because the superseded reply text stays on screen inside its wrapper.
+- `insertBefore` inserts at the anchor inside the anchor's real parent, falling back to the owning ancestor and then to append. Chrome merges a whole inline run into one `<font>`, so the anchor usually sits mid-wrapper; inserting before the wrapper moved any element between two text runs to the front of its paragraph.
+- The idempotence marker is installed with `Object.defineProperty`. Plain assignment put an enumerable property on the global `Node.prototype`, visible to every `for...in` over a DOM node in the app.
+- Review history worth keeping: all three defects above shipped green, each because a test asserted a weaker property than the behavior it claimed to pin. The stale-content bug passed a test that only checked surviving content; the ordering bug passed a test whose wrapper held only the anchor, where correct and incorrect recovery produce identical output.
+- Coverage in `domMutationGuard.test.tsx`: the unguarded crash, the guarded recovery asserting the removed text is gone, cross-parent detachment, warn-once, mid-wrapper document order, the merged-run React case, the append fallback, marker non-enumerability, well-formed calls untouched, idempotence, and uninstall restoration. Every assertion was RED-checked by reverting the corresponding fix.
+- Subagent review separately exercised `<template>` content, ShadowRoot, comment nodes, detached trees, `insertBefore(node, null)`, `insertBefore(a, a)`, `DocumentFragment` insertion, a six-commit streaming simulation with unmount, and confirmed `removeChild` re-entry maxes at depth 2 with no reachable loop in the ancestor walk.
+- Known deviations, consciously accepted: `parent.removeChild(ancestorOfParent)` and cross-document `removeChild` silently detach instead of throwing `NotFoundError`. React issues neither, and no dependency snapshots these prototype methods.
+- Next step: decide whether the insurance is worth a global prototype patch. Closing this unmerged is a legitimate outcome.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.

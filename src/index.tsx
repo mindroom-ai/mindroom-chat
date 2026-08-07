@@ -29,9 +29,15 @@ import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } f
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
 import { initializeDeepTraceRecorder } from './app/mindroom/diagnostics/deepTrace';
+import { installDomMutationGuard } from './app/utils/domMutationGuard';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
+
+// Must run before the first React commit: a translator or extension that
+// reparents React-owned nodes otherwise throws NotFoundError out of the
+// commit phase and replaces the app with the router error page.
+installDomMutationGuard();
 
 applyThemeToDom(resolveInitialTheme());
 // On-device scroll diagnostics: `?ridetrace=1` arms the timeline ride
