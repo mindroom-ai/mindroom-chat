@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Survive third-party DOM mutation (Google Translate crash) (2026-08-07)
+
+- Status: implemented and locally validated on `dev`; not yet in a PR.
+- Reported symptom: a Dutch-locale Chrome on `chat.mindroom.chat` replaced a thread with react-router's default error page and `NotFoundError: Failed to execute 'removeChild' on 'Node'`.
+- Root cause: Chrome's translator moves React-owned text nodes into injected `<font>` wrappers, so the next commit calls `removeChild` on the wrong parent and the throw escapes to the router boundary. The reported stack was itself translated (`at` rendered as `op`/`bij` inside the `<pre>`), which is the proof that translation was live on the document.
+- The crash reproduces deterministically: render a text node, reparent it into a `<font>`, commit again.
+- Ruled out app-side causes: the only `removeChild` in `src` is `CallEmbed.ts`'s guarded `attempt()`, and `dom.ts` appends its temporary clipboard input outside the React root.
+- Layer one: `index.html` sets `translate="no"` on `<html>` plus `<meta name="google" content="notranslate">`, which stops Chrome's translator. The in-app language picker already covers en/de/nl, and `i18next-browser-languagedetector` already resolves `navigator` ahead of `htmlTag`, so a Dutch browser gets a Dutch UI without the browser translator.
+- Layer two: `installDomMutationGuard()` (`src/app/utils/domMutationGuard.ts`) patches `Node.prototype.removeChild`/`insertBefore` so a wrong-parent call no-ops (or appends) instead of throwing. It covers extensions that ignore `notranslate`.
+- The guard runs in `src/index.tsx` before the first React commit, is idempotent, returns an uninstall function for tests, and logs one `console.warn` per session so genuine app-side DOM bugs stay visible.
+- Coverage in `domMutationGuard.test.tsx`: the unguarded crash, the guarded recovery, warn-once, the reparented-anchor append, well-formed calls untouched, idempotence, and uninstall restoration.
+- Validation: typecheck clean, production/PWA build clean with both attributes present in `dist/index.html`, full ESLint at the existing 17-warning baseline with zero errors, and Vitest at 3,497 passed.
+- Known unrelated failure: `src/app/styles/scrollbarTheme.test.ts` fails on `dev` because it asserts on hashed selectors in `node_modules/folds/dist/style.css`; it reads no file this change touches.
+- Next step: PR and deploy — cached clients keep crashing until they pick up the new `index.html`.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.
