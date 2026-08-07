@@ -76,8 +76,24 @@ describe('installDomMutationGuard', () => {
       });
     }).not.toThrow();
 
+    // Returning early here instead would leave <font>hello world</font> on
+    // screen — a crash traded for permanent stale content.
+    expect(container.textContent).not.toContain('hello world');
     expect(container.textContent).toContain('keep');
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('detaches a node the translator moved outside this parent', () => {
+    guard();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const parent = document.createElement('div');
+    const elsewhere = document.createElement('section');
+    const child = document.createElement('b');
+    elsewhere.appendChild(child);
+
+    expect(parent.removeChild(child)).toBe(child);
+    expect(child.parentNode).toBeNull();
+    expect(elsewhere.childNodes).toHaveLength(0);
   });
 
   it('warns only once per session', () => {
@@ -92,17 +108,42 @@ describe('installDomMutationGuard', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('appends when the insertBefore anchor was reparented', () => {
+  it('keeps sibling order when the insertBefore anchor moved into a wrapper', () => {
     guard();
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const parent = document.createElement('div');
+    const leading = document.createElement('em');
+    const wrapper = document.createElement('font');
     const anchor = document.createElement('b');
-    const elsewhere = document.createElement('div');
-    elsewhere.appendChild(anchor);
+    wrapper.appendChild(anchor);
+    parent.append(leading, wrapper);
     const inserted = document.createElement('i');
 
     expect(parent.insertBefore(inserted, anchor)).toBe(inserted);
-    expect(Array.from(parent.childNodes)).toEqual([inserted]);
+    expect(Array.from(parent.childNodes)).toEqual([leading, inserted, wrapper]);
+  });
+
+  it('appends when the insertBefore anchor left this subtree entirely', () => {
+    guard();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const parent = document.createElement('div');
+    const existing = document.createElement('em');
+    parent.appendChild(existing);
+    const anchor = document.createElement('b');
+    document.createElement('section').appendChild(anchor);
+    const inserted = document.createElement('i');
+
+    expect(parent.insertBefore(inserted, anchor)).toBe(inserted);
+    expect(Array.from(parent.childNodes)).toEqual([existing, inserted]);
+  });
+
+  it('does not expose its marker to for...in over DOM nodes', () => {
+    guard();
+    const keys: string[] = [];
+    // eslint-disable-next-line no-restricted-syntax, guard-for-in
+    for (const key in document.createElement('div')) keys.push(key);
+
+    expect(keys.filter((key) => key.startsWith('__mindroom'))).toEqual([]);
   });
 
   it('leaves well-formed removeChild and insertBefore untouched', () => {

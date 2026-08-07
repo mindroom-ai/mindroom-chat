@@ -14,8 +14,21 @@
  * a parent mismatch degrades to a no-op instead of an unmounted app.
  */
 
+const GUARD_FLAG = '__mindroomDomMutationGuard';
+
 type GuardedNodePrototype = typeof Node.prototype & {
-  __mindroomDomMutationGuard?: boolean;
+  [GUARD_FLAG]?: boolean;
+};
+
+/**
+ * Walks up from `node` to the child of `parent` that contains it, which is the
+ * injected `<font>` wrapper in the translation case. Returns null when `node`
+ * is not inside `parent` at all.
+ */
+const childOfContaining = (parent: Node, node: Node): Node | null => {
+  let candidate: Node | null = node;
+  while (candidate && candidate.parentNode !== parent) candidate = candidate.parentNode;
+  return candidate;
 };
 
 let reportedMismatch = false;
@@ -34,12 +47,12 @@ const reportOnce = (operation: string, parent: Node, child: Node): void => {
 };
 
 /**
- * Patches `removeChild`/`insertBefore` so a wrong-parent call is ignored
- * instead of throwing. Idempotent; returns an uninstall function.
+ * Patches `removeChild`/`insertBefore` so a wrong-parent call recovers instead
+ * of throwing. Idempotent; returns an uninstall function.
  */
 export const installDomMutationGuard = (): (() => void) => {
   const proto = Node.prototype as GuardedNodePrototype;
-  if (proto.__mindroomDomMutationGuard) return () => undefined;
+  if (proto[GUARD_FLAG]) return () => undefined;
 
   const originalRemoveChild = proto.removeChild;
   const originalInsertBefore = proto.insertBefore;
@@ -47,6 +60,11 @@ export const installDomMutationGuard = (): (() => void) => {
   proto.removeChild = function guardedRemoveChild<T extends Node>(this: Node, child: T): T {
     if (child.parentNode !== this) {
       reportOnce('removeChild', this, child);
+      // React owns this node and wants it gone, so detach it from wherever the
+      // translator moved it. Returning early instead would leave superseded
+      // reply text on screen for the rest of the session. This re-enters the
+      // patch once, and then takes the branch below.
+      child.parentNode?.removeChild(child);
       return child;
     }
     return originalRemoveChild.call(this, child) as T;
@@ -59,19 +77,24 @@ export const installDomMutationGuard = (): (() => void) => {
   ): T {
     if (referenceNode && referenceNode.parentNode !== this) {
       reportOnce('insertBefore', this, referenceNode);
-      // The anchor is gone from this parent; appending keeps the node in the
-      // tree so React's next commit can still find and update it.
+      // The anchor moved into a wrapper that is still ours, so insert before
+      // the wrapper and keep sibling order. Appending is the last resort for
+      // an anchor that left this subtree entirely.
+      const anchor = childOfContaining(this, referenceNode);
+      if (anchor) return originalInsertBefore.call(this, node, anchor) as T;
       return this.appendChild(node);
     }
     return originalInsertBefore.call(this, node, referenceNode) as T;
   };
 
-  proto.__mindroomDomMutationGuard = true;
+  // Plain assignment would put an enumerable marker on the global Node
+  // prototype, exposing it to every `for...in` over a DOM node in the app.
+  Object.defineProperty(proto, GUARD_FLAG, { value: true, configurable: true });
 
   return () => {
     proto.removeChild = originalRemoveChild;
     proto.insertBefore = originalInsertBefore;
-    delete proto.__mindroomDomMutationGuard;
+    delete proto[GUARD_FLAG];
     reportedMismatch = false;
   };
 };
