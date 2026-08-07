@@ -7,7 +7,7 @@
 - Status: implemented and validated in open PR #209.
 - Reported symptom: a Dutch-locale Chrome on `chat.mindroom.chat` replaced a thread with react-router's default error page and `NotFoundError: Failed to execute 'removeChild' on 'Node'`.
 - Root cause: Chrome's translator moves React-owned text nodes into injected `<font>` wrappers, so the next commit calls `removeChild` on the wrong parent and the throw escapes to the router boundary. Streaming MindRoom replies commit constantly, so a translated thread crashes fast.
-- The reported stack was itself translated — `at` rendered as `op`/`bij` inside the `<pre>` — which is the proof that translation was live on the document. V8 never localizes that prefix, and `"Onverwachte toepassingsfout!"` is react-router's hardcoded English heading, absent from `src/app/locales/nl.json`.
+- The reported stack was itself translated — `at` rendered as `op`/`bij` inside the `<pre>` — which is the proof that translation was live on the document, because V8 never localizes that prefix. The heading told the same story: react-router hardcodes the English `"Unexpected Application Error!"`, the screenshot showed `"Onverwachte toepassingsfout!"`, and that Dutch string appears nowhere in `src/app/locales/nl.json`.
 - The crash reproduces deterministically: render a text node, reparent it into a `<font>`, commit again.
 - Ruled out app-side causes: the only `removeChild` in `src` is `CallEmbed.ts`'s guarded `attempt()`, and `dom.ts` appends its temporary clipboard input outside the React root.
 - Fix: `index.html` sets `translate="no"` on `<html>` plus `<meta name="google" content="notranslate">`, which stops Chrome's translator.
