@@ -169,13 +169,22 @@ describe('installDomMutationGuard', () => {
     expect(Array.from(parent.childNodes)).toEqual([existing, inserted]);
   });
 
-  it('does not expose its marker to for...in over DOM nodes', () => {
+  it('adds no enumerable marker to the global Node prototype', () => {
+    const keysBefore = Object.keys(Node.prototype);
     guard();
-    const keys: string[] = [];
-    // eslint-disable-next-line no-restricted-syntax, guard-for-in
-    for (const key in document.createElement('div')) keys.push(key);
 
-    expect(keys.filter((key) => key.startsWith('__mindroom'))).toEqual([]);
+    const enumerated: string[] = [];
+    // eslint-disable-next-line no-restricted-syntax, guard-for-in
+    for (const key in document.createElement('div')) enumerated.push(key);
+    expect(enumerated.filter((key) => /mindroom/i.test(key))).toEqual([]);
+
+    // A string key would be enumerable and collidable; a symbol is neither,
+    // but only if it is also defined non-enumerable.
+    expect(Object.keys(Node.prototype)).toEqual(keysBefore);
+    const enumerableSymbols = Object.getOwnPropertySymbols(Node.prototype).filter(
+      (symbol) => Object.getOwnPropertyDescriptor(Node.prototype, symbol)?.enumerable
+    );
+    expect(enumerableSymbols).toEqual([]);
   });
 
   it('leaves well-formed removeChild and insertBefore untouched', () => {

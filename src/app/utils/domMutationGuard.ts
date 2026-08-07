@@ -17,7 +17,9 @@
  * patching a global prototype.
  */
 
-const GUARD_FLAG = '__mindroomDomMutationGuard';
+// A symbol cannot collide with a property another script or extension puts on
+// the global Node prototype, and it stays out of `Object.keys` and `for...in`.
+const GUARD_FLAG: unique symbol = Symbol('mindroomDomMutationGuard');
 
 type GuardedNodePrototype = typeof Node.prototype & {
   [GUARD_FLAG]?: boolean;
@@ -97,8 +99,9 @@ export const installDomMutationGuard = (): (() => void) => {
     return originalInsertBefore.call(this, node, referenceNode) as T;
   };
 
-  // Plain assignment would put an enumerable marker on the global Node
-  // prototype, exposing it to every `for...in` over a DOM node in the app.
+  // Defined rather than assigned so the marker is non-enumerable: an
+  // enumerable property here would surface in every `for...in` over a DOM
+  // node in the app.
   Object.defineProperty(proto, GUARD_FLAG, { value: true, configurable: true });
 
   return () => {
