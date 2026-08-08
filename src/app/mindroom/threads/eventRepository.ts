@@ -35,6 +35,7 @@ import {
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+import type { ThreadReplyCountSnapshotEvidence } from './types';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectKnownRedactedEventIds,
@@ -750,6 +751,7 @@ export type ThreadEventCacheSnapshotWrite = {
   tailLoaded?: boolean;
   snapshotComplete?: boolean;
   relationSnapshotComplete?: boolean;
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence;
   write: Promise<void | boolean>;
 };
 
@@ -764,6 +766,7 @@ export type PersistThreadEventCacheSnapshotArgs = {
   snapshotComplete?: boolean;
   expectedReplyCount?: number;
   relationSnapshotComplete?: boolean;
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence;
   relationSnapshotMode?: RelationSnapshotMode;
   /** Raw server observations used when their relation snapshot is authoritative. */
   authoritativeRawEvents?: Partial<IEvent>[];
@@ -812,6 +815,7 @@ export const persistThreadEventCacheSnapshot = ({
   snapshotComplete,
   expectedReplyCount,
   relationSnapshotComplete,
+  replyCountEvidence,
   relationSnapshotMode,
   authoritativeRawEvents,
   save = saveThreadEventsToCacheToStorage,
@@ -848,9 +852,9 @@ export const persistThreadEventCacheSnapshot = ({
     relationSnapshotComplete,
   ] as const;
   const write =
-    relationSnapshotMode === undefined
+    relationSnapshotMode === undefined && replyCountEvidence === undefined
       ? save(...saveArgs)
-      : save(...saveArgs, relationSnapshotMode);
+      : save(...saveArgs, relationSnapshotMode ?? 'partial', replyCountEvidence);
 
   return {
     rawEvents,
@@ -861,6 +865,7 @@ export const persistThreadEventCacheSnapshot = ({
     tailLoaded,
     snapshotComplete,
     relationSnapshotComplete,
+    replyCountEvidence,
     write,
   };
 };

@@ -22,6 +22,7 @@ import {
   persistThreadCacheFromRoomEventsSnapshot,
   persistThreadEventCacheSnapshot,
 } from '../threads/eventRepository';
+import type { ThreadReplyCountSnapshotEvidence } from '../threads/types';
 
 /**
  * Explicit thread-event persistence: takes the thread id, the events
@@ -39,7 +40,8 @@ export type PersistThreadEventCache = (
   tailLoaded?: boolean,
   snapshotComplete?: boolean,
   expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
+  relationSnapshotComplete?: boolean,
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence
 ) => void;
 
 /**
@@ -77,7 +79,11 @@ export type PersistThreadCacheFromRoomEvents = (
 export type QueueRoomThreadCachePersist = (mEvent: MatrixEvent) => void;
 
 export type EnginePersistFacade = {
-  persistRoomEventCache(room: Room, events: MatrixEvent[], beforeTokenForEarliest?: string | null): void;
+  persistRoomEventCache(
+    room: Room,
+    events: MatrixEvent[],
+    beforeTokenForEarliest?: string | null
+  ): void;
   persistThreadEventCache(
     room: Room,
     expectedThreadId: string,
@@ -87,7 +93,8 @@ export type EnginePersistFacade = {
     tailLoaded?: boolean,
     snapshotComplete?: boolean,
     expectedReplyCount?: number,
-    relationSnapshotComplete?: boolean
+    relationSnapshotComplete?: boolean,
+    replyCountEvidence?: ThreadReplyCountSnapshotEvidence
   ): void;
   persistThreadCacheFromRoomEvents(
     room: Room,
@@ -147,7 +154,8 @@ export const createEnginePersistFacade = (
     tailLoaded,
     snapshotComplete,
     expectedReplyCount,
-    relationSnapshotComplete
+    relationSnapshotComplete,
+    replyCountEvidence
   ) => {
     persistThreadEventCacheSnapshot({
       sessionId,
@@ -160,21 +168,19 @@ export const createEnginePersistFacade = (
       snapshotComplete,
       expectedReplyCount,
       relationSnapshotComplete,
+      replyCountEvidence,
     });
   };
 
-  const persistThreadCacheFromRoomEvents: EnginePersistFacade['persistThreadCacheFromRoomEvents'] = (
-    room,
-    events,
-    opts
-  ) => {
-    persistThreadCacheFromRoomEventsSnapshot({
-      sessionId,
-      room,
-      events,
-      opts,
-    });
-  };
+  const persistThreadCacheFromRoomEvents: EnginePersistFacade['persistThreadCacheFromRoomEvents'] =
+    (room, events, opts) => {
+      persistThreadCacheFromRoomEventsSnapshot({
+        sessionId,
+        room,
+        events,
+        opts,
+      });
+    };
 
   // Microtask-batched queue: preserves the pre-strip
   // `queueRoomThreadCachePersist` semantics. Buffer is per-room (one
@@ -216,7 +222,8 @@ export const createEnginePersistFacade = (
       tailLoaded,
       snapshotComplete,
       expectedReplyCount,
-      relationSnapshotComplete
+      relationSnapshotComplete,
+      replyCountEvidence
     ) =>
       persistThreadEventCache(
         room,
@@ -227,7 +234,8 @@ export const createEnginePersistFacade = (
         tailLoaded,
         snapshotComplete,
         expectedReplyCount,
-        relationSnapshotComplete
+        relationSnapshotComplete,
+        replyCountEvidence
       ),
     persistThreadCacheFromRoomEvents: (events, opts) =>
       persistThreadCacheFromRoomEvents(room, events, opts),

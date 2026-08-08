@@ -4,6 +4,7 @@ import type { EventTimeline, MatrixClient, Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  resolveThreadOpenExpectedReplyCount,
   useThreadOpenCacheController,
   type ThreadOpenCacheController,
 } from './threadOpenCacheController';
@@ -17,9 +18,7 @@ const makeMessageEvent = (eventId: string, ts: number, threadRootId?: string) =>
     content: {
       body: eventId,
       msgtype: 'm.text',
-      ...(threadRootId
-        ? { 'm.relates_to': { event_id: threadRootId, rel_type: 'm.thread' } }
-        : {}),
+      ...(threadRootId ? { 'm.relates_to': { event_id: threadRootId, rel_type: 'm.thread' } } : {}),
     },
     event_id: eventId,
     origin_server_ts: ts,
@@ -99,11 +98,138 @@ const renderController = async (
   return { controller, renderer };
 };
 
+describe('resolveThreadOpenExpectedReplyCount', () => {
+  it('keeps a relation-complete durable decrease over stale live-root metadata', () => {
+    const replyEventIds = Array.from({ length: 23 }, (_, index) => `$reply-${index}`);
+    const liveRootEvent = new MatrixEvent({
+      content: { body: 'root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 24 } } },
+    });
+
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent,
+        cachedPage: {
+          expectedReplyCount: 23,
+          expectedReplyCountEvidence: {
+            knownEventIds: replyEventIds,
+            visibleEventIds: replyEventIds,
+          },
+          relationSnapshotComplete: true,
+        },
+      })
+    ).toBe(23);
+  });
+
+  it('still prefers live-root metadata over an unproven cached lower bound', () => {
+    const liveRootEvent = new MatrixEvent({
+      content: { body: 'root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 25 } } },
+    });
+
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent,
+        cachedPage: {
+          expectedReplyCount: 23,
+          relationSnapshotComplete: false,
+        },
+      })
+    ).toBe(25);
+  });
+
+  it('keeps an evidenced partial durable total above stale live-root metadata', () => {
+    const liveRootEvent = new MatrixEvent({
+      content: { body: 'root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 282 } } },
+    });
+
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent,
+        cachedPage: {
+          expectedReplyCount: 322,
+          expectedReplyCountEvidence: {
+            knownEventIds: ['$known'],
+            visibleEventIds: ['$known'],
+          },
+          relationSnapshotComplete: false,
+        },
+      })
+    ).toBe(322);
+  });
+
+  it('keeps an evidenced partial durable decrease below stale live-root metadata', () => {
+    const liveRootEvent = new MatrixEvent({
+      content: { body: 'root', msgtype: 'm.text' },
+      event_id: THREAD_ID,
+      origin_server_ts: 1_000,
+      room_id: ROOM_ID,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: { 'm.relations': { 'm.thread': { count: 1 } } },
+    });
+
+    expect(
+      resolveThreadOpenExpectedReplyCount({
+        liveRootEvent,
+        cachedPage: {
+          expectedReplyCount: 0,
+          expectedReplyCountEvidence: {
+            knownEventIds: ['$reply'],
+            visibleEventIds: [],
+          },
+          relationSnapshotComplete: false,
+        },
+      })
+    ).toBe(0);
+  });
+
+  it.each([Number.POSITIVE_INFINITY, 1.5, -1])(
+    'rejects malformed live and cached-root metadata counts (%s)',
+    (malformedCount) => {
+      const makeRoot = (eventId: string) =>
+        new MatrixEvent({
+          content: { body: 'root', msgtype: 'm.text' },
+          event_id: eventId,
+          origin_server_ts: 1_000,
+          room_id: ROOM_ID,
+          sender: '@alice:example.org',
+          type: 'm.room.message',
+          unsigned: { 'm.relations': { 'm.thread': { count: malformedCount } } },
+        });
+
+      expect(
+        resolveThreadOpenExpectedReplyCount({
+          liveRootEvent: makeRoot(THREAD_ID),
+          cachedRootEvent: makeRoot('$cached-root'),
+          cachedPage: {
+            expectedReplyCount: 23,
+            relationSnapshotComplete: false,
+          },
+        })
+      ).toBe(23);
+    }
+  );
+});
+
 describe('refreshLatestThreadSlice', () => {
-  const setup = (
-    initialBackwardToken: string | null,
-    exhaustAfterPaginateCall?: number
-  ) => {
+  const setup = (initialBackwardToken: string | null, exhaustAfterPaginateCall?: number) => {
     const timeline = makeTimeline(initialBackwardToken);
     const rootEvent = makeMessageEvent(THREAD_ID, 1_000);
     const replyEvent = makeMessageEvent('$reply-1:example.org', 2_000, THREAD_ID);
@@ -182,8 +308,7 @@ describe('refreshLatestThreadSlice', () => {
 
     expect(paginateEventTimeline).toHaveBeenCalledTimes(1);
     expect(persistThreadEventCache).toHaveBeenCalledTimes(1);
-    const [, , , beforeToken, tailLoaded, snapshotComplete] =
-      persistThreadEventCache.mock.calls[0];
+    const [, , , beforeToken, tailLoaded, snapshotComplete] = persistThreadEventCache.mock.calls[0];
     expect(beforeToken).toBeNull();
     expect(tailLoaded).toBe(true);
     expect(snapshotComplete).toBe(true);

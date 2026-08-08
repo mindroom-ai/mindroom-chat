@@ -35,9 +35,15 @@ export type ThreadStatusSnapshot = {
   tags: string[];
 };
 
+export type ThreadReplyCountSnapshotEvidence = {
+  knownEventIds: string[];
+  visibleEventIds: string[];
+};
+
 export type ThreadCacheCoverage = {
   eventCount: number;
   oldestTs?: number;
+  oldestVisibleReplyEventId?: string;
   newestTs?: number;
   backwardToken?: string | null;
   hasMoreBackward?: boolean;
@@ -45,6 +51,8 @@ export type ThreadCacheCoverage = {
   relationSnapshotComplete: boolean;
   tailLoaded: boolean;
   expectedReplyCount?: number;
+  expectedReplyCountSnapshotTs?: number;
+  expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
 };
 
 /**

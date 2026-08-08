@@ -25,24 +25,34 @@ import {
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
+import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
-
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import {
+  buildVisibleThreadReplyCountMap,
+  getPreferredVisibleThreadReplyEvents,
+} from './threadUtils';
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export type FetchAndPersistThreadContentResult = {
   fetchedCount: number;
   snapshotComplete: boolean;
   relationSnapshotComplete: boolean;
 };
+
+export const resolveFetchedThreadExpectedReplyCount = ({
+  threadId,
+  relationEvents,
+  rootEvent,
+  relationSnapshotComplete,
+}: {
+  threadId: string;
+  relationEvents: MatrixEvent[];
+  rootEvent: MatrixEvent;
+  relationSnapshotComplete: boolean;
+}): number | undefined =>
+  relationSnapshotComplete
+    ? buildVisibleThreadReplyCountMap(relationEvents).get(threadId) ?? 0
+    : getKnownThreadReplyCount(rootEvent);
 
 export const fetchAndPersistThreadContent = async ({
   mx,
@@ -80,6 +90,13 @@ export const fetchAndPersistThreadContent = async ({
 }): Promise<FetchAndPersistThreadContentResult | undefined> => {
   const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
   if (!rootEvent) return undefined;
+  const threadAtFetchStart = room.getThread(threadId);
+  const knownEventIdsBeforeFetch = new Set(
+    [...(threadAtFetchStart?.events ?? []), ...(threadAtFetchStart?.timeline ?? [])]
+      .filter((event) => !isPendingLocalEchoEvent(event) && !isFailedLocalEchoEvent(event))
+      .map((event) => event.getId())
+      .filter((eventId): eventId is string => !!eventId && eventId !== threadId)
+  );
 
   const relationPageResult = await enqueueThreadBackfillJob({
     mx,
@@ -95,19 +112,45 @@ export const fetchAndPersistThreadContent = async ({
 
   const relationEvents = relationPageResult.events;
   const relationSnapshotComplete = typeof relationPageResult.nextBatchToken !== 'string';
-  const expectedReplyCount = getKnownThreadReplyCount(rootEvent);
-  const snapshotComplete = isCompleteCachedThreadSnapshot({
-    room,
+  const expectedReplyCount = resolveFetchedThreadExpectedReplyCount({
     threadId,
+    relationEvents,
     rootEvent,
-    cachedRootEvent: rootEvent,
-    cachedEvents: [rootEvent, ...relationEvents],
-    beforeToken: relationPageResult.nextBatchToken ?? null,
-    hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
-    expectedReplyCount,
-    snapshotComplete: relationSnapshotComplete,
-    tailLoaded: true,
+    relationSnapshotComplete,
   });
+  const visibleEventIds = getPreferredVisibleThreadReplyEvents({
+    events: relationEvents,
+    timeline: relationEvents,
+  })
+    .map((event) => event.getId())
+    .filter((eventId): eventId is string => !!eventId);
+  const replyCountEvidence = relationSnapshotComplete
+    ? {
+        knownEventIds: [
+          ...new Set([
+            ...knownEventIdsBeforeFetch,
+            ...relationEvents
+              .map((event) => event.getId())
+              .filter((eventId): eventId is string => !!eventId && eventId !== threadId),
+          ]),
+        ],
+        visibleEventIds: [...new Set(visibleEventIds)],
+      }
+    : undefined;
+  const snapshotComplete =
+    relationSnapshotComplete ||
+    isCompleteCachedThreadSnapshot({
+      room,
+      threadId,
+      rootEvent,
+      cachedRootEvent: rootEvent,
+      cachedEvents: [rootEvent, ...relationEvents],
+      beforeToken: relationPageResult.nextBatchToken ?? null,
+      hasMoreBefore: typeof relationPageResult.nextBatchToken === 'string',
+      expectedReplyCount,
+      snapshotComplete: relationSnapshotComplete,
+      tailLoaded: true,
+    });
 
   if (relationEvents.length > 0) {
     saveThreadOpenSeedSnapshot(room, threadId, relationEvents);
@@ -123,6 +166,7 @@ export const fetchAndPersistThreadContent = async ({
     snapshotComplete,
     expectedReplyCount,
     relationSnapshotComplete,
+    replyCountEvidence,
   });
 
   persistThreadEventCache(
@@ -133,7 +177,8 @@ export const fetchAndPersistThreadContent = async ({
     true,
     snapshotComplete,
     expectedReplyCount,
-    relationSnapshotComplete
+    relationSnapshotComplete,
+    replyCountEvidence
   );
 
   if (onStoreThreadSummary) {

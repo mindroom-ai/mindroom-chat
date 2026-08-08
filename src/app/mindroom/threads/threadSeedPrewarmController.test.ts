@@ -1,6 +1,6 @@
 import React from 'react';
 import 'fake-indexeddb/auto';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { EventStatus, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -90,11 +90,25 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     clearThreadOpenSeedSnapshotsForTests();
   });
 
-  const setup = () => {
+  const setup = ({ withKnownStaleReply = false } = {}) => {
     const rootEvent = makeRootEvent();
+    const knownStaleReply = new MatrixEvent(
+      rawReply('$known-stale-reply', 1_500) as ConstructorParameters<typeof MatrixEvent>[0]
+    );
+    const pendingLocalEcho = new MatrixEvent(
+      rawReply('~pending-local-echo', 1_600) as ConstructorParameters<typeof MatrixEvent>[0]
+    );
+    pendingLocalEcho.status = EventStatus.SENDING;
     const room = {
       roomId: ROOM_ID,
-      getThread: () => null,
+      getThread: () =>
+        withKnownStaleReply
+          ? {
+              rootEvent,
+              events: [knownStaleReply, pendingLocalEcho],
+              timeline: [knownStaleReply, pendingLocalEcho],
+            }
+          : null,
       findEventById: (eventId: string) => (eventId === THREAD_ID ? rootEvent : undefined),
       getLastActiveTimestamp: () => 0,
     } as unknown as Room;
@@ -103,9 +117,8 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
       next_batch: undefined,
     }));
     const mx = {
-      getEventMapper:
-        () => (raw: Partial<IEvent>) =>
-          new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
       fetchRelations,
       getRoom: () => room,
     } as unknown as MatrixClient;
@@ -119,7 +132,9 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
   };
 
   it('downloads full thread content for a priority target with no complete cached snapshot', async () => {
-    const { mx, room, engine, fetchRelations, persistThreadEventCache } = setup();
+    const { mx, room, engine, fetchRelations, persistThreadEventCache } = setup({
+      withKnownStaleReply: true,
+    });
 
     await renderPrewarm(mx, room, engine);
     await waitFor(() => persistThreadEventCache.mock.calls.length > 0);
@@ -129,16 +144,28 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     // … and persisted an honest, relations-proven snapshot through the
     // engine persist facade (room-bound signature).
     expect(persistThreadEventCache).toHaveBeenCalledTimes(1);
-    const [persistRoom, threadId, events, , beforeToken, tailLoaded, , , relationSnapshotComplete] =
-      persistThreadEventCache.mock.calls[0];
+    const [
+      persistRoom,
+      threadId,
+      events,
+      ,
+      beforeToken,
+      tailLoaded,
+      ,
+      ,
+      relationSnapshotComplete,
+      replyCountEvidence,
+    ] = persistThreadEventCache.mock.calls[0];
     expect(persistRoom).toBe(room);
     expect(threadId).toBe(THREAD_ID);
-    expect((events as MatrixEvent[]).map((event) => event.getId())).toEqual([
-      '$reply-1',
-    ]);
+    expect((events as MatrixEvent[]).map((event) => event.getId())).toEqual(['$reply-1']);
     expect(beforeToken).toBeNull();
     expect(tailLoaded).toBe(true);
     expect(relationSnapshotComplete).toBe(true);
+    expect(replyCountEvidence).toEqual({
+      knownEventIds: ['$known-stale-reply', '$reply-1'],
+      visibleEventIds: ['$reply-1'],
+    });
   });
 
   it('skips the network entirely when the cached snapshot is already relations-proven complete', async () => {

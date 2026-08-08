@@ -150,6 +150,88 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(presentation.messageCount).toBe(5);
   });
 
+  it('does not let a partial SDK reply window hide a larger cached count', () => {
+    const rootEvent = makeRootEvent('$root', 'Root question');
+    const partialReplies = Array.from({ length: 13 }, (_, index) =>
+      makeThreadReplyEvent(
+        `$reply-${index}`,
+        '$root',
+        `Reply ${index}`,
+        '@alice:example.org',
+        index + 2
+      )
+    );
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: {
+        events: partialReplies,
+        timeline: partialReplies,
+      },
+      rootEvent,
+      preferredSummaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 13,
+      },
+      fallbackMessageCount: 24,
+      fallbackMessageCountIsLowerBound: true,
+    });
+
+    expect(presentation.messageCount).toBe(24);
+  });
+
+  it('lets a complete loaded collection replace a stale cached count after redaction', () => {
+    const rootEvent = makeRootEvent('$root', 'Root question');
+    const replies = Array.from({ length: 24 }, (_, index) =>
+      makeThreadReplyEvent(
+        `$reply-${index}`,
+        '$root',
+        `Reply ${index}`,
+        '@alice:example.org',
+        index + 2
+      )
+    );
+    replies[0] = {
+      ...replies[0],
+      isRedacted: () => true,
+    } as MatrixEvent;
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: {
+        events: replies,
+        timeline: replies,
+      },
+      rootEvent,
+      preferredSummaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 24,
+      },
+      fallbackMessageCount: 24,
+      ignoreSummaryMessageCount: true,
+    });
+
+    expect(presentation.messageCount).toBe(23);
+  });
+
+  it.each([Number.POSITIVE_INFINITY, 24.5])(
+    'rejects invalid fallback message count %s',
+    (fallbackMessageCount) => {
+      const presentation = resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: '$root',
+        fallbackMessageCount,
+        fallbackMessageCountIsLowerBound: true,
+      });
+
+      expect(presentation.messageCount).toBe(0);
+    }
+  );
+
   it('falls back to the root preview for zero-reply threads', () => {
     const rootEvent = makeRootEvent('$root', 'Standalone thread root');
 

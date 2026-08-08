@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import type { ThreadCacheCoverage, ThreadRecord, ThreadReplyCountSnapshotEvidence } from './types';
 import {
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
@@ -11,6 +11,11 @@ import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '.
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
+import {
+  buildVisibleThreadReplyCountMap,
+  getPreferredVisibleThreadReplyEvents,
+  reconcileThreadReplyCountSnapshotWithEvidence,
+} from './threadUtils';
 import type {
   ThreadOverviewCachedMetadataController,
   ThreadOverviewCachedMetadataUpdate,
@@ -52,6 +57,7 @@ export type FetchedRelationOverviewUpdateOptions = {
   relationSnapshotComplete?: boolean;
   snapshotComplete?: boolean;
   tailLoaded?: boolean;
+  replyCountEvidence?: ThreadReplyCountSnapshotEvidence;
 };
 
 type ResolveCachedOverviewUpdateOptions = {
@@ -92,18 +98,61 @@ const getMatrixEventTsRange = (
   };
 };
 
+const getMatrixRelationSnapshotTs = (events: MatrixEvent[]): number | undefined => {
+  const timestamps = events.flatMap((event) => {
+    const redactedBecause = event.getUnsigned()?.redacted_because as
+      | { origin_server_ts?: unknown }
+      | undefined;
+    return [event.getTs(), redactedBecause?.origin_server_ts].filter(
+      (timestamp): timestamp is number =>
+        typeof timestamp === 'number' && Number.isFinite(timestamp)
+    );
+  });
+  return timestamps.length > 0 ? Math.max(...timestamps) : undefined;
+};
+
+const getOldestVisibleReplyEventId = (events: MatrixEvent[]): string | undefined =>
+  getPreferredVisibleThreadReplyEvents({ events, timeline: events })
+    .reduce<MatrixEvent | undefined>((oldestEvent, event) => {
+      if (!oldestEvent || event.getTs() < oldestEvent.getTs()) return event;
+      return oldestEvent;
+    }, undefined)
+    ?.getId();
+
+const getSafeMessageCount = (value: number | undefined): number | undefined =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+
+const resolveNextMessageCount = ({
+  currentMessageCount,
+  observedMessageCount,
+  authoritative,
+}: {
+  currentMessageCount: number;
+  observedMessageCount: number;
+  authoritative: boolean;
+}): number | undefined => {
+  if (authoritative) {
+    return observedMessageCount !== currentMessageCount ? observedMessageCount : undefined;
+  }
+  return observedMessageCount > currentMessageCount ? observedMessageCount : undefined;
+};
+
 export const buildCachedOverviewCoverage = (
-  cachedPage: CachedThreadEventPage
+  cachedPage: CachedThreadEventPage,
+  cachedEvents: MatrixEvent[] = []
 ): ThreadCacheCoverage => {
   const { oldestTs, newestTs } = getCachedEventTsRange(cachedPage);
 
   return buildThreadCacheCoverage({
     eventCount: cachedPage.events.length,
     oldestTs,
+    oldestVisibleReplyEventId: getOldestVisibleReplyEventId(cachedEvents),
     newestTs,
     backwardToken: cachedPage.beforeToken,
     hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
     expectedReplyCount: cachedPage.expectedReplyCount,
+    expectedReplyCountSnapshotTs: cachedPage.expectedReplyCountSnapshotTs,
+    expectedReplyCountEvidence: cachedPage.expectedReplyCountEvidence,
     relationSnapshotComplete: cachedPage.relationSnapshotComplete,
     snapshotComplete: cachedPage.snapshotComplete,
     tailLoaded: cachedPage.tailLoaded,
@@ -121,6 +170,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
   relationSnapshotComplete,
   snapshotComplete,
   tailLoaded,
+  replyCountEvidence,
 }: FetchedRelationOverviewUpdateOptions): CachedOverviewUpdate | null => {
   const { oldestTs, newestTs } = getMatrixEventTsRange(events);
   const liveActivityTs = currentRecord?.status.lastActivityTs ?? 0;
@@ -149,20 +199,93 @@ export const resolveFetchedRelationOverviewUpdate = ({
       : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
-  const nextMessageCount =
-    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
-      ? cachedPresentation.messageCount
+  const visibleFetchedMessageCount = buildVisibleThreadReplyCountMap(events).get(rootId) ?? 0;
+  const authoritativeFetchedMessageCount = relationSnapshotComplete
+    ? visibleFetchedMessageCount
+    : undefined;
+  const nextExpectedReplyCount = authoritativeFetchedMessageCount ?? expectedReplyCount;
+  const retainedReplyCountEvidence =
+    nextExpectedReplyCount !== undefined &&
+    nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
+      ? currentRecord.cache.expectedReplyCountEvidence
       : undefined;
+  const retainedReplyCountSnapshot =
+    getSafeMessageCount(nextExpectedReplyCount) !== undefined && retainedReplyCountEvidence
+      ? reconcileThreadReplyCountSnapshotWithEvidence({
+          baseCount: getSafeMessageCount(nextExpectedReplyCount) ?? 0,
+          events,
+          evidence: retainedReplyCountEvidence,
+          threadRootId: rootId,
+        })
+      : undefined;
+  const evidenceAdjustedExpectedReplyCount =
+    retainedReplyCountSnapshot?.replyCount ?? getSafeMessageCount(nextExpectedReplyCount);
+  const observedMessageCount =
+    authoritativeFetchedMessageCount ??
+    Math.max(visibleFetchedMessageCount, evidenceAdjustedExpectedReplyCount ?? 0);
+  const nextMessageCount = resolveNextMessageCount({
+    currentMessageCount,
+    observedMessageCount,
+    authoritative: authoritativeFetchedMessageCount !== undefined,
+  });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;
+  const fetchedRelationSnapshotTs =
+    getMatrixRelationSnapshotTs(events) ?? rootEvent?.getTs() ?? undefined;
+  const retainedIncorporatedEventIds = retainedReplyCountSnapshot
+    ? new Set(retainedReplyCountSnapshot.incorporatedEventIds)
+    : undefined;
+  const reconciledRelationSnapshotTs = retainedReplyCountSnapshot
+    ? getMatrixRelationSnapshotTs(
+        events.filter((event) => retainedIncorporatedEventIds?.has(event.getId() ?? ''))
+      )
+    : undefined;
+  const resolvedReplyCountEvidence =
+    relationSnapshotComplete === true
+      ? replyCountEvidence ?? {
+          knownEventIds: [
+            ...new Set(
+              events
+                .map((event) => event.getId())
+                .filter((eventId): eventId is string => !!eventId && eventId !== rootId)
+            ),
+          ],
+          visibleEventIds: [
+            ...new Set(
+              getPreferredVisibleThreadReplyEvents({ events, timeline: events })
+                .map((event) => event.getId())
+                .filter((eventId): eventId is string => !!eventId)
+            ),
+          ],
+        }
+      : retainedReplyCountSnapshot?.evidence ?? retainedReplyCountEvidence;
+  const resolvedExpectedReplyCount =
+    relationSnapshotComplete === true
+      ? nextExpectedReplyCount
+      : retainedReplyCountSnapshot?.replyCount ?? nextExpectedReplyCount;
+  const expectedReplyCountSnapshotTs =
+    relationSnapshotComplete === true
+      ? fetchedRelationSnapshotTs
+      : retainedReplyCountSnapshot
+      ? Math.max(
+          currentRecord?.cache.expectedReplyCountSnapshotTs ?? 0,
+          reconciledRelationSnapshotTs ?? 0
+        ) || undefined
+      : nextExpectedReplyCount !== undefined &&
+        nextExpectedReplyCount === currentRecord?.cache.expectedReplyCount
+      ? currentRecord?.cache.expectedReplyCountSnapshotTs
+      : undefined;
   const nextCacheCoverage = buildThreadCacheCoverage({
     eventCount: events.length,
     oldestTs,
+    oldestVisibleReplyEventId: getOldestVisibleReplyEventId(events),
     newestTs,
     backwardToken: beforeToken,
     hasMoreBackward: typeof beforeToken === 'string',
-    expectedReplyCount,
+    expectedReplyCount: resolvedExpectedReplyCount,
+    expectedReplyCountSnapshotTs,
+    expectedReplyCountEvidence: resolvedReplyCountEvidence,
     relationSnapshotComplete,
     snapshotComplete,
     tailLoaded,
@@ -252,16 +375,60 @@ export const resolveCachedOverviewUpdate = ({
       : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
-  const nextMessageCount =
-    cachedPresentation.messageCount > 0 && cachedPresentation.messageCount > currentMessageCount
-      ? cachedPresentation.messageCount
+  const durableMessageCount = getSafeMessageCount(cachedPage.expectedReplyCount);
+  const cachedVisibleMessageCount = buildVisibleThreadReplyCountMap(cachedEvents).get(rootId) ?? 0;
+  const reconciledDurableSnapshot =
+    durableMessageCount !== undefined && cachedPage.expectedReplyCountEvidence
+      ? reconcileThreadReplyCountSnapshotWithEvidence({
+          baseCount: durableMessageCount,
+          events: cachedEvents,
+          evidence: cachedPage.expectedReplyCountEvidence,
+          threadRootId: rootId,
+        })
       : undefined;
+  const evidenceAdjustedDurableMessageCount =
+    reconciledDurableSnapshot?.replyCount ?? durableMessageCount;
+  const observedMessageCount =
+    durableMessageCount === undefined
+      ? cachedVisibleMessageCount
+      : cachedPage.expectedReplyCountEvidence
+      ? evidenceAdjustedDurableMessageCount ?? cachedVisibleMessageCount
+      : Math.max(durableMessageCount, cachedVisibleMessageCount);
+  const nextMessageCount = resolveNextMessageCount({
+    currentMessageCount,
+    observedMessageCount,
+    authoritative:
+      durableMessageCount !== undefined &&
+      cachedPage.relationSnapshotComplete === true &&
+      cachedActivityTs !== undefined &&
+      cachedActivityTs >= liveActivityTs,
+  });
   const nextSummaryInfo = cachedPresentation.summaryInfo?.summaryText
     ? cachedPresentation.summaryInfo
     : undefined;
-  const nextCacheCoverage = hasCachedOverviewCoverage(cachedPage)
-    ? buildCachedOverviewCoverage(cachedPage)
+  const cachedOverviewCoverage = hasCachedOverviewCoverage(cachedPage)
+    ? buildCachedOverviewCoverage(cachedPage, cachedEvents)
     : undefined;
+  const reconciledIncorporatedEventIds = reconciledDurableSnapshot
+    ? new Set(reconciledDurableSnapshot.incorporatedEventIds)
+    : undefined;
+  const nextCacheCoverage =
+    cachedOverviewCoverage && reconciledDurableSnapshot
+      ? {
+          ...cachedOverviewCoverage,
+          expectedReplyCount: reconciledDurableSnapshot.replyCount,
+          expectedReplyCountSnapshotTs:
+            Math.max(
+              cachedOverviewCoverage.expectedReplyCountSnapshotTs ?? 0,
+              getMatrixRelationSnapshotTs(
+                cachedEvents.filter((event) =>
+                  reconciledIncorporatedEventIds?.has(event.getId() ?? '')
+                )
+              ) ?? 0
+            ) || undefined,
+          expectedReplyCountEvidence: reconciledDurableSnapshot.evidence,
+        }
+      : cachedOverviewCoverage;
 
   let nextPreview: string | undefined;
   let nextPreviewSourceTs: number | undefined;

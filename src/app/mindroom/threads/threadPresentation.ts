@@ -65,6 +65,8 @@ export const resolveThreadRootPreviewText = ({
   });
 
 type ResolveThreadPresentationSnapshotOptions = {
+  authoritativeMessageCount?: number;
+  fallbackMessageCountIsLowerBound?: boolean;
   fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
   fallbackLatestReplyPreviewText?: string;
@@ -72,6 +74,7 @@ type ResolveThreadPresentationSnapshotOptions = {
   fallbackParticipantIds?: string[];
   preferredRootPreviewText?: string;
   preferredSummaryInfo?: MindroomThreadSummaryInfo;
+  ignoreSummaryMessageCount?: boolean;
   room: Room;
   rootEvent?: MatrixEvent;
   thread?: VisibleThreadEventCollectionLike | null;
@@ -89,7 +92,10 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLastSenderId,
   fallbackLastSenderDisplayName,
   fallbackMessageCount,
+  fallbackMessageCountIsLowerBound = false,
   fallbackParticipantIds,
+  ignoreSummaryMessageCount = false,
+  authoritativeMessageCount,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
@@ -105,7 +111,30 @@ export const resolveThreadPresentationSnapshot = ({
     preferredSummaryInfo,
     thread,
   });
-  const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
+  const safeFallbackMessageCount =
+    typeof fallbackMessageCount === 'number' &&
+    Number.isSafeInteger(fallbackMessageCount) &&
+    fallbackMessageCount >= 0
+      ? fallbackMessageCount
+      : undefined;
+  const visibleMessageCount = getVisibleThreadMessageCount(thread, safeFallbackMessageCount);
+  const minimumMessageCount =
+    fallbackMessageCountIsLowerBound && safeFallbackMessageCount !== undefined
+      ? safeFallbackMessageCount
+      : 0;
+  const summaryMessageCount =
+    !ignoreSummaryMessageCount &&
+    typeof summaryInfo?.messageCount === 'number' &&
+    Number.isSafeInteger(summaryInfo.messageCount) &&
+    summaryInfo.messageCount >= 0
+      ? summaryInfo.messageCount
+      : 0;
+  const safeAuthoritativeMessageCount =
+    typeof authoritativeMessageCount === 'number' &&
+    Number.isSafeInteger(authoritativeMessageCount) &&
+    authoritativeMessageCount >= 0
+      ? authoritativeMessageCount
+      : undefined;
 
   return {
     summaryInfo,
@@ -121,9 +150,8 @@ export const resolveThreadPresentationSnapshot = ({
     lastSenderId,
     lastSenderDisplayName,
     messageCount:
-      typeof summaryInfo?.messageCount === 'number'
-        ? Math.max(summaryInfo.messageCount, visibleMessageCount)
-        : visibleMessageCount,
+      safeAuthoritativeMessageCount ??
+      Math.max(summaryMessageCount, visibleMessageCount, minimumMessageCount),
   };
 };
 

@@ -1,8 +1,9 @@
-import type { ThreadCacheCoverage } from './types';
+import type { ThreadCacheCoverage, ThreadReplyCountSnapshotEvidence } from './types';
 
 type BuildThreadCacheCoverageOptions = {
   eventCount: number;
   oldestTs?: number;
+  oldestVisibleReplyEventId?: string;
   newestTs?: number;
   backwardToken?: string | null;
   hasMoreBackward?: boolean;
@@ -10,11 +11,14 @@ type BuildThreadCacheCoverageOptions = {
   relationSnapshotComplete?: boolean;
   tailLoaded?: boolean;
   expectedReplyCount?: number;
+  expectedReplyCountSnapshotTs?: number;
+  expectedReplyCountEvidence?: ThreadReplyCountSnapshotEvidence;
 };
 
 export const buildThreadCacheCoverage = ({
   eventCount,
   oldestTs,
+  oldestVisibleReplyEventId,
   newestTs,
   backwardToken,
   hasMoreBackward,
@@ -22,9 +26,12 @@ export const buildThreadCacheCoverage = ({
   relationSnapshotComplete,
   tailLoaded,
   expectedReplyCount,
+  expectedReplyCountSnapshotTs,
+  expectedReplyCountEvidence,
 }: BuildThreadCacheCoverageOptions): ThreadCacheCoverage => ({
   eventCount,
   oldestTs,
+  oldestVisibleReplyEventId,
   newestTs,
   backwardToken,
   hasMoreBackward: hasMoreBackward ?? (typeof backwardToken === 'string' ? true : undefined),
@@ -32,6 +39,8 @@ export const buildThreadCacheCoverage = ({
   relationSnapshotComplete: relationSnapshotComplete === true,
   tailLoaded: tailLoaded === true,
   expectedReplyCount,
+  expectedReplyCountSnapshotTs,
+  expectedReplyCountEvidence,
 });
 
 export const hasThreadCacheBackwardGap = (coverage: ThreadCacheCoverage): boolean =>

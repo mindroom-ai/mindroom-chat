@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
+import type { ThreadReplyCountSnapshotEvidence } from './types';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -112,16 +113,13 @@ export const getPreferredVisibleThreadReplyEvents = (
   const replyEvents = thread?.events?.length
     ? thread.events
     : thread?.timeline?.length
-      ? thread.timeline
-      : thread?.events ?? thread?.timeline ?? [];
+    ? thread.timeline
+    : thread?.events ?? thread?.timeline ?? [];
   return replyEvents.filter(isVisibleThreadReplyEvent);
 };
 
 export const hasLoadedThreadReplyEvents = (
-  thread:
-    | Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'>
-    | null
-    | undefined
+  thread: Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'> | null | undefined
 ): boolean => {
   if (thread?.events && thread.events.length > 0) return true;
   return !!thread?.timeline && thread.timeline.length > 0;
@@ -132,7 +130,9 @@ export const getVisibleThreadMessageCount = (
   fallbackMessageCount?: number
 ): number => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
-  if (replyEvents.length > 0) return replyEvents.length;
+  if (replyEvents.length > 0) {
+    return new Set(replyEvents.map((event) => event.getId())).size;
+  }
   if (hasLoadedThreadReplyEvents(thread)) return 0;
   if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
   if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
@@ -160,7 +160,11 @@ export const getVisibleThreadParticipantIds = (
   }
 
   const rootSenderId = threadRootEvent?.getSender?.();
-  if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+  if (
+    participantIds.length < maxParticipants &&
+    rootSenderId &&
+    !seenParticipantIds.has(rootSenderId)
+  ) {
     participantIds.push(rootSenderId);
   }
 
@@ -208,6 +212,68 @@ export const buildVisibleThreadReplyCountMap = (
 
   return counts;
 };
+
+export const reconcileThreadReplyCountSnapshotWithEvidence = ({
+  baseCount,
+  events,
+  evidence,
+  threadRootId,
+}: {
+  baseCount: number;
+  events: VisibleThreadEventLike[];
+  evidence: ThreadReplyCountSnapshotEvidence;
+  threadRootId: string;
+}): {
+  replyCount: number;
+  evidence: ThreadReplyCountSnapshotEvidence;
+  incorporatedEventIds: string[];
+} => {
+  const knownEventIds = new Set(evidence.knownEventIds);
+  const visibleSnapshotEventIds = new Set(evidence.visibleEventIds);
+  const newVisibleReplyIds = new Set<string>();
+  const newlyRedactedSnapshotReplyIds = new Set<string>();
+  const incorporatedEventIds = new Set<string>();
+
+  events.forEach((event) => {
+    const eventId = event.getId();
+    if (!eventId || event.threadRootId !== threadRootId) return;
+    if (isVisibleThreadReplyEvent(event)) {
+      if (!knownEventIds.has(eventId)) {
+        newVisibleReplyIds.add(eventId);
+        knownEventIds.add(eventId);
+        visibleSnapshotEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      }
+      return;
+    }
+    if (event.isRedacted?.() && isVisibleThreadReplyEventType(event.getType?.())) {
+      if (!knownEventIds.has(eventId)) {
+        knownEventIds.add(eventId);
+        incorporatedEventIds.add(eventId);
+      } else if (visibleSnapshotEventIds.has(eventId)) {
+        newlyRedactedSnapshotReplyIds.add(eventId);
+        visibleSnapshotEventIds.delete(eventId);
+        incorporatedEventIds.add(eventId);
+      }
+    }
+  });
+
+  return {
+    replyCount: Math.max(
+      0,
+      baseCount + newVisibleReplyIds.size - newlyRedactedSnapshotReplyIds.size
+    ),
+    evidence: {
+      knownEventIds: [...knownEventIds],
+      visibleEventIds: [...visibleSnapshotEventIds],
+    },
+    incorporatedEventIds: [...incorporatedEventIds],
+  };
+};
+
+export const reconcileThreadReplyCountWithEvidence = (
+  options: Parameters<typeof reconcileThreadReplyCountSnapshotWithEvidence>[0]
+): number => reconcileThreadReplyCountSnapshotWithEvidence(options).replyCount;
 
 export const buildThreadParticipantMap = (
   events: ThreadEventLike[],

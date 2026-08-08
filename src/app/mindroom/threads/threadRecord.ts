@@ -19,6 +19,7 @@ import {
   buildVisibleThreadReplyCountMap,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
+  reconcileThreadReplyCountWithEvidence,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
@@ -81,6 +82,71 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
     : thread?.timeline && thread.timeline.length > 0
     ? thread.timeline
     : undefined;
+
+type CachedMessageCountResolution = {
+  messageCount: number;
+  authoritative: boolean;
+};
+
+const resolveCachedMessageCount = (
+  room: Room,
+  threadRootId: string,
+  thread: ReturnType<Room['getThread']>,
+  cacheCoverage: ThreadCacheCoverage | undefined,
+  fallbackMessageCount: number | undefined
+): CachedMessageCountResolution | undefined => {
+  const oldestCachedReplyId = cacheCoverage?.oldestVisibleReplyEventId;
+  const loadedThreadEvents = getLoadedThreadEvents(thread) ?? [];
+  const expectedReplyCount = cacheCoverage?.expectedReplyCount;
+  const durableMessageCount =
+    Number.isSafeInteger(expectedReplyCount) && (expectedReplyCount ?? 0) >= 0
+      ? expectedReplyCount
+      : undefined;
+  const safeFallbackMessageCount =
+    Number.isSafeInteger(fallbackMessageCount) && (fallbackMessageCount ?? 0) >= 0
+      ? fallbackMessageCount
+      : undefined;
+  const countEvidence = cacheCoverage?.expectedReplyCountEvidence;
+  const candidateMessageCount =
+    durableMessageCount === undefined
+      ? safeFallbackMessageCount
+      : countEvidence
+      ? durableMessageCount
+      : Math.max(durableMessageCount, safeFallbackMessageCount ?? 0);
+  const visibleLoadedReplyCount =
+    buildVisibleThreadReplyCountMap(loadedThreadEvents).get(threadRootId) ?? 0;
+
+  if (candidateMessageCount !== undefined) {
+    let adjustedCandidateMessageCount = candidateMessageCount;
+    if (durableMessageCount !== undefined && countEvidence !== undefined) {
+      adjustedCandidateMessageCount = reconcileThreadReplyCountWithEvidence({
+        baseCount: candidateMessageCount,
+        events: loadedThreadEvents,
+        evidence: countEvidence,
+        threadRootId,
+      });
+    }
+    const authoritative =
+      durableMessageCount !== undefined &&
+      cacheCoverage?.relationSnapshotComplete === true &&
+      countEvidence !== undefined;
+    if (authoritative || adjustedCandidateMessageCount > visibleLoadedReplyCount) {
+      return { messageCount: adjustedCandidateMessageCount, authoritative };
+    }
+  }
+
+  if (
+    oldestCachedReplyId &&
+    !room.findEventById(oldestCachedReplyId)?.isRedacted() &&
+    !loadedThreadEvents.some((event) => event.getId() === oldestCachedReplyId)
+  ) {
+    return safeFallbackMessageCount === undefined
+      ? undefined
+      : { messageCount: safeFallbackMessageCount, authoritative: false };
+  }
+
+  return undefined;
+};
 
 const isPendingThreadEvent = (event: MatrixEvent | undefined): boolean =>
   isPendingLocalEchoEvent(event) || isPendingLocalEchoEvent(event?.replacingEvent?.());
@@ -292,6 +358,23 @@ export const buildThreadRecord = ({
     resolvedThreadRootEvent,
     THREAD_PARTICIPANT_LIMIT
   );
+  const fallbackPresentationMessageCount = fallbackMessageCount ?? recordReplyCount;
+  const cachedMessageCount = resolveCachedMessageCount(
+    room,
+    threadRootId,
+    thread,
+    cacheCoverage,
+    fallbackPresentationMessageCount
+  );
+  const preferredSummaryIsNewerThanCache =
+    typeof preferredSummaryInfo?.generatedTs === 'number' &&
+    typeof (cacheCoverage?.expectedReplyCountSnapshotTs ?? cacheCoverage?.newestTs) === 'number' &&
+    preferredSummaryInfo.generatedTs >
+      (cacheCoverage?.expectedReplyCountSnapshotTs ?? cacheCoverage?.newestTs ?? 0);
+  const authoritativeCachedMessageCount =
+    cachedMessageCount?.authoritative && !preferredSummaryIsNewerThanCache
+      ? cachedMessageCount.messageCount
+      : undefined;
   const presentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId,
@@ -302,8 +385,14 @@ export const buildThreadRecord = ({
     fallbackLatestReplyPreviewText,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
-    fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
+    fallbackMessageCount: cachedMessageCount?.messageCount ?? fallbackPresentationMessageCount,
+    fallbackMessageCountIsLowerBound: cachedMessageCount !== undefined,
+    authoritativeMessageCount: authoritativeCachedMessageCount,
     fallbackParticipantIds,
+    ignoreSummaryMessageCount:
+      !preferredSummaryIsNewerThanCache &&
+      ((getLoadedThreadEvents(thread) ?? []).some((event) => event.isRedacted()) ||
+        cacheCoverage?.relationSnapshotComplete === true),
   });
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =

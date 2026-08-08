@@ -249,7 +249,8 @@ export const useThreadSeedPrewarmController = ({
           tailLoaded,
           snapshotComplete,
           expectedReplyCount,
-          relationSnapshotComplete
+          relationSnapshotComplete,
+          replyCountEvidence
         ) =>
           syncEngine.persist.persistThreadEventCache(
             room,
@@ -260,7 +261,8 @@ export const useThreadSeedPrewarmController = ({
             tailLoaded,
             snapshotComplete,
             expectedReplyCount,
-            relationSnapshotComplete
+            relationSnapshotComplete,
+            replyCountEvidence
           ),
       });
       if (result) {

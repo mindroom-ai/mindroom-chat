@@ -15,6 +15,7 @@ import {
   isVisibleThreadReplyEvent,
   isVisibleThreadReplyEventType,
   isThreadReplyEvent,
+  reconcileThreadReplyCountSnapshotWithEvidence,
 } from './threadUtils';
 
 const makeEvent = (
@@ -60,6 +61,65 @@ describe('isThreadReplyEvent', () => {
 
   it('returns true for thread reply events', () => {
     expect(isThreadReplyEvent('$reply', '$root')).toBe(true);
+  });
+});
+
+describe('reconcileThreadReplyCountSnapshotWithEvidence', () => {
+  it('does not reclassify an excluded stale reply or double-subtract its redaction', () => {
+    const staleVisibleReply = makeEvent(
+      '$reply',
+      '$root',
+      RelationType.Thread,
+      '@alice:example.org'
+    );
+    const afterStaleVisible = reconcileThreadReplyCountSnapshotWithEvidence({
+      baseCount: 23,
+      events: [staleVisibleReply],
+      evidence: { knownEventIds: ['$reply'], visibleEventIds: [] },
+      threadRootId: '$root',
+    });
+
+    expect(afterStaleVisible).toEqual({
+      replyCount: 23,
+      evidence: { knownEventIds: ['$reply'], visibleEventIds: [] },
+      incorporatedEventIds: [],
+    });
+
+    const redactedReply = {
+      ...staleVisibleReply,
+      isRedacted: () => true,
+    };
+    expect(
+      reconcileThreadReplyCountSnapshotWithEvidence({
+        baseCount: afterStaleVisible.replyCount,
+        events: [redactedReply],
+        evidence: afterStaleVisible.evidence,
+        threadRootId: '$root',
+      })
+    ).toEqual({
+      replyCount: 23,
+      evidence: { knownEventIds: ['$reply'], visibleEventIds: [] },
+      incorporatedEventIds: [],
+    });
+  });
+
+  it('marks an unknown redaction known without subtracting it', () => {
+    const redactedReply = {
+      ...makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org'),
+      isRedacted: () => true,
+    };
+    const afterRedaction = reconcileThreadReplyCountSnapshotWithEvidence({
+      baseCount: 23,
+      events: [redactedReply],
+      evidence: { knownEventIds: [], visibleEventIds: [] },
+      threadRootId: '$root',
+    });
+
+    expect(afterRedaction).toEqual({
+      replyCount: 23,
+      evidence: { knownEventIds: ['$reply'], visibleEventIds: [] },
+      incorporatedEventIds: ['$reply'],
+    });
   });
 });
 
@@ -115,7 +175,9 @@ describe('isVisibleThreadReplyEventType', () => {
 describe('isVisibleThreadReplyEvent', () => {
   it('accepts visible threaded replies', () => {
     expect(
-      isVisibleThreadReplyEvent(makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org'))
+      isVisibleThreadReplyEvent(
+        makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org')
+      )
     ).toBe(true);
   });
 

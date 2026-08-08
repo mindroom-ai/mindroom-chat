@@ -2,6 +2,54 @@
 
 ## Runbook
 
+### Keep compact thread counts above partial SDK windows (2026-08-02)
+
+- Status: PR #206 is open and ready for review; hosted-review remediation, full local validation, and two independent exact-head reviews are complete.
+- Reproduction: the compact overview for `#personal_7z8wmvew:mindroom.chat` displayed `13 msgs`, while opening that card immediately rendered at least 22 replies and still offered older-message pagination.
+- Root cause: overview cache hydration had already discovered a larger loaded-history count, but `resolveThreadPresentationSnapshot` discarded that cached lower bound whenever the Matrix SDK exposed any reply events, even when those events were only a partial tail window.
+- Fix: when the oldest visible cached reply is absent from the loaded SDK event identities, the shared thread presentation snapshot takes the maximum of that cached lower bound, the SDK window, and MindRoom summary metadata.
+- Complete loaded SDK collections remain authoritative over a stale cached count, so a newer redaction can still reduce the visible count.
+- Scope: the change affects only compact/overview message-count presentation; reply rendering, pagination, summaries, and thread status remain unchanged.
+- Coverage: the focused regression pins a 13-reply SDK tail, a stale 13-message summary, and a 24-message cached lower bound, requiring the card presentation to report 24 only while older cached history is known to remain.
+- A counter-regression pins a complete 24-event SDK collection with one redacted reply and a stale cached count of 24, requiring the presentation to report the 23 still-visible replies.
+- Hosted review additionally identified malformed non-integer fallback counts; the presentation boundary now accepts only nonnegative safe integers, with infinity and fractional regressions.
+- Record-level regressions cover both a genuinely partial SDK window and a complete SDK collection whose cache still advertises older pagination, preventing pagination metadata from becoming a false incompleteness signal.
+- Final review found that overview hydration's 32-record tail was not a total and that complete refreshes could not lower in-memory counts.
+- Overview hydration now uses the durable `expectedReplyCount`, while an exhausted relation refresh replaces that durable count with its observed visible total so redactions survive both the live state update and the next cache hydrate.
+- Equal 32-event SDK/cache tails keep the durable total while it exceeds the loaded visible count; loaded redactions remain authoritative, stale-low cache hydration cannot lower newer live state, and exhausted relation counts deduplicate event IDs consistently.
+- Durable totals remain lower bounds until the SDK reaches them even after its window overlaps the 32-event cache tail; cached reply identity remains the fallback proof when no total exists.
+- Summary message counts now fill only genuine count gaps and cannot override a concrete live/cache count after redaction.
+- Durable relation counts now carry identity evidence for the event IDs known at fetch start and the visible reply IDs counted by the exhausted response.
+- The shared record builder adds later IDs that were not known, subtracts later redactions whose IDs were visible in the snapshot, and never compares client wall time with Matrix server timestamps.
+- A higher bundled root count remains a conservative lower bound because it cannot prove which loaded reply identities it already includes.
+- Legacy relation-complete rows without identity evidence are downgraded to unproven coverage and refreshed instead of being trusted as exact.
+- Evidence-less legacy durable totals remain monotonic with newer fallback counts instead of suppressing them while the refresh is pending.
+- Exhausted relation snapshots are authoritative even when the redacted event was the newest SDK event, so a completed decrease survives cache hydrate, record reconstruction, and remount.
+- Redaction reconciliation covers every visible reply envelope, including encrypted and sticker events, rather than only `m.room.message`.
+- Partial cache pages, fetched relation pages, and final presentation all deduplicate reply event IDs before deriving a count.
+- Cache and partial-fetch reconciliation now advance the durable count and its identity evidence together, so rebuilding a record cannot discard a newly observed reply.
+- A relation-complete write without either a count or caller-supplied identity evidence remains unproven instead of attaching fresh evidence to an inherited total.
+- Evidence advancement preserves IDs deliberately excluded by an authoritative snapshot, preventing a stale visible revision followed by its redaction from subtracting twice.
+- Reconciled relation activity advances the count horizon with the count and evidence, so older summary metadata cannot restore a pre-redaction total.
+- Explicit partial relation writes downgrade complete coverage while retaining the still-matching count/evidence baseline; complete writes lacking count proof likewise downgrade, but first reconcile every supplied event into that paired baseline so replies beyond the 32-event reload slice are not lost or counted twice.
+- A persistence-to-reload-to-record regression proves a reply found by a partial fetch remains counted after remount.
+- Partial persistence now folds every incoming reply/redaction into the matching durable count, evidence, and horizon before the overview reload truncates cached events to 32; the regression crosses that boundary with 40 new replies.
+- Durable redaction markers are applied before partial metadata reconciliation, so a standalone redaction decrements a baseline and a later stale visible revision cannot re-add the reply.
+- Marker rows persist Matrix redaction activity time, letting a later thread-cache write advance the count horizon from room-scope evidence without comparing server timestamps to client wall time.
+- Marker sanitation applies to new relation-complete snapshots as well as retained baselines, and a lower stale bundled count cannot block a marker-confirmed decrement.
+- Retained-baseline reconciliation now follows the merged count policy, so an absolute complete write can still lower the total; complete evidence that already excludes a marker inherits its horizon.
+- Marker lookup unions current and stored redaction evidence and takes the newer Matrix timestamp, preventing a stale duplicate redaction from weakening freshness.
+- Already-excluded retained evidence inherits newer marker activity, and repeated same-target redaction observations retain the maximum finite Matrix timestamp independent of batch order.
+- Hosted review hardened IndexedDB reads and rewrites against malformed count horizons/evidence, rejecting non-finite timestamps, invalid identity arrays, and visible identities outside the known set while downgrading malformed complete rows without throwing.
+- A proofless complete write now downgrades exactness while retaining and advancing its still-paired historical count/evidence baseline for non-authoritative later reconciliation.
+- Durable count snapshots now require nonnegative safe-integer totals, dense identity arrays, visible identities contained in the known set, and visible-evidence cardinality equal to the total; an invalid pair cannot retain an exactness flag or orphaned freshness horizon.
+- Thread-open hydration preserves valid paired cache totals over stale root aggregation metadata in both directions, while malformed live and cached-root counts are ignored.
+- Pending and failed local echoes stay outside pre-fetch evidence, so the compact count includes them until their remote echo replaces them.
+- A newer summary can still raise an older durable snapshot, while stale summaries and stale visible SDK events cannot undo a completed redaction decrease.
+- Validation: nine directly affected utility, normalization, record, hydration, prefetch, open-cache, persistence, and prewarm suites pass 135 tests; the full Vitest suite passes 456 files with 3,549 tests.
+- Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass; full ESLint reports zero errors with the existing 17-warning baseline.
+- Independent zero-tolerance review identified the stale-count-after-redaction, overlapping-tail, new-reply freshness, remount, duplicate-ID, malformed persistence, orphan-horizon, and thread-open precedence edge cases; each now has focused coverage, and two exact-head reviewers approve the final code without blockers.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.

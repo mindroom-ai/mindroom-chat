@@ -5,12 +5,13 @@ import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
-import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
-import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import {
-  getAuthoritativeCachedThreadReplyCount,
-  isCompleteCachedThreadSnapshot,
-} from './threadCacheSnapshot';
+  createPreferLiveEventMapper,
+  loadThreadCachedSnapshot,
+  type CachedThreadEventPage,
+} from './eventRepository';
+import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
 import {
   buildThreadCacheCoverage,
   hasThreadCacheBackwardGap,
@@ -19,17 +20,7 @@ import {
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
 import type { HydratedThreadCachePage } from './types';
-
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export type ThreadOpenCacheController = {
   hydrateThreadFromCache: (
@@ -45,6 +36,34 @@ export type ThreadOpenCacheController = {
       allowWhenThreadClosed?: boolean;
     }
   ) => Promise<boolean>;
+};
+
+export const resolveThreadOpenExpectedReplyCount = ({
+  liveRootEvent,
+  cachedRootEvent,
+  cachedPage,
+}: {
+  liveRootEvent?: MatrixEvent;
+  cachedRootEvent?: MatrixEvent;
+  cachedPage: Pick<
+    CachedThreadEventPage,
+    'expectedReplyCount' | 'expectedReplyCountEvidence' | 'relationSnapshotComplete'
+  >;
+}): number | undefined => {
+  const getSafeReplyCount = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  const cachedExpectedReplyCount = getSafeReplyCount(cachedPage.expectedReplyCount);
+  if (
+    cachedPage.expectedReplyCountEvidence !== undefined &&
+    cachedExpectedReplyCount !== undefined
+  ) {
+    return cachedExpectedReplyCount;
+  }
+  return (
+    getSafeReplyCount(liveRootEvent ? getKnownThreadReplyCount(liveRootEvent) : undefined) ??
+    getSafeReplyCount(cachedRootEvent ? getKnownThreadReplyCount(cachedRootEvent) : undefined) ??
+    cachedExpectedReplyCount
+  );
 };
 
 export const useThreadOpenCacheController = ({
@@ -131,10 +150,10 @@ export const useThreadOpenCacheController = ({
         undefined;
       const cachedRootMatrixEvent =
         cachedEvents.find((mEvent) => mEvent.getId() === expectedThreadId) ?? undefined;
-      const authoritativeExpectedReplyCount = getAuthoritativeCachedThreadReplyCount({
-        rootEvent: liveRootMatrixEvent,
+      const authoritativeExpectedReplyCount = resolveThreadOpenExpectedReplyCount({
+        liveRootEvent: liveRootMatrixEvent,
         cachedRootEvent: cachedRootMatrixEvent,
-        expectedReplyCount: cachedPage.expectedReplyCount,
+        cachedPage,
       });
       const snapshotComplete = isCompleteCachedThreadSnapshot({
         room,
@@ -153,6 +172,14 @@ export const useThreadOpenCacheController = ({
         backwardToken: cachedPage.beforeToken,
         hasMoreBackward: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
         expectedReplyCount: authoritativeExpectedReplyCount,
+        expectedReplyCountSnapshotTs:
+          authoritativeExpectedReplyCount === cachedPage.expectedReplyCount
+            ? cachedPage.expectedReplyCountSnapshotTs
+            : undefined,
+        expectedReplyCountEvidence:
+          authoritativeExpectedReplyCount === cachedPage.expectedReplyCount
+            ? cachedPage.expectedReplyCountEvidence
+            : undefined,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
         tailLoaded,
