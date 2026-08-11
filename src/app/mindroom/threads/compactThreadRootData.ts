@@ -8,7 +8,11 @@ import {
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
-import { isVisibleThreadTextMessageEventType } from './threadUtils';
+import {
+  getPreferredVisibleThreadReplyEvents,
+  hasLoadedThreadReplyEvents,
+  isVisibleThreadTextMessageEventType,
+} from './threadUtils';
 
 export type CompactThreadRootData = {
   ids: string[];
@@ -83,11 +87,18 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   return true;
 };
 
-const hasCompactThreadActivity = (thread: Thread): boolean =>
-  !!thread.replyToEvent ||
-  (thread.events?.length ?? 0) > 0 ||
-  (thread.timeline?.length ?? 0) > 0 ||
-  (typeof thread.length === 'number' && thread.length > 0);
+const hasCompactThreadActivity = (thread: Thread, rootEvent: MatrixEvent | undefined): boolean => {
+  const hasActivity =
+    !!thread.replyToEvent ||
+    (thread.events?.length ?? 0) > 0 ||
+    (thread.timeline?.length ?? 0) > 0 ||
+    (typeof thread.length === 'number' && thread.length > 0);
+  if (!hasActivity || !rootEvent?.isRedacted() || !hasLoadedThreadReplyEvents(thread)) {
+    return hasActivity;
+  }
+
+  return getPreferredVisibleThreadReplyEvents(thread).length > 0;
+};
 
 export const getCompactThreadRootPreviewInfo = (
   event: MatrixEvent | undefined,
@@ -236,9 +247,9 @@ export const buildCompactThreadRootData = ({
     visibleIndexMap.size > 0 ? Math.max(...Array.from(visibleIndexMap.values())) + 1 : 0;
 
   threads.forEach((thread) => {
-    if (!thread.id || seen.has(thread.id) || !hasCompactThreadActivity(thread)) return;
+    if (!thread.id || seen.has(thread.id)) return;
     const rootEvent = room.findEventById(thread.id) ?? thread.rootEvent;
-    if (isNestedThreadReplyEvent(rootEvent)) return;
+    if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) return;
 
     seen.add(thread.id);
     ids.push(thread.id);

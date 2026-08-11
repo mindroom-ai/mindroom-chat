@@ -207,6 +207,72 @@ describe('buildCompactThreadRootData', () => {
     expect(data.ids).not.toContain('$no-replies');
   });
 
+  it('does not append a server thread whose root and only reply are redacted', () => {
+    const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
+      isRedacted: true,
+    });
+    const redactedReply = makeEvent(
+      '$redacted-reply',
+      'Deleted reply',
+      undefined,
+      {
+        event_id: '$redacted-root',
+        rel_type: 'm.thread',
+      },
+      { isRedacted: true, threadRootId: '$redacted-root' }
+    );
+
+    const data = buildCompactThreadRootData({
+      room: makeRoom({ '$redacted-root': redactedRoot }),
+      visibleIds: [],
+      visibleIndexMap: new Map(),
+      visibleBodyMap: new Map(),
+      threads: [
+        {
+          id: '$redacted-root',
+          rootEvent: redactedRoot,
+          events: [redactedReply],
+          length: 1,
+        } as never,
+      ],
+    });
+
+    expect(data.ids).toEqual([]);
+  });
+
+  it('keeps a redacted root when a visible reply remains', () => {
+    const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
+      isRedacted: true,
+    });
+    const visibleReply = makeEvent(
+      '$visible-reply',
+      'Remaining reply',
+      undefined,
+      {
+        event_id: '$redacted-root',
+        rel_type: 'm.thread',
+      },
+      { threadRootId: '$redacted-root' }
+    );
+
+    const data = buildCompactThreadRootData({
+      room: makeRoom({ '$redacted-root': redactedRoot }),
+      visibleIds: [],
+      visibleIndexMap: new Map(),
+      visibleBodyMap: new Map(),
+      threads: [
+        {
+          id: '$redacted-root',
+          rootEvent: redactedRoot,
+          events: [visibleReply],
+          length: 1,
+        } as never,
+      ],
+    });
+
+    expect(data.ids).toEqual(['$redacted-root']);
+  });
+
   it('does not append nested thread replies from the server thread list as compact roots', () => {
     const nestedThreadRoot = makeEvent('$nested-thread-root', 'Thinking... ⋯', undefined, {
       event_id: '$parent-thread-root',
