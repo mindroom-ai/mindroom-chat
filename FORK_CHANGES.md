@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Do not block app mount on service-worker registration (2026-08-11)
+
+- Status: implemented and validated.
+- Root cause: application bootstrap awaited service-worker registration before mounting React, so a browser-stalled registration left only the static background visible.
+- Fix: mount the application before starting the existing service-worker setup.
+  Session forwarding, update monitoring, and control recovery keep their existing behavior after registration settles.
+- Coverage: a pending registration promise must not prevent `createRoot` from running.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.

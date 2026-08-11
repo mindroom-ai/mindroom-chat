@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
+  isServiceWorkerEnabled: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
 }));
@@ -50,7 +51,7 @@ vi.mock('./app/mindroom/native/iosPush', () => ({
 }));
 
 vi.mock('./app/utils/runtimeConfig', () => ({
-  isServiceWorkerEnabled: () => false,
+  isServiceWorkerEnabled: mocks.isServiceWorkerEnabled,
 }));
 
 vi.mock('./app/state/sessions', () => ({
@@ -79,12 +80,24 @@ vi.mock('./app/pages/App', () => ({
 
 vi.mock('./app/i18n', () => ({}));
 
-describe('application diagnostics bootstrap', () => {
+describe('application bootstrap', () => {
+  const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     document.body.innerHTML = '<div id="root"></div>';
+    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
+  });
+
+  afterEach(() => {
+    if (originalServiceWorker) {
+      Object.defineProperty(navigator, 'serviceWorker', originalServiceWorker);
+    } else {
+      Reflect.deleteProperty(navigator, 'serviceWorker');
+    }
   });
 
   it.each([
@@ -124,5 +137,26 @@ describe('application diagnostics bootstrap', () => {
     expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
     expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
+  it('mounts the app while service worker registration is pending', async () => {
+    const never = new Promise<never>(() => {
+      // Intentionally pending.
+    });
+    const serviceWorker = {
+      addEventListener: vi.fn(),
+      ready: never,
+      register: vi.fn(() => never),
+    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    });
+    mocks.isServiceWorkerEnabled.mockReturnValue(true);
+
+    await import('./index');
+
+    await vi.waitFor(() => expect(mocks.createRoot).toHaveBeenCalledOnce());
+    expect(serviceWorker.register).toHaveBeenCalledOnce();
   });
 });
