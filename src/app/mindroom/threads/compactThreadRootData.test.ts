@@ -1,5 +1,4 @@
-import { MatrixEvent } from 'matrix-js-sdk';
-import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCompactZeroReplyRootData,
