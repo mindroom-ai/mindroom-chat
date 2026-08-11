@@ -8,7 +8,11 @@
 - Root cause: application bootstrap awaited service-worker registration before mounting React, so a browser-stalled registration left only the static background visible.
 - Fix: mount the application before starting the existing service-worker setup.
   Session forwarding, update monitoring, and control recovery keep their existing behavior after registration settles.
+- Decision: preserve the existing service-worker lifecycle instead of adding timeout or retry policy to this fix.
 - Coverage: a pending registration promise must not prevent `createRoot` from running.
+- Validation: focused regression, full Vitest suite, typecheck, production build, touched-file lint and formatting, and `git diff --check` pass.
+- Risks: service-worker initialization may still remain pending, but it can no longer block the visible application.
+- Next step: verify the shipped login flow after merge.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
