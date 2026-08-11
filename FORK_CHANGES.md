@@ -7,10 +7,11 @@
 - Status: the regression, review remediation, and local validation are complete; fixed-head independent review and PR CI remain.
 - Symptom: deleting the root and every reply left a compact `Thread started` card that opened an empty thread view.
 - Root cause: the server thread-list merge counted loaded redacted event shells as activity, while message rendering correctly filtered those shells out.
-- Fix: a redacted root is appended from the server thread list only when its loaded thread state still exposes a visible timeline or `replyToEvent`; direct tool-approval replies now share the timeline's visible-event classification, while unredacted roots and not-yet-loaded thread models keep their existing behavior.
+- Fix: a redacted root is suppressed only when all linked loaded replies and `replyToEvent` are invisible and backward history is complete; direct tool approvals share the timeline's visible-event classification, while unredacted roots and uncertain history keep their existing behavior.
 - TDD evidence: the focused test first failed with `['$redacted-root']` instead of `[]`, then passed after the fix and partial-redaction guard.
-- Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix, and the two focused files now pass 59 tests.
-- Full Vitest passes all 455 files and 3,495 tests.
+- Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix.
+- Fixed-head review then found older linked replies and incomplete backward history could still be hidden, while inactive threads performed avoidable root scans; three more red tests reproduced the gaps before the linked-history and raw-activity fixes, and the three focused files now pass 71 tests.
+- Full Vitest passes all 455 files and 3,498 tests.
 - Typecheck, full ESLint, production/PWA build with Element Call verification, focused-file Prettier, and `git diff --check` pass.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)

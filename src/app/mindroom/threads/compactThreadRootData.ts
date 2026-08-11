@@ -1,7 +1,8 @@
-import { IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { Direction, IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
+import { getLinkedTimelines } from './linkedTimelines';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,
@@ -88,20 +89,45 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   return true;
 };
 
+const hasRawThreadActivity = (thread: Thread): boolean =>
+  !!thread.replyToEvent ||
+  (thread.events?.length ?? 0) > 0 ||
+  (thread.timeline?.length ?? 0) > 0 ||
+  (typeof thread.length === 'number' && thread.length > 0);
+
+const getLinkedThreadReplyState = (
+  thread: Thread
+): { hasVisibleReply: boolean; historyComplete: boolean } | undefined => {
+  const timelineSet = thread.getUnfilteredTimelineSet?.();
+  const liveTimeline = timelineSet?.getLiveTimeline?.();
+  if (!liveTimeline) return undefined;
+
+  const linkedTimelines = getLinkedTimelines(liveTimeline);
+  const firstTimeline = linkedTimelines[0];
+  if (!firstTimeline) return undefined;
+
+  return {
+    hasVisibleReply: linkedTimelines.some((timeline) =>
+      timeline.getEvents().some(isVisibleThreadReplyEvent)
+    ),
+    historyComplete: firstTimeline.getPaginationToken(Direction.Backward) === null,
+  };
+};
+
 const hasCompactThreadActivity = (thread: Thread, rootEvent: MatrixEvent | undefined): boolean => {
-  const hasActivity =
-    !!thread.replyToEvent ||
-    (thread.events?.length ?? 0) > 0 ||
-    (thread.timeline?.length ?? 0) > 0 ||
-    (typeof thread.length === 'number' && thread.length > 0);
+  const hasActivity = hasRawThreadActivity(thread);
   if (!hasActivity || !rootEvent?.isRedacted() || !hasLoadedThreadReplyEvents(thread)) {
     return hasActivity;
   }
 
-  return (
+  const linkedReplyState = getLinkedThreadReplyState(thread);
+  const hasVisibleReply =
     getPreferredVisibleThreadReplyEvents(thread).length > 0 ||
-    (!!thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent))
-  );
+    (!!thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) ||
+    linkedReplyState?.hasVisibleReply;
+  if (hasVisibleReply) return true;
+
+  return linkedReplyState ? !linkedReplyState.historyComplete : false;
 };
 
 export const getCompactThreadRootPreviewInfo = (
@@ -251,7 +277,7 @@ export const buildCompactThreadRootData = ({
     visibleIndexMap.size > 0 ? Math.max(...Array.from(visibleIndexMap.values())) + 1 : 0;
 
   threads.forEach((thread) => {
-    if (!thread.id || seen.has(thread.id)) return;
+    if (!thread.id || seen.has(thread.id) || !hasRawThreadActivity(thread)) return;
     const rootEvent = room.findEventById(thread.id) ?? thread.rootEvent;
     if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) return;
 
