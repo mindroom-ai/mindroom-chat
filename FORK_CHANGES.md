@@ -14,6 +14,21 @@
 - Risks: service-worker initialization may still remain pending, but it can no longer block the visible application.
 - Next step: verify the shipped login flow after merge.
 
+### Hide fully redacted threads from compact overview (2026-08-10)
+
+- Status: exact-head review remediation and local validation are complete; fresh fixed-head review and PR CI remain.
+- Symptom: deleting the root and every reply left a compact `Thread started` card that opened an empty thread view.
+- Root cause: the server thread-list merge counted loaded redacted event shells as activity, while message rendering correctly filtered those shells out.
+- Fix: a redacted root is suppressed only when all linked loaded replies and `replyToEvent` are invisible and backward history is complete; direct tool approvals share the timeline's visible-event classification, while unredacted roots and uncertain history keep their existing behavior.
+- TDD evidence: the focused test first failed with `['$redacted-root']` instead of `[]`, then passed after the fix and partial-redaction guard.
+- Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix.
+- Fixed-head review then found older linked replies and incomplete backward history could still be hidden, while inactive threads performed avoidable root scans; three more red tests reproduced the gaps before the linked-history and raw-activity fixes, and the three focused files now pass 72 tests.
+- The merge-gate review found that an empty current live segment bypassed fully redacted, complete older linked history; its focused regression failed with `['$redacted-root']` instead of `[]` before the linked loaded-event check.
+- Fresh exact-head review found one test-only deep SDK import; the regression fixture now uses the same package-root `Direction` export as production.
+- Current `dev` integration conflicted only in Runbook ordering; both dated entries are preserved, with the newer service-worker entry first.
+- Full Vitest passes all 455 files and 3,500 tests.
+- Typecheck, full ESLint, production/PWA build with Element Call verification, changed-file Prettier, and `git diff --check` pass.
+
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.
