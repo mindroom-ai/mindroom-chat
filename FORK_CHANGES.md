@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Do not block app mount on service-worker registration (2026-08-11)
+
+- Status: implemented and validated.
+- Root cause: application bootstrap awaited service-worker registration before mounting React, so a browser-stalled registration left only the static background visible.
+- Fix: mount the application before starting the existing service-worker setup.
+  Session forwarding, update monitoring, and control recovery keep their existing behavior after registration settles.
+- Decision: preserve the existing service-worker lifecycle instead of adding timeout or retry policy to this fix.
+- Coverage: a pending registration promise must not prevent `createRoot` from running.
+- Validation: focused regression, full Vitest suite, typecheck, production build, touched-file lint and formatting, and `git diff --check` pass.
+- Risks: service-worker initialization may still remain pending, but it can no longer block the visible application.
+- Next step: verify the shipped login flow after merge.
+
 ### Hide fully redacted threads from compact overview (2026-08-10)
 
 - Status: exact-head review remediation and local validation are complete; fresh fixed-head review and PR CI remain.
@@ -13,7 +25,8 @@
 - Fixed-head review then found older linked replies and incomplete backward history could still be hidden, while inactive threads performed avoidable root scans; three more red tests reproduced the gaps before the linked-history and raw-activity fixes, and the three focused files now pass 72 tests.
 - The merge-gate review found that an empty current live segment bypassed fully redacted, complete older linked history; its focused regression failed with `['$redacted-root']` instead of `[]` before the linked loaded-event check.
 - Fresh exact-head review found one test-only deep SDK import; the regression fixture now uses the same package-root `Direction` export as production.
-- Full Vitest passes all 455 files and 3,499 tests.
+- Current `dev` integration conflicted only in Runbook ordering; both dated entries are preserved, with the newer service-worker entry first.
+- Full Vitest passes all 455 files and 3,500 tests.
 - Typecheck, full ESLint, production/PWA build with Element Call verification, changed-file Prettier, and `git diff --check` pass.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
