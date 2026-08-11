@@ -97,7 +97,7 @@ const hasRawThreadActivity = (thread: Thread): boolean =>
 
 const getLinkedThreadReplyState = (
   thread: Thread
-): { hasVisibleReply: boolean; historyComplete: boolean } | undefined => {
+): { hasLoadedEvents: boolean; hasVisibleReply: boolean; historyComplete: boolean } | undefined => {
   const timelineSet = thread.getUnfilteredTimelineSet?.();
   const liveTimeline = timelineSet?.getLiveTimeline?.();
   if (!liveTimeline) return undefined;
@@ -106,21 +106,26 @@ const getLinkedThreadReplyState = (
   const firstTimeline = linkedTimelines[0];
   if (!firstTimeline) return undefined;
 
+  const linkedEvents = linkedTimelines.flatMap((timeline) => timeline.getEvents());
+
   return {
-    hasVisibleReply: linkedTimelines.some((timeline) =>
-      timeline.getEvents().some(isVisibleThreadReplyEvent)
-    ),
+    hasLoadedEvents: linkedEvents.length > 0,
+    hasVisibleReply: linkedEvents.some(isVisibleThreadReplyEvent),
     historyComplete: firstTimeline.getPaginationToken(Direction.Backward) === null,
   };
 };
 
 const hasCompactThreadActivity = (thread: Thread, rootEvent: MatrixEvent | undefined): boolean => {
   const hasActivity = hasRawThreadActivity(thread);
-  if (!hasActivity || !rootEvent?.isRedacted() || !hasLoadedThreadReplyEvents(thread)) {
+  if (!hasActivity || !rootEvent?.isRedacted()) {
     return hasActivity;
   }
 
   const linkedReplyState = getLinkedThreadReplyState(thread);
+  if (!hasLoadedThreadReplyEvents(thread) && !linkedReplyState?.hasLoadedEvents) {
+    return hasActivity;
+  }
+
   const hasVisibleReply =
     getPreferredVisibleThreadReplyEvents(thread).length > 0 ||
     (!!thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) ||
