@@ -12,7 +12,7 @@
 - Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix.
 - Fixed-head review then found older linked replies and incomplete backward history could still be hidden, while inactive threads performed avoidable root scans; three more red tests reproduced the gaps before the linked-history and raw-activity fixes, and the three focused files now pass 71 tests.
 - Full Vitest passes all 455 files and 3,498 tests.
-- Typecheck, full ESLint, production/PWA build with Element Call verification, focused-file Prettier, and `git diff --check` pass.
+- Typecheck, full ESLint, production/PWA build with Element Call verification, changed-file Prettier, and `git diff --check` pass.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

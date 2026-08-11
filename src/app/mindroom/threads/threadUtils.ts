@@ -114,16 +114,13 @@ export const getPreferredVisibleThreadReplyEvents = (
   const replyEvents = thread?.events?.length
     ? thread.events
     : thread?.timeline?.length
-      ? thread.timeline
-      : thread?.events ?? thread?.timeline ?? [];
+    ? thread.timeline
+    : thread?.events ?? thread?.timeline ?? [];
   return replyEvents.filter(isVisibleThreadReplyEvent);
 };
 
 export const hasLoadedThreadReplyEvents = (
-  thread:
-    | Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'>
-    | null
-    | undefined
+  thread: Pick<VisibleThreadEventCollectionLike, 'events' | 'timeline'> | null | undefined
 ): boolean => {
   if (thread?.events && thread.events.length > 0) return true;
   return !!thread?.timeline && thread.timeline.length > 0;
@@ -162,7 +159,11 @@ export const getVisibleThreadParticipantIds = (
   }
 
   const rootSenderId = threadRootEvent?.getSender?.();
-  if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+  if (
+    participantIds.length < maxParticipants &&
+    rootSenderId &&
+    !seenParticipantIds.has(rootSenderId)
+  ) {
     participantIds.push(rootSenderId);
   }
 

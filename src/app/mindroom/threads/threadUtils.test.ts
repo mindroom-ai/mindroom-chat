@@ -116,7 +116,9 @@ describe('isVisibleThreadReplyEventType', () => {
 describe('isVisibleThreadReplyEvent', () => {
   it('accepts visible threaded replies', () => {
     expect(
-      isVisibleThreadReplyEvent(makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org'))
+      isVisibleThreadReplyEvent(
+        makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org')
+      )
     ).toBe(true);
   });
 
