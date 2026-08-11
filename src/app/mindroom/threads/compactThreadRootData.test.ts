@@ -273,6 +273,87 @@ describe('buildCompactThreadRootData', () => {
     expect(data.ids).toEqual(['$redacted-root']);
   });
 
+  it('keeps a redacted root when its visible replyToEvent is outside loaded events', () => {
+    const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
+      isRedacted: true,
+    });
+    const redactedReply = makeEvent(
+      '$redacted-reply',
+      'Deleted reply',
+      undefined,
+      {
+        event_id: '$redacted-root',
+        rel_type: 'm.thread',
+      },
+      { isRedacted: true, threadRootId: '$redacted-root' }
+    );
+    const visibleReply = makeEvent(
+      '$visible-reply',
+      'Pending reply',
+      undefined,
+      {
+        event_id: '$redacted-root',
+        rel_type: 'm.thread',
+      },
+      { threadRootId: '$redacted-root' }
+    );
+
+    const data = buildCompactThreadRootData({
+      room: makeRoom({ '$redacted-root': redactedRoot }),
+      visibleIds: [],
+      visibleIndexMap: new Map(),
+      visibleBodyMap: new Map(),
+      threads: [
+        {
+          id: '$redacted-root',
+          rootEvent: redactedRoot,
+          events: [redactedReply],
+          replyToEvent: visibleReply,
+          length: 2,
+        } as never,
+      ],
+    });
+
+    expect(data.ids).toEqual(['$redacted-root']);
+  });
+
+  it('keeps a redacted root when a visible tool approval reply remains', () => {
+    const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
+      isRedacted: true,
+    });
+    const approvalReply = makeEvent(
+      '$approval-reply',
+      undefined,
+      undefined,
+      {
+        event_id: '$redacted-root',
+        rel_type: 'm.thread',
+      },
+      {
+        type: 'io.mindroom.tool_approval',
+        content: { approval_id: 'approval-1', status: 'pending' },
+        threadRootId: '$redacted-root',
+      }
+    );
+
+    const data = buildCompactThreadRootData({
+      room: makeRoom({ '$redacted-root': redactedRoot }),
+      visibleIds: [],
+      visibleIndexMap: new Map(),
+      visibleBodyMap: new Map(),
+      threads: [
+        {
+          id: '$redacted-root',
+          rootEvent: redactedRoot,
+          events: [approvalReply],
+          length: 1,
+        } as never,
+      ],
+    });
+
+    expect(data.ids).toEqual(['$redacted-root']);
+  });
+
   it('does not append nested thread replies from the server thread list as compact roots', () => {
     const nestedThreadRoot = makeEvent('$nested-thread-root', 'Thinking... ⋯', undefined, {
       event_id: '$parent-thread-root',

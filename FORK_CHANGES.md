@@ -4,13 +4,14 @@
 
 ### Hide fully redacted threads from compact overview (2026-08-10)
 
-- Status: the regression, minimal eligibility fix, and local validation are complete; independent review and PR CI remain.
+- Status: the regression, review remediation, and local validation are complete; fixed-head independent review and PR CI remain.
 - Symptom: deleting the root and every reply left a compact `Thread started` card that opened an empty thread view.
 - Root cause: the server thread-list merge counted loaded redacted event shells as activity, while message rendering correctly filtered those shells out.
-- Fix: a redacted root is appended from the server thread list only when its loaded thread events still contain a visible reply; unredacted roots and not-yet-loaded thread models keep their existing behavior.
-- TDD evidence: the focused test first failed with `['$redacted-root']` instead of `[]`, then passed with 29 tests after the fix and partial-redaction guard.
-- Full Vitest passes all 455 files and 3,493 tests.
-- Typecheck, full ESLint, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
+- Fix: a redacted root is appended from the server thread list only when its loaded thread state still exposes a visible timeline or `replyToEvent`; direct tool-approval replies now share the timeline's visible-event classification, while unredacted roots and not-yet-loaded thread models keep their existing behavior.
+- TDD evidence: the focused test first failed with `['$redacted-root']` instead of `[]`, then passed after the fix and partial-redaction guard.
+- Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix, and the two focused files now pass 59 tests.
+- Full Vitest passes all 455 files and 3,495 tests.
+- Typecheck, full ESLint, production/PWA build with Element Call verification, focused-file Prettier, and `git diff --check` pass.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 

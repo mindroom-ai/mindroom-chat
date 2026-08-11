@@ -11,6 +11,7 @@ import { getThreadMessagePreviewText } from './threadMessagePreview';
 import {
   getPreferredVisibleThreadReplyEvents,
   hasLoadedThreadReplyEvents,
+  isVisibleThreadReplyEvent,
   isVisibleThreadTextMessageEventType,
 } from './threadUtils';
 
@@ -97,7 +98,10 @@ const hasCompactThreadActivity = (thread: Thread, rootEvent: MatrixEvent | undef
     return hasActivity;
   }
 
-  return getPreferredVisibleThreadReplyEvents(thread).length > 0;
+  return (
+    getPreferredVisibleThreadReplyEvents(thread).length > 0 ||
+    (!!thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent))
+  );
 };
 
 export const getCompactThreadRootPreviewInfo = (

@@ -3,6 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMindroomThreadSummaryEvent } from '../messages/threadSummary';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
 
 type ThreadEventLike = {
@@ -33,6 +34,7 @@ const VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES = new Set<string>([
 const VISIBLE_THREAD_REPLY_EVENT_TYPES = new Set<string>([
   ...VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES,
   MessageEvent.Sticker,
+  MINDROOM_TOOL_APPROVAL_EVENT,
   StateEvent.RoomMember,
   StateEvent.RoomName,
   StateEvent.RoomTopic,
