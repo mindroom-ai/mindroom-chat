@@ -176,6 +176,23 @@ export const useRoomLiveRenderController = ({
 
         if (!timelineMeta.liveEvent) {
           if (threadId && mEvt.isSending() && isVisibleThreadActivity) {
+            const scrollElement = scrollRef.current;
+            if (
+              scrollElement &&
+              shouldAutoScrollThreadOnLiveEvent({
+                relationType: relation?.rel_type,
+                isNearBottom: isScrollNearBottom({
+                  scrollHeight: scrollElement.scrollHeight,
+                  scrollTop: scrollElement.scrollTop,
+                  clientHeight: scrollElement.clientHeight,
+                }),
+                isTimelineAtLiveEnd: atLiveEndRef.current,
+              })
+            ) {
+              // Arm before the local echo renders and increases scrollHeight.
+              scrollToBottomRef.current.count += 1;
+              scrollToBottomRef.current.smooth = true;
+            }
             if (relation?.rel_type !== RelationType.Replace) {
               setSupplementalThreadEvents(threadId, [mEvt]);
             }
