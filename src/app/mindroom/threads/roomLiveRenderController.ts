@@ -178,13 +178,15 @@ export const useRoomLiveRenderController = ({
           if (threadId && mEvt.isSending() && isVisibleThreadActivity) {
             const scrollElement = scrollRef.current;
             if (
-              relation?.rel_type === RelationType.Thread &&
-              atLiveEndRef.current &&
               scrollElement &&
-              isScrollNearBottom({
-                scrollHeight: scrollElement.scrollHeight,
-                scrollTop: scrollElement.scrollTop,
-                clientHeight: scrollElement.clientHeight,
+              shouldAutoScrollThreadOnLiveEvent({
+                relationType: relation?.rel_type,
+                isNearBottom: isScrollNearBottom({
+                  scrollHeight: scrollElement.scrollHeight,
+                  scrollTop: scrollElement.scrollTop,
+                  clientHeight: scrollElement.clientHeight,
+                }),
+                isTimelineAtLiveEnd: atLiveEndRef.current,
               })
             ) {
               // Arm before the local echo renders and increases scrollHeight.
