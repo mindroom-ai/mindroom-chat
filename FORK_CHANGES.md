@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Restore thread auto-scroll after sending a reply (2026-08-12)
+
+- Status: implementation and local validation are complete; independent review and ready-PR AI review are pending.
+- Root cause: pending thread replies now render from the SDK's `liveEvent: false` local-echo notification, but that early-return path did not arm bottom-follow.
+- The later server-confirmation notification observed the already-expanded scroll height, so its near-bottom check treated the reader as scrolled up and never followed the new reply.
+- Fix: capture the current thread viewport before rendering the pending local echo and arm the existing smooth bottom-follow only for an `m.thread` reply at the live end within the existing 24px threshold.
+- Coverage: a pending local echo follows from the bottom and preserves a viewport scrolled 100px upward.
+- TDD evidence: the near-bottom case first failed with a zero scroll request while the scrolled-up guard passed, then both passed after the controller fix.
+- Validation: the focused thread-scroll suite passes all 15 tests; full Vitest passes all 456 files and 3,502 tests; typecheck, full ESLint, production/PWA build, changed-file formatting, and `git diff --check` pass.
+- Next step: independent review and ready-PR AI review.
+
 ### Do not block app mount on service-worker registration (2026-08-11)
 
 - Status: implemented and validated.
