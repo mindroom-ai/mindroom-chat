@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { RelationType, RoomEvent } from 'matrix-js-sdk';
+import { EventStatus, RelationType, RoomEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
@@ -29,9 +29,9 @@ const makeRoom = () => {
 
   return {
     room,
-    emitPendingReply: (event: MatrixEvent) => {
-      listeners.get(RoomEvent.Timeline)?.forEach((listener) => {
-        listener(event, room, false, false, { liveEvent: false });
+    emitPendingReply: (event: MatrixEvent, oldStatus?: EventStatus) => {
+      listeners.get(RoomEvent.LocalEchoUpdated)?.forEach((listener) => {
+        listener(event, room, oldStatus === undefined ? undefined : event.getId(), oldStatus);
       });
     },
   };
@@ -123,6 +123,17 @@ describe('useRoomLiveRenderController pending thread replies', () => {
     act(() => emitPendingReply(makePendingReply()));
 
     expect(scrollToBottomRef.current).toEqual({ count: 0, smooth: false });
+    renderer.unmount();
+  });
+
+  it('does not re-arm bottom-follow for later local-echo status updates', () => {
+    const { emitPendingReply, renderer, scrollToBottomRef } = renderController(600);
+    const pendingReply = makePendingReply();
+
+    act(() => emitPendingReply(pendingReply));
+    act(() => emitPendingReply(pendingReply, EventStatus.SENDING));
+
+    expect(scrollToBottomRef.current).toEqual({ count: 1, smooth: true });
     renderer.unmount();
   });
 });
