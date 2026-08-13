@@ -26,10 +26,14 @@ const getThreadScrollState = (page: Page) =>
       scrollElement = scrollElement.parentElement;
     }
 
+    if (!scrollElement) {
+      throw new Error('Thread scroll container not found');
+    }
+
     return {
-      clientHeight: scrollElement?.clientHeight ?? -1,
-      scrollHeight: scrollElement?.scrollHeight ?? -1,
-      scrollTop: scrollElement?.scrollTop ?? -1,
+      clientHeight: scrollElement.clientHeight,
+      scrollHeight: scrollElement.scrollHeight,
+      scrollTop: scrollElement.scrollTop,
     };
   });
 
@@ -170,6 +174,7 @@ const runThreadSendStabilityAssertions = async (page: Page) => {
   await composer.fill(scrolledUpReplyBody);
   await sendButton.click();
 
+  await expect(page.getByText(scrolledUpReplyBody)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(async () => (await getThreadScrollState(page)).scrollHeight, {
       timeout: 30_000,

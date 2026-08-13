@@ -4,7 +4,7 @@
 
 ### Restore thread auto-scroll after sending a reply (2026-08-12)
 
-- Status: post-deployment root-cause fix, strengthened live browser validation, and independent fixed-head review are complete; PR gates remain.
+- Status: post-deployment root-cause fix, strengthened live browser validation, independent review, and first-head automated-review remediation are complete; fixed-head PR gates remain.
 - The first fix targeted a synthetic `Room.timeline` event with `liveEvent: false`, but matrix-js-sdk 41.7.0 inserts real pending sends through `Room.localEchoUpdated`.
 - The existing local-echo refresh listener discarded the event and transition metadata, so production never armed bottom-follow before the pending reply rendered.
 - Fix: expose the local-echo event plus whether it is the initial insertion, then arm the existing smooth thread bottom-follow only for an initial pending `m.thread` reply at the live end within the existing 24px threshold.
@@ -15,6 +15,7 @@
 - Validation: the focused suite passes 18 tests, full Vitest passes all 456 files and 3,503 tests, and typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build, changed-file formatting, and `git diff --check` pass.
 - The clean live regression passes both desktop and iPhone 13 cases against Docker Tuwunel and Chromium after the shared login helper reaches the Simple Mode shell, the test sends through the real composer, and it measures the actual scroll container.
 - Review: the first independent review found that the scrolled-up assertion could pass before the second reply rendered, mobile coverage had been dropped, and the test duplicated a weaker login path; all three gaps are addressed, and fixed-head re-review approves the result.
+- Automated review found two remaining false-pass paths in the live test: absent scroll containers produced valid-looking sentinel arithmetic, and unrelated delayed growth could satisfy the second-send height check; missing containers now throw, and the unique second reply must render before its height and position assertions.
 - Next step: open a ready PR and address valid AI review findings.
 
 ### Do not block app mount on service-worker registration (2026-08-11)
