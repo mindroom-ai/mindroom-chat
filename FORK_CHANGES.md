@@ -149,20 +149,13 @@
 
 ### Stop voice-volume popover events from outliving their targets (2026-07-26)
 
-- Status: exact deployed bundle mapping, focused RED/GREEN regression, minimal fix, broader validation, self-review, and independent review are complete on `fix-currenttarget-rect-crash`.
-- Staging uses `commit-3083fca`, which resolves to `3083fcaa35a7051f3a51c5391b800fe03f635014`, while current `origin/dev` and this worktree start at `73d318baa23488585e5d3b94bf21d38faaff8e1c`.
-- The staging frame at `index-DvHwdwou.js:447:1054535` maps by direct bundle inspection to the voice-volume trigger in `VoiceVolumeButton`.
-- The handler reads `event.currentTarget.getBoundingClientRect()` inside a functional `setAnchor` updater, so React can run that read after the synchronous event callback has returned and cleared `currentTarget`.
-- The existing More-menu handler in the parent audio component already captures its rect synchronously for the same lifecycle reason, but the sibling volume control retained the unsafe form.
-- The focused RED regression opens the volume popover, queues its real deactivation callback and a same-batch reopen, invalidates `currentTarget`, and reproduces `Cannot read properties of null (reading 'getBoundingClientRect')`.
-- The handler now captures the trigger rect before calling `setAnchor`, preserving the existing open/close toggle and original click-position anchor without retaining the event.
-- The exact regression passes after the fix, and the full `VoiceAudioContent.test.ts` file passes all 30 tests.
-- An AST-backed source audit found no remaining `currentTarget` reads inside state-setter, async, timer, animation-frame, or promise callbacks, and the nearby waveform and More-menu reads are synchronous.
-- Typecheck, touched-file ESLint, touched-file Prettier, `git diff --check`, and the production/PWA build pass.
-- Full ESLint finishes with zero errors and the existing 17-warning baseline.
-- The full suite passes 453 of 454 files and 3,434 of 3,437 tests; the three unchanged Xcode Cloud post-clone Homebrew fixture tests retain the pre-existing local Nix-environment failures already recorded by the preceding Runbook entry.
-- Independent read-only review reproduced RED, verified GREEN and the equivalent-misuse audit, found no issues, and approved the diff.
-- Scope remains limited to synchronous rect capture in that volume handler, one event-invalidation regression, direct equivalent misuse review, and required documentation.
+- Status: fixed and validated in PR #214.
+- Root cause: `VoiceVolumeButton` read `event.currentTarget` inside a deferred state updater after React could clear it.
+- Fix: capture the trigger rectangle synchronously while preserving the existing popover toggle behavior.
+- Coverage: the regression invalidates `currentTarget` before the queued update runs; the focused file passes all 30 tests.
+- Validation: typecheck, ESLint, production/PWA build, and `git diff --check` pass; the full suite retains three unrelated local Xcode Cloud fixture failures.
+- Risks: none identified beyond deployment verification.
+- Next step: merge and verify repeated volume-popover open, close, and reopen interactions in the shipped client.
 
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 
