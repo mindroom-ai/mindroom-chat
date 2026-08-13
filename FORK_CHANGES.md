@@ -16,7 +16,7 @@
 - The clean live regression passes both desktop and iPhone 13 cases against Docker Tuwunel and Chromium after the shared login helper reaches the Simple Mode shell, the test sends through the real composer, and it measures the actual scroll container.
 - Review: the first independent review found that the scrolled-up assertion could pass before the second reply rendered, mobile coverage had been dropped, and the test duplicated a weaker login path; all three gaps are addressed, and fixed-head re-review approves the result.
 - Automated review found two remaining false-pass paths in the live test: absent scroll containers produced valid-looking sentinel arithmetic, and unrelated delayed growth could satisfy the second-send height check; missing containers now throw, and the unique second reply must render before its height and position assertions.
-- Next step: open a ready PR and address valid AI review findings.
+- Next step: complete fixed-head PR #215 gates, confirm no unresolved review threads, and hand off without merging.
 
 ### Do not block app mount on service-worker registration (2026-08-11)
 
