@@ -4,15 +4,19 @@
 
 ### Restore thread auto-scroll after sending a reply (2026-08-12)
 
-- Status: implementation and local validation are complete in ready PR #213.
-- Root cause: pending thread replies now render from the SDK's `liveEvent: false` local-echo notification, but that early-return path did not arm bottom-follow.
-- The later server-confirmation notification observed the already-expanded scroll height, so its near-bottom check treated the reader as scrolled up and never followed the new reply.
-- Fix: capture the current thread viewport before rendering the pending local echo and arm the existing smooth bottom-follow only for an `m.thread` reply at the live end within the existing 24px threshold.
-- Coverage: a pending local echo follows from the bottom and preserves a viewport scrolled 100px upward.
-- TDD evidence: the near-bottom case first failed with a zero scroll request while the scrolled-up guard passed, then both passed after the controller fix.
-- Validation: the focused thread-scroll suite passes all 15 tests; full Vitest passes all 456 files and 3,502 tests; typecheck, full ESLint, production/PWA build, changed-file formatting, and `git diff --check` pass.
-- Review: every pushed head requires clean independent and automated review before handoff.
-- Next step: human review and merge after fixed-head gates are green.
+- Status: post-deployment root-cause fix, strengthened live browser validation, independent review, and first-head automated-review remediation are complete; fixed-head PR gates remain.
+- The first fix targeted a synthetic `Room.timeline` event with `liveEvent: false`, but matrix-js-sdk 41.7.0 inserts real pending sends through `Room.localEchoUpdated`.
+- The existing local-echo refresh listener discarded the event and transition metadata, so production never armed bottom-follow before the pending reply rendered.
+- Fix: expose the local-echo event plus whether it is the initial insertion, then arm the existing smooth thread bottom-follow only for an initial pending `m.thread` reply at the live end within the existing 24px threshold.
+- Later status changes retain refresh behavior but cannot re-arm scrolling after the reader moves away.
+- TDD evidence: the real `Room.localEchoUpdated` cases failed with zero scroll requests before the listener fix, while the scrolled-up guard passed; all three cases pass after the fix, including a later-status-update guard.
+- Live evidence: the Docker Tuwunel plus Chromium spec sends two replies through the real thread composer on desktop and iPhone 13; the first remains within 48px of the bottom, while the second must render and increase the scroll height before proving that a viewport more than 200px from the bottom moves by less than 100px.
+- Coverage: focused local-echo, pending-send, and scroll-policy tests plus the expanded live thread-send regression cover both follow and preserve behavior.
+- Validation: the focused suite passes 18 tests, full Vitest passes all 456 files and 3,503 tests, and typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build, changed-file formatting, and `git diff --check` pass.
+- The clean live regression passes both desktop and iPhone 13 cases against Docker Tuwunel and Chromium after the shared login helper reaches the Simple Mode shell, the test sends through the real composer, and it measures the actual scroll container.
+- Review: the first independent review found that the scrolled-up assertion could pass before the second reply rendered, mobile coverage had been dropped, and the test duplicated a weaker login path; all three gaps are addressed, and fixed-head re-review approves the result.
+- Automated review found two remaining false-pass paths in the live test: absent scroll containers produced valid-looking sentinel arithmetic, and unrelated delayed growth could satisfy the second-send height check; missing containers now throw, and the unique second reply must render before its height and position assertions.
+- Next step: complete fixed-head PR #215 gates, confirm no unresolved review threads, and hand off without merging.
 
 ### Do not block app mount on service-worker registration (2026-08-11)
 
