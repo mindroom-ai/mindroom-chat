@@ -4,7 +4,7 @@
 
 ### Animate the router voice-transcription placeholder (2026-08-13)
 
-- Status: implementation and local validation are complete.
+- Status: implementation, local validation, and ready PR #216 are complete; automated review and CI remain.
 - Scope: render only the exact marked `Router agent is transcribing…` voice-ingress placeholder as a dedicated fixed-copy animated status.
 - Decision: use the backend's `com.mindroom.visible_router_voice_echo` marker plus the exact effective body, so ordinary messages and the later transcript or fallback edit stay on the normal renderer.
 - Motion: show a compact pulsing waveform beside the fixed text, with a static reduced-motion fallback.
@@ -13,7 +13,7 @@
 - Validation: the focused message suites pass 53 tests; full Vitest passes all 456 files and 3,503 tests; typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
 - Test-harness follow-up: the first full run exposed an unrelated long-text suite importing the new vanilla-extract file without its existing component seam; mocking the new placeholder beside the already mocked thinking placeholder restored that isolated test environment before the clean full rerun.
 - Review: fresh read-only review of the implementation commit found no critical, important, or minor issues and approved it.
-- Next step: preserve the branch for human review; no push or pull request was requested.
+- Next step: complete PR #216 AI-review and CI gates, then hand off for human merge.
 
 ### Restore thread auto-scroll after sending a reply (2026-08-12)
 
