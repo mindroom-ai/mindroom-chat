@@ -12,6 +12,8 @@
 - Coverage: the renderer test pins the exact marked placeholder, unmarked identical prose, and a marked settled transcript.
 - Validation: the focused message suites pass 53 tests; full Vitest passes all 456 files and 3,503 tests; typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
 - Test-harness follow-up: the first full run exposed an unrelated long-text suite importing the new vanilla-extract file without its existing component seam; mocking the new placeholder beside the already mocked thinking placeholder restored that isolated test environment before the clean full rerun.
+- Review: fresh read-only review of the implementation commit found no critical, important, or minor issues and approved it.
+- Next step: preserve the branch for human review; no push or pull request was requested.
 
 ### Restore thread auto-scroll after sending a reply (2026-08-12)
 
