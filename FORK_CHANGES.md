@@ -151,6 +151,16 @@
 - Risks: none identified beyond browser-specific shortcut conventions, which remain browser-owned.
 - Next step: after merge, verify `Cmd+1` through `Cmd+3` in the shipped client while the composer is focused.
 
+### Stop voice-volume popover events from outliving their targets (2026-07-26)
+
+- Status: fixed and validated in PR #214.
+- Root cause: `VoiceVolumeButton` read `event.currentTarget` inside a deferred state updater after React could clear it.
+- Fix: capture the trigger rectangle synchronously while preserving the existing popover toggle behavior.
+- Coverage: the regression invalidates `currentTarget` before the queued update runs; the focused file passes all 30 tests.
+- Validation: typecheck, ESLint, production/PWA build, and `git diff --check` pass; the full suite retains three unrelated local Xcode Cloud fixture failures.
+- Risks: none identified beyond deployment verification.
+- Next step: merge and verify repeated volume-popover open, close, and reopen interactions in the shipped client.
+
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 
 - Status: simplified implementation, local validation, and live verification are complete on `caveman/visible-dark-scrollbar`; ready PR #201 remains open.
