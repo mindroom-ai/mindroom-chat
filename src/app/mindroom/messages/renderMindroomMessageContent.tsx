@@ -16,10 +16,12 @@ import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
 import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
+import { MindroomTranscribingPlaceholder } from './MindroomTranscribingPlaceholder';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { renderMindroomStreamingIndicator } from './StreamingIndicator';
 import { isMindroomThinkingPlaceholderBody } from './thinkingPlaceholder';
+import { isMindroomTranscribingPlaceholder } from './transcribingPlaceholder';
 import { getMindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
@@ -228,6 +230,17 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Text || msgType === MsgType.File) {
+    if (msgType === MsgType.Text && isMindroomTranscribingPlaceholder(content)) {
+      return (
+        <MText
+          content={content}
+          renderStateSuffix={getMessageStateSuffix()}
+          renderBody={() => <MindroomTranscribingPlaceholder />}
+          renderAfterBody={renderMessageExtras(content)}
+        />
+      );
+    }
+
     const isStreaming = isMindroomAiRunStreaming(content);
     if (msgType === MsgType.Text && isStreaming && isMindroomThinkingPlaceholderBody(content)) {
       return (
