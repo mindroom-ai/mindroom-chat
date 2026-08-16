@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Restore autocomplete parity with every MindRoom command (2026-08-15)
+
+- Status: implementation, local validation, and independent review are complete; PR gates remain.
+- Source: `mindroom-ai/mindroom` `origin/main` at `b15e33ff5` defines 14 canonical commands through `CommandType` and `_COMMAND_DOCS` in `src/mindroom/commands/parsing.py`.
+- Gap: the frontend list omitted `!desktop` and the new `!room_model`, so both command prefixes produced no autocomplete result.
+- Fix: add both commands to the fork-owned `MINDROOM_COMMANDS` list in the same order and with the same syntax exposed by backend help.
+- TDD evidence: the focused catalog test first failed because the received names omitted `desktop` and `room_model`, then passed after both entries were added.
+- Coverage: the literal command-name inventory now pins all 14 canonical backend commands, while the existing syntax test pins each displayed syntax to its matching command name.
+- Validation: the command directory passes 6 tests, the full Vitest suite passes all 456 files and 3,505 tests, typecheck passes, ESLint passes with zero errors and the existing 17-warning baseline, the production/PWA build with Element Call verification passes, touched-file Prettier passes, and `git diff --check` passes.
+- Review: the first independent review found one overstated coverage claim in this runbook; the wording now matches the syntax-prefix assertion, and a fresh exact-head review found no critical, important, or minor issues and approved the change.
+- Next step: open a ready PR and address valid automated-review findings.
+
 ### Animate the router voice-transcription placeholder (2026-08-13)
 
 - Status: implementation, local validation, and ready PR #216 are complete; automated review and CI remain.
