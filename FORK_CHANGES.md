@@ -9,7 +9,7 @@
 - Gap: the frontend list omitted `!desktop` and the new `!room_model`, so both command prefixes produced no autocomplete result.
 - Fix: add both commands to the fork-owned `MINDROOM_COMMANDS` list in the same order and with the same syntax exposed by backend help.
 - TDD evidence: the focused catalog test first failed because the received names omitted `desktop` and `room_model`, then passed after both entries were added.
-- Coverage: the literal command-name inventory now pins all 14 canonical backend commands, while the existing syntax test ensures every completion inserts its matching command prefix.
+- Coverage: the literal command-name inventory now pins all 14 canonical backend commands, while the existing syntax test pins each displayed syntax to its matching command name.
 - Validation: the command directory passes 6 tests, the full Vitest suite passes all 456 files and 3,505 tests, typecheck passes, ESLint passes with zero errors and the existing 17-warning baseline, the production/PWA build with Element Call verification passes, touched-file Prettier passes, and `git diff --check` passes.
 - Next step: complete independent review, open a ready PR, and address valid automated-review findings.
 
