@@ -105,6 +105,43 @@ describe('loadRoomThreads', () => {
     expect(secondProgress).toHaveBeenCalledOnce();
   });
 
+  it('notifies a caller that joins after fetch progress while pagination is pending', async () => {
+    setServerSideListSupport(true);
+    let releasePagination: ((hasMore: boolean) => void) | undefined;
+    const pendingPagination = new Promise<boolean>((resolve) => {
+      releasePagination = resolve;
+    });
+    let paginationToken: string | null = 'next';
+    const liveTimeline = {
+      getPaginationToken: vi.fn(() => paginationToken),
+    };
+    const room = {
+      client: {
+        paginateEventTimeline: vi.fn(() => pendingPagination),
+        supportsThreads: vi.fn(() => true),
+      },
+      fetchRoomThreads: vi.fn(async () => undefined),
+      threadsTimelineSets: [
+        {
+          getLiveTimeline: () => liveTimeline,
+        },
+      ],
+    };
+    const firstProgress = vi.fn();
+    const secondProgress = vi.fn();
+
+    const firstLoad = loadRoomThreads(room as never, firstProgress);
+    await vi.waitFor(() => expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce());
+    expect(firstProgress).toHaveBeenCalledOnce();
+
+    const secondLoad = loadRoomThreads(room as never, secondProgress);
+    paginationToken = null;
+    releasePagination?.(false);
+    await Promise.all([firstLoad, secondLoad]);
+
+    expect(secondProgress).toHaveBeenCalledOnce();
+  });
+
   it('starts a fresh load before the previous success is observable to callers', async () => {
     setServerSideListSupport(true);
     let releaseFetch: (() => void) | undefined;
