@@ -12,7 +12,7 @@
 - The focused regressions hold the first fetch open, prove concurrent compact-style loads share one SDK fetch, and prove successful or rejected settlement permits a fresh same-room load without a stale map window.
 - A live Chromium regression holds the two SDK thread-list requests open while repeatedly changing Compact, Threaded, Classic, natural, newest, and oldest modes, and it verifies that no additional initialization requests or app crash occurs.
 - Validation passes all 16 `roomThreadList` tests, the live Chromium regression, typecheck, production build, lint with zero errors, formatting, and independent review with no remaining Critical or Important findings.
-- The full Vitest run passes 3,488 of 3,492 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
+- The full Vitest run passes 3,504 of 3,508 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
 
 ### Restore autocomplete parity with every MindRoom command (2026-08-15)
 
