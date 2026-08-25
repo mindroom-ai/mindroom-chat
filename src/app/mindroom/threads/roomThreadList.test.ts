@@ -105,6 +105,22 @@ describe('loadRoomThreads', () => {
     expect(secondProgress).toHaveBeenCalledOnce();
   });
 
+  it('continues a shared load when one progress listener throws', async () => {
+    setServerSideListSupport(true);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { room } = makeRoom([null]);
+    const listenerError = new Error('progress listener failed');
+    const secondProgress = vi.fn();
+
+    const firstLoad = loadRoomThreads(room as never, () => {
+      throw listenerError;
+    });
+    const secondLoad = loadRoomThreads(room as never, secondProgress);
+
+    await expect(Promise.all([firstLoad, secondLoad])).resolves.toEqual([undefined, undefined]);
+    expect(secondProgress).toHaveBeenCalledOnce();
+  });
+
   it('notifies a caller that joins after fetch progress while pagination is pending', async () => {
     setServerSideListSupport(true);
     let releasePagination: ((hasMore: boolean) => void) | undefined;

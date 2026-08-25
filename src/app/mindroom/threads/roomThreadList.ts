@@ -186,7 +186,13 @@ export const loadRoomThreads = (room: Room, onProgress?: () => void): Promise<vo
       loadRoomThreadsOnce(
         room,
         () => {
-          progressListeners.forEach((listener) => listener());
+          progressListeners.forEach((listener) => {
+            try {
+              listener();
+            } catch (err) {
+              console.warn('[threadList] progress listener failed:', err);
+            }
+          });
         },
         () => {
           if (roomThreadListLoads.get(room) === activeLoad) {

@@ -10,9 +10,10 @@
 - The SDK guards completed initialization but not concurrent initialization, and every concurrent completion registers the same permanent room thread listeners.
 - `loadRoomThreads` now keeps one in-flight operation per room in a `WeakMap`, broadcasts pagination progress to all active callers, and removes the entry after either success or failure so later explicit loads retain their existing behavior.
 - The focused regressions hold the first fetch open, prove concurrent compact-style loads share one SDK fetch, and prove successful or rejected settlement permits a fresh same-room load without a stale map window.
+- Automated review found that a throwing progress subscriber could abort the shared operation for every caller, so listener callbacks are now isolated and a focused regression proves later subscribers and the shared promise continue.
 - A live Chromium regression holds the two SDK thread-list requests open while repeatedly changing Compact, Threaded, Classic, natural, newest, and oldest modes, and it verifies that no additional initialization requests or app crash occurs.
-- Validation passes all 17 `roomThreadList` tests, the live Chromium regression, typecheck, production build, lint with zero errors, formatting, and independent review with no remaining Critical or Important findings.
-- The full Vitest run passes 3,504 of 3,508 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
+- Validation passes all 18 `roomThreadList` tests, the live Chromium regression, typecheck, production build, lint with zero errors, formatting, and independent review with no remaining Critical or Important findings.
+- The full Vitest run passes 3,506 of 3,510 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
 
 ### Restore autocomplete parity with every MindRoom command (2026-08-15)
 
