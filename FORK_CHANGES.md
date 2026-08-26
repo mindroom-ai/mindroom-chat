@@ -15,6 +15,25 @@
 - Validation passes all 18 `roomThreadList` tests, the live Chromium regression, typecheck, production build, lint with zero errors, formatting, and independent review with no remaining Critical or Important findings.
 - The full Vitest run passes 3,506 of 3,510 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
 
+### CINNY-135 — Deduplicate limited-sync thread token conversion (2026-08-23)
+
+- Status: evidence analysis, corrected source tracing, implementation, red-green regression coverage, validation, and review remediation are complete in ready PR #218; device validation remains.
+- Crash evidence: the abnormal visible session ended without an expected end marker, and its trace retained a 953-request `/messages` burst after one foreground resume.
+- Burst shape: 476 inferred requests started within 25 ms at a peak concurrency of 476, with a 3,756 ms median and 4,702 ms p90 duration for that first wave.
+- Recorder limitation: the ring retained 5,000 events and reported 45,314 dropped events, so whole-session totals are incomplete even though all 953 burst completions are present.
+- Root cause: a limited sync calls matrix-js-sdk `Room.resetLiveTimeline`, which calls every materialized `Thread.resetLiveTimeline`; each thread independently issues the same two `/messages?limit=1` requests to convert the room sync tokens into thread pagination tokens.
+- Exact signature: `953 = (476 × 2) + 1`; 476 threads synchronously launched the first conversion, then each launched the second after its first completed, while the omitted request parameters prevent directly classifying the one remaining request.
+- Resume conclusion: the direct overview-resume controller was not responsible because the active route had a thread id, but the sync completed 608 ms after visibility and its limited-timeline recovery directly explains the request storm.
+- Rejected approach: limiting the SDK inventory to the 64-entry metadata cache would hide valid older threads used by rendering, filtering, search, counts, deep links, and sync, so that first fix was removed.
+- Fix: a `patch-package` patch updates the SDK TypeScript source, packaged runtime, and regenerated source map to share identical in-flight conversions per Matrix client, room, token, and direction, then evicts them on success or failure so later limited syncs remain fresh.
+- Preserved behavior: all materialized threads still reset and receive the converted pagination tokens; only duplicate network calls are removed, reducing the captured causal traffic from 952 requests to 2.
+- Red-green evidence: three materialized threads made three identical initial conversion calls before the patch; after it they make one request per direction, every thread receives both tokens, a same-token reset makes two fresh calls, a rejection can retry, and room/client/token/direction boundaries remain isolated.
+- Validation: focused tests pass all 25 tests across 3 files; typecheck passes; ESLint passes with zero errors and the existing 17-warning baseline; touched-file Prettier passes; patch reverse-check and source-map spot checks pass; and the production/PWA build plus Element Call verification passes.
+- Full-suite status: Vitest passes 455 of 457 files and 3,510 of 3,514 tests; the four failures are pre-existing issues in two unchanged files, comprising three Nix-host shell-path failures and one `File` structural-identity matcher failure.
+- Review: two fresh independent exact-snapshot reviewers found no blocker, critical, important, or minor issues after the source map and isolation coverage were added.
+- Remaining work: complete device verification, then hand off for human merge.
+- Device limitation: no iPhone is available, so a TestFlight or locally installed iOS build must confirm that overview-to-thread navigation plus background/foreground no longer causes a relaunch.
+
 ### Restore autocomplete parity with every MindRoom command (2026-08-15)
 
 - Status: implementation, local validation, and independent review are complete; PR gates remain.
