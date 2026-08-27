@@ -25,7 +25,7 @@ export const Placeholder = style({
   display: 'inline-flex',
   alignItems: 'center',
   maxWidth: '100%',
-  gap: config.space.S100,
+  gap: config.space.S200,
   color: 'inherit',
   font: 'inherit',
   fontWeight: 700,
