@@ -11,7 +11,7 @@
 - TDD evidence: the focused component test first failed because no `Indicator` element existed, then passed after the ornament and its styles were added.
 - Scope remains limited to the thinking placeholder component, styles, and focused coverage; placeholder detection, configured copy, rotation timing, and settled-message rendering are unchanged.
 - Validation: the focused thinking and content-renderer suites pass 30 tests; typecheck, production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
-- The full Vitest run passes 3,507 of 3,511 tests; the same three platform-script failures and one upload-session failure reproduce at the untouched base commit.
+- The full Vitest run passes 3,511 of 3,515 tests; the same three platform-script failures and one upload-session failure reproduce at the untouched base commit.
 - Review: fresh read-only review found no Critical, Important, or Minor issues and approved the change.
 
 ### Deduplicate compact thread-list loads across view switches (2026-08-25)
