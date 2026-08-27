@@ -57,7 +57,7 @@ const makeRoom = ({
     })),
     getMember: vi.fn((userId: string) => {
       const name = memberNames[userId];
-      return name
+      return Object.prototype.hasOwnProperty.call(memberNames, userId)
         ? {
             name,
             rawDisplayName: name,
@@ -344,6 +344,31 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
 
     expect((model as typeof model & { resolvedByDisplayName?: string }).resolvedByDisplayName).toBe(
       'remote-resolver'
+    );
+  });
+
+  it('uses the resolver Matrix ID localpart when the room display name is empty', () => {
+    const model = buildModel(
+      makeRoom({
+        memberNames: {
+          '@blank-name:elsewhere.example': '',
+        },
+      }),
+      {
+        threadResolution: {
+          tags: {
+            resolved: {
+              set_by: '@blank-name:elsewhere.example',
+              set_at: '2026-08-27T00:00:00.000Z',
+            },
+          },
+          isResolved: true,
+        },
+      }
+    );
+
+    expect((model as typeof model & { resolvedByDisplayName?: string }).resolvedByDisplayName).toBe(
+      'blank-name'
     );
   });
 

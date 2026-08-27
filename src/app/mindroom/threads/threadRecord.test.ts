@@ -126,7 +126,7 @@ describe('buildThreadRecord', () => {
         isResolved: true,
         tags: {
           resolved: {
-            set_by: '@resolver:server',
+            set_by: '  @resolver:server  ',
             set_at: '2026-08-27T12:00:00.000Z',
           },
           followup: {

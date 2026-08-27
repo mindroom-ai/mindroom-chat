@@ -204,7 +204,7 @@ const getThreadResolverUserId = (
   if (typeof resolvedTag !== 'object' || resolvedTag === null) return undefined;
 
   const userId = (resolvedTag as { set_by?: unknown }).set_by;
-  return typeof userId === 'string' && userId.trim().length > 0 ? userId : undefined;
+  return typeof userId === 'string' && userId.trim().length > 0 ? userId.trim() : undefined;
 };
 
 const getThreadUnreadFromReadUpToTs = (

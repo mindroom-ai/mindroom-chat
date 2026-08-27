@@ -4,18 +4,19 @@
 
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 
-- Status: the bounded UI implementation, local validation, and independent review are complete; PR review remains.
+- Status: the bounded UI implementation, local validation, independent review, and automated-review follow-ups are complete; human PR review remains.
 - The existing `resolved` thread-tag record is authoritative for attribution through its `set_by` user ID, so this change adds no protocol or backend state.
 - Open resolved threads show a muted `by <name>` line directly beneath the Resolved button.
 - The Resolved button keeps the full `Resolved by <name>` text as a hover title when the byline is hidden below the existing 480 px compact breakpoint.
 - Compact overview cards expose the same full attribution from the resolved status dot and include it in the card's accessible label without adding another visible badge.
 - Resolver names prefer the current room-member display name, then fall back to the Matrix ID localpart and finally the full user ID.
 - English, German, and Dutch copy stays localized through the existing thread translation namespace.
-- TDD evidence: four focused surfaces first failed for the missing record field, Compact view-model name, open-thread attribution, and Compact-card hover/accessibility text; the four files now pass all 45 tests, including the missing-membership fallback.
+- TDD evidence: four focused surfaces first failed for the missing record field, Compact view-model name, open-thread attribution, and Compact-card hover/accessibility text; review regressions then failed for resolver-ID whitespace and an empty member display name; the four files now pass all 46 tests.
 - Live Chromium coverage creates a real resolved thread, verifies Compact-card hover and accessible attribution, opens the thread, verifies the desktop byline, and confirms the byline hides at 390 px while the Resolved button keeps its full hover title.
-- Validation: the focused suites pass 45 tests; the live Chromium spec passes; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
-- The full Vitest run passes 3,514 of 3,518 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
+- Validation: the focused suites pass 46 tests; the live Chromium spec passes; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,515 of 3,519 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
 - Review: fresh read-only review found no Critical, Important, or Minor issues and approved the implementation, responsive behavior, accessibility, localization, optimistic-state handling, and tests.
+- Automated PR review identified two valid defensive-normalization gaps; resolver IDs are now trimmed before lookup, and blank member display names fall back to the Matrix ID localpart, with regression coverage for both cases.
 
 ### Add a compact thought orbit to thinking placeholders (2026-08-27)
 

@@ -5,5 +5,12 @@ import { getMemberDisplayName } from '../../utils/room';
 export const getThreadResolverDisplayName = (
   room: Room,
   userId: string | undefined
-): string | undefined =>
-  userId ? getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId : undefined;
+): string | undefined => {
+  const normalizedUserId = userId?.trim();
+  if (!normalizedUserId) return undefined;
+
+  const memberDisplayName = getMemberDisplayName(room, normalizedUserId);
+  return memberDisplayName?.trim()
+    ? memberDisplayName
+    : getMxIdLocalPart(normalizedUserId) ?? normalizedUserId;
+};
