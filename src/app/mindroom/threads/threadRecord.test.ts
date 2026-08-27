@@ -125,8 +125,14 @@ describe('buildThreadRecord', () => {
       threadResolution: {
         isResolved: true,
         tags: {
-          resolved: {},
-          followup: {},
+          resolved: {
+            set_by: '@resolver:server',
+            set_at: '2026-08-27T12:00:00.000Z',
+          },
+          followup: {
+            set_by: '@triage:server',
+            set_at: '2026-08-27T11:00:00.000Z',
+          },
         },
       },
       fallbackParticipantIds: ['@fallback:server'],
@@ -148,6 +154,7 @@ describe('buildThreadRecord', () => {
       },
       status: {
         isResolved: true,
+        resolvedByUserId: '@resolver:server',
         isUnread: true,
         scheduledTaskCount: 1,
         cronDescription: 'At 09:00',
