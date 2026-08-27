@@ -76,6 +76,17 @@ test.describe('compact card display names', () => {
       },
       'compact-card-display-name-summary'
     );
+    await sendStateEvent(
+      homeserver,
+      session.accessToken,
+      roomId,
+      'com.mindroom.thread.tags',
+      JSON.stringify([rootId, 'resolved']),
+      {
+        set_by: session.userId,
+        set_at: '2026-08-27T12:00:00.000Z',
+      }
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
@@ -94,6 +105,11 @@ test.describe('compact card display names', () => {
     const threadCard = page.locator(`[data-thread-root-id="${rootId}"]`);
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 30_000 });
     await expect(threadCard).toBeVisible({ timeout: 30_000 });
+    await expect(threadCard).toHaveAccessibleName(new RegExp(`Resolved by ${displayName}`));
+    await expect(threadCard.locator('[data-attention-state="resolved"]')).toHaveAttribute(
+      'title',
+      `Resolved by ${displayName}`
+    );
 
     if (process.env.E2E_EXPECT_RAW_MATRIX_ID === '1') {
       await expect(threadCard).toContainText(session.userId);
@@ -109,5 +125,24 @@ test.describe('compact card display names', () => {
         path: `ui-audit/compact-card-display-names-${screenshotVariant}.png`,
       });
     }
+
+    await threadCard.click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
+
+    const resolverByline = page.locator('[data-thread-resolution-byline="true"]');
+    const resolvedButton = page.getByRole('button', { name: 'Resolved' });
+    await expect(resolvedButton).toHaveAttribute('title', `Resolved by ${displayName}`);
+    await expect(resolverByline).toBeVisible();
+    await expect(resolverByline).toHaveText(`by ${displayName}`);
+
+    if (screenshotVariant) {
+      await resolverByline.locator('xpath=../../..').screenshot({
+        path: `ui-audit/thread-resolver-byline-${screenshotVariant}.png`,
+      });
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(resolverByline).toBeHidden();
+    await expect(resolvedButton).toHaveAttribute('title', `Resolved by ${displayName}`);
   });
 });

@@ -23,6 +23,7 @@ import {
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import { RESOLVED_TAG } from './threadTags';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -194,7 +195,17 @@ export const getThreadReplyParticipantIds = (
 };
 
 const getThreadStatusTags = (threadResolution: ThreadResolutionLike | undefined): string[] =>
-  Object.keys(threadResolution?.tags ?? {}).filter((tagName) => tagName !== 'resolved');
+  Object.keys(threadResolution?.tags ?? {}).filter((tagName) => tagName !== RESOLVED_TAG);
+
+const getThreadResolverUserId = (
+  threadResolution: ThreadResolutionLike | undefined
+): string | undefined => {
+  const resolvedTag = threadResolution?.tags?.[RESOLVED_TAG];
+  if (typeof resolvedTag !== 'object' || resolvedTag === null) return undefined;
+
+  const userId = (resolvedTag as { set_by?: unknown }).set_by;
+  return typeof userId === 'string' && userId.trim().length > 0 ? userId.trim() : undefined;
+};
 
 const getThreadUnreadFromReadUpToTs = (
   thread: ReturnType<Room['getThread']>,
@@ -351,6 +362,7 @@ export const buildThreadRecord = ({
       isKnownThreadRoot,
       replyCount: recordReplyCount ?? 0,
       isResolved,
+      resolvedByUserId: isResolved ? getThreadResolverUserId(threadResolution) : undefined,
       isUnread,
       isStreaming,
       hasPendingSend,

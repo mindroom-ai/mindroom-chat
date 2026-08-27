@@ -119,4 +119,20 @@ describe('CompactThreadCard', () => {
 
     renderer.unmount();
   });
+
+  it('reveals the resolver from the resolved status dot and accessible card label', () => {
+    const viewModel = makeViewModel({
+      attentionState: 'resolved',
+      attentionStatusText: 'Resolved',
+      isResolved: true,
+      resolvedByDisplayName: 'Alice',
+    } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
+    const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    const resolvedDot = renderer.root.findByProps({ 'data-attention-state': 'resolved' });
+
+    expect(resolvedDot.props.title).toBe('Resolved by Alice');
+    expect(renderer.root.findByType('button').props['aria-label']).toContain('Resolved by Alice');
+
+    renderer.unmount();
+  });
 });
