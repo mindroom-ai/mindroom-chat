@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Add a compact thought orbit to thinking placeholders (2026-08-27)
+
+- Status: the bounded component change, local validation, and independent review are complete.
+- Active exact thinking placeholders now show a four-dot pulsing orbit before their rotating copy, replacing the static trailing ellipsis while preserving the existing text shimmer.
+- The indicator mirrors the transcription placeholder's compact indicator-plus-label rhythm but remains visually distinct from its waveform.
+- Preview feedback found the original four-pixel gap visually too tight, so the indicator-to-label spacing now uses the eight-pixel design token.
+- The ornament stays hidden from assistive technology inside the existing `AI is responding` status, and reduced-motion users receive static dots with plain text.
+- TDD evidence: the focused component test first failed because no `Indicator` element existed, then passed after the ornament and its styles were added.
+- Scope remains limited to the thinking placeholder component, styles, and focused coverage; placeholder detection, configured copy, rotation timing, and settled-message rendering are unchanged.
+- Validation: the focused thinking and content-renderer suites pass 30 tests; typecheck, production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,511 of 3,515 tests; the same three platform-script failures and one upload-session failure reproduce at the untouched base commit.
+- Review: fresh read-only review approved the spacing change with no remaining Critical, Important, or Minor findings.
+- Risks: no open implementation risks are identified.
+- Next steps: no further implementation steps are planned.
+
 ### Deduplicate compact thread-list loads across view switches (2026-08-25)
 
 - Status: the root cause is reproduced and the bounded loader fix is implemented and verified locally.

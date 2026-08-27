@@ -28,11 +28,14 @@ export function MindroomThinkingPlaceholder() {
 
   return (
     <span className={css.Placeholder} role="status" aria-label="AI is responding">
+      <span className={css.Indicator} aria-hidden="true">
+        <span className={css.Dot} />
+        <span className={css.Dot} />
+        <span className={css.Dot} />
+        <span className={css.Dot} />
+      </span>
       <span className={css.Text} aria-hidden="true">
         {message}
-      </span>
-      <span className={css.Ellipsis} aria-hidden="true">
-        ...
       </span>
     </span>
   );
