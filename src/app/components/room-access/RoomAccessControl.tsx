@@ -1,0 +1,194 @@
+import React, { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import { JoinRule, MatrixError, Room, RoomEvent } from 'matrix-js-sdk';
+import {
+  Box,
+  Button,
+  Dialog,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Spinner,
+  Text,
+  TextArea,
+  color,
+  config,
+} from 'folds';
+import FocusTrap from 'focus-trap-react';
+
+import { Membership } from '../../../types/matrix/room';
+import { AsyncState, AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { useAlive } from '../../hooks/useAlive';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { stopPropagation } from '../../utils/keyboard';
+
+export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
+export type RoomAccessKind = 'join' | 'knock';
+type RoomAccessResult = Room | { room_id: string };
+
+export type RoomAccessView = {
+  kind: RoomAccessKind;
+  state: AsyncState<RoomAccessResult, MatrixError>;
+  loading: boolean;
+  requested: boolean;
+  succeeded: boolean;
+  activate: () => void;
+};
+
+type RoomAccessControlProps = {
+  roomIdOrAlias: string;
+  roomId?: string;
+  roomName: string;
+  joinRule?: RoomAccessJoinRule;
+  viaServers?: string[];
+  children: (view: RoomAccessView) => ReactNode;
+};
+
+export function RoomAccessControl({
+  roomIdOrAlias,
+  roomId,
+  roomName,
+  joinRule,
+  viaServers,
+  children,
+}: RoomAccessControlProps) {
+  const mx = useMatrixClient();
+  const alive = useAlive();
+  const accessRoomId = roomId ?? roomIdOrAlias;
+  const kind: RoomAccessKind =
+    joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
+
+  const [accessState, access] = useAsyncCallback<
+    RoomAccessResult,
+    MatrixError,
+    [string | undefined]
+  >(
+    useCallback(
+      (reason) =>
+        kind === 'knock'
+          ? mx.knockRoom(roomIdOrAlias, { reason, viaServers })
+          : mx.joinRoom(roomIdOrAlias, { viaServers }),
+      [kind, mx, roomIdOrAlias, viaServers]
+    )
+  );
+  const [roomMembership, setRoomMembership] = useState(
+    () => mx.getRoom(accessRoomId)?.getMyMembership() as Membership | undefined
+  );
+  const [requestInvalidated, setRequestInvalidated] = useState(false);
+  useEffect(() => {
+    setRoomMembership(mx.getRoom(accessRoomId)?.getMyMembership() as Membership | undefined);
+    setRequestInvalidated(false);
+
+    const handleMembership = (room: Room, membership: string) => {
+      if (room.roomId === accessRoomId) {
+        setRoomMembership(membership as Membership);
+        if (kind === 'knock') {
+          setRequestInvalidated(membership !== Membership.Knock);
+        }
+      }
+    };
+
+    mx.on(RoomEvent.MyMembership, handleMembership);
+    return () => {
+      mx.removeListener(RoomEvent.MyMembership, handleMembership);
+    };
+  }, [accessRoomId, kind, mx]);
+
+  const loading = accessState.status === AsyncStatus.Loading;
+  const succeeded =
+    accessState.status === AsyncStatus.Success && !(kind === 'knock' && requestInvalidated);
+  const requested = kind === 'knock' && (succeeded || roomMembership === Membership.Knock);
+  const [viewKnock, setViewKnock] = useState(false);
+  const closeKnock = () => setViewKnock(false);
+  const activate = () => {
+    if (loading || requested || succeeded) return;
+
+    if (kind === 'knock') {
+      setViewKnock(true);
+      return;
+    }
+
+    access(undefined).catch(() => undefined);
+  };
+  const handleKnockSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
+    evt.preventDefault();
+    if (loading || requested) return;
+
+    const target = evt.target as HTMLFormElement | undefined;
+    const reasonInput = target?.reasonInput as HTMLTextAreaElement | undefined;
+    const reason = reasonInput?.value.trim() || undefined;
+
+    access(reason)
+      .then(() => {
+        if (alive()) {
+          setRequestInvalidated(false);
+          closeKnock();
+        }
+      })
+      .catch(() => undefined);
+  };
+
+  return (
+    <>
+      {children({ kind, state: accessState, loading, requested, succeeded, activate })}
+      {kind === 'knock' && (
+        <Overlay open={viewKnock} backdrop={<OverlayBackdrop />}>
+          <OverlayCenter>
+            <FocusTrap
+              focusTrapOptions={{
+                initialFocus: false,
+                clickOutsideDeactivates: !loading,
+                onDeactivate: closeKnock,
+                escapeDeactivates: stopPropagation,
+              }}
+            >
+              <Dialog variant="Surface">
+                <Box
+                  as="form"
+                  onSubmit={handleKnockSubmit}
+                  style={{ padding: config.space.S400 }}
+                  direction="Column"
+                  gap="400"
+                >
+                  <Box direction="Column" gap="100">
+                    <Text size="H4">{`Request to join ${roomName}`}</Text>
+                    <Text size="T300" priority="400">
+                      An admin will review your request.
+                    </Text>
+                  </Box>
+                  <Box direction="Column" gap="100">
+                    <Text size="L400">Message (optional)</Text>
+                    <TextArea
+                      name="reasonInput"
+                      variant="Background"
+                      size="500"
+                      rows={3}
+                      resize="None"
+                      disabled={loading}
+                    />
+                  </Box>
+                  {accessState.status === AsyncStatus.Error && (
+                    <Text size="T200" style={{ color: color.Critical.Main }}>
+                      {accessState.error.message || 'Failed to send request.'}
+                    </Text>
+                  )}
+                  <Box gap="200" justifyContent="End">
+                    <Button variant="Secondary" fill="Soft" onClick={closeKnock} disabled={loading}>
+                      <Text size="B400">Cancel</Text>
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      before={loading && <Spinner size="200" variant="Primary" fill="Solid" />}
+                    >
+                      <Text size="B400">{loading ? 'Sending request' : 'Send request'}</Text>
+                    </Button>
+                  </Box>
+                </Box>
+              </Dialog>
+            </FocusTrap>
+          </OverlayCenter>
+        </Overlay>
+      )}
+    </>
+  );
+}

@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, ReactNode, useCallback, useRef } from 'react';
+import React, { MouseEventHandler, ReactNode, useRef } from 'react';
 import {
   Avatar,
   Badge,
@@ -19,7 +19,7 @@ import {
   toRem,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import { JoinRule, MatrixError, Room } from 'matrix-js-sdk';
+import { JoinRule, Room } from 'matrix-js-sdk';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { SequenceCard } from '../../components/sequence-card';
@@ -33,67 +33,91 @@ import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
 import { Membership } from '../../../types/matrix/room';
 import * as css from './RoomItem.css';
 import * as styleCss from './style.css';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
 import { ItemDraggableTarget, useDraggableItem } from './DnD';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
 
 type RoomJoinButtonProps = {
   roomId: string;
+  roomName?: string;
+  joinRule?: RoomAccessJoinRule;
   via?: string[];
 };
-function RoomJoinButton({ roomId, via }: RoomJoinButtonProps) {
-  const mx = useMatrixClient();
-
-  const [joinState, join] = useAsyncCallback<Room, MatrixError, []>(
-    useCallback(() => mx.joinRoom(roomId, { viaServers: via }), [mx, roomId, via])
-  );
-
-  const canJoin = joinState.status === AsyncStatus.Idle || joinState.status === AsyncStatus.Error;
-
+function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps) {
   return (
-    <Box shrink="No" gap="200" alignItems="Center">
-      {joinState.status === AsyncStatus.Error && (
-        <TooltipProvider
-          tooltip={
-            <Tooltip variant="Critical" style={{ maxWidth: toRem(200) }}>
-              <Box direction="Column" gap="100">
-                <Text style={{ wordBreak: 'break-word' }} size="T400">
-                  {joinState.error.data?.error || joinState.error.message}
-                </Text>
-                <Text size="T200">{joinState.error.name}</Text>
-              </Box>
-            </Tooltip>
-          }
-        >
-          {(triggerRef) => (
-            <Icon
-              ref={triggerRef}
-              style={{ color: color.Critical.Main, cursor: 'pointer' }}
-              src={Icons.Warning}
+    <RoomAccessControl
+      roomIdOrAlias={roomId}
+      roomId={roomId}
+      roomName={roomName ?? roomId}
+      joinRule={joinRule}
+      viaServers={via}
+    >
+      {(access) => {
+        const canActivate = !access.loading && !access.requested && !access.succeeded;
+        const accessError =
+          access.state.status === AsyncStatus.Error ? access.state.error : undefined;
+        return (
+          <Box shrink="No" gap="200" alignItems="Center">
+            {accessError && (
+              <TooltipProvider
+                tooltip={
+                  <Tooltip variant="Critical" style={{ maxWidth: toRem(200) }}>
+                    <Box direction="Column" gap="100">
+                      <Text style={{ wordBreak: 'break-word' }} size="T400">
+                        {accessError.data?.error || accessError.message}
+                      </Text>
+                      <Text size="T200">{accessError.name}</Text>
+                    </Box>
+                  </Tooltip>
+                }
+              >
+                {(triggerRef) => (
+                  <Icon
+                    ref={triggerRef}
+                    style={{ color: color.Critical.Main, cursor: 'pointer' }}
+                    src={Icons.Warning}
+                    size="400"
+                    filled
+                    tabIndex={0}
+                    aria-label={accessError.data?.error || accessError.message}
+                  />
+                )}
+              </TooltipProvider>
+            )}
+            <Chip
+              variant="Secondary"
+              fill="Soft"
               size="400"
-              filled
-              tabIndex={0}
-              aria-label={joinState.error.data?.error || joinState.error.message}
-            />
-          )}
-        </TooltipProvider>
-      )}
-      <Chip
-        variant="Secondary"
-        fill="Soft"
-        size="400"
-        radii="Pill"
-        before={
-          canJoin ? <Icon src={Icons.Plus} size="50" /> : <Spinner variant="Secondary" size="100" />
-        }
-        onClick={join}
-        disabled={!canJoin}
-      >
-        <Text size="B300">Join</Text>
-      </Chip>
-    </Box>
+              radii="Pill"
+              before={
+                access.requested ? (
+                  <Icon src={Icons.Check} size="50" />
+                ) : canActivate ? (
+                  <Icon src={Icons.Plus} size="50" />
+                ) : (
+                  <Spinner variant="Secondary" size="100" />
+                )
+              }
+              onClick={access.activate}
+              disabled={!canActivate}
+            >
+              <Text size="B300">
+                {access.kind === 'knock'
+                  ? access.loading
+                    ? 'Sending request'
+                    : access.requested
+                    ? 'Request sent'
+                    : 'Request to join'
+                  : 'Join'}
+              </Text>
+            </Chip>
+          </Box>
+        );
+      }}
+    </RoomAccessControl>
   );
 }
 
@@ -365,7 +389,12 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                         </Chip>
                       </Box>
                     ) : (
-                      <RoomJoinButton roomId={roomId} via={content.via} />
+                      <RoomJoinButton
+                        roomId={roomId}
+                        roomName={localSummary.name}
+                        joinRule={localSummary.joinRule}
+                        via={content.via}
+                      />
                     )
                   }
                 />
@@ -409,7 +438,14 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                   memberCount={summary.num_joined_members}
                   suggested={content.suggested}
                   joinRule={summary.join_rule}
-                  options={<RoomJoinButton roomId={roomId} via={content.via} />}
+                  options={
+                    <RoomJoinButton
+                      roomId={roomId}
+                      roomName={summary.name || summary.canonical_alias || roomId}
+                      joinRule={summary.join_rule}
+                      via={content.via}
+                    />
+                  }
                 />
               )}
             </>

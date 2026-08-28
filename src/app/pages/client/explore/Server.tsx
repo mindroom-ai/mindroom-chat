@@ -593,12 +593,14 @@ export function PublicRooms() {
                             <RoomCard
                               key={chunkRoom.room_id}
                               roomIdOrAlias={chunkRoom.canonical_alias ?? chunkRoom.room_id}
+                              roomId={chunkRoom.room_id}
                               allRooms={allRooms}
                               avatarUrl={chunkRoom.avatar_url}
                               name={chunkRoom.name}
                               topic={chunkRoom.topic}
                               memberCount={chunkRoom.num_joined_members}
                               roomType={chunkRoom.room_type}
+                              joinRule={chunkRoom.join_rule}
                               onView={
                                 chunkRoom.room_type === RoomType.Space
                                   ? navigateSpace

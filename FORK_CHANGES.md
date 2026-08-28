@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Request access from knock-capable room discovery surfaces (2026-08-28)
+
+- Status: the bounded requester UX and focused regression coverage are complete; full validation and independent review remain.
+- Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
+- One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
+- The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
+- Sending state is visible, successful requests settle on a disabled `Request sent` confirmation, and synced knock membership restores or updates that state across navigation and reload.
+- Reusing the deep-link route for another room starts a fresh access session instead of carrying over the prior room's successful request.
+- A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
+- Failed requests remain in the dialog with their error message so the user can retry without losing context.
+- A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
+- Focused coverage passes 13 tests across the shared card behavior, deep-link summary wiring, room lobby rows, and space lobby rows.
+- Next step: run formatting, lint, typecheck, build, the full Vitest suite, and independent exact-diff review.
+
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 
 - Status: the bounded UI implementation, local validation, independent review, and automated-review follow-ups are complete; human PR review remains.
