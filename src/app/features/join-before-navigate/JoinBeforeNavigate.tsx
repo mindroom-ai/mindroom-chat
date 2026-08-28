@@ -10,6 +10,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { MindroomBackRouteHandler as BackRouteHandler } from '../../mindroom/native/MindroomBackRouteHandler';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 
 type JoinBeforeNavigateProps = { roomIdOrAlias: string; eventId?: string; viaServers?: string[] };
 export function JoinBeforeNavigate({
@@ -55,26 +56,32 @@ export function JoinBeforeNavigate({
       <Box grow="Yes">
         <Scroll hideTrack visibility="Hover" size="0">
           <Box style={{ height: '100%' }} grow="Yes" alignItems="Center" justifyContent="Center">
-            <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias}>
-              {(summary) => (
-                <RoomCard
-                  style={{ maxWidth: toRem(364), width: '100%' }}
-                  roomIdOrAlias={roomIdOrAlias}
-                  roomId={summary?.room_id}
-                  allRooms={allRooms}
-                  avatarUrl={summary?.avatar_url}
-                  name={summary?.name}
-                  topic={summary?.topic}
-                  memberCount={summary?.num_joined_members}
-                  roomType={summary?.room_type}
-                  joinRule={summary?.join_rule}
-                  viaServers={viaServers}
-                  renderTopicViewer={(name, topic, requestClose) => (
-                    <RoomTopicViewer name={name} topic={topic} requestClose={requestClose} />
-                  )}
-                  onView={handleView}
-                />
-              )}
+            <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
+              {(summaryState, retrySummary) => {
+                const summary =
+                  summaryState.status === AsyncStatus.Success ? summaryState.data : undefined;
+                return (
+                  <RoomCard
+                    style={{ maxWidth: toRem(364), width: '100%' }}
+                    roomIdOrAlias={roomIdOrAlias}
+                    roomId={summary?.room_id}
+                    allRooms={allRooms}
+                    avatarUrl={summary?.avatar_url}
+                    name={summary?.name}
+                    topic={summary?.topic}
+                    memberCount={summary?.num_joined_members}
+                    roomType={summary?.room_type}
+                    joinRule={summary?.join_rule}
+                    accessStatus={summaryState.status}
+                    onAccessRetry={retrySummary}
+                    viaServers={viaServers}
+                    renderTopicViewer={(name, topic, requestClose) => (
+                      <RoomTopicViewer name={name} topic={topic} requestClose={requestClose} />
+                    )}
+                    onView={handleView}
+                  />
+                );
+              }}
             </RoomSummaryLoader>
           </Box>
         </Scroll>

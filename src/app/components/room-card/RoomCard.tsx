@@ -141,6 +141,8 @@ type RoomCardProps = {
   memberCount?: number;
   roomType?: string;
   joinRule?: RoomAccessJoinRule;
+  accessStatus?: AsyncStatus;
+  onAccessRetry?: () => void;
   viaServers?: string[];
   onView?: (roomId: string) => void;
   renderTopicViewer: (name: string, topic: string, requestClose: () => void) => ReactNode;
@@ -158,6 +160,8 @@ export const RoomCard = as<'div', RoomCardProps>(
       memberCount,
       roomType,
       joinRule,
+      accessStatus,
+      onAccessRetry,
       viaServers,
       onView,
       renderTopicViewer,
@@ -265,84 +269,99 @@ export const RoomCard = as<'div', RoomCardProps>(
             </Text>
           </Button>
         )}
-        {typeof joinedRoomId !== 'string' && (
-          <RoomAccessControl
-            key={roomId ?? roomIdOrAlias}
-            roomIdOrAlias={roomIdOrAlias}
-            roomId={roomId}
-            roomName={roomName}
-            joinRule={joinRule}
-            viaServers={viaServers}
-          >
-            {(access) => {
-              if (access.kind === 'join' && access.state.status === AsyncStatus.Error) {
-                return (
-                  <Box gap="200">
-                    <Button
-                      onClick={access.activate}
-                      className={css.ActionButton}
-                      variant="Critical"
-                      fill="Solid"
-                      size="300"
-                    >
-                      <Text size="B300" truncate>
-                        Retry
-                      </Text>
-                    </Button>
-                    <ErrorDialog
-                      title="Join Error"
-                      message={access.state.error.message || 'Failed to join. Unknown Error.'}
-                    >
-                      {(openError) => (
-                        <Button
-                          onClick={openError}
-                          className={css.ActionButton}
-                          variant="Critical"
-                          fill="Soft"
-                          outlined
-                          size="300"
-                        >
-                          <Text size="B300" truncate>
-                            View Error
-                          </Text>
-                        </Button>
-                      )}
-                    </ErrorDialog>
-                  </Box>
-                );
-              }
-
-              const joining = access.kind === 'join' && (access.loading || access.succeeded);
-              return (
-                <Button
-                  onClick={access.activate}
-                  variant="Secondary"
-                  size="300"
-                  disabled={joining || access.loading || access.requested}
-                  before={
-                    access.loading ? (
-                      <Spinner size="50" variant="Secondary" fill="Soft" />
-                    ) : access.requested ? (
-                      <Icon size="50" src={Icons.Check} />
-                    ) : undefined
-                  }
-                >
-                  <Text size="B300" truncate>
-                    {access.kind === 'knock'
-                      ? access.loading
-                        ? 'Sending request'
-                        : access.requested
-                        ? 'Request sent'
-                        : 'Request to join'
-                      : joining
-                      ? 'Joining'
-                      : 'Join'}
-                  </Text>
-                </Button>
-              );
-            }}
-          </RoomAccessControl>
+        {typeof joinedRoomId !== 'string' && accessStatus === AsyncStatus.Loading && (
+          <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
+            <Text size="B300" truncate>
+              Checking access
+            </Text>
+          </Button>
         )}
+        {typeof joinedRoomId !== 'string' && accessStatus === AsyncStatus.Error && (
+          <Button onClick={onAccessRetry} variant="Secondary" size="300" disabled={!onAccessRetry}>
+            <Text size="B300" truncate>
+              Retry room info
+            </Text>
+          </Button>
+        )}
+        {typeof joinedRoomId !== 'string' &&
+          (accessStatus === undefined || accessStatus === AsyncStatus.Success) && (
+            <RoomAccessControl
+              key={roomId ?? roomIdOrAlias}
+              roomIdOrAlias={roomIdOrAlias}
+              roomId={roomId}
+              roomName={roomName}
+              joinRule={joinRule}
+              viaServers={viaServers}
+            >
+              {(access) => {
+                if (access.kind === 'join' && access.state.status === AsyncStatus.Error) {
+                  return (
+                    <Box gap="200">
+                      <Button
+                        onClick={access.activate}
+                        className={css.ActionButton}
+                        variant="Critical"
+                        fill="Solid"
+                        size="300"
+                      >
+                        <Text size="B300" truncate>
+                          Retry
+                        </Text>
+                      </Button>
+                      <ErrorDialog
+                        title="Join Error"
+                        message={access.state.error.message || 'Failed to join. Unknown Error.'}
+                      >
+                        {(openError) => (
+                          <Button
+                            onClick={openError}
+                            className={css.ActionButton}
+                            variant="Critical"
+                            fill="Soft"
+                            outlined
+                            size="300"
+                          >
+                            <Text size="B300" truncate>
+                              View Error
+                            </Text>
+                          </Button>
+                        )}
+                      </ErrorDialog>
+                    </Box>
+                  );
+                }
+
+                const joining = access.kind === 'join' && (access.loading || access.succeeded);
+                return (
+                  <Button
+                    onClick={access.activate}
+                    variant="Secondary"
+                    size="300"
+                    disabled={joining || access.loading || access.requested}
+                    before={
+                      access.loading ? (
+                        <Spinner size="50" variant="Secondary" fill="Soft" />
+                      ) : access.requested ? (
+                        <Icon size="50" src={Icons.Check} />
+                      ) : undefined
+                    }
+                  >
+                    <Text size="B300" truncate>
+                      {access.kind === 'knock'
+                        ? access.loading
+                          ? 'Sending request'
+                          : access.requested
+                          ? 'Request sent'
+                          : 'Request to join'
+                        : joining
+                        ? 'Joining'
+                        : 'Join'}
+                    </Text>
+                  </Button>
+                );
+              }}
+            </RoomAccessControl>
+          )}
       </RoomCardBase>
     );
   }

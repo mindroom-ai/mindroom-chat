@@ -10,20 +10,34 @@ export type IRoomSummary = Awaited<ReturnType<MatrixClient['getRoomSummary']>>;
 
 type RoomSummaryLoaderProps = {
   roomIdOrAlias: string;
-  children: (roomSummary?: IRoomSummary) => ReactNode;
+  viaServers?: string[];
+  children: (state: AsyncState<IRoomSummary, Error>, retry: () => void) => ReactNode;
 };
 
-export function RoomSummaryLoader({ roomIdOrAlias, children }: RoomSummaryLoaderProps) {
+export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomSummaryLoaderProps) {
   const mx = useMatrixClient();
 
-  const fetchSummary = useCallback(() => mx.getRoomSummary(roomIdOrAlias), [mx, roomIdOrAlias]);
+  const fetchSummary = useCallback(
+    () => mx.getRoomSummary(roomIdOrAlias, viaServers),
+    [mx, roomIdOrAlias, viaServers]
+  );
 
-  const { data } = useQuery({
-    queryKey: [roomIdOrAlias, `summary`],
+  const { data, error, refetch } = useQuery({
+    queryKey: [roomIdOrAlias, `summary`, viaServers],
     queryFn: fetchSummary,
   });
 
-  return children(data);
+  let state: AsyncState<IRoomSummary, Error> = { status: AsyncStatus.Loading };
+  if (error) {
+    state = { status: AsyncStatus.Error, error };
+  }
+  if (data) {
+    state = { status: AsyncStatus.Success, data };
+  }
+
+  return children(state, () => {
+    refetch().catch(() => undefined);
+  });
 }
 
 export function LocalRoomSummaryLoader({

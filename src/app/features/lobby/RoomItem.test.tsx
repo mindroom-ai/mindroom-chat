@@ -121,4 +121,30 @@ describe('RoomItemCard room access', () => {
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
+
+  it('does not assume public access when child-room discovery fails', () => {
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={new Error('Summary unavailable')}
+            summary={undefined}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
 });

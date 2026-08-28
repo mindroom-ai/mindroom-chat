@@ -1,10 +1,17 @@
 import React from 'react';
 import { JoinRule, type MatrixClient } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { JoinBeforeNavigate } from './JoinBeforeNavigate';
+
+const summaryLoaderMock = vi.hoisted(() => ({
+  state: undefined as unknown,
+  props: undefined as unknown,
+  retry: vi.fn(),
+}));
 
 vi.mock('folds', async () => {
   const actual = await vi.importActual<typeof import('folds')>('folds');
@@ -52,32 +59,15 @@ vi.mock('../../components/room-card/style.css', () => ({
 vi.mock('../../components/RoomSummaryLoader', () => ({
   RoomSummaryLoader: ({
     children,
+    ...props
   }: {
-    children: (summary: {
-      room_id: string;
-      name: string;
-      avatar_url: string;
-      topic: string;
-      canonical_alias: string;
-      world_readable: boolean;
-      guest_can_join: boolean;
-      num_joined_members: number;
-      join_rule: JoinRule;
-      membership: string;
-    }) => React.ReactNode;
-  }) =>
-    children({
-      room_id: '!private:example.org',
-      name: 'Private room',
-      avatar_url: 'mxc://example.org/private',
-      topic: 'Private discussion',
-      canonical_alias: '#private:example.org',
-      world_readable: false,
-      guest_can_join: false,
-      num_joined_members: 12,
-      join_rule: JoinRule.Knock,
-      membership: 'leave',
-    }),
+    children: (state: unknown, retry: () => void) => React.ReactNode;
+    roomIdOrAlias: string;
+    viaServers?: string[];
+  }) => {
+    summaryLoaderMock.props = props;
+    return children(summaryLoaderMock.state, summaryLoaderMock.retry);
+  },
 }));
 
 vi.mock('../../components/room-topic-viewer', () => ({
@@ -123,7 +113,50 @@ const mx = {
 } as unknown as MatrixClient;
 
 describe('JoinBeforeNavigate room access', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Success,
+      data: {
+        room_id: '!private:example.org',
+        name: 'Private room',
+        avatar_url: 'mxc://example.org/private',
+        topic: 'Private discussion',
+        canonical_alias: '#private:example.org',
+        world_readable: false,
+        guest_can_join: false,
+        num_joined_members: 12,
+        join_rule: JoinRule.Knock,
+        membership: 'leave',
+      },
+    };
+  });
+
   it('offers a join request from a knock-capable room summary', () => {
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate
+            roomIdOrAlias="!private:example.org"
+            viaServers={['one.example.org']}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(summaryLoaderMock.props).toEqual({
+      roomIdOrAlias: '!private:example.org',
+      viaServers: ['one.example.org'],
+    });
+  });
+
+  it('does not expose Join while room access discovery is pending', () => {
+    summaryLoaderMock.state = { status: AsyncStatus.Loading };
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -133,9 +166,34 @@ describe('JoinBeforeNavigate room access', () => {
       );
     });
 
-    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+    expect(renderer.root.findAll((node) => node.children.includes('Checking access'))).toHaveLength(
       1
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
+  it('retries failed room access discovery without attempting to join', () => {
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Error,
+      error: new Error('Summary unavailable'),
+    };
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate roomIdOrAlias="!private:example.org" />
+        </MatrixClientProvider>
+      );
+    });
+    const retryButton = renderer.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
+      );
+
+    act(() => retryButton?.props.onClick());
+
+    expect(summaryLoaderMock.retry).toHaveBeenCalledOnce();
+    expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 });

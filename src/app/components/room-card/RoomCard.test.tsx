@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import type { RoomAccessJoinRule } from '../room-access';
 import { RoomCard } from './RoomCard';
 
@@ -87,7 +88,12 @@ const makeMx = (initialMembership?: string) => {
   };
 };
 
-const renderRoomCard = (joinRule: RoomAccessJoinRule, membership?: string) => {
+const renderRoomCard = (
+  joinRule: RoomAccessJoinRule,
+  membership?: string,
+  accessStatus?: AsyncStatus,
+  onAccessRetry?: () => void
+) => {
   const matrix = makeMx(membership);
   const { mx } = matrix;
   let renderer: ReactTestRenderer;
@@ -100,6 +106,8 @@ const renderRoomCard = (joinRule: RoomAccessJoinRule, membership?: string) => {
           allRooms={[]}
           name="Private room"
           joinRule={joinRule}
+          accessStatus={accessStatus}
+          onAccessRetry={onAccessRetry}
           viaServers={['one.example.org', 'two.example.org']}
           renderTopicViewer={() => null}
         />
@@ -127,6 +135,45 @@ describe('RoomCard room access', () => {
       1
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
+  it('preserves direct joining for a confirmed public room', () => {
+    const { renderer, mx } = renderRoomCard(JoinRule.Public);
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    act(() => joinButton?.props.onClick());
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
+      viaServers: ['one.example.org', 'two.example.org'],
+    });
+    expect(mx.knockRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not expose room access while summary discovery is loading', () => {
+    const { renderer, mx } = renderRoomCard(JoinRule.Public, undefined, AsyncStatus.Loading);
+
+    expect(renderer.root.findAll((node) => node.children.includes('Checking access'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('offers a safe summary retry without attempting to join', () => {
+    const retry = vi.fn();
+    const { renderer, mx } = renderRoomCard(JoinRule.Public, undefined, AsyncStatus.Error, retry);
+    const retryButton = renderer.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
+      );
+
+    act(() => retryButton?.props.onClick());
+
+    expect(retry).toHaveBeenCalledOnce();
+    expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
   it('explains the request and offers an optional message before knocking', async () => {
@@ -291,6 +338,42 @@ describe('RoomCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
 
     act(() => setMembership('leave'));
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
+  });
+
+  it('keeps a synced rejection authoritative when the request resolves later', async () => {
+    let resolveKnock: ((value: { room_id: string }) => void) | undefined;
+    const { renderer, mx, setMembership } = renderRoomCard(JoinRule.Knock, 'leave');
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveKnock = resolve;
+        })
+    );
+    const accessButton = renderer.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
+      );
+
+    act(() => accessButton?.props.onClick());
+    const form = renderer.root.find((node) => node.type === 'form');
+    act(() => {
+      form.props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+    });
+    act(() => setMembership('leave'));
+
+    await act(async () => {
+      resolveKnock?.({ room_id: '!private:example.org' });
+      await Promise.resolve();
+    });
 
     expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
       1

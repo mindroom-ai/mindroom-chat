@@ -148,9 +148,8 @@ type RoomProfileErrorProps = {
   roomId: string;
   inaccessibleRoom: boolean;
   suggested?: boolean;
-  via?: string[];
 };
-function RoomProfileError({ roomId, suggested, inaccessibleRoom, via }: RoomProfileErrorProps) {
+function RoomProfileError({ roomId, suggested, inaccessibleRoom }: RoomProfileErrorProps) {
   return (
     <Box grow="Yes" gap="300">
       <Avatar>
@@ -192,7 +191,11 @@ function RoomProfileError({ roomId, suggested, inaccessibleRoom, via }: RoomProf
           )}
         </Box>
       </Box>
-      {!inaccessibleRoom && <RoomJoinButton roomId={roomId} via={via} />}
+      {!inaccessibleRoom && (
+        <Badge variant="Secondary" fill="Soft" radii="300" size="500">
+          <Text size="L400">Access unavailable</Text>
+        </Badge>
+      )}
     </Box>
   );
 }
@@ -408,7 +411,6 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                     roomId={roomId}
                     inaccessibleRoom={false}
                     suggested={content.suggested}
-                    via={content.via}
                   />
                 ) : (
                   <>
@@ -418,7 +420,6 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                         roomId={roomId}
                         inaccessibleRoom
                         suggested={content.suggested}
-                        via={content.via}
                       />
                     )}
                   </>

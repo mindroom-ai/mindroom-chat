@@ -18,6 +18,7 @@ import * as css from './style.css';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
+import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 
 export function FeaturedRooms() {
   const { featuredCommunities } = useClientConfig();
@@ -60,26 +61,34 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {spaces.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(roomSummary) => (
-                              <RoomCard
-                                roomIdOrAlias={roomIdOrAlias}
-                                roomId={roomSummary?.room_id}
-                                allRooms={allRooms}
-                                avatarUrl={roomSummary?.avatar_url}
-                                name={roomSummary?.name}
-                                topic={roomSummary?.topic}
-                                memberCount={roomSummary?.num_joined_members}
-                                joinRule={roomSummary?.join_rule}
-                                onView={navigateSpace}
-                                renderTopicViewer={(name, topic, requestClose) => (
-                                  <RoomTopicViewer
-                                    name={name}
-                                    topic={topic}
-                                    requestClose={requestClose}
-                                  />
-                                )}
-                              />
-                            )}
+                            {(summaryState, retrySummary) => {
+                              const roomSummary =
+                                summaryState.status === AsyncStatus.Success
+                                  ? summaryState.data
+                                  : undefined;
+                              return (
+                                <RoomCard
+                                  roomIdOrAlias={roomIdOrAlias}
+                                  roomId={roomSummary?.room_id}
+                                  allRooms={allRooms}
+                                  avatarUrl={roomSummary?.avatar_url}
+                                  name={roomSummary?.name}
+                                  topic={roomSummary?.topic}
+                                  memberCount={roomSummary?.num_joined_members}
+                                  joinRule={roomSummary?.join_rule}
+                                  accessStatus={summaryState.status}
+                                  onAccessRetry={retrySummary}
+                                  onView={navigateSpace}
+                                  renderTopicViewer={(name, topic, requestClose) => (
+                                    <RoomTopicViewer
+                                      name={name}
+                                      topic={topic}
+                                      requestClose={requestClose}
+                                    />
+                                  )}
+                                />
+                              );
+                            }}
                           </RoomSummaryLoader>
                         ))}
                       </RoomCardGrid>
@@ -91,26 +100,34 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {rooms.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(roomSummary) => (
-                              <RoomCard
-                                roomIdOrAlias={roomIdOrAlias}
-                                roomId={roomSummary?.room_id}
-                                allRooms={allRooms}
-                                avatarUrl={roomSummary?.avatar_url}
-                                name={roomSummary?.name}
-                                topic={roomSummary?.topic}
-                                memberCount={roomSummary?.num_joined_members}
-                                joinRule={roomSummary?.join_rule}
-                                onView={navigateRoom}
-                                renderTopicViewer={(name, topic, requestClose) => (
-                                  <RoomTopicViewer
-                                    name={name}
-                                    topic={topic}
-                                    requestClose={requestClose}
-                                  />
-                                )}
-                              />
-                            )}
+                            {(summaryState, retrySummary) => {
+                              const roomSummary =
+                                summaryState.status === AsyncStatus.Success
+                                  ? summaryState.data
+                                  : undefined;
+                              return (
+                                <RoomCard
+                                  roomIdOrAlias={roomIdOrAlias}
+                                  roomId={roomSummary?.room_id}
+                                  allRooms={allRooms}
+                                  avatarUrl={roomSummary?.avatar_url}
+                                  name={roomSummary?.name}
+                                  topic={roomSummary?.topic}
+                                  memberCount={roomSummary?.num_joined_members}
+                                  joinRule={roomSummary?.join_rule}
+                                  accessStatus={summaryState.status}
+                                  onAccessRetry={retrySummary}
+                                  onView={navigateRoom}
+                                  renderTopicViewer={(name, topic, requestClose) => (
+                                    <RoomTopicViewer
+                                      name={name}
+                                      topic={topic}
+                                      requestClose={requestClose}
+                                    />
+                                  )}
+                                />
+                              );
+                            }}
                           </RoomSummaryLoader>
                         ))}
                       </RoomCardGrid>

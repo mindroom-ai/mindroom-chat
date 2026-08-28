@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX and focused regression coverage are complete; full validation and independent review remain.
+- Status: the bounded requester UX and first independent-review remediation are complete; full validation and fresh re-review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -13,8 +13,13 @@
 - A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
 - Failed requests remain in the dialog with their error message so the user can retry without losing context.
 - A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
-- Focused coverage passes 13 tests across the shared card behavior, deep-link summary wiring, room lobby rows, and space lobby rows.
-- Next step: run formatting, lint, typecheck, build, the full Vitest suite, and independent exact-diff review.
+- Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
+- Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
+- Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
+- The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
+- Focused coverage passes 26 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- Focused ESLint and typecheck pass after review remediation.
+- Next step: run the production build, full ESLint, full Vitest suite, and fresh independent exact-diff review.
 
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 

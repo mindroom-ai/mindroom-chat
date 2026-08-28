@@ -1,4 +1,12 @@
-import React, { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import React, {
+  FormEventHandler,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { JoinRule, MatrixError, Room, RoomEvent } from 'matrix-js-sdk';
 import {
   Box,
@@ -53,6 +61,9 @@ export function RoomAccessControl({
 }: RoomAccessControlProps) {
   const mx = useMatrixClient();
   const alive = useAlive();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogTitleId = useId();
+  const reasonInputId = useId();
   const accessRoomId = roomId ?? roomIdOrAlias;
   const kind: RoomAccessKind =
     joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
@@ -117,10 +128,10 @@ export function RoomAccessControl({
     const reasonInput = target?.reasonInput as HTMLTextAreaElement | undefined;
     const reason = reasonInput?.value.trim() || undefined;
 
+    setRequestInvalidated(false);
     access(reason)
       .then(() => {
         if (alive()) {
-          setRequestInvalidated(false);
           closeKnock();
         }
       })
@@ -139,9 +150,17 @@ export function RoomAccessControl({
                 clickOutsideDeactivates: !loading,
                 onDeactivate: closeKnock,
                 escapeDeactivates: stopPropagation,
+                fallbackFocus: () => dialogRef.current ?? document.body,
               }}
             >
-              <Dialog variant="Surface">
+              <Dialog
+                ref={dialogRef}
+                variant="Surface"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={dialogTitleId}
+                tabIndex={-1}
+              >
                 <Box
                   as="form"
                   onSubmit={handleKnockSubmit}
@@ -150,14 +169,21 @@ export function RoomAccessControl({
                   gap="400"
                 >
                   <Box direction="Column" gap="100">
-                    <Text size="H4">{`Request to join ${roomName}`}</Text>
+                    <Text
+                      as="h2"
+                      id={dialogTitleId}
+                      size="H4"
+                    >{`Request to join ${roomName}`}</Text>
                     <Text size="T300" priority="400">
                       An admin will review your request.
                     </Text>
                   </Box>
                   <Box direction="Column" gap="100">
-                    <Text size="L400">Message (optional)</Text>
+                    <Text as="label" htmlFor={reasonInputId} size="L400">
+                      Message (optional)
+                    </Text>
                     <TextArea
+                      id={reasonInputId}
                       name="reasonInput"
                       variant="Background"
                       size="500"
@@ -167,12 +193,18 @@ export function RoomAccessControl({
                     />
                   </Box>
                   {accessState.status === AsyncStatus.Error && (
-                    <Text size="T200" style={{ color: color.Critical.Main }}>
+                    <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
                       {accessState.error.message || 'Failed to send request.'}
                     </Text>
                   )}
                   <Box gap="200" justifyContent="End">
-                    <Button variant="Secondary" fill="Soft" onClick={closeKnock} disabled={loading}>
+                    <Button
+                      type="button"
+                      variant="Secondary"
+                      fill="Soft"
+                      onClick={closeKnock}
+                      disabled={loading}
+                    >
                       <Text size="B400">Cancel</Text>
                     </Button>
                     <Button
