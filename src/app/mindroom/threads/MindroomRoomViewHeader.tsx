@@ -70,6 +70,10 @@ import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
 import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
 import { useRoomViewMode } from './useRoomViewMode';
+import {
+  getPendingJoinRequestLabel,
+  PendingJoinRequestBadge,
+} from '../../features/room/PendingJoinRequestBadge';
 
 type RoomMenuProps = {
   room: Room;
@@ -354,11 +358,10 @@ export function RoomViewHeader({
     setPeopleDrawer(!peopleDrawer);
   };
   const memberButtonLabel = callView ? 'Members' : peopleDrawer ? 'Hide Members' : 'Show Members';
-  const memberButtonAriaLabel = visibleJoinRequestCount
-    ? `${memberButtonLabel}, ${visibleJoinRequestCount} pending join request${
-        visibleJoinRequestCount === 1 ? '' : 's'
-      }`
-    : memberButtonLabel;
+  const memberButtonAriaLabel = getPendingJoinRequestLabel(
+    memberButtonLabel,
+    visibleJoinRequestCount
+  );
 
   return (
     <PageHeader
@@ -537,23 +540,7 @@ export function RoomViewHeader({
                   onClick={handleMemberToggle}
                   aria-label={memberButtonAriaLabel}
                 >
-                  {visibleJoinRequestCount > 0 && !callView && (
-                    <Badge
-                      style={{
-                        position: 'absolute',
-                        left: toRem(3),
-                        top: toRem(3),
-                      }}
-                      variant="Primary"
-                      size="400"
-                      fill="Solid"
-                      radii="Pill"
-                    >
-                      <Text as="span" size="L400">
-                        {visibleJoinRequestCount}
-                      </Text>
-                    </Badge>
-                  )}
+                  {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
                   <Icon size="400" src={Icons.User} />
                 </IconButton>
               )}

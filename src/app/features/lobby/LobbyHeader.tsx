@@ -1,7 +1,6 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import {
   Avatar,
-  Badge,
   Box,
   Icon,
   IconButton,
@@ -39,6 +38,10 @@ import { useOpenSpaceSettings } from '../../state/hooks/spaceSettings';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import {
+  getPendingJoinRequestLabel,
+  PendingJoinRequestBadge,
+} from '../room/PendingJoinRequestBadge';
 
 type LobbyMenuProps = {
   powerLevels: IPowerLevels;
@@ -154,11 +157,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
   const canReviewJoinRequests =
     permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
   const visibleJoinRequestCount = canReviewJoinRequests ? joinRequestCount : 0;
-  const memberButtonAriaLabel = visibleJoinRequestCount
-    ? `Members, ${visibleJoinRequestCount} pending join request${
-        visibleJoinRequestCount === 1 ? '' : 's'
-      }`
-    : 'Members';
+  const memberButtonAriaLabel = getPendingJoinRequestLabel('Members', visibleJoinRequestCount);
 
   const name = useRoomName(space);
   const avatarMxc = useRoomAvatar(space);
@@ -238,23 +237,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
                   onClick={() => setPeopleDrawer((drawer) => !drawer)}
                   aria-label={memberButtonAriaLabel}
                 >
-                  {visibleJoinRequestCount > 0 && (
-                    <Badge
-                      style={{
-                        position: 'absolute',
-                        left: toRem(3),
-                        top: toRem(3),
-                      }}
-                      variant="Primary"
-                      size="400"
-                      fill="Solid"
-                      radii="Pill"
-                    >
-                      <Text as="span" size="L400">
-                        {visibleJoinRequestCount}
-                      </Text>
-                    </Badge>
-                  )}
+                  <PendingJoinRequestBadge count={visibleJoinRequestCount} />
                   <Icon size="400" src={Icons.User} />
                 </IconButton>
               )}
