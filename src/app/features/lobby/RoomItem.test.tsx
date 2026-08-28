@@ -1,5 +1,5 @@
 import React from 'react';
-import { JoinRule, type MatrixClient } from 'matrix-js-sdk';
+import { JoinRule, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -177,5 +177,56 @@ describe('RoomItemCard room access', () => {
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not assume public access when a child-room summary has an unknown rule', () => {
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={null}
+            summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
+  it('keeps an invite-only child room joinable for a locally invited user', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({ getMyMembership: () => 'invite' } as Room);
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={null}
+            summary={{ ...summary, join_rule: JoinRule.Invite }}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(0);
   });
 });

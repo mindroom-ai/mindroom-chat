@@ -45,8 +45,10 @@ vi.mock('../../hooks/useMediaAuthentication', () => ({
 
 vi.mock('../../components/RoomSummaryLoader', () => ({
   LocalRoomSummaryLoader: ({
+    room,
     children,
   }: {
+    room: Room;
     children: (summary: LocalRoomSummary) => React.ReactNode;
   }) =>
     children({
@@ -59,7 +61,7 @@ vi.mock('../../components/RoomSummaryLoader', () => ({
       guestCanJoin: false,
       memberCount: 12,
       roomType: 'm.space',
-      joinRule: JoinRule.Knock,
+      joinRule: room.getJoinRule?.() ?? JoinRule.Knock,
     }),
 }));
 
@@ -219,5 +221,68 @@ describe('SpaceItemCard room access', () => {
     ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not assume public access when a child-space summary has an unknown rule', () => {
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <SpaceItemCard
+            item={item}
+            summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
+            joined={false}
+            categoryId={roomId}
+            closed={false}
+            canEditChild={false}
+            canReorder={false}
+            onDragging={vi.fn()}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
+  it('keeps an invite-only child space joinable for a locally invited user', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      getMyMembership: () => 'invite',
+      getJoinRule: () => JoinRule.Invite,
+    } as Room);
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <SpaceItemCard
+            item={item}
+            summary={{ ...summary, join_rule: JoinRule.Invite }}
+            joined={false}
+            categoryId={roomId}
+            closed={false}
+            canEditChild={false}
+            canReorder={false}
+            onDragging={vi.fn()}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          node.props.className === 'HeaderChip' &&
+          typeof node.props.onClick === 'function' &&
+          node.props.disabled === false
+      )
+    ).toHaveLength(1);
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(0);
   });
 });
