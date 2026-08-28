@@ -299,6 +299,7 @@ export const RoomCard = as<'div', RoomCardProps>(
             roomId={roomId}
             roomName={roomName}
             joinRule={joinRule}
+            membership={membership}
             viaServers={viaServers}
           >
             {(access) => {

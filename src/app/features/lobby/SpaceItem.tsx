@@ -166,6 +166,7 @@ function UnjoinedSpaceProfile({
       roomId={roomId}
       roomName={name ?? roomId}
       joinRule={joinRule}
+      membership={membership}
       viaServers={via}
     >
       {(access) => {

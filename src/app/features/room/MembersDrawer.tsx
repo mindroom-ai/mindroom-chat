@@ -2,6 +2,7 @@ import React, {
   ChangeEventHandler,
   MouseEventHandler,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -260,8 +261,16 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const sortFilterMenu = useMemberSortMenu();
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
   const [membershipFilterIndex, setMembershipFilterIndex] = useState(0);
+  const selectedMembershipFilterIndex = membershipFilterMenu[membershipFilterIndex]
+    ? membershipFilterIndex
+    : 0;
+  useEffect(() => {
+    if (selectedMembershipFilterIndex !== membershipFilterIndex) {
+      setMembershipFilterIndex(selectedMembershipFilterIndex);
+    }
+  }, [membershipFilterIndex, selectedMembershipFilterIndex]);
 
-  const membershipFilter = useMembershipFilter(membershipFilterIndex, membershipFilterMenu);
+  const membershipFilter = useMembershipFilter(selectedMembershipFilterIndex, membershipFilterMenu);
   const showingJoinRequests = membershipFilter.filterFn === MembershipFilter.filterKnocked;
   const memberSort = useMemberSort(sortFilterIndex, sortFilterMenu);
   const memberPowerSort = useMemberPowerSort(creators, getPowerLevel);
@@ -333,7 +342,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                       content={
                         <MembershipFilterMenu
                           items={membershipFilterMenu}
-                          selected={membershipFilterIndex}
+                          selected={selectedMembershipFilterIndex}
                           onSelect={setMembershipFilterIndex}
                           requestClose={() => setAnchor(undefined)}
                         />

@@ -57,6 +57,7 @@ type RoomAccessControlProps = {
   roomId?: string;
   roomName: string;
   joinRule?: RoomAccessJoinRule;
+  membership?: string;
   viaServers?: string[];
   children: (view: RoomAccessView) => ReactNode;
 };
@@ -243,8 +244,11 @@ export function RoomAccessControl({
   roomIdOrAlias,
   roomId,
   joinRule,
+  membership,
   ...props
 }: RoomAccessControlProps) {
+  if (!isRoomAccessJoinRule(joinRule, membership)) return null;
+
   const accessRoomId = roomId ?? roomIdOrAlias;
   const kind: RoomAccessKind =
     joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';

@@ -221,13 +221,15 @@ vi.mock('../../components/MembershipFilterMenu', () => ({
   MembershipFilterMenu: ({
     items,
     onSelect,
+    selected,
   }: {
     items: Array<{ name: string }>;
     onSelect: (index: number) => void;
+    selected: number;
   }) =>
     React.createElement(
       'div',
-      null,
+      { 'data-selected': selected, 'data-testid': 'membership-filter-menu' },
       items.map((item, index) =>
         React.createElement(
           'button',
@@ -358,5 +360,54 @@ describe('MembersDrawer', () => {
     });
 
     expect(renderer?.root.findAllByProps({ 'data-testid': 'membership-filter-1' })).toHaveLength(0);
+  });
+
+  it('resets the selected filter when request-review permission is removed', () => {
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    act(() => {
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-1' }).props.onClick();
+    });
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(1);
+
+    permissionState.canInvite = false;
+    permissionState.canKick = false;
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(0);
+
+    permissionState.canInvite = true;
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(0);
   });
 });

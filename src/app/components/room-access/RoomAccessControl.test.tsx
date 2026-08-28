@@ -7,6 +7,7 @@ import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+import { Membership } from '../../../types/matrix/room';
 import { RoomAccessControl } from './RoomAccessControl';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -157,6 +158,39 @@ describe('RoomAccessControl request dialog', () => {
       viaServers: undefined,
     });
     expect(mx.joinRoom).toHaveBeenNthCalledWith(2, '!second:example.org', {
+      viaServers: undefined,
+    });
+  });
+
+  it('fails closed for missing or unverified access rules', async () => {
+    const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={joinRule}
+            membership={membership}
+          >
+            {(access) => <button onClick={access.activate}>Join</button>}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    };
+
+    act(() => renderJoin());
+    expect(container.querySelector('button')).toBeNull();
+
+    act(() => renderJoin(JoinRule.Invite));
+    expect(container.querySelector('button')).toBeNull();
+
+    act(() => renderJoin(JoinRule.Invite, Membership.Invite));
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
       viaServers: undefined,
     });
   });

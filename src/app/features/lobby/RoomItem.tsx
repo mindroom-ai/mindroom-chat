@@ -68,6 +68,7 @@ function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps
       roomId={roomId}
       roomName={roomName ?? roomId}
       joinRule={joinRule}
+      membership={membership}
       viaServers={via}
     >
       {(access) => {
