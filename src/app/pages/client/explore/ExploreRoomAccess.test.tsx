@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
         num_joined_members: 12,
         world_readable: false,
         guest_can_join: false,
-        join_rule: 'knock',
+        join_rule: 'knock' as JoinRule | undefined,
       },
     ],
     total_room_count_estimate: 1,
@@ -56,17 +56,37 @@ vi.mock('../../../components/page', () => {
   };
 });
 
-vi.mock('../../../components/room-card', () => {
+vi.mock('../../../components/room-card', async () => {
+  const { RoomAccessControl } = await vi.importActual<
+    typeof import('../../../components/room-access')
+  >('../../../components/room-access');
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,
     RoomCardBase: () => null,
     RoomCard: ({ roomIdOrAlias, ...props }: Record<string, unknown>) => {
       mocks.roomCardProps.push({ roomIdOrAlias, ...props });
-      return React.createElement('div', { 'data-room-card': roomIdOrAlias as string });
+      return (
+        <RoomAccessControl
+          roomIdOrAlias={roomIdOrAlias as string}
+          roomId={props.roomId as string | undefined}
+          roomName={(props.name as string | undefined) ?? (roomIdOrAlias as string)}
+          joinRule={props.joinRule as JoinRule | undefined}
+        >
+          {(access) => (
+            <button onClick={access.activate}>
+              {access.kind === 'knock' ? 'Request to join' : 'Join'}
+            </button>
+          )}
+        </RoomAccessControl>
+      );
     },
   };
 });
+
+vi.mock('../../../components/room-avatar', () => ({
+  RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
+}));
 
 vi.mock('../../../components/RoomSummaryLoader', () => ({
   RoomSummaryLoader: ({
@@ -108,6 +128,10 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: vi.fn(), navigateSpace: vi.fn() }),
 }));
 
+vi.mock('../../../hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
+
 vi.mock('../../../hooks/useScreenSize', () => ({
   ScreenSize: { Mobile: 'Mobile' },
   useScreenSizeContext: () => 'Desktop',
@@ -128,13 +152,32 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 describe('Explore room access wiring', () => {
+  const makeMx = (): MatrixClient => {
+    const mx = {
+      getRoom: vi.fn(() => null),
+      getUserId: vi.fn(() => null),
+      joinRoom: vi.fn(async () => ({})),
+      knockRoom: vi.fn(async () => ({ room_id: '!server-room:example.org' })),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      http: { authedRequest: vi.fn() },
+    } as unknown as MatrixClient;
+    return mx;
+  };
+
   beforeEach(() => {
     mocks.roomCardProps.length = 0;
+    mocks.publicRooms.chunk[0].join_rule = JoinRule.Knock;
   });
 
   it('passes discovered knock rules and access status through Featured cards', () => {
+    const mx = makeMx();
     act(() => {
-      create(<FeaturedRooms />);
+      create(
+        <MatrixClientProvider value={mx}>
+          <FeaturedRooms />
+        </MatrixClientProvider>
+      );
     });
 
     expect(mocks.roomCardProps).toHaveLength(2);
@@ -155,10 +198,7 @@ describe('Explore room access wiring', () => {
   });
 
   it('passes knock rules from server Explore results into room cards', () => {
-    const mx = {
-      getUserId: vi.fn(() => null),
-      http: { authedRequest: vi.fn() },
-    } as unknown as MatrixClient;
+    const mx = makeMx();
 
     act(() => {
       create(
@@ -176,5 +216,29 @@ describe('Explore room access wiring', () => {
         joinRule: JoinRule.Knock,
       })
     );
+  });
+
+  it('keeps legacy public-directory rooms joinable when their rule is omitted', () => {
+    mocks.publicRooms.chunk[0].join_rule = undefined;
+    const mx = makeMx();
+    let renderer: ReturnType<typeof create>;
+
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <PublicRooms />
+        </MatrixClientProvider>
+      );
+    });
+    const joinButton = renderer!.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    act(() => joinButton?.props.onClick());
+
+    expect(mocks.roomCardProps[0]).toEqual(expect.objectContaining({ joinRule: JoinRule.Public }));
+    expect(mx.joinRoom).toHaveBeenCalledWith('#server-room:example.org', {
+      viaServers: undefined,
+    });
   });
 });

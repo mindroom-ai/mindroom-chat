@@ -33,11 +33,15 @@ export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
 export type RoomAccessKind = 'join' | 'knock';
 type RoomAccessResult = Room | { room_id: string };
 
-export const isRoomAccessJoinRule = (joinRule: unknown): joinRule is RoomAccessJoinRule =>
+export const isRoomAccessJoinRule = (
+  joinRule: unknown,
+  membership?: string
+): joinRule is RoomAccessJoinRule =>
   joinRule === JoinRule.Public ||
   joinRule === JoinRule.Restricted ||
   joinRule === JoinRule.Knock ||
-  joinRule === 'knock_restricted';
+  joinRule === 'knock_restricted' ||
+  (joinRule === JoinRule.Invite && membership === Membership.Invite);
 
 export type RoomAccessView = {
   kind: RoomAccessKind;

@@ -220,4 +220,59 @@ describe('JoinBeforeNavigate room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
+
+  it('allows an invited user to accept an invite-only room deep link', () => {
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Success,
+      data: {
+        room_id: '!invited:example.org',
+        name: 'Invited room',
+        join_rule: JoinRule.Invite,
+        membership: 'invite',
+      },
+    };
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate roomIdOrAlias="!invited:example.org" />
+        </MatrixClientProvider>
+      );
+    });
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    act(() => joinButton?.props.onClick());
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!invited:example.org', {
+      viaServers: undefined,
+    });
+  });
+
+  it('keeps invite-only rooms blocked without an invitation', () => {
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Success,
+      data: {
+        room_id: '!invite-only:example.org',
+        name: 'Invite-only room',
+        join_rule: JoinRule.Invite,
+        membership: 'leave',
+      },
+    };
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate roomIdOrAlias="!invite-only:example.org" />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
 });

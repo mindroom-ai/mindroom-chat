@@ -141,6 +141,7 @@ type RoomCardProps = {
   memberCount?: number;
   roomType?: string;
   joinRule?: RoomAccessJoinRule;
+  membership?: string;
   accessStatus?: AsyncStatus;
   onAccessRetry?: () => void;
   viaServers?: string[];
@@ -160,6 +161,7 @@ export const RoomCard = as<'div', RoomCardProps>(
       memberCount,
       roomType,
       joinRule,
+      membership,
       accessStatus,
       onAccessRetry,
       viaServers,
@@ -211,7 +213,7 @@ export const RoomCard = as<'div', RoomCardProps>(
     const resolvedAccessStatus =
       accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
         ? accessStatus
-        : isRoomAccessJoinRule(joinRule)
+        : isRoomAccessJoinRule(joinRule, membership)
         ? AsyncStatus.Success
         : AsyncStatus.Error;
 

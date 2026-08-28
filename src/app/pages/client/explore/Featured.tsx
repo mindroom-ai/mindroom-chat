@@ -76,6 +76,7 @@ export function FeaturedRooms() {
                                   topic={roomSummary?.topic}
                                   memberCount={roomSummary?.num_joined_members}
                                   joinRule={roomSummary?.join_rule}
+                                  membership={roomSummary?.membership}
                                   accessStatus={summaryState.status}
                                   onAccessRetry={retrySummary}
                                   onView={navigateSpace}
@@ -115,6 +116,7 @@ export function FeaturedRooms() {
                                   topic={roomSummary?.topic}
                                   memberCount={roomSummary?.num_joined_members}
                                   joinRule={roomSummary?.join_rule}
+                                  membership={roomSummary?.membership}
                                   accessStatus={summaryState.status}
                                   onAccessRetry={retrySummary}
                                   onView={navigateRoom}

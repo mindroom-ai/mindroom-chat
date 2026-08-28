@@ -72,6 +72,7 @@ export function JoinBeforeNavigate({
                     memberCount={summary?.num_joined_members}
                     roomType={summary?.room_type}
                     joinRule={summary?.join_rule}
+                    membership={summary?.membership}
                     accessStatus={summaryState.status}
                     onAccessRetry={retrySummary}
                     viaServers={viaServers}
