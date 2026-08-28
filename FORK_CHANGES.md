@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX, three automated-review remediations, current `dev` integration, and local validation are complete in ready PR #223; human review remains.
+- Status: the bounded requester and moderator UX, automated-review remediations, current `dev` integration, and local validation are complete in ready PR #223; refreshed human and automated review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -12,6 +12,11 @@
 - Reusing the deep-link route for another room starts a fresh access session instead of carrying over the prior room's successful request.
 - A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
 - Failed requests remain in the dialog with their error message so the user can retry without losing context.
+- Authorized moderators now manage pending requests entirely in the existing right-hand Members drawer, independent of whether timeline membership events are visible.
+- The room and space Members buttons show a permission-gated pending count, while unauthorized members receive no request-count disclosure or Requests filter.
+- The appended `Requests (N)` filter preserves Joined as the default and shows request rows newest-first with the requester name, Matrix ID, optional message, and relative age.
+- Approve routes through the existing invite endpoint, Decline routes through the existing kick endpoint, and each action is shown only when the moderator has the matching room permission.
+- Request actions disable both row controls while loading, report failures inline for retry, and remain visibly settled until live membership sync removes the handled request.
 - A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
 - Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
 - PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; keying the controller by room ID now starts a fresh access session, with a rerender regression covering the transition.
@@ -24,16 +29,16 @@
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
-- Focused coverage passes 40 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- Focused coverage passes 61 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, drawer visibility, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,556 of 3,560 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,566 of 3,570 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
 - Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: human review and merge after required CI completes.
+- Next step: push the moderator follow-up, refresh the PR screenshots and description, then complete exact-head automated and human review.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
