@@ -38,7 +38,11 @@ import { getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
 import { ItemDraggableTarget, useDraggableItem } from './DnD';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  isRoomAccessJoinRule,
+} from '../../components/room-access';
 
 type RoomJoinButtonProps = {
   roomId: string;
@@ -47,6 +51,17 @@ type RoomJoinButtonProps = {
   via?: string[];
 };
 function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps) {
+  const mx = useMatrixClient();
+  const membership = mx.getRoom(roomId)?.getMyMembership();
+
+  if (!isRoomAccessJoinRule(joinRule, membership)) {
+    return (
+      <Chip variant="Secondary" fill="Soft" size="400" radii="Pill" disabled>
+        <Text size="B300">Access unavailable</Text>
+      </Chip>
+    );
+  }
+
   return (
     <RoomAccessControl
       roomIdOrAlias={roomId}

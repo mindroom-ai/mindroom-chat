@@ -38,7 +38,11 @@ import { useOpenCreateSpaceModal } from '../../state/hooks/createSpaceModal';
 import { AddExistingModal } from '../add-existing';
 import { CreateRoomType } from '../../components/create-room/types';
 import { BetaNoticeBadge } from '../../components/BetaNoticeBadge';
-import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  isRoomAccessJoinRule,
+} from '../../components/room-access';
 
 function SpaceProfileLoading() {
   return (
@@ -113,6 +117,48 @@ function UnjoinedSpaceProfile({
   suggested,
   joinRule,
 }: UnjoinedSpaceProfileProps) {
+  const mx = useMatrixClient();
+  const membership = mx.getRoom(roomId)?.getMyMembership();
+
+  if (!isRoomAccessJoinRule(joinRule, membership)) {
+    return (
+      <Chip
+        className={css.HeaderChip}
+        variant="Surface"
+        size="500"
+        disabled
+        before={
+          <Avatar size="200" radii="300">
+            <RoomAvatar
+              roomId={roomId}
+              src={avatarUrl}
+              alt={name}
+              renderFallback={() => (
+                <Text as="span" size="H6">
+                  {nameInitials(name)}
+                </Text>
+              )}
+            />
+          </Avatar>
+        }
+      >
+        <Box alignItems="Center" gap="200">
+          <Text size="H4" truncate>
+            {name || 'Unknown'}
+          </Text>
+          {suggested && (
+            <Badge variant="Success" fill="Soft" radii="Pill" outlined>
+              <Text size="L400">Suggested</Text>
+            </Badge>
+          )}
+          <Badge variant="Secondary" fill="Soft" radii="Pill" outlined>
+            <Text size="L400">Access unavailable</Text>
+          </Badge>
+        </Box>
+      </Chip>
+    );
+  }
+
   return (
     <RoomAccessControl
       roomIdOrAlias={roomId}

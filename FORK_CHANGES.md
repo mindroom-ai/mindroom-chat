@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX and three independent-review remediation rounds are complete; final full validation and fresh exact-head re-review remain.
+- Status: the bounded requester UX and four independent-review remediation rounds are complete; final full validation and fresh exact-head re-review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -21,7 +21,8 @@
 - Opening the request prompt now moves real browser focus inside the modal while retaining the dialog itself as the all-controls-disabled fallback.
 - Legacy public-directory results that predate the optional join-rule field retain their established public Join action, while missing summary rules remain conservatively unavailable.
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
-- Focused coverage passes 32 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
+- Focused coverage passes 34 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
 - Focused ESLint and typecheck pass after review remediation.
 - Next step: run the production build, full ESLint, full Vitest suite, and fresh independent exact-diff review.
 

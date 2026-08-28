@@ -2,7 +2,7 @@ import React from 'react';
 import { JoinRule, type MatrixClient } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
@@ -97,6 +97,11 @@ const mx = {
 } as unknown as MatrixClient;
 
 describe('RoomItemCard room access', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(mx.getRoom).mockReturnValue(null);
+  });
+
   it('offers a join request for a knock-capable child room', () => {
     const renderer = create(<></>);
     act(() => {
@@ -132,6 +137,32 @@ describe('RoomItemCard room access', () => {
             loading={false}
             error={new Error('Summary unavailable')}
             summary={undefined}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not assume public access when a child-room summary omits its rule', () => {
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={null}
+            summary={{ ...summary, join_rule: undefined }}
             onOpen={vi.fn()}
             onDragging={vi.fn()}
             canReorder={false}
