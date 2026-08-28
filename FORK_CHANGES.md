@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX and first independent-review remediation are complete; full validation and fresh re-review remain.
+- Status: the bounded requester UX and two independent-review remediation rounds are complete; final full validation and fresh exact-head re-review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -17,7 +17,9 @@
 - Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
 - Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
 - The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
-- Focused coverage passes 26 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- The room card enables access only for explicit public, restricted, knock, or knock-restricted rules, so a successful but incomplete summary cannot fall through to public joining.
+- Opening the request prompt now moves real browser focus inside the modal while retaining the dialog itself as the all-controls-disabled fallback.
+- Focused coverage passes 29 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
 - Focused ESLint and typecheck pass after review remediation.
 - Next step: run the production build, full ESLint, full Vitest suite, and fresh independent exact-diff review.
 

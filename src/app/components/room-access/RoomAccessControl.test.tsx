@@ -25,10 +25,6 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
-}));
-
 const mx = {
   getRoom: vi.fn(() => null),
   joinRoom: vi.fn(async () => ({})),
@@ -106,5 +102,22 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Requests are paused');
+  });
+
+  it('moves focus from the trigger into the request dialog', async () => {
+    const trigger = getButton(container, 'Request to join');
+    trigger.focus();
+
+    act(() => trigger.click());
+    await act(async () => {
+      await vi.waitFor(() => {
+        const dialog = container.querySelector('[role="dialog"]');
+        expect(dialog?.contains(document.activeElement)).toBe(true);
+      });
+    });
+
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(document.activeElement).not.toBe(trigger);
+    expect(dialog?.contains(document.activeElement)).toBe(true);
   });
 });

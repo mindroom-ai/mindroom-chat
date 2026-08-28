@@ -89,7 +89,7 @@ const makeMx = (initialMembership?: string) => {
 };
 
 const renderRoomCard = (
-  joinRule: RoomAccessJoinRule,
+  joinRule?: RoomAccessJoinRule,
   membership?: string,
   accessStatus?: AsyncStatus,
   onAccessRetry?: () => void
@@ -174,6 +174,22 @@ describe('RoomCard room access', () => {
 
     expect(retry).toHaveBeenCalledOnce();
     expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a successful summary without a join rule as public', () => {
+    const retry = vi.fn();
+    const { renderer, mx } = renderRoomCard(undefined, undefined, AsyncStatus.Success, retry);
+    const retryButton = renderer.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
+      );
+
+    act(() => retryButton?.props.onClick());
+
+    expect(retry).toHaveBeenCalledOnce();
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
   it('explains the request and offers an optional message before knocking', async () => {

@@ -196,4 +196,28 @@ describe('JoinBeforeNavigate room access', () => {
     expect(summaryLoaderMock.retry).toHaveBeenCalledOnce();
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
+
+  it('does not treat a successful summary with no join rule as public', () => {
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Success,
+      data: {
+        room_id: '!private:example.org',
+        name: 'Incomplete private room',
+      },
+    };
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate roomIdOrAlias="!private:example.org" />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
 });

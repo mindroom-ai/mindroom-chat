@@ -33,6 +33,12 @@ export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
 export type RoomAccessKind = 'join' | 'knock';
 type RoomAccessResult = Room | { room_id: string };
 
+export const isRoomAccessJoinRule = (joinRule: unknown): joinRule is RoomAccessJoinRule =>
+  joinRule === JoinRule.Public ||
+  joinRule === JoinRule.Restricted ||
+  joinRule === JoinRule.Knock ||
+  joinRule === 'knock_restricted';
+
 export type RoomAccessView = {
   kind: RoomAccessKind;
   state: AsyncState<RoomAccessResult, MatrixError>;
@@ -62,6 +68,7 @@ export function RoomAccessControl({
   const mx = useMatrixClient();
   const alive = useAlive();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const dialogTitleId = useId();
   const reasonInputId = useId();
   const accessRoomId = roomId ?? roomIdOrAlias;
@@ -146,7 +153,7 @@ export function RoomAccessControl({
           <OverlayCenter>
             <FocusTrap
               focusTrapOptions={{
-                initialFocus: false,
+                initialFocus: () => reasonInputRef.current ?? dialogRef.current ?? document.body,
                 clickOutsideDeactivates: !loading,
                 onDeactivate: closeKnock,
                 escapeDeactivates: stopPropagation,
@@ -183,6 +190,7 @@ export function RoomAccessControl({
                       Message (optional)
                     </Text>
                     <TextArea
+                      ref={reasonInputRef}
                       id={reasonInputId}
                       name="reasonInput"
                       variant="Background"
