@@ -17,6 +17,8 @@
 - The appended `Requests (N)` filter preserves Joined as the default and shows request rows newest-first with the requester name, Matrix ID, optional message, and relative age.
 - Approve routes through the existing invite endpoint, Decline routes through the existing kick endpoint, and each action is shown only when the moderator has the matching room permission.
 - Request actions disable both row controls while loading, report failures inline for retry, and remain visibly settled until live membership sync removes the handled request.
+- Live Chromium validation against Docker Matrix creates a real knock request, confirms the permission-gated Members badge and Requests filter, and verifies the requester identity, message, age, Approve, and Decline controls in the right-hand drawer.
+- The final moderator screenshot is stored outside the repository, and no screenshot asset is added to the branch.
 - A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
 - Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
 - PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; keying the controller by room ID now starts a fresh access session, with a rerender regression covering the transition.
@@ -34,6 +36,7 @@
 - The merged full Vitest run passes 3,566 of 3,570 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
+- Final zero-tolerance self-review found duplicated pending-badge markup and accessible-label policy across room and space headers; both now use one shared component, and exact-head revalidation passes.
 - Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
