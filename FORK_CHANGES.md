@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX, review remediation, current `dev` integration, exact-head validation, and fresh independent review are complete in ready PR #223; automated review and CI remain.
+- Status: the bounded requester UX, review remediation, current `dev` integration, exact-head validation, fresh independent review, automated review, and CI are complete in ready PR #223; human review remains.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -29,7 +29,10 @@
 - The merged full Vitest run passes 3,555 of 3,559 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
-- Next step: wait for every AI reviewer, validate all findings, address confirmed issues, and complete PR checks before human merge.
+- Automated PR review identified one valid virtualized lobby row state-reuse issue; the fix and regression are on the PR head, the reporting reviewer confirms no remaining findings, and the other completed code review reported no findings.
+- One optional review service could not run because its repository quota was unavailable.
+- Exact-head PR checks pass lint, the production/PWA build, the Android debug APK build, and the container image build.
+- Next step: human review and merge.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
