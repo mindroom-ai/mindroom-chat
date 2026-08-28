@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX and five independent-review remediation rounds are complete; final full validation and fresh exact-head re-review remain.
+- Status: the bounded requester UX, review remediation, exact-head validation, and fresh independent review are complete; human integration remains.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -24,8 +24,10 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Focused coverage passes 38 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
-- Focused ESLint and typecheck pass after review remediation.
-- Next step: run the production build, full ESLint, full Vitest suite, and fresh independent exact-diff review.
+- Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
+- The full Vitest run passes 3,553 of 3,557 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
+- Next step: open a ready pull request and address all valid automated-review findings before human merge.
 
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 
