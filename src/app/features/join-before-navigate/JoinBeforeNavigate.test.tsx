@@ -214,8 +214,11 @@ describe('JoinBeforeNavigate room access', () => {
       );
     });
 
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
-      1
+      0
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(mx.joinRoom).not.toHaveBeenCalled();
@@ -269,8 +272,11 @@ describe('JoinBeforeNavigate room access', () => {
       );
     });
 
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
-      1
+      0
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(mx.joinRoom).not.toHaveBeenCalled();

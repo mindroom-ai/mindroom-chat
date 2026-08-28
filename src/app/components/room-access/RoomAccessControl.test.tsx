@@ -120,4 +120,44 @@ describe('RoomAccessControl request dialog', () => {
     expect(document.activeElement).not.toBe(trigger);
     expect(dialog?.contains(document.activeElement)).toBe(true);
   });
+
+  it('starts a fresh access session when the target room changes', async () => {
+    const renderJoin = (roomId: string) => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias={roomId}
+            roomId={roomId}
+            roomName={roomId}
+            joinRule={JoinRule.Public}
+          >
+            {(access) => (
+              <button onClick={access.activate}>{access.succeeded ? 'Joined' : 'Join'}</button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    };
+
+    act(() => renderJoin('!first:example.org'));
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getButton(container, 'Joined')).toBeDefined();
+
+    act(() => renderJoin('!second:example.org'));
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mx.joinRoom).toHaveBeenCalledTimes(2);
+
+    expect(mx.joinRoom).toHaveBeenNthCalledWith(1, '!first:example.org', {
+      viaServers: undefined,
+    });
+    expect(mx.joinRoom).toHaveBeenNthCalledWith(2, '!second:example.org', {
+      viaServers: undefined,
+    });
+  });
 });

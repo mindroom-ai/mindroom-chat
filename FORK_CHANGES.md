@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester UX, review remediation, current `dev` integration, exact-head validation, fresh independent review, automated review, and CI are complete in ready PR #223; human review remains.
+- Status: the bounded requester UX, three automated-review remediations, current `dev` integration, and local validation are complete in ready PR #223; human review remains.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -24,15 +24,16 @@
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
-- Focused coverage passes 39 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- Focused coverage passes 40 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,555 of 3,559 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,556 of 3,560 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
-- Automated PR review identified one valid virtualized lobby row state-reuse issue; the fix and regression are on the PR head, the reporting reviewer confirms no remaining findings, and the other completed code review reported no findings.
+- Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
+- A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
-- Exact-head PR checks pass lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: human review and merge.
+- Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
+- Next step: human review and merge after required CI completes.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

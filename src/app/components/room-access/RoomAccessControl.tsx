@@ -61,23 +61,25 @@ type RoomAccessControlProps = {
   children: (view: RoomAccessView) => ReactNode;
 };
 
-export function RoomAccessControl({
+type RoomAccessSessionProps = RoomAccessControlProps & {
+  accessRoomId: string;
+  kind: RoomAccessKind;
+};
+
+function RoomAccessSession({
   roomIdOrAlias,
-  roomId,
   roomName,
-  joinRule,
   viaServers,
   children,
-}: RoomAccessControlProps) {
+  accessRoomId,
+  kind,
+}: RoomAccessSessionProps) {
   const mx = useMatrixClient();
   const alive = useAlive();
   const dialogRef = useRef<HTMLDivElement>(null);
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const dialogTitleId = useId();
   const reasonInputId = useId();
-  const accessRoomId = roomId ?? roomIdOrAlias;
-  const kind: RoomAccessKind =
-    joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
 
   const [accessState, access] = useAsyncCallback<
     RoomAccessResult,
@@ -234,5 +236,28 @@ export function RoomAccessControl({
         </Overlay>
       )}
     </>
+  );
+}
+
+export function RoomAccessControl({
+  roomIdOrAlias,
+  roomId,
+  joinRule,
+  ...props
+}: RoomAccessControlProps) {
+  const accessRoomId = roomId ?? roomIdOrAlias;
+  const kind: RoomAccessKind =
+    joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
+
+  return (
+    <RoomAccessSession
+      key={`${kind}:${accessRoomId}`}
+      {...props}
+      roomIdOrAlias={roomIdOrAlias}
+      roomId={roomId}
+      joinRule={joinRule}
+      accessRoomId={accessRoomId}
+      kind={kind}
+    />
   );
 }

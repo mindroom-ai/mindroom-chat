@@ -74,7 +74,9 @@ export function JoinBeforeNavigate({
                     joinRule={summary?.join_rule}
                     membership={summary?.membership}
                     accessStatus={summaryState.status}
-                    onAccessRetry={retrySummary}
+                    onAccessRetry={
+                      summaryState.status === AsyncStatus.Error ? retrySummary : undefined
+                    }
                     viaServers={viaServers}
                     renderTopicViewer={(name, topic, requestClose) => (
                       <RoomTopicViewer name={name} topic={topic} requestClose={requestClose} />
