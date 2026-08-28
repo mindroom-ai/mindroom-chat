@@ -179,15 +179,14 @@ describe('RoomCard room access', () => {
   it('does not treat a successful summary without a join rule as public', () => {
     const retry = vi.fn();
     const { renderer, mx } = renderRoomCard(undefined, undefined, AsyncStatus.Success, retry);
-    const retryButton = renderer.root
-      .findAllByType('button')
-      .find(
-        (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
-      );
 
-    act(() => retryButton?.props.onClick());
-
-    expect(retry).toHaveBeenCalledOnce();
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
+    expect(retry).not.toHaveBeenCalled();
     expect(mx.joinRoom).not.toHaveBeenCalled();
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });

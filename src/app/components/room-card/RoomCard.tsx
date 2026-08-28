@@ -216,6 +216,7 @@ export const RoomCard = as<'div', RoomCardProps>(
         : isRoomAccessJoinRule(joinRule, membership)
         ? AsyncStatus.Success
         : AsyncStatus.Error;
+    const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
 
     return (
       <RoomCardBase {...props} ref={ref}>
@@ -285,9 +286,9 @@ export const RoomCard = as<'div', RoomCardProps>(
           </Button>
         )}
         {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Error && (
-          <Button onClick={onAccessRetry} variant="Secondary" size="300" disabled={!onAccessRetry}>
+          <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
             <Text size="B300" truncate>
-              {onAccessRetry ? 'Retry room info' : 'Access unavailable'}
+              {accessRetry ? 'Retry room info' : 'Access unavailable'}
             </Text>
           </Button>
         )}
