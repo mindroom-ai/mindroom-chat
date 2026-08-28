@@ -14,6 +14,7 @@
 - Failed requests remain in the dialog with their error message so the user can retry without losing context.
 - A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
 - Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
+- PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; keying the controller by room ID now starts a fresh access session, with a rerender regression covering the transition.
 - Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
 - Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
 - The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
@@ -23,9 +24,9 @@
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
-- Focused coverage passes 38 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
+- Focused coverage passes 39 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,554 of 3,558 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,555 of 3,559 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
 - Next step: wait for every AI reviewer, validate all findings, address confirmed issues, and complete PR checks before human merge.

@@ -161,6 +161,7 @@ function UnjoinedSpaceProfile({
 
   return (
     <RoomAccessControl
+      key={roomId}
       roomIdOrAlias={roomId}
       roomId={roomId}
       roomName={name ?? roomId}

@@ -196,6 +196,55 @@ describe('SpaceItemCard room access', () => {
     );
   });
 
+  it('starts a fresh request state when a virtualized row is reused for another space', async () => {
+    vi.mocked(mx.knockRoom).mockResolvedValue({ room_id: roomId });
+    const renderer = create(<></>);
+    const renderCard = (nextItem: HierarchyItem, nextSummary: IHierarchyRoom) => (
+      <MatrixClientProvider value={mx}>
+        <SpaceItemCard
+          item={nextItem}
+          summary={nextSummary}
+          joined={false}
+          categoryId={nextItem.roomId}
+          closed={false}
+          canEditChild={false}
+          canReorder={false}
+          onDragging={vi.fn()}
+          getRoom={() => undefined}
+        />
+      </MatrixClientProvider>
+    );
+
+    act(() => renderer.update(renderCard(item, summary)));
+    act(() => {
+      renderer.root.findByProps({ className: 'HeaderChip' }).props.onClick();
+    });
+    await act(async () => {
+      renderer.root.findByType('form').props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
+
+    const nextRoomId = '!another-private-space:example.org';
+    act(() => {
+      renderer.update(
+        renderCard(
+          { ...item, roomId: nextRoomId },
+          { ...summary, room_id: nextRoomId, name: 'Another private space' }
+        )
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
+  });
+
   it('does not assume public access when a child-space summary omits its rule', () => {
     const renderer = create(<></>);
     act(() => {
