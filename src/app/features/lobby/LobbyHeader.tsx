@@ -1,6 +1,7 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import {
   Avatar,
+  Badge,
   Box,
   Icon,
   IconButton,
@@ -138,14 +139,26 @@ const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
 type LobbyHeaderProps = {
   showProfile?: boolean;
   powerLevels: IPowerLevels;
+  joinRequestCount?: number;
 };
-export function LobbyHeader({ showProfile, powerLevels }: LobbyHeaderProps) {
+export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: LobbyHeaderProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const space = useSpace();
   const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const screenSize = useScreenSizeContext();
+  const creators = useRoomCreators(space);
+  const permissions = useRoomPermissions(creators, powerLevels);
+  const myUserId = mx.getSafeUserId();
+  const canReviewJoinRequests =
+    permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
+  const visibleJoinRequestCount = canReviewJoinRequests ? joinRequestCount : 0;
+  const memberButtonAriaLabel = visibleJoinRequestCount
+    ? `Members, ${visibleJoinRequestCount} pending join request${
+        visibleJoinRequestCount === 1 ? '' : 's'
+      }`
+    : 'Members';
 
   const name = useRoomName(space);
   const avatarMxc = useRoomAvatar(space);
@@ -220,9 +233,28 @@ export function LobbyHeader({ showProfile, powerLevels }: LobbyHeaderProps) {
               {(triggerRef) => (
                 <IconButton
                   fill="None"
+                  style={{ position: 'relative' }}
                   ref={triggerRef}
                   onClick={() => setPeopleDrawer((drawer) => !drawer)}
+                  aria-label={memberButtonAriaLabel}
                 >
+                  {visibleJoinRequestCount > 0 && (
+                    <Badge
+                      style={{
+                        position: 'absolute',
+                        left: toRem(3),
+                        top: toRem(3),
+                      }}
+                      variant="Primary"
+                      size="400"
+                      fill="Solid"
+                      radii="Pill"
+                    >
+                      <Text as="span" size="L400">
+                        {visibleJoinRequestCount}
+                      </Text>
+                    </Badge>
+                  )}
                   <Icon size="400" src={Icons.User} />
                 </IconButton>
               )}

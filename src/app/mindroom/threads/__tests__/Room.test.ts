@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockRoomViewProps = {
   hasMindroomAgents?: boolean;
+  joinRequestCount?: number;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -214,6 +215,21 @@ describe('Room', () => {
       renderer!.update(React.createElement(Room));
     });
     expect(roomState.roomViewProps?.hasMindroomAgents).toBe(true);
+  });
+
+  it('passes the live pending join request count to the room header surface', async () => {
+    roomState.members = [
+      { membership: 'knock', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@bob:example.org' },
+      { membership: 'knock', userId: '@carol:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+
+    expect(roomState.roomViewProps?.joinRequestCount).toBe(2);
   });
 
   it('leaves an explicit thread in the URL untouched', async () => {
