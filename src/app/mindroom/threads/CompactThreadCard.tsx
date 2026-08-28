@@ -149,6 +149,19 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
         </Box>
       </Box>
 
+      {resolvedByLabel && (
+        <Text
+          as="span"
+          className={css.TouchResolutionByline}
+          data-thread-resolution-touch-byline="true"
+          size="T200"
+          priority="300"
+          truncate
+        >
+          {resolvedByLabel}
+        </Text>
+      )}
+
       {hasMetadata && (
         <Box className={css.MetadataRow}>
           {participants.length > 0 && (

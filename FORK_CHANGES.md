@@ -25,9 +25,21 @@
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Focused coverage passes 38 tests across the shared controller and card behavior, summary discovery, deep-link wiring, Featured and server Explore results, and room and space lobby rows.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The full Vitest run passes 3,553 of 3,557 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,554 of 3,558 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Review: the fresh exact-head review found no remaining Critical, Important, or Minor issues after the lobby access-policy coverage was completed.
 - Next step: open a ready pull request and address all valid automated-review findings before human merge.
+
+### Keep thread resolver attribution visible on touch layouts (2026-08-27)
+
+- Status: the bounded responsive UI change, clarification follow-up, local verification, and automated review are complete; human pull-request review remains.
+- Compact resolved-thread cards keep the existing desktop status-dot hover title and accessible label, and now add a muted `Resolved by <name>` row only at widths up to 480 px or when the primary input cannot hover.
+- Open-thread headers retain the existing resolver byline at narrow widths and cap it at 6 rem instead of hiding it, so sighted touch users can discover the attribution without relying on a native title tooltip.
+- The change adds no new state or interaction target and reuses the existing localized full attribution string; the open-thread header keeps its contextual short byline beneath the Resolved button.
+- TDD evidence: the Compact component test first failed because the touch byline was absent, and the live Chromium spec then reached and failed the new 390 px visibility assertion before the implementation was added. A user-feedback regression then failed because the new row said only `by <name>` without identifying what the person did; it now requires the explicit full attribution.
+- Validation: the four resolver-attribution suites pass all 47 tests; the live Chromium spec passes at 390 px; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,516 of 3,520 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- A fresh second self-review found no correctness, accessibility, localization, responsive-layout, or scope defects after removing one test assertion that inspected a mocked CSS class instead of user-visible behavior.
 
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 

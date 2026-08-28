@@ -126,6 +126,18 @@ test.describe('compact card display names', () => {
       });
     }
 
+    await page.setViewportSize({ width: 390, height: 844 });
+    const compactResolverByline = threadCard.locator(
+      '[data-thread-resolution-touch-byline="true"]'
+    );
+    await expect(compactResolverByline).toBeVisible();
+    await expect(compactResolverByline).toHaveText(`Resolved by ${displayName}`);
+    if (screenshotVariant) {
+      await threadCard.screenshot({
+        path: `ui-audit/compact-card-touch-resolver-${screenshotVariant}.png`,
+      });
+    }
+
     await threadCard.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
 
@@ -141,8 +153,7 @@ test.describe('compact card display names', () => {
       });
     }
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(resolverByline).toBeHidden();
+    await expect(resolverByline).toBeVisible();
     await expect(resolvedButton).toHaveAttribute('title', `Resolved by ${displayName}`);
   });
 });
