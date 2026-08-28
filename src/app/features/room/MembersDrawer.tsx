@@ -49,8 +49,17 @@ import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { UserAvatar } from '../../components/user-avatar';
 import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { useMembershipFilter, useMembershipFilterMenu } from '../../hooks/useMemberFilter';
-import { useMemberPowerSort, useMemberSort, useMemberSortMenu } from '../../hooks/useMemberSort';
+import {
+  MembershipFilter,
+  useMembershipFilter,
+  useMembershipFilterMenu,
+} from '../../hooks/useMemberFilter';
+import {
+  MemberSort,
+  useMemberPowerSort,
+  useMemberSort,
+  useMemberSortMenu,
+} from '../../hooks/useMemberSort';
 import { useGetMemberPowerLevel, usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { MembershipFilterMenu } from '../../components/MembershipFilterMenu';
 import { MemberSortMenu } from '../../components/MemberSortMenu';
@@ -62,6 +71,8 @@ import { AgentVerifiedBadge } from '../../mindroom/matrix/AgentVerifiedBadge';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import { useMemberPowerCompare } from '../../hooks/useMemberPowerCompare';
+import { JoinRequestItem } from './JoinRequestItem';
 
 type MemberDrawerHeaderProps = {
   room: Room;
@@ -217,28 +228,51 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const getPowerTag = useGetMemberPowerTag(room, creators, powerLevels);
   const getPowerLevel = useGetMemberPowerLevel(powerLevels);
   const permissions = useRoomPermissions(creators, powerLevels);
-  const canInvite = permissions.action('invite', mx.getSafeUserId());
+  const myUserId = mx.getSafeUserId();
+  const canInvite = permissions.action('invite', myUserId);
+  const canKick = permissions.action('kick', myUserId);
+  const canReviewJoinRequests = canInvite || canKick;
+  const { hasMorePower } = useMemberPowerCompare(creators, powerLevels);
 
   const fetchingMembers = members.length < room.getJoinedMemberCount();
   const openUserRoomProfile = useOpenUserRoomProfile();
   const space = useSpaceOptionally();
   const openProfileUserId = useUserRoomProfileState()?.userId;
 
-  const membershipFilterMenu = useMembershipFilterMenu();
+  const baseMembershipFilterMenu = useMembershipFilterMenu();
+  const joinRequestCount = useMemo(
+    () => members.filter(MembershipFilter.filterKnocked).length,
+    [members]
+  );
+  const membershipFilterMenu = useMemo(
+    () =>
+      canReviewJoinRequests
+        ? [
+            ...baseMembershipFilterMenu,
+            {
+              name: `Requests (${joinRequestCount})`,
+              filterFn: MembershipFilter.filterKnocked,
+            },
+          ]
+        : baseMembershipFilterMenu,
+    [baseMembershipFilterMenu, canReviewJoinRequests, joinRequestCount]
+  );
   const sortFilterMenu = useMemberSortMenu();
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
   const [membershipFilterIndex, setMembershipFilterIndex] = useState(0);
 
   const membershipFilter = useMembershipFilter(membershipFilterIndex, membershipFilterMenu);
+  const showingJoinRequests = membershipFilter.filterFn === MembershipFilter.filterKnocked;
   const memberSort = useMemberSort(sortFilterIndex, sortFilterMenu);
   const memberPowerSort = useMemberPowerSort(creators, getPowerLevel);
 
   const typingMembers = useRoomTypingMember(room.roomId);
 
-  const filteredMembers = useMemo(
-    () => members.filter(membershipFilter.filterFn).sort(memberSort.sortFn).sort(memberPowerSort),
-    [members, membershipFilter, memberSort, memberPowerSort]
-  );
+  const filteredMembers = useMemo(() => {
+    const matchingMembers = members.filter(membershipFilter.filterFn);
+    if (showingJoinRequests) return matchingMembers.sort(MemberSort.NewestFirst);
+    return matchingMembers.sort(memberSort.sortFn).sort(memberPowerSort);
+  }, [members, membershipFilter, showingJoinRequests, memberSort, memberPowerSort]);
 
   const [result, search, resetSearch] = useAsyncSearch(
     filteredMembers,
@@ -249,12 +283,13 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
 
   const processMembers = result ? result.items : filteredMembers;
 
-  const PLTagOrRoomMember = useFlattenPowerTagMembers(processMembers, getPowerTag);
+  const taggedMembers = useFlattenPowerTagMembers(processMembers, getPowerTag);
+  const PLTagOrRoomMember = showingJoinRequests ? processMembers : taggedMembers;
 
   const virtualizer = useVirtualizer({
     count: PLTagOrRoomMember.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => (showingJoinRequests ? 164 : 40),
     overscan: 10,
   });
 
@@ -297,6 +332,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                       offset={4}
                       content={
                         <MembershipFilterMenu
+                          items={membershipFilterMenu}
                           selected={membershipFilterIndex}
                           onSelect={setMembershipFilterIndex}
                           requestClose={() => setAnchor(undefined)}
@@ -320,38 +356,40 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                     </PopOut>
                   )}
                 </UseStateProvider>
-                <UseStateProvider initial={undefined}>
-                  {(anchor: RectCords | undefined, setAnchor) => (
-                    <PopOut
-                      anchor={anchor}
-                      position="Bottom"
-                      align="End"
-                      offset={4}
-                      content={
-                        <MemberSortMenu
-                          selected={sortFilterIndex}
-                          onSelect={setSortFilterIndex}
-                          requestClose={() => setAnchor(undefined)}
-                        />
-                      }
-                    >
-                      <Chip
-                        onClick={
-                          ((evt) =>
-                            setAnchor(
-                              evt.currentTarget.getBoundingClientRect()
-                            )) as MouseEventHandler<HTMLButtonElement>
+                {!showingJoinRequests && (
+                  <UseStateProvider initial={undefined}>
+                    {(anchor: RectCords | undefined, setAnchor) => (
+                      <PopOut
+                        anchor={anchor}
+                        position="Bottom"
+                        align="End"
+                        offset={4}
+                        content={
+                          <MemberSortMenu
+                            selected={sortFilterIndex}
+                            onSelect={setSortFilterIndex}
+                            requestClose={() => setAnchor(undefined)}
+                          />
                         }
-                        variant="Background"
-                        size="400"
-                        radii="300"
-                        after={<Icon src={Icons.Sort} size="50" />}
                       >
-                        <Text size="T200">{memberSort.name}</Text>
-                      </Chip>
-                    </PopOut>
-                  )}
-                </UseStateProvider>
+                        <Chip
+                          onClick={
+                            ((evt) =>
+                              setAnchor(
+                                evt.currentTarget.getBoundingClientRect()
+                              )) as MouseEventHandler<HTMLButtonElement>
+                          }
+                          variant="Background"
+                          size="400"
+                          radii="300"
+                          after={<Icon src={Icons.Sort} size="50" />}
+                        >
+                          <Text size="T200">{memberSort.name}</Text>
+                        </Chip>
+                      </PopOut>
+                    )}
+                  </UseStateProvider>
+                )}
               </Box>
               <Box direction="Column" gap="100">
                 <Input
@@ -404,7 +442,9 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
 
             {!fetchingMembers && !result && processMembers.length === 0 && (
               <Text style={{ padding: config.space.S300 }} align="Center">
-                {`No "${membershipFilter.name}" Members`}
+                {showingJoinRequests
+                  ? 'No pending join requests'
+                  : `No "${membershipFilter.name}" Members`}
               </Text>
             )}
 
@@ -434,6 +474,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                     );
                   }
 
+                  const memberEvent = tagOrMember.events.member;
                   return (
                     <div
                       style={{
@@ -441,20 +482,33 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                       }}
                       className={css.DrawerVirtualItem}
                       data-index={vItem.index}
-                      key={`${room.roomId}-${tagOrMember.userId}`}
+                      key={`${room.roomId}-${tagOrMember.userId}-${
+                        showingJoinRequests
+                          ? memberEvent?.getId() ?? memberEvent?.getTs() ?? ''
+                          : ''
+                      }`}
                       ref={virtualizer.measureElement}
                     >
-                      <MemberItem
-                        mx={mx}
-                        useAuthentication={useAuthentication}
-                        room={room}
-                        member={tagOrMember}
-                        onClick={handleMemberClick}
-                        pressed={openProfileUserId === tagOrMember.userId}
-                        typing={typingMembers.some(
-                          (receipt) => receipt.userId === tagOrMember.userId
-                        )}
-                      />
+                      {showingJoinRequests ? (
+                        <JoinRequestItem
+                          room={room}
+                          member={tagOrMember}
+                          canApprove={canInvite}
+                          canDecline={canKick && hasMorePower(myUserId, tagOrMember.userId)}
+                        />
+                      ) : (
+                        <MemberItem
+                          mx={mx}
+                          useAuthentication={useAuthentication}
+                          room={room}
+                          member={tagOrMember}
+                          onClick={handleMemberClick}
+                          pressed={openProfileUserId === tagOrMember.userId}
+                          typing={typingMembers.some(
+                            (receipt) => receipt.userId === tagOrMember.userId
+                          )}
+                        />
+                      )}
                     </div>
                   );
                 })}
