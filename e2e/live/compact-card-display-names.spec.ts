@@ -131,7 +131,7 @@ test.describe('compact card display names', () => {
       '[data-thread-resolution-touch-byline="true"]'
     );
     await expect(compactResolverByline).toBeVisible();
-    await expect(compactResolverByline).toHaveText(`by ${displayName}`);
+    await expect(compactResolverByline).toHaveText(`Resolved by ${displayName}`);
     if (screenshotVariant) {
       await threadCard.screenshot({
         path: `ui-audit/compact-card-touch-resolver-${screenshotVariant}.png`,

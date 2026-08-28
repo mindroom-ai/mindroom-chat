@@ -137,7 +137,7 @@ describe('CompactThreadCard', () => {
     renderer.unmount();
   });
 
-  it('renders a touch-layout resolver byline for resolved cards', () => {
+  it('renders an explicit touch-layout resolver byline for resolved cards', () => {
     const viewModel = makeViewModel({
       attentionState: 'resolved',
       attentionStatusText: 'Resolved',
@@ -149,7 +149,7 @@ describe('CompactThreadCard', () => {
       'data-thread-resolution-touch-byline': 'true',
     });
 
-    expect(resolverByline.findByType('span').children).toContain('by Alice');
+    expect(resolverByline.findByType('span').children).toContain('Resolved by Alice');
 
     renderer.unmount();
   });

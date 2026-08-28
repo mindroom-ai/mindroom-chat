@@ -53,10 +53,6 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     isResolved && resolvedByDisplayName
       ? t('thread.resolvedBy', { name: resolvedByDisplayName })
       : undefined;
-  const resolvedByShortLabel =
-    isResolved && resolvedByDisplayName
-      ? t('thread.resolvedByShort', { name: resolvedByDisplayName })
-      : undefined;
   const ariaLabel = [
     t('thread.aria.openThread', { title: titleText }),
     attentionStatusText,
@@ -153,7 +149,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
         </Box>
       </Box>
 
-      {resolvedByShortLabel && (
+      {resolvedByLabel && (
         <Text
           as="span"
           className={css.TouchResolutionByline}
@@ -162,7 +158,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           priority="300"
           truncate
         >
-          {resolvedByShortLabel}
+          {resolvedByLabel}
         </Text>
       )}
 
