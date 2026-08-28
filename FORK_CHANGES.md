@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Keep thread resolver attribution visible on touch layouts (2026-08-27)
+
+- Status: the bounded responsive UI change, local verification, and second self-review are complete; pull-request review remains.
+- Compact resolved-thread cards keep the existing desktop status-dot hover title and accessible label, and now add a muted `by <name>` row only at widths up to 480 px or when the primary input cannot hover.
+- Open-thread headers retain the existing resolver byline at narrow widths and cap it at 6 rem instead of hiding it, so sighted touch users can discover the attribution without relying on a native title tooltip.
+- The change adds no new state or interaction target and reuses the existing localized short attribution string.
+- TDD evidence: the Compact component test first failed because the touch byline was absent, and the live Chromium spec then reached and failed the new 390 px visibility assertion before the implementation was added.
+- Validation: the four resolver-attribution suites pass all 47 tests; the live Chromium spec passes at 390 px; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,516 of 3,520 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- A fresh second self-review found no correctness, accessibility, localization, responsive-layout, or scope defects after removing one test assertion that inspected a mocked CSS class instead of user-visible behavior.
+
 ### Show thread resolver attribution in open and Compact views (2026-08-27)
 
 - Status: the bounded UI implementation, local validation, independent review, and automated-review follow-ups are complete; human PR review remains.

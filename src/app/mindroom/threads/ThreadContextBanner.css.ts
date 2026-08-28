@@ -66,7 +66,7 @@ export const ResolutionByline = style({
   whiteSpace: 'nowrap',
   '@media': {
     '(max-width: 480px)': {
-      display: 'none',
+      maxWidth: '6rem',
     },
   },
 });

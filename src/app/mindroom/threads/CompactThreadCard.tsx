@@ -53,6 +53,10 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     isResolved && resolvedByDisplayName
       ? t('thread.resolvedBy', { name: resolvedByDisplayName })
       : undefined;
+  const resolvedByShortLabel =
+    isResolved && resolvedByDisplayName
+      ? t('thread.resolvedByShort', { name: resolvedByDisplayName })
+      : undefined;
   const ariaLabel = [
     t('thread.aria.openThread', { title: titleText }),
     attentionStatusText,
@@ -148,6 +152,19 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           )}
         </Box>
       </Box>
+
+      {resolvedByShortLabel && (
+        <Text
+          as="span"
+          className={css.TouchResolutionByline}
+          data-thread-resolution-touch-byline="true"
+          size="T200"
+          priority="300"
+          truncate
+        >
+          {resolvedByShortLabel}
+        </Text>
+      )}
 
       {hasMetadata && (
         <Box className={css.MetadataRow}>
