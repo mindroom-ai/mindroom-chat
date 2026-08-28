@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, and local validation are complete in ready PR #223; the follow-up push and refreshed human and automated review remain.
+- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, local validation, and review-fix push are complete in ready PR #223; refreshed human and automated review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -38,12 +38,13 @@
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
+- Review replies document both accepted fixes and the drawer-only scope decision, and all triaged threads are resolved.
 - Final zero-tolerance self-review found duplicated pending-badge markup and accessible-label policy across room and space headers; both now use one shared component, and exact-head revalidation passes.
 - Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: push the accepted review remediations, respond to all findings, then complete exact-head automated and human review.
+- Next step: complete exact-head automated and human review.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
