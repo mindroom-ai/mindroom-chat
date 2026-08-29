@@ -178,7 +178,7 @@ describe('RoomItemCard room access', () => {
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
-  it('does not assume public access when a child-room summary omits its rule', () => {
+  it('treats an omitted child-room hierarchy rule as public', () => {
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -197,11 +197,14 @@ describe('RoomItemCard room access', () => {
       );
     });
 
-    expect(
-      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
-    ).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
-    expect(mx.joinRoom).not.toHaveBeenCalled();
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    act(() => joinButton?.props.onClick());
+
+    expect(joinButton).toBeDefined();
+    expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
   });
 
   it('does not assume public access when a child-room summary has an unknown rule', () => {
@@ -253,5 +256,29 @@ describe('RoomItemCard room access', () => {
     expect(
       renderer.root.findAll((node) => node.children.includes('Access unavailable'))
     ).toHaveLength(0);
+  });
+
+  it('uses a refreshed hierarchy rule for a cached knocked room', () => {
+    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('knock', JoinRule.Knock));
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={null}
+            summary={{ ...summary, join_rule: JoinRule.Public }}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 });

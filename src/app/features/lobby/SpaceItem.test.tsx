@@ -286,7 +286,7 @@ describe('SpaceItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 
-  it('does not assume public access when a child-space summary omits its rule', () => {
+  it('treats an omitted child-space hierarchy rule as public', () => {
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -306,11 +306,14 @@ describe('SpaceItemCard room access', () => {
       );
     });
 
-    expect(
-      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
-    ).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
-    expect(mx.joinRoom).not.toHaveBeenCalled();
+    const joinButton = renderer.root.findAll(
+      (node) => node.props.className === 'HeaderChip' && typeof node.props.onClick === 'function'
+    )[0];
+
+    act(() => joinButton?.props.onClick());
+
+    expect(joinButton).toBeDefined();
+    expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
   });
 
   it('does not assume public access when a child-space summary has an unknown rule', () => {
@@ -375,5 +378,46 @@ describe('SpaceItemCard room access', () => {
     expect(
       renderer.root.findAll((node) => node.children.includes('Access unavailable'))
     ).toHaveLength(0);
+  });
+
+  it('uses a refreshed hierarchy rule for a cached knocked space', () => {
+    const knockedSpace = {
+      roomId,
+      getMyMembership: () => Membership.Knock,
+      getJoinRule: () => JoinRule.Knock,
+    } as Room;
+    vi.mocked(mx.getRoom).mockReturnValue(knockedSpace);
+    const renderer = create(<></>);
+
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <SpaceItemCard
+            item={item}
+            summary={{ ...summary, join_rule: JoinRule.Public }}
+            joined={false}
+            categoryId={roomId}
+            closed={false}
+            canEditChild={false}
+            canReorder={false}
+            onDragging={vi.fn()}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    const joinButton = renderer.root.findAll(
+      (node) =>
+        node.props.className === 'HeaderChip' &&
+        typeof node.props.onClick === 'function' &&
+        node.props.disabled === false
+    )[0];
+
+    act(() => joinButton?.props.onClick());
+
+    expect(joinButton).toBeDefined();
+    expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 });

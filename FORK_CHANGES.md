@@ -29,21 +29,21 @@
 - Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
 - Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
 - The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
-- The room card enables access only for explicit public, restricted, knock, or knock-restricted rules, so a successful but incomplete summary cannot fall through to public joining.
+- The room card accepts recognized access rules, treats an omitted rule in a successful summary as public per the Matrix contract, and still rejects unknown non-empty rules.
 - The shared access controller now repeats that validation at its own boundary, including verified invite membership, so an incomplete or unverified direct caller also fails closed.
 - Opening the request prompt now moves real browser focus inside the modal while retaining the dialog itself as the all-controls-disabled fallback.
-- Legacy public-directory results that predate the optional join-rule field retain their established public Join action, while missing summary rules remain conservatively unavailable.
+- Successful room-summary and public-directory results that omit the optional join-rule field retain their established public Join action, while failed discovery and unknown non-empty rules remain unavailable.
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - A valid invitation overrides a knock-capable room rule, and live approval replaces the stale request state with the normal Join action instead of asking the invited user to knock again.
 - Trusted cached room membership and join-rule state preserve valid invitations when summary membership is missing or summary discovery fails, while genuinely unknown access still fails closed.
 - Live membership revalidation also removes an invite-only Join action immediately when sync reports that the invitation was revoked.
 - TDD evidence: initial and live knock-to-invite transitions first stayed on the knock path, and cached invitations first disappeared behind unavailable summary data; all paths now use the normal join endpoint.
-- Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
+- Successful lobby hierarchy entries with an omitted access rule retain public Join for both rooms and spaces, unknown non-empty rules show `Access unavailable`, and an explicit local invite membership remains joinable when discovery is unavailable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 106 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 110 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,615 of 3,619 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -122,6 +122,12 @@
 - The lobby space row treats only an exact cached joined membership as joined presentation state while leaving access authorization in the shared controller.
 - TDD evidence: summary-only knock-to-leave, knock-to-public and knock-to-restricted joins, and exact cached joined-space presentation all failed before the fixes and now pass with all 106 focused tests.
 - This follow-up adds 13 net production lines inside the two existing owners and introduces no component, hook, store, controller, listener, request, or public abstraction.
+- The next fresh full-diff review pair found three discovery-boundary gaps: a verified alias target disappeared when its subsequent summary request failed, successful summaries with omitted rules were not treated as public, and cached knocked lobby entries could override a newer hierarchy rule.
+- The existing room-summary loader now retains its verified alias target and routing servers independently from the summary result, so Featured and deep-link cards can still recognize an already joined room while offering retry for unavailable metadata.
+- Successful room-summary and hierarchy results normalize only an omitted access rule to public, while unknown non-empty rules still fail closed.
+- Lobby rows retain cached membership and presentation data but use the current recognized hierarchy rule for access, so public or restricted discovery can supersede stale knock state.
+- TDD evidence: the alias-resolution failure, omitted-rule, and stale knocked room and space regressions failed before these changes and now pass with all 110 focused tests.
+- This follow-up adds 49 net production lines inside the existing loader, access controller, cards, and lobby rows without adding a component, hook, store, controller, listener, request, or external abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
 - Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 

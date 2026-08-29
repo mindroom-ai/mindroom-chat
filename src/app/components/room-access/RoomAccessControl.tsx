@@ -49,6 +49,11 @@ export const isRoomAccessJoinRule = (joinRule: unknown): joinRule is RoomAccessJ
   joinRule === 'knock_restricted' ||
   joinRule === JoinRule.Invite;
 
+export const getDiscoveredRoomAccessJoinRule = (
+  joinRule: unknown
+): RoomAccessJoinRule | undefined =>
+  joinRule === undefined ? JoinRule.Public : isRoomAccessJoinRule(joinRule) ? joinRule : undefined;
+
 export const isActionableRoomAccessJoinRule = (
   joinRule: unknown,
   membership?: string

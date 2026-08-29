@@ -38,7 +38,11 @@ import { getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
 import { ItemDraggableTarget, useDraggableItem } from './DnD';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  getDiscoveredRoomAccessJoinRule,
+} from '../../components/room-access';
 
 type RoomJoinButtonProps = {
   roomId: string;
@@ -358,6 +362,9 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
     useDraggableItem(item, targetRef, onDragging, targetHandleRef);
 
     const joined = room?.getMyMembership() === Membership.Join;
+    const discoveredJoinRule = summary
+      ? getDiscoveredRoomAccessJoinRule(summary.join_rule)
+      : undefined;
 
     return (
       <SequenceCard
@@ -406,7 +413,7 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                       <RoomJoinButton
                         roomId={roomId}
                         roomName={localSummary.name}
-                        joinRule={localSummary.joinRule}
+                        joinRule={summary ? discoveredJoinRule : localSummary.joinRule}
                         via={content.via}
                       />
                     )
@@ -454,7 +461,7 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                     <RoomJoinButton
                       roomId={roomId}
                       roomName={summary.name || summary.canonical_alias || roomId}
-                      joinRule={summary.join_rule}
+                      joinRule={discoveredJoinRule}
                       via={content.via}
                     />
                   }

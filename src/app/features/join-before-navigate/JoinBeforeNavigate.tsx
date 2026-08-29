@@ -57,14 +57,14 @@ export function JoinBeforeNavigate({
         <Scroll hideTrack visibility="Hover" size="0">
           <Box style={{ height: '100%' }} grow="Yes" alignItems="Center" justifyContent="Center">
             <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
-              {(summaryState, retrySummary, resolvedViaServers) => {
+              {(summaryState, retrySummary, resolvedViaServers, resolvedRoomId) => {
                 const summary =
                   summaryState.status === AsyncStatus.Success ? summaryState.data : undefined;
                 return (
                   <RoomCard
                     style={{ maxWidth: toRem(364), width: '100%' }}
                     roomIdOrAlias={roomIdOrAlias}
-                    roomId={summary?.room_id}
+                    roomId={summary?.room_id ?? resolvedRoomId}
                     allRooms={allRooms}
                     avatarUrl={summary?.avatar_url}
                     name={summary?.name}

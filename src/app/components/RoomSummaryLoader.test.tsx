@@ -101,6 +101,49 @@ describe('RoomSummaryLoader', () => {
     queryClient.clear();
   });
 
+  it('preserves a verified alias target when summary discovery fails', async () => {
+    const servers = ['one.example.org', 'two.example.org'];
+    const getRoomIdForAlias = vi.fn(async () => ({
+      room_id: summary.room_id,
+      servers,
+    }));
+    const getRoomSummary = vi.fn(async () => {
+      throw new Error('Summary unavailable');
+    });
+    const mx = { getRoomIdForAlias, getRoomSummary } as unknown as MatrixClient;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let observedStatus: AsyncStatus | undefined;
+    let observedRoomId: string | undefined;
+    let observedServers: string[] | undefined;
+    let renderer: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        <QueryClientProvider client={queryClient}>
+          <MatrixClientProvider value={mx}>
+            <RoomSummaryLoader roomIdOrAlias="#private:remote.example.org">
+              {(state, _retry, viaServers, roomId) => {
+                observedStatus = state.status;
+                observedRoomId = roomId;
+                observedServers = viaServers;
+                return null;
+              }}
+            </RoomSummaryLoader>
+          </MatrixClientProvider>
+        </QueryClientProvider>
+      );
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(observedStatus).toBe(AsyncStatus.Error));
+    });
+
+    expect(observedRoomId).toBe(summary.room_id);
+    expect(observedServers).toEqual(servers);
+    act(() => renderer!.unmount());
+    queryClient.clear();
+  });
+
   it('reports a failed discovery instead of exposing an unknown access rule', async () => {
     const getRoomSummary = vi.fn(async () => {
       throw new Error('Summary unavailable');

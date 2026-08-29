@@ -254,7 +254,7 @@ describe('JoinBeforeNavigate room access', () => {
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
-  it('does not treat a successful summary with no join rule as public', () => {
+  it('treats an omitted rule in a successful summary as public', () => {
     summaryLoaderMock.state = {
       status: AsyncStatus.Success,
       data: {
@@ -271,14 +271,14 @@ describe('JoinBeforeNavigate room access', () => {
       );
     });
 
-    expect(
-      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
-    ).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
-      0
-    );
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
-    expect(mx.joinRoom).not.toHaveBeenCalled();
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    act(() => joinButton?.props.onClick());
+
+    expect(joinButton).toBeDefined();
+    expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', { viaServers: undefined });
   });
 
   it('allows an invited user to accept an invite-only room deep link', () => {

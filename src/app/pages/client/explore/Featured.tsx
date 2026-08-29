@@ -61,7 +61,7 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {spaces.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(summaryState, retrySummary, viaServers) => {
+                            {(summaryState, retrySummary, viaServers, resolvedRoomId) => {
                               const roomSummary =
                                 summaryState.status === AsyncStatus.Success
                                   ? summaryState.data
@@ -69,7 +69,7 @@ export function FeaturedRooms() {
                               return (
                                 <RoomCard
                                   roomIdOrAlias={roomIdOrAlias}
-                                  roomId={roomSummary?.room_id}
+                                  roomId={roomSummary?.room_id ?? resolvedRoomId}
                                   allRooms={allRooms}
                                   avatarUrl={roomSummary?.avatar_url}
                                   name={roomSummary?.name}
@@ -102,7 +102,7 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {rooms.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(summaryState, retrySummary, viaServers) => {
+                            {(summaryState, retrySummary, viaServers, resolvedRoomId) => {
                               const roomSummary =
                                 summaryState.status === AsyncStatus.Success
                                   ? summaryState.data
@@ -110,7 +110,7 @@ export function FeaturedRooms() {
                               return (
                                 <RoomCard
                                   roomIdOrAlias={roomIdOrAlias}
-                                  roomId={roomSummary?.room_id}
+                                  roomId={roomSummary?.room_id ?? resolvedRoomId}
                                   allRooms={allRooms}
                                   avatarUrl={roomSummary?.avatar_url}
                                   name={roomSummary?.name}

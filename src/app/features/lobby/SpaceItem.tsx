@@ -39,7 +39,11 @@ import { useOpenCreateSpaceModal } from '../../state/hooks/createSpaceModal';
 import { AddExistingModal } from '../add-existing';
 import { CreateRoomType } from '../../components/create-room/types';
 import { BetaNoticeBadge } from '../../components/BetaNoticeBadge';
-import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  getDiscoveredRoomAccessJoinRule,
+} from '../../components/room-access';
 
 function SpaceProfileLoading() {
   return (
@@ -497,6 +501,9 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
         : undefined;
     const space = getRoom(roomId) ?? availableCachedSpace;
     const effectivelyJoined = joined || cachedMembership === Membership.Join;
+    const discoveredJoinRule = summary
+      ? getDiscoveredRoomAccessJoinRule(summary.join_rule)
+      : undefined;
     const targetRef = useRef<HTMLDivElement>(null);
     useDraggableItem(item, targetRef, onDragging);
 
@@ -548,7 +555,7 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
                         name={localSummary.name}
                         avatarUrl={getRoomAvatarUrl(mx, space, 96, useAuthentication)}
                         suggested={content.suggested}
-                        joinRule={localSummary.joinRule}
+                        joinRule={summary ? discoveredJoinRule : localSummary.joinRule}
                       />
                     )}
                   </LocalRoomSummaryLoader>
@@ -581,7 +588,7 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
                             : undefined
                         }
                         suggested={content.suggested}
-                        joinRule={summary.join_rule}
+                        joinRule={discoveredJoinRule}
                       />
                     )}
                   </>

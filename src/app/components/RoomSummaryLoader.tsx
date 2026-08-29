@@ -1,11 +1,11 @@
-import { ReactNode, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useRef, useState } from 'react';
 import { MatrixClient, Room } from 'matrix-js-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { useMatrixClient } from '../hooks/useMatrixClient';
 import { LocalRoomSummary, useLocalRoomSummary } from '../hooks/useLocalRoomSummary';
 import { AsyncState, AsyncStatus } from '../hooks/useAsyncCallback';
-import { isRoomAlias } from '../utils/matrix';
+import { isRoomAlias, isRoomId } from '../utils/matrix';
 
 export type IRoomSummary = Awaited<ReturnType<MatrixClient['getRoomSummary']>>;
 
@@ -15,12 +15,18 @@ type RoomSummaryLoaderProps = {
   children: (
     state: AsyncState<IRoomSummary, Error>,
     retry: () => void,
-    resolvedViaServers?: string[]
+    resolvedViaServers?: string[],
+    resolvedRoomId?: string
   ) => ReactNode;
 };
 
 export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomSummaryLoaderProps) {
   const mx = useMatrixClient();
+  const aliasResolutionRef = useRef<{
+    alias: string;
+    roomId: string;
+    viaServers?: string[];
+  }>();
 
   const fetchSummary = useCallback(async () => {
     let summaryTarget = roomIdOrAlias;
@@ -29,6 +35,11 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
       const resolution = await mx.getRoomIdForAlias(roomIdOrAlias);
       summaryTarget = resolution.room_id;
       resolvedViaServers = resolution.servers;
+      aliasResolutionRef.current = {
+        alias: roomIdOrAlias,
+        roomId: resolution.room_id,
+        viaServers: resolution.servers,
+      };
     }
 
     return {
@@ -50,7 +61,19 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
     state = { status: AsyncStatus.Success, data: data.summary };
   }
 
-  return children(state, () => void refetch(), data?.viaServers);
+  const aliasResolution =
+    !viaServers?.length && aliasResolutionRef.current?.alias === roomIdOrAlias
+      ? aliasResolutionRef.current
+      : undefined;
+  const resolvedRoomId =
+    data?.summary.room_id ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : aliasResolution?.roomId);
+
+  return children(
+    state,
+    () => void refetch(),
+    data?.viaServers ?? aliasResolution?.viaServers ?? viaServers,
+    resolvedRoomId
+  );
 }
 
 export function LocalRoomSummaryLoader({

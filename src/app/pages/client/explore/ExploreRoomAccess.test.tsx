@@ -12,6 +12,7 @@ import { PublicRooms } from './Server';
 
 const mocks = vi.hoisted(() => ({
   roomCardProps: [] as Array<Record<string, unknown>>,
+  failFeaturedSummary: false,
   publicRooms: {
     chunk: [
       {
@@ -104,23 +105,35 @@ vi.mock('../../../components/RoomSummaryLoader', () => ({
     children,
   }: {
     roomIdOrAlias: string;
-    children: (state: unknown, retry: () => void, viaServers?: string[]) => React.ReactNode;
+    children: (
+      state: unknown,
+      retry: () => void,
+      viaServers?: string[],
+      roomId?: string
+    ) => React.ReactNode;
   }) =>
     children(
-      {
-        status: AsyncStatus.Success,
-        data: {
-          room_id: roomIdOrAlias.includes('featured-space')
-            ? '!featured-space:example.org'
-            : '!featured-room:example.org',
-          name: roomIdOrAlias,
-          topic: 'Featured discussion',
-          num_joined_members: 5,
-          join_rule: roomIdOrAlias.includes('featured-space') ? JoinRule.Public : JoinRule.Knock,
-        },
-      },
+      mocks.failFeaturedSummary
+        ? { status: AsyncStatus.Error, error: new Error('Summary unavailable') }
+        : {
+            status: AsyncStatus.Success,
+            data: {
+              room_id: roomIdOrAlias.includes('featured-space')
+                ? '!featured-space:example.org'
+                : '!featured-room:example.org',
+              name: roomIdOrAlias,
+              topic: 'Featured discussion',
+              num_joined_members: 5,
+              join_rule: roomIdOrAlias.includes('featured-space')
+                ? JoinRule.Public
+                : JoinRule.Knock,
+            },
+          },
       vi.fn(),
-      ['resident.example.org']
+      ['resident.example.org'],
+      roomIdOrAlias.includes('featured-space')
+        ? '!featured-space:example.org'
+        : '!featured-room:example.org'
     ),
 }));
 
@@ -180,8 +193,33 @@ describe('Explore room access wiring', () => {
 
   beforeEach(() => {
     mocks.roomCardProps.length = 0;
+    mocks.failFeaturedSummary = false;
     mocks.publicRooms.chunk[0].canonical_alias = '#server-room:example.org';
     mocks.publicRooms.chunk[0].join_rule = JoinRule.Knock;
+  });
+
+  it('keeps a verified Featured alias target when its summary fails', () => {
+    mocks.failFeaturedSummary = true;
+    const mx = makeMx();
+
+    act(() => {
+      create(
+        <MatrixClientProvider value={mx}>
+          <FeaturedRooms />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(mocks.roomCardProps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          roomIdOrAlias: '#featured-room:example.org',
+          roomId: '!featured-room:example.org',
+          accessStatus: AsyncStatus.Error,
+          viaServers: ['resident.example.org'],
+        }),
+      ])
+    );
   });
 
   it('routes Featured alias joins and knocks through resolved rooms and servers', async () => {

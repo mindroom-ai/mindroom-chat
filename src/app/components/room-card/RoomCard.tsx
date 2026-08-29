@@ -31,7 +31,12 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { RoomAccessControl, RoomAccessJoinRule, isRoomAccessJoinRule } from '../room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  getDiscoveredRoomAccessJoinRule,
+  isRoomAccessJoinRule,
+} from '../room-access';
 
 type GridColumnCount = '1' | '2' | '3';
 const getGridColumnCount = (gridWidth: number): GridColumnCount => {
@@ -210,10 +215,12 @@ export const RoomCard = as<'div', RoomCardProps>(
     const [viewTopic, setViewTopic] = useState(false);
     const closeTopic = () => setViewTopic(false);
     const openTopic = () => setViewTopic(true);
+    const accessJoinRule =
+      accessStatus === AsyncStatus.Success ? getDiscoveredRoomAccessJoinRule(joinRule) : joinRule;
     const resolvedAccessStatus =
       accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
         ? accessStatus
-        : isRoomAccessJoinRule(joinRule)
+        : isRoomAccessJoinRule(accessJoinRule)
         ? AsyncStatus.Success
         : AsyncStatus.Error;
     const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
@@ -297,7 +304,7 @@ export const RoomCard = as<'div', RoomCardProps>(
             roomIdOrAlias={roomIdOrAlias}
             roomId={roomId}
             roomName={roomName}
-            joinRule={resolvedAccessStatus === AsyncStatus.Success ? joinRule : undefined}
+            joinRule={resolvedAccessStatus === AsyncStatus.Success ? accessJoinRule : undefined}
             membership={membership}
             viaServers={viaServers}
             fallback={accessFallback}
