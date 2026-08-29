@@ -263,6 +263,41 @@ describe('RoomCard room access', () => {
     );
   });
 
+  it('shows View for a joined room resolved from an alternative alias', () => {
+    const { mx } = makeMx(Membership.Join, JoinRule.Public, '#canonical:example.org', [
+      '#alternative:example.org',
+    ]);
+    const room = mx.getRoom('!private:example.org') as Room & {
+      name: string;
+      isSpaceRoom: () => boolean;
+      getJoinedMemberCount: () => number;
+      getMxcAvatarUrl: () => null;
+    };
+    room.name = 'Private room';
+    room.isSpaceRoom = () => false;
+    room.getJoinedMemberCount = () => 1;
+    room.getMxcAvatarUrl = () => null;
+    let renderer: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx as MatrixClient}>
+          <RoomCard
+            roomIdOrAlias="#alternative:example.org"
+            roomId={room.roomId}
+            allRooms={[room.roomId]}
+            name="Private room"
+            joinRule={JoinRule.Public}
+            renderTopicViewer={() => null}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer!.root.findAll((node) => node.children.includes('View'))).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
   it('prefers a pending alternative-alias room over a stale canonical match', () => {
     const { mx } = makeMx(Membership.Invite, JoinRule.Invite, '#current:example.org', [
       '#shared:example.org',

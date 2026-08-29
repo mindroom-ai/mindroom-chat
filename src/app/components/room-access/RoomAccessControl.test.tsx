@@ -358,6 +358,115 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent')).toBeDefined();
   });
 
+  it('reveals authoritative invite and knock membership for an unresolved alias', () => {
+    const roomAlias = '#private:example.org';
+    const room = {
+      roomId: '!private:example.org',
+      getCanonicalAlias: () => roomAlias,
+      getAltAliases: () => [],
+    } as unknown as Room;
+    vi.mocked(mx.getRoom).mockReturnValue(null);
+    vi.mocked(mx.on).mockClear();
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias={roomAlias}
+            roomName="Private room"
+            fallback={<button>Access unavailable</button>}
+          >
+            {(access) => (
+              <button>
+                {access.requested
+                  ? 'Request sent'
+                  : access.kind === 'knock'
+                  ? 'Request to join'
+                  : 'Join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Access unavailable')).toBeDefined();
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+    act(() => membershipListener(room, Membership.Invite, Membership.Leave));
+    expect(getButton(container, 'Join')).toBeDefined();
+
+    act(() => membershipListener(room, Membership.Leave, Membership.Invite));
+    expect(getButton(container, 'Access unavailable')).toBeDefined();
+
+    act(() => membershipListener(room, Membership.Knock, Membership.Leave));
+    expect(getButton(container, 'Request sent')).toBeDefined();
+  });
+
+  it.each([
+    {
+      baseRule: JoinRule.Public,
+      initialMembership: Membership.Invite,
+      expectedAction: 'Join',
+    },
+    {
+      baseRule: JoinRule.Knock,
+      initialMembership: Membership.Invite,
+      expectedAction: 'Request to join',
+    },
+    {
+      baseRule: JoinRule.Public,
+      initialMembership: Membership.Knock,
+      expectedAction: 'Join',
+    },
+  ])(
+    'restores $baseRule access after transient $initialMembership membership ends',
+    ({ baseRule, initialMembership, expectedAction }) => {
+      const room = {
+        roomId: '!override:example.org',
+        getMyMembership: () => initialMembership,
+        getJoinRule: () =>
+          initialMembership === Membership.Invite ? JoinRule.Invite : JoinRule.Knock,
+      } as Room;
+      vi.mocked(mx.getRoom).mockReturnValue(room);
+      vi.mocked(mx.on).mockClear();
+
+      act(() => {
+        root.render(
+          <MatrixClientProvider value={mx}>
+            <RoomAccessControl
+              roomIdOrAlias={room.roomId}
+              roomName="Private room"
+              joinRule={baseRule}
+              fallback={<button>Access unavailable</button>}
+            >
+              {(access) => (
+                <button>
+                  {access.requested
+                    ? 'Request sent'
+                    : access.kind === 'knock'
+                    ? 'Request to join'
+                    : 'Join'}
+                </button>
+              )}
+            </RoomAccessControl>
+          </MatrixClientProvider>
+        );
+      });
+
+      const membershipListener = vi
+        .mocked(mx.on)
+        .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+      if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+      act(() => membershipListener(room, Membership.Leave, initialMembership));
+      expect(getButton(container, expectedAction)).toBeDefined();
+    }
+  );
+
   it('shows a sent request when live membership changes from joinable to knock', () => {
     const room = {
       roomId: '!private:example.org',

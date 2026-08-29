@@ -37,6 +37,7 @@ import { Membership } from '../../../types/matrix/room';
 import { AsyncState, AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useAlive } from '../../hooks/useAlive';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { isRoomAlias } from '../../utils/matrix';
 
 export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
 export type RoomAccessKind = 'join' | 'knock';
@@ -147,6 +148,14 @@ function RoomAccessSession({
 
   useEffect(() => {
     setRequestInvalidated(false);
+    const matchesAccessRoom = (roomId: string, room?: Room | null) =>
+      roomId === accessRoomId ||
+      (room !== undefined &&
+        room !== null &&
+        accessRoomId === roomIdOrAlias &&
+        isRoomAlias(roomIdOrAlias) &&
+        (room.getCanonicalAlias() === roomIdOrAlias ||
+          room.getAltAliases().includes(roomIdOrAlias)));
     const updateMembership = (nextMembership: string) => {
       setRoomMembership(nextMembership as Membership);
       if (kind === 'knock') {
@@ -155,11 +164,11 @@ function RoomAccessSession({
       }
     };
     const handleMembership = (room: Room, nextMembership: string) => {
-      if (room.roomId === accessRoomId) updateMembership(nextMembership);
+      if (matchesAccessRoom(room.roomId, room)) updateMembership(nextMembership);
     };
     const handleStateEvent = (event: MatrixEvent, state: RoomState) => {
       if (
-        state.roomId !== accessRoomId ||
+        !matchesAccessRoom(state.roomId, mx.getRoom(state.roomId)) ||
         event.getType() !== EventType.RoomMember ||
         event.getStateKey() !== mx.getUserId()
       ) {
@@ -176,7 +185,7 @@ function RoomAccessSession({
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
       mx.removeListener(RoomStateEvent.Events, handleStateEvent);
     };
-  }, [accessRoomId, kind, mx]);
+  }, [accessRoomId, kind, mx, roomIdOrAlias]);
 
   const state: AsyncState<RoomAccessResult, MatrixError> =
     accessState.status === AsyncStatus.Idle || attemptKindRef.current === accessKind
@@ -331,24 +340,15 @@ export function RoomAccessControl({
   const accessRoomId = roomId ?? roomIdOrAlias;
   const localRoom = mx.getRoom(accessRoomId);
   const accessMembership = localRoom?.getMyMembership() ?? membership;
-  const localJoinRule = localRoom?.getJoinRule();
-  const accessJoinRule =
-    accessMembership === Membership.Knock
-      ? JoinRule.Knock
-      : accessMembership === Membership.Invite
-      ? JoinRule.Invite
-      : isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
-      ? localJoinRule
-      : joinRule;
   const kind: RoomAccessKind =
-    accessJoinRule === JoinRule.Knock || accessJoinRule === 'knock_restricted' ? 'knock' : 'join';
+    joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
 
   return (
     <RoomAccessSession
       key={`${kind}:${accessRoomId}`}
       {...props}
       roomIdOrAlias={roomIdOrAlias}
-      joinRule={accessJoinRule}
+      joinRule={joinRule}
       membership={accessMembership}
       fallback={fallback}
       accessRoomId={accessRoomId}

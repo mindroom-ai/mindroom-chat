@@ -184,7 +184,8 @@ export const RoomCard = as<'div', RoomCardProps>(
   ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
-    const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
+    const aliasJoinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
+    const joinedRoomId = roomId && allRooms.includes(roomId) ? roomId : aliasJoinedRoomId;
     const joinedRoom = mx.getRoom(joinedRoomId);
     const roomAlias = isRoomAlias(roomIdOrAlias);
     const pendingAliasRoomId = roomAlias
@@ -211,13 +212,15 @@ export const RoomCard = as<'div', RoomCardProps>(
     const invited = accessMembership === Membership.Invite;
     const localAccessAvailable =
       pendingRequest || invited || isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
-    const accessJoinRule = pendingRequest
+    const accessJoinRule = isRoomAccessJoinRule(joinRule)
+      ? joinRule
+      : pendingRequest
       ? JoinRule.Knock
       : invited
       ? JoinRule.Invite
       : localAccessAvailable
       ? localJoinRule
-      : joinRule;
+      : undefined;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
     );
