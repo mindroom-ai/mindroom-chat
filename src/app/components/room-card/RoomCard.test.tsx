@@ -212,6 +212,15 @@ describe('RoomCard room access', () => {
     );
   });
 
+  it('keeps a cached pending request when summary discovery fails without an access rule', () => {
+    const { renderer } = renderRoomCard(undefined, Membership.Knock, AsyncStatus.Error, vi.fn());
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
+  });
+
   it('uses a cached invitation for an alias when summary discovery fails', () => {
     const { renderer } = renderRoomCard(
       undefined,

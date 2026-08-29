@@ -18,6 +18,7 @@ import {
 } from 'folds';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
+import { JoinRule } from 'matrix-js-sdk';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
 import {
@@ -203,8 +204,14 @@ export const RoomCard = as<'div', RoomCardProps>(
     const accessRoom = mx.getRoom(accessRoomId);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
-    const localAccessAvailable = isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
-    const accessJoinRule = localAccessAvailable ? localJoinRule : joinRule;
+    const pendingRequest = accessMembership === Membership.Knock;
+    const localAccessAvailable =
+      pendingRequest || isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
+    const accessJoinRule = pendingRequest
+      ? JoinRule.Knock
+      : localAccessAvailable
+      ? localJoinRule
+      : joinRule;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
     );

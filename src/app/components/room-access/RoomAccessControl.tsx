@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -172,7 +173,9 @@ function RoomAccessSession({
       ? accessState
       : { status: AsyncStatus.Idle };
   const loading = state.status === AsyncStatus.Loading;
-  loadingRef.current = loading;
+  useLayoutEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
   const succeeded =
     state.status === AsyncStatus.Success && !(accessKind === 'knock' && requestInvalidated);
   const requested = accessKind === 'knock' && (succeeded || roomMembership === Membership.Knock);
@@ -315,9 +318,12 @@ export function RoomAccessControl({
   const localRoom = mx.getRoom(accessRoomId);
   const accessMembership = localRoom?.getMyMembership() ?? membership;
   const localJoinRule = localRoom?.getJoinRule();
-  const accessJoinRule = isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
-    ? localJoinRule
-    : joinRule;
+  const accessJoinRule =
+    accessMembership === Membership.Knock
+      ? JoinRule.Knock
+      : isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
+      ? localJoinRule
+      : joinRule;
   if (!isRoomAccessJoinRule(accessJoinRule)) return fallback ?? null;
 
   const kind: RoomAccessKind =

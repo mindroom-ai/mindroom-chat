@@ -601,6 +601,7 @@ export function PublicRooms() {
                               memberCount={chunkRoom.num_joined_members}
                               roomType={chunkRoom.room_type}
                               joinRule={chunkRoom.join_rule ?? JoinRule.Public}
+                              viaServers={server ? [server] : undefined}
                               onView={
                                 chunkRoom.room_type === RoomType.Space
                                   ? navigateSpace

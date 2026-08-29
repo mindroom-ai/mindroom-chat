@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 83 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 86 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,588 of 3,592 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,591 of 3,595 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -77,8 +77,12 @@
 - Both native reviewers in round 6 found that a superseded endpoint could still close the retry dialog after resolving, and one reviewer found that repeated invite sync could incorrectly supersede a pending invitation join.
 - Endpoint success now closes the dialog only while its originating attempt remains current, and membership sync supersedes only an active knock attempt rather than a pending join.
 - TDD evidence: both focused regressions failed before the ownership checks and pass with the complete 83-test feature suite.
+- Native review round 7 produced one approval and one review that found two valid gaps: missing cached join-rule state hid an authoritative pending request, and server Explore omitted its known federation routing server.
+- Pending knock membership now preserves only the non-actionable `Request sent` status while unknown new access still fails closed, and server Explore passes its selected server through the existing routing-hint path.
+- A hosted React-purity finding was also valid, so the dialog loading ref now updates after commit in a layout effect while the existing outside-click and Escape regressions continue to pin behavior.
+- TDD evidence: the three focused regressions failed before these changes and pass with the complete 86-test feature suite.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed round-6 remediation on the same exact head.
+- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed round-7 remediation on the same exact head.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

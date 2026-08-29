@@ -198,6 +198,34 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent').disabled).toBe(true);
   });
 
+  it('restores the sent state from cached knock membership without an access rule', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      getMyMembership: () => Membership.Knock,
+      getJoinRule: () => undefined,
+    } as unknown as Room);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            fallback={<button disabled>Access unavailable</button>}
+          >
+            {(access) => (
+              <button disabled={access.requested} onClick={access.activate}>
+                {access.requested ? 'Request sent' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Request sent').disabled).toBe(true);
+    expect(container.textContent).not.toContain('Access unavailable');
+  });
+
   it('accepts a valid invitation even when the room supports knocking', async () => {
     act(() => {
       root.render(

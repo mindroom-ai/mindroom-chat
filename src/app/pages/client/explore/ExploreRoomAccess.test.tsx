@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
     chunk: [
       {
         room_id: '!server-room:example.org',
-        canonical_alias: '#server-room:example.org',
+        canonical_alias: '#server-room:example.org' as string | undefined,
         name: 'Server room',
         topic: 'Server discussion',
         num_joined_members: 12,
@@ -72,6 +72,7 @@ vi.mock('../../../components/room-card', async () => {
           roomId={props.roomId as string | undefined}
           roomName={(props.name as string | undefined) ?? (roomIdOrAlias as string)}
           joinRule={props.joinRule as JoinRule | undefined}
+          viaServers={props.viaServers as string[] | undefined}
         >
           {(access) => (
             <button onClick={access.activate}>
@@ -167,6 +168,7 @@ describe('Explore room access wiring', () => {
 
   beforeEach(() => {
     mocks.roomCardProps.length = 0;
+    mocks.publicRooms.chunk[0].canonical_alias = '#server-room:example.org';
     mocks.publicRooms.chunk[0].join_rule = JoinRule.Knock;
   });
 
@@ -238,7 +240,28 @@ describe('Explore room access wiring', () => {
 
     expect(mocks.roomCardProps[0]).toEqual(expect.objectContaining({ joinRule: JoinRule.Public }));
     expect(mx.joinRoom).toHaveBeenCalledWith('#server-room:example.org', {
-      viaServers: undefined,
+      viaServers: ['example.org'],
     });
+  });
+
+  it('uses the explored server to route an aliasless remote knock', () => {
+    mocks.publicRooms.chunk[0].canonical_alias = undefined;
+    const mx = makeMx();
+
+    act(() => {
+      create(
+        <MatrixClientProvider value={mx}>
+          <PublicRooms />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(mocks.roomCardProps[0]).toEqual(
+      expect.objectContaining({
+        roomIdOrAlias: '!server-room:example.org',
+        joinRule: JoinRule.Knock,
+        viaServers: ['example.org'],
+      })
+    );
   });
 });
