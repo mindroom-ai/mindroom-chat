@@ -311,6 +311,50 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Join')).toBeDefined();
   });
 
+  it('shows a sent request when live membership changes from joinable to knock', () => {
+    const room = {
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Leave,
+      getJoinRule: () => JoinRule.Public,
+    } as Room;
+    vi.mocked(mx.getRoom).mockReturnValue(room);
+    vi.mocked(mx.on).mockClear();
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias={room.roomId}
+            roomName="Private room"
+            joinRule={JoinRule.Public}
+          >
+            {(access) => (
+              <button onClick={access.activate}>
+                {access.requested
+                  ? 'Request sent'
+                  : access.kind === 'knock'
+                  ? 'Request to join'
+                  : 'Join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+    act(() => {
+      membershipListener(room, Membership.Knock, Membership.Leave);
+    });
+
+    expect(getButton(container, 'Request sent')).toBeDefined();
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+    expect(mx.knockRoom).not.toHaveBeenCalled();
+  });
+
   it('prefers explicit discovery over stale access state from a left room', () => {
     vi.mocked(mx.getRoom).mockReturnValue({
       roomId: '!private:example.org',
@@ -454,6 +498,20 @@ describe('RoomAccessControl request dialog', () => {
 
     expect(container.querySelector('form')).not.toBeNull();
     expect(getButton(container, 'Sending request').disabled).toBe(true);
+  });
+
+  it('dismisses an idle request with Escape while the message is focused', () => {
+    act(() => getButton(container, 'Request to join').click());
+    const message = container.querySelector<HTMLTextAreaElement>('textarea[name="reasonInput"]');
+    if (!message) throw new Error('Missing request message');
+    act(() => message.focus());
+    act(() =>
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+      )
+    );
+
+    expect(container.querySelector('form')).toBeNull();
   });
 
   it('does not dismiss an in-flight request with Escape', async () => {

@@ -205,10 +205,13 @@ export const RoomCard = as<'div', RoomCardProps>(
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
     const pendingRequest = accessMembership === Membership.Knock;
+    const invited = accessMembership === Membership.Invite;
     const localAccessAvailable =
-      pendingRequest || isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
+      pendingRequest || invited || isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
     const accessJoinRule = pendingRequest
       ? JoinRule.Knock
+      : invited
+      ? JoinRule.Invite
       : localAccessAvailable
       ? localJoinRule
       : joinRule;

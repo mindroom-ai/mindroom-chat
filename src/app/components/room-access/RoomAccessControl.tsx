@@ -37,7 +37,6 @@ import { Membership } from '../../../types/matrix/room';
 import { AsyncState, AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useAlive } from '../../hooks/useAlive';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { stopPropagation } from '../../utils/keyboard';
 
 export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
 export type RoomAccessKind = 'join' | 'knock';
@@ -111,7 +110,12 @@ function RoomAccessSession({
   const [roomMembership, setRoomMembership] = useState(
     () => (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
   );
-  const accessKind: RoomAccessKind = roomMembership === Membership.Invite ? 'join' : kind;
+  const accessKind: RoomAccessKind =
+    roomMembership === Membership.Invite
+      ? 'join'
+      : roomMembership === Membership.Knock
+      ? 'knock'
+      : kind;
   const attemptKindRef = useRef<RoomAccessKind>();
   const loadingRef = useRef(false);
 
@@ -228,7 +232,11 @@ function RoomAccessSession({
                 initialFocus: () => reasonInputRef.current ?? dialogRef.current ?? document.body,
                 clickOutsideDeactivates: () => !loadingRef.current,
                 onDeactivate: closeKnock,
-                escapeDeactivates: (event) => !loadingRef.current && stopPropagation(event),
+                escapeDeactivates: (event) => {
+                  if (loadingRef.current) return false;
+                  event.stopPropagation();
+                  return true;
+                },
                 fallbackFocus: () => dialogRef.current ?? document.body,
               }}
             >
@@ -321,6 +329,8 @@ export function RoomAccessControl({
   const accessJoinRule =
     accessMembership === Membership.Knock
       ? JoinRule.Knock
+      : accessMembership === Membership.Invite
+      ? JoinRule.Invite
       : isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
       ? localJoinRule
       : joinRule;
