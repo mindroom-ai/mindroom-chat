@@ -82,6 +82,11 @@ function RoomAccessSession({
   const reasonInputRef = useRef<HTMLTextAreaElement>(null);
   const dialogTitleId = useId();
   const reasonInputId = useId();
+  const [roomMembership, setRoomMembership] = useState(
+    () => (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
+  );
+  const accessKind: RoomAccessKind = roomMembership === Membership.Invite ? 'join' : kind;
+  const attemptKindRef = useRef<RoomAccessKind>();
 
   const [accessState, access] = useAsyncCallback<
     RoomAccessResult,
@@ -90,14 +95,11 @@ function RoomAccessSession({
   >(
     useCallback(
       (reason) =>
-        kind === 'knock'
+        accessKind === 'knock'
           ? mx.knockRoom(roomIdOrAlias, { reason, viaServers })
           : mx.joinRoom(roomIdOrAlias, { viaServers }),
-      [kind, mx, roomIdOrAlias, viaServers]
+      [accessKind, mx, roomIdOrAlias, viaServers]
     )
-  );
-  const [roomMembership, setRoomMembership] = useState(
-    () => (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
   );
   const [requestInvalidated, setRequestInvalidated] = useState(false);
   useEffect(() => {
@@ -123,20 +125,25 @@ function RoomAccessSession({
     };
   }, [accessRoomId, kind, mx]);
 
-  const loading = accessState.status === AsyncStatus.Loading;
+  const state: AsyncState<RoomAccessResult, MatrixError> =
+    accessState.status === AsyncStatus.Idle || attemptKindRef.current === accessKind
+      ? accessState
+      : { status: AsyncStatus.Idle };
+  const loading = state.status === AsyncStatus.Loading;
   const succeeded =
-    accessState.status === AsyncStatus.Success && !(kind === 'knock' && requestInvalidated);
-  const requested = kind === 'knock' && (succeeded || roomMembership === Membership.Knock);
+    state.status === AsyncStatus.Success && !(accessKind === 'knock' && requestInvalidated);
+  const requested = accessKind === 'knock' && (succeeded || roomMembership === Membership.Knock);
   const [viewKnock, setViewKnock] = useState(false);
   const closeKnock = () => setViewKnock(false);
   const activate = () => {
     if (loading || requested || succeeded) return;
 
-    if (kind === 'knock') {
+    if (accessKind === 'knock') {
       setViewKnock(true);
       return;
     }
 
+    attemptKindRef.current = accessKind;
     access(undefined).catch(() => undefined);
   };
   const handleKnockSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -148,6 +155,7 @@ function RoomAccessSession({
     const reason = reasonInput?.value.trim() || undefined;
 
     setRequestInvalidated(false);
+    attemptKindRef.current = accessKind;
     access(reason)
       .then(() => {
         if (alive()) {
@@ -159,8 +167,8 @@ function RoomAccessSession({
 
   return (
     <>
-      {children({ kind, state: accessState, loading, requested, succeeded, activate })}
-      {kind === 'knock' && (
+      {children({ kind: accessKind, state, loading, requested, succeeded, activate })}
+      {accessKind === 'knock' && (
         <Overlay open={viewKnock} backdrop={<OverlayBackdrop />}>
           <OverlayCenter>
             <FocusTrap
@@ -212,9 +220,9 @@ function RoomAccessSession({
                       disabled={loading}
                     />
                   </Box>
-                  {accessState.status === AsyncStatus.Error && (
+                  {state.status === AsyncStatus.Error && (
                     <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-                      {accessState.error.message || 'Failed to send request.'}
+                      {state.error.message || 'Failed to send request.'}
                     </Text>
                   )}
                   <Box gap="200" justifyContent="End">
@@ -252,11 +260,18 @@ export function RoomAccessControl({
   membership,
   ...props
 }: RoomAccessControlProps) {
-  if (!isRoomAccessJoinRule(joinRule, membership)) return null;
-
+  const mx = useMatrixClient();
   const accessRoomId = roomId ?? roomIdOrAlias;
+  const localRoom = mx.getRoom(accessRoomId);
+  const accessMembership = localRoom?.getMyMembership() ?? membership;
+  const localJoinRule = localRoom?.getJoinRule();
+  const accessJoinRule = isRoomAccessJoinRule(localJoinRule, accessMembership)
+    ? localJoinRule
+    : joinRule;
+  if (!isRoomAccessJoinRule(accessJoinRule, accessMembership)) return null;
+
   const kind: RoomAccessKind =
-    joinRule === JoinRule.Knock || joinRule === 'knock_restricted' ? 'knock' : 'join';
+    accessJoinRule === JoinRule.Knock || accessJoinRule === 'knock_restricted' ? 'knock' : 'join';
 
   return (
     <RoomAccessSession
@@ -264,8 +279,8 @@ export function RoomAccessControl({
       {...props}
       roomIdOrAlias={roomIdOrAlias}
       roomId={roomId}
-      joinRule={joinRule}
-      membership={membership}
+      joinRule={accessJoinRule}
+      membership={accessMembership}
       accessRoomId={accessRoomId}
       kind={kind}
     />

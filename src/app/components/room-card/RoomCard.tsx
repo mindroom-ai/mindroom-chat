@@ -175,6 +175,11 @@ export const RoomCard = as<'div', RoomCardProps>(
     const useAuthentication = useMediaAuthentication();
     const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
     const joinedRoom = mx.getRoom(joinedRoomId);
+    const accessRoom = mx.getRoom(roomId ?? roomIdOrAlias);
+    const accessMembership = accessRoom?.getMyMembership() ?? membership;
+    const localJoinRule = accessRoom?.getJoinRule();
+    const localAccessAvailable = isRoomAccessJoinRule(localJoinRule, accessMembership);
+    const accessJoinRule = localAccessAvailable ? localJoinRule : joinRule;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
     );
@@ -210,13 +215,15 @@ export const RoomCard = as<'div', RoomCardProps>(
     const [viewTopic, setViewTopic] = useState(false);
     const closeTopic = () => setViewTopic(false);
     const openTopic = () => setViewTopic(true);
-    const resolvedAccessStatus =
-      accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
-        ? accessStatus
-        : isRoomAccessJoinRule(joinRule, membership)
-        ? AsyncStatus.Success
-        : AsyncStatus.Error;
-    const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
+    const resolvedAccessStatus = localAccessAvailable
+      ? AsyncStatus.Success
+      : accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
+      ? accessStatus
+      : isRoomAccessJoinRule(accessJoinRule, accessMembership)
+      ? AsyncStatus.Success
+      : AsyncStatus.Error;
+    const accessRetry =
+      !localAccessAvailable && accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
 
     return (
       <RoomCardBase {...props} ref={ref}>
@@ -298,8 +305,8 @@ export const RoomCard = as<'div', RoomCardProps>(
             roomIdOrAlias={roomIdOrAlias}
             roomId={roomId}
             roomName={roomName}
-            joinRule={joinRule}
-            membership={membership}
+            joinRule={accessJoinRule}
+            membership={accessMembership}
             viaServers={viaServers}
           >
             {(access) => {

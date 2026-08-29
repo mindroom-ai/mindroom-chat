@@ -169,6 +169,7 @@ describe('SpaceItemCard room access', () => {
     const knockedSpace = {
       roomId,
       getMyMembership: () => 'knock',
+      getJoinRule: () => JoinRule.Knock,
     } as Room;
     vi.mocked(mx.getRoom).mockReturnValue(knockedSpace);
     const renderer = create(<></>);

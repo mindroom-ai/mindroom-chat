@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
+import { Membership } from '../../../types/matrix/room';
 import type { RoomAccessJoinRule } from '../room-access';
 import { RoomCard } from './RoomCard';
 
@@ -54,12 +55,13 @@ type MockMatrixClient = Pick<
   'getRoom' | 'joinRoom' | 'knockRoom' | 'on' | 'removeListener'
 >;
 
-const makeMx = (initialMembership?: string) => {
+const makeMx = (initialMembership?: string, localJoinRule?: RoomAccessJoinRule) => {
   let membership = initialMembership;
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const room = {
     roomId: '!private:example.org',
     getMyMembership: () => membership,
+    getJoinRule: () => localJoinRule,
   } as Room;
   const mx: MockMatrixClient = {
     getRoom: vi.fn((roomId: string) =>
@@ -92,9 +94,10 @@ const renderRoomCard = (
   joinRule?: RoomAccessJoinRule,
   membership?: string,
   accessStatus?: AsyncStatus,
-  onAccessRetry?: () => void
+  onAccessRetry?: () => void,
+  localJoinRule?: RoomAccessJoinRule
 ) => {
-  const matrix = makeMx(membership);
+  const matrix = makeMx(membership, localJoinRule);
   const { mx } = matrix;
   let renderer: ReactTestRenderer;
 
@@ -149,6 +152,30 @@ describe('RoomCard room access', () => {
       viaServers: ['one.example.org', 'two.example.org'],
     });
     expect(mx.knockRoom).not.toHaveBeenCalled();
+  });
+
+  it('preserves a cached invitation when summary membership is unavailable', () => {
+    const { renderer } = renderRoomCard(JoinRule.Invite, Membership.Invite);
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(0);
+  });
+
+  it('uses trusted cached invite state when summary discovery fails', () => {
+    const { renderer } = renderRoomCard(
+      undefined,
+      Membership.Invite,
+      AsyncStatus.Error,
+      vi.fn(),
+      JoinRule.Invite
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
   });
 
   it('does not expose room access while summary discovery is loading', () => {
@@ -266,6 +293,27 @@ describe('RoomCard room access', () => {
     act(() => setMembership('knock'));
 
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
+  });
+
+  it('offers Join when sync turns a knock request into an invitation', async () => {
+    const { renderer, mx, setMembership } = renderRoomCard(JoinRule.Knock, Membership.Knock);
+
+    act(() => setMembership(Membership.Invite));
+
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+    expect(joinButton).toBeDefined();
+
+    await act(async () => {
+      joinButton?.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
+      viaServers: ['one.example.org', 'two.example.org'],
+    });
+    expect(mx.knockRoom).not.toHaveBeenCalled();
   });
 
   it('keeps the request dialog open and explains a failed knock', async () => {

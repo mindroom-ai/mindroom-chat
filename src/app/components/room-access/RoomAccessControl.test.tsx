@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { JoinRule, type MatrixClient } from 'matrix-js-sdk';
+import { JoinRule, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +48,7 @@ describe('RoomAccessControl request dialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(mx.getRoom).mockReturnValue(null);
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -185,6 +186,54 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(getButton(container, 'Request sent').disabled).toBe(true);
+  });
+
+  it('accepts a valid invitation even when the room supports knocking', async () => {
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+            membership={Membership.Invite}
+          >
+            {(access) => (
+              <button onClick={access.activate}>{access.kind === 'join' ? 'Join' : 'Knock'}</button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
+      viaServers: undefined,
+    });
+    expect(mx.knockRoom).not.toHaveBeenCalled();
+  });
+
+  it('uses a cached invitation when summary membership is unavailable', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      getMyMembership: () => Membership.Invite,
+      getJoinRule: () => JoinRule.Invite,
+    } as Room);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl roomIdOrAlias="!private:example.org" roomName="Private room">
+            {(access) => <button>{access.kind === 'join' ? 'Join' : 'Knock'}</button>}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Join')).toBeDefined();
   });
 
   it('fails closed for missing or unverified access rules', async () => {

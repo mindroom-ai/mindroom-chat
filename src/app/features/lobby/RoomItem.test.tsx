@@ -205,7 +205,10 @@ describe('RoomItemCard room access', () => {
   });
 
   it('keeps an invite-only child room joinable for a locally invited user', () => {
-    vi.mocked(mx.getRoom).mockReturnValue({ getMyMembership: () => 'invite' } as Room);
+    vi.mocked(mx.getRoom).mockReturnValue({
+      getMyMembership: () => 'invite',
+      getJoinRule: () => JoinRule.Invite,
+    } as Room);
     const renderer = create(<></>);
     act(() => {
       renderer.update(
