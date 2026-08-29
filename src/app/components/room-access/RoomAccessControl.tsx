@@ -70,6 +70,7 @@ type RoomAccessSessionProps = RoomAccessControlProps & {
 function RoomAccessSession({
   roomIdOrAlias,
   roomName,
+  membership,
   viaServers,
   children,
   accessRoomId,
@@ -96,11 +97,13 @@ function RoomAccessSession({
     )
   );
   const [roomMembership, setRoomMembership] = useState(
-    () => mx.getRoom(accessRoomId)?.getMyMembership() as Membership | undefined
+    () => (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
   );
   const [requestInvalidated, setRequestInvalidated] = useState(false);
   useEffect(() => {
-    setRoomMembership(mx.getRoom(accessRoomId)?.getMyMembership() as Membership | undefined);
+    setRoomMembership(
+      (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
+    );
     setRequestInvalidated(false);
 
     const handleMembership = (room: Room, membership: string) => {
@@ -116,7 +119,7 @@ function RoomAccessSession({
     return () => {
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
     };
-  }, [accessRoomId, kind, mx]);
+  }, [accessRoomId, kind, membership, mx]);
 
   const loading = accessState.status === AsyncStatus.Loading;
   const succeeded =
@@ -260,6 +263,7 @@ export function RoomAccessControl({
       roomIdOrAlias={roomIdOrAlias}
       roomId={roomId}
       joinRule={joinRule}
+      membership={membership}
       accessRoomId={accessRoomId}
       kind={kind}
     />

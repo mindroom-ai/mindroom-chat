@@ -4,11 +4,13 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, local validation, and review-fix push are complete in ready PR #223; refreshed human and automated review remain.
+- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest human-review remediation, and exact-head local validation are complete in ready PR #223; refreshed review and push remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
 - Sending state is visible, successful requests settle on a disabled `Request sent` confirmation, and synced knock membership restores or updates that state across navigation and reload.
+- Summary-reported knock membership restores `Request sent` even before the SDK has cached a local room object, while an available live room membership remains authoritative.
+- TDD evidence: the summary-only regression first failed with `Missing Request sent button` while `getRoom()` returned `null`, then passed after the shared access session began using summary membership as its cache-miss fallback.
 - Reusing the deep-link route for another room starts a fresh access session instead of carrying over the prior room's successful request.
 - A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
 - Failed requests remain in the dialog with their error message so the user can retry without losing context.
@@ -32,9 +34,9 @@
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
-- Focused coverage passes 63 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 64 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,568 of 3,572 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,569 of 3,573 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -44,7 +46,7 @@
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: complete exact-head automated and human review.
+- Next step: complete exact-head project gates, full human re-review, and refreshed automated review.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

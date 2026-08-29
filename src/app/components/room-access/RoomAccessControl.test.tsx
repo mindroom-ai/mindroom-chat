@@ -162,6 +162,31 @@ describe('RoomAccessControl request dialog', () => {
     });
   });
 
+  it('restores the sent state from summary knock membership without a cached room', () => {
+    vi.mocked(mx.getRoom).mockReturnValue(null);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+            membership={Membership.Knock}
+          >
+            {(access) => (
+              <button disabled={access.requested} onClick={access.activate}>
+                {access.requested ? 'Request sent' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Request sent').disabled).toBe(true);
+  });
+
   it('fails closed for missing or unverified access rules', async () => {
     const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
       root.render(
