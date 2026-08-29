@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 97 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 98 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,602 of 3,606 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,603 of 3,607 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -93,8 +93,11 @@
 - Both native reviewers in round 11 found that membership events use a concrete room ID while a failed alias lookup leaves the access session keyed by the alias, and the review also found that transient invite or knock membership could replace the underlying discovered rule and that an explicitly resolved joined room could be missed for an alternative alias.
 - The existing access session now matches unresolved aliases against the event room, preserves the discovered rule beneath live membership overrides, and prefers an explicitly resolved joined room ID before the existing canonical-alias lookup.
 - TDD evidence: five focused alias and membership-transition cases failed before these bounded changes and both affected suites now pass all 51 tests without a new listener, resolver, or state owner.
+- A step-back ownership audit found that room cards still resolved pending aliases, cached membership, and rule precedence before the shared access controller repeated the same authority decisions.
+- Cached pending-alias resolution and local membership reads now belong only to the shared controller; room cards and lobby rows pass raw discovery facts and retain only joined-room detection and presentation.
+- TDD evidence: the controller-level cached alternative-alias invitation regression failed with fallback UI before the ownership move, then passed with the complete 98-test feature suite while the refactor removed 47 net production lines and added no store, reducer, context, or public abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Merge control returns to the repository owner only after two fresh native reviewers approve the next pushed round-11 remediation on the same exact head.
+- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed ownership remediation on the same exact head.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

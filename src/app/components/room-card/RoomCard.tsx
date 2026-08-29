@@ -18,32 +18,21 @@ import {
 } from 'folds';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
-import { JoinRule } from 'matrix-js-sdk';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
-import {
-  getCanonicalAliasRoomId,
-  getMxIdLocalPart,
-  isRoomAlias,
-  mxcUrlToHttp,
-} from '../../utils/matrix';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
 import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
-import { Membership, RoomType, StateEvent } from '../../../types/matrix/room';
+import { RoomType, StateEvent } from '../../../types/matrix/room';
 import { useJoinedRoomId } from '../../hooks/useJoinedRoomId';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import {
-  RoomAccessControl,
-  RoomAccessJoinRule,
-  isRoomAccessJoinRule,
-  isTrustedRoomAccessJoinRule,
-} from '../room-access';
+import { RoomAccessControl, RoomAccessJoinRule, isRoomAccessJoinRule } from '../room-access';
 
 type GridColumnCount = '1' | '2' | '3';
 const getGridColumnCount = (gridWidth: number): GridColumnCount => {
@@ -187,40 +176,6 @@ export const RoomCard = as<'div', RoomCardProps>(
     const aliasJoinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
     const joinedRoomId = roomId && allRooms.includes(roomId) ? roomId : aliasJoinedRoomId;
     const joinedRoom = mx.getRoom(joinedRoomId);
-    const roomAlias = isRoomAlias(roomIdOrAlias);
-    const pendingAliasRoomId = roomAlias
-      ? mx
-          .getRooms()
-          .find(
-            (candidate) =>
-              (candidate.getCanonicalAlias() === roomIdOrAlias ||
-                candidate.getAltAliases().includes(roomIdOrAlias)) &&
-              (candidate.getMyMembership() === Membership.Invite ||
-                candidate.getMyMembership() === Membership.Knock) &&
-              getStateEvent(candidate, StateEvent.RoomTombstone) === undefined
-          )?.roomId
-      : undefined;
-    const accessRoomId =
-      roomId ??
-      (roomAlias
-        ? pendingAliasRoomId ?? getCanonicalAliasRoomId(mx, roomIdOrAlias)
-        : roomIdOrAlias);
-    const accessRoom = mx.getRoom(accessRoomId);
-    const accessMembership = accessRoom?.getMyMembership() ?? membership;
-    const localJoinRule = accessRoom?.getJoinRule();
-    const pendingRequest = accessMembership === Membership.Knock;
-    const invited = accessMembership === Membership.Invite;
-    const localAccessAvailable =
-      pendingRequest || invited || isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
-    const accessJoinRule = isRoomAccessJoinRule(joinRule)
-      ? joinRule
-      : pendingRequest
-      ? JoinRule.Knock
-      : invited
-      ? JoinRule.Invite
-      : localAccessAvailable
-      ? localJoinRule
-      : undefined;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
     );
@@ -256,15 +211,13 @@ export const RoomCard = as<'div', RoomCardProps>(
     const [viewTopic, setViewTopic] = useState(false);
     const closeTopic = () => setViewTopic(false);
     const openTopic = () => setViewTopic(true);
-    const resolvedAccessStatus = localAccessAvailable
-      ? AsyncStatus.Success
-      : accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
-      ? accessStatus
-      : isRoomAccessJoinRule(accessJoinRule)
-      ? AsyncStatus.Success
-      : AsyncStatus.Error;
-    const accessRetry =
-      !localAccessAvailable && accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
+    const resolvedAccessStatus =
+      accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
+        ? accessStatus
+        : isRoomAccessJoinRule(joinRule)
+        ? AsyncStatus.Success
+        : AsyncStatus.Error;
+    const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
     const accessFallback =
       resolvedAccessStatus === AsyncStatus.Loading ? (
         <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
@@ -343,10 +296,10 @@ export const RoomCard = as<'div', RoomCardProps>(
         {typeof joinedRoomId !== 'string' && (
           <RoomAccessControl
             roomIdOrAlias={roomIdOrAlias}
-            roomId={accessRoomId}
+            roomId={roomId}
             roomName={roomName}
-            joinRule={resolvedAccessStatus === AsyncStatus.Success ? accessJoinRule : undefined}
-            membership={accessMembership}
+            joinRule={resolvedAccessStatus === AsyncStatus.Success ? joinRule : undefined}
+            membership={membership}
             viaServers={viaServers}
             fallback={accessFallback}
           >

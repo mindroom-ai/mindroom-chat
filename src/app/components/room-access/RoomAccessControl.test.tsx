@@ -37,6 +37,7 @@ vi.mock('folds', async () => {
 
 const mx = {
   getRoom: vi.fn(() => null),
+  getRooms: vi.fn(() => []),
   getUserId: vi.fn(() => '@me:example.org'),
   joinRoom: vi.fn(async () => ({})),
   knockRoom: vi.fn(async () => ({ room_id: '!private:example.org' })),
@@ -59,6 +60,7 @@ describe('RoomAccessControl request dialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(mx.getRoom).mockReturnValue(null);
+    vi.mocked(mx.getRooms).mockReturnValue([]);
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -266,6 +268,36 @@ describe('RoomAccessControl request dialog', () => {
         <MatrixClientProvider value={mx}>
           <RoomAccessControl roomIdOrAlias="!private:example.org" roomName="Private room">
             {(access) => <button>{access.kind === 'join' ? 'Join' : 'Knock'}</button>}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Join')).toBeDefined();
+  });
+
+  it('uses a cached invitation reached through an unresolved alternative alias', () => {
+    const room = {
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Invite,
+      getCanonicalAlias: () => '#canonical:example.org',
+      getAltAliases: () => ['#alternative:example.org'],
+      getLiveTimeline: () => ({
+        getState: () => ({ getStateEvents: () => null }),
+      }),
+    } as unknown as Room;
+    vi.mocked(mx.getRoom).mockImplementation((roomId) => (roomId === room.roomId ? room : null));
+    vi.mocked(mx.getRooms).mockReturnValue([room]);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="#alternative:example.org"
+            roomName="Private room"
+            fallback={<button>Access unavailable</button>}
+          >
+            {(access) => <button>{access.kind === 'join' ? 'Join' : 'Request to join'}</button>}
           </RoomAccessControl>
         </MatrixClientProvider>
       );

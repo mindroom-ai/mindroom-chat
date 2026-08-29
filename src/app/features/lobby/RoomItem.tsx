@@ -47,16 +47,12 @@ type RoomJoinButtonProps = {
   via?: string[];
 };
 function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps) {
-  const mx = useMatrixClient();
-  const membership = mx.getRoom(roomId)?.getMyMembership();
-
   return (
     <RoomAccessControl
       roomIdOrAlias={roomId}
       roomId={roomId}
       roomName={roomName ?? roomId}
       joinRule={joinRule}
-      membership={membership}
       viaServers={via}
       fallback={
         <Chip variant="Secondary" fill="Soft" size="400" radii="Pill" disabled>

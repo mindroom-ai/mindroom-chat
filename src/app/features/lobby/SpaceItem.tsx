@@ -114,9 +114,6 @@ function UnjoinedSpaceProfile({
   suggested,
   joinRule,
 }: UnjoinedSpaceProfileProps) {
-  const mx = useMatrixClient();
-  const membership = mx.getRoom(roomId)?.getMyMembership();
-
   const fallback = (
     <Chip
       className={css.HeaderChip}
@@ -160,7 +157,6 @@ function UnjoinedSpaceProfile({
       roomId={roomId}
       roomName={name ?? roomId}
       joinRule={joinRule}
-      membership={membership}
       viaServers={via}
       fallback={fallback}
     >
