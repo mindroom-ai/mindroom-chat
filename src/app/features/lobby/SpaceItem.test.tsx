@@ -4,6 +4,7 @@ import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Membership } from '../../../types/matrix/room';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import type { LocalRoomSummary } from '../../hooks/useLocalRoomSummary';
 import type { HierarchyItem } from '../../hooks/useSpaceHierarchy';
@@ -196,6 +197,41 @@ describe('SpaceItemCard room access', () => {
     });
 
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      0
+    );
+  });
+
+  it('keeps an exactly joined cached space visible while the joined list catches up', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      roomId,
+      getMyMembership: () => Membership.Join,
+      getJoinRule: () => JoinRule.Public,
+    } as Room);
+    const renderer = create(<></>);
+
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <SpaceItemCard
+            item={item}
+            summary={summary}
+            joined={false}
+            categoryId={roomId}
+            closed={false}
+            canEditChild={false}
+            canReorder={false}
+            onDragging={vi.fn()}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(renderer.root.findAllByProps({ className: 'HeaderChip' })).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Private space'))).toHaveLength(
+      1
+    );
     expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
       0
     );

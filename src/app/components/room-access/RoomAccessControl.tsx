@@ -100,8 +100,11 @@ function RoomAccessSession({
   const [roomMembership, setRoomMembership] = useState(
     () => (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
   );
+  const canJoinWithKnockMembership =
+    roomMembership === Membership.Knock &&
+    (joinRule === JoinRule.Public || joinRule === JoinRule.Restricted);
   const accessKind: RoomAccessKind =
-    roomMembership === Membership.Invite
+    roomMembership === Membership.Invite || canJoinWithKnockMembership
       ? 'join'
       : roomMembership === Membership.Knock
       ? 'knock'
@@ -111,7 +114,7 @@ function RoomAccessSession({
       ? undefined
       : roomMembership === Membership.Invite
       ? JoinRule.Invite
-      : roomMembership === Membership.Knock
+      : roomMembership === Membership.Knock && !canJoinWithKnockMembership
       ? JoinRule.Knock
       : joinRule;
   const attemptKindRef = useRef<RoomAccessKind>();
@@ -148,8 +151,12 @@ function RoomAccessSession({
       | Membership
       | undefined;
     invalidateAttemptForMembership(nextMembership);
+    if (kind === 'knock' && nextMembership !== undefined) {
+      if (attemptKindRef.current === 'knock') attemptKindRef.current = undefined;
+      setRequestInvalidated(nextMembership !== Membership.Knock);
+    }
     setRoomMembership(nextMembership);
-  }, [accessRoomId, invalidateAttemptForMembership, membership, mx]);
+  }, [accessRoomId, invalidateAttemptForMembership, kind, membership, mx]);
 
   useEffect(() => {
     setRequestInvalidated(false);

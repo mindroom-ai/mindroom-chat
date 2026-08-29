@@ -200,6 +200,40 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent').disabled).toBe(true);
   });
 
+  it('invalidates a successful request when summary membership ends the knock', async () => {
+    const renderAccess = (membership: Membership) =>
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+            membership={membership}
+          >
+            {(access) => (
+              <button disabled={access.requested} onClick={access.activate}>
+                {access.requested ? 'Request sent' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+
+    act(() => renderAccess(Membership.Leave));
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+    expect(getButton(container, 'Request sent')).toBeDefined();
+
+    act(() => renderAccess(Membership.Knock));
+    expect(getButton(container, 'Request sent')).toBeDefined();
+
+    act(() => renderAccess(Membership.Leave));
+    expect(getButton(container, 'Request to join').disabled).toBe(false);
+  });
+
   it('restores the sent state from cached knock membership without an access rule', () => {
     vi.mocked(mx.getRoom).mockReturnValue({
       getMyMembership: () => Membership.Knock,
@@ -550,49 +584,46 @@ describe('RoomAccessControl request dialog', () => {
     }
   );
 
-  it('shows a sent request when live membership changes from joinable to knock', () => {
-    const room = {
-      roomId: '!private:example.org',
-      getMyMembership: () => Membership.Leave,
-      getJoinRule: () => JoinRule.Public,
-    } as Room;
-    vi.mocked(mx.getRoom).mockReturnValue(room);
-    vi.mocked(mx.on).mockClear();
+  it.each([JoinRule.Public, JoinRule.Restricted])(
+    'allows a knocked user to join after discovery changes the rule to %s',
+    async (joinRule) => {
+      const renderAccess = (nextRule: JoinRule) =>
+        root.render(
+          <MatrixClientProvider value={mx}>
+            <RoomAccessControl
+              roomIdOrAlias="!private:example.org"
+              roomName="Private room"
+              joinRule={nextRule}
+              membership={Membership.Knock}
+            >
+              {(access) => (
+                <button onClick={access.activate}>
+                  {access.requested
+                    ? 'Request sent'
+                    : access.kind === 'knock'
+                    ? 'Request to join'
+                    : 'Join'}
+                </button>
+              )}
+            </RoomAccessControl>
+          </MatrixClientProvider>
+        );
 
-    act(() => {
-      root.render(
-        <MatrixClientProvider value={mx}>
-          <RoomAccessControl
-            roomIdOrAlias={room.roomId}
-            roomName="Private room"
-            joinRule={JoinRule.Public}
-          >
-            {(access) => (
-              <button onClick={access.activate}>
-                {access.requested
-                  ? 'Request sent'
-                  : access.kind === 'knock'
-                  ? 'Request to join'
-                  : 'Join'}
-              </button>
-            )}
-          </RoomAccessControl>
-        </MatrixClientProvider>
-      );
-    });
+      act(() => renderAccess(JoinRule.Knock));
+      expect(getButton(container, 'Request sent')).toBeDefined();
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
-    act(() => {
-      membershipListener(room, Membership.Knock, Membership.Leave);
-    });
+      act(() => renderAccess(joinRule));
+      await act(async () => {
+        getButton(container, 'Join').click();
+        await Promise.resolve();
+      });
 
-    expect(getButton(container, 'Request sent')).toBeDefined();
-    expect(mx.joinRoom).not.toHaveBeenCalled();
-    expect(mx.knockRoom).not.toHaveBeenCalled();
-  });
+      expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
+        viaServers: undefined,
+      });
+      expect(mx.knockRoom).not.toHaveBeenCalled();
+    }
+  );
 
   it('prefers explicit discovery over stale access state from a left room', () => {
     vi.mocked(mx.getRoom).mockReturnValue({

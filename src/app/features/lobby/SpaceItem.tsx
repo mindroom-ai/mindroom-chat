@@ -489,11 +489,14 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
     const { roomId, content } = item;
     const cachedSpace = mx.getRoom(roomId);
     const cachedMembership = cachedSpace?.getMyMembership();
-    const pendingSpace =
-      cachedMembership === Membership.Invite || cachedMembership === Membership.Knock
+    const availableCachedSpace =
+      cachedMembership === Membership.Invite ||
+      cachedMembership === Membership.Knock ||
+      cachedMembership === Membership.Join
         ? cachedSpace
         : undefined;
-    const space = getRoom(roomId) ?? pendingSpace;
+    const space = getRoom(roomId) ?? availableCachedSpace;
+    const effectivelyJoined = joined || cachedMembership === Membership.Join;
     const targetRef = useRef<HTMLDivElement>(null);
     useDraggableItem(item, targetRef, onDragging);
 
@@ -502,14 +505,17 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
         shrink="No"
         alignItems="Center"
         gap="200"
-        className={classNames(css.SpaceItemCard({ outlined: !joined || closed }), className)}
+        className={classNames(
+          css.SpaceItemCard({ outlined: !effectivelyJoined || closed }),
+          className
+        )}
         {...props}
         ref={ref}
       >
         {before}
         <Box grow="Yes" gap="100" alignItems="Inherit" justifyContent="SpaceBetween">
           <Box ref={canReorder ? targetRef : null}>
-            {space && joined ? (
+            {space && effectivelyJoined ? (
               <LocalRoomSummaryLoader room={space}>
                 {(localSummary) =>
                   item.parentId ? (

@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 103 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 106 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,608 of 3,612 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -117,6 +117,11 @@
 - Authoritative joined or left membership now supersedes an active join attempt, and a membership advance closes any open knock prompt without reopening it if the room later returns to leave.
 - TDD evidence: alias-based deep-link join and knock calls, cached and live joined membership, prompt closure, and the deferred join race all failed before the fixes and now pass with all 103 focused tests.
 - The complete follow-up changes two existing production boundaries by one net line and adds no new component, hook, store, controller, listener, request, or public abstraction.
+- The next fresh full-diff review pair found three bounded lifecycle and presentation gaps: summary-only knock rejection could leave a local success stuck, stale knock membership could block a newly public or restricted join, and a joined space profile could disappear while the external joined list caught up.
+- Summary synchronization now applies live-first membership to the existing knock-attempt invalidation path, and explicit public or restricted discovery can use the join endpoint despite stale knock membership.
+- The lobby space row treats only an exact cached joined membership as joined presentation state while leaving access authorization in the shared controller.
+- TDD evidence: summary-only knock-to-leave, knock-to-public and knock-to-restricted joins, and exact cached joined-space presentation all failed before the fixes and now pass with all 106 focused tests.
+- This follow-up adds 13 net production lines inside the two existing owners and introduces no component, hook, store, controller, listener, request, or public abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
 - Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 
