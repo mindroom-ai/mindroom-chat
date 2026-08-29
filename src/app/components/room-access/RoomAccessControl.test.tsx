@@ -408,6 +408,26 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent')).toBeDefined();
   });
 
+  it('does not dismiss an in-flight request from an outside click', async () => {
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise(() => {
+          // Keep the request in flight while the outside click is exercised.
+        })
+    );
+
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+    act(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+    act(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+
+    expect(container.querySelector('form')).not.toBeNull();
+    expect(getButton(container, 'Sending request').disabled).toBe(true);
+  });
+
   it('fails closed for missing or unverified access rules', async () => {
     const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
       root.render(

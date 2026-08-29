@@ -112,6 +112,7 @@ function RoomAccessSession({
   );
   const accessKind: RoomAccessKind = roomMembership === Membership.Invite ? 'join' : kind;
   const attemptKindRef = useRef<RoomAccessKind>();
+  const loadingRef = useRef(false);
 
   const [accessState, access] = useAsyncCallback<
     RoomAccessResult,
@@ -173,6 +174,7 @@ function RoomAccessSession({
       ? accessState
       : { status: AsyncStatus.Idle };
   const loading = state.status === AsyncStatus.Loading;
+  loadingRef.current = loading;
   const succeeded =
     state.status === AsyncStatus.Success && !(accessKind === 'knock' && requestInvalidated);
   const requested = accessKind === 'knock' && (succeeded || roomMembership === Membership.Knock);
@@ -222,7 +224,7 @@ function RoomAccessSession({
             <FocusTrap
               focusTrapOptions={{
                 initialFocus: () => reasonInputRef.current ?? dialogRef.current ?? document.body,
-                clickOutsideDeactivates: !loading,
+                clickOutsideDeactivates: () => !loadingRef.current,
                 onDeactivate: closeKnock,
                 escapeDeactivates: stopPropagation,
                 fallbackFocus: () => dialogRef.current ?? document.body,

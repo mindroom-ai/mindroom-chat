@@ -58,7 +58,8 @@ type MockMatrixClient = Pick<
 const makeMx = (
   initialMembership?: string,
   localJoinRule?: RoomAccessJoinRule,
-  canonicalAlias?: string
+  canonicalAlias?: string,
+  alternativeAliases: string[] = []
 ) => {
   let membership = initialMembership;
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -67,6 +68,7 @@ const makeMx = (
     getMyMembership: () => membership,
     getJoinRule: () => localJoinRule,
     getCanonicalAlias: () => canonicalAlias ?? null,
+    getAltAliases: () => alternativeAliases,
     getLiveTimeline: () => ({
       getState: () => ({ getStateEvents: () => null }),
     }),
@@ -105,12 +107,14 @@ const renderRoomCard = (
   accessStatus?: AsyncStatus,
   onAccessRetry?: () => void,
   localJoinRule?: RoomAccessJoinRule,
-  roomIdOrAlias = '!private:example.org'
+  roomIdOrAlias = '!private:example.org',
+  canonicalAlias = roomIdOrAlias.startsWith('#') ? roomIdOrAlias : undefined
 ) => {
   const matrix = makeMx(
     membership,
     localJoinRule,
-    roomIdOrAlias.startsWith('#') ? roomIdOrAlias : undefined
+    canonicalAlias,
+    roomIdOrAlias.startsWith('#') && canonicalAlias !== roomIdOrAlias ? [roomIdOrAlias] : []
   );
   const { mx } = matrix;
   let renderer: ReactTestRenderer;
@@ -216,6 +220,23 @@ describe('RoomCard room access', () => {
       vi.fn(),
       JoinRule.Invite,
       '#private:example.org'
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
+  });
+
+  it('uses a cached invitation for an alternative alias when summary discovery fails', () => {
+    const { renderer } = renderRoomCard(
+      undefined,
+      Membership.Invite,
+      AsyncStatus.Error,
+      vi.fn(),
+      JoinRule.Invite,
+      '#alternative:example.org',
+      '#canonical:example.org'
     );
 
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);

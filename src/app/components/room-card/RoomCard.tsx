@@ -31,7 +31,7 @@ import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
-import { RoomType, StateEvent } from '../../../types/matrix/room';
+import { Membership, RoomType, StateEvent } from '../../../types/matrix/room';
 import { useJoinedRoomId } from '../../hooks/useJoinedRoomId';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
@@ -185,9 +185,21 @@ export const RoomCard = as<'div', RoomCardProps>(
     const useAuthentication = useMediaAuthentication();
     const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
     const joinedRoom = mx.getRoom(joinedRoomId);
+    const roomAlias = isRoomAlias(roomIdOrAlias);
     const accessRoomId =
       roomId ??
-      (isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias);
+      (roomAlias
+        ? getCanonicalAliasRoomId(mx, roomIdOrAlias) ??
+          mx
+            .getRooms()
+            .find(
+              (candidate) =>
+                candidate.getAltAliases().includes(roomIdOrAlias) &&
+                (candidate.getMyMembership() === Membership.Invite ||
+                  candidate.getMyMembership() === Membership.Knock) &&
+                getStateEvent(candidate, StateEvent.RoomTombstone) === undefined
+            )?.roomId
+        : roomIdOrAlias);
     const accessRoom = mx.getRoom(accessRoomId);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
