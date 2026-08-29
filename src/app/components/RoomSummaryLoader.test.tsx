@@ -15,17 +15,21 @@ const summary = {
 };
 
 describe('RoomSummaryLoader', () => {
-  it('reports loading and success while using federation hints for discovery', async () => {
+  it('reports loading, success, and a failed refetch while using federation hints', async () => {
     let resolveSummary: ((value: typeof summary) => void) | undefined;
-    const getRoomSummary = vi.fn(
-      () =>
-        new Promise<typeof summary>((resolve) => {
-          resolveSummary = resolve;
-        })
-    );
+    const getRoomSummary = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<typeof summary>((resolve) => {
+            resolveSummary = resolve;
+          })
+      )
+      .mockRejectedValueOnce(new Error('Summary unavailable'));
     const mx = { getRoomSummary } as unknown as MatrixClient;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const observedStatuses: AsyncStatus[] = [];
+    let retrySummary: (() => void) | undefined;
     let renderer: ReactTestRenderer;
 
     act(() => {
@@ -36,8 +40,9 @@ describe('RoomSummaryLoader', () => {
               roomIdOrAlias="!private:remote.example.org"
               viaServers={['one.example.org', 'two.example.org']}
             >
-              {(state) => {
+              {(state, retry) => {
                 observedStatuses.push(state.status);
+                retrySummary = retry;
                 return <span>{state.status}</span>;
               }}
             </RoomSummaryLoader>
@@ -60,6 +65,11 @@ describe('RoomSummaryLoader', () => {
     });
 
     expect(observedStatuses.at(-1)).toBe(AsyncStatus.Success);
+    act(() => retrySummary?.());
+    await act(async () => {
+      await vi.waitFor(() => expect(observedStatuses.at(-1)).toBe(AsyncStatus.Error));
+    });
+
     act(() => renderer!.unmount());
     queryClient.clear();
   });

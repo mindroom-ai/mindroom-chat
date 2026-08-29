@@ -56,8 +56,7 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
   let state: AsyncState<IRoomSummary, Error> = { status: AsyncStatus.Loading };
   if (error) {
     state = { status: AsyncStatus.Error, error };
-  }
-  if (data) {
+  } else if (data) {
     state = { status: AsyncStatus.Success, data: data.summary };
   }
 

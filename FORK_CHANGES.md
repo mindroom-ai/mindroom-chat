@@ -128,6 +128,10 @@
 - Lobby rows retain cached membership and presentation data but use the current recognized hierarchy rule for access, so public or restricted discovery can supersede stale knock state.
 - TDD evidence: the alias-resolution failure, omitted-rule, and stale knocked room and space regressions failed before these changes and now pass with all 110 focused tests.
 - This follow-up adds 49 net production lines inside the existing loader, access controller, cards, and lobby rows without adding a component, hook, store, controller, listener, request, or external abstraction.
+- The next fresh exact-head review pair produced one approval and one valid refresh-state finding: React Query retains prior summary data when a background refetch fails, and the loader allowed that data to overwrite its error state.
+- Summary error and success handling is now mutually exclusive, so a failed refetch shows the safe retry state instead of retaining a stale access action.
+- TDD evidence: the existing loading-and-success loader test was extended through a failed refetch, first remained on success, and now reaches error while preserving its verified target metadata.
+- The refresh fix changes one existing conditional branch and adds no state, owner, request, component, hook, or abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
 - Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 
