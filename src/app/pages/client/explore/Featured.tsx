@@ -61,7 +61,7 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {spaces.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(summaryState, retrySummary) => {
+                            {(summaryState, retrySummary, viaServers) => {
                               const roomSummary =
                                 summaryState.status === AsyncStatus.Success
                                   ? summaryState.data
@@ -77,6 +77,7 @@ export function FeaturedRooms() {
                                   memberCount={roomSummary?.num_joined_members}
                                   joinRule={roomSummary?.join_rule}
                                   membership={roomSummary?.membership}
+                                  viaServers={viaServers}
                                   accessStatus={summaryState.status}
                                   onAccessRetry={retrySummary}
                                   onView={navigateSpace}
@@ -101,7 +102,7 @@ export function FeaturedRooms() {
                       <RoomCardGrid>
                         {rooms.map((roomIdOrAlias) => (
                           <RoomSummaryLoader key={roomIdOrAlias} roomIdOrAlias={roomIdOrAlias}>
-                            {(summaryState, retrySummary) => {
+                            {(summaryState, retrySummary, viaServers) => {
                               const roomSummary =
                                 summaryState.status === AsyncStatus.Success
                                   ? summaryState.data
@@ -117,6 +118,7 @@ export function FeaturedRooms() {
                                   memberCount={roomSummary?.num_joined_members}
                                   joinRule={roomSummary?.join_rule}
                                   membership={roomSummary?.membership}
+                                  viaServers={viaServers}
                                   accessStatus={summaryState.status}
                                   onAccessRetry={retrySummary}
                                   onView={navigateRoom}

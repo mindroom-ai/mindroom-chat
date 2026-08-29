@@ -29,6 +29,15 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('folds', async () => {
+  const actual = await vi.importActual<typeof import('folds')>('folds');
+  return {
+    ...actual,
+    Overlay: ({ open, children }: { open: boolean; children?: React.ReactNode }) =>
+      open ? children : null,
+  };
+});
+
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: mocks.publicRooms, isLoading: false, error: null }),
 }));
@@ -95,20 +104,23 @@ vi.mock('../../../components/RoomSummaryLoader', () => ({
     children,
   }: {
     roomIdOrAlias: string;
-    children: (state: unknown, retry: () => void) => React.ReactNode;
+    children: (state: unknown, retry: () => void, viaServers?: string[]) => React.ReactNode;
   }) =>
     children(
       {
         status: AsyncStatus.Success,
         data: {
-          room_id: roomIdOrAlias,
+          room_id: roomIdOrAlias.includes('featured-space')
+            ? '!featured-space:example.org'
+            : '!featured-room:example.org',
           name: roomIdOrAlias,
           topic: 'Featured discussion',
           num_joined_members: 5,
-          join_rule: JoinRule.Knock,
+          join_rule: roomIdOrAlias.includes('featured-space') ? JoinRule.Public : JoinRule.Knock,
         },
       },
-      vi.fn()
+      vi.fn(),
+      ['resident.example.org']
     ),
 }));
 
@@ -119,8 +131,8 @@ vi.mock('../../../components/room-topic-viewer', () => ({
 vi.mock('../../../hooks/useClientConfig', () => ({
   useClientConfig: () => ({
     featuredCommunities: {
-      spaces: ['!featured-space:example.org'],
-      rooms: ['!featured-room:example.org'],
+      spaces: ['#featured-space:example.org'],
+      rooms: ['#featured-room:example.org'],
     },
   }),
 }));
@@ -172,10 +184,12 @@ describe('Explore room access wiring', () => {
     mocks.publicRooms.chunk[0].join_rule = JoinRule.Knock;
   });
 
-  it('passes discovered knock rules and access status through Featured cards', () => {
+  it('routes Featured alias joins and knocks through resolved rooms and servers', async () => {
     const mx = makeMx();
+    let renderer: ReturnType<typeof create>;
+
     act(() => {
-      create(
+      renderer = create(
         <MatrixClientProvider value={mx}>
           <FeaturedRooms />
         </MatrixClientProvider>
@@ -186,17 +200,53 @@ describe('Explore room access wiring', () => {
     expect(mocks.roomCardProps).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          roomIdOrAlias: '!featured-space:example.org',
-          joinRule: JoinRule.Knock,
+          roomIdOrAlias: '#featured-space:example.org',
+          roomId: '!featured-space:example.org',
+          joinRule: JoinRule.Public,
           accessStatus: AsyncStatus.Success,
+          viaServers: ['resident.example.org'],
         }),
         expect.objectContaining({
-          roomIdOrAlias: '!featured-room:example.org',
+          roomIdOrAlias: '#featured-room:example.org',
+          roomId: '!featured-room:example.org',
           joinRule: JoinRule.Knock,
           accessStatus: AsyncStatus.Success,
+          viaServers: ['resident.example.org'],
         }),
       ])
     );
+    const joinButton = renderer!.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    await act(async () => {
+      joinButton?.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!featured-space:example.org', {
+      viaServers: ['resident.example.org'],
+    });
+    const knockButton = renderer!.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
+      );
+
+    act(() => knockButton?.props.onClick());
+    const form = renderer!.root.find((node) => node.type === 'form');
+    await act(async () => {
+      form.props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+      await Promise.resolve();
+    });
+
+    expect(mx.knockRoom).toHaveBeenCalledWith('!featured-room:example.org', {
+      reason: undefined,
+      viaServers: ['resident.example.org'],
+    });
   });
 
   it('passes knock rules from server Explore results into room cards', () => {
