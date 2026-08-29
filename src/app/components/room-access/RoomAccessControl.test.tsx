@@ -428,6 +428,56 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Sending request').disabled).toBe(true);
   });
 
+  it('does not dismiss an in-flight request with Escape', async () => {
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise(() => {
+          // Keep the request in flight while Escape is exercised.
+        })
+    );
+
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+    act(() => container.querySelector<HTMLElement>('[role="dialog"]')?.focus());
+    act(() =>
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
+      )
+    );
+
+    expect(container.querySelector('form')).not.toBeNull();
+    expect(getButton(container, 'Sending request').disabled).toBe(true);
+  });
+
+  it('makes a request actionable when rejection sync beats a pending endpoint', async () => {
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise(() => {
+          // Keep the endpoint pending while sync rejects the request.
+        })
+    );
+
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
+    });
+
+    expect(getButton(container, 'Send request').disabled).toBe(false);
+    expect(getButton(container, 'Cancel').disabled).toBe(false);
+  });
+
   it('fails closed for missing or unverified access rules', async () => {
     const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
       root.render(

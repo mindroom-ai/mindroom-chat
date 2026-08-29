@@ -139,10 +139,8 @@ function RoomAccessSession({
     const updateMembership = (nextMembership: string) => {
       setRoomMembership(nextMembership as Membership);
       if (kind === 'knock') {
+        attemptKindRef.current = undefined;
         setRequestInvalidated(nextMembership !== Membership.Knock);
-        if (nextMembership === Membership.Knock) {
-          attemptKindRef.current = undefined;
-        }
       }
     };
     const handleMembership = (room: Room, nextMembership: string) => {
@@ -226,7 +224,7 @@ function RoomAccessSession({
                 initialFocus: () => reasonInputRef.current ?? dialogRef.current ?? document.body,
                 clickOutsideDeactivates: () => !loadingRef.current,
                 onDeactivate: closeKnock,
-                escapeDeactivates: stopPropagation,
+                escapeDeactivates: (event) => !loadingRef.current && stopPropagation(event),
                 fallbackFocus: () => dialogRef.current ?? document.body,
               }}
             >

@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 79 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 81 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,584 of 3,588 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,586 of 3,590 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -71,8 +71,11 @@
 - The captured outside-click option is now a stable callback backed by current loading state, so an unresolved request cannot dismiss its own retry surface.
 - Alternative-alias fallback stays limited to non-tombstoned cached invite or knock rooms, preserving the existing pending-membership trust boundary.
 - TDD evidence: both focused regressions failed before these changes and pass with the complete 79-test feature suite.
+- Both native reviewers in round 5 independently found that Escape retained the same captured loading gap and that rejection sync did not supersede a still-pending endpoint attempt.
+- The stable Escape callback now consults current loading state, and every authoritative membership update supersedes the active knock attempt so rejection immediately restores retry and Cancel.
+- TDD evidence: both focused regressions failed before these two controller changes and pass with the complete 81-test feature suite.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed round-4 remediation on the same exact head.
+- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed round-5 remediation on the same exact head.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
