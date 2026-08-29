@@ -187,19 +187,22 @@ export const RoomCard = as<'div', RoomCardProps>(
     const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
     const joinedRoom = mx.getRoom(joinedRoomId);
     const roomAlias = isRoomAlias(roomIdOrAlias);
+    const pendingAliasRoomId = roomAlias
+      ? mx
+          .getRooms()
+          .find(
+            (candidate) =>
+              (candidate.getCanonicalAlias() === roomIdOrAlias ||
+                candidate.getAltAliases().includes(roomIdOrAlias)) &&
+              (candidate.getMyMembership() === Membership.Invite ||
+                candidate.getMyMembership() === Membership.Knock) &&
+              getStateEvent(candidate, StateEvent.RoomTombstone) === undefined
+          )?.roomId
+      : undefined;
     const accessRoomId =
       roomId ??
       (roomAlias
-        ? getCanonicalAliasRoomId(mx, roomIdOrAlias) ??
-          mx
-            .getRooms()
-            .find(
-              (candidate) =>
-                candidate.getAltAliases().includes(roomIdOrAlias) &&
-                (candidate.getMyMembership() === Membership.Invite ||
-                  candidate.getMyMembership() === Membership.Knock) &&
-                getStateEvent(candidate, StateEvent.RoomTombstone) === undefined
-            )?.roomId
+        ? pendingAliasRoomId ?? getCanonicalAliasRoomId(mx, roomIdOrAlias)
         : roomIdOrAlias);
     const accessRoom = mx.getRoom(accessRoomId);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
