@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 98 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 96 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,603 of 3,607 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,601 of 3,605 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -64,12 +64,12 @@
 - Local access state is now trusted only for joined, invited, or knocked membership, so explicit discovery remains authoritative after leaving while pending and active room state keeps its existing behavior.
 - TDD evidence: central controller and room-card stale-left regressions failed before the membership trust boundary was tightened, then passed alongside the existing room and space lobby regressions.
 - Native review round 3 found that alias cards could miss cached invitations after summary failure, same-value self-membership replacements could leave a completed request stale, and authoritative knock sync could leave a failed endpoint dialog open.
-- Room cards now reuse the existing canonical-alias lookup for cached access state and pass the resolved room ID into the shared controller.
+- Room cards temporarily reused the existing canonical-alias lookup for cached access state; later specification review removed that unverified recovery while retaining explicitly supplied room IDs.
 - The controller observes self-membership state-event replacements in addition to membership-value changes, and authoritative knock sync closes and supersedes the in-flight request attempt.
 - TDD evidence: all three focused regressions failed before these bounded changes and pass with the complete 77-test feature suite.
 - Native review round 4 found that the request dialog's outside-click option was captured before loading began and that cached invitations reached through alternative aliases were not recovered after summary failure.
 - The captured outside-click option is now a stable callback backed by current loading state, so an unresolved request cannot dismiss its own retry surface.
-- Alternative-alias fallback stays limited to non-tombstoned cached invite or knock rooms, preserving the existing pending-membership trust boundary.
+- An interim alternative-alias fallback was limited to non-tombstoned cached invite or knock rooms before later specification review removed self-claimed alias recovery entirely.
 - TDD evidence: both focused regressions failed before these changes and pass with the complete 79-test feature suite.
 - Both native reviewers in round 5 independently found that Escape retained the same captured loading gap and that rejection sync did not supersede a still-pending endpoint attempt.
 - The stable Escape callback now consults current loading state, and every authoritative membership update supersedes the active knock attempt so rejection immediately restores retry and Cancel.
@@ -85,21 +85,25 @@
 - Live knock membership now switches any mounted access session to `Request sent`, valid invite membership remains joinable without a discovered rule, and the dialog uses a loading-aware Escape callback scoped to modal behavior.
 - TDD evidence: all three focused regressions failed before these condition changes and pass with the complete 89-test feature suite.
 - Native review round 9 produced one approval and one valid alias-collision finding: an old left room with a reassigned canonical alias could mask the current invited or knocked room using that alias alternatively.
-- Alias lookup now prefers non-tombstoned invited or knocked rooms across canonical and alternative aliases before falling back to the existing canonical lookup.
+- An interim alias lookup preferred non-tombstoned invited or knocked rooms over stale rooms before later specification review removed unverified alias lookup entirely.
 - TDD evidence: the focused collision regression failed before the lookup-order change and passes with the complete 90-test feature suite.
 - Both native reviewers in round 10 found the same valid fallback lifecycle gap: unknown or failed discovery rendered before the shared membership observer mounted, so later invite or knock sync could remain hidden.
 - The shared access session now stays mounted behind fallback content and derives actionable invite or knock access from live membership, while room cards pass their existing loading, retry, or unavailable button through that fallback path.
 - TDD evidence: the shared unknown-rule transition and failed-card discovery regressions failed before the lifecycle change and pass with the complete 92-test feature suite.
 - Both native reviewers in round 11 found that membership events use a concrete room ID while a failed alias lookup leaves the access session keyed by the alias, and the review also found that transient invite or knock membership could replace the underlying discovered rule and that an explicitly resolved joined room could be missed for an alternative alias.
-- The existing access session now matches unresolved aliases against the event room, preserves the discovered rule beneath live membership overrides, and prefers an explicitly resolved joined room ID before the existing canonical-alias lookup.
+- The access session preserves the discovered rule beneath live membership overrides and prefers an explicitly resolved joined room ID; an interim unresolved-alias event match was later removed as unverified.
 - TDD evidence: five focused alias and membership-transition cases failed before these bounded changes and both affected suites now pass all 51 tests without a new listener, resolver, or state owner.
 - A step-back ownership audit found that room cards still resolved pending aliases, cached membership, and rule precedence before the shared access controller repeated the same authority decisions.
-- Cached pending-alias resolution and local membership reads now belong only to the shared controller; room cards and lobby rows pass raw discovery facts and retain only joined-room detection and presentation.
-- TDD evidence: the controller-level cached alternative-alias invitation regression failed with fallback UI before the ownership move, then passed with the complete 98-test feature suite while the refactor removed 47 net production lines and added no store, reducer, context, or public abstraction.
+- Local membership reads now belong only to the shared controller, while room cards and lobby rows pass raw discovery facts and retain only joined-room detection and presentation; cached pending-alias resolution was subsequently removed as unverified.
+- TDD evidence: the controller-level ownership regression first exposed the duplicate pending-alias decision before the ownership move, and later security review removed that recovery path entirely while retaining the refactor's 47-line net production reduction and avoiding any store, reducer, context, or public abstraction.
 - Fresh post-ownership review found three bounded controller gaps: renewed invitations could inherit a revoked invitation's pending join, banned users could fall through to discovered access, and recovered aliases still submitted the alias instead of the concrete room ID.
-- Invitation-owned joins now lose ownership when the invitation ends while repeated invite sync remains pending, bans fail closed, and cached or live pending alias resolution updates the operation target without changing unresolved-alias behavior or federation hints.
-- TDD evidence: the invite-revoke-renew and concrete-target regressions failed before the controller fix, the existing fail-closed flow gained ban coverage, and all 98 focused tests pass after updating the server Explore assertion to its already supplied concrete room ID.
+- Invitation-owned joins now lose ownership when the invitation ends while repeated invite sync remains pending, bans fail closed, and explicitly supplied room IDs remain the operation target without changing federation hints.
+- TDD evidence: the invite-revoke-renew and concrete-target regressions failed before the controller fix, and the existing fail-closed flow gained ban coverage.
 - The remediation remains inside the existing access controller and its behavioral tests, with no new component, hook, store, listener, resolver, or public abstraction.
+- A clean-room dissent review found that cached and live alias recovery trusted `m.room.canonical_alias` and `alt_aliases` without resolving the alias, even though the Matrix specification treats those published aliases as advisory and potentially stale.
+- Unresolved aliases now remain on unavailable or retry UI until discovery supplies a concrete room ID; exact room-ID membership observation, direct invitations, public joining, and federation hints remain unchanged.
+- TDD evidence: cached and live self-claimed alias regressions both exposed Join or Request sent before the fix and now fail closed, while two redundant tests that encoded the unsafe recovery policy were removed.
+- The security correction deletes 29 net production lines and 72 net test lines, and all 96 focused tests pass without a new resolver, request, state owner, or abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
 - Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 

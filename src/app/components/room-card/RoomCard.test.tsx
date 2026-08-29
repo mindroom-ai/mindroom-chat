@@ -230,7 +230,7 @@ describe('RoomCard room access', () => {
     );
   });
 
-  it('uses a cached invitation for an alias when summary discovery fails', () => {
+  it("does not trust a cached room's self-claimed alias when discovery fails", () => {
     const { renderer } = renderRoomCard(
       undefined,
       Membership.Invite,
@@ -240,26 +240,9 @@ describe('RoomCard room access', () => {
       '#private:example.org'
     );
 
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
-      0
-    );
-  });
-
-  it('uses a cached invitation for an alternative alias when summary discovery fails', () => {
-    const { renderer } = renderRoomCard(
-      undefined,
-      Membership.Invite,
-      AsyncStatus.Error,
-      vi.fn(),
-      JoinRule.Invite,
-      '#alternative:example.org',
-      '#canonical:example.org'
-    );
-
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
-      0
+      1
     );
   });
 
@@ -296,48 +279,6 @@ describe('RoomCard room access', () => {
 
     expect(renderer!.root.findAll((node) => node.children.includes('View'))).toHaveLength(1);
     expect(renderer!.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
-  });
-
-  it('prefers a pending alternative-alias room over a stale canonical match', () => {
-    const { mx } = makeMx(Membership.Invite, JoinRule.Invite, '#current:example.org', [
-      '#shared:example.org',
-    ]);
-    const pendingRoom = mx.getRoom('!private:example.org') as Room;
-    const staleRoom = {
-      roomId: '!stale:example.org',
-      getMyMembership: () => Membership.Leave,
-      getJoinRule: () => JoinRule.Invite,
-      getCanonicalAlias: () => '#shared:example.org',
-      getAltAliases: () => [],
-      getLiveTimeline: () => ({
-        getState: () => ({ getStateEvents: () => null }),
-      }),
-    } as Room;
-    vi.mocked(mx.getRooms).mockReturnValue([staleRoom, pendingRoom]);
-    vi.mocked(mx.getRoom).mockImplementation((roomId) =>
-      roomId === pendingRoom.roomId ? pendingRoom : roomId === staleRoom.roomId ? staleRoom : null
-    );
-    let renderer: ReactTestRenderer;
-
-    act(() => {
-      renderer = create(
-        <MatrixClientProvider value={mx as MatrixClient}>
-          <RoomCard
-            roomIdOrAlias="#shared:example.org"
-            allRooms={[]}
-            name="Private room"
-            accessStatus={AsyncStatus.Error}
-            onAccessRetry={vi.fn()}
-            renderTopicViewer={() => null}
-          />
-        </MatrixClientProvider>
-      );
-    });
-
-    expect(renderer!.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
-    expect(
-      renderer!.root.findAll((node) => node.children.includes('Retry room info'))
-    ).toHaveLength(0);
   });
 
   it('hides an invite-only Join action when sync revokes the invitation', () => {

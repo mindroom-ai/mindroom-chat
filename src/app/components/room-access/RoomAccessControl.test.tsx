@@ -276,12 +276,12 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Join')).toBeDefined();
   });
 
-  it('joins a cached alternative-alias invitation through its concrete room ID', async () => {
+  it("does not trust a cached room's self-claimed alias", () => {
     const room = {
       roomId: '!private:example.org',
       getMyMembership: () => Membership.Invite,
-      getCanonicalAlias: () => '#canonical:example.org',
-      getAltAliases: () => ['#alternative:example.org'],
+      getCanonicalAlias: () => '#trusted:example.org',
+      getAltAliases: () => [],
       getLiveTimeline: () => ({
         getState: () => ({ getStateEvents: () => null }),
       }),
@@ -293,28 +293,18 @@ describe('RoomAccessControl request dialog', () => {
       root.render(
         <MatrixClientProvider value={mx}>
           <RoomAccessControl
-            roomIdOrAlias="#alternative:example.org"
+            roomIdOrAlias="#trusted:example.org"
             roomName="Private room"
             fallback={<button>Access unavailable</button>}
           >
-            {(access) => (
-              <button onClick={access.activate}>
-                {access.kind === 'join' ? 'Join' : 'Request to join'}
-              </button>
-            )}
+            {(access) => <button>{access.kind === 'join' ? 'Join' : 'Request to join'}</button>}
           </RoomAccessControl>
         </MatrixClientProvider>
       );
     });
 
-    act(() => getButton(container, 'Join').click());
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(mx.joinRoom).toHaveBeenCalledWith(room.roomId, {
-      viaServers: undefined,
-    });
+    expect(getButton(container, 'Access unavailable')).toBeDefined();
+    expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
   it('reveals Join when live membership changes to invite', () => {
@@ -401,8 +391,8 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent')).toBeDefined();
   });
 
-  it('reveals authoritative invite and knock membership for an unresolved alias', () => {
-    const roomAlias = '#private:example.org';
+  it("does not trust live membership from a room's self-claimed alias", () => {
+    const roomAlias = '#trusted:example.org';
     const room = {
       roomId: '!private:example.org',
       getCanonicalAlias: () => roomAlias,
@@ -440,13 +430,10 @@ describe('RoomAccessControl request dialog', () => {
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => membershipListener(room, Membership.Invite, Membership.Leave));
-    expect(getButton(container, 'Join')).toBeDefined();
-
-    act(() => membershipListener(room, Membership.Leave, Membership.Invite));
     expect(getButton(container, 'Access unavailable')).toBeDefined();
 
     act(() => membershipListener(room, Membership.Knock, Membership.Leave));
-    expect(getButton(container, 'Request sent')).toBeDefined();
+    expect(getButton(container, 'Access unavailable')).toBeDefined();
   });
 
   it.each([
