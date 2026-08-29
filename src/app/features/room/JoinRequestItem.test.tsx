@@ -87,7 +87,7 @@ vi.mock('./MembersDrawer.css', () => ({
 
 const createRoom = (): Room => ({ roomId: '!room:example.org' } as Room);
 
-const createKnockingMember = (reason = 'I would love to join.'): RoomMember =>
+const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMember =>
   ({
     userId: '@alice:example.org',
     membership: Membership.Knock,
@@ -102,7 +102,7 @@ const createKnockingMember = (reason = 'I would love to join.'): RoomMember =>
   } as unknown as RoomMember);
 
 const renderItem = (
-  options: { canApprove?: boolean; canDecline?: boolean; reason?: string } = {}
+  options: { canApprove?: boolean; canDecline?: boolean; reason?: unknown } = {}
 ): ReactTestRenderer =>
   create(
     <JoinRequestItem
@@ -143,6 +143,12 @@ describe('JoinRequestItem', () => {
         'aria-label': 'Decline join request from @alice:example.org',
       })
     ).toBeDefined();
+  });
+
+  it('ignores a malformed non-string request message', () => {
+    const renderer = renderItem({ reason: { unexpected: true } });
+
+    expect(textContent(renderer)).toContain('No message provided.');
   });
 
   it('keeps an approved request settled until membership sync removes the row', async () => {

@@ -36,7 +36,8 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
     ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 100, 100, 'crop')
     : undefined;
   const memberEvent = member.events.member;
-  const message = memberEvent?.getContent().reason?.trim();
+  const reason = memberEvent?.getContent().reason;
+  const message = typeof reason === 'string' ? reason.trim() : undefined;
   const relativeTime = useRelativeTime(memberEvent?.getTs());
 
   const loading = actionState.status === 'loading';
