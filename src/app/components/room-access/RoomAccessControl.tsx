@@ -7,7 +7,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { JoinRule, MatrixError, Room, RoomEvent } from 'matrix-js-sdk';
+import {
+  EventType,
+  JoinRule,
+  MatrixError,
+  Room,
+  RoomEvent,
+  RoomStateEvent,
+  type MatrixEvent,
+  type RoomState,
+} from 'matrix-js-sdk';
 import {
   Box,
   Button,
@@ -126,18 +135,36 @@ function RoomAccessSession({
 
   useEffect(() => {
     setRequestInvalidated(false);
-    const handleMembership = (room: Room, membership: string) => {
-      if (room.roomId === accessRoomId) {
-        setRoomMembership(membership as Membership);
-        if (kind === 'knock') {
-          setRequestInvalidated(membership !== Membership.Knock);
+    const updateMembership = (nextMembership: string) => {
+      setRoomMembership(nextMembership as Membership);
+      if (kind === 'knock') {
+        setRequestInvalidated(nextMembership !== Membership.Knock);
+        if (nextMembership === Membership.Knock) {
+          attemptKindRef.current = undefined;
         }
       }
     };
+    const handleMembership = (room: Room, nextMembership: string) => {
+      if (room.roomId === accessRoomId) updateMembership(nextMembership);
+    };
+    const handleStateEvent = (event: MatrixEvent, state: RoomState) => {
+      if (
+        state.roomId !== accessRoomId ||
+        event.getType() !== EventType.RoomMember ||
+        event.getStateKey() !== mx.getUserId()
+      ) {
+        return;
+      }
+
+      const nextMembership = event.getContent().membership;
+      if (typeof nextMembership === 'string') updateMembership(nextMembership);
+    };
 
     mx.on(RoomEvent.MyMembership, handleMembership);
+    mx.on(RoomStateEvent.Events, handleStateEvent);
     return () => {
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
+      mx.removeListener(RoomStateEvent.Events, handleStateEvent);
     };
   }, [accessRoomId, kind, mx]);
 
@@ -151,6 +178,9 @@ function RoomAccessSession({
   const requested = accessKind === 'knock' && (succeeded || roomMembership === Membership.Knock);
   const [viewKnock, setViewKnock] = useState(false);
   const closeKnock = () => setViewKnock(false);
+  useEffect(() => {
+    if (roomMembership === Membership.Knock) setViewKnock(false);
+  }, [roomMembership]);
   const activate = () => {
     if (loading || requested || succeeded) return;
 

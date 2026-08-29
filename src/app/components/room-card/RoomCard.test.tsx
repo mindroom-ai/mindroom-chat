@@ -52,21 +52,30 @@ vi.mock('./style.css', () => ({
 
 type MockMatrixClient = Pick<
   MatrixClient,
-  'getRoom' | 'joinRoom' | 'knockRoom' | 'on' | 'removeListener'
+  'getRoom' | 'getRooms' | 'joinRoom' | 'knockRoom' | 'on' | 'removeListener'
 >;
 
-const makeMx = (initialMembership?: string, localJoinRule?: RoomAccessJoinRule) => {
+const makeMx = (
+  initialMembership?: string,
+  localJoinRule?: RoomAccessJoinRule,
+  canonicalAlias?: string
+) => {
   let membership = initialMembership;
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const room = {
     roomId: '!private:example.org',
     getMyMembership: () => membership,
     getJoinRule: () => localJoinRule,
+    getCanonicalAlias: () => canonicalAlias ?? null,
+    getLiveTimeline: () => ({
+      getState: () => ({ getStateEvents: () => null }),
+    }),
   } as Room;
   const mx: MockMatrixClient = {
     getRoom: vi.fn((roomId: string) =>
       membership && roomId === '!private:example.org' ? room : null
     ),
+    getRooms: vi.fn(() => (membership ? [room] : [])),
     joinRoom: vi.fn(async () => ({} as never)),
     knockRoom: vi.fn(async () => ({ room_id: '!private:example.org' })),
     on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
@@ -95,9 +104,14 @@ const renderRoomCard = (
   membership?: string,
   accessStatus?: AsyncStatus,
   onAccessRetry?: () => void,
-  localJoinRule?: RoomAccessJoinRule
+  localJoinRule?: RoomAccessJoinRule,
+  roomIdOrAlias = '!private:example.org'
 ) => {
-  const matrix = makeMx(membership, localJoinRule);
+  const matrix = makeMx(
+    membership,
+    localJoinRule,
+    roomIdOrAlias.startsWith('#') ? roomIdOrAlias : undefined
+  );
   const { mx } = matrix;
   let renderer: ReactTestRenderer;
 
@@ -105,7 +119,7 @@ const renderRoomCard = (
     renderer = create(
       <MatrixClientProvider value={mx as MatrixClient}>
         <RoomCard
-          roomIdOrAlias="!private:example.org"
+          roomIdOrAlias={roomIdOrAlias}
           allRooms={[]}
           name="Private room"
           joinRule={joinRule}
@@ -186,6 +200,22 @@ describe('RoomCard room access', () => {
       AsyncStatus.Error,
       vi.fn(),
       JoinRule.Invite
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
+  });
+
+  it('uses a cached invitation for an alias when summary discovery fails', () => {
+    const { renderer } = renderRoomCard(
+      undefined,
+      Membership.Invite,
+      AsyncStatus.Error,
+      vi.fn(),
+      JoinRule.Invite,
+      '#private:example.org'
     );
 
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);

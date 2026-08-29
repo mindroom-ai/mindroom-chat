@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { JoinRule, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  EventType,
+  JoinRule,
+  RoomEvent,
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type RoomState,
+} from 'matrix-js-sdk';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +37,7 @@ vi.mock('folds', async () => {
 
 const mx = {
   getRoom: vi.fn(() => null),
+  getUserId: vi.fn(() => '@me:example.org'),
   joinRoom: vi.fn(async () => ({})),
   knockRoom: vi.fn(async () => ({ room_id: '!private:example.org' })),
   on: vi.fn(),
@@ -295,6 +305,107 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(getButton(container, 'Request to join')).toBeDefined();
+  });
+
+  it('invalidates a sent request when a new self-membership event remains leave', async () => {
+    const room = {
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Leave,
+      getJoinRule: () => JoinRule.Knock,
+    } as Room;
+    vi.mocked(mx.getRoom).mockReturnValue(room);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias={room.roomId}
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+          >
+            {(access) => (
+              <button disabled={access.requested} onClick={access.activate}>
+                {access.requested ? 'Request sent' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+    expect(getButton(container, 'Request sent')).toBeDefined();
+
+    const stateListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1];
+    if (typeof stateListener !== 'function') throw new Error('Missing state event listener');
+
+    act(() => {
+      stateListener(
+        {
+          getRoomId: () => room.roomId,
+          getType: () => EventType.RoomMember,
+          getStateKey: () => '@me:example.org',
+          getContent: () => ({ membership: Membership.Leave }),
+        } as MatrixEvent,
+        { roomId: room.roomId } as RoomState,
+        null
+      );
+    });
+
+    expect(getButton(container, 'Request to join')).toBeDefined();
+  });
+
+  it('closes the dialog when sync confirms a request before the endpoint rejects', async () => {
+    let rejectRequest: (error: Error) => void = () => undefined;
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject;
+        })
+    );
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+          >
+            {(access) => (
+              <button disabled={access.requested} onClick={access.activate}>
+                {access.requested ? 'Request sent' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    act(() => getButton(container, 'Request to join').click());
+    act(() => container.querySelector('form')?.requestSubmit());
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Knock);
+    });
+    await act(async () => {
+      rejectRequest(new Error('Request timed out'));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('form')).toBeNull();
+    expect(getButton(container, 'Request sent')).toBeDefined();
   });
 
   it('fails closed for missing or unverified access rules', async () => {

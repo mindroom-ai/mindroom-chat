@@ -20,7 +20,12 @@ import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
-import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
+import {
+  getCanonicalAliasRoomId,
+  getMxIdLocalPart,
+  isRoomAlias,
+  mxcUrlToHttp,
+} from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
 import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -180,7 +185,10 @@ export const RoomCard = as<'div', RoomCardProps>(
     const useAuthentication = useMediaAuthentication();
     const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
     const joinedRoom = mx.getRoom(joinedRoomId);
-    const accessRoom = mx.getRoom(roomId ?? roomIdOrAlias);
+    const accessRoomId =
+      roomId ??
+      (isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias);
+    const accessRoom = mx.getRoom(accessRoomId);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
     const localAccessAvailable = isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
@@ -307,7 +315,7 @@ export const RoomCard = as<'div', RoomCardProps>(
         {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Success && (
           <RoomAccessControl
             roomIdOrAlias={roomIdOrAlias}
-            roomId={roomId}
+            roomId={accessRoomId}
             roomName={roomName}
             joinRule={accessJoinRule}
             membership={accessMembership}
