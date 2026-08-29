@@ -333,8 +333,8 @@ describe('RoomCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 
-  it('clears the sent state when sync reports that the knock ended', async () => {
-    const { renderer, setMembership } = renderRoomCard(JoinRule.Knock, 'leave');
+  it('keeps the sent state cleared through a summary refresh after sync ends the knock', async () => {
+    const { renderer, mx, setMembership } = renderRoomCard(JoinRule.Knock, 'leave');
     const accessButton = renderer.root
       .findAllByType('button')
       .find(
@@ -353,6 +353,26 @@ describe('RoomCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(1);
 
     act(() => setMembership('leave'));
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
+
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx as MatrixClient}>
+          <RoomCard
+            roomIdOrAlias="!private:example.org"
+            allRooms={[]}
+            name="Private room"
+            joinRule={JoinRule.Knock}
+            membership="leave"
+            renderTopicViewer={() => null}
+          />
+        </MatrixClientProvider>
+      );
+    });
 
     expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
       1

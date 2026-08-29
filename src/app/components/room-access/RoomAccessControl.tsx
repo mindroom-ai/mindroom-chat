@@ -104,8 +104,10 @@ function RoomAccessSession({
     setRoomMembership(
       (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
     );
-    setRequestInvalidated(false);
+  }, [accessRoomId, membership, mx]);
 
+  useEffect(() => {
+    setRequestInvalidated(false);
     const handleMembership = (room: Room, membership: string) => {
       if (room.roomId === accessRoomId) {
         setRoomMembership(membership as Membership);
@@ -119,7 +121,7 @@ function RoomAccessSession({
     return () => {
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
     };
-  }, [accessRoomId, kind, membership, mx]);
+  }, [accessRoomId, kind, mx]);
 
   const loading = accessState.status === AsyncStatus.Loading;
   const succeeded =

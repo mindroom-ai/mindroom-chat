@@ -11,6 +11,8 @@
 - Sending state is visible, successful requests settle on a disabled `Request sent` confirmation, and synced knock membership restores or updates that state across navigation and reload.
 - Summary-reported knock membership restores `Request sent` even before the SDK has cached a local room object, while an available live room membership remains authoritative.
 - TDD evidence: the summary-only regression first failed with `Missing Request sent button` while `getRoom()` returned `null`, then passed after the shared access session began using summary membership as its cache-miss fallback.
+- Summary membership refreshes are synchronized independently from live request invalidation, so a later summary prop change cannot resurrect `Request sent` after sync reports that the knock ended.
+- Follow-up TDD evidence: the room-card regression first lost `Request to join` after a live rejection and summary refresh, then passed after the summary synchronization and live membership listener were separated.
 - Reusing the deep-link route for another room starts a fresh access session instead of carrying over the prior room's successful request.
 - A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
 - Failed requests remain in the dialog with their error message so the user can retry without losing context.
