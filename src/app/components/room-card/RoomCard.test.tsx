@@ -345,6 +345,25 @@ describe('RoomCard room access', () => {
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
+  it('reveals a live invitation while failed discovery is showing retry', () => {
+    const { renderer, setMembership } = renderRoomCard(
+      undefined,
+      Membership.Leave,
+      AsyncStatus.Error,
+      vi.fn()
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      1
+    );
+    act(() => setMembership(Membership.Invite));
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      0
+    );
+  });
+
   it('does not treat a successful summary without a join rule as public', () => {
     const retry = vi.fn();
     const { renderer, mx } = renderRoomCard(undefined, undefined, AsyncStatus.Success, retry);

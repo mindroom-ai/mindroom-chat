@@ -262,6 +262,20 @@ export const RoomCard = as<'div', RoomCardProps>(
       : AsyncStatus.Error;
     const accessRetry =
       !localAccessAvailable && accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
+    const accessFallback =
+      resolvedAccessStatus === AsyncStatus.Loading ? (
+        <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
+          <Text size="B300" truncate>
+            Checking access
+          </Text>
+        </Button>
+      ) : (
+        <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
+          <Text size="B300" truncate>
+            {accessRetry ? 'Retry room info' : 'Access unavailable'}
+          </Text>
+        </Button>
+      );
 
     return (
       <RoomCardBase {...props} ref={ref}>
@@ -323,35 +337,15 @@ export const RoomCard = as<'div', RoomCardProps>(
             </Text>
           </Button>
         )}
-        {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Loading && (
-          <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
-            <Text size="B300" truncate>
-              Checking access
-            </Text>
-          </Button>
-        )}
-        {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Error && (
-          <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
-            <Text size="B300" truncate>
-              {accessRetry ? 'Retry room info' : 'Access unavailable'}
-            </Text>
-          </Button>
-        )}
-        {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Success && (
+        {typeof joinedRoomId !== 'string' && (
           <RoomAccessControl
             roomIdOrAlias={roomIdOrAlias}
             roomId={accessRoomId}
             roomName={roomName}
-            joinRule={accessJoinRule}
+            joinRule={resolvedAccessStatus === AsyncStatus.Success ? accessJoinRule : undefined}
             membership={accessMembership}
             viaServers={viaServers}
-            fallback={
-              <Button variant="Secondary" size="300" disabled>
-                <Text size="B300" truncate>
-                  Access unavailable
-                </Text>
-              </Button>
-            }
+            fallback={accessFallback}
           >
             {(access) => {
               if (access.kind === 'join' && access.state.status === AsyncStatus.Error) {

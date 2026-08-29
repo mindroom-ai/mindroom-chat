@@ -116,6 +116,12 @@ function RoomAccessSession({
       : roomMembership === Membership.Knock
       ? 'knock'
       : kind;
+  const sessionJoinRule =
+    roomMembership === Membership.Invite
+      ? JoinRule.Invite
+      : roomMembership === Membership.Knock
+      ? JoinRule.Knock
+      : joinRule;
   const attemptKindRef = useRef<RoomAccessKind>();
   const loadingRef = useRef(false);
 
@@ -219,7 +225,7 @@ function RoomAccessSession({
       .catch(() => undefined);
   };
 
-  if (!isActionableRoomAccessJoinRule(joinRule, roomMembership)) return fallback ?? null;
+  if (!isActionableRoomAccessJoinRule(sessionJoinRule, roomMembership)) return fallback ?? null;
 
   return (
     <>
@@ -334,8 +340,6 @@ export function RoomAccessControl({
       : isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
       ? localJoinRule
       : joinRule;
-  if (!isRoomAccessJoinRule(accessJoinRule)) return fallback ?? null;
-
   const kind: RoomAccessKind =
     accessJoinRule === JoinRule.Knock || accessJoinRule === 'knock_restricted' ? 'knock' : 'join';
 
