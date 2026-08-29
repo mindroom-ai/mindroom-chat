@@ -301,7 +301,6 @@ export const RoomCard = as<'div', RoomCardProps>(
         )}
         {typeof joinedRoomId !== 'string' && resolvedAccessStatus === AsyncStatus.Success && (
           <RoomAccessControl
-            key={roomId ?? roomIdOrAlias}
             roomIdOrAlias={roomIdOrAlias}
             roomId={roomId}
             roomName={roomName}

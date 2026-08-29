@@ -54,8 +54,9 @@
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
 - Final zero-tolerance base-to-head re-review found no remaining correctness, authorization, accessibility, resilience, state-lifecycle, or scope issues after the invitation, rejection, summary fallback, and malformed-content remediations.
+- KISS-focused follow-up removed redundant room-card and space-row remount keys after confirming that the shared access controller already owns access-session reset by room and access kind; the existing controller and caller regressions remain unchanged.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: merge remains with the repository owner.
+- Next step: complete the native exact-head review loop, refresh the PR validation record, and return merge control to the repository owner.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

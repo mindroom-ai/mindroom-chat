@@ -62,7 +62,7 @@ type RoomAccessControlProps = {
   children: (view: RoomAccessView) => ReactNode;
 };
 
-type RoomAccessSessionProps = RoomAccessControlProps & {
+type RoomAccessSessionProps = Omit<RoomAccessControlProps, 'roomId'> & {
   accessRoomId: string;
   kind: RoomAccessKind;
 };
@@ -281,7 +281,6 @@ export function RoomAccessControl({
       key={`${kind}:${accessRoomId}`}
       {...props}
       roomIdOrAlias={roomIdOrAlias}
-      roomId={roomId}
       joinRule={accessJoinRule}
       membership={accessMembership}
       accessRoomId={accessRoomId}
