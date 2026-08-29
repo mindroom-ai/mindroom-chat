@@ -32,7 +32,12 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { RoomAccessControl, RoomAccessJoinRule, isRoomAccessJoinRule } from '../room-access';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  isActionableRoomAccessJoinRule,
+  isRoomAccessJoinRule,
+} from '../room-access';
 
 type GridColumnCount = '1' | '2' | '3';
 const getGridColumnCount = (gridWidth: number): GridColumnCount => {
@@ -178,7 +183,7 @@ export const RoomCard = as<'div', RoomCardProps>(
     const accessRoom = mx.getRoom(roomId ?? roomIdOrAlias);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
-    const localAccessAvailable = isRoomAccessJoinRule(localJoinRule, accessMembership);
+    const localAccessAvailable = isActionableRoomAccessJoinRule(localJoinRule, accessMembership);
     const accessJoinRule = localAccessAvailable ? localJoinRule : joinRule;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
@@ -219,7 +224,7 @@ export const RoomCard = as<'div', RoomCardProps>(
       ? AsyncStatus.Success
       : accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
       ? accessStatus
-      : isRoomAccessJoinRule(accessJoinRule, accessMembership)
+      : isRoomAccessJoinRule(accessJoinRule)
       ? AsyncStatus.Success
       : AsyncStatus.Error;
     const accessRetry =
@@ -307,6 +312,13 @@ export const RoomCard = as<'div', RoomCardProps>(
             joinRule={accessJoinRule}
             membership={accessMembership}
             viaServers={viaServers}
+            fallback={
+              <Button variant="Secondary" size="300" disabled>
+                <Text size="B300" truncate>
+                  Access unavailable
+                </Text>
+              </Button>
+            }
           >
             {(access) => {
               if (access.kind === 'join' && access.state.status === AsyncStatus.Error) {

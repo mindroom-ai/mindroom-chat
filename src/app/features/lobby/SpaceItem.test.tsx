@@ -140,6 +140,10 @@ describe('SpaceItemCard room access', () => {
   });
 
   it('offers a join request for a knock-capable child space', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      getMyMembership: () => 'leave',
+      getJoinRule: () => JoinRule.Invite,
+    } as Room);
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -299,7 +303,7 @@ describe('SpaceItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('keeps an invite-only child space joinable for a locally invited user', () => {
+  it('keeps a cached invitation joinable when child-space discovery is unavailable', () => {
     vi.mocked(mx.getRoom).mockReturnValue({
       getMyMembership: () => 'invite',
       getJoinRule: () => JoinRule.Invite,
@@ -310,7 +314,8 @@ describe('SpaceItemCard room access', () => {
         <MatrixClientProvider value={mx}>
           <SpaceItemCard
             item={item}
-            summary={{ ...summary, join_rule: JoinRule.Invite }}
+            loading={false}
+            summary={undefined}
             joined={false}
             categoryId={roomId}
             closed={false}

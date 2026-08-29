@@ -38,11 +38,7 @@ import { getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
 import { ItemDraggableTarget, useDraggableItem } from './DnD';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import {
-  RoomAccessControl,
-  RoomAccessJoinRule,
-  isRoomAccessJoinRule,
-} from '../../components/room-access';
+import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
 
 type RoomJoinButtonProps = {
   roomId: string;
@@ -54,14 +50,6 @@ function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps
   const mx = useMatrixClient();
   const membership = mx.getRoom(roomId)?.getMyMembership();
 
-  if (!isRoomAccessJoinRule(joinRule, membership)) {
-    return (
-      <Chip variant="Secondary" fill="Soft" size="400" radii="Pill" disabled>
-        <Text size="B300">Access unavailable</Text>
-      </Chip>
-    );
-  }
-
   return (
     <RoomAccessControl
       roomIdOrAlias={roomId}
@@ -70,6 +58,11 @@ function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps
       joinRule={joinRule}
       membership={membership}
       viaServers={via}
+      fallback={
+        <Chip variant="Secondary" fill="Soft" size="400" radii="Pill" disabled>
+          <Text size="B300">Access unavailable</Text>
+        </Chip>
+      }
     >
       {(access) => {
         const canActivate = !access.loading && !access.requested && !access.succeeded;
@@ -357,7 +350,13 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const { roomId, content } = item;
-    const room = getRoom(roomId);
+    const cachedRoom = mx.getRoom(roomId);
+    const cachedMembership = cachedRoom?.getMyMembership();
+    const pendingRoom =
+      cachedMembership === Membership.Invite || cachedMembership === Membership.Knock
+        ? cachedRoom
+        : undefined;
+    const room = getRoom(roomId) ?? pendingRoom;
     const targetRef = useRef<HTMLDivElement>(null);
     const targetHandleRef = useRef<HTMLDivElement>(null);
     useDraggableItem(item, targetRef, onDragging, targetHandleRef);

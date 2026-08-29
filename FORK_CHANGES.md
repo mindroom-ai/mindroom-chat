@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest zero-tolerance review remediations, exact-head project gates, full human re-review, push, and refreshed automated review are complete in ready PR #223.
+- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest zero-tolerance review remediations, exact-head project gates, full human re-review, push, and refreshed automated review are complete in ready PR #223; the native exact-head review loop is in progress.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -25,7 +25,7 @@
 - The final moderator screenshot is stored outside the repository, and no screenshot asset is added to the branch.
 - A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
 - Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
-- PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; keying the controller by room ID now starts a fresh access session, with a rerender regression covering the transition.
+- PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; the shared controller now keys its internal access session by room ID and access kind, with a rerender regression covering the transition.
 - Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
 - Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
 - The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 71 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 72 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,576 of 3,580 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,577 of 3,581 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -55,8 +55,13 @@
 - One optional review service could not run because its repository quota was unavailable.
 - Final zero-tolerance base-to-head re-review found no remaining correctness, authorization, accessibility, resilience, state-lifecycle, or scope issues after the invitation, rejection, summary fallback, and malformed-content remediations.
 - KISS-focused follow-up removed redundant room-card and space-row remount keys after confirming that the shared access controller already owns access-session reset by room and access kind; the existing controller and caller regressions remain unchanged.
+- Native review round 1 found that recognized invite-only targets could be rejected before the shared membership listener mounted and that hierarchy failures could hide cached invitations in lobby room and space rows.
+- The shared controller now separates recognized rules from currently actionable access, owns unavailable fallback rendering, and stays subscribed so a live `leave` to `invite` transition reveals Join without requiring a parent rerender.
+- Lobby room and space rows reuse only cached pending `invite` or `knock` rooms when the hierarchy lookup has no local room, preserving cached invitations without allowing stale `leave` rooms to override newer hierarchy access rules.
+- TDD evidence: the live invitation and two hierarchy-failure regressions first failed with missing Join or unavailable fallback UI; strengthened room and space knock regressions then failed against an over-broad cached-room fallback before the pending-membership restriction made all 72 focused tests pass.
+- KISS cleanup also removed an unnecessary rejected-promise catch from the summary retry callback because the query refetch result already reports errors through query state.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: complete the native exact-head review loop, refresh the PR validation record, and return merge control to the repository owner.
+- Next step: commit and push the round-1 remediation, then require two fresh native reviewers to approve the same exact head.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

@@ -35,9 +35,7 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
     state = { status: AsyncStatus.Success, data };
   }
 
-  return children(state, () => {
-    refetch().catch(() => undefined);
-  });
+  return children(state, () => void refetch());
 }
 
 export function LocalRoomSummaryLoader({

@@ -20,6 +20,7 @@ import FocusTrap from 'focus-trap-react';
 import classNames from 'classnames';
 import { Room } from 'matrix-js-sdk';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
+import { Membership } from '../../../types/matrix/room';
 import { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { RoomAvatar } from '../../components/room-avatar';
@@ -38,11 +39,7 @@ import { useOpenCreateSpaceModal } from '../../state/hooks/createSpaceModal';
 import { AddExistingModal } from '../add-existing';
 import { CreateRoomType } from '../../components/create-room/types';
 import { BetaNoticeBadge } from '../../components/BetaNoticeBadge';
-import {
-  RoomAccessControl,
-  RoomAccessJoinRule,
-  isRoomAccessJoinRule,
-} from '../../components/room-access';
+import { RoomAccessControl, RoomAccessJoinRule } from '../../components/room-access';
 
 function SpaceProfileLoading() {
   return (
@@ -120,44 +117,42 @@ function UnjoinedSpaceProfile({
   const mx = useMatrixClient();
   const membership = mx.getRoom(roomId)?.getMyMembership();
 
-  if (!isRoomAccessJoinRule(joinRule, membership)) {
-    return (
-      <Chip
-        className={css.HeaderChip}
-        variant="Surface"
-        size="500"
-        disabled
-        before={
-          <Avatar size="200" radii="300">
-            <RoomAvatar
-              roomId={roomId}
-              src={avatarUrl}
-              alt={name}
-              renderFallback={() => (
-                <Text as="span" size="H6">
-                  {nameInitials(name)}
-                </Text>
-              )}
-            />
-          </Avatar>
-        }
-      >
-        <Box alignItems="Center" gap="200">
-          <Text size="H4" truncate>
-            {name || 'Unknown'}
-          </Text>
-          {suggested && (
-            <Badge variant="Success" fill="Soft" radii="Pill" outlined>
-              <Text size="L400">Suggested</Text>
-            </Badge>
-          )}
-          <Badge variant="Secondary" fill="Soft" radii="Pill" outlined>
-            <Text size="L400">Access unavailable</Text>
+  const fallback = (
+    <Chip
+      className={css.HeaderChip}
+      variant="Surface"
+      size="500"
+      disabled
+      before={
+        <Avatar size="200" radii="300">
+          <RoomAvatar
+            roomId={roomId}
+            src={avatarUrl}
+            alt={name}
+            renderFallback={() => (
+              <Text as="span" size="H6">
+                {nameInitials(name)}
+              </Text>
+            )}
+          />
+        </Avatar>
+      }
+    >
+      <Box alignItems="Center" gap="200">
+        <Text size="H4" truncate>
+          {name || 'Unknown'}
+        </Text>
+        {suggested && (
+          <Badge variant="Success" fill="Soft" radii="Pill" outlined>
+            <Text size="L400">Suggested</Text>
           </Badge>
-        </Box>
-      </Chip>
-    );
-  }
+        )}
+        <Badge variant="Secondary" fill="Soft" radii="Pill" outlined>
+          <Text size="L400">Access unavailable</Text>
+        </Badge>
+      </Box>
+    </Chip>
+  );
 
   return (
     <RoomAccessControl
@@ -167,6 +162,7 @@ function UnjoinedSpaceProfile({
       joinRule={joinRule}
       membership={membership}
       viaServers={via}
+      fallback={fallback}
     >
       {(access) => {
         const canActivate = !access.loading && !access.requested && !access.succeeded;
@@ -495,7 +491,13 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const { roomId, content } = item;
-    const space = getRoom(roomId);
+    const cachedSpace = mx.getRoom(roomId);
+    const cachedMembership = cachedSpace?.getMyMembership();
+    const pendingSpace =
+      cachedMembership === Membership.Invite || cachedMembership === Membership.Knock
+        ? cachedSpace
+        : undefined;
+    const space = getRoom(roomId) ?? pendingSpace;
     const targetRef = useRef<HTMLDivElement>(null);
     useDraggableItem(item, targetRef, onDragging);
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { JoinRule, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { JoinRule, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -231,6 +231,43 @@ describe('RoomAccessControl request dialog', () => {
           </RoomAccessControl>
         </MatrixClientProvider>
       );
+    });
+
+    expect(getButton(container, 'Join')).toBeDefined();
+  });
+
+  it('reveals Join when live membership changes to invite', () => {
+    const room = {
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Leave,
+      getJoinRule: () => JoinRule.Invite,
+    } as Room;
+    vi.mocked(mx.getRoom).mockReturnValue(room);
+    vi.mocked(mx.on).mockClear();
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias={room.roomId}
+            roomName="Private room"
+            joinRule={JoinRule.Invite}
+            fallback={<button>Access unavailable</button>}
+          >
+            {(access) => <button>{access.kind === 'join' ? 'Join' : 'Knock'}</button>}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Access unavailable')).toBeDefined();
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+    act(() => {
+      membershipListener(room, Membership.Invite, Membership.Leave);
     });
 
     expect(getButton(container, 'Join')).toBeDefined();

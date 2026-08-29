@@ -52,6 +52,14 @@ vi.mock('../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
+vi.mock('../../utils/room', async () => {
+  const actual = await vi.importActual<typeof import('../../utils/room')>('../../utils/room');
+  return {
+    ...actual,
+    getRoomAvatarUrl: () => undefined,
+  };
+});
+
 vi.mock('./DnD', () => ({
   ItemDraggableTarget: () => null,
   useDraggableItem: () => undefined,
@@ -96,6 +104,22 @@ const mx = {
   removeListener: vi.fn(),
 } as unknown as MatrixClient;
 
+const cachedRoom = (membership: string, joinRule: JoinRule): Room =>
+  ({
+    roomId,
+    name: 'Private room',
+    getMyMembership: () => membership,
+    getJoinRule: () => joinRule,
+    getLiveTimeline: () => ({
+      getState: () => ({ getStateEvents: () => undefined }),
+    }),
+    getGuestAccess: () => 'forbidden',
+    getMxcAvatarUrl: () => null,
+    getCanonicalAlias: () => null,
+    getJoinedMemberCount: () => 12,
+    getType: () => undefined,
+  } as Room);
+
 describe('RoomItemCard room access', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -103,6 +127,7 @@ describe('RoomItemCard room access', () => {
   });
 
   it('offers a join request for a knock-capable child room', () => {
+    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('leave', JoinRule.Invite));
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -204,11 +229,8 @@ describe('RoomItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('keeps an invite-only child room joinable for a locally invited user', () => {
-    vi.mocked(mx.getRoom).mockReturnValue({
-      getMyMembership: () => 'invite',
-      getJoinRule: () => JoinRule.Invite,
-    } as Room);
+  it('keeps a cached invitation joinable when child-room discovery fails', () => {
+    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('invite', JoinRule.Invite));
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -216,8 +238,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
-            summary={{ ...summary, join_rule: JoinRule.Invite }}
+            error={new Error('Summary unavailable')}
+            summary={undefined}
             onOpen={vi.fn()}
             onDragging={vi.fn()}
             canReorder={false}

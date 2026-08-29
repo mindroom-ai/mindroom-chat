@@ -33,15 +33,19 @@ export type RoomAccessJoinRule = JoinRule | 'knock_restricted';
 export type RoomAccessKind = 'join' | 'knock';
 type RoomAccessResult = Room | { room_id: string };
 
-export const isRoomAccessJoinRule = (
-  joinRule: unknown,
-  membership?: string
-): joinRule is RoomAccessJoinRule =>
+export const isRoomAccessJoinRule = (joinRule: unknown): joinRule is RoomAccessJoinRule =>
   joinRule === JoinRule.Public ||
   joinRule === JoinRule.Restricted ||
   joinRule === JoinRule.Knock ||
   joinRule === 'knock_restricted' ||
-  (joinRule === JoinRule.Invite && membership === Membership.Invite);
+  joinRule === JoinRule.Invite;
+
+export const isActionableRoomAccessJoinRule = (
+  joinRule: unknown,
+  membership?: string
+): joinRule is RoomAccessJoinRule =>
+  isRoomAccessJoinRule(joinRule) &&
+  (joinRule !== JoinRule.Invite || membership === Membership.Invite);
 
 export type RoomAccessView = {
   kind: RoomAccessKind;
@@ -59,6 +63,7 @@ type RoomAccessControlProps = {
   joinRule?: RoomAccessJoinRule;
   membership?: string;
   viaServers?: string[];
+  fallback?: ReactNode;
   children: (view: RoomAccessView) => ReactNode;
 };
 
@@ -73,6 +78,7 @@ function RoomAccessSession({
   joinRule,
   membership,
   viaServers,
+  fallback,
   children,
   accessRoomId,
   kind,
@@ -166,7 +172,7 @@ function RoomAccessSession({
       .catch(() => undefined);
   };
 
-  if (!isRoomAccessJoinRule(joinRule, roomMembership)) return null;
+  if (!isActionableRoomAccessJoinRule(joinRule, roomMembership)) return fallback ?? null;
 
   return (
     <>
@@ -261,6 +267,7 @@ export function RoomAccessControl({
   roomId,
   joinRule,
   membership,
+  fallback,
   ...props
 }: RoomAccessControlProps) {
   const mx = useMatrixClient();
@@ -268,10 +275,10 @@ export function RoomAccessControl({
   const localRoom = mx.getRoom(accessRoomId);
   const accessMembership = localRoom?.getMyMembership() ?? membership;
   const localJoinRule = localRoom?.getJoinRule();
-  const accessJoinRule = isRoomAccessJoinRule(localJoinRule, accessMembership)
+  const accessJoinRule = isActionableRoomAccessJoinRule(localJoinRule, accessMembership)
     ? localJoinRule
     : joinRule;
-  if (!isRoomAccessJoinRule(accessJoinRule, accessMembership)) return null;
+  if (!isRoomAccessJoinRule(accessJoinRule)) return fallback ?? null;
 
   const kind: RoomAccessKind =
     accessJoinRule === JoinRule.Knock || accessJoinRule === 'knock_restricted' ? 'knock' : 'join';
@@ -283,6 +290,7 @@ export function RoomAccessControl({
       roomIdOrAlias={roomIdOrAlias}
       joinRule={accessJoinRule}
       membership={accessMembership}
+      fallback={fallback}
       accessRoomId={accessRoomId}
       kind={kind}
     />
