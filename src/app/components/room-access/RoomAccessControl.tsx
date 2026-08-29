@@ -139,7 +139,7 @@ function RoomAccessSession({
     const updateMembership = (nextMembership: string) => {
       setRoomMembership(nextMembership as Membership);
       if (kind === 'knock') {
-        attemptKindRef.current = undefined;
+        if (attemptKindRef.current === 'knock') attemptKindRef.current = undefined;
         setRequestInvalidated(nextMembership !== Membership.Knock);
       }
     };
@@ -201,10 +201,11 @@ function RoomAccessSession({
     const reason = reasonInput?.value.trim() || undefined;
 
     setRequestInvalidated(false);
-    attemptKindRef.current = accessKind;
+    const attemptKind = accessKind;
+    attemptKindRef.current = attemptKind;
     access(reason)
       .then(() => {
-        if (alive()) {
+        if (alive() && attemptKindRef.current === attemptKind) {
           closeKnock();
         }
       })

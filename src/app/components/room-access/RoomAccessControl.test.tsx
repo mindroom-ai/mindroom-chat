@@ -478,6 +478,92 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Cancel').disabled).toBe(false);
   });
 
+  it('keeps retry input open when a rejected request endpoint resolves late', async () => {
+    let resolveRequest: () => void = () => undefined;
+    vi.mocked(mx.knockRoom).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = () => {
+            resolve({ room_id: '!private:example.org' });
+          };
+        })
+    );
+
+    act(() => getButton(container, 'Request to join').click());
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+      await Promise.resolve();
+    });
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
+    });
+
+    const message = container.querySelector<HTMLTextAreaElement>('textarea[name="reasonInput"]');
+    if (!message) throw new Error('Missing request message');
+    message.value = 'Replacement message';
+    await act(async () => {
+      resolveRequest();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('form')).not.toBeNull();
+    expect(message.value).toBe('Replacement message');
+  });
+
+  it('keeps a pending invitation join loading through repeated invite sync', async () => {
+    vi.mocked(mx.joinRoom).mockImplementationOnce(
+      () =>
+        new Promise(() => {
+          // Keep the join pending while membership sync repeats.
+        })
+    );
+
+    const renderAccess = () =>
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+          >
+            {(access) => (
+              <button disabled={access.loading} onClick={access.activate}>
+                {access.loading ? 'Joining' : access.kind === 'join' ? 'Join' : 'Request to join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+
+    act(renderAccess);
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Invite);
+    });
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getButton(container, 'Joining').disabled).toBe(true);
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Invite);
+    });
+    act(renderAccess);
+
+    expect(getButton(container, 'Joining').disabled).toBe(true);
+    expect(mx.joinRoom).toHaveBeenCalledOnce();
+  });
+
   it('fails closed for missing or unverified access rules', async () => {
     const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
       root.render(
