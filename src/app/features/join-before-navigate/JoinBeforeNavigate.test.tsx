@@ -11,6 +11,7 @@ const summaryLoaderMock = vi.hoisted(() => ({
   state: undefined as unknown,
   props: undefined as unknown,
   retry: vi.fn(),
+  resolvedViaServers: undefined as string[] | undefined,
 }));
 
 vi.mock('folds', async () => {
@@ -61,12 +62,16 @@ vi.mock('../../components/RoomSummaryLoader', () => ({
     children,
     ...props
   }: {
-    children: (state: unknown, retry: () => void) => React.ReactNode;
+    children: (state: unknown, retry: () => void, viaServers?: string[]) => React.ReactNode;
     roomIdOrAlias: string;
     viaServers?: string[];
   }) => {
     summaryLoaderMock.props = props;
-    return children(summaryLoaderMock.state, summaryLoaderMock.retry);
+    return children(
+      summaryLoaderMock.state,
+      summaryLoaderMock.retry,
+      summaryLoaderMock.resolvedViaServers
+    );
   },
 }));
 
@@ -115,6 +120,7 @@ const mx = {
 describe('JoinBeforeNavigate room access', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    summaryLoaderMock.resolvedViaServers = undefined;
     summaryLoaderMock.state = {
       status: AsyncStatus.Success,
       data: {
@@ -132,15 +138,13 @@ describe('JoinBeforeNavigate room access', () => {
     };
   });
 
-  it('offers a join request from a knock-capable room summary', () => {
+  it('knocks on an alias through its resolved room and routing servers', async () => {
+    summaryLoaderMock.resolvedViaServers = ['resident.example.org'];
     const renderer = create(<></>);
     act(() => {
       renderer.update(
         <MatrixClientProvider value={mx}>
-          <JoinBeforeNavigate
-            roomIdOrAlias="!private:example.org"
-            viaServers={['one.example.org']}
-          />
+          <JoinBeforeNavigate roomIdOrAlias="#private:example.org" />
         </MatrixClientProvider>
       );
     });
@@ -150,8 +154,61 @@ describe('JoinBeforeNavigate room access', () => {
     );
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
     expect(summaryLoaderMock.props).toEqual({
-      roomIdOrAlias: '!private:example.org',
-      viaServers: ['one.example.org'],
+      roomIdOrAlias: '#private:example.org',
+      viaServers: undefined,
+    });
+
+    const requestButton = renderer.root
+      .findAllByType('button')
+      .find(
+        (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
+      );
+    act(() => requestButton?.props.onClick());
+    const form = renderer.root.find((node) => node.type === 'form');
+    await act(async () => {
+      form.props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+      await Promise.resolve();
+    });
+
+    expect(mx.knockRoom).toHaveBeenCalledWith('!private:example.org', {
+      reason: undefined,
+      viaServers: ['resident.example.org'],
+    });
+  });
+
+  it('joins an alias through its resolved room and routing servers', async () => {
+    summaryLoaderMock.resolvedViaServers = ['resident.example.org'];
+    summaryLoaderMock.state = {
+      status: AsyncStatus.Success,
+      data: {
+        room_id: '!public:example.org',
+        name: 'Public room',
+        join_rule: JoinRule.Public,
+        membership: 'leave',
+      },
+    };
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <JoinBeforeNavigate roomIdOrAlias="#public:example.org" />
+        </MatrixClientProvider>
+      );
+    });
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
+
+    await act(async () => {
+      joinButton?.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith('!public:example.org', {
+      viaServers: ['resident.example.org'],
     });
   });
 

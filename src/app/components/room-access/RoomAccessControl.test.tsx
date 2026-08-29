@@ -391,6 +391,59 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent')).toBeDefined();
   });
 
+  it('does not expose access for an already joined room missing from the parent room list', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Join,
+    } as Room);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+            fallback={<button>Access unavailable</button>}
+          >
+            {(access) => (
+              <button onClick={access.activate}>
+                {access.kind === 'knock' ? 'Request to join' : 'Join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(container.querySelector('button')).toBeNull();
+    expect(mx.knockRoom).not.toHaveBeenCalled();
+  });
+
+  it('closes a knock prompt when live membership becomes joined', () => {
+    act(() => getButton(container, 'Request to join').click());
+    expect(container.querySelector('form')).not.toBeNull();
+
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Join);
+    });
+
+    expect(container.querySelector('form')).toBeNull();
+    expect(container.querySelector('button')).toBeNull();
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
+    });
+
+    expect(container.querySelector('form')).toBeNull();
+    expect(getButton(container, 'Request to join')).toBeDefined();
+  });
+
   it("does not trust live membership from a room's self-claimed alias", () => {
     const roomAlias = '#trusted:example.org';
     const room = {
@@ -859,6 +912,56 @@ describe('RoomAccessControl request dialog', () => {
       await Promise.resolve();
     });
     expect(mx.joinRoom).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a deferred join result after live membership joins and then leaves', async () => {
+    let resolveJoin = () => undefined;
+    vi.mocked(mx.joinRoom).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveJoin = () => resolve({} as Room);
+        })
+    );
+    vi.mocked(mx.on).mockClear();
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!public:example.org"
+            roomName="Public room"
+            joinRule={JoinRule.Public}
+          >
+            {(access) => (
+              <button disabled={access.loading || access.succeeded} onClick={access.activate}>
+                {access.loading || access.succeeded ? 'Joining' : 'Join'}
+              </button>
+            )}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    await act(async () => {
+      getButton(container, 'Join').click();
+      await Promise.resolve();
+    });
+    expect(getButton(container, 'Joining').disabled).toBe(true);
+    const membershipListener = vi
+      .mocked(mx.on)
+      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
+
+    act(() => {
+      membershipListener({ roomId: '!public:example.org' } as Room, Membership.Join);
+      membershipListener({ roomId: '!public:example.org' } as Room, Membership.Leave);
+    });
+    await act(async () => {
+      resolveJoin();
+      await Promise.resolve();
+    });
+
+    expect(getButton(container, 'Join').disabled).toBe(false);
   });
 
   it('fails closed for missing or unverified access rules', async () => {

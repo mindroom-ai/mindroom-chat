@@ -57,7 +57,7 @@ export function JoinBeforeNavigate({
         <Scroll hideTrack visibility="Hover" size="0">
           <Box style={{ height: '100%' }} grow="Yes" alignItems="Center" justifyContent="Center">
             <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
-              {(summaryState, retrySummary) => {
+              {(summaryState, retrySummary, resolvedViaServers) => {
                 const summary =
                   summaryState.status === AsyncStatus.Success ? summaryState.data : undefined;
                 return (
@@ -75,7 +75,7 @@ export function JoinBeforeNavigate({
                     membership={summary?.membership}
                     accessStatus={summaryState.status}
                     onAccessRetry={retrySummary}
-                    viaServers={viaServers}
+                    viaServers={resolvedViaServers ?? viaServers}
                     renderTopicViewer={(name, topic, requestClose) => (
                       <RoomTopicViewer name={name} topic={topic} requestClose={requestClose} />
                     )}

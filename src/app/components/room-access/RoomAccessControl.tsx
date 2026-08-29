@@ -118,12 +118,12 @@ function RoomAccessSession({
   const invitationJoinAttemptRef = useRef(false);
   const loadingRef = useRef(false);
   const invalidateAttemptForMembership = useCallback((nextMembership?: Membership) => {
-    if (
-      nextMembership === Membership.Ban ||
-      (attemptKindRef.current === 'join' &&
-        invitationJoinAttemptRef.current &&
-        nextMembership !== Membership.Invite)
-    ) {
+    const joinAttemptSuperseded =
+      attemptKindRef.current === 'join' &&
+      (nextMembership === Membership.Join ||
+        nextMembership === Membership.Leave ||
+        (invitationJoinAttemptRef.current && nextMembership !== Membership.Invite));
+    if (nextMembership === Membership.Ban || joinAttemptSuperseded) {
       attemptKindRef.current = undefined;
       invitationJoinAttemptRef.current = false;
     }
@@ -199,7 +199,7 @@ function RoomAccessSession({
   const [viewKnock, setViewKnock] = useState(false);
   const closeKnock = () => setViewKnock(false);
   useEffect(() => {
-    if (roomMembership === Membership.Knock) setViewKnock(false);
+    if (roomMembership !== undefined && roomMembership !== Membership.Leave) setViewKnock(false);
   }, [roomMembership]);
   const activate = () => {
     if (loading || requested || succeeded) return;
@@ -234,6 +234,7 @@ function RoomAccessSession({
       .catch(() => undefined);
   };
 
+  if (roomMembership === Membership.Join) return null;
   if (!isActionableRoomAccessJoinRule(sessionJoinRule, roomMembership)) return fallback ?? null;
 
   return (
