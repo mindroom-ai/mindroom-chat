@@ -65,10 +65,14 @@ const makeMx = (
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   const room = {
     roomId: '!private:example.org',
+    name: 'Cached room',
     getMyMembership: () => membership,
     getJoinRule: () => localJoinRule,
     getCanonicalAlias: () => canonicalAlias ?? null,
     getAltAliases: () => alternativeAliases,
+    getMxcAvatarUrl: () => null,
+    getJoinedMemberCount: () => 1,
+    isSpaceRoom: () => false,
     getLiveTimeline: () => ({
       getState: () => ({ getStateEvents: () => null }),
     }),
@@ -108,7 +112,9 @@ const renderRoomCard = (
   onAccessRetry?: () => void,
   localJoinRule?: RoomAccessJoinRule,
   roomIdOrAlias = '!private:example.org',
-  canonicalAlias = roomIdOrAlias.startsWith('#') ? roomIdOrAlias : undefined
+  canonicalAlias = roomIdOrAlias.startsWith('#') ? roomIdOrAlias : undefined,
+  roomId?: string,
+  allRooms: string[] = []
 ) => {
   const matrix = makeMx(
     membership,
@@ -124,7 +130,8 @@ const renderRoomCard = (
       <MatrixClientProvider value={mx as MatrixClient}>
         <RoomCard
           roomIdOrAlias={roomIdOrAlias}
-          allRooms={[]}
+          roomId={roomId}
+          allRooms={allRooms}
           name="Private room"
           joinRule={joinRule}
           accessStatus={accessStatus}
@@ -279,6 +286,44 @@ describe('RoomCard room access', () => {
 
     expect(renderer!.root.findAll((node) => node.children.includes('View'))).toHaveLength(1);
     expect(renderer!.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
+  it('does not replace a verified target with a stale joined alias', () => {
+    const { renderer } = renderRoomCard(
+      JoinRule.Knock,
+      Membership.Leave,
+      undefined,
+      undefined,
+      JoinRule.Public,
+      '#team:example.org',
+      '#team:example.org',
+      '!new:example.org',
+      ['!private:example.org']
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('View'))).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+  });
+
+  it('does not infer a joined room from an unresolved self-claimed alias', () => {
+    const { renderer } = renderRoomCard(
+      undefined,
+      Membership.Leave,
+      AsyncStatus.Error,
+      vi.fn(),
+      JoinRule.Public,
+      '#team:example.org',
+      '#team:example.org',
+      undefined,
+      ['!private:example.org']
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('View'))).toHaveLength(0);
+    expect(renderer.root.findAll((node) => node.children.includes('Retry room info'))).toHaveLength(
+      1
+    );
   });
 
   it('hides an invite-only Join action when sync revokes the invitation', () => {

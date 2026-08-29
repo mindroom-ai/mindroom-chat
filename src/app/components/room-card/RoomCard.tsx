@@ -20,14 +20,13 @@ import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
-import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
+import { getMxIdLocalPart, isRoomId, mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
 import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
 import { RoomType, StateEvent } from '../../../types/matrix/room';
-import { useJoinedRoomId } from '../../hooks/useJoinedRoomId';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
@@ -173,8 +172,8 @@ export const RoomCard = as<'div', RoomCardProps>(
   ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
-    const aliasJoinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
-    const joinedRoomId = roomId && allRooms.includes(roomId) ? roomId : aliasJoinedRoomId;
+    const targetRoomId = roomId ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : undefined);
+    const joinedRoomId = targetRoomId && allRooms.includes(targetRoomId) ? targetRoomId : undefined;
     const joinedRoom = mx.getRoom(joinedRoomId);
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined

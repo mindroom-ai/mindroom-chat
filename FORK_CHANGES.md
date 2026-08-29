@@ -41,9 +41,9 @@
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 96 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 98 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,601 of 3,605 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,603 of 3,607 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -104,6 +104,10 @@
 - Unresolved aliases now remain on unavailable or retry UI until discovery supplies a concrete room ID; exact room-ID membership observation, direct invitations, public joining, and federation hints remain unchanged.
 - TDD evidence: cached and live self-claimed alias regressions both exposed Join or Request sent before the fix and now fail closed, while two redundant tests that encoded the unsafe recovery policy were removed.
 - The security correction deletes 29 net production lines and 72 net test lines, and all 96 focused tests pass without a new resolver, request, state owner, or abstraction.
+- Both fresh reviewers then found that room-card joined detection could still prefer a stale joined room's self-published alias when discovery had resolved a different concrete room ID, or infer View for an unresolved alias.
+- Room cards now derive joined state only from the explicitly resolved room ID or a direct room-ID input, so a stale alias cannot replace verified Request to join, retry, or unavailable UI.
+- TDD evidence: the verified-target collision and unresolved-alias regressions first rendered View for the stale room and now pass with all 98 focused tests.
+- The joined-state fix replaces the alias hook with one exact-ID check and adds no state, effect, resolver, request, or public abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
 - Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 
