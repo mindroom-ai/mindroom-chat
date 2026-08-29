@@ -96,8 +96,12 @@
 - A step-back ownership audit found that room cards still resolved pending aliases, cached membership, and rule precedence before the shared access controller repeated the same authority decisions.
 - Cached pending-alias resolution and local membership reads now belong only to the shared controller; room cards and lobby rows pass raw discovery facts and retain only joined-room detection and presentation.
 - TDD evidence: the controller-level cached alternative-alias invitation regression failed with fallback UI before the ownership move, then passed with the complete 98-test feature suite while the refactor removed 47 net production lines and added no store, reducer, context, or public abstraction.
+- Fresh post-ownership review found three bounded controller gaps: renewed invitations could inherit a revoked invitation's pending join, banned users could fall through to discovered access, and recovered aliases still submitted the alias instead of the concrete room ID.
+- Invitation-owned joins now lose ownership when the invitation ends while repeated invite sync remains pending, bans fail closed, and cached or live pending alias resolution updates the operation target without changing unresolved-alias behavior or federation hints.
+- TDD evidence: the invite-revoke-renew and concrete-target regressions failed before the controller fix, the existing fail-closed flow gained ban coverage, and all 98 focused tests pass after updating the server Explore assertion to its already supplied concrete room ID.
+- The remediation remains inside the existing access controller and its behavioral tests, with no new component, hook, store, listener, resolver, or public abstraction.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed ownership remediation on the same exact head.
+- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 

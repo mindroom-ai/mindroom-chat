@@ -276,7 +276,7 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Join')).toBeDefined();
   });
 
-  it('uses a cached invitation reached through an unresolved alternative alias', () => {
+  it('joins a cached alternative-alias invitation through its concrete room ID', async () => {
     const room = {
       roomId: '!private:example.org',
       getMyMembership: () => Membership.Invite,
@@ -297,13 +297,24 @@ describe('RoomAccessControl request dialog', () => {
             roomName="Private room"
             fallback={<button>Access unavailable</button>}
           >
-            {(access) => <button>{access.kind === 'join' ? 'Join' : 'Request to join'}</button>}
+            {(access) => (
+              <button onClick={access.activate}>
+                {access.kind === 'join' ? 'Join' : 'Request to join'}
+              </button>
+            )}
           </RoomAccessControl>
         </MatrixClientProvider>
       );
     });
 
-    expect(getButton(container, 'Join')).toBeDefined();
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mx.joinRoom).toHaveBeenCalledWith(room.roomId, {
+      viaServers: undefined,
+    });
   });
 
   it('reveals Join when live membership changes to invite', () => {
@@ -789,11 +800,14 @@ describe('RoomAccessControl request dialog', () => {
     expect(message.value).toBe('Replacement message');
   });
 
-  it('keeps a pending invitation join loading through repeated invite sync', async () => {
+  it('keeps repeated invites pending but allows a renewed invite after revocation', async () => {
+    let resolveFirstJoin = () => undefined;
     vi.mocked(mx.joinRoom).mockImplementationOnce(
       () =>
-        new Promise(() => {
-          // Keep the join pending while membership sync repeats.
+        new Promise((resolve) => {
+          resolveFirstJoin = () => {
+            resolve({} as Room);
+          };
         })
     );
 
@@ -836,6 +850,28 @@ describe('RoomAccessControl request dialog', () => {
 
     expect(getButton(container, 'Joining').disabled).toBe(true);
     expect(mx.joinRoom).toHaveBeenCalledOnce();
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
+    });
+    expect(getButton(container, 'Request to join').disabled).toBe(false);
+
+    act(() => {
+      membershipListener({ roomId: '!private:example.org' } as Room, Membership.Invite);
+    });
+    expect(getButton(container, 'Join').disabled).toBe(false);
+
+    await act(async () => {
+      resolveFirstJoin();
+      await Promise.resolve();
+    });
+
+    expect(getButton(container, 'Join').disabled).toBe(false);
+    act(() => getButton(container, 'Join').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mx.joinRoom).toHaveBeenCalledTimes(2);
   });
 
   it('fails closed for missing or unverified access rules', async () => {
@@ -858,6 +894,9 @@ describe('RoomAccessControl request dialog', () => {
     expect(container.querySelector('button')).toBeNull();
 
     act(() => renderJoin(JoinRule.Invite));
+    expect(container.querySelector('button')).toBeNull();
+
+    act(() => renderJoin(JoinRule.Public, Membership.Ban));
     expect(container.querySelector('button')).toBeNull();
 
     act(() => renderJoin(JoinRule.Invite, Membership.Invite));

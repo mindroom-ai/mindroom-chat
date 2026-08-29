@@ -239,7 +239,7 @@ describe('Explore room access wiring', () => {
     act(() => joinButton?.props.onClick());
 
     expect(mocks.roomCardProps[0]).toEqual(expect.objectContaining({ joinRule: JoinRule.Public }));
-    expect(mx.joinRoom).toHaveBeenCalledWith('#server-room:example.org', {
+    expect(mx.joinRoom).toHaveBeenCalledWith('!server-room:example.org', {
       viaServers: ['example.org'],
     });
   });

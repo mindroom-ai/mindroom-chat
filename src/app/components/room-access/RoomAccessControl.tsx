@@ -113,13 +113,28 @@ function RoomAccessSession({
       ? 'knock'
       : kind;
   const sessionJoinRule =
-    roomMembership === Membership.Invite
+    roomMembership === Membership.Ban
+      ? undefined
+      : roomMembership === Membership.Invite
       ? JoinRule.Invite
       : roomMembership === Membership.Knock
       ? JoinRule.Knock
       : joinRule;
   const attemptKindRef = useRef<RoomAccessKind>();
+  const invitationJoinAttemptRef = useRef(false);
+  const accessTargetRef = useRef(accessRoomId);
   const loadingRef = useRef(false);
+  const invalidateAttemptForMembership = useCallback((nextMembership?: Membership) => {
+    if (
+      nextMembership === Membership.Ban ||
+      (attemptKindRef.current === 'join' &&
+        invitationJoinAttemptRef.current &&
+        nextMembership !== Membership.Invite)
+    ) {
+      attemptKindRef.current = undefined;
+      invitationJoinAttemptRef.current = false;
+    }
+  }, []);
 
   const [accessState, access] = useAsyncCallback<
     RoomAccessResult,
@@ -129,17 +144,19 @@ function RoomAccessSession({
     useCallback(
       (reason) =>
         accessKind === 'knock'
-          ? mx.knockRoom(roomIdOrAlias, { reason, viaServers })
-          : mx.joinRoom(roomIdOrAlias, { viaServers }),
-      [accessKind, mx, roomIdOrAlias, viaServers]
+          ? mx.knockRoom(accessTargetRef.current, { reason, viaServers })
+          : mx.joinRoom(accessTargetRef.current, { viaServers }),
+      [accessKind, mx, viaServers]
     )
   );
   const [requestInvalidated, setRequestInvalidated] = useState(false);
   useEffect(() => {
-    setRoomMembership(
-      (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as Membership | undefined
-    );
-  }, [accessRoomId, membership, mx]);
+    const nextMembership = (mx.getRoom(accessRoomId)?.getMyMembership() ?? membership) as
+      | Membership
+      | undefined;
+    invalidateAttemptForMembership(nextMembership);
+    setRoomMembership(nextMembership);
+  }, [accessRoomId, invalidateAttemptForMembership, membership, mx]);
 
   useEffect(() => {
     setRequestInvalidated(false);
@@ -150,7 +167,11 @@ function RoomAccessSession({
         accessRoomId === roomIdOrAlias &&
         isRoomAlias(roomIdOrAlias) &&
         roomHasAlias(room, roomIdOrAlias));
-    const updateMembership = (nextMembership: string) => {
+    const updateMembership = (nextMembership: string, resolvedRoomId: string) => {
+      if (nextMembership === Membership.Invite || nextMembership === Membership.Knock) {
+        accessTargetRef.current = resolvedRoomId;
+      }
+      invalidateAttemptForMembership(nextMembership as Membership);
       setRoomMembership(nextMembership as Membership);
       if (kind === 'knock') {
         if (attemptKindRef.current === 'knock') attemptKindRef.current = undefined;
@@ -158,7 +179,7 @@ function RoomAccessSession({
       }
     };
     const handleMembership = (room: Room, nextMembership: string) => {
-      if (matchesAccessRoom(room.roomId, room)) updateMembership(nextMembership);
+      if (matchesAccessRoom(room.roomId, room)) updateMembership(nextMembership, room.roomId);
     };
     const handleStateEvent = (event: MatrixEvent, state: RoomState) => {
       if (
@@ -170,7 +191,7 @@ function RoomAccessSession({
       }
 
       const nextMembership = event.getContent().membership;
-      if (typeof nextMembership === 'string') updateMembership(nextMembership);
+      if (typeof nextMembership === 'string') updateMembership(nextMembership, state.roomId);
     };
 
     mx.on(RoomEvent.MyMembership, handleMembership);
@@ -179,7 +200,7 @@ function RoomAccessSession({
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
       mx.removeListener(RoomStateEvent.Events, handleStateEvent);
     };
-  }, [accessRoomId, kind, mx, roomIdOrAlias]);
+  }, [accessRoomId, invalidateAttemptForMembership, kind, mx, roomIdOrAlias]);
 
   const state: AsyncState<RoomAccessResult, MatrixError> =
     accessState.status === AsyncStatus.Idle || attemptKindRef.current === accessKind
@@ -206,6 +227,7 @@ function RoomAccessSession({
     }
 
     attemptKindRef.current = accessKind;
+    invitationJoinAttemptRef.current = roomMembership === Membership.Invite;
     access(undefined).catch(() => undefined);
   };
   const handleKnockSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -219,6 +241,7 @@ function RoomAccessSession({
     setRequestInvalidated(false);
     const attemptKind = accessKind;
     attemptKindRef.current = attemptKind;
+    invitationJoinAttemptRef.current = false;
     access(reason)
       .then(() => {
         if (alive() && attemptKindRef.current === attemptKind) {
