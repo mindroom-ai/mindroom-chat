@@ -36,11 +36,12 @@
 - Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
 - A valid invitation overrides a knock-capable room rule, and live approval replaces the stale request state with the normal Join action instead of asking the invited user to knock again.
 - Trusted cached room membership and join-rule state preserve valid invitations when summary membership is missing or summary discovery fails, while genuinely unknown access still fails closed.
+- Live membership revalidation also removes an invite-only Join action immediately when sync reports that the invitation was revoked.
 - TDD evidence: initial and live knock-to-invite transitions first stayed on the knock path, and cached invitations first disappeared behind unavailable summary data; all paths now use the normal join endpoint.
 - Successful lobby hierarchy entries with missing or unrecognized access rules now show a disabled `Access unavailable` state for both rooms and spaces, while an explicit local invite membership remains joinable.
 - Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 70 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
+- Focused coverage passes 71 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
 - The merged full Vitest run passes 3,569 of 3,573 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.

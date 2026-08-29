@@ -70,6 +70,7 @@ type RoomAccessSessionProps = RoomAccessControlProps & {
 function RoomAccessSession({
   roomIdOrAlias,
   roomName,
+  joinRule,
   membership,
   viaServers,
   children,
@@ -164,6 +165,8 @@ function RoomAccessSession({
       })
       .catch(() => undefined);
   };
+
+  if (!isRoomAccessJoinRule(joinRule, roomMembership)) return null;
 
   return (
     <>

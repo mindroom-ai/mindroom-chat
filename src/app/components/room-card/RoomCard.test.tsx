@@ -178,6 +178,21 @@ describe('RoomCard room access', () => {
     );
   });
 
+  it('hides an invite-only Join action when sync revokes the invitation', () => {
+    const { renderer, setMembership } = renderRoomCard(
+      JoinRule.Invite,
+      Membership.Invite,
+      undefined,
+      undefined,
+      JoinRule.Invite
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
+
+    act(() => setMembership(Membership.Leave));
+
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
   it('does not expose room access while summary discovery is loading', () => {
     const { renderer, mx } = renderRoomCard(JoinRule.Public, undefined, AsyncStatus.Loading);
 
