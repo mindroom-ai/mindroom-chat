@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest zero-tolerance review remediations, and focused validation are complete in ready PR #223; exact-head project gates, push, and refreshed automated review remain.
+- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest zero-tolerance review remediations, exact-head project gates, and full human re-review are complete in ready PR #223; push and refreshed automated review remain.
 - Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
 - One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
 - The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
@@ -43,7 +43,7 @@
 - Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
 - Focused coverage passes 71 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
 - Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,569 of 3,573 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- The merged full Vitest run passes 3,576 of 3,580 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
 - Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
 - Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
 - A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
@@ -52,8 +52,9 @@
 - Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
 - A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
 - One optional review service could not run because its repository quota was unavailable.
+- Final zero-tolerance base-to-head re-review found no remaining correctness, authorization, accessibility, resilience, state-lifecycle, or scope issues after the invitation, rejection, summary fallback, and malformed-content remediations.
 - Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Next step: complete exact-head project gates, full human re-review, and refreshed automated review.
+- Next step: push the reviewed commits and complete refreshed automated review.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
