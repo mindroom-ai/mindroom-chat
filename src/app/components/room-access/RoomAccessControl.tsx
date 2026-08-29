@@ -47,6 +47,15 @@ export const isActionableRoomAccessJoinRule = (
   isRoomAccessJoinRule(joinRule) &&
   (joinRule !== JoinRule.Invite || membership === Membership.Invite);
 
+export const isTrustedRoomAccessJoinRule = (
+  joinRule: unknown,
+  membership?: string
+): joinRule is RoomAccessJoinRule =>
+  (membership === Membership.Join ||
+    membership === Membership.Invite ||
+    membership === Membership.Knock) &&
+  isActionableRoomAccessJoinRule(joinRule, membership);
+
 export type RoomAccessView = {
   kind: RoomAccessKind;
   state: AsyncState<RoomAccessResult, MatrixError>;
@@ -275,7 +284,7 @@ export function RoomAccessControl({
   const localRoom = mx.getRoom(accessRoomId);
   const accessMembership = localRoom?.getMyMembership() ?? membership;
   const localJoinRule = localRoom?.getJoinRule();
-  const accessJoinRule = isActionableRoomAccessJoinRule(localJoinRule, accessMembership)
+  const accessJoinRule = isTrustedRoomAccessJoinRule(localJoinRule, accessMembership)
     ? localJoinRule
     : joinRule;
   if (!isRoomAccessJoinRule(accessJoinRule)) return fallback ?? null;

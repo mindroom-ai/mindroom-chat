@@ -273,6 +273,30 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Join')).toBeDefined();
   });
 
+  it('prefers explicit discovery over stale access state from a left room', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      roomId: '!private:example.org',
+      getMyMembership: () => Membership.Leave,
+      getJoinRule: () => JoinRule.Public,
+    } as Room);
+
+    act(() => {
+      root.render(
+        <MatrixClientProvider value={mx}>
+          <RoomAccessControl
+            roomIdOrAlias="!private:example.org"
+            roomName="Private room"
+            joinRule={JoinRule.Knock}
+          >
+            {(access) => <button>{access.kind === 'knock' ? 'Request to join' : 'Join'}</button>}
+          </RoomAccessControl>
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(getButton(container, 'Request to join')).toBeDefined();
+  });
+
   it('fails closed for missing or unverified access rules', async () => {
     const renderJoin = (joinRule?: JoinRule, membership?: Membership) => {
       root.render(

@@ -131,6 +131,22 @@ describe('RoomCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
+  it('ignores stale public access state from a left room', () => {
+    const { renderer, mx } = renderRoomCard(
+      JoinRule.Knock,
+      Membership.Leave,
+      undefined,
+      undefined,
+      JoinRule.Public
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+    expect(mx.joinRoom).not.toHaveBeenCalled();
+  });
+
   it('offers the same request flow for knock-restricted rooms', () => {
     const { renderer } = renderRoomCard('knock_restricted');
 

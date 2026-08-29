@@ -35,8 +35,8 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import {
   RoomAccessControl,
   RoomAccessJoinRule,
-  isActionableRoomAccessJoinRule,
   isRoomAccessJoinRule,
+  isTrustedRoomAccessJoinRule,
 } from '../room-access';
 
 type GridColumnCount = '1' | '2' | '3';
@@ -183,7 +183,7 @@ export const RoomCard = as<'div', RoomCardProps>(
     const accessRoom = mx.getRoom(roomId ?? roomIdOrAlias);
     const accessMembership = accessRoom?.getMyMembership() ?? membership;
     const localJoinRule = accessRoom?.getJoinRule();
-    const localAccessAvailable = isActionableRoomAccessJoinRule(localJoinRule, accessMembership);
+    const localAccessAvailable = isTrustedRoomAccessJoinRule(localJoinRule, accessMembership);
     const accessJoinRule = localAccessAvailable ? localJoinRule : joinRule;
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
