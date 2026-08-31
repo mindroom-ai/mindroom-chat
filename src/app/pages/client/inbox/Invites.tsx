@@ -67,6 +67,8 @@ import { useIgnoredUsers } from '../../../hooks/useIgnoredUsers';
 import { useReportRoomSupported } from '../../../hooks/useReportRoomSupported';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { waitForJoinRoom } from '../../../utils/joinRoom';
+import { JoinRoomErrorPrompt } from '../../../components/join-room-error/JoinRoomErrorPrompt';
 
 const COMPACT_CARD_WIDTH = 548;
 
@@ -166,13 +168,13 @@ function InviteCard({
   const closeTopic = () => setViewTopic(false);
   const openTopic = () => setViewTopic(true);
 
-  const [joinState, join] = useAsyncCallback<void, MatrixError, []>(
+  const [joinState, join] = useAsyncCallback<void, unknown, []>(
     useCallback(async () => {
       const dmUserId = isDirectInvite(invite.room, userId)
         ? guessDmRoomUserId(invite.room, userId)
         : undefined;
 
-      await mx.joinRoom(invite.roomId);
+      await waitForJoinRoom(mx.joinRoom(invite.roomId));
       if (dmUserId) {
         await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
       }
@@ -270,9 +272,7 @@ function InviteCard({
               </Overlay>
             </Box>
             {joinState.status === AsyncStatus.Error && (
-              <Text size="T200" style={{ color: color.Critical.Main }}>
-                {joinState.error.message}
-              </Text>
+              <JoinRoomErrorPrompt error={joinState.error} />
             )}
             {leaveState.status === AsyncStatus.Error && (
               <Text size="T200" style={{ color: color.Critical.Main }}>

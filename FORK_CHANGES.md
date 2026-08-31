@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Recover failed or stalled room joins (2026-08-31)
+
+- Status: implementation, validation, and independent review complete; human pull-request review
+  remains.
+- Problem: failed room joins could expose raw browser errors, while a request that never settled
+  left the join control disabled indefinitely.
+- Change: room-card and invite-card joins now share a 30-second settlement boundary. Connectivity
+  failures and timeouts show recovery guidance with a top-level app reload before retrying.
+  Ordinary Matrix rejections retain their server-provided message and do not suggest a reload;
+  unexpected runtime failures use generic copy instead of exposing internal details.
+- Coverage: focused tests exercise successful joins, stalled joins, browser-specific network-error
+  shapes, unrelated TypeErrors, ordinary Matrix failures, recovery copy, and the reload action.
+- Validation: all 459 Vitest files pass with 3,529 tests; typecheck, the production/PWA build,
+  touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and
+  `git diff --check` pass. Independent review found no remaining actionable issues.
+
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
 - Status: the bounded responsive UI change, clarification follow-up, local verification, and automated review are complete; human pull-request review remains.

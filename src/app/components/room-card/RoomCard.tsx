@@ -1,11 +1,10 @@
 import React, { ReactNode, useCallback, useRef, useState } from 'react';
-import { MatrixError, Room } from 'matrix-js-sdk';
+import { Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Badge,
   Box,
   Button,
-  Dialog,
   Icon,
   Icons,
   Overlay,
@@ -14,8 +13,6 @@ import {
   Spinner,
   Text,
   as,
-  color,
-  config,
 } from 'folds';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
@@ -33,6 +30,8 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { waitForJoinRoom } from '../../utils/joinRoom';
+import { JoinRoomErrorPrompt } from '../join-room-error/JoinRoomErrorPrompt';
 
 type GridColumnCount = '1' | '2' | '3';
 const getGridColumnCount = (gridWidth: number): GridColumnCount => {
@@ -84,52 +83,6 @@ export const RoomCardTopic = as<'p'>(({ className, ...props }, ref) => (
     ref={ref}
   />
 ));
-
-function ErrorDialog({
-  title,
-  message,
-  children,
-}: {
-  title: string;
-  message: string;
-  children: (openError: () => void) => ReactNode;
-}) {
-  const [viewError, setViewError] = useState(false);
-  const closeError = () => setViewError(false);
-  const openError = () => setViewError(true);
-
-  return (
-    <>
-      {children(openError)}
-      <Overlay open={viewError} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              clickOutsideDeactivates: true,
-              onDeactivate: closeError,
-              escapeDeactivates: stopPropagation,
-            }}
-          >
-            <Dialog variant="Surface">
-              <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
-                <Box direction="Column" gap="100">
-                  <Text>{title}</Text>
-                  <Text style={{ color: color.Critical.Main }} size="T300" priority="400">
-                    {message}
-                  </Text>
-                </Box>
-                <Button size="400" variant="Secondary" fill="Soft" onClick={closeError}>
-                  <Text size="B400">Cancel</Text>
-                </Button>
-              </Box>
-            </Dialog>
-          </FocusTrap>
-        </OverlayCenter>
-      </Overlay>
-    </>
-  );
-}
 
 type RoomCardProps = {
   roomIdOrAlias: string;
@@ -197,8 +150,11 @@ export const RoomCard = as<'div', RoomCardProps>(
       )
     );
 
-    const [joinState, join] = useAsyncCallback<Room, MatrixError, []>(
-      useCallback(() => mx.joinRoom(roomIdOrAlias, { viaServers }), [mx, roomIdOrAlias, viaServers])
+    const [joinState, join] = useAsyncCallback<Room, unknown, []>(
+      useCallback(
+        () => waitForJoinRoom(mx.joinRoom(roomIdOrAlias, { viaServers })),
+        [mx, roomIdOrAlias, viaServers]
+      )
     );
     const joining =
       joinState.status === AsyncStatus.Loading || joinState.status === AsyncStatus.Success;
@@ -281,7 +237,8 @@ export const RoomCard = as<'div', RoomCardProps>(
           </Button>
         )}
         {typeof joinedRoomId !== 'string' && joinState.status === AsyncStatus.Error && (
-          <Box gap="200">
+          <Box direction="Column" gap="200">
+            <JoinRoomErrorPrompt error={joinState.error} />
             <Button
               onClick={join}
               className={css.ActionButton}
@@ -293,25 +250,6 @@ export const RoomCard = as<'div', RoomCardProps>(
                 Retry
               </Text>
             </Button>
-            <ErrorDialog
-              title="Join Error"
-              message={joinState.error.message || 'Failed to join. Unknown Error.'}
-            >
-              {(openError) => (
-                <Button
-                  onClick={openError}
-                  className={css.ActionButton}
-                  variant="Critical"
-                  fill="Soft"
-                  outlined
-                  size="300"
-                >
-                  <Text size="B300" truncate>
-                    View Error
-                  </Text>
-                </Button>
-              )}
-            </ErrorDialog>
           </Box>
         )}
       </RoomCardBase>
