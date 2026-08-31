@@ -13,8 +13,9 @@
   Ordinary Matrix rejections retain their server-provided message and do not suggest a reload;
   unexpected runtime failures use generic copy instead of exposing internal details.
 - Coverage: focused tests exercise successful joins, stalled joins, browser-specific network-error
-  shapes, unrelated TypeErrors, ordinary Matrix failures, recovery copy, and the reload action.
-- Validation: all 459 Vitest files pass with 3,529 tests; typecheck, the production/PWA build,
+  shapes, unrelated TypeErrors, ordinary Matrix failures, recovery copy, the reload action, and
+  required invite completion work after a late join success.
+- Validation: all 459 Vitest files pass with 3,530 tests; typecheck, the production/PWA build,
   touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and
   `git diff --check` pass. Independent review found no remaining actionable issues.
 

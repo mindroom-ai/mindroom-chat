@@ -67,7 +67,7 @@ import { useIgnoredUsers } from '../../../hooks/useIgnoredUsers';
 import { useReportRoomSupported } from '../../../hooks/useReportRoomSupported';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
-import { waitForJoinRoom } from '../../../utils/joinRoom';
+import { waitForJoinRoomCompletion } from '../../../utils/joinRoom';
 import { JoinRoomErrorPrompt } from '../../../components/join-room-error/JoinRoomErrorPrompt';
 
 const COMPACT_CARD_WIDTH = 548;
@@ -174,11 +174,12 @@ function InviteCard({
         ? guessDmRoomUserId(invite.room, userId)
         : undefined;
 
-      await waitForJoinRoom(mx.joinRoom(invite.roomId));
-      if (dmUserId) {
-        await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
-      }
-      onNavigate(invite.roomId, invite.isSpace);
+      await waitForJoinRoomCompletion(mx.joinRoom(invite.roomId), async () => {
+        if (dmUserId) {
+          await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
+        }
+        onNavigate(invite.roomId, invite.isSpace);
+      });
     }, [mx, invite, userId, onNavigate])
   );
   const [leaveState, leave] = useAsyncCallback<Record<string, never>, MatrixError, []>(

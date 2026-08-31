@@ -7,6 +7,7 @@ import {
   getJoinRoomErrorMessage,
   isRecoverableJoinRoomError,
   waitForJoinRoom,
+  waitForJoinRoomCompletion,
 } from './joinRoom';
 
 describe('room join recovery', () => {
@@ -38,6 +39,29 @@ describe('room join recovery', () => {
 
     await expect(waitForJoinRoom(Promise.resolve(room), 30_000)).resolves.toBe(room);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('runs required completion work when a join succeeds after the timeout', async () => {
+    vi.useFakeTimers();
+    let resolveJoin: ((roomId: string) => void) | undefined;
+    const join = new Promise<string>((resolve) => {
+      resolveJoin = resolve;
+    });
+    const onJoined = vi.fn();
+    const result = waitForJoinRoomCompletion(join, onJoined, 30_000);
+    const rejection = expect(result).rejects.toMatchObject({
+      name: 'JoinRoomTimeoutError',
+    });
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await rejection;
+    expect(onJoined).not.toHaveBeenCalled();
+
+    resolveJoin?.('!joined:example.org');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onJoined).toHaveBeenCalledWith('!joined:example.org');
   });
 
   it.each([

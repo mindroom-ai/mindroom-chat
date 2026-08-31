@@ -27,6 +27,12 @@ export const waitForJoinRoom = async <T>(
   }
 };
 
+export const waitForJoinRoomCompletion = <T>(
+  request: Promise<T>,
+  onJoined: (value: T) => void | Promise<void>,
+  timeoutMs = JOIN_ROOM_TIMEOUT_MS
+): Promise<void> => waitForJoinRoom(request.then(onJoined), timeoutMs);
+
 export const isRecoverableJoinRoomError = (error: unknown): boolean => {
   if (error instanceof MatrixError) return false;
   if (error instanceof JoinRoomTimeoutError) return true;
