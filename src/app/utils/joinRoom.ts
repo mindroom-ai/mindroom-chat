@@ -41,6 +41,8 @@ export const isRecoverableJoinRoomError = (error: unknown): boolean => {
   return error.name.toLowerCase() === 'networkerror';
 };
 
+export const canRetryJoinRoom = (error: unknown): boolean => !isRecoverableJoinRoomError(error);
+
 export const getJoinRoomErrorMessage = (error: unknown): string => {
   if (isRecoverableJoinRoomError(error)) {
     return 'Could not reach the server. Reload the app to restore the connection, then try again.';

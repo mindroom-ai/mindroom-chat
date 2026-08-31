@@ -4,6 +4,8 @@ import { ConnectionError } from 'matrix-js-sdk/lib/http-api/errors';
 
 import {
   JOIN_ROOM_TIMEOUT_MESSAGE,
+  JoinRoomTimeoutError,
+  canRetryJoinRoom,
   getJoinRoomErrorMessage,
   isRecoverableJoinRoomError,
   waitForJoinRoom,
@@ -106,5 +108,18 @@ describe('room join recovery', () => {
     expect(getJoinRoomErrorMessage(error)).toBe(
       'Your policy failed to fetch; contact the room administrator.'
     );
+  });
+
+  it('offers retry only after failures whose join request has settled', () => {
+    expect(canRetryJoinRoom(new JoinRoomTimeoutError())).toBe(false);
+    expect(canRetryJoinRoom(new ConnectionError('fetch failed'))).toBe(false);
+    expect(
+      canRetryJoinRoom(
+        new MatrixError({
+          errcode: 'M_FORBIDDEN',
+          error: 'You are not invited to this room.',
+        })
+      )
+    ).toBe(true);
   });
 });

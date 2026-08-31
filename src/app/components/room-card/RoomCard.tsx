@@ -30,7 +30,7 @@ import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { waitForJoinRoom } from '../../utils/joinRoom';
+import { canRetryJoinRoom, waitForJoinRoom } from '../../utils/joinRoom';
 import { JoinRoomErrorPrompt } from '../join-room-error/JoinRoomErrorPrompt';
 
 type GridColumnCount = '1' | '2' | '3';
@@ -239,17 +239,19 @@ export const RoomCard = as<'div', RoomCardProps>(
         {typeof joinedRoomId !== 'string' && joinState.status === AsyncStatus.Error && (
           <Box direction="Column" gap="200">
             <JoinRoomErrorPrompt error={joinState.error} />
-            <Button
-              onClick={join}
-              className={css.ActionButton}
-              variant="Critical"
-              fill="Solid"
-              size="300"
-            >
-              <Text size="B300" truncate>
-                Retry
-              </Text>
-            </Button>
+            {canRetryJoinRoom(joinState.error) && (
+              <Button
+                onClick={join}
+                className={css.ActionButton}
+                variant="Critical"
+                fill="Solid"
+                size="300"
+              >
+                <Text size="B300" truncate>
+                  Retry
+                </Text>
+              </Button>
+            )}
           </Box>
         )}
       </RoomCardBase>
