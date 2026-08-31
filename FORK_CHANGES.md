@@ -4,136 +4,26 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: the bounded requester and moderator UX, accepted automated-review remediations, current `dev` integration, latest zero-tolerance review remediations, exact-head project gates, full human re-review, push, and refreshed automated review are complete in ready PR #223; the native exact-head review loop is validating the latest bounded remediations before merge control returns to the repository owner.
-- Knock and knock-restricted rooms now show a request-to-join action in address and deep-link cards, featured and server Explore cards, and room and space lobby rows.
-- One shared access controller keeps public joining unchanged while routing knock-capable rooms through the Matrix knock endpoint with existing federation hints.
-- The request dialog explains that an admin will review the request and accepts an optional message whose surrounding whitespace is removed before submission.
-- Sending state is visible, successful requests settle on a disabled `Request sent` confirmation, and synced knock membership restores or updates that state across navigation and reload.
-- Summary-reported knock membership restores `Request sent` even before the SDK has cached a local room object, while an available live room membership remains authoritative.
-- TDD evidence: the summary-only regression first failed with `Missing Request sent button` while `getRoom()` returned `null`, then passed after the shared access session began using summary membership as its cache-miss fallback.
-- Summary membership refreshes are synchronized independently from live request invalidation, so a later summary prop change cannot resurrect `Request sent` after sync reports that the knock ended.
-- Follow-up TDD evidence: the room-card regression first lost `Request to join` after a live rejection and summary refresh, then passed after the summary synchronization and live membership listener were separated.
-- Reusing the deep-link route for another room starts a fresh access session instead of carrying over the prior room's successful request.
-- A later non-knock membership update clears the local success state so rejected or otherwise ended requests become actionable again without a reload.
-- Failed requests remain in the dialog with their error message so the user can retry without losing context.
-- Authorized moderators now manage pending requests entirely in the existing right-hand Members drawer, independent of whether timeline membership events are visible.
-- The room and space Members buttons show a permission-gated pending count, while unauthorized members receive no request-count disclosure or Requests filter.
-- The appended `Requests (N)` filter preserves Joined as the default and shows request rows newest-first with the requester name, Matrix ID, optional message, and relative age.
-- Approve routes through the existing invite endpoint, Decline routes through the existing kick endpoint, and each action is shown only when the moderator has the matching room permission.
-- Request actions disable both row controls while loading, report failures inline for retry, and remain visibly settled until live membership sync removes the handled request.
-- Live Chromium validation against Docker Matrix creates a real knock request, confirms the permission-gated Members badge and Requests filter, and verifies the requester identity, message, age, Approve, and Decline controls in the right-hand drawer.
-- The final moderator screenshot is stored outside the repository, and no screenshot asset is added to the branch.
-- A local knocked space stays in the pending-request branch instead of being mistaken for a joined space merely because the SDK has created its room object.
-- Review remediation prevents Cancel from submitting the form and keeps a synced rejection authoritative when it arrives before the request endpoint settles.
-- PR review found that a virtualized lobby row could reuse a stateful space request controller for a different space; the shared controller now keys its internal access session by room ID and access kind, with a rerender regression covering the transition.
-- Room summary discovery now exposes loading, success, and error states explicitly, forwards deep-link federation hints to summary lookup, and never treats an unknown access rule as public.
-- Loading discovery shows a disabled `Checking access` action, failed discovery offers a safe room-info retry, and the lobby error fallback reports `Access unavailable` without attempting a join.
-- The request prompt is a named modal dialog with an associated message label, announced errors, and a stable focus fallback while its controls are disabled.
-- The room card accepts recognized access rules, treats an omitted rule in a successful summary as public per the Matrix contract, and still rejects unknown non-empty rules.
-- The shared access controller now repeats that validation at its own boundary, including verified invite membership, so an incomplete or unverified direct caller also fails closed.
-- Opening the request prompt now moves real browser focus inside the modal while retaining the dialog itself as the all-controls-disabled fallback.
-- Successful room-summary and public-directory results that omit the optional join-rule field retain their established public Join action, while failed discovery and unknown non-empty rules remain unavailable.
-- Invite-only room summaries enable Join only when the summary also reports the current user as invited, preserving invite acceptance without exposing access to non-invited users.
-- A valid invitation overrides a knock-capable room rule, and live approval replaces the stale request state with the normal Join action instead of asking the invited user to knock again.
-- Trusted cached room membership and join-rule state preserve valid invitations when summary membership is missing or summary discovery fails, while genuinely unknown access still fails closed.
-- Live membership revalidation also removes an invite-only Join action immediately when sync reports that the invitation was revoked.
-- TDD evidence: initial and live knock-to-invite transitions first stayed on the knock path, and cached invitations first disappeared behind unavailable summary data; all paths now use the normal join endpoint.
-- Successful lobby hierarchy entries with an omitted access rule retain public Join for both rooms and spaces, unknown non-empty rules show `Access unavailable`, and an explicit local invite membership remains joinable when discovery is unavailable.
-- Lobby regressions pin both the unknown-rule rejection and local-invite compatibility branches on room and space rows.
-- Malformed non-string request reasons now fall back to `No message provided.` instead of crashing the moderator drawer, with a regression that first reproduced the render failure.
-- Focused coverage passes 110 tests across the shared requester controller and card behavior, summary discovery, deep-link wiring, Explore and lobby surfaces, knock filtering, moderator request actions, malformed request content, drawer visibility, permission-loss reset, and room and space count badges.
-- Validation: typecheck, the production/PWA build with Element Call verification, focused formatting, and full ESLint with zero errors and the existing 17-warning baseline pass.
-- The merged full Vitest run passes 3,615 of 3,619 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
-- Current `origin/dev` integration conflicted only at the Runbook insertion point; both newest dated sections are preserved and no production file overlapped.
-- Exact-head automated review found two valid defensive gaps: the shared controller now fails closed independently, and the drawer resets to Joined if a moderator loses request-review permission while Requests is selected.
-- A call-room badge suggestion was not applied because the call-room Members action opens full room settings and the right-hand Members drawer is intentionally absent there; showing a request count without its review queue would be misleading and outside the selected drawer-only experience.
-- Review replies document both accepted fixes and the drawer-only scope decision, and all triaged threads are resolved.
-- The refreshed automated review completed with no new actionable findings, all review threads resolved, and every required hosted check passing.
-- Final zero-tolerance self-review found duplicated pending-badge markup and accessible-label policy across room and space headers; both now use one shared component, and exact-head revalidation passes.
-- Automated review remediation covers the virtualized lobby row state leak, generic access-context reuse, and misleading successful-summary retry, each with focused regression coverage.
-- A documentation comment comparing the explicitly labeled focused and full-suite totals required no change.
-- One optional review service could not run because its repository quota was unavailable.
-- Final zero-tolerance base-to-head re-review found no remaining correctness, authorization, accessibility, resilience, state-lifecycle, or scope issues after the invitation, rejection, summary fallback, and malformed-content remediations.
-- KISS-focused follow-up removed redundant room-card and space-row remount keys after confirming that the shared access controller already owns access-session reset by room and access kind; the existing controller and caller regressions remain unchanged.
-- Native review round 1 found that recognized invite-only targets could be rejected before the shared membership listener mounted and that hierarchy failures could hide cached invitations in lobby room and space rows.
-- The shared controller now separates recognized rules from currently actionable access, owns unavailable fallback rendering, and stays subscribed so a live `leave` to `invite` transition reveals Join without requiring a parent rerender.
-- Lobby room and space rows reuse only cached pending `invite` or `knock` rooms when the hierarchy lookup has no local room, preserving cached invitations without allowing stale `leave` rooms to override newer hierarchy access rules.
-- TDD evidence: the live invitation and two hierarchy-failure regressions first failed with missing Join or unavailable fallback UI; strengthened room and space knock regressions then failed against an over-broad cached-room fallback before the pending-membership restriction made all 72 focused tests pass.
-- KISS cleanup also removed an unnecessary rejected-promise catch from the summary retry callback because the query refetch result already reports errors through query state.
-- Native review round 2 found that stale public, restricted, or knock access state from a locally cached left room could override newer explicit discovery data in the shared controller and room cards.
-- Local access state is now trusted only for joined, invited, or knocked membership, so explicit discovery remains authoritative after leaving while pending and active room state keeps its existing behavior.
-- TDD evidence: central controller and room-card stale-left regressions failed before the membership trust boundary was tightened, then passed alongside the existing room and space lobby regressions.
-- Native review round 3 found that alias cards could miss cached invitations after summary failure, same-value self-membership replacements could leave a completed request stale, and authoritative knock sync could leave a failed endpoint dialog open.
-- Room cards temporarily reused the existing canonical-alias lookup for cached access state; later specification review removed that unverified recovery while retaining explicitly supplied room IDs.
-- The controller observes self-membership state-event replacements in addition to membership-value changes, and authoritative knock sync closes and supersedes the in-flight request attempt.
-- TDD evidence: all three focused regressions failed before these bounded changes and pass with the complete 77-test feature suite.
-- Native review round 4 found that the request dialog's outside-click option was captured before loading began and that cached invitations reached through alternative aliases were not recovered after summary failure.
-- The captured outside-click option is now a stable callback backed by current loading state, so an unresolved request cannot dismiss its own retry surface.
-- An interim alternative-alias fallback was limited to non-tombstoned cached invite or knock rooms before later specification review removed self-claimed alias recovery entirely.
-- TDD evidence: both focused regressions failed before these changes and pass with the complete 79-test feature suite.
-- Both native reviewers in round 5 independently found that Escape retained the same captured loading gap and that rejection sync did not supersede a still-pending endpoint attempt.
-- The stable Escape callback now consults current loading state, and every authoritative membership update supersedes the active knock attempt so rejection immediately restores retry and Cancel.
-- TDD evidence: both focused regressions failed before these two controller changes and pass with the complete 81-test feature suite.
-- Both native reviewers in round 6 found that a superseded endpoint could still close the retry dialog after resolving, and one reviewer found that repeated invite sync could incorrectly supersede a pending invitation join.
-- Endpoint success now closes the dialog only while its originating attempt remains current, and membership sync supersedes only an active knock attempt rather than a pending join.
-- TDD evidence: both focused regressions failed before the ownership checks and pass with the complete 83-test feature suite.
-- Native review round 7 produced one approval and one review that found two valid gaps: missing cached join-rule state hid an authoritative pending request, and server Explore omitted its known federation routing server.
-- Pending knock membership now preserves only the non-actionable `Request sent` status while unknown new access still fails closed, and server Explore passes its selected server through the existing routing-hint path.
-- A hosted React-purity finding was also valid, so the dialog loading ref now updates after commit in a layout effect while the existing outside-click and Escape regressions continue to pin behavior.
-- TDD evidence: the three focused regressions failed before these changes and pass with the complete 86-test feature suite.
-- Both native reviewers in round 8 found valid authoritative-membership gaps, and one reviewer found that the shared editable-field keyboard helper prevented idle Escape dismissal from the request message.
-- Live knock membership now switches any mounted access session to `Request sent`, valid invite membership remains joinable without a discovered rule, and the dialog uses a loading-aware Escape callback scoped to modal behavior.
-- TDD evidence: all three focused regressions failed before these condition changes and pass with the complete 89-test feature suite.
-- Native review round 9 produced one approval and one valid alias-collision finding: an old left room with a reassigned canonical alias could mask the current invited or knocked room using that alias alternatively.
-- An interim alias lookup preferred non-tombstoned invited or knocked rooms over stale rooms before later specification review removed unverified alias lookup entirely.
-- TDD evidence: the focused collision regression failed before the lookup-order change and passes with the complete 90-test feature suite.
-- Both native reviewers in round 10 found the same valid fallback lifecycle gap: unknown or failed discovery rendered before the shared membership observer mounted, so later invite or knock sync could remain hidden.
-- The shared access session now stays mounted behind fallback content and derives actionable invite or knock access from live membership, while room cards pass their existing loading, retry, or unavailable button through that fallback path.
-- TDD evidence: the shared unknown-rule transition and failed-card discovery regressions failed before the lifecycle change and pass with the complete 92-test feature suite.
-- Both native reviewers in round 11 found that membership events use a concrete room ID while a failed alias lookup leaves the access session keyed by the alias, and the review also found that transient invite or knock membership could replace the underlying discovered rule and that an explicitly resolved joined room could be missed for an alternative alias.
-- The access session preserves the discovered rule beneath live membership overrides and prefers an explicitly resolved joined room ID; an interim unresolved-alias event match was later removed as unverified.
-- TDD evidence: five focused alias and membership-transition cases failed before these bounded changes and both affected suites now pass all 51 tests without a new listener, resolver, or state owner.
-- A step-back ownership audit found that room cards still resolved pending aliases, cached membership, and rule precedence before the shared access controller repeated the same authority decisions.
-- Local membership reads now belong only to the shared controller, while room cards and lobby rows pass raw discovery facts and retain only joined-room detection and presentation; cached pending-alias resolution was subsequently removed as unverified.
-- TDD evidence: the controller-level ownership regression first exposed the duplicate pending-alias decision before the ownership move, and later security review removed that recovery path entirely while retaining the refactor's 47-line net production reduction and avoiding any store, reducer, context, or public abstraction.
-- Fresh post-ownership review found three bounded controller gaps: renewed invitations could inherit a revoked invitation's pending join, banned users could fall through to discovered access, and recovered aliases still submitted the alias instead of the concrete room ID.
-- Invitation-owned joins now lose ownership when the invitation ends while repeated invite sync remains pending, bans fail closed, and explicitly supplied room IDs remain the operation target without changing federation hints.
-- TDD evidence: the invite-revoke-renew and concrete-target regressions failed before the controller fix, and the existing fail-closed flow gained ban coverage.
-- The remediation remains inside the existing access controller and its behavioral tests, with no new component, hook, store, listener, resolver, or public abstraction.
-- A clean-room dissent review found that cached and live alias recovery trusted `m.room.canonical_alias` and `alt_aliases` without resolving the alias, even though the Matrix specification treats those published aliases as advisory and potentially stale.
-- Unresolved aliases now remain on unavailable or retry UI until discovery supplies a concrete room ID; exact room-ID membership observation, direct invitations, public joining, and federation hints remain unchanged.
-- TDD evidence: cached and live self-claimed alias regressions both exposed Join or Request sent before the fix and now fail closed, while two redundant tests that encoded the unsafe recovery policy were removed.
-- The security correction deletes 29 net production lines and 72 net test lines, and all 96 focused tests pass without a new resolver, request, state owner, or abstraction.
-- Both fresh reviewers then found that room-card joined detection could still prefer a stale joined room's self-published alias when discovery had resolved a different concrete room ID, or infer View for an unresolved alias.
-- Room cards now derive joined state only from the explicitly resolved room ID or a direct room-ID input, so a stale alias cannot replace verified Request to join, retry, or unavailable UI.
-- TDD evidence: the verified-target collision and unresolved-alias regressions first rendered View for the stale room and now pass with all 98 focused tests.
-- The joined-state fix replaces the alias hook with one exact-ID check and adds no state, effect, resolver, request, or public abstraction.
-- A fresh exact-head review produced one approval and one valid routing finding: Featured aliases were summarized into concrete room IDs without preserving the directory-provided federation servers needed to reach an unfamiliar remote room.
-- The existing room-summary boundary now resolves a Featured alias once, loads its summary through the resolved room ID and servers, and passes the same servers through the existing room-card join and knock paths.
-- TDD evidence: the alias-resolution contract and combined Featured join-and-knock regression first observed missing routing servers and now pass with all 99 focused tests.
-- The routing fix adds one optional loader callback value and two card props without a new component, hook, store, controller, listener, or public abstraction.
-- The next two fresh full-diff reviews found three bounded gaps: deep-link cards ignored alias-discovered routing servers, joined membership was not terminal inside the shared controller, and a deferred join result could regain ownership after authoritative join and leave updates.
-- Deep-link cards now pass the loader's resolved servers through existing join and knock operations, while joined membership removes the access control until the parent room list catches up.
-- Authoritative joined or left membership now supersedes an active join attempt, and a membership advance closes any open knock prompt without reopening it if the room later returns to leave.
-- TDD evidence: alias-based deep-link join and knock calls, cached and live joined membership, prompt closure, and the deferred join race all failed before the fixes and now pass with all 103 focused tests.
-- The complete follow-up changes two existing production boundaries by one net line and adds no new component, hook, store, controller, listener, request, or public abstraction.
-- The next fresh full-diff review pair found three bounded lifecycle and presentation gaps: summary-only knock rejection could leave a local success stuck, stale knock membership could block a newly public or restricted join, and a joined space profile could disappear while the external joined list caught up.
-- Summary synchronization now applies live-first membership to the existing knock-attempt invalidation path, and explicit public or restricted discovery can use the join endpoint despite stale knock membership.
-- The lobby space row treats only an exact cached joined membership as joined presentation state while leaving access authorization in the shared controller.
-- TDD evidence: summary-only knock-to-leave, knock-to-public and knock-to-restricted joins, and exact cached joined-space presentation all failed before the fixes and now pass with all 106 focused tests.
-- This follow-up adds 13 net production lines inside the two existing owners and introduces no component, hook, store, controller, listener, request, or public abstraction.
-- The next fresh full-diff review pair found three discovery-boundary gaps: a verified alias target disappeared when its subsequent summary request failed, successful summaries with omitted rules were not treated as public, and cached knocked lobby entries could override a newer hierarchy rule.
-- The existing room-summary loader now retains its verified alias target and routing servers independently from the summary result, so Featured and deep-link cards can still recognize an already joined room while offering retry for unavailable metadata.
-- Successful room-summary and hierarchy results normalize only an omitted access rule to public, while unknown non-empty rules still fail closed.
-- Lobby rows retain cached membership and presentation data but use the current recognized hierarchy rule for access, so public or restricted discovery can supersede stale knock state.
-- TDD evidence: the alias-resolution failure, omitted-rule, and stale knocked room and space regressions failed before these changes and now pass with all 110 focused tests.
-- This follow-up adds 49 net production lines inside the existing loader, access controller, cards, and lobby rows without adding a component, hook, store, controller, listener, request, or external abstraction.
-- The next fresh exact-head review pair produced one approval and one valid refresh-state finding: React Query retains prior summary data when a background refetch fails, and the loader allowed that data to overwrite its error state.
-- Summary error and success handling is now mutually exclusive, so a failed refetch shows the safe retry state instead of retaining a stale access action.
-- TDD evidence: the existing loading-and-success loader test was extended through a failed refetch, first remained on success, and now reaches error while preserving its verified target metadata.
-- The refresh fix changes one existing conditional branch and adds no state, owner, request, component, hook, or abstraction.
-- Required PR checks cover lint, the production/PWA build, the Android debug APK build, and the container image build.
-- Merge control returns to the repository owner only after two fresh native reviewers approve the pushed remediation on the same exact head.
+- Status: the requester and moderator experience and final simplicity cleanup are implemented and locally validated in ready PR #223.
+- Knock and knock-restricted rooms show `Request to join` across deep links, Featured and server Explore, and room and space lobby rows.
+- `RoomAccessControl` is the sole owner of access-rule validation, local self-membership observation, request and join attempts, and request-dialog lifecycle.
+- Callers provide raw discovery facts and presentation, while only verified room IDs may replace aliases for membership or joined-state decisions.
+- Public and restricted joining remain direct, valid invitations remain joinable, bans and unknown non-empty rules fail closed, and omitted rules from successful discovery remain public per Matrix.
+- Alias discovery preserves verified room IDs and federation routing servers across summary failures without trusting self-published canonical or alternative aliases.
+- Live membership is authoritative over endpoint settlement, including knock approval, rejection, invitation revocation and renewal, joined-state transitions, and deferred request or join results.
+- Request sessions reset by concrete target and access kind so virtualized or reused rows cannot carry state between rooms.
+- The accessible modal accepts a trimmed optional message, blocks dismissal while sending, reports errors inline, and restores `Request sent` from synchronized knock membership.
+- Loading discovery shows `Checking access`, failed discovery offers retry when available, and unavailable or unknown access shows `Access unavailable` without attempting a join.
+- Authorized moderators manage requests in the existing right-hand Members drawer through a permission-gated `Requests (N)` filter.
+- Request rows are newest-first and show requester identity, optional message, relative age, inline action errors, and settled state until membership sync removes them.
+- Approve uses the existing invite endpoint, Decline uses the existing kick endpoint, and each action requires its corresponding room permission and power-level check.
+- Room and space Members buttons expose the pending count only to users who can approve or decline requests, while call rooms omit the badge because they do not expose the drawer queue.
+- Focused coverage owns access-session behavior in the shared controller and limits caller tests to discovery, routing, presentation, and integration contracts.
+- Live Chromium validation against Docker Matrix covered two requesters, optional messages, moderator ordering, approval, decline, requester state updates, and final join.
+- Screenshots remain outside the repository.
+- Validation passes 99 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,604 of 3,608 tests with the same three platform-script failures and one upload-session failure in unchanged files.
+- Required hosted checks cover web and PWA, Android debug APK, and the container image.
+- Next step: merge after the pushed simplicity cleanup passes refreshed hosted and automated review.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
