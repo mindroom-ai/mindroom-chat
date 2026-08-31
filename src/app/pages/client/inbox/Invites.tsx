@@ -67,6 +67,9 @@ import { useIgnoredUsers } from '../../../hooks/useIgnoredUsers';
 import { useReportRoomSupported } from '../../../hooks/useReportRoomSupported';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { waitForJoinRoomCompletion } from '../../../utils/joinRoom';
+import { JoinRoomErrorPrompt } from '../../../components/join-room-error/JoinRoomErrorPrompt';
+import { InviteJoinActions } from './InviteJoinActions';
 
 const COMPACT_CARD_WIDTH = 548;
 
@@ -166,27 +169,23 @@ function InviteCard({
   const closeTopic = () => setViewTopic(false);
   const openTopic = () => setViewTopic(true);
 
-  const [joinState, join] = useAsyncCallback<void, MatrixError, []>(
+  const [joinState, join] = useAsyncCallback<void, unknown, []>(
     useCallback(async () => {
       const dmUserId = isDirectInvite(invite.room, userId)
         ? guessDmRoomUserId(invite.room, userId)
         : undefined;
 
-      await mx.joinRoom(invite.roomId);
-      if (dmUserId) {
-        await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
-      }
-      onNavigate(invite.roomId, invite.isSpace);
+      await waitForJoinRoomCompletion(mx.joinRoom(invite.roomId), async () => {
+        if (dmUserId) {
+          await addRoomIdToMDirect(mx, invite.roomId, dmUserId);
+        }
+        onNavigate(invite.roomId, invite.isSpace);
+      });
     }, [mx, invite, userId, onNavigate])
   );
   const [leaveState, leave] = useAsyncCallback<Record<string, never>, MatrixError, []>(
     useCallback(() => mx.leave(invite.roomId), [mx, invite])
   );
-
-  const joining =
-    joinState.status === AsyncStatus.Loading || joinState.status === AsyncStatus.Success;
-  const leaving =
-    leaveState.status === AsyncStatus.Loading || leaveState.status === AsyncStatus.Success;
 
   return (
     <SequenceCard
@@ -270,9 +269,7 @@ function InviteCard({
               </Overlay>
             </Box>
             {joinState.status === AsyncStatus.Error && (
-              <Text size="T200" style={{ color: color.Critical.Main }}>
-                {joinState.error.message}
-              </Text>
+              <JoinRoomErrorPrompt error={joinState.error} />
             )}
             {leaveState.status === AsyncStatus.Error && (
               <Text size="T200" style={{ color: color.Critical.Main }}>
@@ -280,31 +277,12 @@ function InviteCard({
               </Text>
             )}
           </Box>
-          <Box gap="200" shrink="No" alignItems="Center">
-            <Button
-              onClick={leave}
-              size="300"
-              variant="Secondary"
-              radii="300"
-              fill="Soft"
-              disabled={joining || leaving}
-              before={leaving ? <Spinner variant="Secondary" size="100" /> : undefined}
-            >
-              <Text size="B300">Decline</Text>
-            </Button>
-            <Button
-              onClick={join}
-              size="300"
-              variant="Success"
-              fill="Soft"
-              radii="300"
-              outlined
-              disabled={joining || leaving}
-              before={joining ? <Spinner variant="Success" fill="Soft" size="100" /> : undefined}
-            >
-              <Text size="B300">Accept</Text>
-            </Button>
-          </Box>
+          <InviteJoinActions
+            joinState={joinState}
+            leaveState={leaveState}
+            onJoin={join}
+            onLeave={leave}
+          />
         </Box>
       </Box>
       <Box direction="Column">
