@@ -10,7 +10,7 @@
   Connectivity failures and timeouts show recovery guidance with a top-level app reload before retrying.
   Ordinary Matrix rejections retain their server-provided message and do not suggest a reload; unexpected runtime failures use generic copy instead of exposing internal details.
 - Coverage: focused tests exercise successful joins, stalled joins, browser-specific network-error shapes, unrelated TypeErrors, ordinary Matrix failures, recovery copy, the reload action, required invite completion work after a late join success, and duplicate-retry prevention while a timed-out request remains pending.
-- Validation: all 459 Vitest files pass with 3,531 tests; typecheck, the production/PWA build, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- Validation: all 460 Vitest files pass with 3,533 tests; typecheck, the production/PWA build, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
   Independent review found no remaining actionable issues.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)

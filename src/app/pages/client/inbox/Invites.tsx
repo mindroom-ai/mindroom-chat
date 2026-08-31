@@ -69,6 +69,7 @@ import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
 import { waitForJoinRoomCompletion } from '../../../utils/joinRoom';
 import { JoinRoomErrorPrompt } from '../../../components/join-room-error/JoinRoomErrorPrompt';
+import { InviteJoinActions } from './InviteJoinActions';
 
 const COMPACT_CARD_WIDTH = 548;
 
@@ -186,11 +187,6 @@ function InviteCard({
     useCallback(() => mx.leave(invite.roomId), [mx, invite])
   );
 
-  const joining =
-    joinState.status === AsyncStatus.Loading || joinState.status === AsyncStatus.Success;
-  const leaving =
-    leaveState.status === AsyncStatus.Loading || leaveState.status === AsyncStatus.Success;
-
   return (
     <SequenceCard
       variant="SurfaceVariant"
@@ -281,31 +277,12 @@ function InviteCard({
               </Text>
             )}
           </Box>
-          <Box gap="200" shrink="No" alignItems="Center">
-            <Button
-              onClick={leave}
-              size="300"
-              variant="Secondary"
-              radii="300"
-              fill="Soft"
-              disabled={joining || leaving}
-              before={leaving ? <Spinner variant="Secondary" size="100" /> : undefined}
-            >
-              <Text size="B300">Decline</Text>
-            </Button>
-            <Button
-              onClick={join}
-              size="300"
-              variant="Success"
-              fill="Soft"
-              radii="300"
-              outlined
-              disabled={joining || leaving}
-              before={joining ? <Spinner variant="Success" fill="Soft" size="100" /> : undefined}
-            >
-              <Text size="B300">Accept</Text>
-            </Button>
-          </Box>
+          <InviteJoinActions
+            joinState={joinState}
+            leaveState={leaveState}
+            onJoin={join}
+            onLeave={leave}
+          />
         </Box>
       </Box>
       <Box direction="Column">
