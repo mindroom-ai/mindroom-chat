@@ -260,9 +260,23 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   );
   const sortFilterMenu = useMemberSortMenu();
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
+  const membershipFilterTouchedRef = useRef(false);
+  const previousJoinRequestCountRef = useRef(joinRequestCount);
   const [membershipFilterIndex, setMembershipFilterIndex] = useState(() =>
     canReviewJoinRequests && joinRequestCount > 0 ? membershipFilterMenu.length - 1 : 0
   );
+  useEffect(() => {
+    const previousJoinRequestCount = previousJoinRequestCountRef.current;
+    previousJoinRequestCountRef.current = joinRequestCount;
+    if (
+      !membershipFilterTouchedRef.current &&
+      canReviewJoinRequests &&
+      previousJoinRequestCount === 0 &&
+      joinRequestCount > 0
+    ) {
+      setMembershipFilterIndex(membershipFilterMenu.length - 1);
+    }
+  }, [canReviewJoinRequests, joinRequestCount, membershipFilterMenu.length]);
   const selectedMembershipFilterIndex = membershipFilterMenu[membershipFilterIndex]
     ? membershipFilterIndex
     : 0;
@@ -345,7 +359,10 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                         <MembershipFilterMenu
                           items={membershipFilterMenu}
                           selected={selectedMembershipFilterIndex}
-                          onSelect={setMembershipFilterIndex}
+                          onSelect={(index) => {
+                            membershipFilterTouchedRef.current = true;
+                            setMembershipFilterIndex(index);
+                          }}
                           requestClose={() => setAnchor(undefined)}
                         />
                       }

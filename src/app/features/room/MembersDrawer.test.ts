@@ -353,6 +353,27 @@ describe('MembersDrawer', () => {
     expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
   });
 
+  it('shows pending requests that load before a moderator chooses a filter', () => {
+    const room = createRoom();
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room, members: [] }));
+    });
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
+
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room,
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Requests (1)')).toBe(true);
+  });
+
   it('keeps a manual Joined selection when pending requests update', () => {
     const room = createRoom();
     let renderer: ReactTestRenderer | undefined;
