@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: PR #223 is deployed, and a focused follow-up fixing the member drawer initially hiding pending requests behind the Joined filter is implemented and locally validated.
+- Status: PRs #223 and #225 are deployed, and a locally validated follow-up covers pending requests revealed after the Members drawer mounts.
 - Knock and knock-restricted rooms show `Request to join` across deep links, Featured and server Explore, and room and space lobby rows.
 - `RoomAccessControl` is the sole owner of access-rule validation, local self-membership observation, request and join attempts, and request-dialog lifecycle.
 - Callers provide raw discovery facts and presentation, while only verified room IDs may replace aliases for membership or joined-state decisions.
@@ -15,16 +15,16 @@
 - The accessible modal accepts a trimmed optional message, blocks dismissal while sending, reports errors inline, and restores `Request sent` from synchronized knock membership.
 - Loading discovery shows `Checking access`, failed discovery offers retry when available, and unavailable or unknown access shows `Access unavailable` without attempting a join.
 - Authorized moderators manage requests in the existing right-hand Members drawer through a permission-gated `Requests (N)` filter.
-- Opening the drawer defaults to the counted Requests filter when an authorized moderator has pending requests, while rooms without requests continue to open on Joined and manual filter changes remain local to the open drawer.
+- Opening the drawer defaults to the counted Requests filter when an authorized moderator has pending requests, promotes an untouched Joined default when lazy member loading reveals requests, and preserves Joined for empty queues and explicit manual filter choices.
 - Request rows are newest-first and show requester identity, optional message, relative age, inline action errors, and settled state until membership sync removes them.
 - Approve uses the existing invite endpoint, Decline uses the existing kick endpoint, and each action requires its corresponding room permission and power-level check.
 - Room and space Members buttons expose the pending count only to users who can approve or decline requests, while call rooms omit the badge because they do not expose the drawer queue.
-- Focused coverage owns access-session behavior in the shared controller, limits caller tests to discovery, routing, presentation, and integration contracts, and pins pending, zero-count, manual-selection, and permission-change behavior in the drawer.
+- Focused coverage owns access-session behavior in the shared controller, limits caller tests to discovery, routing, presentation, and integration contracts, and pins pending, member-hydration, zero-count, manual-selection, and permission-change behavior in the drawer.
 - Live Chromium validation against Docker Matrix covered two requesters, optional messages, moderator ordering, approval, decline, requester state updates, and final join.
 - Screenshots remain outside the repository.
-- Validation passes 101 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,606 of 3,610 tests with the same three platform-script failures and one upload-session failure in unchanged files.
+- Validation passes 102 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,607 of 3,611 tests with the same three platform-script failures and one upload-session failure in unchanged files.
 - Required hosted checks cover web and PWA, Android debug APK, and the container image.
-- Next step: review and deliver the focused member-drawer follow-up.
+- Next step: open a ready follow-up PR and merge it after hosted checks and automated review pass.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
