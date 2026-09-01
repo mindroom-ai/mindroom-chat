@@ -260,7 +260,9 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   );
   const sortFilterMenu = useMemberSortMenu();
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
-  const [membershipFilterIndex, setMembershipFilterIndex] = useState(0);
+  const [membershipFilterIndex, setMembershipFilterIndex] = useState(() =>
+    canReviewJoinRequests && joinRequestCount > 0 ? membershipFilterMenu.length - 1 : 0
+  );
   const selectedMembershipFilterIndex = membershipFilterMenu[membershipFilterIndex]
     ? membershipFilterIndex
     : 0;
