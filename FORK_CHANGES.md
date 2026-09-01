@@ -4,7 +4,7 @@
 
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
-- Status: PR #223 is deployed, and ready PR #225 contains the locally validated follow-up for pending requests initially hidden behind the Joined filter.
+- Status: PRs #223 and #225 are deployed, and a locally validated follow-up covers pending requests revealed after the Members drawer mounts.
 - Knock and knock-restricted rooms show `Request to join` across deep links, Featured and server Explore, and room and space lobby rows.
 - `RoomAccessControl` is the sole owner of access-rule validation, local self-membership observation, request and join attempts, and request-dialog lifecycle.
 - Callers provide raw discovery facts and presentation, while only verified room IDs may replace aliases for membership or joined-state decisions.
@@ -24,7 +24,7 @@
 - Screenshots remain outside the repository.
 - Validation passes 102 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,607 of 3,611 tests with the same three platform-script failures and one upload-session failure in unchanged files.
 - Required hosted checks cover web and PWA, Android debug APK, and the container image.
-- Next step: merge PR #225 after refreshed hosted checks and automated review pass.
+- Next step: open a ready follow-up PR and merge it after hosted checks and automated review pass.
 
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
