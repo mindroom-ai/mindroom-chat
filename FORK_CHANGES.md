@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Request access from knock-capable room discovery surfaces (2026-08-28)
+
+- Status: the requester and moderator experience and final simplicity cleanup are implemented and locally validated in ready PR #223.
+- Knock and knock-restricted rooms show `Request to join` across deep links, Featured and server Explore, and room and space lobby rows.
+- `RoomAccessControl` is the sole owner of access-rule validation, local self-membership observation, request and join attempts, and request-dialog lifecycle.
+- Callers provide raw discovery facts and presentation, while only verified room IDs may replace aliases for membership or joined-state decisions.
+- Public and restricted joining remain direct, valid invitations remain joinable, bans and unknown non-empty rules fail closed, and omitted rules from successful discovery remain public per Matrix.
+- Alias discovery preserves verified room IDs and federation routing servers across summary failures without trusting self-published canonical or alternative aliases.
+- Live membership is authoritative over endpoint settlement, including knock approval, rejection, invitation revocation and renewal, joined-state transitions, and deferred request or join results.
+- Request sessions reset by concrete target and access kind so virtualized or reused rows cannot carry state between rooms.
+- The accessible modal accepts a trimmed optional message, blocks dismissal while sending, reports errors inline, and restores `Request sent` from synchronized knock membership.
+- Loading discovery shows `Checking access`, failed discovery offers retry when available, and unavailable or unknown access shows `Access unavailable` without attempting a join.
+- Authorized moderators manage requests in the existing right-hand Members drawer through a permission-gated `Requests (N)` filter.
+- Request rows are newest-first and show requester identity, optional message, relative age, inline action errors, and settled state until membership sync removes them.
+- Approve uses the existing invite endpoint, Decline uses the existing kick endpoint, and each action requires its corresponding room permission and power-level check.
+- Room and space Members buttons expose the pending count only to users who can approve or decline requests, while call rooms omit the badge because they do not expose the drawer queue.
+- Focused coverage owns access-session behavior in the shared controller and limits caller tests to discovery, routing, presentation, and integration contracts.
+- Live Chromium validation against Docker Matrix covered two requesters, optional messages, moderator ordering, approval, decline, requester state updates, and final join.
+- Screenshots remain outside the repository.
+- Validation passes 99 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,604 of 3,608 tests with the same three platform-script failures and one upload-session failure in unchanged files.
+- Required hosted checks cover web and PWA, Android debug APK, and the container image.
+- Next step: merge after the pushed simplicity cleanup passes refreshed hosted and automated review.
+
 ### Keep thread resolver attribution visible on touch layouts (2026-08-27)
 
 - Status: the bounded responsive UI change, clarification follow-up, local verification, and automated review are complete; human pull-request review remains.

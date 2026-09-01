@@ -64,6 +64,7 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
 export function RoomView({
   room,
   hasMindroomAgents = true,
+  joinRequestCount = 0,
   eventId,
   focusEventInRoom,
   threadId,
@@ -71,6 +72,7 @@ export function RoomView({
 }: {
   room: Room;
   hasMindroomAgents?: boolean;
+  joinRequestCount?: number;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -134,7 +136,7 @@ export function RoomView({
 
   return (
     <Page ref={roomViewRef}>
-      <RoomViewHeader threadId={effectiveThreadId} />
+      <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
       {effectiveThreadId && (
         <ThreadContextBanner
           room={room}

@@ -38,6 +38,10 @@ import { useOpenSpaceSettings } from '../../state/hooks/spaceSettings';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
+import {
+  getPendingJoinRequestLabel,
+  PendingJoinRequestBadge,
+} from '../room/PendingJoinRequestBadge';
 
 type LobbyMenuProps = {
   powerLevels: IPowerLevels;
@@ -138,14 +142,22 @@ const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
 type LobbyHeaderProps = {
   showProfile?: boolean;
   powerLevels: IPowerLevels;
+  joinRequestCount?: number;
 };
-export function LobbyHeader({ showProfile, powerLevels }: LobbyHeaderProps) {
+export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: LobbyHeaderProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const space = useSpace();
   const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const screenSize = useScreenSizeContext();
+  const creators = useRoomCreators(space);
+  const permissions = useRoomPermissions(creators, powerLevels);
+  const myUserId = mx.getSafeUserId();
+  const canReviewJoinRequests =
+    permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
+  const visibleJoinRequestCount = canReviewJoinRequests ? joinRequestCount : 0;
+  const memberButtonAriaLabel = getPendingJoinRequestLabel('Members', visibleJoinRequestCount);
 
   const name = useRoomName(space);
   const avatarMxc = useRoomAvatar(space);
@@ -220,9 +232,12 @@ export function LobbyHeader({ showProfile, powerLevels }: LobbyHeaderProps) {
               {(triggerRef) => (
                 <IconButton
                   fill="None"
+                  style={{ position: 'relative' }}
                   ref={triggerRef}
                   onClick={() => setPeopleDrawer((drawer) => !drawer)}
+                  aria-label={memberButtonAriaLabel}
                 >
+                  <PendingJoinRequestBadge count={visibleJoinRequestCount} />
                   <Icon size="400" src={Icons.User} />
                 </IconButton>
               )}

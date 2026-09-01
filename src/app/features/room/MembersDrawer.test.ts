@@ -7,6 +7,7 @@ import { MembersDrawer } from './MembersDrawer';
 const { permissionState } = vi.hoisted(() => ({
   permissionState: {
     canInvite: true,
+    canKick: true,
   },
 }));
 
@@ -54,8 +55,8 @@ vi.mock('folds', async (importOriginal) => {
       ...props
     }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) =>
       reactModule.createElement('button', { type: 'button', ...props }, children),
-    PopOut: ({ children }: { children?: React.ReactNode }) =>
-      reactModule.createElement(reactModule.Fragment, null, children),
+    PopOut: ({ children, content }: { children?: React.ReactNode; content?: React.ReactNode }) =>
+      reactModule.createElement(reactModule.Fragment, null, children, content),
     Scroll: reactModule.forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
       ({ children }, ref) => reactModule.createElement('div', { ref }, children)
     ),
@@ -139,11 +140,22 @@ vi.mock('../../hooks/useRoomTypingMembers', () => ({
 }));
 
 vi.mock('../../hooks/useMemberFilter', () => ({
-  useMembershipFilter: () => ({ name: 'Joined', filterFn: () => true }),
-  useMembershipFilterMenu: () => [],
+  MembershipFilter: {
+    filterKnocked: (member: { membership: string }) => member.membership === 'knock',
+  },
+  useMembershipFilter: (
+    index: number,
+    items: Array<{ name: string; filterFn: (member: { membership: string }) => boolean }>
+  ) => items[index] ?? items[0],
+  useMembershipFilterMenu: () => [
+    { name: 'Joined', filterFn: (member: { membership: string }) => member.membership === 'join' },
+  ],
 }));
 
 vi.mock('../../hooks/useMemberSort', () => ({
+  MemberSort: {
+    NewestFirst: () => 0,
+  },
   useMemberPowerSort: () => () => 0,
   useMemberSort: () => ({ name: 'A-Z', sortFn: () => 0 }),
   useMemberSortMenu: () => [],
@@ -165,8 +177,13 @@ vi.mock('../../hooks/useRoomCreators', () => ({
 
 vi.mock('../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
-    action: () => permissionState.canInvite,
+    action: (action: string) =>
+      action === 'invite' ? permissionState.canInvite : permissionState.canKick,
   }),
+}));
+
+vi.mock('../../hooks/useMemberPowerCompare', () => ({
+  useMemberPowerCompare: () => ({ hasMorePower: () => true }),
 }));
 
 vi.mock('../../state/hooks/settings', () => ({
@@ -201,7 +218,31 @@ vi.mock('../../components/user-avatar', () => ({
 }));
 
 vi.mock('../../components/MembershipFilterMenu', () => ({
-  MembershipFilterMenu: () => React.createElement('div'),
+  MembershipFilterMenu: ({
+    items,
+    onSelect,
+    selected,
+  }: {
+    items: Array<{ name: string }>;
+    onSelect: (index: number) => void;
+    selected: number;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-selected': selected, 'data-testid': 'membership-filter-menu' },
+      items.map((item, index) =>
+        React.createElement(
+          'button',
+          {
+            'data-testid': `membership-filter-${index}`,
+            key: item.name,
+            onClick: () => onSelect(index),
+            type: 'button',
+          },
+          item.name
+        )
+      )
+    ),
 }));
 
 vi.mock('../../components/MemberSortMenu', () => ({
@@ -210,6 +251,10 @@ vi.mock('../../components/MemberSortMenu', () => ({
 
 vi.mock('../../styles/ContainerColor.css', () => ({
   ContainerColor: () => 'ContainerColor',
+}));
+
+vi.mock('../../styles/Text.css', () => ({
+  BreakWord: 'BreakWord',
 }));
 
 vi.mock('../../utils/room', () => ({
@@ -235,6 +280,7 @@ const createRoom = (): Room =>
 describe('MembersDrawer', () => {
   beforeEach(() => {
     permissionState.canInvite = true;
+    permissionState.canKick = true;
   });
 
   afterEach(() => {
@@ -268,5 +314,100 @@ describe('MembersDrawer', () => {
 
     const inviteButton = renderer?.root.findByProps({ 'aria-label': 'Invite people' });
     expect(inviteButton?.props.disabled).toBe(true);
+  });
+
+  it('offers a counted requests filter to moderators and selects it without changing the default', () => {
+    const members = [
+      { membership: 'knock', userId: '@alice:example.org' },
+      { membership: 'knock', userId: '@bob:example.org' },
+    ];
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members,
+        })
+      );
+    });
+
+    expect(renderer?.root.findAllByProps({ children: 'Joined' }).length).toBeGreaterThan(0);
+    const requestsFilter = renderer?.root.findByProps({
+      'data-testid': 'membership-filter-1',
+    });
+    expect(requestsFilter?.children).toEqual(['Requests (2)']);
+
+    act(() => {
+      requestsFilter?.props.onClick();
+    });
+
+    expect(renderer?.root.findAllByProps({ children: 'Requests (2)' }).length).toBeGreaterThan(0);
+  });
+
+  it('does not expose join requests when the current user cannot approve or decline them', () => {
+    permissionState.canInvite = false;
+    permissionState.canKick = false;
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(renderer?.root.findAllByProps({ 'data-testid': 'membership-filter-1' })).toHaveLength(0);
+  });
+
+  it('resets the selected filter when request-review permission is removed', () => {
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    act(() => {
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-1' }).props.onClick();
+    });
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(1);
+
+    permissionState.canInvite = false;
+    permissionState.canKick = false;
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(0);
+
+    permissionState.canInvite = true;
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
+    ).toBe(0);
   });
 });

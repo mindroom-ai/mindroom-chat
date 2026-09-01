@@ -70,6 +70,10 @@ import { ContainerColor } from '../../styles/ContainerColor.css';
 import { RoomSettingsPage } from '../../state/roomSettings';
 import { isRoomViewModeAvailable, type RoomViewMode } from './roomViewMode';
 import { useRoomViewMode } from './useRoomViewMode';
+import {
+  getPendingJoinRequestLabel,
+  PendingJoinRequestBadge,
+} from '../../features/room/PendingJoinRequestBadge';
 
 type RoomMenuProps = {
   room: Room;
@@ -287,7 +291,15 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   );
 });
 
-export function RoomViewHeader({ callView, threadId }: { callView?: boolean; threadId?: string }) {
+export function RoomViewHeader({
+  callView,
+  threadId,
+  joinRequestCount = 0,
+}: {
+  callView?: boolean;
+  threadId?: string;
+  joinRequestCount?: number;
+}) {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -305,6 +317,13 @@ export function RoomViewHeader({ callView, threadId }: { callView?: boolean; thr
   const avatarMxc = useRoomAvatar(room, direct);
   const name = useRoomName(room);
   const topic = useRoomTopic(room);
+  const powerLevels = usePowerLevelsContext();
+  const creators = useRoomCreators(room);
+  const permissions = useRoomPermissions(creators, powerLevels);
+  const myUserId = mx.getSafeUserId();
+  const canReviewJoinRequests =
+    permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
+  const visibleJoinRequestCount = canReviewJoinRequests ? joinRequestCount : 0;
   const avatarUrl = avatarMxc
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
@@ -338,6 +357,11 @@ export function RoomViewHeader({ callView, threadId }: { callView?: boolean; thr
     }
     setPeopleDrawer(!peopleDrawer);
   };
+  const memberButtonLabel = callView ? 'Members' : peopleDrawer ? 'Hide Members' : 'Show Members';
+  const memberButtonAriaLabel = getPendingJoinRequestLabel(
+    memberButtonLabel,
+    visibleJoinRequestCount
+  );
 
   return (
     <PageHeader
@@ -509,7 +533,14 @@ export function RoomViewHeader({ callView, threadId }: { callView?: boolean; thr
               }
             >
               {(triggerRef) => (
-                <IconButton fill="None" ref={triggerRef} onClick={handleMemberToggle}>
+                <IconButton
+                  fill="None"
+                  style={{ position: 'relative' }}
+                  ref={triggerRef}
+                  onClick={handleMemberToggle}
+                  aria-label={memberButtonAriaLabel}
+                >
+                  {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
                   <Icon size="400" src={Icons.User} />
                 </IconButton>
               )}
