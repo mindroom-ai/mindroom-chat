@@ -277,6 +277,9 @@ const createRoom = (): Room =>
     getJoinedMemberCount: () => 3,
   } as Room);
 
+const hasVisibleFilterLabel = (renderer: ReactTestRenderer | undefined, label: string): boolean =>
+  renderer?.root.findAllByType('span').some((element) => element.children.includes(label)) ?? false;
+
 describe('MembersDrawer', () => {
   beforeEach(() => {
     permissionState.canInvite = true;
@@ -332,11 +335,56 @@ describe('MembersDrawer', () => {
       );
     });
 
-    expect(
-      renderer?.root
-        .findAllByType('span')
-        .some((element) => element.children.includes('Requests (2)'))
-    ).toBe(true);
+    expect(hasVisibleFilterLabel(renderer, 'Requests (2)')).toBe(true);
+  });
+
+  it('opens on Joined when a moderator has no pending requests', () => {
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'join', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
+  });
+
+  it('keeps a manual Joined selection when pending requests update', () => {
+    const room = createRoom();
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room,
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+    expect(hasVisibleFilterLabel(renderer, 'Requests (1)')).toBe(true);
+
+    act(() => {
+      renderer?.root.findByProps({ 'data-testid': 'membership-filter-0' }).props.onClick();
+    });
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
+
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room,
+          members: [
+            { membership: 'knock', userId: '@alice:example.org' },
+            { membership: 'knock', userId: '@bob:example.org' },
+          ],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
   });
 
   it('does not expose join requests when the current user cannot approve or decline them', () => {
@@ -368,12 +416,7 @@ describe('MembersDrawer', () => {
       );
     });
 
-    act(() => {
-      renderer?.root.findByProps({ 'data-testid': 'membership-filter-1' }).props.onClick();
-    });
-    expect(
-      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
-    ).toBe(1);
+    expect(hasVisibleFilterLabel(renderer, 'Requests (1)')).toBe(true);
 
     permissionState.canInvite = false;
     permissionState.canKick = false;
@@ -386,9 +429,7 @@ describe('MembersDrawer', () => {
       );
     });
 
-    expect(
-      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
-    ).toBe(0);
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
 
     permissionState.canInvite = true;
     act(() => {
@@ -400,8 +441,6 @@ describe('MembersDrawer', () => {
       );
     });
 
-    expect(
-      renderer?.root.findByProps({ 'data-testid': 'membership-filter-menu' }).props['data-selected']
-    ).toBe(0);
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
   });
 });

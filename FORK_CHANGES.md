@@ -19,12 +19,10 @@
 - Request rows are newest-first and show requester identity, optional message, relative age, inline action errors, and settled state until membership sync removes them.
 - Approve uses the existing invite endpoint, Decline uses the existing kick endpoint, and each action requires its corresponding room permission and power-level check.
 - Room and space Members buttons expose the pending count only to users who can approve or decline requests, while call rooms omit the badge because they do not expose the drawer queue.
-- Focused coverage owns access-session behavior in the shared controller and limits caller tests to discovery, routing, presentation, and integration contracts.
-- Follow-up TDD reproduced the deployed mismatch by proving that the visible filter chip said Joined despite two pending requests, then passed after the drawer chose the request queue at mount.
-- Follow-up validation passes 21 connected tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest remains at the documented baseline of 3,604 passing and four failures in unchanged files.
+- Focused coverage owns access-session behavior in the shared controller, limits caller tests to discovery, routing, presentation, and integration contracts, and pins pending, zero-count, manual-selection, and permission-change behavior in the drawer.
 - Live Chromium validation against Docker Matrix covered two requesters, optional messages, moderator ordering, approval, decline, requester state updates, and final join.
 - Screenshots remain outside the repository.
-- Validation passes 99 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,604 of 3,608 tests with the same three platform-script failures and one upload-session failure in unchanged files.
+- Validation passes 101 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,606 of 3,610 tests with the same three platform-script failures and one upload-session failure in unchanged files.
 - Required hosted checks cover web and PWA, Android debug APK, and the container image.
 - Next step: review and deliver the focused member-drawer follow-up.
 
