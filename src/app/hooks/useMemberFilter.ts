@@ -4,6 +4,7 @@ import { Membership } from '../../types/matrix/room';
 
 export const MembershipFilter = {
   filterJoined: (m: RoomMember) => m.membership === Membership.Join,
+  filterKnocked: (m: RoomMember) => m.membership === Membership.Knock,
   filterInvited: (m: RoomMember) => m.membership === Membership.Invite,
   filterLeaved: (m: RoomMember) =>
     m.membership === Membership.Leave &&

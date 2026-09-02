@@ -30,9 +30,8 @@ export function VoiceVolumeButton() {
   const volumePercent = formatVolumePercent(volume);
 
   const handleOpen: MouseEventHandler<HTMLButtonElement> = (event) => {
-    setAnchor((currentAnchor) =>
-      currentAnchor ? undefined : event.currentTarget.getBoundingClientRect()
-    );
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    setAnchor((currentAnchor) => (currentAnchor ? undefined : targetRect));
   };
 
   return (

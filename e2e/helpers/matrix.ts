@@ -85,9 +85,9 @@ const seedRoomOverviewStateInStorage = ({
       })
     );
   };
-  const getActiveSessionUserId = (): string | undefined => {
+  const getActiveSession = (): { sessionId?: string; userId?: string } => {
     const rawStore = localStorage.getItem('mindroom_multi_account_store');
-    if (!rawStore) return undefined;
+    if (!rawStore) return {};
 
     try {
       const store = JSON.parse(rawStore) as {
@@ -100,15 +100,27 @@ const seedRoomOverviewStateInStorage = ({
           typeof session.sessionId === 'string' && session.sessionId === store.activeSessionId
       );
 
-      return typeof activeSession?.userId === 'string' ? activeSession.userId : undefined;
+      return {
+        sessionId:
+          typeof activeSession?.sessionId === 'string' ? activeSession.sessionId : undefined,
+        userId: typeof activeSession?.userId === 'string' ? activeSession.userId : undefined,
+      };
     } catch {
-      return undefined;
+      return {};
     }
   };
 
-  setStoredValue(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
+  const activeSession = getActiveSession();
+  if (activeSession.sessionId) {
+    setStoredValue(
+      `roomViewMode:${activeSession.sessionId}:${nextRoomId}`,
+      JSON.stringify(nextViewMode)
+    );
+  } else {
+    setStoredValue(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
+  }
 
-  const userIds = new Set([nextUserId, getActiveSessionUserId()].filter(Boolean));
+  const userIds = new Set([nextUserId, activeSession.userId].filter(Boolean));
   userIds.forEach((userId) => {
     setStoredValue(`roomThreadFilter:${userId}:${nextRoomId}`, JSON.stringify(nextFilterState));
   });

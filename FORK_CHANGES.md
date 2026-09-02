@@ -18,6 +18,171 @@
 - Open question for the reporter (optional): does a manual Ctrl+V of Notepad text reproduce it, and which browser/version. Answers pin which Slate path was hit; the repair covers both.
 - Next step: human review and merge of PR #227.
 
+### Request access from knock-capable room discovery surfaces (2026-08-28)
+
+- Status: PRs #223 and #225 are deployed, and a locally validated follow-up covers pending requests revealed after the Members drawer mounts.
+- Knock and knock-restricted rooms show `Request to join` across deep links, Featured and server Explore, and room and space lobby rows.
+- `RoomAccessControl` is the sole owner of access-rule validation, local self-membership observation, request and join attempts, and request-dialog lifecycle.
+- Callers provide raw discovery facts and presentation, while only verified room IDs may replace aliases for membership or joined-state decisions.
+- Public and restricted joining remain direct, valid invitations remain joinable, bans and unknown non-empty rules fail closed, and omitted rules from successful discovery remain public per Matrix.
+- Alias discovery preserves verified room IDs and federation routing servers across summary failures without trusting self-published canonical or alternative aliases.
+- Live membership is authoritative over endpoint settlement, including knock approval, rejection, invitation revocation and renewal, joined-state transitions, and deferred request or join results.
+- Request sessions reset by concrete target and access kind so virtualized or reused rows cannot carry state between rooms.
+- The accessible modal accepts a trimmed optional message, blocks dismissal while sending, reports errors inline, and restores `Request sent` from synchronized knock membership.
+- Loading discovery shows `Checking access`, failed discovery offers retry when available, and unavailable or unknown access shows `Access unavailable` without attempting a join.
+- Authorized moderators manage requests in the existing right-hand Members drawer through a permission-gated `Requests (N)` filter.
+- Opening the drawer defaults to the counted Requests filter when an authorized moderator has pending requests, promotes an untouched Joined default when lazy member loading reveals requests, and preserves Joined for empty queues and explicit manual filter choices.
+- Request rows are newest-first and show requester identity, optional message, relative age, inline action errors, and settled state until membership sync removes them.
+- Approve uses the existing invite endpoint, Decline uses the existing kick endpoint, and each action requires its corresponding room permission and power-level check.
+- Room and space Members buttons expose the pending count only to users who can approve or decline requests, while call rooms omit the badge because they do not expose the drawer queue.
+- Focused coverage owns access-session behavior in the shared controller, limits caller tests to discovery, routing, presentation, and integration contracts, and pins pending, member-hydration, zero-count, manual-selection, and permission-change behavior in the drawer.
+- Live Chromium validation against Docker Matrix covered two requesters, optional messages, moderator ordering, approval, decline, requester state updates, and final join.
+- Screenshots remain outside the repository.
+- Validation passes 102 focused tests, typecheck, the production and PWA build, Prettier, and ESLint with zero errors and the existing 17 warnings; full Vitest passes 3,607 of 3,611 tests with the same three platform-script failures and one upload-session failure in unchanged files.
+- Required hosted checks cover web and PWA, Android debug APK, and the container image.
+- Next step: open a ready follow-up PR and merge it after hosted checks and automated review pass.
+
+### Keep thread resolver attribution visible on touch layouts (2026-08-27)
+
+- Status: the bounded responsive UI change, clarification follow-up, local verification, and automated review are complete; human pull-request review remains.
+- Compact resolved-thread cards keep the existing desktop status-dot hover title and accessible label, and now add a muted `Resolved by <name>` row only at widths up to 480 px or when the primary input cannot hover.
+- Open-thread headers retain the existing resolver byline at narrow widths and cap it at 6 rem instead of hiding it, so sighted touch users can discover the attribution without relying on a native title tooltip.
+- The change adds no new state or interaction target and reuses the existing localized full attribution string; the open-thread header keeps its contextual short byline beneath the Resolved button.
+- TDD evidence: the Compact component test first failed because the touch byline was absent, and the live Chromium spec then reached and failed the new 390 px visibility assertion before the implementation was added. A user-feedback regression then failed because the new row said only `by <name>` without identifying what the person did; it now requires the explicit full attribution.
+- Validation: the four resolver-attribution suites pass all 47 tests; the live Chromium spec passes at 390 px; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,516 of 3,520 tests; the same three platform-script failures and one upload-session failure reproduced on the untouched base remain in two unchanged files.
+- A fresh second self-review found no correctness, accessibility, localization, responsive-layout, or scope defects after removing one test assertion that inspected a mocked CSS class instead of user-visible behavior.
+
+### Show thread resolver attribution in open and Compact views (2026-08-27)
+
+- Status: the bounded UI implementation, local validation, independent review, and automated-review follow-ups are complete; human PR review remains.
+- The existing `resolved` thread-tag record is authoritative for attribution through its `set_by` user ID, so this change adds no protocol or backend state.
+- Open resolved threads show a muted `by <name>` line directly beneath the Resolved button.
+- The Resolved button keeps the full `Resolved by <name>` text as a hover title when the byline is hidden below the existing 480 px compact breakpoint.
+- Compact overview cards expose the same full attribution from the resolved status dot and include it in the card's accessible label without adding another visible badge.
+- Resolver names prefer the current room-member display name, then fall back to the Matrix ID localpart and finally the full user ID.
+- English, German, and Dutch copy stays localized through the existing thread translation namespace.
+- TDD evidence: four focused surfaces first failed for the missing record field, Compact view-model name, open-thread attribution, and Compact-card hover/accessibility text; review regressions then failed for resolver-ID whitespace and an empty member display name; the four files now pass all 46 tests.
+- Live Chromium coverage creates a real resolved thread, verifies Compact-card hover and accessible attribution, opens the thread, verifies the desktop byline, and confirms the byline hides at 390 px while the Resolved button keeps its full hover title.
+- Validation: the focused suites pass 46 tests; the live Chromium spec passes; typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,515 of 3,519 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
+- Review: fresh read-only review found no Critical, Important, or Minor issues and approved the implementation, responsive behavior, accessibility, localization, optimistic-state handling, and tests.
+- Automated PR review identified two valid defensive-normalization gaps; resolver IDs are now trimmed before lookup, and blank member display names fall back to the Matrix ID localpart, with regression coverage for both cases.
+
+### Add a compact thought orbit to thinking placeholders (2026-08-27)
+
+- Status: the bounded component change, local validation, and independent review are complete.
+- Active exact thinking placeholders now show a four-dot pulsing orbit before their rotating copy, replacing the static trailing ellipsis while preserving the existing text shimmer.
+- The indicator mirrors the transcription placeholder's compact indicator-plus-label rhythm but remains visually distinct from its waveform.
+- Preview feedback found the original four-pixel gap visually too tight, so the indicator-to-label spacing now uses the eight-pixel design token.
+- The ornament stays hidden from assistive technology inside the existing `AI is responding` status, and reduced-motion users receive static dots with plain text.
+- TDD evidence: the focused component test first failed because no `Indicator` element existed, then passed after the ornament and its styles were added.
+- Scope remains limited to the thinking placeholder component, styles, and focused coverage; placeholder detection, configured copy, rotation timing, and settled-message rendering are unchanged.
+- Validation: the focused thinking and content-renderer suites pass 30 tests; typecheck, production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
+- The full Vitest run passes 3,511 of 3,515 tests; the same three platform-script failures and one upload-session failure reproduce at the untouched base commit.
+- Review: fresh read-only review approved the spacing change with no remaining Critical, Important, or Minor findings.
+- Risks: no open implementation risks are identified.
+- Next steps: no further implementation steps are planned.
+
+### Deduplicate compact thread-list loads across view switches (2026-08-25)
+
+- Status: the root cause is reproduced and the bounded loader fix is implemented and verified locally.
+- Rapid Compact, Threaded, and Classic switching could re-enter `loadRoomThreads` while its previous compact-mode load was still fetching the server thread list.
+- Leaving Compact stopped stale React state publication but did not share the underlying operation, so every re-entry called the SDK's unfinished `fetchRoomThreads` initialization again.
+- The SDK guards completed initialization but not concurrent initialization, and every concurrent completion registers the same permanent room thread listeners.
+- `loadRoomThreads` now keeps one in-flight operation per room in a `WeakMap`, broadcasts pagination progress to all active callers, and removes the entry after either success or failure so later explicit loads retain their existing behavior.
+- The focused regressions hold the first fetch open, prove concurrent compact-style loads share one SDK fetch, and prove successful or rejected settlement permits a fresh same-room load without a stale map window.
+- Automated review found that a throwing progress subscriber could abort the shared operation for every caller, so listener callbacks are now isolated and a focused regression proves later subscribers and the shared promise continue.
+- A live Chromium regression holds the two SDK thread-list requests open while repeatedly changing Compact, Threaded, Classic, natural, newest, and oldest modes, and it verifies that no additional initialization requests or app crash occurs.
+- Validation passes all 18 `roomThreadList` tests, the live Chromium regression, typecheck, production build, lint with zero errors, formatting, and independent review with no remaining Critical or Important findings.
+- The full Vitest run passes 3,506 of 3,510 tests, with three isolated platform-script failures and one isolated upload-session failure that reproduce outside this change.
+
+### CINNY-135 — Deduplicate limited-sync thread token conversion (2026-08-23)
+
+- Status: evidence analysis, corrected source tracing, implementation, red-green regression coverage, validation, and review remediation are complete in ready PR #218; device validation remains.
+- Crash evidence: the abnormal visible session ended without an expected end marker, and its trace retained a 953-request `/messages` burst after one foreground resume.
+- Burst shape: 476 inferred requests started within 25 ms at a peak concurrency of 476, with a 3,756 ms median and 4,702 ms p90 duration for that first wave.
+- Recorder limitation: the ring retained 5,000 events and reported 45,314 dropped events, so whole-session totals are incomplete even though all 953 burst completions are present.
+- Root cause: a limited sync calls matrix-js-sdk `Room.resetLiveTimeline`, which calls every materialized `Thread.resetLiveTimeline`; each thread independently issues the same two `/messages?limit=1` requests to convert the room sync tokens into thread pagination tokens.
+- Exact signature: `953 = (476 × 2) + 1`; 476 threads synchronously launched the first conversion, then each launched the second after its first completed, while the omitted request parameters prevent directly classifying the one remaining request.
+- Resume conclusion: the direct overview-resume controller was not responsible because the active route had a thread id, but the sync completed 608 ms after visibility and its limited-timeline recovery directly explains the request storm.
+- Rejected approach: limiting the SDK inventory to the 64-entry metadata cache would hide valid older threads used by rendering, filtering, search, counts, deep links, and sync, so that first fix was removed.
+- Fix: a `patch-package` patch updates the SDK TypeScript source, packaged runtime, and regenerated source map to share identical in-flight conversions per Matrix client, room, token, and direction, then evicts them on success or failure so later limited syncs remain fresh.
+- Preserved behavior: all materialized threads still reset and receive the converted pagination tokens; only duplicate network calls are removed, reducing the captured causal traffic from 952 requests to 2.
+- Red-green evidence: three materialized threads made three identical initial conversion calls before the patch; after it they make one request per direction, every thread receives both tokens, a same-token reset makes two fresh calls, a rejection can retry, and room/client/token/direction boundaries remain isolated.
+- Validation: focused tests pass all 25 tests across 3 files; typecheck passes; ESLint passes with zero errors and the existing 17-warning baseline; touched-file Prettier passes; patch reverse-check and source-map spot checks pass; and the production/PWA build plus Element Call verification passes.
+- Full-suite status: Vitest passes 455 of 457 files and 3,510 of 3,514 tests; the four failures are pre-existing issues in two unchanged files, comprising three Nix-host shell-path failures and one `File` structural-identity matcher failure.
+- Review: two fresh independent exact-snapshot reviewers found no blocker, critical, important, or minor issues after the source map and isolation coverage were added.
+- Remaining work: complete device verification, then hand off for human merge.
+- Device limitation: no iPhone is available, so a TestFlight or locally installed iOS build must confirm that overview-to-thread navigation plus background/foreground no longer causes a relaunch.
+
+### Restore autocomplete parity with every MindRoom command (2026-08-15)
+
+- Status: implementation, local validation, and independent review are complete; PR gates remain.
+- Source: `mindroom-ai/mindroom` `origin/main` at `b15e33ff5` defines 14 canonical commands through `CommandType` and `_COMMAND_DOCS` in `src/mindroom/commands/parsing.py`.
+- Gap: the frontend list omitted `!desktop` and the new `!room_model`, so both command prefixes produced no autocomplete result.
+- Fix: add both commands to the fork-owned `MINDROOM_COMMANDS` list in the same order and with the same syntax exposed by backend help.
+- TDD evidence: the focused catalog test first failed because the received names omitted `desktop` and `room_model`, then passed after both entries were added.
+- Coverage: the literal command-name inventory now pins all 14 canonical backend commands, while the existing syntax test pins each displayed syntax to its matching command name.
+- Validation: the command directory passes 6 tests, the full Vitest suite passes all 456 files and 3,505 tests, typecheck passes, ESLint passes with zero errors and the existing 17-warning baseline, the production/PWA build with Element Call verification passes, touched-file Prettier passes, and `git diff --check` passes.
+- Review: the first independent review found one overstated coverage claim in this runbook; the wording now matches the syntax-prefix assertion, and a fresh exact-head review found no critical, important, or minor issues and approved the change.
+- Next step: open a ready PR and address valid automated-review findings.
+
+### Animate the router voice-transcription placeholder (2026-08-13)
+
+- Status: implementation, local validation, and ready PR #216 are complete; automated review and CI remain.
+- Scope: render only the exact marked `Router agent is transcribing…` voice-ingress placeholder as a dedicated fixed-copy animated status.
+- Decision: use the backend's `com.mindroom.visible_router_voice_echo` marker plus the exact effective body, so ordinary messages and the later transcript or fallback edit stay on the normal renderer.
+- Motion: show a compact pulsing waveform beside the fixed text, with a static reduced-motion fallback.
+- TDD evidence: the focused renderer test first failed with `No instances found with props: {"role":"status"}` while the marked placeholder still used the normal text renderer, then passed after the dedicated status branch was added.
+- Coverage: the renderer test pins the exact marked placeholder, unmarked identical prose, and a marked settled transcript.
+- Validation: the focused message suites pass 53 tests; full Vitest passes all 456 files and 3,503 tests; typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build with Element Call verification, touched-file Prettier, and `git diff --check` pass.
+- Test-harness follow-up: the first full run exposed an unrelated long-text suite importing the new vanilla-extract file without its existing component seam; mocking the new placeholder beside the already mocked thinking placeholder restored that isolated test environment before the clean full rerun.
+- Review: fresh read-only review of the implementation commit found no critical, important, or minor issues and approved it.
+- Next step: complete PR #216 AI-review and CI gates, then hand off for human merge.
+
+### Restore thread auto-scroll after sending a reply (2026-08-12)
+
+- Status: post-deployment root-cause fix, strengthened live browser validation, independent review, and first-head automated-review remediation are complete; fixed-head PR gates remain.
+- The first fix targeted a synthetic `Room.timeline` event with `liveEvent: false`, but matrix-js-sdk 41.7.0 inserts real pending sends through `Room.localEchoUpdated`.
+- The existing local-echo refresh listener discarded the event and transition metadata, so production never armed bottom-follow before the pending reply rendered.
+- Fix: expose the local-echo event plus whether it is the initial insertion, then arm the existing smooth thread bottom-follow only for an initial pending `m.thread` reply at the live end within the existing 24px threshold.
+- Later status changes retain refresh behavior but cannot re-arm scrolling after the reader moves away.
+- TDD evidence: the real `Room.localEchoUpdated` cases failed with zero scroll requests before the listener fix, while the scrolled-up guard passed; all three cases pass after the fix, including a later-status-update guard.
+- Live evidence: the Docker Tuwunel plus Chromium spec sends two replies through the real thread composer on desktop and iPhone 13; the first remains within 48px of the bottom, while the second must render and increase the scroll height before proving that a viewport more than 200px from the bottom moves by less than 100px.
+- Coverage: focused local-echo, pending-send, and scroll-policy tests plus the expanded live thread-send regression cover both follow and preserve behavior.
+- Validation: the focused suite passes 18 tests, full Vitest passes all 456 files and 3,503 tests, and typecheck, full ESLint with zero errors and the existing 17-warning baseline, production/PWA build, changed-file formatting, and `git diff --check` pass.
+- The clean live regression passes both desktop and iPhone 13 cases against Docker Tuwunel and Chromium after the shared login helper reaches the Simple Mode shell, the test sends through the real composer, and it measures the actual scroll container.
+- Review: the first independent review found that the scrolled-up assertion could pass before the second reply rendered, mobile coverage had been dropped, and the test duplicated a weaker login path; all three gaps are addressed, and fixed-head re-review approves the result.
+- Automated review found two remaining false-pass paths in the live test: absent scroll containers produced valid-looking sentinel arithmetic, and unrelated delayed growth could satisfy the second-send height check; missing containers now throw, and the unique second reply must render before its height and position assertions.
+- Next step: complete fixed-head PR #215 gates, confirm no unresolved review threads, and hand off without merging.
+
+### Do not block app mount on service-worker registration (2026-08-11)
+
+- Status: implemented and validated.
+- Root cause: application bootstrap awaited service-worker registration before mounting React, so a browser-stalled registration left only the static background visible.
+- Fix: mount the application before starting the existing service-worker setup.
+  Session forwarding, update monitoring, and control recovery keep their existing behavior after registration settles.
+- Decision: preserve the existing service-worker lifecycle instead of adding timeout or retry policy to this fix.
+- Coverage: a pending registration promise must not prevent `createRoot` from running.
+- Validation: focused regression, full Vitest suite, typecheck, production build, touched-file lint and formatting, and `git diff --check` pass.
+- Risks: service-worker initialization may still remain pending, but it can no longer block the visible application.
+- Next step: verify the shipped login flow after merge.
+
+### Hide fully redacted threads from compact overview (2026-08-10)
+
+- Status: exact-head review remediation and local validation are complete; fresh fixed-head review and PR CI remain.
+- Symptom: deleting the root and every reply left a compact `Thread started` card that opened an empty thread view.
+- Root cause: the server thread-list merge counted loaded redacted event shells as activity, while message rendering correctly filtered those shells out.
+- Fix: a redacted root is suppressed only when all linked loaded replies and `replyToEvent` are invisible and backward history is complete; direct tool approvals share the timeline's visible-event classification, while unredacted roots and uncertain history keep their existing behavior.
+- TDD evidence: the focused test first failed with `['$redacted-root']` instead of `[]`, then passed after the fix and partial-redaction guard.
+- Independent review found that a visible `replyToEvent` outside loaded events and a direct tool-approval reply could be incorrectly hidden; three red tests reproduced both gaps before the shared visibility fix.
+- Fixed-head review then found older linked replies and incomplete backward history could still be hidden, while inactive threads performed avoidable root scans; three more red tests reproduced the gaps before the linked-history and raw-activity fixes, and the three focused files now pass 72 tests.
+- The merge-gate review found that an empty current live segment bypassed fully redacted, complete older linked history; its focused regression failed with `['$redacted-root']` instead of `[]` before the linked loaded-event check.
+- Fresh exact-head review found one test-only deep SDK import; the regression fixture now uses the same package-root `Direction` export as production.
+- Current `dev` integration conflicted only in Runbook ordering; both dated entries are preserved, with the newer service-worker entry first.
+- Full Vitest passes all 455 files and 3,500 tests.
+- Typecheck, full ESLint, production/PWA build with Element Call verification, changed-file Prettier, and `git diff --check` pass.
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
 - Status: implemented and validated in ready PR #205.
@@ -123,6 +288,16 @@
 - Typecheck, the production/PWA build with Element Call verification, touched-file Prettier, full ESLint with zero errors and the existing 17-warning baseline, and `git diff --check` pass.
 - Risks: none identified beyond browser-specific shortcut conventions, which remain browser-owned.
 - Next step: after merge, verify `Cmd+1` through `Cmd+3` in the shipped client while the composer is focused.
+
+### Stop voice-volume popover events from outliving their targets (2026-07-26)
+
+- Status: fixed and validated in PR #214.
+- Root cause: `VoiceVolumeButton` read `event.currentTarget` inside a deferred state updater after React could clear it.
+- Fix: capture the trigger rectangle synchronously while preserving the existing popover toggle behavior.
+- Coverage: the regression invalidates `currentTarget` before the queued update runs; the focused file passes all 30 tests.
+- Validation: typecheck, ESLint, production/PWA build, and `git diff --check` pass; the full suite retains three unrelated local Xcode Cloud fixture failures.
+- Risks: none identified beyond deployment verification.
+- Next step: merge and verify repeated volume-popover open, close, and reopen interactions in the shipped client.
 
 ### Restore visible scrollbar thumbs after the palette refresh (2026-07-25)
 

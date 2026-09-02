@@ -31,7 +31,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { useQuery } from '@tanstack/react-query';
-import { MatrixClient, Method, RoomType } from 'matrix-js-sdk';
+import { JoinRule, MatrixClient, Method, RoomType } from 'matrix-js-sdk';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { RoomTopicViewer } from '../../../components/room-topic-viewer';
@@ -593,12 +593,15 @@ export function PublicRooms() {
                             <RoomCard
                               key={chunkRoom.room_id}
                               roomIdOrAlias={chunkRoom.canonical_alias ?? chunkRoom.room_id}
+                              roomId={chunkRoom.room_id}
                               allRooms={allRooms}
                               avatarUrl={chunkRoom.avatar_url}
                               name={chunkRoom.name}
                               topic={chunkRoom.topic}
                               memberCount={chunkRoom.num_joined_members}
                               roomType={chunkRoom.room_type}
+                              joinRule={chunkRoom.join_rule ?? JoinRule.Public}
+                              viaServers={server ? [server] : undefined}
                               onView={
                                 chunkRoom.room_type === RoomType.Space
                                   ? navigateSpace

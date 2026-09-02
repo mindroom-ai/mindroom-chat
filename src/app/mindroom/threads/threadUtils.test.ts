@@ -105,6 +105,7 @@ describe('isVisibleThreadReplyEventType', () => {
     expect(isVisibleThreadReplyEventType('m.room.encrypted')).toBe(true);
     expect(isVisibleThreadReplyEventType('m.sticker')).toBe(true);
     expect(isVisibleThreadReplyEventType('m.room.topic')).toBe(true);
+    expect(isVisibleThreadReplyEventType('io.mindroom.tool_approval')).toBe(true);
   });
 
   it('rejects metadata-only threaded relation types', () => {
@@ -115,7 +116,9 @@ describe('isVisibleThreadReplyEventType', () => {
 describe('isVisibleThreadReplyEvent', () => {
   it('accepts visible threaded replies', () => {
     expect(
-      isVisibleThreadReplyEvent(makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org'))
+      isVisibleThreadReplyEvent(
+        makeEvent('$reply', '$root', RelationType.Thread, '@alice:example.org')
+      )
     ).toBe(true);
   });
 

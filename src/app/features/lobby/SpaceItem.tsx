@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, ReactNode, useCallback, useRef, useState } from 'react';
+import React, { MouseEventHandler, ReactNode, useRef, useState } from 'react';
 import {
   Box,
   Avatar,
@@ -18,15 +18,16 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import classNames from 'classnames';
-import { MatrixError, Room } from 'matrix-js-sdk';
+import { Room } from 'matrix-js-sdk';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
+import { Membership } from '../../../types/matrix/room';
 import { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { RoomAvatar } from '../../components/room-avatar';
 import { nameInitials } from '../../utils/common';
 import { LocalRoomSummaryLoader } from '../../components/RoomSummaryLoader';
 import { getRoomAvatarUrl } from '../../utils/room';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
 import { useDraggableItem } from './DnD';
@@ -38,6 +39,11 @@ import { useOpenCreateSpaceModal } from '../../state/hooks/createSpaceModal';
 import { AddExistingModal } from '../add-existing';
 import { CreateRoomType } from '../../components/create-room/types';
 import { BetaNoticeBadge } from '../../components/BetaNoticeBadge';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  getDiscoveredRoomAccessJoinRule,
+} from '../../components/room-access';
 
 function SpaceProfileLoading() {
   return (
@@ -102,6 +108,7 @@ type UnjoinedSpaceProfileProps = {
   name?: string;
   avatarUrl?: string;
   suggested?: boolean;
+  joinRule?: RoomAccessJoinRule;
 };
 function UnjoinedSpaceProfile({
   roomId,
@@ -109,21 +116,14 @@ function UnjoinedSpaceProfile({
   name,
   avatarUrl,
   suggested,
+  joinRule,
 }: UnjoinedSpaceProfileProps) {
-  const mx = useMatrixClient();
-
-  const [joinState, join] = useAsyncCallback<Room, MatrixError, []>(
-    useCallback(() => mx.joinRoom(roomId, { viaServers: via }), [mx, roomId, via])
-  );
-
-  const canJoin = joinState.status === AsyncStatus.Idle || joinState.status === AsyncStatus.Error;
-  return (
+  const fallback = (
     <Chip
       className={css.HeaderChip}
       variant="Surface"
       size="500"
-      onClick={join}
-      disabled={!canJoin}
+      disabled
       before={
         <Avatar size="200" radii="300">
           <RoomAvatar
@@ -138,9 +138,6 @@ function UnjoinedSpaceProfile({
           />
         </Avatar>
       }
-      after={
-        canJoin ? <Icon src={Icons.Plus} size="50" /> : <Spinner variant="Secondary" size="200" />
-      }
     >
       <Box alignItems="Center" gap="200">
         <Text size="H4" truncate>
@@ -151,15 +148,81 @@ function UnjoinedSpaceProfile({
             <Text size="L400">Suggested</Text>
           </Badge>
         )}
-        {joinState.status === AsyncStatus.Error && (
-          <Badge variant="Critical" fill="Soft" radii="Pill" outlined>
-            <Text size="L400" truncate>
-              {joinState.error.name}
-            </Text>
-          </Badge>
-        )}
+        <Badge variant="Secondary" fill="Soft" radii="Pill" outlined>
+          <Text size="L400">Access unavailable</Text>
+        </Badge>
       </Box>
     </Chip>
+  );
+
+  return (
+    <RoomAccessControl
+      roomIdOrAlias={roomId}
+      roomId={roomId}
+      roomName={name ?? roomId}
+      joinRule={joinRule}
+      viaServers={via}
+      fallback={fallback}
+    >
+      {(access) => {
+        const canActivate = !access.loading && !access.requested && !access.succeeded;
+        return (
+          <Chip
+            className={css.HeaderChip}
+            variant="Surface"
+            size="500"
+            onClick={access.activate}
+            disabled={!canActivate}
+            before={
+              <Avatar size="200" radii="300">
+                <RoomAvatar
+                  roomId={roomId}
+                  src={avatarUrl}
+                  alt={name}
+                  renderFallback={() => (
+                    <Text as="span" size="H6">
+                      {nameInitials(name)}
+                    </Text>
+                  )}
+                />
+              </Avatar>
+            }
+            after={
+              access.requested ? (
+                <Icon src={Icons.Check} size="50" />
+              ) : canActivate ? (
+                <Icon src={Icons.Plus} size="50" />
+              ) : (
+                <Spinner variant="Secondary" size="200" />
+              )
+            }
+          >
+            <Box alignItems="Center" gap="200">
+              <Text size="H4" truncate>
+                {name || 'Unknown'}
+              </Text>
+              {suggested && (
+                <Badge variant="Success" fill="Soft" radii="Pill" outlined>
+                  <Text size="L400">Suggested</Text>
+                </Badge>
+              )}
+              {access.kind === 'knock' && !access.loading && (
+                <Badge variant="Secondary" fill="Soft" radii="Pill" outlined>
+                  <Text size="L400">{access.requested ? 'Request sent' : 'Request to join'}</Text>
+                </Badge>
+              )}
+              {access.state.status === AsyncStatus.Error && (
+                <Badge variant="Critical" fill="Soft" radii="Pill" outlined>
+                  <Text size="L400" truncate>
+                    {access.state.error.name}
+                  </Text>
+                </Badge>
+              )}
+            </Box>
+          </Chip>
+        );
+      }}
+    </RoomAccessControl>
   );
 }
 
@@ -428,7 +491,19 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const { roomId, content } = item;
-    const space = getRoom(roomId);
+    const cachedSpace = mx.getRoom(roomId);
+    const cachedMembership = cachedSpace?.getMyMembership();
+    const availableCachedSpace =
+      cachedMembership === Membership.Invite ||
+      cachedMembership === Membership.Knock ||
+      cachedMembership === Membership.Join
+        ? cachedSpace
+        : undefined;
+    const space = getRoom(roomId) ?? availableCachedSpace;
+    const effectivelyJoined = joined || cachedMembership === Membership.Join;
+    const discoveredJoinRule = summary
+      ? getDiscoveredRoomAccessJoinRule(summary.join_rule)
+      : undefined;
     const targetRef = useRef<HTMLDivElement>(null);
     useDraggableItem(item, targetRef, onDragging);
 
@@ -437,14 +512,17 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
         shrink="No"
         alignItems="Center"
         gap="200"
-        className={classNames(css.SpaceItemCard({ outlined: !joined || closed }), className)}
+        className={classNames(
+          css.SpaceItemCard({ outlined: !effectivelyJoined || closed }),
+          className
+        )}
         {...props}
         ref={ref}
       >
         {before}
         <Box grow="Yes" gap="100" alignItems="Inherit" justifyContent="SpaceBetween">
           <Box ref={canReorder ? targetRef : null}>
-            {space ? (
+            {space && effectivelyJoined ? (
               <LocalRoomSummaryLoader room={space}>
                 {(localSummary) =>
                   item.parentId ? (
@@ -468,28 +546,52 @@ export const SpaceItemCard = as<'div', SpaceItemCardProps>(
               </LocalRoomSummaryLoader>
             ) : (
               <>
-                {!summary &&
-                  (loading ? (
-                    <SpaceProfileLoading />
-                  ) : (
-                    <InaccessibleSpaceProfile
-                      roomId={item.roomId}
-                      suggested={item.content.suggested}
-                    />
-                  ))}
-                {summary && (
-                  <UnjoinedSpaceProfile
-                    roomId={roomId}
-                    via={item.content.via}
-                    name={summary.name || summary.canonical_alias || roomId}
-                    avatarUrl={
-                      summary?.avatar_url
-                        ? mxcUrlToHttp(mx, summary.avatar_url, useAuthentication, 96, 96, 'crop') ??
-                          undefined
-                        : undefined
-                    }
-                    suggested={content.suggested}
-                  />
+                {space ? (
+                  <LocalRoomSummaryLoader room={space}>
+                    {(localSummary) => (
+                      <UnjoinedSpaceProfile
+                        roomId={roomId}
+                        via={item.content.via}
+                        name={localSummary.name}
+                        avatarUrl={getRoomAvatarUrl(mx, space, 96, useAuthentication)}
+                        suggested={content.suggested}
+                        joinRule={summary ? discoveredJoinRule : localSummary.joinRule}
+                      />
+                    )}
+                  </LocalRoomSummaryLoader>
+                ) : (
+                  <>
+                    {!summary &&
+                      (loading ? (
+                        <SpaceProfileLoading />
+                      ) : (
+                        <InaccessibleSpaceProfile
+                          roomId={item.roomId}
+                          suggested={item.content.suggested}
+                        />
+                      ))}
+                    {summary && (
+                      <UnjoinedSpaceProfile
+                        roomId={roomId}
+                        via={item.content.via}
+                        name={summary.name || summary.canonical_alias || roomId}
+                        avatarUrl={
+                          summary?.avatar_url
+                            ? mxcUrlToHttp(
+                                mx,
+                                summary.avatar_url,
+                                useAuthentication,
+                                96,
+                                96,
+                                'crop'
+                              ) ?? undefined
+                            : undefined
+                        }
+                        suggested={content.suggested}
+                        joinRule={discoveredJoinRule}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}

@@ -126,6 +126,17 @@ export const ScheduledIndicator = style({
   whiteSpace: 'nowrap',
 });
 
+export const TouchResolutionByline = style({
+  display: 'none',
+  minWidth: 0,
+  maxWidth: '100%',
+  '@media': {
+    '(max-width: 480px), (hover: none)': {
+      display: 'block',
+    },
+  },
+});
+
 export const MetadataRow = style({
   display: 'flex',
   alignItems: 'center',

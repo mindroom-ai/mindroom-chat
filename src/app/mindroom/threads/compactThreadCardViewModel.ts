@@ -13,6 +13,7 @@ import type {
   ThreadRecord,
   ThreadParticipantViewModel,
 } from './types';
+import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 
 const numberFormatter = new Intl.NumberFormat();
 const TITLE_FALLBACK = 'Thread started';
@@ -163,6 +164,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     status.cronDescription,
     scheduledDisplayText
   );
+  const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
 
   return {
     id: {
@@ -186,6 +188,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     }),
     tags: status.tags,
     isResolved: status.isResolved,
+    resolvedByDisplayName,
     isUnread: status.isUnread,
     isStreaming: status.isStreaming,
     hasPendingSend: status.hasPendingSend === true,

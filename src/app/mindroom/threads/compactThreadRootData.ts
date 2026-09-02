@@ -1,14 +1,20 @@
-import { IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { Direction, IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
+import { getLinkedTimelines } from './linkedTimelines';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
-import { isVisibleThreadTextMessageEventType } from './threadUtils';
+import {
+  getPreferredVisibleThreadReplyEvents,
+  hasLoadedThreadReplyEvents,
+  isVisibleThreadReplyEvent,
+  isVisibleThreadTextMessageEventType,
+} from './threadUtils';
 
 export type CompactThreadRootData = {
   ids: string[];
@@ -83,11 +89,51 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   return true;
 };
 
-const hasCompactThreadActivity = (thread: Thread): boolean =>
+const hasRawThreadActivity = (thread: Thread): boolean =>
   !!thread.replyToEvent ||
   (thread.events?.length ?? 0) > 0 ||
   (thread.timeline?.length ?? 0) > 0 ||
   (typeof thread.length === 'number' && thread.length > 0);
+
+const getLinkedThreadReplyState = (
+  thread: Thread
+): { hasLoadedEvents: boolean; hasVisibleReply: boolean; historyComplete: boolean } | undefined => {
+  const timelineSet = thread.getUnfilteredTimelineSet?.();
+  const liveTimeline = timelineSet?.getLiveTimeline?.();
+  if (!liveTimeline) return undefined;
+
+  const linkedTimelines = getLinkedTimelines(liveTimeline);
+  const firstTimeline = linkedTimelines[0];
+  if (!firstTimeline) return undefined;
+
+  const linkedEvents = linkedTimelines.flatMap((timeline) => timeline.getEvents());
+
+  return {
+    hasLoadedEvents: linkedEvents.length > 0,
+    hasVisibleReply: linkedEvents.some(isVisibleThreadReplyEvent),
+    historyComplete: firstTimeline.getPaginationToken(Direction.Backward) === null,
+  };
+};
+
+const hasCompactThreadActivity = (thread: Thread, rootEvent: MatrixEvent | undefined): boolean => {
+  const hasActivity = hasRawThreadActivity(thread);
+  if (!hasActivity || !rootEvent?.isRedacted()) {
+    return hasActivity;
+  }
+
+  const linkedReplyState = getLinkedThreadReplyState(thread);
+  if (!hasLoadedThreadReplyEvents(thread) && !linkedReplyState?.hasLoadedEvents) {
+    return hasActivity;
+  }
+
+  const hasVisibleReply =
+    getPreferredVisibleThreadReplyEvents(thread).length > 0 ||
+    (!!thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) ||
+    linkedReplyState?.hasVisibleReply;
+  if (hasVisibleReply) return true;
+
+  return linkedReplyState ? !linkedReplyState.historyComplete : false;
+};
 
 export const getCompactThreadRootPreviewInfo = (
   event: MatrixEvent | undefined,
@@ -236,9 +282,9 @@ export const buildCompactThreadRootData = ({
     visibleIndexMap.size > 0 ? Math.max(...Array.from(visibleIndexMap.values())) + 1 : 0;
 
   threads.forEach((thread) => {
-    if (!thread.id || seen.has(thread.id) || !hasCompactThreadActivity(thread)) return;
+    if (!thread.id || seen.has(thread.id) || !hasRawThreadActivity(thread)) return;
     const rootEvent = room.findEventById(thread.id) ?? thread.rootEvent;
-    if (isNestedThreadReplyEvent(rootEvent)) return;
+    if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) return;
 
     seen.add(thread.id);
     ids.push(thread.id);

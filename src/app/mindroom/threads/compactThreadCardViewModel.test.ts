@@ -57,7 +57,7 @@ const makeRoom = ({
     })),
     getMember: vi.fn((userId: string) => {
       const name = memberNames[userId];
-      return name
+      return Object.prototype.hasOwnProperty.call(memberNames, userId)
         ? {
             name,
             rawDisplayName: name,
@@ -303,7 +303,12 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
       sender: '@agent:server',
       body: 'Root body',
     });
-    const room = makeRoom({ rootEvent });
+    const room = makeRoom({
+      rootEvent,
+      memberNames: {
+        '@me:server': 'Morgan',
+      },
+    });
 
     const model = buildModel(room, {
       threadRootEvent: rootEvent,
@@ -317,8 +322,54 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     });
 
     expect(model.isResolved).toBe(true);
+    expect((model as typeof model & { resolvedByDisplayName?: string }).resolvedByDisplayName).toBe(
+      'Morgan'
+    );
     expect(model.tags).toEqual(['triage']);
     expect(model.attentionState).toBe('resolved');
+  });
+
+  it('uses the resolver Matrix ID localpart when room membership is unavailable', () => {
+    const model = buildModel(makeRoom(), {
+      threadResolution: {
+        tags: {
+          resolved: {
+            set_by: '@remote-resolver:elsewhere.example',
+            set_at: '2026-08-27T00:00:00.000Z',
+          },
+        },
+        isResolved: true,
+      },
+    });
+
+    expect((model as typeof model & { resolvedByDisplayName?: string }).resolvedByDisplayName).toBe(
+      'remote-resolver'
+    );
+  });
+
+  it('uses the resolver Matrix ID localpart when the room display name is empty', () => {
+    const model = buildModel(
+      makeRoom({
+        memberNames: {
+          '@blank-name:elsewhere.example': '',
+        },
+      }),
+      {
+        threadResolution: {
+          tags: {
+            resolved: {
+              set_by: '@blank-name:elsewhere.example',
+              set_at: '2026-08-27T00:00:00.000Z',
+            },
+          },
+          isResolved: true,
+        },
+      }
+    );
+
+    expect((model as typeof model & { resolvedByDisplayName?: string }).resolvedByDisplayName).toBe(
+      'blank-name'
+    );
   });
 
   it('marks compact models pending while a zero-reply root local echo is sending', () => {
