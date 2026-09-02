@@ -24,7 +24,6 @@ import { RenderElement, RenderLeaf } from './Elements';
 import { CustomElement } from './slate';
 import * as css from './Editor.css';
 import { toggleKeyboardShortcut } from './keyboard';
-import { useDomSyncGuard } from './domSync';
 
 const initialValue: CustomElement[] = [
   {
@@ -57,14 +56,6 @@ const withVoid = (editor: Editor): Editor => {
     ) || isVoid(element);
 
   return editor;
-};
-
-// Repairs the editor model when the browser inserted text natively (for
-// example a paste that Slate did not intercept), which otherwise leaves text
-// visible in the composer that cannot be sent, edited or copied.
-const DomSyncGuard = () => {
-  useDomSyncGuard();
-  return null;
 };
 
 export const useEditor = (): Editor => {
@@ -138,7 +129,6 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
     return (
       <div className={css.Editor} style={style} ref={ref}>
         <Slate editor={editor} initialValue={initialValue} onChange={onChange}>
-          <DomSyncGuard />
           {top}
           <Box alignItems="Start">
             {before && (
