@@ -4,7 +4,7 @@
 
 ### Repair composer text inserted behind the Slate model (2026-09-02)
 
-- Status: implemented with regression coverage and one independent review round addressed; validation complete on `fix/composer-paste-desync`, PR pending.
+- Status: implemented, reviewed once, validated; open in PR #227 (`fix/composer-paste-desync`).
 - Report: dictation via OpenWhispr on Windows left text visible in the composer that Enter, Backspace, arrows and copy ignored. OpenWhispr writes plain text to the clipboard and sends Ctrl+V through `SendInput`, so the text arrives as an ordinary paste.
 - Root cause confirmed for one path: the composer `onPaste` handler was `async`. slate-react's `isEventHandled` treats any non-null return (including a Promise) as "handled" and skips its own `onPaste` fallback, so any paste the browser does not announce through `beforeinput` is inserted natively without updating the editor model. Reproduced against the real `CustomEditor` in Chromium with `beforeinput` withheld: DOM shows the text, `Node.string(editor)` is empty, copy writes nothing, keys are no-ops. Upstream: ianstormtaylor/slate#4721.
 - Not confirmed: which Windows browser/paste path skipped `beforeinput` for the reporter. Observed locally: Chromium 151 and Firefox 146 both emit it for plain-text-only clipboards, including Ctrl+Shift+V (slate-react's own 2020 comment says otherwise for older browsers). An exception inside Slate's `beforeinput` handler before `preventDefault()` produces identical symptoms, so the fix also adds a generic repair.
@@ -16,7 +16,7 @@
 - Validation: `npm run typecheck` and `npm run build` pass; ESLint and Prettier clean on touched files; full Vitest run has only the 4 pre-existing failures (`xcodeCloudPostClone.test.ts`, `useRoomInputSendSessionController.test.ts` caption restore) that fail identically on a clean `dev` worktree. Review-round tests were verified to fail with the corresponding fixes reverted.
 - End-to-end check (Chromium 151 via Playwright against the real `CustomEditor`, `beforeinput` withheld to force the native paste path): before the change the DOM showed the text while the model stayed empty and copy/backspace were no-ops; after the change the model reads the pasted text, copy returns it, backspace works, and one `console.warn` with `inputType: insertFromPaste` is logged. Normal pastes and typing log nothing.
 - Open question for the reporter (optional): does a manual Ctrl+V of Notepad text reproduce it, and which browser/version. Answers pin which Slate path was hit; the repair covers both.
-- Next step: PR against `dev`.
+- Next step: human review and merge of PR #227.
 
 ### Persist deep trace intent through runtime storage failure (2026-07-31)
 
