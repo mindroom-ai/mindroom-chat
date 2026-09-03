@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Keep composer paste handler synchronous (2026-09-02)
+
+- Status: implemented, reviewed once, validated; open in PR #227 (`fix/composer-paste-desync`).
+- Report: dictation via OpenWhispr on Windows left text visible in the composer that Enter, Backspace, arrows and copy ignored. OpenWhispr writes plain text to the clipboard and sends Ctrl+V through `SendInput`, so the text arrives as an ordinary paste.
+- Root cause confirmed for one path: the composer `onPaste` handler was `async`. slate-react's `isEventHandled` treats any non-null return (including a Promise) as "handled" and skips its own `onPaste` fallback, so any paste the browser does not announce through `beforeinput` is inserted natively without updating the editor model. Reproduced against the real `CustomEditor` in Chromium with `beforeinput` withheld: DOM shows the text, `Node.string(editor)` is empty, copy writes nothing, keys are no-ops. Upstream: ianstormtaylor/slate#4721.
+- Not confirmed: which Windows browser/paste path skipped `beforeinput` for the reporter. Observed locally: Chromium 151 and Firefox 146 both emit it for plain-text-only clipboards, including Ctrl+Shift+V (slate-react's own 2020 comment says otherwise for older browsers).
+- Change: `MindroomRoomInput.handlePaste` is synchronous again and returns `undefined` when it does not handle the paste, matching upstream Cinny's `useFilePasteHandler` contract; the paste-marker upload path calls `preventDefault()` first and continues in a detached async block. Behaviour for file pastes, oversized-paste attachments, `prepError` fallback and `moveCursor` is unchanged.
+- Deliberately not shipped: a generic DOM-to-model repair guard (`components/editor/domSync.ts`) was built, reviewed and then reverted from this PR as over-engineering for an unconfirmed trigger; its first review round already surfaced two silent-corruption risks (soft-break trailing newline, Android input manager duplication). It is preserved on the local branch `composer-dom-sync-guard` (commit `92c48c61`) if a second report shows the synchronous handler alone is insufficient.
+- Coverage: `RoomInput.test.ts` pins the `undefined` return for ordinary text pastes (fails with a Promise if the handler is made `async` again).
+- Validation: `npm run typecheck` and `npm run build` pass; ESLint and Prettier clean on touched files; full Vitest run has only the 4 pre-existing failures (`xcodeCloudPostClone.test.ts`, `useRoomInputSendSessionController.test.ts` caption restore) that fail identically on a clean `dev` worktree.
+- Open question for the reporter (optional): does a manual Ctrl+V of Notepad text reproduce it, and which browser/version. A DevTools console error such as `Cannot resolve a Slate point from DOM point` after dictation would point at a different Slate path than the one fixed here.
+- Next step: human review and merge of PR #227.
+
 ### Request access from knock-capable room discovery surfaces (2026-08-28)
 
 - Status: PRs #223 and #225 are deployed, and a locally validated follow-up covers pending requests revealed after the Members drawer mounts.
