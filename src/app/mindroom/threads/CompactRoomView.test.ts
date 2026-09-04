@@ -281,6 +281,32 @@ describe('CompactRoomView', () => {
     ).toBe(true);
   });
 
+  it('reports a failed thread resolution mutation', () => {
+    const error = new Error('state event rejected');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: false,
+      error,
+    });
+
+    act(() => {
+      create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: [],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
+
+    expect(consoleError).toHaveBeenCalledWith('[CompactRoomView] Resolve failed:', error);
+    consoleError.mockRestore();
+  });
+
   it('forwards card clicks using the recent-thread summary from the view model', () => {
     const onThreadClick = vi.fn();
     const viewModel = makeViewModel('$thread-3', {

@@ -1,4 +1,10 @@
-import React, { type MutableRefObject, useCallback, useLayoutEffect, useRef } from 'react';
+import React, {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
@@ -37,7 +43,7 @@ export function CompactRoomView({
     threadRootIds,
     threadRecordMap,
   });
-  const { canToggle, setResolved, updating } = useToggleThreadResolution(room);
+  const { canToggle, setResolved, updating, error } = useToggleThreadResolution(room);
 
   // A fully stable click handler keeps the memoized cards from re-rendering
   // when unrelated threads update; the per-thread summary text and the latest
@@ -62,6 +68,13 @@ export function CompactRoomView({
     },
     [setResolved]
   );
+
+  useEffect(() => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[CompactRoomView] Resolve failed:', error);
+    }
+  }, [error]);
 
   useLayoutEffect(() => {
     const view = viewRef.current;
