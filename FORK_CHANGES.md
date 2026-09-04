@@ -4,7 +4,7 @@
 
 ### Reveal Resolve on hover in Compact room view (2026-09-04)
 
-- Status: the bounded Compact-card interaction and both independent-review remediations are implemented; exact-head re-review and final validation are in progress.
+- Status: the bounded Compact-card interaction, both independent-review remediations, exact-head re-review, and final validation are complete.
 - Unresolved Compact cards expose the existing localized Resolve action when the card is hovered or contains keyboard focus.
 - The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
 - A reserved action lane keeps titles, previews, and metadata from shifting when the control appears.
@@ -15,6 +15,10 @@
 - A live Chromium regression failed with the reveal rule removed, then passed with it restored; it verifies pointer hover, keyboard focus, navigation isolation, server-confirmed Matrix resolution, and settled resolved-state UI.
 - The live narrow RTL check proves the action occupies the physical left-side logical-end lane and remains wholly inside reserved padding rather than overlapping the card's content lane.
 - The shared collaborative browser is unavailable in this environment, but the repository's Docker Matrix Playwright harness passes the focused live regression.
+- Validation: all 50 focused tests, typecheck, production build, touched-file ESLint and Prettier, `git diff --check`, and the focused live Chromium regression pass.
+- The full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
+- Review: fresh exact-head independent review found no Critical, Important, or Minor issues after confirming the server-settlement and RTL action-lane assertions.
+- Next step: human review of the local branch.
 
 ### Keep composer paste handler synchronous (2026-09-02)
 
