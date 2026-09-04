@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Reveal Resolve on hover in Compact room view (2026-09-04)
+
+- Status: the bounded Compact-card interaction is implemented with focused red-green coverage; broader validation and independent review are in progress.
+- Unresolved Compact cards expose the existing localized Resolve action when the card is hovered or contains keyboard focus.
+- The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
+- A reserved action lane keeps titles, previews, and metadata from shifting when the control appears.
+- The action is omitted for resolved cards and users without permission, and it is disabled while a room-level tag mutation is pending.
+- Resolution reuses the existing optimistic thread-tag mutation path and its edit-permission check.
+- Focused TDD coverage first failed for the missing control and missing room wiring, then passed all 14 Compact card/view tests after implementation.
+- The shared collaborative browser is unavailable in this environment, so live visual validation remains outstanding.
+
 ### Keep composer paste handler synchronous (2026-09-02)
 
 - Status: implemented, reviewed once, validated; open in PR #227 (`fix/composer-paste-desync`).

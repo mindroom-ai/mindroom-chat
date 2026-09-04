@@ -163,6 +163,13 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('slate-react', () => ({
   ReactEditor: {
     focus: vi.fn(),
@@ -238,6 +245,8 @@ vi.mock('../CompactThreadCard', () => ({
 }));
 
 vi.mock('../CompactRoomView.css', () => ({
+  CardAction: 'CardAction',
+  CardShell: 'CardShell',
   EmptyState: 'EmptyState',
   View: 'View',
 }));

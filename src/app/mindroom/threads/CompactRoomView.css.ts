@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
 import { transition } from '../../styles/transition';
@@ -26,6 +26,12 @@ export const EmptyState = style({
   color: color.SurfaceVariant.OnContainer,
 });
 
+export const CardShell = style({
+  position: 'relative',
+  width: '100%',
+  minWidth: 0,
+});
+
 export const Card = style([
   DefaultReset,
   {
@@ -51,6 +57,30 @@ export const Card = style([
     },
   },
 ]);
+
+globalStyle(`${CardShell}[data-has-compact-thread-action] ${Card}`, {
+  paddingInlineEnd: '6.5rem',
+});
+
+globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
+  backgroundColor: color.SurfaceVariant.ContainerHover,
+});
+
+export const CardAction = style({
+  position: 'absolute',
+  insetInlineEnd: config.space.S300,
+  top: '50%',
+  zIndex: 1,
+  opacity: 0,
+  pointerEvents: 'none',
+  transform: 'translateY(-50%)',
+  transition: transition(['opacity']),
+});
+
+globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
+  opacity: 1,
+  pointerEvents: 'auto',
+});
 
 export const CardResolved = style({
   borderColor: color.Success.ContainerLine,
