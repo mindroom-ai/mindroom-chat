@@ -9,6 +9,7 @@ import {
   createDefaultThreadFilterState,
   createPrivateRoom,
   loginToMatrix,
+  matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
@@ -97,7 +98,9 @@ test.describe('compact Resolve action', () => {
       if (!card || !action) throw new Error('Compact card action layout is incomplete.');
 
       const shellRect = shell.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
       const actionRect = action.getBoundingClientRect();
+      const paddingInlineEnd = Number.parseFloat(getComputedStyle(card).paddingInlineEnd);
       return {
         direction: getComputedStyle(shell).direction,
         shellLeft: shellRect.left,
@@ -105,7 +108,8 @@ test.describe('compact Resolve action', () => {
         actionLeft: actionRect.left,
         actionRight: actionRect.right,
         actionWidth: actionRect.width,
-        paddingInlineEnd: Number.parseFloat(getComputedStyle(card).paddingInlineEnd),
+        paddingInlineEnd,
+        contentLeft: cardRect.left + paddingInlineEnd,
       };
     });
 
@@ -113,9 +117,31 @@ test.describe('compact Resolve action', () => {
     expect(layout.actionLeft).toBeGreaterThanOrEqual(layout.shellLeft);
     expect(layout.actionRight).toBeLessThanOrEqual(layout.shellRight);
     expect(layout.paddingInlineEnd).toBeGreaterThan(layout.actionWidth);
+    expect(layout.actionLeft - layout.shellLeft).toBeLessThan(
+      layout.shellRight - layout.actionRight
+    );
+    expect(layout.actionRight).toBeLessThanOrEqual(layout.contentLeft);
 
     await resolveButton.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBeNull();
+    const resolvedStatePath = `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      'com.mindroom.thread.tags'
+    )}/${encodeURIComponent(JSON.stringify([rootId, 'resolved']))}`;
+    await expect
+      .poll(
+        async () => {
+          try {
+            const content = await matrixFetch<{ set_by?: string }>(homeserver, resolvedStatePath, {
+              accessToken: session.accessToken,
+            });
+            return content.set_by;
+          } catch {
+            return undefined;
+          }
+        },
+        { timeout: 30_000 }
+      )
+      .toBe(session.userId);
     await expect(resolveButton).toHaveCount(0);
     await expect(threadCard).toHaveAccessibleName(/Resolved by /);
 
