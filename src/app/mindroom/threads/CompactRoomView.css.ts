@@ -76,7 +76,7 @@ export const CardAction = style({
       content: "''",
       position: 'absolute',
       insetBlock: 0,
-      insetInlineStart: `-${config.space.S500}`,
+      insetInlineStart: `calc(-1 * ${config.space.S500})`,
       width: config.space.S500,
       pointerEvents: 'none',
       background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,

@@ -123,10 +123,12 @@ test.describe('compact Resolve action', () => {
       return {
         backgroundImage: style.backgroundImage,
         width: Number.parseFloat(style.width),
+        insetInlineStart: Number.parseFloat(style.insetInlineStart),
       };
     });
     expect(actionFade.backgroundImage).not.toBe('none');
     expect(actionFade.width).toBeGreaterThan(0);
+    expect(actionFade.insetInlineStart).toBe(-actionFade.width);
     const screenshotVariant = process.env.E2E_SCREENSHOT_VARIANT;
     if (screenshotVariant) {
       await page.screenshot({

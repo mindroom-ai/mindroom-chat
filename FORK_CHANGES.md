@@ -4,10 +4,11 @@
 
 ### Reveal Resolve on hover in Compact room view (2026-09-04)
 
-- Status: the user-requested no-reserved-space follow-up is implemented, independently approved, and ready for refreshed PR #228 gates.
+- Status: the user-requested no-reserved-space follow-up and fade-position correction are implemented and ready for refreshed PR #228 validation.
 - Unresolved Compact cards expose the existing localized Resolve action when the card is hovered or contains keyboard focus.
 - The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
 - Cards retain their normal symmetric padding while the action overlays the inline edge with a direction-aware background fade, so hidden actions consume no layout space and revealing one does not reflow text.
+- The first fade offset serialized a negated CSS variable as invalid CSS, which let Chromium place the generated fade over the button label; the offset now uses `calc()` and the live test pins the fade immediately outside the button.
 - The action is omitted for resolved cards and users without permission, and it is disabled while a room-level tag mutation is pending.
 - Resolution reuses the existing optimistic thread-tag mutation path and its edit-permission check.
 - Failed mutations now emit the same diagnostic signal used by the open-thread resolution surface after the optimistic state rolls back.
