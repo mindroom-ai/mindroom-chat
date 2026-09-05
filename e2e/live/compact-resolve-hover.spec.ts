@@ -102,6 +102,7 @@ test.describe('compact Resolve action', () => {
     await expect(idleResolveButton).toHaveCSS('opacity', '0');
 
     const titleBeforeHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
+    expect(titleBeforeHover, 'title bounding box before hover').not.toBeNull();
     const restingPadding = await threadCard.evaluate((card) => {
       const style = getComputedStyle(card);
       return {
@@ -115,7 +116,8 @@ test.describe('compact Resolve action', () => {
     await expect(resolveButton).toHaveCSS('opacity', '1');
     await expect(idleResolveButton).toHaveCSS('opacity', '0');
     const titleAfterHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
-    expect(titleAfterHover).toEqual(titleBeforeHover);
+    expect(titleAfterHover, 'title bounding box after hover').not.toBeNull();
+    expect(titleAfterHover!).toEqual(titleBeforeHover!);
     const actionFade = await resolveButton.evaluate((action) => {
       const style = getComputedStyle(action, '::before');
       return {
@@ -125,6 +127,12 @@ test.describe('compact Resolve action', () => {
     });
     expect(actionFade.backgroundImage).not.toBe('none');
     expect(actionFade.width).toBeGreaterThan(0);
+    const screenshotVariant = process.env.E2E_SCREENSHOT_VARIANT;
+    if (screenshotVariant) {
+      await page.screenshot({
+        path: `ui-audit/compact-resolve-overlay-${screenshotVariant}.png`,
+      });
+    }
 
     await page.mouse.move(0, 0);
     await expect(resolveButton).toHaveCSS('opacity', '0');
@@ -137,6 +145,10 @@ test.describe('compact Resolve action', () => {
     await page.evaluate(() => {
       document.documentElement.dir = 'rtl';
     });
+    const rtlFade = await resolveButton.evaluate(
+      (action) => getComputedStyle(action, '::before').backgroundImage
+    );
+    expect(rtlFade).toContain('to left');
     const layout = await cardShell.evaluate((shell) => {
       const card = shell.querySelector<HTMLElement>('[data-thread-root-id]');
       const action = shell.querySelector<HTMLElement>('[data-compact-thread-resolve]');
