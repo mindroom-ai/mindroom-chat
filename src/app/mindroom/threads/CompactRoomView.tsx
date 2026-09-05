@@ -131,11 +131,7 @@ export function CompactRoomView({
         const showResolveAction = canToggle && !viewModel.isResolved;
 
         return (
-          <div
-            key={viewModel.id.threadRootId}
-            className={css.CardShell}
-            data-has-compact-thread-action={showResolveAction || undefined}
-          >
+          <div key={viewModel.id.threadRootId} className={css.CardShell}>
             <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
             {showResolveAction && (
               <Button

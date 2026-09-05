@@ -26,15 +26,15 @@ const buildThreadRelation = (rootId: string) => ({
 test.describe('compact Resolve action', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('reveals on hover and focus, stays in its RTL lane, and resolves without opening', async ({
-    page,
-  }) => {
+  test('overlays on hover without moving text and resolves without opening', async ({ page }) => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
     const stamp = Date.now();
     const roomName = `Compact resolve hover ${stamp}`;
+    const rootBody = `Resolve this compact thread ${stamp}`;
+    const idleRootBody = `Leave this compact thread idle ${stamp}`;
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: roomName,
       topic: 'Live fixture for the Compact room Resolve action.',
@@ -43,7 +43,7 @@ test.describe('compact Resolve action', () => {
       homeserver,
       session.accessToken,
       roomId,
-      { msgtype: 'm.text', body: `Resolve this compact thread ${stamp}` },
+      { msgtype: 'm.text', body: rootBody },
       'compact-resolve-hover-root'
     );
     await sendRoomMessage(
@@ -56,6 +56,24 @@ test.describe('compact Resolve action', () => {
         'm.relates_to': buildThreadRelation(rootId),
       },
       'compact-resolve-hover-reply'
+    );
+    const idleRootId = await sendRoomMessage(
+      homeserver,
+      session.accessToken,
+      roomId,
+      { msgtype: 'm.text', body: idleRootBody },
+      'compact-resolve-idle-root'
+    );
+    await sendRoomMessage(
+      homeserver,
+      session.accessToken,
+      roomId,
+      {
+        msgtype: 'm.text',
+        body: `Idle compact reply ${stamp}`,
+        'm.relates_to': buildThreadRelation(idleRootId),
+      },
+      'compact-resolve-idle-reply'
     );
 
     await loginWithPassword(page, { homeserver, username, password });
@@ -75,11 +93,38 @@ test.describe('compact Resolve action', () => {
     const threadCard = page.locator(`[data-thread-root-id="${rootId}"]`);
     const cardShell = threadCard.locator('xpath=..');
     const resolveButton = cardShell.locator('[data-compact-thread-resolve="true"]');
+    const idleThreadCard = page.locator(`[data-thread-root-id="${idleRootId}"]`);
+    const idleCardShell = idleThreadCard.locator('xpath=..');
+    const idleResolveButton = idleCardShell.locator('[data-compact-thread-resolve="true"]');
     await expect(threadCard).toBeVisible({ timeout: 30_000 });
+    await expect(idleThreadCard).toBeVisible({ timeout: 30_000 });
     await expect(resolveButton).toHaveCSS('opacity', '0');
+    await expect(idleResolveButton).toHaveCSS('opacity', '0');
+
+    const titleBeforeHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
+    const restingPadding = await threadCard.evaluate((card) => {
+      const style = getComputedStyle(card);
+      return {
+        inlineStart: Number.parseFloat(style.paddingInlineStart),
+        inlineEnd: Number.parseFloat(style.paddingInlineEnd),
+      };
+    });
+    expect(restingPadding.inlineEnd).toBe(restingPadding.inlineStart);
 
     await cardShell.hover();
     await expect(resolveButton).toHaveCSS('opacity', '1');
+    await expect(idleResolveButton).toHaveCSS('opacity', '0');
+    const titleAfterHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
+    expect(titleAfterHover).toEqual(titleBeforeHover);
+    const actionFade = await resolveButton.evaluate((action) => {
+      const style = getComputedStyle(action, '::before');
+      return {
+        backgroundImage: style.backgroundImage,
+        width: Number.parseFloat(style.width),
+      };
+    });
+    expect(actionFade.backgroundImage).not.toBe('none');
+    expect(actionFade.width).toBeGreaterThan(0);
 
     await page.mouse.move(0, 0);
     await expect(resolveButton).toHaveCSS('opacity', '0');
@@ -101,6 +146,7 @@ test.describe('compact Resolve action', () => {
       const cardRect = card.getBoundingClientRect();
       const actionRect = action.getBoundingClientRect();
       const paddingInlineEnd = Number.parseFloat(getComputedStyle(card).paddingInlineEnd);
+      const paddingInlineStart = Number.parseFloat(getComputedStyle(card).paddingInlineStart);
       return {
         direction: getComputedStyle(shell).direction,
         shellLeft: shellRect.left,
@@ -109,18 +155,19 @@ test.describe('compact Resolve action', () => {
         actionRight: actionRect.right,
         actionWidth: actionRect.width,
         paddingInlineEnd,
-        contentLeft: cardRect.left + paddingInlineEnd,
+        paddingInlineStart,
+        cardWidth: cardRect.width,
       };
     });
 
     expect(layout.direction).toBe('rtl');
     expect(layout.actionLeft).toBeGreaterThanOrEqual(layout.shellLeft);
     expect(layout.actionRight).toBeLessThanOrEqual(layout.shellRight);
-    expect(layout.paddingInlineEnd).toBeGreaterThan(layout.actionWidth);
+    expect(layout.paddingInlineEnd).toBe(layout.paddingInlineStart);
+    expect(layout.cardWidth).toBeGreaterThan(layout.actionWidth);
     expect(layout.actionLeft - layout.shellLeft).toBeLessThan(
       layout.shellRight - layout.actionRight
     );
-    expect(layout.actionRight).toBeLessThanOrEqual(layout.contentLeft);
 
     await resolveButton.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBeNull();

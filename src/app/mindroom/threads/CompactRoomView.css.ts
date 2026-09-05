@@ -58,10 +58,6 @@ export const Card = style([
   },
 ]);
 
-globalStyle(`${CardShell}[data-has-compact-thread-action] ${Card}`, {
-  paddingInlineEnd: '6.5rem',
-});
-
 globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });
@@ -75,6 +71,21 @@ export const CardAction = style({
   pointerEvents: 'none',
   transform: 'translateY(-50%)',
   transition: transition(['opacity']),
+  selectors: {
+    '&::before': {
+      content: "''",
+      position: 'absolute',
+      insetBlock: 0,
+      insetInlineStart: `-${config.space.S500}`,
+      width: config.space.S500,
+      pointerEvents: 'none',
+      background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
+    },
+  },
+});
+
+globalStyle(`[dir='rtl'] ${CardAction}::before`, {
+  background: `linear-gradient(to left, transparent, ${color.SurfaceVariant.ContainerHover})`,
 });
 
 globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
