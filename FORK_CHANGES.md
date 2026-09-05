@@ -4,7 +4,7 @@
 
 ### Reveal Resolve on hover in Compact room view (2026-09-04)
 
-- Status: the user-requested no-reserved-space follow-up and fade-position correction are implemented and ready for refreshed PR #228 validation.
+- Status: the user-requested no-reserved-space follow-up and fade-position correction are implemented, validated, and independently approved for refreshed PR #228 gates.
 - Unresolved Compact cards expose the existing localized Resolve action when the card is hovered or contains keyboard focus.
 - The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
 - Cards retain their normal symmetric padding while the action overlays the inline edge with a direction-aware background fade, so hidden actions consume no layout space and revealing one does not reflow text.
@@ -14,13 +14,14 @@
 - Failed mutations now emit the same diagnostic signal used by the open-thread resolution surface after the optimistic state rolls back.
 - Focused TDD coverage first failed for the missing action, room wiring, permission and pending-state branches, and failure diagnostic.
 - The overlay follow-up's live test failed against the reserved layout with 104 px inline-end padding versus 12 px inline-start padding before the reservation was removed.
+- The fade-position regression failed with a computed 24.3125 px inset inside the button instead of the required -20 px offset, then passed after the negative CSS variable was expressed with `calc()`.
 - A live Chromium regression failed with the reveal rule removed, then passed with it restored; it verifies pointer hover, keyboard focus, navigation isolation, server-confirmed Matrix resolution, and settled resolved-state UI.
 - The live regression now renders two threads and proves one hovered action is visible while the idle action remains hidden, card padding stays symmetric, and measured title geometry does not move across hover.
 - The live narrow RTL check proves the overlay remains at the physical left-side logical end without widening the card's resting content inset.
 - The shared collaborative browser is unavailable in this environment, but the repository's Docker Matrix Playwright harness passes the focused live regression.
 - Validation: all 50 focused tests, typecheck, production build, touched-file ESLint and Prettier, `git diff --check`, and the focused live Chromium regression pass.
 - The full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
-- Review: fresh exact-head independent review found no Critical, Important, or Minor issues after the nullable-geometry, RTL-gradient, and reusable screenshot assertions were strengthened.
+- Review: fresh independent review found no Critical, Important, or Minor issues after the fade correction and its rendered-position assertion were added.
 - Next step: complete refreshed PR gates, then hand off for human merge.
 
 ### Keep composer paste handler synchronous (2026-09-02)
