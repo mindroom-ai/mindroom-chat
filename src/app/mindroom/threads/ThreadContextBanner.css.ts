@@ -3,8 +3,9 @@ import { config, color } from 'folds';
 
 export const Banner = style({
   padding: `${config.space.S400} ${config.space.S400}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.Surface.Container,
+  boxShadow: `inset 3px 0 0 ${color.Primary.ContainerLine}`,
+  borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
 });
 
 // "Thread View" is chrome, not content: it says the same thing on every
@@ -13,7 +14,9 @@ export const Banner = style({
 // SHOW MORE pill already use for that role.
 export const ViewLabel = style({
   textTransform: 'uppercase',
-  letterSpacing: '0.04em',
+  letterSpacing: '0.06em',
+  color: color.Primary.Main,
+  opacity: 1,
   fontWeight: config.fontWeight.W500,
   whiteSpace: 'nowrap',
 });

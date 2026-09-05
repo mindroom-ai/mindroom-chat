@@ -5,21 +5,17 @@ import { transition } from '../../styles/transition';
 export const Editor = style([
   DefaultReset,
   {
-    backgroundColor: color.SurfaceVariant.Container,
-    color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-    borderRadius: config.radii.R400,
+    backgroundColor: color.Surface.Container,
+    color: color.Surface.OnContainer,
+    boxShadow: `${config.shadow.E100}, inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    borderRadius: config.radii.R500,
     overflow: 'hidden',
     transition: transition(['box-shadow']),
 
     selectors: {
-      // Typing into the composer was the one interaction with no visual
-      // acknowledgement at all: the caret appeared and the box stayed exactly
-      // as it was. The ring is drawn inset rather than outset so it cannot be
-      // clipped by an ancestor and cannot move anything, which matters because
-      // the composer shares a column with a virtualized timeline.
+      // Inset focus keeps the composer geometry stable beside the virtualized timeline.
       '&:focus-within': {
-        boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
+        boxShadow: `${config.shadow.E100}, inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
       },
     },
   },

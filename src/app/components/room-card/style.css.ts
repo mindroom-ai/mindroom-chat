@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, config } from 'folds';
+import { DefaultReset, color, config } from 'folds';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 
 export const CardGrid = style({
@@ -10,10 +10,12 @@ export const CardGrid = style({
 
 export const RoomCardBase = style([
   DefaultReset,
-  ContainerColor({ variant: 'SurfaceVariant' }),
+  ContainerColor({ variant: 'Surface' }),
   {
     padding: config.space.S500,
     borderRadius: config.radii.R500,
+    border: `1px solid ${color.Surface.ContainerLine}`,
+    boxShadow: config.shadow.E100,
   },
 ]);
 

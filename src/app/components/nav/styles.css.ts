@@ -1,6 +1,7 @@
 import { ComplexStyleRule, createVar, style } from '@vanilla-extract/css';
 import { RecipeVariants, recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, DefaultReset, Disabled, RadiiVariant, color, config, toRem } from 'folds';
+import { transition } from '../../styles/transition';
 
 export const NavCategory = style([
   DefaultReset,
@@ -53,6 +54,7 @@ const NavItemBase = style({
   color: OnContainer,
   outline: 'none',
   minHeight: toRem(36),
+  transition: transition(['background-color', 'box-shadow', 'color']),
 
   selectors: {
     '&:hover, &:focus-visible': {
@@ -65,10 +67,12 @@ const NavItemBase = style({
       backgroundColor: ContainerActive,
     },
     '&[aria-selected=true]': {
-      backgroundColor: ContainerActive,
+      backgroundColor: color.Primary.Container,
+      color: color.Primary.OnContainer,
+      boxShadow: `inset 3px 0 0 ${color.Primary.Main}`,
     },
     [`&:has(.${NavLink}:focus-visible)`]: {
-      outline: `${config.borderWidth.B600} solid ${ContainerLine}`,
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
       outlineOffset: `calc(-1 * ${config.borderWidth.B600})`,
     },
   },

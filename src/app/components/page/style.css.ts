@@ -2,11 +2,25 @@ import { style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 
+// Keep narrow layouts edge-to-edge; desktop content gets a quiet, inset surface.
+export const PageSurface = style({
+  minWidth: 0,
+  '@media': {
+    '(min-width: 1125px)': {
+      margin: config.space.S200,
+      borderRadius: config.radii.R500,
+      overflow: 'hidden',
+      boxShadow: config.shadow.E100,
+      outline: `1px solid ${color.Surface.ContainerLine}`,
+    },
+  },
+});
+
 export const PageNav = recipe({
   variants: {
     size: {
       '400': {
-        width: toRem(256),
+        width: toRem(272),
       },
       '300': {
         width: toRem(222),
@@ -54,8 +68,8 @@ export type PageNavHeaderVariants = RecipeVariants<typeof PageNavHeader>;
 
 export const PageNavContent = style({
   minHeight: '100%',
-  padding: config.space.S200,
-  paddingRight: 0,
+  padding: config.space.S300,
+  paddingRight: config.space.S200,
   paddingBottom: config.space.S700,
 });
 
@@ -110,7 +124,6 @@ export const PageHeroSection = style([
     margin: 'auto',
   },
 ]);
-
 
 export const PageContentCenter = style([
   DefaultReset,

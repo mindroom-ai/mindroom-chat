@@ -22,7 +22,7 @@ export const ParticleBackgroundFixed = style({
 export const ParticleCanvas = style({
   width: '100%',
   height: '100%',
-  opacity: 1,
+  opacity: 0.22,
   pointerEvents: 'auto',
   touchAction: 'none',
   '@media': {

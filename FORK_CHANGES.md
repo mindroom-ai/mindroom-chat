@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Refresh shared application surfaces (2026-09-05)
+
+- Status: visual implementation and independent review are complete; final local validation is recorded below.
+- Direction: calm surfaces, consistent card corners and depth, clear brand-colored selection, and quieter authentication decoration.
+- Scope: shared navigation and desktop page frames, composer, thread cards and banner, discovery cards, settings rows, and authentication.
+- Narrow layouts remain edge-to-edge, and message body metrics remain unchanged.
+- Baseline: full Vitest has seven failures in three unchanged files: platform post-clone scripts, SDK thread reset patch checks, and upload-session caption recovery.
+- Browser validation: real local Matrix fixture covers all five desktop themes, 390 px overview and thread layouts, composer draft editing and focus, resolved-card hover, settings on desktop and mobile, and dark mobile authentication with reduced motion.
+- Review correction: the violet thread label now uses full opacity; measured contrast clears 4.5:1 in all ten theme and open/resolved combinations (minimum 5.28:1).
+- Verification: typecheck and production/PWA build pass; full Vitest matches the baseline with 3,604 passing tests and seven existing failures; ESLint has zero errors and the existing 17 warnings; touched-file formatting and diff checks pass.
+- Independent review approves the final implementation with no remaining blockers.
+- Screenshots and browser harnesses are preserved outside the repository; no runtime dependencies or message-processing changes were added.
+
 ### Keep composer paste handler synchronous (2026-09-02)
 
 - Status: implemented, reviewed once, validated; open in PR #227 (`fix/composer-paste-desync`).

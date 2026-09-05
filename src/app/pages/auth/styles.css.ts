@@ -2,10 +2,8 @@ import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import {
   particleBackgroundColorVar,
-  particleCardBackgroundVar,
   particleCardBorderVar,
   particleCardHighlightVar,
-  particleCardTextVar,
 } from '../../components/particle-background/particleBackgroundTheme.css';
 
 export const AuthLayout = style({
@@ -36,18 +34,19 @@ export const AuthLayoutPersistentParticle = style({
 export const AuthCard = style({
   position: 'relative',
   zIndex: 1,
-  marginTop: '1vh',
+  marginTop: 'clamp(16px, 8vh, 80px)',
   maxWidth: toRem(460),
   width: '100%',
-  backgroundColor: particleCardBackgroundVar,
-  backdropFilter: 'blur(6px) saturate(1.18)',
-  WebkitBackdropFilter: 'blur(6px) saturate(1.18)',
-  color: particleCardTextVar,
-  borderRadius: config.radii.R400,
-  boxShadow: `${config.shadow.E100}, inset 0 1px 0 ${particleCardHighlightVar}`,
+  backgroundColor: color.Surface.Container,
+  color: color.Surface.OnContainer,
+  borderRadius: config.radii.R500,
+  boxShadow: `${config.shadow.E400}, inset 0 1px 0 ${particleCardHighlightVar}`,
   border: `${config.borderWidth.B300} solid ${particleCardBorderVar}`,
   overflow: 'hidden',
   pointerEvents: 'auto',
+  '@media': {
+    '(max-width: 750px)': { marginTop: 0 },
+  },
 });
 
 export const AuthLogo = style([

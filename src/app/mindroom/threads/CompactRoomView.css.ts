@@ -7,7 +7,7 @@ export const View = style({
   display: 'flex',
   flexDirection: 'column',
   flex: '1 1 auto',
-  gap: config.space.S100,
+  gap: config.space.S200,
   minWidth: 0,
   padding: `0 ${config.space.S300} ${config.space.S300}`,
   overflowY: 'auto',
@@ -35,15 +35,17 @@ export const Card = style([
     width: '100%',
     minWidth: 0,
     padding: `${config.space.S200} ${config.space.S300}`,
-    borderRadius: config.radii.R300,
+    borderRadius: config.radii.R400,
     border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-    backgroundColor: color.SurfaceVariant.Container,
-    color: color.SurfaceVariant.OnContainer,
+    backgroundColor: color.Surface.Container,
+    color: color.Surface.OnContainer,
     textAlign: 'left',
     cursor: 'pointer',
-    transition: transition(['background-color', 'border-color']),
+    transition: transition(['background-color', 'border-color', 'box-shadow']),
     ':hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+      backgroundColor: color.Surface.ContainerHover,
+      borderColor: color.Primary.ContainerLine,
+      boxShadow: config.shadow.E100,
     },
     ':focus-visible': {
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
@@ -56,6 +58,12 @@ export const CardResolved = style({
   borderColor: color.Success.ContainerLine,
   backgroundColor: color.Success.Container,
   color: color.Success.OnContainer,
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Success.ContainerHover,
+      borderColor: color.Success.ContainerLine,
+    },
+  },
 });
 
 export const TitleRow = style({
