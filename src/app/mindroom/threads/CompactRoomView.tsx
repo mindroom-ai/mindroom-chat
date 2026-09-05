@@ -1,10 +1,18 @@
-import React, { type MutableRefObject, useCallback, useLayoutEffect, useRef } from 'react';
-import { Box, Text } from 'folds';
+import React, {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
+import { Box, Button, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactThreadCard } from './CompactThreadCard';
 import * as css from './CompactRoomView.css';
+import { useToggleThreadResolution } from './useRoomThreadTags';
 
 export type CompactRoomViewProps = {
   room: Room;
@@ -27,6 +35,7 @@ export function CompactRoomView({
   onThreadClick,
   compactRoomScrollStateRef,
 }: CompactRoomViewProps) {
+  const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
   const scrollRestoreStateRef = useRef<ScrollRestoreState>();
   const cardViewModels = useCompactThreadCardViewModels({
@@ -34,6 +43,7 @@ export function CompactRoomView({
     threadRootIds,
     threadRecordMap,
   });
+  const { canToggle, setResolved, updating, error } = useToggleThreadResolution(room);
 
   // A fully stable click handler keeps the memoized cards from re-rendering
   // when unrelated threads update; the per-thread summary text and the latest
@@ -52,6 +62,19 @@ export function CompactRoomView({
     const viewModel = viewModelByRootRef.current.get(clickedThreadRootId);
     onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
   }, []);
+  const handleResolve = useCallback(
+    (threadRootId: string) => {
+      void setResolved(threadRootId, true);
+    },
+    [setResolved]
+  );
+
+  useEffect(() => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error('[CompactRoomView] Resolve failed:', error);
+    }
+  }, [error]);
 
   useLayoutEffect(() => {
     const view = viewRef.current;
@@ -104,13 +127,33 @@ export function CompactRoomView({
 
   return (
     <Box ref={viewRef} className={css.View} data-compact-room-view="true">
-      {cardViewModels.map((viewModel) => (
-        <CompactThreadCard
-          key={viewModel.id.threadRootId}
-          viewModel={viewModel}
-          onClick={handleCardClick}
-        />
-      ))}
+      {cardViewModels.map((viewModel) => {
+        const showResolveAction = canToggle && !viewModel.isResolved;
+
+        return (
+          <div key={viewModel.id.threadRootId} className={css.CardShell}>
+            <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
+            {showResolveAction && (
+              <Button
+                className={css.CardAction}
+                type="button"
+                size="300"
+                variant="Secondary"
+                fill="Soft"
+                outlined
+                radii="300"
+                disabled={updating}
+                onClick={() => handleResolve(viewModel.id.threadRootId)}
+                data-compact-thread-resolve="true"
+              >
+                <Text as="span" size="T200">
+                  {t('thread.resolve')}
+                </Text>
+              </Button>
+            )}
+          </div>
+        );
+      })}
     </Box>
   );
 }
