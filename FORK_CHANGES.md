@@ -13,7 +13,8 @@
 - Review correction: the violet thread label now uses full opacity; measured contrast clears 4.5:1 in all ten theme and open/resolved combinations (minimum 5.28:1).
 - Verification: typecheck and production/PWA build pass; full Vitest matches the baseline with 3,604 passing tests and seven existing failures; ESLint has zero errors and the existing 17 warnings; touched-file formatting and diff checks pass.
 - Independent review approves the final implementation with no remaining blockers.
-- Screenshots and browser harnesses are preserved outside the repository; no runtime dependencies or message-processing changes were added.
+- Desktop and mobile preview images are included in `docs/screenshots/visual-refresh/` for inline pull-request review.
+- Remaining screenshots and browser harnesses are preserved outside the repository; no runtime dependencies or message-processing changes were added.
 
 ### Keep composer paste handler synchronous (2026-09-02)
 
