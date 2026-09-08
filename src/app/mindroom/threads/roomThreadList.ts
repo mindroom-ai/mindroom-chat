@@ -21,10 +21,10 @@ const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | 
   return undefined;
 };
 
-export const getThreadReadUpToTs = (
+export const getThreadReadState = (
   thread: Thread | null | undefined,
   userId: string | undefined
-): number | undefined => {
+): { readEventIds: Set<string>; readUpToTs: number | undefined } | undefined => {
   if (!thread || !userId || typeof thread.getEventReadUpTo !== 'function') return undefined;
 
   // The SDK validates receipt targets against its timeline, which omits replies
@@ -39,16 +39,19 @@ export const getThreadReadUpToTs = (
     }
   }
   let readUpToTs = thread.getLastUnthreadedReceiptFor(userId)?.ts;
+  const validReadEventIds = new Set<string>();
   for (const eventId of readEventIds) {
-    const event = eventId ? findThreadReceiptEvent(thread, eventId) : undefined;
+    if (!eventId) continue;
+    const event = findThreadReceiptEvent(thread, eventId);
     // Preserve the SDK's consistency check for raw receipt targets.
     if (!event || (eventId !== readUpToId && event.threadRootId !== thread.id)) continue;
+    validReadEventIds.add(eventId);
     const eventTs = event.getTs();
     if (readUpToTs === undefined || eventTs > readUpToTs) {
       readUpToTs = eventTs;
     }
   }
-  return readUpToTs;
+  return { readEventIds: validReadEventIds, readUpToTs };
 };
 
 export const getEffectiveThreadReadUpToTs = (
@@ -56,7 +59,7 @@ export const getEffectiveThreadReadUpToTs = (
   userId: string | undefined,
   roomReadUpToTs: number | null | undefined
 ): number | null | undefined => {
-  const threadReadUpToTs = getThreadReadUpToTs(thread, userId);
+  const threadReadUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
   if (threadReadUpToTs === undefined) return roomReadUpToTs;
   if (typeof roomReadUpToTs !== 'number') return threadReadUpToTs;
   return Math.max(threadReadUpToTs, roomReadUpToTs);

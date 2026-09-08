@@ -14,8 +14,10 @@
 - Standalone edit events remain excluded from thread receipt targets; no edit-specific rendering change is included.
 - Regression coverage exercises the real Matrix SDK receipt request and local echo, public and private receipts, summary-only state, repeated marking, main-timeline scope, synchronized receipts, and later reply arrival.
 - Independent review found and verified fixes for a newer server receipt masked by an older retained local receipt, plus raw receipt targets that disagreed with the thread ID.
-- Validation: 45 focused receipt and thread tests, typecheck, production/PWA build, touched-file formatting, and full ESLint pass with the existing 17 lint warnings.
-- Full Vitest passes 3,629 of 3,633 tests; the four failures in the native post-clone and caption-upload suites also fail on the untouched base with the same dependency install.
+- Automated review exposed timestamp ties: known thread tails now win ties over earlier candidates, and receipt suppression requires the same event ID or a strictly newer read cutoff.
+- Real SDK coverage also verifies private whole-room receipts clear summary-only unread state.
+- Validation: 49 focused receipt and thread tests, typecheck, production/PWA build, touched-file formatting, and full ESLint pass with the existing 17 lint warnings.
+- Full Vitest passes 3,633 of 3,637 tests; the four failures in the native post-clone and caption-upload suites also fail on the untouched base with the same dependency install.
 - Live Chromium against Docker Matrix passes: two unread thread cards in a room with notifications disabled and no room unread badge, room-menu marking clears both, reload preserves read state, and opening a thread clears a later unread reply.
 - Next step: pull-request review and integration.
 

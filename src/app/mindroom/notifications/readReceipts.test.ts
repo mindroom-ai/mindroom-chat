@@ -80,6 +80,32 @@ describe('markMainTimelineAsRead', () => {
 });
 
 describe('markThreadAsRead', () => {
+  it.each([false, true])(
+    'acknowledges a distinct latest reply with an equal timestamp (older reply read: %s)',
+    async (olderReplyRead) => {
+      const previous = makeThreadReplyEvent('$previous', 3);
+      const latest = makeThreadReplyEvent('$latest', 3);
+      const room = {
+        ...makeRoom([]),
+        getThread: vi.fn(() => ({
+          id: THREAD_ID,
+          events: olderReplyRead ? [previous, latest] : [previous],
+          replyToEvent: latest,
+          getEventReadUpTo: vi.fn(() => (olderReplyRead ? previous.getId() : null)),
+          getReadReceiptForUserId: vi.fn(() => null),
+          getLastUnthreadedReceiptFor: vi.fn(() => undefined),
+        })),
+      };
+      const mx = makeClient(room);
+
+      await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+      expect(mx.sendReceipt).toHaveBeenCalledWith(latest, ReceiptType.Read, {
+        thread_id: THREAD_ID,
+      });
+    }
+  );
+
   it('targets the original reply when a streamed edit follows it', async () => {
     const reply = makeThreadReplyEvent('$reply', 2);
     const edit = new MatrixEvent({
@@ -190,6 +216,19 @@ describe('markThreadAsRead', () => {
 });
 
 describe('markRoomAndThreadsAsRead', () => {
+  it('prefers the known thread tail over an equal-timestamp main event', async () => {
+    const reply = makeThreadReplyEvent('$reply', 3);
+    const room = {
+      ...makeRoom([makeMessageEvent('$main', 3)]),
+      getThreads: vi.fn(() => [{ id: THREAD_ID, events: [], replyToEvent: reply }]),
+    };
+    const mx = makeClient(room);
+
+    await markRoomAndThreadsAsRead(mx as never, ROOM_ID, false);
+
+    expect(mx.sendReadReceipt).toHaveBeenCalledWith(reply, ReceiptType.Read, true);
+  });
+
   it('marks known threads even when the main timeline is empty', async () => {
     const reply = makeThreadReplyEvent('$reply', 2);
     const room = {

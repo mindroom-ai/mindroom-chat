@@ -95,14 +95,17 @@ describe('thread receipt unread state with SDK models', () => {
     }
   );
 
-  it('clears a summary-only thread when the whole room is marked read', async () => {
-    const { mx, room, thread } = await setupRoom();
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
+  it.each([false, true])(
+    'clears a summary-only thread when the whole room is marked read (private: %s)',
+    async (privateReceipt) => {
+      const { mx, room, thread } = await setupRoom();
+      expect(getThreadUnread(room, thread, USER_ID)).toBe(true);
 
-    await markRoomAndThreadsAsRead(mx, ROOM_ID, false);
+      await markRoomAndThreadsAsRead(mx, ROOM_ID, privateReceipt);
 
-    expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
-  });
+      expect(getThreadUnread(room, thread, USER_ID)).toBe(false);
+    }
+  );
 
   it('does not resend a receipt for an already-read summary-only reply', async () => {
     const { mx, requests } = await setupRoom();

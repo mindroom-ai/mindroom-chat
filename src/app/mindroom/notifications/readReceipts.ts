@@ -11,7 +11,7 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { eventBelongsToThread } from '../threads/threadUtils';
-import { getThreadReadUpToTs } from '../threads/roomThreadList';
+import { getThreadReadState } from '../threads/roomThreadList';
 
 const getReceiptType = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
@@ -49,7 +49,7 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
   const summaryReply = replyToEvent
     ? getLatestReceiptTarget([replyToEvent], null, isEligible)
     : undefined;
-  return summaryReply && (!loadedReply || summaryReply.getTs() > loadedReply.getTs())
+  return summaryReply && (!loadedReply || summaryReply.getTs() >= loadedReply.getTs())
     ? summaryReply
     : loadedReply;
 };
@@ -74,8 +74,11 @@ const getLatestThreadReplyTarget = async (
   const thread = room.getThread(threadId);
   if (thread) {
     const latestReply = getThreadReplyTarget(thread);
-    const readUpToTs = getThreadReadUpToTs(thread, userId ?? undefined);
-    return latestReply && (readUpToTs === undefined || latestReply.getTs() > readUpToTs)
+    const readState = getThreadReadState(thread, userId ?? undefined);
+    // Equal timestamps do not prove that distinct events have been acknowledged.
+    return latestReply &&
+      !readState?.readEventIds.has(latestReply.getId()!) &&
+      (readState?.readUpToTs === undefined || latestReply.getTs() >= readState.readUpToTs)
       ? latestReply
       : undefined;
   }
@@ -159,7 +162,7 @@ export async function markRoomAndThreadsAsRead(
   let latestEvent = getLatestReceiptTarget(timeline, null);
   for (const thread of room.getThreads()) {
     const reply = getThreadReplyTarget(thread);
-    if (reply && (!latestEvent || reply.getTs() > latestEvent.getTs())) latestEvent = reply;
+    if (reply && (!latestEvent || reply.getTs() >= latestEvent.getTs())) latestEvent = reply;
   }
   if (!latestEvent) return;
 
