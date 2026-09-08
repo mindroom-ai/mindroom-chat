@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Clear thread unread dots from explicit read actions (2026-09-08)
+
+- Status: implementation, independent review, and live Chromium validation are complete; pull-request automation remains.
+- Reproduced: a thread's bundled latest reply can exist only in `replyToEvent`, outside `thread.events`, so the receipt sender skips a reply that the thread list considers unread.
+- The SDK also rejects receipt targets absent from its timeline lookup, including valid public and private receipts for summary-only replies.
+- Thread receipt selection now includes the confirmed bundled reply, and shared unread resolution recognizes known receipt targets plus the SDK's unthreaded receipt cutoff.
+- Whole-room marking retains one unthreaded receipt and selects its target across the main timeline and known thread tails, including summary-only replies.
+- Explicit room and room-list mark-read menus remain available when room-level unread is zero, because room-level unread intentionally excludes thread activity.
+- Empty room lists keep a tabbable, unavailable menu item.
+- Standalone edit events remain excluded from thread receipt targets; no edit-specific rendering change is included.
+- Regression coverage exercises the real Matrix SDK receipt request and local echo, public and private receipts, summary-only state, repeated marking, main-timeline scope, synchronized receipts, and later reply arrival.
+- Independent review found and verified fixes for a newer server receipt masked by an older retained local receipt, plus raw receipt targets that disagreed with the thread ID.
+- Validation: 45 focused receipt and thread tests, typecheck, production/PWA build, touched-file formatting, and full ESLint pass with the existing 17 lint warnings.
+- Full Vitest passes 3,629 of 3,633 tests; the four failures in the native post-clone and caption-upload suites also fail on the untouched base with the same dependency install.
+- Live Chromium against Docker Matrix passes: two unread thread cards in a room with notifications disabled and no room unread badge, room-menu marking clears both, reload preserves read state, and opening a thread clears a later unread reply.
+- Next step: open a ready pull request and handle automated review.
+
 ### Reveal Resolve on hover in Compact room view (2026-09-04)
 
 - Status: the user-requested no-reserved-space follow-up and fade-position correction are implemented, validated, and independently approved for refreshed PR #228 gates.

@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
@@ -26,13 +27,28 @@ export const getThreadReadUpToTs = (
 ): number | undefined => {
   if (!thread || !userId || typeof thread.getEventReadUpTo !== 'function') return undefined;
 
+  // The SDK validates receipt targets against its timeline, which omits replies
+  // known only through the bundled summary. Resolve those receipt IDs here too.
   const readUpToId = thread.getEventReadUpTo(userId);
-  if (!readUpToId) return undefined;
-
-  const readUpToEvent = findThreadReceiptEvent(thread, readUpToId);
-  // A thread receipt can target a paginated-out event; without its timestamp,
-  // the room-level receipt is the only orderable fallback.
-  return readUpToEvent?.getTs();
+  const readEventIds = new Set([readUpToId]);
+  for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
+    // A retained local echo can mask a newer server receipt outside the timeline.
+    for (const ignoreSynthesized of [false, true]) {
+      const receipt = thread.getReadReceiptForUserId(userId, ignoreSynthesized, receiptType);
+      if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
+    }
+  }
+  let readUpToTs = thread.getLastUnthreadedReceiptFor(userId)?.ts;
+  for (const eventId of readEventIds) {
+    const event = eventId ? findThreadReceiptEvent(thread, eventId) : undefined;
+    // Preserve the SDK's consistency check for raw receipt targets.
+    if (!event || (eventId !== readUpToId && event.threadRootId !== thread.id)) continue;
+    const eventTs = event.getTs();
+    if (readUpToTs === undefined || eventTs > readUpToTs) {
+      readUpToTs = eventTs;
+    }
+  }
+  return readUpToTs;
 };
 
 export const getEffectiveThreadReadUpToTs = (

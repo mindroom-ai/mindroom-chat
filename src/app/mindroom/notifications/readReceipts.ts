@@ -5,11 +5,13 @@ import {
   RelationType,
   Room,
   ReceiptType,
+  type Thread,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { eventBelongsToThread } from '../threads/threadUtils';
+import { getThreadReadUpToTs } from '../threads/roomThreadList';
 
 const getReceiptType = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
@@ -22,7 +24,13 @@ const getLatestReceiptTarget = (
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
     if (event.getId() === readEventId) return undefined;
-    if (!isEligible(event) || event.isSending()) continue;
+    if (
+      !event.getId() ||
+      isLocalEchoEventId(event.getId()) ||
+      !isEligible(event) ||
+      event.isSending()
+    )
+      continue;
     return event;
   }
   return undefined;
@@ -33,19 +41,26 @@ const isThreadReplyReceiptTarget = (event: MatrixEvent, threadId: string): boole
   eventBelongsToThread(event, threadId) &&
   event.getRelation()?.rel_type === RelationType.Thread;
 
-const getLoadedThreadReplyTarget = (
-  room: Room,
-  threadId: string,
-  readEventId: string | null
-): MatrixEvent | undefined => {
+const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
+  const isEligible = (event: MatrixEvent) => isThreadReplyReceiptTarget(event, thread.id);
+  const loadedReply = getLatestReceiptTarget(thread.events, null, isEligible);
+  // Before history is loaded, the SDK keeps the bundled latest reply outside events.
+  const replyToEvent = thread.replyToEvent;
+  const summaryReply = replyToEvent
+    ? getLatestReceiptTarget([replyToEvent], null, isEligible)
+    : undefined;
+  return summaryReply && (!loadedReply || summaryReply.getTs() > loadedReply.getTs())
+    ? summaryReply
+    : loadedReply;
+};
+
+const getLoadedThreadReplyTarget = (room: Room, threadId: string): MatrixEvent | undefined => {
   const thread = room.getThread(threadId);
   if (thread) {
-    return getLatestReceiptTarget(thread.events, readEventId, (event) =>
-      isThreadReplyReceiptTarget(event, threadId)
-    );
+    return getThreadReplyTarget(thread);
   }
 
-  return getLatestReceiptTarget(room.getLiveTimeline().getEvents(), readEventId, (event) =>
+  return getLatestReceiptTarget(room.getLiveTimeline().getEvents(), null, (event) =>
     isThreadReplyReceiptTarget(event, threadId)
   );
 };
@@ -58,8 +73,11 @@ const getLatestThreadReplyTarget = async (
   const userId = mx.getUserId();
   const thread = room.getThread(threadId);
   if (thread) {
-    const readEventId = userId ? thread.getEventReadUpTo(userId) : null;
-    return getLoadedThreadReplyTarget(room, threadId, readEventId);
+    const latestReply = getThreadReplyTarget(thread);
+    const readUpToTs = getThreadReadUpToTs(thread, userId ?? undefined);
+    return latestReply && (readUpToTs === undefined || latestReply.getTs() > readUpToTs)
+      ? latestReply
+      : undefined;
   }
 
   const relationResponse = await mx.fetchRelations(
@@ -79,7 +97,7 @@ const getLatestThreadReplyTarget = async (
 
   const mappedReply = mx.getEventMapper()(latestReply);
   if (mappedReply.isSending() || !isThreadReplyReceiptTarget(mappedReply, threadId)) {
-    return getLoadedThreadReplyTarget(room, threadId, null);
+    return getLoadedThreadReplyTarget(room, threadId);
   }
 
   return mappedReply;
@@ -138,9 +156,11 @@ export async function markRoomAndThreadsAsRead(
   if (!room || !userId) return;
 
   const timeline = room.getLiveTimeline().getEvents();
-  if (timeline.length === 0) return;
-
-  const latestEvent = getLatestReceiptTarget(timeline, null);
+  let latestEvent = getLatestReceiptTarget(timeline, null);
+  for (const thread of room.getThreads()) {
+    const reply = getThreadReplyTarget(thread);
+    if (reply && (!latestEvent || reply.getTs() > latestEvent.getTs())) latestEvent = reply;
+  }
   if (!latestEvent) return;
 
   await mx.sendReadReceipt(latestEvent, getReceiptType(privateReceipt), true);
