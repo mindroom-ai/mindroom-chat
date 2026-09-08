@@ -61,57 +61,39 @@ afterEach(() => {
 });
 
 describe('MindroomMarkRoomsReadMenuItem', () => {
-  it('marks every listed room and its threads as read, then closes the menu', async () => {
-    const onClose = vi.fn();
-    state.hideActivity = true;
-    const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
-    const renderer = create(
-      React.createElement(MindroomMarkRoomsReadMenuItem, {
-        roomIds: ['!a:example.org', '!b:example.org'],
-        onClose,
-      })
-    );
-    const button = renderer.root.findByType('button');
+  it.each([false, true])(
+    'marks every listed room and closes the menu (private: %s)',
+    async (hideActivity) => {
+      const onClose = vi.fn();
+      state.hideActivity = hideActivity;
+      const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
+      const renderer = create(
+        React.createElement(MindroomMarkRoomsReadMenuItem, {
+          roomIds: ['!a:example.org', '!b:example.org'],
+          onClose,
+        })
+      );
+      const button = renderer.root.findByType('button');
 
-    act(() => {
-      button.props.onClick();
-    });
+      act(() => button.props.onClick());
 
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
-      1,
-      state.mx,
-      '!a:example.org',
-      true
-    );
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
-      2,
-      state.mx,
-      '!b:example.org',
-      true
-    );
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('allows marking threads read when no listed room has room-level unread', async () => {
-    const onClose = vi.fn();
-    const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
-    const renderer = create(
-      React.createElement(MindroomMarkRoomsReadMenuItem, {
-        roomIds: ['!a:example.org'],
-        onClose,
-      })
-    );
-    const button = renderer.root.findByType('button');
-
-    act(() => {
-      button.props.onClick();
-    });
-
-    expect(button.props.disabled).toBeUndefined();
-    expect(button.props['aria-disabled']).not.toBe(true);
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(state.mx, '!a:example.org', false);
-    expect(onClose).toHaveBeenCalledOnce();
-  });
+      expect(button.props.disabled).toBeUndefined();
+      expect(button.props['aria-disabled']).not.toBe(true);
+      expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
+        1,
+        state.mx,
+        '!a:example.org',
+        hideActivity
+      );
+      expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
+        2,
+        state.mx,
+        '!b:example.org',
+        hideActivity
+      );
+      expect(onClose).toHaveBeenCalledOnce();
+    }
+  );
 
   it('keeps an empty room list tabbable without sending receipts or closing', async () => {
     const onClose = vi.fn();

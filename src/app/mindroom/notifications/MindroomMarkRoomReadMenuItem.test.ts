@@ -64,34 +64,25 @@ afterEach(() => {
 });
 
 describe('MindroomMarkRoomReadMenuItem', () => {
-  it('marks the room and its threads as read, then closes the menu', async () => {
-    const onClose = vi.fn();
-    state.hideActivity = true;
-    const { MindroomMarkRoomReadMenuItem } = await import('./MindroomMarkRoomReadMenuItem');
-    const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
-    const button = renderer.root.findByType('button');
+  it.each([false, true])(
+    'marks the room and closes the menu (private: %s)',
+    async (hideActivity) => {
+      const onClose = vi.fn();
+      state.hideActivity = hideActivity;
+      const { MindroomMarkRoomReadMenuItem } = await import('./MindroomMarkRoomReadMenuItem');
+      const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
+      const button = renderer.root.findByType('button');
 
-    act(() => {
-      button.props.onClick();
-    });
+      act(() => button.props.onClick());
 
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(state.mx, '!room:example.org', true);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('allows marking threads read when the room has no unread state', async () => {
-    const onClose = vi.fn();
-    const { MindroomMarkRoomReadMenuItem } = await import('./MindroomMarkRoomReadMenuItem');
-    const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
-    const button = renderer.root.findByType('button');
-
-    act(() => {
-      button.props.onClick();
-    });
-
-    expect(button.props.disabled).toBeUndefined();
-    expect(button.props['aria-disabled']).not.toBe(true);
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(state.mx, room.roomId, false);
-    expect(onClose).toHaveBeenCalledOnce();
-  });
+      expect(button.props.disabled).toBeUndefined();
+      expect(button.props['aria-disabled']).not.toBe(true);
+      expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(
+        state.mx,
+        room.roomId,
+        hideActivity
+      );
+      expect(onClose).toHaveBeenCalledOnce();
+    }
+  );
 });

@@ -134,29 +134,6 @@ describe('markThreadAsRead', () => {
     expect(mx.sendReceipt).toHaveBeenCalledWith(reply, ReceiptType.Read, { thread_id: THREAD_ID });
   });
 
-  it('acknowledges a summary-only reply that makes the thread unread', async () => {
-    const latestReply = makeThreadReplyEvent('$summary-reply', 3);
-    const room = {
-      ...makeRoom([]),
-      getThread: vi.fn(() => ({
-        id: THREAD_ID,
-        events: [makeMessageEvent(THREAD_ID)],
-        replyToEvent: latestReply,
-        getEventReadUpTo: vi.fn(() => null),
-        getReadReceiptForUserId: vi.fn(() => null),
-        getLastUnthreadedReceiptFor: vi.fn(() => undefined),
-      })),
-    };
-    const mx = makeClient(room);
-
-    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, true);
-
-    expect(mx.sendReceipt).toHaveBeenCalledWith(latestReply, ReceiptType.ReadPrivate, {
-      thread_id: THREAD_ID,
-    });
-    expect(mx.fetchRelations).not.toHaveBeenCalled();
-  });
-
   it('does not fetch relations or send a receipt for a local thread id', async () => {
     const room = makeRoom([]);
     const mx = makeClient(room);

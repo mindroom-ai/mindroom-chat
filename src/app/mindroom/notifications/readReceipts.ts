@@ -23,13 +23,9 @@ const getLatestReceiptTarget = (
 ): MatrixEvent | undefined => {
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const event = events[i];
-    if (event.getId() === readEventId) return undefined;
-    if (
-      !event.getId() ||
-      isLocalEchoEventId(event.getId()) ||
-      !isEligible(event) ||
-      event.isSending()
-    )
+    const eventId = event.getId();
+    if (eventId === readEventId) return undefined;
+    if (!eventId || isLocalEchoEventId(eventId) || !isEligible(event) || event.isSending())
       continue;
     return event;
   }
@@ -54,17 +50,6 @@ const getThreadReplyTarget = (thread: Thread): MatrixEvent | undefined => {
     : loadedReply;
 };
 
-const getLoadedThreadReplyTarget = (room: Room, threadId: string): MatrixEvent | undefined => {
-  const thread = room.getThread(threadId);
-  if (thread) {
-    return getThreadReplyTarget(thread);
-  }
-
-  return getLatestReceiptTarget(room.getLiveTimeline().getEvents(), null, (event) =>
-    isThreadReplyReceiptTarget(event, threadId)
-  );
-};
-
 const getLatestThreadReplyTarget = async (
   mx: MatrixClient,
   room: Room,
@@ -74,13 +59,14 @@ const getLatestThreadReplyTarget = async (
   const thread = room.getThread(threadId);
   if (thread) {
     const latestReply = getThreadReplyTarget(thread);
+    if (!latestReply) return undefined;
     const readState = getThreadReadState(thread, userId ?? undefined);
+    if (readState?.readEventIds.has(latestReply.getId()!)) return undefined;
     // Equal timestamps do not prove that distinct events have been acknowledged.
-    return latestReply &&
-      !readState?.readEventIds.has(latestReply.getId()!) &&
-      (readState?.readUpToTs === undefined || latestReply.getTs() >= readState.readUpToTs)
-      ? latestReply
-      : undefined;
+    if (readState?.readUpToTs !== undefined && latestReply.getTs() < readState.readUpToTs) {
+      return undefined;
+    }
+    return latestReply;
   }
 
   const relationResponse = await mx.fetchRelations(
@@ -100,7 +86,12 @@ const getLatestThreadReplyTarget = async (
 
   const mappedReply = mx.getEventMapper()(latestReply);
   if (mappedReply.isSending() || !isThreadReplyReceiptTarget(mappedReply, threadId)) {
-    return getLoadedThreadReplyTarget(room, threadId);
+    const loadedThread = room.getThread(threadId);
+    return loadedThread
+      ? getThreadReplyTarget(loadedThread)
+      : getLatestReceiptTarget(room.getLiveTimeline().getEvents(), null, (event) =>
+          isThreadReplyReceiptTarget(event, threadId)
+        );
   }
 
   return mappedReply;
