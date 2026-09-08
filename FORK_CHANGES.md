@@ -4,7 +4,7 @@
 
 ### Clear thread unread dots from explicit read actions (2026-09-08)
 
-- Status: implementation, independent review, and live Chromium validation are complete; pull-request automation remains.
+- Status: implementation, independent review, and live Chromium validation are complete; open for review in PR #230 (`fix/thread-unread-receipts`).
 - Reproduced: a thread's bundled latest reply can exist only in `replyToEvent`, outside `thread.events`, so the receipt sender skips a reply that the thread list considers unread.
 - The SDK also rejects receipt targets absent from its timeline lookup, including valid public and private receipts for summary-only replies.
 - Thread receipt selection now includes the confirmed bundled reply, and shared unread resolution recognizes known receipt targets plus the SDK's unthreaded receipt cutoff.
@@ -17,7 +17,7 @@
 - Validation: 45 focused receipt and thread tests, typecheck, production/PWA build, touched-file formatting, and full ESLint pass with the existing 17 lint warnings.
 - Full Vitest passes 3,629 of 3,633 tests; the four failures in the native post-clone and caption-upload suites also fail on the untouched base with the same dependency install.
 - Live Chromium against Docker Matrix passes: two unread thread cards in a room with notifications disabled and no room unread badge, room-menu marking clears both, reload preserves read state, and opening a thread clears a later unread reply.
-- Next step: open a ready pull request and handle automated review.
+- Next step: pull-request review and integration.
 
 ### Reveal Resolve on hover in Compact room view (2026-09-04)
 
