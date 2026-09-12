@@ -21,6 +21,7 @@
 - One provider queue repairs unrepaired origins learned through discovery, plaintext timeline ingress, or late decryption; cache writes include only evidence linked to the current thread.
 - SDK-attached and serialized replacement bundles become ordinary retained evidence before projection and cache publication; early redactions remain authoritative when their targets arrive later.
 - Unreadable edits remain available for key recovery without replacing or being cached onto a reviewed original; recovered tombstones also redact ciphertext originals.
+- Retained redactions apply before choosing between readable evidence and ciphertext timeline copies, so both instances retain the same tombstone.
 - Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.
 - Discovery and targeted-repair failures have separate state; successful repair cannot hide a failed full history scan.
 - Individual denial moves keyboard focus to its reason field and restores the Deny button when cancelled.
@@ -29,6 +30,7 @@
 - Successful history recovery refetches omitted retained events to learn explicit redactions; tombstones prevent stale SDK originals or bundled edits from restoring removed approval evidence.
 - Automatic receipt deduplication uses exact call identity, while timeline projection preserves raw event indexes and pagination anchors.
 - Regression coverage includes authoritative acknowledgement races, per-call retry, late decryption, immutable request data, alias receipts, deadline expiry, and attachment failures.
+- Literal backend-emitted wire fixtures cover once, denied, expired, timed origin, swept pending, and automatic receipts through the frontend parser, including complete arguments and fixed grant provenance.
 - Live Chromium against disposable local Matrix accounts verifies grouped approval, mixed individual approval and denial, subsequent automatic receipts, revocation, preserved arguments, and phone layouts.
 - Screenshots are attached to the pull request through GitHub CLI and are not repository files.
 - Typecheck, production build, and full ESLint pass with the existing warning baseline; full Vitest retains only the four pre-existing failures documented below.

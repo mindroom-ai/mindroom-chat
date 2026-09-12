@@ -795,3 +795,30 @@ it('applies a standalone redaction to a cached ciphertext approval before keys a
   const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
   expect(saved.find((item) => item.getId() === '$approval')!.isRedacted()).toBe(true);
 });
+
+it('redacts a ciphertext timeline copy when retained approval evidence is already readable', async () => {
+  const readable = event();
+  mocks.backfill.mockResolvedValueOnce({ events: [readable], repairedEventIds: ['$approval'] });
+  await mount();
+  const cached = new MatrixEvent({
+    ...event().event,
+    type: 'm.room.encrypted',
+    content: {
+      ciphertext: 'pending key',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    },
+  });
+  const redaction = new MatrixEvent({
+    event_id: '$redaction',
+    room_id: room.roomId,
+    sender: '@router:example.org',
+    type: 'm.room.redaction',
+    content: {},
+    redacts: '$approval',
+  });
+  await act(async () => current.ingestTimeline([cached, redaction]));
+  expect(readable.isRedacted()).toBe(true);
+  expect(cached.isRedacted()).toBe(true);
+  expect(current.records).toEqual([]);
+  expect(current.error).toBeUndefined();
+});

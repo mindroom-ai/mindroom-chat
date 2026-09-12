@@ -52,6 +52,9 @@ export const hydrateThreadApprovalEvents = (
           retained.scopedEventIds.has(event.getAssociatedId()!))
     )
   );
+  // Tombstones must reach retained evidence before choosing between readable
+  // evidence and a same-ID ciphertext copy currently rendered by the timeline.
+  applyCachedRedactions(room, [...canonical.values()]);
   // Ciphertext stays in retained evidence for keys; generic cache hydration must
   // only see readable replacements, including those bundled in unsigned data.
   canonical.forEach(removeUnreadableReplacement);
@@ -77,7 +80,6 @@ export const hydrateThreadApprovalEvents = (
   });
   // Unreadable relations remain retained for late keys, but cannot replace a
   // reviewed original or be bundled as a decision by cache serialization.
-  applyCachedRedactions(room, [...canonical.values()]);
   const events = [...canonical.values()].filter((event) => !isUndecryptedApprovalCandidate(event));
   hydrateCachedEvents({ room, events });
   return events;
