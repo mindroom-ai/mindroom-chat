@@ -40,7 +40,6 @@ function ApprovalDialog({
       <OverlayCenter>
         <FocusTrap
           focusTrapOptions={{
-            initialFocus: false,
             setReturnFocus: () => returnFocus.current ?? false,
             onDeactivate: onClose,
             onPostDeactivate: () => {
