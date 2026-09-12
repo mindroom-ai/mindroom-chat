@@ -4,6 +4,13 @@ export const MINDROOM_TOOL_APPROVAL_EVENT = 'io.mindroom.tool_approval';
 export const MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT = 'io.mindroom.tool_approval_response';
 
 export type ToolApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
+export type ToolApprovalDuration = 300 | 600 | 1800;
+
+export interface ToolAutoApprovalData {
+  grantId: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
 
 export interface ToolApprovalData {
   approvalId: string;
@@ -12,6 +19,8 @@ export interface ToolApprovalData {
   arguments: Record<string, unknown>;
   agentName: string;
   requesterId: string | null;
+  approverUserId: string | null;
+  approvable: boolean;
   status: ToolApprovalStatus;
   requestedAt: string;
   expiresAt: string;
@@ -19,6 +28,8 @@ export interface ToolApprovalData {
   resolvedAt: string | null;
   resolvedBy: string | null;
   resolutionReason: string | null;
+  autoApproveOptions: ToolApprovalDuration[];
+  autoApproval: ToolAutoApprovalData | null;
 }
 
 type ToolApprovalResponseStatus = 'approved' | 'denied';
@@ -26,6 +37,7 @@ type ToolApprovalResponseStatus = 'approved' | 'denied';
 type ToolApprovalResponseContent = {
   status: ToolApprovalResponseStatus;
   reason?: string | null;
+  auto_approve_seconds?: ToolApprovalDuration;
   'm.relates_to': {
     rel_type: RelationType.Thread;
     event_id: string;
@@ -36,12 +48,19 @@ type ToolApprovalResponseContent = {
   };
 };
 
+type ToolApprovalRevocationContent = {
+  action: 'revoke_auto_approval';
+  grant_id: string;
+  'm.relates_to': ToolApprovalResponseContent['m.relates_to'];
+};
+
 const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
   'pending',
   'approved',
   'denied',
   'expired',
 ]);
+const TOOL_APPROVAL_DURATIONS: readonly ToolApprovalDuration[] = [300, 600, 1800];
 
 const RFC3339_TIMESTAMP =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
@@ -160,6 +179,36 @@ const asArguments = (value: unknown): Record<string, unknown> | undefined => {
   return value;
 };
 
+const asApprovable = (value: unknown): boolean => {
+  if (value === undefined) return true;
+  return typeof value === 'boolean' ? value : false;
+};
+
+const asAutoApproveOptions = (value: unknown): ToolApprovalDuration[] => {
+  if (!Array.isArray(value) || value.length !== TOOL_APPROVAL_DURATIONS.length) return [];
+  if (!TOOL_APPROVAL_DURATIONS.every((duration, index) => value[index] === duration)) return [];
+  return [...TOOL_APPROVAL_DURATIONS];
+};
+
+const asAutoApproval = (value: unknown): ToolAutoApprovalData | null => {
+  if (!isRecord(value)) return null;
+
+  const grantId = asString(value.grant_id);
+  const expiresAt = asString(value.expires_at);
+  const revokedAt = asNullableString(value.revoked_at);
+  if (
+    !grantId ||
+    !expiresAt ||
+    parseToolApprovalExpiryTimestamp(expiresAt) === undefined ||
+    revokedAt === undefined ||
+    (revokedAt !== null && parseToolApprovalExpiryTimestamp(revokedAt) === undefined)
+  ) {
+    return null;
+  }
+
+  return { grantId, expiresAt, revokedAt };
+};
+
 export const parseToolApprovalContent = (
   eventType: string,
   content: Record<string, unknown>
@@ -172,6 +221,8 @@ export const parseToolApprovalContent = (
   const toolArguments = asArguments(pickCandidateValue(content, 'arguments'));
   const agentName = asString(pickCandidateValue(content, 'agent_name'));
   const requesterId = asNullableString(pickCandidateValue(content, 'requester_id'));
+  const approverUserId = asNullableString(pickCandidateValue(content, 'approver_user_id'));
+  const approvable = asApprovable(pickCandidateValue(content, 'approvable'));
   const status = asStatus(pickCandidateValue(content, 'status'));
   const requestedAt =
     asString(pickCandidateValue(content, 'requested_at')) ??
@@ -181,6 +232,10 @@ export const parseToolApprovalContent = (
   const resolvedAt = asNullableString(pickCandidateValue(content, 'resolved_at'));
   const resolvedBy = asNullableString(pickCandidateValue(content, 'resolved_by'));
   const resolutionReason = asNullableString(pickCandidateValue(content, 'resolution_reason'));
+  const autoApproveOptions = asAutoApproveOptions(
+    pickCandidateValue(content, 'auto_approve_options')
+  );
+  const autoApproval = asAutoApproval(pickCandidateValue(content, 'auto_approval'));
 
   if (
     !approvalId ||
@@ -201,6 +256,8 @@ export const parseToolApprovalContent = (
     arguments: toolArguments,
     agentName,
     requesterId: requesterId ?? null,
+    approverUserId: approverUserId ?? null,
+    approvable,
     status,
     requestedAt,
     expiresAt,
@@ -208,6 +265,8 @@ export const parseToolApprovalContent = (
     resolvedAt: resolvedAt ?? null,
     resolvedBy: resolvedBy ?? null,
     resolutionReason: resolutionReason ?? null,
+    autoApproveOptions,
+    autoApproval,
   };
 };
 
@@ -227,22 +286,41 @@ export const getToolApprovalRenderContent = (
   };
 };
 
+const buildToolApprovalRelation = (
+  threadId: string,
+  eventId: string
+): ToolApprovalResponseContent['m.relates_to'] => ({
+  rel_type: RelationType.Thread,
+  event_id: threadId,
+  is_falling_back: true,
+  'm.in_reply_to': {
+    event_id: eventId,
+  },
+});
+
 export const buildToolApprovalResponseContent = (
   status: ToolApprovalResponseStatus,
   threadId: string,
   eventId: string,
-  reason?: string
+  reason?: string,
+  autoApproveSeconds?: ToolApprovalDuration
 ): ToolApprovalResponseContent => ({
   status,
   ...(status === 'denied' ? { reason: reason?.trim() ? reason.trim() : null } : {}),
-  'm.relates_to': {
-    rel_type: RelationType.Thread,
-    event_id: threadId,
-    is_falling_back: true,
-    'm.in_reply_to': {
-      event_id: eventId,
-    },
-  },
+  ...(status === 'approved' && autoApproveSeconds !== undefined
+    ? { auto_approve_seconds: autoApproveSeconds }
+    : {}),
+  'm.relates_to': buildToolApprovalRelation(threadId, eventId),
+});
+
+export const buildToolApprovalRevocationContent = (
+  grantId: string,
+  threadId: string,
+  eventId: string
+): ToolApprovalRevocationContent => ({
+  action: 'revoke_auto_approval',
+  grant_id: grantId,
+  'm.relates_to': buildToolApprovalRelation(threadId, eventId),
 });
 
 export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {

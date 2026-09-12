@@ -131,6 +131,24 @@ export const Actions = style({
   gap: config.space.S200,
 });
 
+export const DurationActions = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
+});
+
+export const Scope = style({
+  padding: config.space.S200,
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Background.Container,
+});
+
+export const GrantPanel = style({
+  padding: config.space.S200,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid currentColor`,
+});
+
 export const DenyForm = style({
   display: 'flex',
   flexDirection: 'column',
