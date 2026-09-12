@@ -326,8 +326,12 @@ const asArgumentSource = (content: Record<string, unknown>): ApprovalArgumentSou
   return typeof url === 'string' && url.startsWith('mxc://') ? { mxcUri: url } : null;
 };
 
-export const getToolApprovalOperationLabel = (approval: ToolApprovalData): string =>
-  approval.scope?.operation.mcpToolName ?? approval.toolName;
+export const getToolApprovalOperationLabel = (approval: ToolApprovalData): string => {
+  const operation = approval.scope?.operation;
+  return operation?.mcpServerId && operation.mcpToolName
+    ? `${operation.mcpServerId} / ${operation.mcpToolName}`
+    : approval.toolName;
+};
 
 export const parseToolApprovalContent = (
   eventType: string,

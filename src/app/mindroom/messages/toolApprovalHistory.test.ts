@@ -1,6 +1,10 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApproval } from './toolApproval';
+import {
+  getToolApprovalOperationLabel,
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  parseToolApproval,
+} from './toolApproval';
 
 const original = {
   approval_id: 'approval',
@@ -27,6 +31,28 @@ const original = {
 };
 
 describe('approval history', () => {
+  it('distinguishes identically named tools and arguments on different MCP servers', () => {
+    const labels = ['personal', 'company'].map((server) => {
+      const event = new MatrixEvent({
+        type: MINDROOM_TOOL_APPROVAL_EVENT,
+        content: {
+          ...original,
+          arguments: { query: 'project' },
+          approval_scope: {
+            ...original.approval_scope,
+            operation: {
+              tool_name: `${server}_call_tool`,
+              mcp_server_id: server,
+              mcp_tool_name: 'search',
+            },
+          },
+        },
+      });
+      return getToolApprovalOperationLabel(parseToolApproval(event)!);
+    });
+    expect(labels).toEqual(['personal / search', 'company / search']);
+  });
+
   it('keeps complete original arguments when an SDK replacement contains only a preview', () => {
     const event = new MatrixEvent({
       type: MINDROOM_TOOL_APPROVAL_EVENT,

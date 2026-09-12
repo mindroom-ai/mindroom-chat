@@ -64,21 +64,23 @@ export const ReceiptBody = style({
   overflowWrap: 'anywhere',
 });
 globalStyle(`${ReceiptBody} p`, { margin: '0 0 6px' });
-export const Stack = style({
-  display: 'flex',
-  flexDirection: 'column',
-  minWidth: 0,
-  padding: '0 6px',
-  borderTop: `1px solid ${color.Surface.ContainerLine}`,
-});
-globalStyle(`${Stack} > ${Receipt}`, {
+export const Stack = style({ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 });
+export const HistoryBody = style([
+  Stack,
+  {
+    gap: 0,
+    padding: '0 6px',
+    borderTop: `1px solid ${color.Surface.ContainerLine}`,
+  },
+]);
+globalStyle(`${HistoryBody} > ${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
   background: 'transparent',
   border: 0,
   borderRadius: 0,
 });
-globalStyle(`${Stack} > ${Receipt}:not(:last-child)`, {
+globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
 export const DialogBody = style({

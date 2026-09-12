@@ -336,7 +336,7 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
         <span>{approved} approved</span>
       </summary>
       {open && (
-        <div className={css.Stack}>
+        <div className={css.HistoryBody}>
           {records.map((record) => (
             <ApprovalReceipt key={record.eventId} approval={record.approval} />
           ))}
