@@ -38,6 +38,7 @@ export type ThreadApprovals = {
   ingest: (events: readonly MatrixEvent[]) => void;
   actions: ReadonlyMap<string, ApprovalActionState>;
   submit: (record: ThreadApprovalRecord, action: ApprovalAction) => Promise<void>;
+  focusConversation?: () => void;
 };
 const Context = createContext<ThreadApprovals | undefined>(undefined);
 export const useThreadApprovals = () => useContext(Context);
@@ -46,16 +47,19 @@ export function ThreadApprovalProvider({
   room,
   threadId,
   children,
+  focusConversation,
 }: {
   room: Room;
   threadId?: string;
   children: React.ReactNode;
+  focusConversation?: () => void;
 }) {
   return threadId ? (
     <ActiveThreadApprovalProvider
       key={`${room.roomId}:${threadId}`}
       room={room}
       threadId={threadId}
+      focusConversation={focusConversation}
     >
       {children}
     </ActiveThreadApprovalProvider>
@@ -68,10 +72,12 @@ function ActiveThreadApprovalProvider({
   room,
   threadId,
   children,
+  focusConversation,
 }: {
   room: Room;
   threadId: string;
   children: React.ReactNode;
+  focusConversation?: () => void;
 }) {
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
@@ -276,8 +282,30 @@ function ActiveThreadApprovalProvider({
     actionController.reconcile();
   }, [actionController, records, now]);
   const value = useMemo(
-    () => ({ records, now, pendingEventIds, loading, error, refresh, ingest, actions, submit }),
-    [records, now, pendingEventIds, loading, error, refresh, ingest, actions, submit]
+    () => ({
+      records,
+      now,
+      pendingEventIds,
+      loading,
+      error,
+      refresh,
+      ingest,
+      actions,
+      submit,
+      focusConversation,
+    }),
+    [
+      records,
+      now,
+      pendingEventIds,
+      loading,
+      error,
+      refresh,
+      ingest,
+      actions,
+      submit,
+      focusConversation,
+    ]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

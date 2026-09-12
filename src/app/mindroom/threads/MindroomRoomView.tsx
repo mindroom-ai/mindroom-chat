@@ -89,6 +89,7 @@ export function RoomView({
   const { roomId } = room;
   const mx = useMatrixClient();
   const editor = useEditor();
+  const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -129,10 +130,10 @@ export function RoomView({
         if (editableActiveElement()) return;
         if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
-          ReactEditor.focus(editor);
+          focusConversation();
         }
       },
-      [editor, pendingThreadRoot]
+      [focusConversation, pendingThreadRoot]
     )
   );
 
@@ -141,6 +142,7 @@ export function RoomView({
       <ThreadApprovalProvider
         room={room}
         threadId={pendingThreadRoot ? undefined : effectiveThreadId}
+        focusConversation={focusConversation}
       >
         <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
         {effectiveThreadId && (

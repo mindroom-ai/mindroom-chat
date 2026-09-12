@@ -34,6 +34,7 @@ function ApprovalDialog({
   children: React.ReactNode;
   returnFocus: React.RefObject<HTMLButtonElement>;
 }) {
+  const context = useThreadApprovals();
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
@@ -42,6 +43,9 @@ function ApprovalDialog({
             initialFocus: false,
             setReturnFocus: () => returnFocus.current ?? false,
             onDeactivate: onClose,
+            onPostDeactivate: () => {
+              if (!returnFocus.current?.isConnected) context?.focusConversation?.();
+            },
             clickOutsideDeactivates: true,
           }}
         >

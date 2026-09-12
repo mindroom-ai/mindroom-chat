@@ -166,6 +166,10 @@ it('continues the pending second upload and caption when the first upload opens 
       rel_type: 'm.thread',
       event_id: '$sent-1',
     });
+    expect(send.mock.calls[2][1]['m.relates_to']).toMatchObject({
+      rel_type: 'm.thread',
+      event_id: '$sent-1',
+    });
   } finally {
     act(() => renderer?.unmount());
     send.mockRestore();
