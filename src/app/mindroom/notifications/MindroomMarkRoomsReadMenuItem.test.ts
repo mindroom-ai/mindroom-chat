@@ -6,7 +6,6 @@ const { state, markRoomAndThreadsAsReadMock } = vi.hoisted(() => ({
   state: {
     hideActivity: false,
     mx: { clientId: 'mx' },
-    unread: { total: 2, highlight: 0, from: new Set<string>() },
   },
   markRoomAndThreadsAsReadMock: vi.fn(),
 }));
@@ -52,71 +51,59 @@ vi.mock('../../state/settings', () => ({
   settingsAtom: {},
 }));
 
-vi.mock('../../state/hooks/unread', () => ({
-  useRoomsUnread: () => state.unread,
-}));
-
-vi.mock('../../state/room/roomToUnread', () => ({
-  roomToUnreadAtom: {},
-}));
-
 vi.mock('./readReceipts', () => ({
   markRoomAndThreadsAsRead: markRoomAndThreadsAsReadMock,
 }));
 
 afterEach(() => {
   state.hideActivity = false;
-  state.unread = { total: 2, highlight: 0, from: new Set<string>() };
   markRoomAndThreadsAsReadMock.mockReset();
 });
 
 describe('MindroomMarkRoomsReadMenuItem', () => {
-  it('marks every listed room and its threads as read, then closes the menu', async () => {
+  it.each([false, true])(
+    'marks every listed room and closes the menu (private: %s)',
+    async (hideActivity) => {
+      const onClose = vi.fn();
+      state.hideActivity = hideActivity;
+      const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
+      const renderer = create(
+        React.createElement(MindroomMarkRoomsReadMenuItem, {
+          roomIds: ['!a:example.org', '!b:example.org'],
+          onClose,
+        })
+      );
+      const button = renderer.root.findByType('button');
+
+      act(() => button.props.onClick());
+
+      expect(button.props.disabled).toBeUndefined();
+      expect(button.props['aria-disabled']).not.toBe(true);
+      expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
+        1,
+        state.mx,
+        '!a:example.org',
+        hideActivity
+      );
+      expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
+        2,
+        state.mx,
+        '!b:example.org',
+        hideActivity
+      );
+      expect(onClose).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('keeps an empty room list tabbable without sending receipts or closing', async () => {
     const onClose = vi.fn();
-    state.hideActivity = true;
     const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
     const renderer = create(
-      React.createElement(MindroomMarkRoomsReadMenuItem, {
-        roomIds: ['!a:example.org', '!b:example.org'],
-        onClose,
-      })
+      React.createElement(MindroomMarkRoomsReadMenuItem, { roomIds: [], onClose })
     );
     const button = renderer.root.findByType('button');
 
-    act(() => {
-      button.props.onClick();
-    });
-
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
-      1,
-      state.mx,
-      '!a:example.org',
-      true
-    );
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenNthCalledWith(
-      2,
-      state.mx,
-      '!b:example.org',
-      true
-    );
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the unavailable action tabbable and does nothing when no listed room is unread', async () => {
-    const onClose = vi.fn();
-    state.unread = undefined;
-    const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
-    const renderer = create(
-      React.createElement(MindroomMarkRoomsReadMenuItem, {
-        roomIds: ['!a:example.org'],
-        onClose,
-      })
-    );
-    const button = renderer.root.findByType('button');
-
-    act(() => {
-      button.props.onClick();
-    });
+    act(() => button.props.onClick());
 
     expect(button.props.disabled).toBeUndefined();
     expect(button.props['aria-disabled']).toBe(true);

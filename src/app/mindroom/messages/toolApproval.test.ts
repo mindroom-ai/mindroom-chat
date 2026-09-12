@@ -102,6 +102,8 @@ describe('parseToolApproval', () => {
       arguments: { query: 'NixOS 26.05 release date' },
       agentName: 'research',
       requesterId: '@alice:example.org',
+      approverUserId: null,
+      approvable: true,
       status: 'pending',
       requestedAt: '2026-04-10T12:00:00Z',
       expiresAt: '2026-04-17T12:00:00Z',
@@ -109,7 +111,93 @@ describe('parseToolApproval', () => {
       resolvedAt: null,
       resolvedBy: null,
       resolutionReason: null,
+      autoApproveOptions: [],
+      autoApproval: null,
     });
+  });
+
+  it('parses only the exact timed approval capability and a valid grant acknowledgement', () => {
+    const baseContent = {
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      tool_call_id: 'approval-1',
+      arguments: { query: 'release date' },
+      agent_name: 'research',
+      requester_id: '@alice:example.org',
+      approver_user_id: '@alice:example.org',
+      status: 'approved',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+      thread_id: '$thread-root',
+      resolved_at: '2026-04-10T12:01:00Z',
+      resolved_by: '@alice:example.org',
+      resolution_reason: null,
+    };
+
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        ...baseContent,
+        auto_approve_options: [300, 600, 1800],
+        auto_approval: {
+          grant_id: 'grant-1',
+          expires_at: '2026-04-10T12:11:00Z',
+          revoked_at: null,
+        },
+      })
+    ).toMatchObject({
+      approverUserId: '@alice:example.org',
+      autoApproveOptions: [300, 600, 1800],
+      autoApproval: {
+        grantId: 'grant-1',
+        expiresAt: '2026-04-10T12:11:00Z',
+        revokedAt: null,
+      },
+    });
+
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        ...baseContent,
+        auto_approve_options: [300, 600],
+        auto_approval: {
+          grant_id: 'grant-1',
+          expires_at: 'not-a-timestamp',
+          revoked_at: null,
+        },
+      })
+    ).toMatchObject({
+      autoApproveOptions: [],
+      autoApproval: null,
+    });
+  });
+
+  it('preserves an explicit non-approvable card while rejecting malformed capability flags', () => {
+    const baseContent = {
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      tool_call_id: 'approval-1',
+      arguments: { query: 'release date' },
+      agent_name: 'research',
+      requester_id: '@alice:example.org',
+      approver_user_id: '@alice:example.org',
+      status: 'pending',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+      thread_id: '$thread-root',
+      auto_approve_options: [300, 600, 1800],
+    };
+
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        ...baseContent,
+        approvable: false,
+      })
+    ).toMatchObject({ approvable: false });
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        ...baseContent,
+        approvable: 'yes',
+      })
+    ).toMatchObject({ approvable: false });
   });
 
   it('prefers m.new_content but falls back to original fields omitted by the edit wrapper', () => {
@@ -141,6 +229,8 @@ describe('parseToolApproval', () => {
       arguments: { query: 'NixOS 26.05 release date' },
       agentName: 'research',
       requesterId: '@alice:example.org',
+      approverUserId: null,
+      approvable: true,
       status: 'approved',
       requestedAt: '2026-04-10T12:00:00Z',
       expiresAt: '2026-04-17T12:00:00Z',
@@ -148,6 +238,8 @@ describe('parseToolApproval', () => {
       resolvedAt: '2026-04-10T12:05:00Z',
       resolvedBy: '@bob:example.org',
       resolutionReason: null,
+      autoApproveOptions: [],
+      autoApproval: null,
     });
   });
 
@@ -188,6 +280,8 @@ describe('parseToolApproval', () => {
       arguments: { query: 'NixOS 26.05 release date' },
       agentName: 'research',
       requesterId: '@alice:example.org',
+      approverUserId: null,
+      approvable: true,
       status: 'denied',
       requestedAt: '2026-04-10T12:00:00Z',
       expiresAt: '2026-04-17T12:00:00Z',
@@ -195,6 +289,52 @@ describe('parseToolApproval', () => {
       resolvedAt: '2026-04-10T12:05:00Z',
       resolvedBy: '@bob:example.org',
       resolutionReason: 'Missing justification',
+      autoApproveOptions: [],
+      autoApproval: null,
+    });
+  });
+
+  it('applies grant metadata from a partial edit while preserving the original capability', () => {
+    const approval = parseToolApprovalContent(
+      MINDROOM_TOOL_APPROVAL_EVENT,
+      getToolApprovalRenderContent(
+        {
+          approval_id: 'approval-1',
+          tool_name: 'web_search',
+          tool_call_id: 'approval-1',
+          arguments: { query: 'release date' },
+          agent_name: 'research',
+          requester_id: '@alice:example.org',
+          approver_user_id: '@alice:example.org',
+          status: 'pending',
+          requested_at: '2026-04-10T12:00:00Z',
+          expires_at: '2026-04-17T12:00:00Z',
+          thread_id: '$thread-root',
+          auto_approve_options: [300, 600, 1800],
+        },
+        {
+          'm.new_content': {
+            status: 'approved',
+            resolved_at: '2026-04-10T12:01:00Z',
+            resolved_by: '@alice:example.org',
+            auto_approval: {
+              grant_id: 'grant-1',
+              expires_at: '2026-04-10T12:11:00Z',
+              revoked_at: null,
+            },
+          },
+        }
+      )
+    );
+
+    expect(approval).toMatchObject({
+      status: 'approved',
+      autoApproveOptions: [300, 600, 1800],
+      autoApproval: {
+        grantId: 'grant-1',
+        expiresAt: '2026-04-10T12:11:00Z',
+        revokedAt: null,
+      },
     });
   });
 
@@ -246,6 +386,8 @@ describe('parseToolApproval', () => {
       },
       agentName: 'research',
       requesterId: '@e2e-test-bot:mindroom.lab.mindroom.chat',
+      approverUserId: null,
+      approvable: true,
       status: 'pending',
       requestedAt: '2026-04-19T02:46:29.899252+00:00',
       expiresAt: '2026-04-26T02:46:29.899252+00:00',
@@ -253,6 +395,8 @@ describe('parseToolApproval', () => {
       resolvedAt: null,
       resolvedBy: null,
       resolutionReason: null,
+      autoApproveOptions: [],
+      autoApproval: null,
     });
   });
 
@@ -262,6 +406,23 @@ describe('parseToolApproval', () => {
     ).toEqual({
       status: 'denied',
       reason: 'Needs human review',
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: '$thread-root',
+        is_falling_back: true,
+        'm.in_reply_to': {
+          event_id: '$approval',
+        },
+      },
+    });
+  });
+
+  it('adds the literal duration only to an approved timed response', () => {
+    expect(
+      buildToolApprovalResponseContent('approved', '$thread-root', '$approval', undefined, 600)
+    ).toEqual({
+      status: 'approved',
+      auto_approve_seconds: 600,
       'm.relates_to': {
         rel_type: 'm.thread',
         event_id: '$thread-root',

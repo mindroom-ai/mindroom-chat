@@ -754,6 +754,48 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('keeps renderer thread scope available when a grant edit omits thread_id', async () => {
+    toolApprovalCardMock.mockReset();
+
+    const renderer = await renderNode({
+      eventType: 'io.mindroom.tool_approval',
+      roomId: '!room:example.org',
+      eventId: '$approval',
+      threadId: '$thread-root',
+      msgType: 'io.mindroom.tool_approval',
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        requester_id: '@alice:example.org',
+        approver_user_id: '@alice:example.org',
+        status: 'approved',
+        requested_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+        resolved_at: '2026-04-10T12:01:00Z',
+        resolved_by: '@alice:example.org',
+        auto_approval: {
+          grant_id: 'grant-1',
+          expires_at: '2026-04-10T12:11:00Z',
+          revoked_at: null,
+        },
+      },
+    });
+
+    expect(toolApprovalCardMock).toHaveBeenCalledWith({
+      approval: expect.objectContaining({
+        threadId: null,
+        autoApproval: expect.objectContaining({ grantId: 'grant-1' }),
+      }),
+      roomId: '!room:example.org',
+      eventId: '$approval',
+      threadId: '$thread-root',
+    });
+
+    renderer.unmount();
+  });
+
   it('renders long-text metadata before falling back to normal file rendering', async () => {
     longTextTextMock.mockReset();
 

@@ -4,10 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactRoomView } from './CompactRoomView';
 
-const { passthrough, renderedCardProps, useCompactThreadCardViewModelsMock } = vi.hoisted(() => ({
+const {
+  passthrough,
+  renderedCardProps,
+  setResolvedMock,
+  useCompactThreadCardViewModelsMock,
+  useToggleThreadResolutionMock,
+} = vi.hoisted(() => ({
   passthrough: 'div',
   renderedCardProps: vi.fn(),
+  setResolvedMock: vi.fn(),
   useCompactThreadCardViewModelsMock: vi.fn(),
+  useToggleThreadResolutionMock: vi.fn(),
 }));
 
 const makeViewModel = (
@@ -70,12 +78,24 @@ vi.mock('folds', async (importOriginal) => {
   return {
     ...actual,
     Box: passthrough,
+    Button: 'button',
     Text: passthrough,
+  };
+});
+
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
   };
 });
 
 vi.mock('./compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: useCompactThreadCardViewModelsMock,
+}));
+
+vi.mock('./useRoomThreadTags', () => ({
+  useToggleThreadResolution: useToggleThreadResolutionMock,
 }));
 
 vi.mock('./CompactThreadCard', () => ({
@@ -103,6 +123,8 @@ vi.mock('./CompactThreadCard', () => ({
 vi.mock('./CompactRoomView.css', () => ({
   View: 'View',
   EmptyState: 'EmptyState',
+  CardAction: 'CardAction',
+  CardShell: 'CardShell',
 }));
 
 const makeRoom = () =>
@@ -114,6 +136,12 @@ describe('CompactRoomView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useCompactThreadCardViewModelsMock.mockReturnValue([]);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: false,
+      error: undefined,
+    });
   });
 
   it('renders an empty state when there are no thread roots', () => {
@@ -159,6 +187,124 @@ describe('CompactRoomView', () => {
       threadRecordMap,
     });
     expect(renderedCardProps).toHaveBeenCalledWith({ viewModel });
+  });
+
+  it('resolves an editable thread without opening its compact card', () => {
+    const onThreadClick = vi.fn();
+    const viewModel = makeViewModel('$thread-resolve');
+    useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
+
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$thread-resolve'],
+        threadRecordMap: new Map([['$thread-resolve', makeThreadRecord('$thread-resolve')]]),
+        onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const resolveButton = renderer.root.findByProps({
+      'data-compact-thread-resolve': 'true',
+    });
+
+    act(() => {
+      resolveButton.props.onClick();
+    });
+
+    expect(resolveButton.findAll((node) => node.children.includes('Resolve'))).toHaveLength(1);
+    expect(setResolvedMock).toHaveBeenCalledWith('$thread-resolve', true);
+    expect(onThreadClick).not.toHaveBeenCalled();
+  });
+
+  it('omits the resolve action for resolved threads and users without permission', () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-read-only')]);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: false,
+      setResolved: setResolvedMock,
+      updating: false,
+      error: undefined,
+    });
+    const readOnly = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$thread-read-only'],
+        threadRecordMap: new Map(),
+        onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+
+    expect(readOnly.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
+
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$thread-resolved', { isResolved: true }),
+    ]);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: false,
+      error: undefined,
+    });
+    const resolved = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$thread-resolved'],
+        threadRecordMap: new Map(),
+        onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+
+    expect(resolved.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
+  });
+
+  it('disables the resolve action while a room tag update is pending', () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-pending')]);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: true,
+      error: undefined,
+    });
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$thread-pending'],
+        threadRecordMap: new Map(),
+        onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+
+    expect(
+      renderer.root.findByProps({ 'data-compact-thread-resolve': 'true' }).props.disabled
+    ).toBe(true);
+  });
+
+  it('reports a failed thread resolution mutation', () => {
+    const error = new Error('state event rejected');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    useToggleThreadResolutionMock.mockReturnValue({
+      canToggle: true,
+      setResolved: setResolvedMock,
+      updating: false,
+      error,
+    });
+
+    act(() => {
+      create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: [],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
+
+    expect(consoleError).toHaveBeenCalledWith('[CompactRoomView] Resolve failed:', error);
+    consoleError.mockRestore();
   });
 
   it('forwards card clicks using the recent-thread summary from the view model', () => {

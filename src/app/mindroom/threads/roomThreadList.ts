@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
@@ -20,19 +21,37 @@ const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | 
   return undefined;
 };
 
-export const getThreadReadUpToTs = (
+export const getThreadReadState = (
   thread: Thread | null | undefined,
   userId: string | undefined
-): number | undefined => {
+): { readEventIds: Set<string>; readUpToTs: number | undefined } | undefined => {
   if (!thread || !userId || typeof thread.getEventReadUpTo !== 'function') return undefined;
 
+  // The SDK validates receipt targets against its timeline, which omits replies
+  // known only through the bundled summary. Resolve those receipt IDs here too.
   const readUpToId = thread.getEventReadUpTo(userId);
-  if (!readUpToId) return undefined;
-
-  const readUpToEvent = findThreadReceiptEvent(thread, readUpToId);
-  // A thread receipt can target a paginated-out event; without its timestamp,
-  // the room-level receipt is the only orderable fallback.
-  return readUpToEvent?.getTs();
+  const readEventIds = new Set([readUpToId]);
+  for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
+    // A retained local echo can mask a newer server receipt outside the timeline.
+    for (const ignoreSynthesized of [false, true]) {
+      const receipt = thread.getReadReceiptForUserId(userId, ignoreSynthesized, receiptType);
+      if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
+    }
+  }
+  let readUpToTs = thread.getLastUnthreadedReceiptFor(userId)?.ts;
+  const validReadEventIds = new Set<string>();
+  for (const eventId of readEventIds) {
+    if (!eventId) continue;
+    const event = findThreadReceiptEvent(thread, eventId);
+    // Preserve the SDK's consistency check for raw receipt targets.
+    if (!event || (eventId !== readUpToId && event.threadRootId !== thread.id)) continue;
+    validReadEventIds.add(eventId);
+    const eventTs = event.getTs();
+    if (readUpToTs === undefined || eventTs > readUpToTs) {
+      readUpToTs = eventTs;
+    }
+  }
+  return { readEventIds: validReadEventIds, readUpToTs };
 };
 
 export const getEffectiveThreadReadUpToTs = (
@@ -40,7 +59,7 @@ export const getEffectiveThreadReadUpToTs = (
   userId: string | undefined,
   roomReadUpToTs: number | null | undefined
 ): number | null | undefined => {
-  const threadReadUpToTs = getThreadReadUpToTs(thread, userId);
+  const threadReadUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
   if (threadReadUpToTs === undefined) return roomReadUpToTs;
   if (typeof roomReadUpToTs !== 'number') return threadReadUpToTs;
   return Math.max(threadReadUpToTs, roomReadUpToTs);

@@ -6,9 +6,11 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import {
   buildToolApprovalResponseContent,
+  buildToolApprovalRevocationContent,
   getEffectiveToolApprovalStatus,
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   parseToolApprovalExpiryTimestamp,
+  ToolApprovalDuration,
   ToolApprovalData,
 } from './toolApproval';
 import * as css from './MindroomToolApprovalCard.css';
@@ -27,6 +29,14 @@ const getTimestamp = (value: string | null): number | undefined => {
 };
 
 const MAX_TIMEOUT_DELAY = 2_147_483_647;
+
+const formatExpiryCountdown = (expiresTs: number, currentTime = Date.now()): string => {
+  const remainingSeconds = Math.max(0, Math.ceil((expiresTs - currentTime) / 1000));
+  if (remainingSeconds < 60) {
+    return `${remainingSeconds} sec`;
+  }
+  return `${Math.ceil(remainingSeconds / 60)} min`;
+};
 
 const getActionErrorMessage = (error: unknown): string =>
   error instanceof Error && error.message
@@ -52,6 +62,26 @@ const getStatusText = (status: ToolApprovalData['status'] | 'submitted'): string
   }
 };
 
+type ApprovalActionKind = 'approve' | 'deny' | 'timed' | 'revoke';
+
+type ApprovalActionResult = {
+  cardKey: string;
+  kind: ApprovalActionKind;
+};
+
+class ApprovalActionError extends Error {
+  readonly cardKey: string;
+
+  readonly kind: ApprovalActionKind;
+
+  constructor(cardKey: string, kind: ApprovalActionKind, error: unknown) {
+    super(getActionErrorMessage(error));
+    this.name = 'ApprovalActionError';
+    this.cardKey = cardKey;
+    this.kind = kind;
+  }
+}
+
 const getStatusIcon = (status: ToolApprovalData['status'] | 'submitted') => {
   switch (status) {
     case 'approved':
@@ -75,10 +105,9 @@ export function MindroomToolApprovalCard({
   threadId,
 }: MindroomToolApprovalCardProps) {
   const mx = useMatrixClient();
-  const [showDenyForm, setShowDenyForm] = useState(false);
+  const [denyCardKey, setDenyCardKey] = useState<string>();
   const [denyReason, setDenyReason] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string>();
-  const submittingRef = useRef(false);
+  const submittingActionRef = useRef<ApprovalActionResult>();
   const denyTriggerRef = useRef<HTMLButtonElement>(null);
   const denyReasonInputRef = useRef<HTMLInputElement>(null);
   const confirmDenyButtonRef = useRef<HTMLButtonElement>(null);
@@ -86,76 +115,126 @@ export function MindroomToolApprovalCard({
   const requestedTs = getTimestamp(approval.requestedAt);
   const expiresTs = parseToolApprovalExpiryTimestamp(approval.expiresAt);
   const resolvedTs = getTimestamp(approval.resolvedAt);
+  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, expiresTs);
+  const grant = effectiveStatus === 'approved' ? approval.autoApproval : null;
+  const grantExpiresTs = grant ? parseToolApprovalExpiryTimestamp(grant.expiresAt) : undefined;
   const requestedRelative = useRelativeTime(requestedTs);
   const resolvedRelative = useRelativeTime(resolvedTs);
   const [expiryCheckVersion, setExpiryCheckVersion] = useState(0);
-  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, expiresTs);
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
+  const canonicalThreadId = threadId ?? approval.threadId;
+  const cardKey = `${approval.approvalId}\u0000${eventId ?? ''}`;
   const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
+  const currentUserId = mx.getUserId();
+  const isOriginalApprover = !!approval.approverUserId && currentUserId === approval.approverUserId;
+  const canActOnApproval = approval.approverUserId === null || isOriginalApprover;
+  const showDenyForm = denyCardKey === cardKey && canActOnApproval;
+  const canUseTimedApproval =
+    canSendResponse &&
+    effectiveStatus === 'pending' &&
+    !!canonicalThreadId &&
+    isOriginalApprover &&
+    approval.approvable &&
+    approval.autoApproveOptions.length > 0;
+  const grantState = grant?.revokedAt
+    ? 'revoked'
+    : grantExpiresTs !== undefined && grantExpiresTs <= Date.now()
+    ? 'expired'
+    : grant
+    ? 'active'
+    : undefined;
+  const canRevokeAutoApproval =
+    canSendResponse && !!canonicalThreadId && isOriginalApprover && grantState === 'active';
+  const grantExpiresCountdown =
+    grantState === 'active' && grantExpiresTs !== undefined
+      ? formatExpiryCountdown(grantExpiresTs)
+      : undefined;
   const argumentsText = useMemo(
     () => JSON.stringify(approval.arguments, null, 2) ?? '{}',
     [approval.arguments]
   );
 
-  const [requestState, submitAction] = useAsyncCallback<void, Error, ['approve' | 'deny', string?]>(
-    async (action, reason) => {
-      if (!roomId || !eventId || !responseThreadId) {
-        throw new Error('Approval responses are unavailable here.');
-      }
+  const [requestState, submitAction] = useAsyncCallback<
+    ApprovalActionResult,
+    ApprovalActionError,
+    [ApprovalActionKind, string, string?, ToolApprovalDuration?, string?]
+  >(async (kind, actionCardKey, reason, duration, grantId) => {
+    if (!roomId || !eventId || !responseThreadId) {
+      throw new Error('Approval responses are unavailable here.');
+    }
 
+    try {
       await mx.sendEvent(
         roomId,
         MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any,
-        buildToolApprovalResponseContent(
-          action === 'approve' ? 'approved' : 'denied',
-          responseThreadId,
-          eventId,
-          reason
-        )
+        kind === 'revoke'
+          ? buildToolApprovalRevocationContent(grantId ?? '', responseThreadId, eventId)
+          : buildToolApprovalResponseContent(
+              kind === 'deny' ? 'denied' : 'approved',
+              responseThreadId,
+              eventId,
+              reason,
+              kind === 'timed' ? duration : undefined
+            )
       );
+    } catch (error) {
+      throw new ApprovalActionError(actionCardKey, kind, error);
     }
-  );
 
-  const submitting = requestState.status === AsyncStatus.Loading;
-  const submitted = requestState.status === AsyncStatus.Success;
+    return { cardKey: actionCardKey, kind };
+  });
+
+  const submittingAction = submittingActionRef.current;
+  const isActionStillRelevant = (action: ApprovalActionResult | undefined) =>
+    action?.cardKey === cardKey &&
+    (action.kind === 'revoke' ? grantState === 'active' : effectiveStatus === 'pending');
+  const submittingActionStillRelevant = isActionStillRelevant(submittingAction);
+  const submitting = requestState.status === AsyncStatus.Loading && submittingActionStillRelevant;
+  const submitted =
+    requestState.status === AsyncStatus.Success && isActionStillRelevant(requestState.data);
+  const errorMessage =
+    requestState.status === AsyncStatus.Error && isActionStillRelevant(requestState.error)
+      ? requestState.error.message
+      : undefined;
   const disableActions =
-    effectiveStatus !== 'pending' || submitting || submitted || !canSendResponse;
+    effectiveStatus !== 'pending' ||
+    submitting ||
+    submitted ||
+    !canSendResponse ||
+    !canActOnApproval;
   const displayStatus = effectiveStatus === 'pending' && submitted ? 'submitted' : effectiveStatus;
 
   useEffect(() => {
-    if (approval.status !== 'pending' || expiresTs === undefined) return undefined;
+    const pendingDeadline = approval.status === 'pending' ? expiresTs : undefined;
+    const grantDeadline = grantState === 'active' ? grantExpiresTs : undefined;
+    const nextDeadline = [pendingDeadline, grantDeadline]
+      .filter((deadline): deadline is number => deadline !== undefined)
+      .sort((left, right) => left - right)[0];
+    if (nextDeadline === undefined) return undefined;
 
-    const timeUntilExpiry = expiresTs - Date.now();
+    const timeUntilExpiry = nextDeadline - Date.now();
     if (timeUntilExpiry <= 0) return undefined;
 
     const timeoutId = setTimeout(
       () => setExpiryCheckVersion((version) => version + 1),
-      Math.min(timeUntilExpiry, MAX_TIMEOUT_DELAY)
+      Math.min(timeUntilExpiry, grantDeadline === undefined ? MAX_TIMEOUT_DELAY : 1000)
     );
 
     return () => clearTimeout(timeoutId);
-  }, [approval.status, expiresTs, expiryCheckVersion]);
-
-  useEffect(() => {
-    if (requestState.status === AsyncStatus.Error) {
-      setErrorMessage(getActionErrorMessage(requestState.error));
-      return;
-    }
-
-    setErrorMessage(undefined);
-  }, [requestState]);
+  }, [approval.status, expiresTs, expiryCheckVersion, grantExpiresTs, grantState]);
 
   useEffect(() => {
     if (requestState.status !== AsyncStatus.Loading) {
-      submittingRef.current = false;
+      submittingActionRef.current = undefined;
     }
   }, [requestState.status]);
 
   useEffect(() => {
-    if (isResolvedApprovalStatus(effectiveStatus)) {
-      setErrorMessage(undefined);
-    }
-  }, [effectiveStatus]);
+    if (denyCardKey !== cardKey || canActOnApproval) return;
+
+    setDenyCardKey(undefined);
+    setDenyReason('');
+  }, [canActOnApproval, cardKey, denyCardKey]);
 
   useEffect(() => {
     if (!showDenyForm || effectiveStatus !== 'pending' || submitted) return;
@@ -181,25 +260,48 @@ export function MindroomToolApprovalCard({
     [css.CardExpired]: effectiveStatus === 'expired',
   });
 
-  const submitApprovalAction = (action: 'approve' | 'deny', reason?: string) => {
+  const submitApprovalAction = (
+    kind: ApprovalActionKind,
+    reason?: string,
+    duration?: ToolApprovalDuration,
+    grantId?: string
+  ) => {
+    const isRevoke = kind === 'revoke';
+    const grantIsCurrentlyActive =
+      !!grant && !grant.revokedAt && grantExpiresTs !== undefined && grantExpiresTs > Date.now();
     if (
-      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
+      !canActOnApproval ||
+      (isRevoke
+        ? !canRevokeAutoApproval || !grantIsCurrentlyActive
+        : getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
+          (kind !== 'deny' && !approval.approvable)) ||
       submitted ||
-      submittingRef.current
+      isActionStillRelevant(submittingActionRef.current)
     ) {
       return;
     }
 
-    submittingRef.current = true;
-    void submitAction(action, reason).catch(() => undefined);
+    submittingActionRef.current = { cardKey, kind };
+    void submitAction(kind, cardKey, reason, duration, grantId).catch(() => undefined);
   };
 
   const handleApprove = () => {
     submitApprovalAction('approve');
   };
 
+  const handleTimedApprove = (duration: ToolApprovalDuration) => {
+    if (!canUseTimedApproval || !approval.autoApproveOptions.includes(duration)) return;
+    submitApprovalAction('timed', undefined, duration);
+  };
+
+  const handleRevoke = () => {
+    if (!grant) return;
+    submitApprovalAction('revoke', undefined, undefined, grant.grantId);
+  };
+
   const handleStartDeny = () => {
     if (
+      !canActOnApproval ||
       getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
       disableActions
     ) {
@@ -207,13 +309,14 @@ export function MindroomToolApprovalCard({
     }
 
     restoreDenyTriggerFocusRef.current = false;
-    setShowDenyForm(true);
+    setDenyReason('');
+    setDenyCardKey(cardKey);
   };
 
   const handleCancelDeny = () => {
     if (disableActions) return;
     restoreDenyTriggerFocusRef.current = true;
-    setShowDenyForm(false);
+    setDenyCardKey(undefined);
     setDenyReason('');
   };
 
@@ -231,7 +334,7 @@ export function MindroomToolApprovalCard({
       ? 'Approval expired'
       : undefined;
 
-  if (isResolvedApprovalStatus(effectiveStatus)) {
+  if (isResolvedApprovalStatus(effectiveStatus) && !grant) {
     const resolvedClassName = classNames(css.ResolvedInline, {
       [css.ResolvedInlineApproved]: effectiveStatus === 'approved',
       [css.ResolvedInlineDenied]: effectiveStatus === 'denied',
@@ -285,6 +388,8 @@ export function MindroomToolApprovalCard({
 
       <Box className={css.Meta}>
         <Text size="T200">{approval.agentName}</Text>
+        {approval.requesterId && <Text className={css.MetaDot}>•</Text>}
+        {approval.requesterId && <Text size="T200">Requested by {approval.requesterId}</Text>}
         {requestedRelative && <Text className={css.MetaDot}>•</Text>}
         {requestedRelative && <Text size="T200">{requestedRelative}</Text>}
         {!requestedRelative && approval.requestedAt && (
@@ -294,6 +399,39 @@ export function MindroomToolApprovalCard({
           </>
         )}
       </Box>
+
+      {(canUseTimedApproval || grant) && (
+        <Box className={css.Scope} direction="Column" gap="100">
+          <Text size="T200">Auto-approval applies to this thread, requester, agent, and tool.</Text>
+          <Text size="T200">Arguments may differ between calls.</Text>
+        </Box>
+      )}
+
+      {grant && (
+        <Box className={css.GrantPanel} direction="Column" gap="100">
+          <Text size="B300">
+            {grantState === 'revoked'
+              ? 'Auto-approval stopped'
+              : grantState === 'expired'
+              ? 'Auto-approval expired'
+              : 'Auto-approval active'}
+          </Text>
+          {grantExpiresCountdown && <Text size="T200">Expires in {grantExpiresCountdown}</Text>}
+          <Text size="T200">
+            Fixed expiry{' '}
+            <time dateTime={grant.expiresAt}>
+              {grantExpiresTs === undefined
+                ? grant.expiresAt
+                : new Date(grantExpiresTs).toLocaleString()}
+            </time>
+          </Text>
+          {grant.revokedAt && <Text size="T200">Stopped {grant.revokedAt}</Text>}
+        </Box>
+      )}
+
+      {effectiveStatus === 'pending' && !approval.approvable && (
+        <Text size="T200">This request cannot be approved here.</Text>
+      )}
 
       <details className={css.Details}>
         <summary className={css.DetailsSummary}>
@@ -309,38 +447,82 @@ export function MindroomToolApprovalCard({
         <Text size="T200">Submitted. Waiting for room update.</Text>
       )}
 
-      {effectiveStatus === 'pending' && !showDenyForm && !submitted && (
-        <Box className={css.Actions}>
-          <Button
-            size="300"
-            variant="Success"
-            fill="Solid"
-            radii="300"
-            onClick={handleApprove}
-            disabled={disableActions}
-            before={
-              submitting ? (
-                <Spinner size="100" variant="Success" fill="Solid" />
-              ) : (
-                <Icon src={Icons.Check} />
-              )
-            }
-          >
-            <Text size="B300">Approve</Text>
-          </Button>
-          <Button
-            size="300"
-            variant="Critical"
-            outlined
-            radii="300"
-            ref={denyTriggerRef}
-            onClick={handleStartDeny}
-            disabled={disableActions}
-            before={<Icon src={Icons.Cross} />}
-          >
-            <Text size="B300">Deny</Text>
-          </Button>
+      {effectiveStatus === 'pending' && canActOnApproval && !showDenyForm && !submitted && (
+        <Box direction="Column" gap="200">
+          <Box className={css.Actions}>
+            {approval.approvable && (
+              <Button
+                size="300"
+                variant="Success"
+                fill="Solid"
+                radii="300"
+                onClick={handleApprove}
+                disabled={disableActions}
+                before={
+                  submitting ? (
+                    <Spinner size="100" variant="Success" fill="Solid" />
+                  ) : (
+                    <Icon src={Icons.Check} />
+                  )
+                }
+              >
+                <Text size="B300">{canUseTimedApproval ? 'Approve once' : 'Approve'}</Text>
+              </Button>
+            )}
+            <Button
+              size="300"
+              variant="Critical"
+              outlined
+              radii="300"
+              ref={denyTriggerRef}
+              onClick={handleStartDeny}
+              disabled={disableActions}
+              before={<Icon src={Icons.Cross} />}
+            >
+              <Text size="B300">Deny</Text>
+            </Button>
+          </Box>
+          {canUseTimedApproval && (
+            <Box className={css.DurationActions} role="group" aria-label="Auto-approval duration">
+              {approval.autoApproveOptions.map((duration) => (
+                <Button
+                  key={duration}
+                  type="button"
+                  size="300"
+                  outlined
+                  radii="300"
+                  onClick={() => handleTimedApprove(duration)}
+                  disabled={disableActions}
+                >
+                  <Text size="B300">Auto-approve {duration / 60} min</Text>
+                </Button>
+              ))}
+            </Box>
+          )}
         </Box>
+      )}
+
+      {grant && submitted && <Text size="T200">Submitted. Waiting for room update.</Text>}
+
+      {canRevokeAutoApproval && !submitted && (
+        <Button
+          type="button"
+          size="300"
+          variant="Critical"
+          outlined
+          radii="300"
+          onClick={handleRevoke}
+          disabled={submitting}
+          before={
+            submitting ? (
+              <Spinner size="100" variant="Critical" fill="Solid" />
+            ) : (
+              <Icon src={Icons.Cross} />
+            )
+          }
+        >
+          <Text size="B300">Stop auto-approval</Text>
+        </Button>
       )}
 
       {effectiveStatus === 'pending' && showDenyForm && !submitted && (

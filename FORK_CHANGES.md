@@ -4,7 +4,7 @@
 
 ### Keep message tables readable with horizontal scrolling (2026-09-12)
 
-- Status: implemented, locally validated, and independently reviewed with no findings.
+- Status: implemented, locally validated, and independently reviewed with no findings; open in ready PR #233.
 - Rendered tables share a fork-owned scroll wrapper through the custom HTML renderer, covering HTML tables and Markdown tables supplied as formatted message HTML.
 - Tables keep their natural column widths, while long cell content wraps within a 24 rem limit instead of compressing every column to fit the message.
 - Faint theme-aware cell borders form an internal grid; collapsed hidden table borders suppress the perimeter, including spanning-cell edges.
@@ -12,8 +12,67 @@
 - The hint follows both container resizing and table resizing during message edits or media loading; fitting tables omit the hint and extra tab stop.
 - Browser regression evidence: the original phone-width table reduced its first text column to 67 px; the corrected table preserves readable columns without increasing document width.
 - Validation: three Chromium layout tests and 54 focused unit tests pass, including resize and content replacements, keyboard scrolling, and both light and dark grids; typecheck, production/PWA build, formatting, and lint with zero errors and the existing 17 warnings pass.
-- Full Vitest matches the untouched baseline: 3,604 passing tests and seven existing failures across the platform-script, SDK thread-reset, and upload-session suites.
+- Full Vitest matches the untouched baseline: 3,651 passing tests and seven existing failures across the platform-script, SDK thread-reset, and upload-session suites.
 - Independent review also verified contained scrolling in Bubble, Modern, and Compact message layouts, table accessibility, and nested tables.
+
+### Add timed thread tool approval controls (2026-09-12)
+
+- Status: implementation, automated validation, and live interaction checks are complete; ready for independent review.
+- Eligible pending cards let the named approver choose a one-call approval or a fixed 5, 10, or 30 minute window.
+- The card explains that a window is scoped to the current thread, requester, agent, and exact tool operation while allowing arguments to differ.
+- Successful Matrix sends show Submitted until a backend card edit confirms approval or revocation.
+- Originating grant cards remain expanded, show their fixed expiry and active, expired, or stopped state, and let only the named approver request revocation.
+- Parser validation rejects malformed capability and grant metadata while preserving ordinary approve and deny behavior on existing cards.
+- Card-local request and deny state is keyed by approval identity so reused renderers cannot leak state between cards.
+- Review found ordinary approve and deny controls remained available to users other than a named approver; one shared gate now hides those controls, blocks their submission, and closes an open deny form after an approver edit.
+- Action relevance is shared across loading, success, and error states; approval and revocation responses share one thread/reply relation builder.
+- Regression coverage includes literal timed and revocation payloads, approver gating, non-approvable cards, expiry boundaries, retries, remote edits, and same-mounted-card approval-to-revocation transitions.
+- Focused parser, card, and shared-renderer tests pass all 81 tests, and typecheck, touched-file ESLint, Prettier, whitespace checks, and the production build pass after the architecture cleanup.
+- The full Vitest run passes 3,654 of 3,658 tests; the same four failures documented on the untouched base remain in two unchanged files.
+- Live browser checks verify keyboard timed approval, exact wire payloads, continued calls without new cards, thread isolation across restart, correct countdown and absolute expiry, same-mounted-card revocation, and fresh pending cards after revocation.
+- Next step: independent review and integration.
+
+### Clear thread unread dots from explicit read actions (2026-09-08)
+
+- Status: implementation, independent review, and live Chromium validation are complete; open for review in PR #230 (`fix/thread-unread-receipts`).
+- Reproduced: a thread's bundled latest reply can exist only in `replyToEvent`, outside `thread.events`, so the receipt sender skips a reply that the thread list considers unread.
+- The SDK also rejects receipt targets absent from its timeline lookup, including valid public and private receipts for summary-only replies.
+- Thread receipt selection now includes the confirmed bundled reply, and shared unread resolution recognizes known receipt targets plus the SDK's unthreaded receipt cutoff.
+- Whole-room marking retains one unthreaded receipt and selects its target across the main timeline and known thread tails, including summary-only replies.
+- Explicit room and room-list mark-read menus remain available when room-level unread is zero, because room-level unread intentionally excludes thread activity.
+- Empty room lists keep a tabbable, unavailable menu item.
+- Standalone edit events remain excluded from thread receipt targets; no edit-specific rendering change is included.
+- Regression coverage exercises the real Matrix SDK receipt request and local echo, public and private receipts, summary-only state, repeated marking, main-timeline scope, synchronized receipts, and later reply arrival.
+- Independent review found and verified fixes for a newer server receipt masked by an older retained local receipt, plus raw receipt targets that disagreed with the thread ID.
+- Automated review exposed timestamp ties: known thread tails now win ties over earlier candidates, and receipt suppression requires the same event ID or a strictly newer read cutoff.
+- Real SDK coverage also verifies private whole-room receipts clear summary-only unread state.
+- Self-review removed a single-use fallback wrapper, clarified receipt suppression with early returns, and consolidated overlapping tests while retaining the real SDK regressions.
+- Validation: 53 focused receipt, menu, and thread tests, typecheck, production/PWA build, touched-file formatting, and full ESLint pass with the existing 17 lint warnings.
+- Full Vitest passes 3,632 of 3,636 tests; the four failures in the native post-clone and caption-upload suites also fail on the untouched base with the same dependency install.
+- Live Chromium against Docker Matrix passes: two unread thread cards in a room with notifications disabled and no room unread badge, room-menu marking clears both, reload preserves read state, and opening a thread clears a later unread reply.
+- Next step: pull-request review and integration.
+
+### Reveal Resolve on hover in Compact room view (2026-09-04)
+
+- Status: the user-requested no-reserved-space follow-up and fade-position correction are implemented, validated, and independently approved for refreshed PR #228 gates.
+- Unresolved Compact cards expose the existing localized Resolve action when the card is hovered or contains keyboard focus.
+- The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
+- Cards retain their normal symmetric padding while the action overlays the inline edge with a direction-aware background fade, so hidden actions consume no layout space and revealing one does not reflow text.
+- The first fade offset serialized a negated CSS variable as invalid CSS, which let Chromium place the generated fade over the button label; the offset now uses `calc()` and the live test pins the fade immediately outside the button.
+- The action is omitted for resolved cards and users without permission, and it is disabled while a room-level tag mutation is pending.
+- Resolution reuses the existing optimistic thread-tag mutation path and its edit-permission check.
+- Failed mutations now emit the same diagnostic signal used by the open-thread resolution surface after the optimistic state rolls back.
+- Focused TDD coverage first failed for the missing action, room wiring, permission and pending-state branches, and failure diagnostic.
+- The overlay follow-up's live test failed against the reserved layout with 104 px inline-end padding versus 12 px inline-start padding before the reservation was removed.
+- The fade-position regression failed with a computed 24.3125 px inset inside the button instead of the required -20 px offset, then passed after the negative CSS variable was expressed with `calc()`.
+- A live Chromium regression failed with the reveal rule removed, then passed with it restored; it verifies pointer hover, keyboard focus, navigation isolation, server-confirmed Matrix resolution, and settled resolved-state UI.
+- The live regression now renders two threads and proves one hovered action is visible while the idle action remains hidden, card padding stays symmetric, and measured title geometry does not move across hover.
+- The live narrow RTL check proves the overlay remains at the physical left-side logical end without widening the card's resting content inset.
+- The shared collaborative browser is unavailable in this environment, but the repository's Docker Matrix Playwright harness passes the focused live regression.
+- Validation: all 50 focused tests, typecheck, production build, touched-file ESLint and Prettier, `git diff --check`, and the focused live Chromium regression pass.
+- The full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
+- Review: fresh independent review found no Critical, Important, or Minor issues after the fade correction and its rendered-position assertion were added.
+- Next step: complete refreshed PR gates, then hand off for human merge.
 
 ### Keep composer paste handler synchronous (2026-09-02)
 
