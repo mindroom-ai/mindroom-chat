@@ -628,3 +628,35 @@ it('repairs a plaintext origin learned after discovery omitted it', async () => 
   expect(mocks.backfill.mock.calls[1][4]).toEqual([cached]);
   expect(cached.getContent().status).toBe('approved');
 });
+
+it.each(['redaction', 'tombstone'] as const)(
+  'keeps an early %s authoritative when a stale cached approval arrives later',
+  async (kind) => {
+    const cached = event();
+    const redaction = new MatrixEvent({
+      event_id: '$redaction',
+      room_id: room.roomId,
+      sender: '@router:example.org',
+      type: 'm.room.redaction',
+      content: {},
+      redacts: '$approval',
+    });
+    const evidence =
+      kind === 'redaction'
+        ? redaction
+        : new MatrixEvent({
+            ...event().event,
+            content: {},
+            unsigned: { redacted_because: redaction.event },
+          });
+    room.getLiveTimeline().getEvents().push(evidence);
+    await mount();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    await act(async () => current.ingestTimeline([cached]));
+    expect(current.pendingEventIds.size).toBe(0);
+    expect(current.records).toEqual([]);
+    expect(cached.isRedacted()).toBe(true);
+    const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
+    expect(saved.find((item) => item.getId() === '$approval')!.isRedacted()).toBe(true);
+  }
+);

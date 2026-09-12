@@ -86,14 +86,15 @@ function ActiveThreadApprovalProvider({
   const ignoredUsers = useIgnoredUsers();
   const { scheduler, persist } = useMindroomSyncEngine();
   const timelineEvents = useRef<readonly MatrixEvent[]>([]);
-  const [events, setEvents] = useState(() =>
+  const [history, setHistory] = useState(() =>
     mergeThreadApprovalEvents(
-      new Map(),
+      { events: new Map(), scopedEventIds: new Set() },
       [...room.getLiveTimeline().getEvents(), ...(room.getThread(threadId)?.events ?? [])],
       room.roomId,
       threadId
     )
   );
+  const events = history.events;
   const [loading, setLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState<string>();
   const [repairError, setRepairError] = useState<string>();
@@ -146,7 +147,7 @@ function ActiveThreadApprovalProvider({
   const refresh = useCallback(() => setRequest(({ revision }) => ({ revision: revision + 1 })), []);
   const ingest = useCallback(
     (incoming: readonly MatrixEvent[], fromBackfill = false) => {
-      setEvents((old) =>
+      setHistory((old) =>
         mergeThreadApprovalEvents(old, incoming, room.roomId, threadId, fromBackfill)
       );
     },
@@ -160,9 +161,9 @@ function ActiveThreadApprovalProvider({
     [ingest]
   );
   useEffect(() => {
-    const repaired = hydrateThreadApprovalEvents(room, events, timelineEvents.current);
+    const repaired = hydrateThreadApprovalEvents(room, history, timelineEvents.current);
     if (repaired.length > 0) persist.persistThreadEventCache(room, threadId, repaired);
-  }, [room, threadId, events, persist]);
+  }, [room, threadId, history, persist]);
   useLiveEventArrive(
     room,
     useCallback((event) => ingest([event]), [ingest])

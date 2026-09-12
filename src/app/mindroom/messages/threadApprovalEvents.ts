@@ -3,13 +3,27 @@ import { hydrateCachedEvents } from '../threads/eventCacheEditUtils';
 import { mergeSameIdEventRevision } from '../threads/eventRevision';
 import { isUndecryptedApprovalCandidate, MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';
 
+export type ThreadApprovalEvents = {
+  events: ReadonlyMap<string, MatrixEvent>;
+  // Redactions can precede their targets; only known thread identities may be cached.
+  scopedEventIds: ReadonlySet<string>;
+};
+
 /** Apply retained evidence to the exact objects currently rendered by cache-first timelines. */
 export const hydrateThreadApprovalEvents = (
   room: Room,
-  retained: ReadonlyMap<string, MatrixEvent>,
+  retained: ThreadApprovalEvents,
   rendered: readonly MatrixEvent[]
 ): MatrixEvent[] => {
-  const canonical = new Map(retained);
+  const canonical = new Map(
+    [...retained.events].filter(
+      ([id, event]) =>
+        retained.scopedEventIds.has(id) ||
+        (event.isRedaction() &&
+          !!event.getAssociatedId() &&
+          retained.scopedEventIds.has(event.getAssociatedId()!))
+    )
+  );
   rendered.forEach((target) => {
     const id = target.getId();
     const evidence = id ? canonical.get(id) : undefined;
@@ -37,15 +51,15 @@ export const hydrateThreadApprovalEvents = (
 };
 
 export const mergeThreadApprovalEvents = (
-  old: ReadonlyMap<string, MatrixEvent>,
+  old: ThreadApprovalEvents,
   incoming: readonly MatrixEvent[],
   roomId: string,
   threadId: string,
   fromBackfill = false
-): ReadonlyMap<string, MatrixEvent> => {
+): ThreadApprovalEvents => {
   let changed = false;
-  const next = new Map(old);
-  const scopedIds = new Set(old.keys());
+  const next = new Map(old.events);
+  const scopedIds = new Set(old.scopedEventIds);
   const scopedOriginal = (event: MatrixEvent) =>
     event.getRelation()?.rel_type !== 'm.replace' &&
     ((event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
@@ -80,12 +94,12 @@ export const mergeThreadApprovalEvents = (
     const scopedEdit =
       relation?.rel_type === 'm.replace' && !!relation.event_id && scopedIds.has(relation.event_id);
     const relevant =
-      (event.isRedacted() && scopedIds.has(id)) ||
+      event.isRedacted() ||
       scopedOriginal(event) ||
       (scopedEdit &&
         (event.getType() === MINDROOM_TOOL_APPROVAL_EVENT ||
           isUndecryptedApprovalCandidate(event))) ||
-      (event.isRedaction() && !!event.getAssociatedId() && scopedIds.has(event.getAssociatedId()!));
+      event.isRedaction();
     if (!relevant) {
       changed = next.delete(id) || changed;
       return;
@@ -105,5 +119,7 @@ export const mergeThreadApprovalEvents = (
       next.set(replacementId, replacement);
     }
   });
-  return changed ? next : old;
+  return changed || scopedIds.size !== old.scopedEventIds.size
+    ? { events: next, scopedEventIds: scopedIds }
+    : old;
 };
