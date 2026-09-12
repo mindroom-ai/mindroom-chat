@@ -226,6 +226,35 @@ it('keeps a submitted request in review past local expiry until Matrix acknowled
   expect(current.pendingEventIds.size).toBe(0);
 });
 
+it('keeps failed discovery visible after a successful targeted repair until full retry succeeds', async () => {
+  const encrypted = new MatrixEvent({
+    ...event().event,
+    type: 'm.room.encrypted',
+    content: { ciphertext: 'late keys' },
+  });
+  const discoveryError = 'Some approval history could not be loaded.';
+  mocks.backfill.mockResolvedValueOnce({
+    events: [encrypted],
+    repairedEventIds: [],
+    error: discoveryError,
+  });
+  mocks.backfill.mockResolvedValueOnce({ events: [], repairedEventIds: ['$approval'] });
+  await mount();
+  expect(current.error).toBe(discoveryError);
+  await act(async () => {
+    await encrypted.attemptDecryption({
+      decryptEvent: async () => ({ clearEvent: { type: 'io.mindroom.tool_approval', content } }),
+    } as CryptoBackend);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
+  expect(mocks.backfill.mock.calls[1][4]).toEqual([encrypted]);
+  expect(current.error).toBe(discoveryError);
+  mocks.backfill.mockResolvedValueOnce({ events: [encrypted], repairedEventIds: ['$approval'] });
+  await act(async () => current.refresh());
+  expect(mocks.backfill.mock.calls[2][4]).toBeUndefined();
+  expect(current.error).toBeUndefined();
+});
+
 it('does not retain ciphertext from another thread and releases decoded non-approval events', async () => {
   const unrelated = new MatrixEvent({
     ...event('$unrelated').event,

@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { createRoot, Root } from 'react-dom/client';
+import { act as domAct } from 'react-dom/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { parseToolApprovalContent } from './toolApproval';
@@ -23,7 +26,17 @@ vi.mock('./ThreadApprovals.css', () => ({
   Actions: 'Actions',
   Stack: 'Stack',
 }));
-vi.mock('folds', () => ({ Button: 'button', Input: 'input', Text: 'span' }));
+vi.mock('folds', () => ({
+  Button: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+    ({ type, onClick, disabled, children }: React.ButtonHTMLAttributes<HTMLButtonElement>, ref) => (
+      <button ref={ref} type={type ?? 'button'} onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
+    )
+  ),
+  Input: 'input',
+  Text: 'span',
+}));
 const record = (id: string): ThreadApprovalRecord => ({
   eventId: id,
   sender: '@router:example.org',
@@ -40,10 +53,31 @@ const record = (id: string): ThreadApprovalRecord => ({
   })!,
 });
 let renderer: ReactTestRenderer;
+let domRoot: Root | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
+  domAct(() => domRoot?.unmount());
+  domRoot = undefined;
+  document.body.replaceChildren();
+  vi.unstubAllGlobals();
   mocks.submit.mockReset();
   mocks.actions.clear();
+});
+
+it('moves focus into the denial reason and restores the Deny trigger on cancel', () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = document.createElement('div');
+  document.body.append(container);
+  domRoot = createRoot(container);
+  domAct(() => domRoot!.render(<ApprovalReviewCall record={record('$one')} index={0} />));
+  const button = (label: string) =>
+    [...container.querySelectorAll('button')].find((item) => item.textContent === label)!;
+  button('Deny').focus();
+  domAct(() => button('Deny').click());
+  expect(document.activeElement).toBe(container.querySelector('input'));
+  button('Cancel').focus();
+  domAct(() => button('Cancel').click());
+  expect(document.activeElement).toBe(button('Deny'));
 });
 it('lets the same review approve one call and deny another with its own reason', () => {
   const one = record('$one');

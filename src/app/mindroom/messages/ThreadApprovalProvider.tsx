@@ -77,7 +77,8 @@ function ActiveThreadApprovalProvider({
   const { scheduler } = useMindroomSyncEngine();
   const [events, setEvents] = useState<ReadonlyMap<string, MatrixEvent>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string>();
+  const [discoveryError, setDiscoveryError] = useState<string>();
+  const [repairError, setRepairError] = useState<string>();
   const [request, setRequest] = useState<{ revision: number; origins?: MatrixEvent[] }>({
     revision: 0,
   });
@@ -103,7 +104,9 @@ function ActiveThreadApprovalProvider({
     [events, ignoredUsers]
   );
   const error =
-    loadError ?? (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
+    discoveryError ??
+    repairError ??
+    (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
   const recordsRef = useRef(records);
   useLayoutEffect(() => {
     recordsRef.current = records;
@@ -245,9 +248,9 @@ function ActiveThreadApprovalProvider({
   }, [events, decrypted]);
   useEffect(() => {
     let active = true;
+    const setRequestError = request.origins ? setRepairError : setDiscoveryError;
     fetching.current = true;
     setLoading(true);
-    setLoadError(undefined);
     void enqueueThreadApprovalBackfill(mx, scheduler, room.roomId, threadId, request.origins)
       .then((result) => {
         if (!active) return;
@@ -257,14 +260,16 @@ function ActiveThreadApprovalProvider({
           pendingRepair.current.delete(id);
         });
         ingest(result.events, true);
-        setLoadError(result.error);
+        setRequestError(result.error);
+        // Only complete discovery also proves that earlier repair failures recovered.
+        if (!request.origins && !result.error) setRepairError(undefined);
         setLoading(false);
         if (!result.error && pendingRepair.current.size > 0) repairPending();
       })
       .catch(() => {
         if (active) {
           fetching.current = false;
-          setLoadError('Approval history could not be loaded.');
+          setRequestError('Approval history could not be loaded.');
           setLoading(false);
         }
       });

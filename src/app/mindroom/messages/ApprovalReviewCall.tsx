@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { canSubmitApprovalDecision } from './approvalActions';
@@ -18,9 +18,20 @@ export function ApprovalReviewCall({
   const user = useMatrixClient().getUserId();
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState('');
+  const reasonInput = useRef<HTMLInputElement>(null);
+  const denyTrigger = useRef<HTMLButtonElement>(null);
+  const restoreDenyFocus = useRef(false);
+  const action = context?.actions.get(record.eventId);
+  const available = !!context && canSubmitApprovalDecision(record, user, action, context.now);
+  useEffect(() => {
+    if (!available) return;
+    if (denying) reasonInput.current?.focus();
+    else if (restoreDenyFocus.current) {
+      restoreDenyFocus.current = false;
+      denyTrigger.current?.focus();
+    }
+  }, [available, denying]);
   if (!context) return null;
-  const action = context.actions.get(record.eventId);
-  const available = canSubmitApprovalDecision(record, user, action, context.now);
   const pending = context.pendingEventIds.has(record.eventId);
   return (
     <div className={css.Call} data-approval-id={record.eventId}>
@@ -42,7 +53,13 @@ export function ApprovalReviewCall({
                 <Text size="B300">Approve</Text>
               </Button>
             )}
-            <Button size="300" variant="Critical" outlined onClick={() => setDenying(true)}>
+            <Button
+              ref={denyTrigger}
+              size="300"
+              variant="Critical"
+              outlined
+              onClick={() => setDenying(true)}
+            >
               <Text size="B300">Deny</Text>
             </Button>
           </div>
@@ -58,6 +75,7 @@ export function ApprovalReviewCall({
           }}
         >
           <Input
+            ref={reasonInput}
             aria-label={`Reason for denying call ${index + 1} (optional)`}
             placeholder="Denial reason (optional)"
             value={reason}
@@ -67,7 +85,15 @@ export function ApprovalReviewCall({
             <Button type="submit" size="300" variant="Critical">
               <Text size="B300">Confirm deny</Text>
             </Button>
-            <Button type="button" size="300" outlined onClick={() => setDenying(false)}>
+            <Button
+              type="button"
+              size="300"
+              outlined
+              onClick={() => {
+                restoreDenyFocus.current = true;
+                setDenying(false);
+              }}
+            >
               <Text size="B300">Cancel</Text>
             </Button>
           </div>
