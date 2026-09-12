@@ -1,4 +1,4 @@
-import { createClient, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { createBackfillScheduler } from './backfillScheduler';
 import { enqueueThreadApprovalBackfill } from './threadApprovalBackfill';
@@ -29,6 +29,75 @@ const setup = () => {
   mx.store.storeRoom(room);
   return { mx, room, scheduler: createBackfillScheduler({ mx }) };
 };
+
+const redacted = (value: typeof original) => ({
+  ...value,
+  content: {},
+  unsigned: {
+    redacted_because: {
+      event_id: `$redact-${value.event_id}`,
+      room_id: roomId,
+      type: 'm.room.redaction',
+      sender: value.sender,
+      content: {},
+      redacts: value.event_id,
+    },
+  },
+});
+
+it('refreshes an omitted retained origin to recover a missed redaction', async () => {
+  const { mx, scheduler } = setup();
+  const retained = new MatrixEvent(original);
+  vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: [] });
+  const fetch = vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(redacted(original));
+  const result = await enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId, undefined, [
+    retained,
+  ]);
+  expect(fetch).toHaveBeenCalledWith(roomId, '$approval');
+  expect(result.events[0].isRedacted()).toBe(true);
+  expect(collectThreadApprovals([retained, ...result.events], roomId, threadId)).toEqual([]);
+});
+
+it('refreshes an omitted retained edit without fetching unrelated origins during targeted repair', async () => {
+  const { mx, scheduler } = setup();
+  const retained = new MatrixEvent(original);
+  const rawEdit = {
+    ...original,
+    event_id: '$edit',
+    content: {
+      ...original.content,
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+      'm.new_content': { ...original.content, status: 'approved' },
+    },
+  };
+  const edit = new MatrixEvent(rawEdit);
+  retained.makeReplaced(edit);
+  vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: [] });
+  const fetch = vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(redacted(rawEdit));
+  const result = await enqueueThreadApprovalBackfill(
+    mx,
+    scheduler,
+    roomId,
+    threadId,
+    [retained],
+    [retained, edit]
+  );
+  expect(fetch.mock.calls).toEqual([[roomId, '$edit']]);
+  expect(
+    collectThreadApprovals([retained, edit, ...result.events], roomId, threadId)[0].approval.status
+  ).toBe('pending');
+});
+
+it('does not infer deletions or refresh omissions when discovery fails partway', async () => {
+  const { mx, scheduler } = setup();
+  vi.spyOn(mx, 'fetchRelations').mockRejectedValue(new Error('Offline'));
+  const fetch = vi.spyOn(mx, 'fetchRoomEvent');
+  const result = await enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId, undefined, [
+    new MatrixEvent(original),
+  ]);
+  expect(result.error).toBeTruthy();
+  expect(fetch).not.toHaveBeenCalled();
+});
 
 describe('thread approval backfill', () => {
   it('drains empty pages and repairs an old decision outside the visible timeline', async () => {

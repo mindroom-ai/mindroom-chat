@@ -466,4 +466,4 @@ export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
 
 // Failed SDK decryption presents as m.room.message / m.bad.encrypted until keys arrive.
 export const isUndecryptedApprovalCandidate = (event: MatrixEvent): boolean =>
-  event.getType() === 'm.room.encrypted' || event.isDecryptionFailure();
+  !event.isRedacted() && (event.getType() === 'm.room.encrypted' || event.isDecryptionFailure());

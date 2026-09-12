@@ -21,6 +21,7 @@ import {
   parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
 import { createApprovalActions, ApprovalAction, ApprovalActionState } from './approvalActions';
+import { mergeThreadApprovalEvents } from './threadApprovalEvents';
 import {
   collectThreadApprovals,
   isPendingApproval,
@@ -75,7 +76,14 @@ function ActiveThreadApprovalProvider({
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
   const { scheduler } = useMindroomSyncEngine();
-  const [events, setEvents] = useState<ReadonlyMap<string, MatrixEvent>>(new Map());
+  const [events, setEvents] = useState(() =>
+    mergeThreadApprovalEvents(
+      new Map(),
+      [...room.getLiveTimeline().getEvents(), ...(room.getThread(threadId)?.events ?? [])],
+      room.roomId,
+      threadId
+    )
+  );
   const [loading, setLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState<string>();
   const [repairError, setRepairError] = useState<string>();
@@ -108,9 +116,11 @@ function ActiveThreadApprovalProvider({
     repairError ??
     (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
   const recordsRef = useRef(records);
+  const retainedEventsRef = useRef(events);
   useLayoutEffect(() => {
     recordsRef.current = records;
-  }, [records]);
+    retainedEventsRef.current = events;
+  }, [records, events]);
   const actionController = useMemo(
     () =>
       createApprovalActions({
@@ -152,45 +162,9 @@ function ActiveThreadApprovalProvider({
   );
   const ingest = useCallback(
     (incoming: readonly MatrixEvent[], fromBackfill = false) => {
-      const scoped = incoming.filter((event) => event.getRoomId() === room.roomId);
-      if (scoped.length === 0) return;
-      setEvents((old) => {
-        let changed = false;
-        const next = new Map(old);
-        scoped.forEach((event) => {
-          const id = event.getId();
-          if (!id) return;
-          const relation = event.getRelation();
-          const type = event.getType();
-          const relevant =
-            (type === MINDROOM_TOOL_APPROVAL_EVENT &&
-              (event.getOriginalContent().thread_id === threadId ||
-                relation?.rel_type === 'm.replace')) ||
-            (isUndecryptedApprovalCandidate(event) &&
-              (fromBackfill ||
-                (relation?.rel_type === 'm.thread' && relation.event_id === threadId) ||
-                (relation?.rel_type === 'm.replace' &&
-                  !!relation.event_id &&
-                  next.has(relation.event_id)))) ||
-            event.isRedaction();
-          if (!relevant) {
-            changed = next.delete(id) || changed;
-            return;
-          }
-          changed = true;
-          const existing = next.get(id);
-          // Live objects retain newer SDK replacements and redactions when an older fetch finishes.
-          if (
-            !existing ||
-            event.isRedacted() ||
-            (isUndecryptedApprovalCandidate(existing) && !isUndecryptedApprovalCandidate(event))
-          )
-            next.set(id, event);
-          const replacement = event.replacingEvent();
-          if (replacement?.getId()) next.set(replacement.getId()!, replacement);
-        });
-        return changed ? next : old;
-      });
+      setEvents((old) =>
+        mergeThreadApprovalEvents(old, incoming, room.roomId, threadId, fromBackfill)
+      );
     },
     [room.roomId, threadId]
   );
@@ -251,7 +225,9 @@ function ActiveThreadApprovalProvider({
     const setRequestError = request.origins ? setRepairError : setDiscoveryError;
     fetching.current = true;
     setLoading(true);
-    void enqueueThreadApprovalBackfill(mx, scheduler, room.roomId, threadId, request.origins)
+    void enqueueThreadApprovalBackfill(mx, scheduler, room.roomId, threadId, request.origins, [
+      ...retainedEventsRef.current.values(),
+    ])
       .then((result) => {
         if (!active) return;
         fetching.current = false;

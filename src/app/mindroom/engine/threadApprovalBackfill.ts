@@ -11,7 +11,8 @@ export const enqueueThreadApprovalBackfill = (
   scheduler: BackfillScheduler,
   roomId: string,
   threadId: string,
-  repairOrigins?: readonly MatrixEvent[]
+  repairOrigins?: readonly MatrixEvent[],
+  retainedEvents: readonly MatrixEvent[] = []
 ): Promise<{ events: MatrixEvent[]; repairedEventIds: string[]; error?: string }> =>
   scheduler.enqueue({
     roomId,
@@ -69,6 +70,26 @@ export const enqueueThreadApprovalBackfill = (
           if (id && (content.status === 'pending' || content.auto_approval))
             await fetchPages(id, RelationType.Replace);
           if (id) repairedEventIds.push(id);
+        }
+        // Relations omit redacted children. Refresh omitted retained events by ID
+        // to learn explicit redactions without deleting concurrent live arrivals.
+        const fetchedIds = new Set(collected.map((event) => event.getId()));
+        const repairIds = repairOrigins && new Set(repairOrigins.map((event) => event.getId()));
+        for (const retained of retainedEvents) {
+          if (signal.aborted || decryptionFailed) break;
+          const id = retained.getId();
+          const relation = retained.getRelation();
+          if (!id || fetchedIds.has(id) || retained.isRedacted() || retained.isRedaction())
+            continue;
+          if (
+            repairIds &&
+            (relation?.rel_type !== RelationType.Replace || !repairIds.has(relation.event_id))
+          )
+            continue;
+          const refreshed = mapEvent({ ...(await mx.fetchRoomEvent(roomId, id)), room_id: roomId });
+          if (signal.aborted) break;
+          await mx.decryptEventIfNeeded(refreshed);
+          collected.push(refreshed);
         }
         return {
           events: collected,

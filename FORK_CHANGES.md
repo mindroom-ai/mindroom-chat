@@ -15,6 +15,8 @@
 - Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.
 - Discovery and targeted-repair failures have separate state; successful repair cannot hide a failed full history scan.
 - Individual denial moves keyboard focus to its reason field and restores the Deny button when cancelled.
+- Approval state resets inside the persistent page and composer, so entering a thread cannot interrupt pending uploads or their caption.
+- Successful history recovery refetches omitted retained events to learn explicit redactions; tombstones prevent stale SDK originals or bundled edits from restoring removed approval evidence.
 - Automatic receipt deduplication uses exact call identity, while timeline projection preserves raw event indexes and pagination anchors.
 - Regression coverage includes authoritative acknowledgement races, per-call retry, late decryption, immutable request data, alias receipts, deadline expiry, and attachment failures.
 - Live Chromium against disposable local Matrix accounts verifies grouped approval, mixed individual approval and denial, subsequent automatic receipts, revocation, preserved arguments, and phone layouts.

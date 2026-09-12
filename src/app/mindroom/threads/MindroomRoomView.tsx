@@ -137,11 +137,11 @@ export function RoomView({
   );
 
   return (
-    <ThreadApprovalProvider
-      room={room}
-      threadId={pendingThreadRoot ? undefined : effectiveThreadId}
-    >
-      <Page ref={roomViewRef}>
+    <Page ref={roomViewRef}>
+      <ThreadApprovalProvider
+        room={room}
+        threadId={pendingThreadRoot ? undefined : effectiveThreadId}
+      >
         <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
         {effectiveThreadId && (
           <ThreadContextBanner
@@ -183,61 +183,59 @@ export function RoomView({
           />
           <RoomViewTyping room={room} />
         </Box>
-        <Box shrink="No" direction="Column">
-          <ThreadApprovalQueue />
-          <div style={{ padding: `0 ${config.space.S400}` }}>
-            {tombstoneEvent ? (
-              <RoomTombstone
-                roomId={roomId}
-                body={tombstoneEvent.getContent().body}
-                replacementRoomId={tombstoneEvent.getContent().replacement_room}
-              />
-            ) : (
-              <>
-                {canMessage && !pendingThreadRoot && (
-                  <RoomInput
-                    room={room}
-                    editor={editor}
-                    roomId={roomId}
-                    threadId={effectiveThreadId}
-                    threadingEnabled={viewMode !== 'classic'}
-                    onRoomMessageSent={handleRoomMessageSent}
-                    fileDropContainerRef={roomViewRef}
-                    ref={roomInputRef}
-                  />
-                )}
-                {canMessage && pendingThreadRoot && (
-                  <RoomInputPlaceholder
-                    style={{
-                      padding: config.space.S200,
-                      paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-                    }}
-                    alignItems="Center"
-                    justifyContent="Center"
-                  >
-                    <Text align="Center">
-                      Replies are available after this message is confirmed.
-                    </Text>
-                  </RoomInputPlaceholder>
-                )}
-                {!canMessage && (
-                  <RoomInputPlaceholder
-                    style={{
-                      padding: config.space.S200,
-                      paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-                    }}
-                    alignItems="Center"
-                    justifyContent="Center"
-                  >
-                    <Text align="Center">You do not have permission to post in this room</Text>
-                  </RoomInputPlaceholder>
-                )}
-              </>
-            )}
-          </div>
-          {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
-        </Box>
-      </Page>
-    </ThreadApprovalProvider>
+        <ThreadApprovalQueue />
+      </ThreadApprovalProvider>
+      <Box shrink="No" direction="Column">
+        <div style={{ padding: `0 ${config.space.S400}` }}>
+          {tombstoneEvent ? (
+            <RoomTombstone
+              roomId={roomId}
+              body={tombstoneEvent.getContent().body}
+              replacementRoomId={tombstoneEvent.getContent().replacement_room}
+            />
+          ) : (
+            <>
+              {canMessage && !pendingThreadRoot && (
+                <RoomInput
+                  room={room}
+                  editor={editor}
+                  roomId={roomId}
+                  threadId={effectiveThreadId}
+                  threadingEnabled={viewMode !== 'classic'}
+                  onRoomMessageSent={handleRoomMessageSent}
+                  fileDropContainerRef={roomViewRef}
+                  ref={roomInputRef}
+                />
+              )}
+              {canMessage && pendingThreadRoot && (
+                <RoomInputPlaceholder
+                  style={{
+                    padding: config.space.S200,
+                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                  }}
+                  alignItems="Center"
+                  justifyContent="Center"
+                >
+                  <Text align="Center">Replies are available after this message is confirmed.</Text>
+                </RoomInputPlaceholder>
+              )}
+              {!canMessage && (
+                <RoomInputPlaceholder
+                  style={{
+                    padding: config.space.S200,
+                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                  }}
+                  alignItems="Center"
+                  justifyContent="Center"
+                >
+                  <Text align="Center">You do not have permission to post in this room</Text>
+                </RoomInputPlaceholder>
+              )}
+            </>
+          )}
+        </div>
+        {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
+      </Box>
+    </Page>
   );
 }

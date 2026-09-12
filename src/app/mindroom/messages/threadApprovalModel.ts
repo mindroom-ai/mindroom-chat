@@ -24,7 +24,9 @@ export const collectThreadApprovals = (
   now = Date.now()
 ): ThreadApprovalRecord[] => {
   const redacted = new Set(
-    events.filter((event) => event.isRedaction()).map((event) => event.getAssociatedId())
+    events.flatMap((event) =>
+      event.isRedaction() ? [event.getAssociatedId()] : event.isRedacted() ? [event.getId()] : []
+    )
   );
   const origins = new Map<string, MatrixEvent>();
   const edits = new Map<string, MatrixEvent[]>();
