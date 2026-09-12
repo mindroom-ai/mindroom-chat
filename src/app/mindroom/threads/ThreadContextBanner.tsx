@@ -16,6 +16,7 @@ import { ThreadTagPicker } from './ThreadTagPicker';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
+import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 
 export interface ThreadContextBannerProps {
   room: Room;
@@ -146,6 +147,7 @@ export function ThreadContextBanner({
               {t('thread.view')}
             </Text>
             {/* Desktop: tags inline on title row */}
+            <ThreadApprovalPermissions />
             {(hasTags || headerModel.canEdit) && (
               <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
                 <TagPills

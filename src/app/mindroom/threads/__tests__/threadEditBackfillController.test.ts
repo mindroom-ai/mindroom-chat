@@ -4,6 +4,11 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useThreadEditBackfillController } from '../threadEditBackfillController';
 
+let approvalScope: { roomId: string; threadId: string } | undefined;
+vi.mock('../../messages/ThreadApprovalProvider', () => ({
+  useThreadApprovals: () => approvalScope,
+}));
+
 // Task #129 regression suite. Reproduces the mid-thread "Thinking…"
 // placeholder band: the controller used to mark every candidate
 // attempted BEFORE its async /relations fetch, then the effect (dep:
@@ -250,3 +255,35 @@ describe('useThreadEditBackfillController (task #129)', () => {
     act(() => renderer.unmount());
   });
 });
+
+it.each([
+  ['matching', ROOM, '$thread-root', false],
+  ['other room', '!elsewhere:example.org', '$thread-root', true],
+  ['other thread', ROOM, '$elsewhere', true],
+  ['no owner', undefined, undefined, true],
+] as const)(
+  'preserves ordinary repair and delegates approvals only to the %s owner',
+  async (_label, roomId, threadId, fetchApproval) => {
+    approvalScope = roomId && threadId ? { roomId, threadId } : undefined;
+    const harness = makeHarness();
+    harness.relations.mockResolvedValue({ events: [] });
+    const approval = new MatrixEvent({
+      ...makePlaceholder('$approval').event,
+      type: 'io.mindroom.tool_approval',
+    });
+    const { props } = makeProps(harness, [approval, makePlaceholder('$message')]);
+    let renderer!: ReactTestRenderer;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, props));
+        await flush();
+      });
+      expect(harness.relations.mock.calls.map((call) => call[1])).toEqual(
+        fetchApproval ? ['$approval', '$message'] : ['$message']
+      );
+    } finally {
+      act(() => renderer.unmount());
+      approvalScope = undefined;
+    }
+  }
+);

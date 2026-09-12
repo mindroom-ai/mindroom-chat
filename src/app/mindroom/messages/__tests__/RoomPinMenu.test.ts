@@ -4,39 +4,47 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
 
-const { getEditedEventMock, navigateRoomMock, pinnedEventMock, renderMessageContentMock, roomMock } =
-  vi.hoisted(() => ({
-    getEditedEventMock: vi.fn(() => undefined),
-    navigateRoomMock: vi.fn(),
-    pinnedEventMock: {
-      replyEventId: undefined,
-      threadRootId: undefined,
-      getContent: vi.fn(() => ({
-        approval_id: 'approval-1',
-        tool_name: 'web_search',
-        arguments: { query: 'release date' },
-        agent_name: 'research',
-        status: 'pending',
-        requested_at: '2026-04-10T12:00:00Z',
-        expires_at: '2026-04-17T12:00:00Z',
-        resolved_at: null,
-        resolved_by: null,
-        resolution_reason: null,
-      })),
-      getId: vi.fn(() => '$approval'),
-      getSender: vi.fn(() => '@alice:example.org'),
-      getTs: vi.fn(() => 0),
-      getType: vi.fn(() => APPROVAL_EVENT_TYPE),
-      getUnsigned: vi.fn(() => ({})),
-      isRedacted: vi.fn(() => false),
-      replacingEvent: vi.fn(() => undefined),
+const {
+  getEditedEventMock,
+  navigateRoomMock,
+  pinnedEventMock,
+  renderMessageContentMock,
+  roomMock,
+} = vi.hoisted(() => ({
+  getEditedEventMock: vi.fn(() => undefined),
+  navigateRoomMock: vi.fn(),
+  pinnedEventMock: {
+    replyEventId: undefined,
+    threadRootId: undefined,
+    getContent: vi.fn(() => ({
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      arguments: { query: 'release date' },
+      agent_name: 'research',
+      status: 'pending',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+      resolved_at: null,
+      resolved_by: null,
+      resolution_reason: null,
+    })),
+    getOriginalContent() {
+      return this.getContent();
     },
-    renderMessageContentMock: vi.fn(),
-    roomMock: {
-      roomId: '!room:example.org',
-      getTimelineForEvent: vi.fn(() => undefined),
-    },
-  }));
+    getId: vi.fn(() => '$approval'),
+    getSender: vi.fn(() => '@alice:example.org'),
+    getTs: vi.fn(() => 0),
+    getType: vi.fn(() => APPROVAL_EVENT_TYPE),
+    getUnsigned: vi.fn(() => ({})),
+    isRedacted: vi.fn(() => false),
+    replacingEvent: vi.fn(() => undefined),
+  },
+  renderMessageContentMock: vi.fn(),
+  roomMock: {
+    roomId: '!room:example.org',
+    getTimelineForEvent: vi.fn(() => undefined),
+  },
+}));
 
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: () => ({
@@ -101,7 +109,8 @@ vi.mock('folds', () => {
     Menu: ForwardedDiv,
     Scroll: ForwardedDiv,
     Spinner: () => React.createElement('span', null, 'spinner'),
-    Text: ({ as: Tag = 'span', children, ...props }: any) => React.createElement(Tag, props, children),
+    Text: ({ as: Tag = 'span', children, ...props }: any) =>
+      React.createElement(Tag, props, children),
     toRem: (value: number) => `${value}px`,
   };
 });
@@ -124,13 +133,8 @@ vi.mock('../../../components/message', () => ({
   ImageContent: () => null,
   MessageNotDecryptedContent: () => React.createElement('span', null, 'not-decrypted'),
   MessageUnsupportedContent: () => React.createElement('span', null, 'unsupported'),
-  ModernLayout: ({
-    before,
-    children,
-  }: {
-    before?: React.ReactNode;
-    children?: React.ReactNode;
-  }) => React.createElement('div', null, before, children),
+  ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, before, children),
   MSticker: () => React.createElement('div', { 'data-renderer': 'sticker' }),
   RedactedContent: () => React.createElement('div', { 'data-renderer': 'redacted' }),
   Reply: () => null,
@@ -394,6 +398,9 @@ describe('RoomPinMenu', () => {
         resolved_by: null,
         resolution_reason: null,
       })),
+      getOriginalContent() {
+        return this.getContent();
+      },
       getId: vi.fn(() => '$approval'),
       getTs: vi.fn(() => 0),
       getType: vi.fn(() => APPROVAL_EVENT_TYPE),

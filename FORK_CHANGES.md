@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Compact thread approvals with inspectable history (2026-09-12)
+
+- Pending calls share one bounded bar above the composer; Review captures the current requests and groups only the same canonical permission scope.
+- Each reviewed call retains its exact original arguments, with lazy loading and retry for plaintext or encrypted argument attachments.
+- Each call has individual Approve and Deny controls, including its own optional denial reason, alongside batch actions and eligible fixed 5, 10, or 30 minute permissions.
+- Standalone cards and thread review share one action controller, eligibility selectors, denial form, and grant controls; leaf controls receive records and callbacks without depending on history discovery.
+- Thread-scoped action state survives card virtualization, handles partial batch failure, and stays Submitted through the local request deadline until an authoritative Matrix update arrives.
+- Within the matching room and thread, the approval store exclusively owns card state and timeline visibility; missing records cannot fall back to stale standalone controls, while cards from other scopes remain independently usable.
+- Active timed permissions live in the thread header, with fixed expiry and per-permission revocation.
+- Resolved and automatic calls become collapsed history beside their response; missing response anchors use a collapsed timeline fallback, and directly focused originals remain reachable.
+- Completed history uses a compact, content-width disclosure with a tool icon; its expanded receipts sit in one subtle bordered container with tight rows and monospace operation names.
+- Review, permission, and receipt labels retain the MCP server alongside the remote tool, so identically named operations remain distinguishable.
+- Original arguments, approval kind, actor, decision time, and original grant expiry remain inspectable after revocation or expiry.
+- The existing backfill scheduler owns approval discovery and edit repair independently of visible pagination, including delayed decryption and partial-history retry.
+- Approval repair hydrates the exact cached timeline objects through the shared event hydration helpers and persists through the engine cache boundary without claiming whole-thread completeness.
+- Ordinary message repair excludes approvals only inside the matching approval provider scope; standalone scopes retain their existing repair behavior.
+- One provider queue repairs unrepaired origins learned through discovery, plaintext timeline ingress, or late decryption; cache writes include only evidence linked to the current thread.
+- SDK-attached and serialized replacement bundles become ordinary retained evidence before projection and cache publication; early redactions remain authoritative when their targets arrive later.
+- Unreadable edits remain available for key recovery without replacing or being cached onto a reviewed original; recovered tombstones also redact ciphertext originals.
+- Retained redactions apply before choosing between readable evidence and ciphertext timeline copies, so both instances retain the same tombstone.
+- Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.
+- Discovery and targeted-repair failures have separate state; successful repair cannot hide a failed full history scan.
+- Individual denial moves keyboard focus to its reason field and restores the Deny button when cancelled.
+- Opening an approval dialog focuses its Close button; closing returns focus to the composer when its original trigger has disappeared after acknowledgement or expiry.
+- Approval state resets inside the persistent page and composer, so entering a thread cannot interrupt pending uploads or their caption.
+- Successful history recovery refetches omitted retained events to learn explicit redactions; tombstones prevent stale SDK originals or bundled edits from restoring removed approval evidence.
+- Automatic receipt deduplication uses exact call identity, while timeline projection preserves raw event indexes and pagination anchors.
+- Regression coverage includes authoritative acknowledgement races, per-call retry, late decryption, immutable request data, alias receipts, deadline expiry, and attachment failures.
+- Literal backend-emitted wire fixtures cover once, denied, expired, timed origin, swept pending, and automatic receipts through the frontend parser, including complete arguments and fixed grant provenance.
+- Live Chromium against disposable local Matrix accounts verifies grouped approval, mixed individual approval and denial, subsequent automatic receipts, revocation, preserved arguments, and phone layouts.
+- Screenshots are attached to the pull request through GitHub CLI and are not repository files.
+- Typecheck, production build, and full ESLint pass with the existing warning baseline; full Vitest retains only the four pre-existing failures documented below.
+- Next step: independent pull-request review and integration.
+
 ### Add timed thread tool approval controls (2026-09-12)
 
 - Status: implementation, automated validation, and live interaction checks are complete; ready for independent review.

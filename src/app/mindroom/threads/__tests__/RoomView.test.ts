@@ -1699,3 +1699,8 @@ describe('RoomView', () => {
     expect(bumpRecentThreadMock).not.toHaveBeenCalled();
   });
 });
+
+vi.mock('../../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../../messages/ThreadApprovalProvider', () => ({
+  ThreadApprovalProvider: 'thread-approval-provider',
+}));

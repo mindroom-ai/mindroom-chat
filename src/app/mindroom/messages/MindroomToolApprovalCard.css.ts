@@ -16,50 +16,6 @@ export const Card = style({
   boxShadow: `inset ${leftAccentWidth} 0 0 ${color.SurfaceVariant.ContainerLine}`,
 });
 
-export const CardApproved = style({
-  borderColor: color.Success.ContainerLine,
-  backgroundColor: color.Success.Container,
-  color: color.Success.OnContainer,
-  boxShadow: `inset ${leftAccentWidth} 0 0 ${color.Success.Main}`,
-});
-
-export const CardDenied = style({
-  borderColor: color.Critical.ContainerLine,
-  backgroundColor: color.Critical.Container,
-  color: color.Critical.OnContainer,
-  boxShadow: `inset ${leftAccentWidth} 0 0 ${color.Critical.Main}`,
-});
-
-export const CardExpired = style({
-  borderColor: color.Warning.ContainerLine,
-  backgroundColor: color.Warning.Container,
-  color: color.Warning.OnContainer,
-  boxShadow: `inset ${leftAccentWidth} 0 0 ${color.Warning.Main}`,
-});
-
-export const ResolvedInline = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
-  minWidth: 0,
-  maxWidth: '100%',
-  padding: 0,
-  color: color.SurfaceVariant.OnContainer,
-});
-
-export const ResolvedInlineApproved = style({
-  color: color.Success.Main,
-});
-
-export const ResolvedInlineDenied = style({
-  color: color.Critical.Main,
-});
-
-export const ResolvedInlineExpired = style({
-  color: color.Warning.Main,
-});
-
 export const Header = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -69,10 +25,6 @@ export const Header = style({
 
 export const ToolName = style({
   fontWeight: 700,
-});
-
-export const ResolvedToolName = style({
-  fontWeight: 600,
 });
 
 export const StatusLabel = style({
@@ -99,17 +51,6 @@ export const Details = style({
   minWidth: 0,
 });
 
-export const DetailsSummary = style({
-  cursor: 'pointer',
-  listStyle: 'none',
-});
-
-export const DetailsSummaryLabel = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-});
-
 export const JsonBlock = style({
   marginTop: config.space.S200,
   padding: config.space.S200,
@@ -125,37 +66,8 @@ export const JsonBlock = style({
   lineHeight: 1.45,
 });
 
-export const Actions = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: config.space.S200,
-});
-
-export const DurationActions = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
-});
-
 export const Scope = style({
   padding: config.space.S200,
   borderRadius: config.radii.R300,
   backgroundColor: color.Background.Container,
-});
-
-export const GrantPanel = style({
-  padding: config.space.S200,
-  borderRadius: config.radii.R300,
-  border: `${config.borderWidth.B300} solid currentColor`,
-});
-
-export const DenyForm = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: config.space.S200,
-});
-
-export const ReasonText = style({
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
 });
