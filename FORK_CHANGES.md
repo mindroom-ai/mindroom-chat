@@ -10,6 +10,7 @@
 - Thread-scoped action state survives card virtualization, handles partial batch failure, and stays Submitted through the local request deadline until an authoritative Matrix update arrives.
 - Active timed permissions live in the thread header, with fixed expiry and per-permission revocation.
 - Resolved and automatic calls become collapsed history beside their response; missing response anchors use a collapsed timeline fallback, and directly focused originals remain reachable.
+- Completed history uses a compact, content-width disclosure with a tool icon; its expanded receipts sit in one subtle bordered container with tight rows and monospace operation names.
 - Original arguments, approval kind, actor, decision time, and original grant expiry remain inspectable after revocation or expiry.
 - The existing backfill scheduler owns approval discovery and edit repair independently of visible pagination, including delayed decryption and partial-history retry.
 - Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.

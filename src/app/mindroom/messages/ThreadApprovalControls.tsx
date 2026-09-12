@@ -329,6 +329,7 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   return (
     <details className={css.Receipt} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>
+        <Icon src={Icons.Terminal} size="50" aria-hidden />
         <span>
           {records.length} tool {records.length === 1 ? 'approval' : 'approvals'}
         </span>

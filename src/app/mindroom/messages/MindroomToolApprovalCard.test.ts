@@ -6,7 +6,11 @@ import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
 const sendEventMock = vi.fn();
-vi.mock('./ThreadApprovals.css', () => ({ Receipt: 'Receipt', ReceiptBody: 'ReceiptBody' }));
+vi.mock('./ThreadApprovals.css', () => ({
+  Receipt: 'Receipt',
+  ReceiptBody: 'ReceiptBody',
+  ReceiptTool: 'ReceiptTool',
+}));
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => undefined }));
 vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 let currentUserId = '@alice:example.org';

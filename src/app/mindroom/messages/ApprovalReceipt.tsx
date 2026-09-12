@@ -20,7 +20,7 @@ export function ApprovalReceipt({
   return (
     <details className={css.Receipt} aria-label="Resolved tool approval request">
       <summary>
-        <span>
+        <span className={css.ReceiptTool}>
           {approval.status === 'approved' ? '✓' : '–'} {getToolApprovalOperationLabel(approval)}
         </span>
         <span>{statusLabel}</span>

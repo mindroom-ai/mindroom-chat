@@ -23,21 +23,27 @@ export const Chip = style({
   whiteSpace: 'nowrap',
 });
 export const Receipt = style({
-  width: '100%',
+  width: 'fit-content',
+  maxWidth: 'min(100%, 42rem)',
   minWidth: 0,
-  fontSize: 13,
-  color: color.Surface.OnContainer,
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: color.SurfaceVariant.OnContainer,
+  background: color.SurfaceVariant.Container,
+  border: `1px solid ${color.Surface.ContainerLine}`,
   borderRadius: 6,
+  selectors: { '&[open]': { width: '100%' } },
 });
 globalStyle(`${Receipt} > summary`, {
   display: 'flex',
-  justifyContent: 'space-between',
-  gap: 12,
+  alignItems: 'center',
+  gap: 6,
   cursor: 'pointer',
-  padding: '7px 10px',
-  background: color.SurfaceVariant.Container,
-  borderRadius: 6,
+  padding: '4px 8px',
+  fontWeight: 500,
+  listStyle: 'none',
 });
+globalStyle(`${Receipt} > summary::-webkit-details-marker`, { display: 'none' });
 globalStyle(`${Receipt} > summary::before`, { content: '"›"' });
 globalStyle(`${Receipt}[open] > summary::before`, { content: '"⌄"' });
 globalStyle(`${Receipt} > summary > span:first-of-type`, {
@@ -45,9 +51,36 @@ globalStyle(`${Receipt} > summary > span:first-of-type`, {
   minWidth: 0,
   overflowWrap: 'anywhere',
 });
-export const ReceiptBody = style({ padding: 12, overflowWrap: 'anywhere' });
-globalStyle(`${ReceiptBody} p`, { margin: '0 0 8px' });
-export const Stack = style({ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 });
+globalStyle(`${Receipt} > summary > span:last-of-type`, {
+  whiteSpace: 'nowrap',
+  fontWeight: 400,
+  opacity: 0.7,
+});
+export const ReceiptTool = style({ fontFamily: 'var(--font-mono)' });
+export const ReceiptBody = style({
+  padding: '6px 8px 8px',
+  borderTop: `1px solid ${color.Surface.ContainerLine}`,
+  fontSize: 13,
+  overflowWrap: 'anywhere',
+});
+globalStyle(`${ReceiptBody} p`, { margin: '0 0 6px' });
+export const Stack = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  padding: '0 6px',
+  borderTop: `1px solid ${color.Surface.ContainerLine}`,
+});
+globalStyle(`${Stack} > ${Receipt}`, {
+  width: '100%',
+  maxWidth: '100%',
+  background: 'transparent',
+  border: 0,
+  borderRadius: 0,
+});
+globalStyle(`${Stack} > ${Receipt}:not(:last-child)`, {
+  borderBottom: `1px solid ${color.Surface.ContainerLine}`,
+});
 export const DialogBody = style({
   padding: config.space.S400,
   overflowY: 'auto',
