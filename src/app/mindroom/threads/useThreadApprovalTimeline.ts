@@ -27,9 +27,19 @@ export const useThreadApprovalTimeline = (
       revealed.current,
       ignored,
       threadId,
-      context?.now
+      context?.now,
+      context?.pendingEventIds
     );
-  }, [context?.records, context?.now, events, ignored, threadId, routeId, focusId]);
+  }, [
+    context?.records,
+    context?.now,
+    context?.pendingEventIds,
+    events,
+    ignored,
+    threadId,
+    routeId,
+    focusId,
+  ]);
 };
 
 export const useThreadApprovalRowMeasurements = (

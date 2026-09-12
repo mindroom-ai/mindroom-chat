@@ -87,3 +87,15 @@ it('deduplicates republished automatic receipts while retaining alias event IDs'
   expect(records).toHaveLength(1);
   expect(records[0].aliasEventIds).toEqual(['$alias']);
 });
+
+it('orders requests chronologically across different timezone offsets', () => {
+  const first = make('$first');
+  const second = make('$second');
+  first.event.content!.requested_at = '2026-09-12T09:00:00-07:00';
+  second.event.content!.requested_at = '2026-09-12T10:00:00Z';
+  expect(
+    collectThreadApprovals([first, second], '!room:example.org', '$thread').map(
+      (record) => record.eventId
+    )
+  ).toEqual(['$second', '$first']);
+});

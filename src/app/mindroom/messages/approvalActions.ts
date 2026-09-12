@@ -12,8 +12,19 @@ export type ApprovalActionState = {
   error?: string;
 };
 export type ApprovalAction =
-  | { status: 'approved' | 'denied'; duration?: ToolApprovalDuration; reason?: string }
+  | { status: 'approved'; duration?: ToolApprovalDuration; reason?: string }
+  | { status: 'denied'; reason?: string; duration?: never }
   | { revoke: true };
+
+export const canSubmitApprovalDecision = (
+  record: ThreadApprovalRecord,
+  userId: string | null,
+  state: ApprovalActionState | undefined,
+  now = Date.now()
+): boolean =>
+  isPendingApproval(record, now) &&
+  (!record.approval.approverUserId || record.approval.approverUserId === userId) &&
+  (!state || state.status === 'error');
 type ResponseContent =
   | ReturnType<typeof buildToolApprovalResponseContent>
   | ReturnType<typeof buildToolApprovalRevocationContent>;
@@ -38,7 +49,7 @@ export const createApprovalActions = ({
   };
   const relevant = (record: ThreadApprovalRecord, kind: ApprovalActionState['kind']) =>
     kind === 'decision'
-      ? isPendingApproval(record)
+      ? record.wireStatus === 'pending'
       : record.approval.autoApproval &&
         !record.approval.autoApproval.revokedAt &&
         (parseToolApprovalExpiryTimestamp(record.approval.autoApproval.expiresAt) ?? 0) >
@@ -71,6 +82,7 @@ export const createApprovalActions = ({
     if ('revoke' in action) {
       if (!grant || user !== approval.approverUserId) return;
     } else {
+      if (!canSubmitApprovalDecision(record, user, previous)) return;
       if (action.status === 'approved' && !approval.approvable) return;
       if (
         action.duration &&
@@ -79,7 +91,7 @@ export const createApprovalActions = ({
         return;
     }
     const affected =
-      'duration' in action && action.duration && approval.scope
+      'status' in action && action.status === 'approved' && action.duration && approval.scope
         ? records.filter(
             (item) =>
               approvalGroupKey(item) === approvalGroupKey(record) &&

@@ -70,3 +70,29 @@ describe('exact approval arguments', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('Loading complete arguments');
   });
 });
+
+it('keeps one in-flight download when the same attachment is reparsed during chat updates', async () => {
+  let finish!: (blob: Blob) => void;
+  mocks.download.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+  );
+  act(() => {
+    renderer = create(<ApprovalArguments approval={approval} />);
+  });
+  await toggle(true);
+  await act(async () => {
+    renderer.update(
+      <ApprovalArguments
+        approval={{ ...approval, argumentSource: { ...approval.argumentSource! } }}
+      />
+    );
+  });
+  expect(mocks.download).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    finish(new Blob([JSON.stringify({ user: 'Jamie' })]));
+  });
+  expect(renderer.root.findByType('pre').children.join('')).toContain('Jamie');
+});

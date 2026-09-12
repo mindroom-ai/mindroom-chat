@@ -108,7 +108,8 @@ export function MindroomToolApprovalCard(props: MindroomToolApprovalCardProps) {
     (item) => item.eventId === eventId || item.aliasEventIds?.includes(eventId ?? '')
   );
   if (record) {
-    if (record.approval.status === 'pending') return <ApprovalReviewGroup records={[record]} />;
+    if (context?.pendingEventIds.has(record.eventId))
+      return <ApprovalReviewGroup records={[record]} />;
     return (
       <ApprovalReceipt approval={record.approval}>
         <ApprovalGrantStatus record={record} />

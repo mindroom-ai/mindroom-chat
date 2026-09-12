@@ -1,5 +1,8 @@
-import { Direction, EventType, MatrixClient, MatrixEvent, RelationType } from 'matrix-js-sdk';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
+import { Direction, MatrixClient, MatrixEvent, RelationType } from 'matrix-js-sdk';
+import {
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  isUndecryptedApprovalCandidate,
+} from '../messages/toolApproval';
 import { createPreferLiveEventMapper } from '../threads/eventRepository';
 import { BackfillScheduler } from './backfillScheduler';
 
@@ -18,6 +21,7 @@ export const enqueueThreadApprovalBackfill = (
     execute: async (signal) => {
       const collected: MatrixEvent[] = [];
       const repairedEventIds: string[] = [];
+      let decryptionFailed = false;
       const room = mx.getRoom(roomId);
       if (!room) return { events: collected, repairedEventIds };
       const mapEvent = createPreferLiveEventMapper(room, mx.getEventMapper({ decrypt: false }));
@@ -35,13 +39,16 @@ export const enqueueThreadApprovalBackfill = (
           });
           if (signal.aborted) return events;
           const mapped = page.chunk.map((raw) => mapEvent({ ...raw, room_id: roomId }));
-          await Promise.all(mapped.map((event) => mx.decryptEventIfNeeded(event)));
+          const decryptions = await Promise.allSettled(
+            mapped.map((event) => mx.decryptEventIfNeeded(event))
+          );
+          decryptionFailed ||= decryptions.some((result) => result.status === 'rejected');
           if (signal.aborted) return events;
           // Keep unavailable ciphertext: the provider owns late-key subscriptions.
           const relevant = mapped.filter(
             (event) =>
               event.getType() === MINDROOM_TOOL_APPROVAL_EVENT ||
-              event.getType() === EventType.RoomMessageEncrypted
+              isUndecryptedApprovalCandidate(event)
           );
           collected.push(...relevant);
           events.push(...relevant);
@@ -63,7 +70,11 @@ export const enqueueThreadApprovalBackfill = (
             await fetchPages(id, RelationType.Replace);
           if (id) repairedEventIds.push(id);
         }
-        return { events: collected, repairedEventIds };
+        return {
+          events: collected,
+          repairedEventIds,
+          ...(decryptionFailed ? { error: 'Some approval history could not be decrypted.' } : {}),
+        };
       } catch {
         return {
           events: collected,

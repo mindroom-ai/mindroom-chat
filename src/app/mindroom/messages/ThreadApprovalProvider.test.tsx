@@ -13,9 +13,12 @@ const mocks = vi.hoisted(() => ({ backfill: vi.fn(), abort: vi.fn() }));
 let mx: ReturnType<typeof createClient>;
 let room: Room;
 let ignored: string[];
+const IgnoredContext = React.createContext<string[] | undefined>(undefined);
 const scheduler = { abort: mocks.abort };
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
-vi.mock('../../hooks/useIgnoredUsers', () => ({ useIgnoredUsers: () => ignored }));
+vi.mock('../../hooks/useIgnoredUsers', () => ({
+  useIgnoredUsers: () => React.useContext(IgnoredContext) ?? ignored,
+}));
 vi.mock('../engine', () => ({
   enqueueThreadApprovalBackfill: mocks.backfill,
   useMindroomSyncEngine: () => ({ scheduler }),
@@ -67,6 +70,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('thread approval provider lifecycle', () => {
@@ -76,6 +80,12 @@ describe('thread approval provider lifecycle', () => {
       type: 'm.room.encrypted',
       content: { ciphertext: 'late keys' },
     });
+    await encrypted.attemptDecryption({
+      decryptEvent: async () => {
+        throw new Error('Missing room key');
+      },
+    } as CryptoBackend);
+    expect(encrypted.isDecryptionFailure()).toBe(true);
     mocks.backfill.mockResolvedValueOnce({ events: [encrypted], repairedEventIds: [] });
     const edit = new MatrixEvent({
       ...event('$edit').event,
@@ -156,4 +166,114 @@ describe('thread approval provider lifecycle', () => {
     });
     expect(current.records[0].approval.status).toBe('expired');
   });
+});
+
+it('keeps a submitted request in review past local expiry until Matrix acknowledges it', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-12T12:00:00Z'));
+  vi.spyOn(mx, 'sendEvent').mockResolvedValue({ event_id: '$response' });
+  const origin = event('$approval', { ...content, expires_at: '2026-09-12T12:00:02Z' });
+  mocks.backfill.mockResolvedValue({ events: [origin], repairedEventIds: ['$approval'] });
+  await mount();
+  await act(async () => {
+    await current.submit(current.records[0], { status: 'approved' });
+  });
+  await act(async () => {
+    vi.advanceTimersByTime(2000);
+  });
+  expect(current.actions.get('$approval')?.status).toBe('submitted');
+  expect(current.pendingEventIds.has('$approval')).toBe(true);
+  await act(async () => {
+    current.ingest([
+      new MatrixEvent({
+        ...event('$decision').event,
+        origin_server_ts: 2,
+        content: {
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+          'm.new_content': { ...origin.getContent(), status: 'approved' },
+        },
+      }),
+    ]);
+  });
+  expect(current.records[0].approval.status).toBe('approved');
+  expect(current.actions.size).toBe(0);
+  expect(current.pendingEventIds.size).toBe(0);
+});
+
+it('does not retain ciphertext from another thread and releases decoded non-approval events', async () => {
+  const unrelated = new MatrixEvent({
+    ...event('$unrelated').event,
+    type: 'm.room.encrypted',
+    content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$other' } },
+  });
+  const relevant = new MatrixEvent({
+    ...event('$relevant').event,
+    type: 'm.room.encrypted',
+    content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' } },
+  });
+  await mount();
+  await act(async () => {
+    current.ingest([unrelated, relevant]);
+  });
+  expect(unrelated.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  expect(relevant.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
+  await act(async () => {
+    await relevant.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: { type: 'm.room.message', content: { body: 'Hello' } },
+      }),
+    } as CryptoBackend);
+  });
+  expect(relevant.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+});
+
+it('keeps send completion bound to committed records during a suspended transition', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  let finish!: (value: { event_id: string }) => void;
+  vi.spyOn(mx, 'sendEvent').mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+  );
+  mocks.backfill.mockResolvedValue({ events: [event()], repairedEventIds: ['$approval'] });
+  const suspended = new Promise<void>(() => {});
+  const hiddenUsers = ['@router:example.org'];
+  const visibleUsers: string[] = [];
+  let attemptedHiddenRender = false;
+  function Gate({ block }: { block: boolean }) {
+    if (block) {
+      attemptedHiddenRender = true;
+      throw suspended;
+    }
+    return null;
+  }
+  const tree = (block: boolean) => (
+    <React.Suspense fallback={null}>
+      <IgnoredContext.Provider value={block ? hiddenUsers : visibleUsers}>
+        <ThreadApprovalProvider room={room} threadId="$thread">
+          <Probe />
+          <Gate block={block} />
+        </ThreadApprovalProvider>
+      </IgnoredContext.Provider>
+    </React.Suspense>
+  );
+  await act(async () => {
+    renderer = create(tree(false), { unstable_isConcurrent: true } as Parameters<typeof create>[1]);
+  });
+  let sending!: Promise<void>;
+  await act(async () => {
+    sending = current.submit(current.records[0], { status: 'approved' });
+  });
+  await act(async () => {
+    React.startTransition(() => renderer.update(tree(true)));
+  });
+  expect(attemptedHiddenRender).toBe(true);
+  await act(async () => {
+    finish({ event_id: '$response' });
+    await sending;
+  });
+  await act(async () => renderer.update(tree(false)));
+  expect(current.records).toHaveLength(1);
+  expect(current.actions.get('$approval')?.status).toBe('submitted');
 });

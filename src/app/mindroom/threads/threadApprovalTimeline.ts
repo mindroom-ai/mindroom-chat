@@ -7,7 +7,8 @@ export const planThreadApprovalTimeline = (
   revealed: ReadonlySet<string>,
   ignored: ReadonlySet<string>,
   threadId?: string,
-  now = Date.now()
+  now = Date.now(),
+  pendingEventIds?: ReadonlySet<string>
 ) => {
   const hiddenEventIds = new Set<string>();
   const historyByResponseId = new Map<string, ThreadApprovalRecord[]>();
@@ -23,7 +24,7 @@ export const planThreadApprovalTimeline = (
     record.aliasEventIds?.forEach((id) => {
       if (!revealed.has(id)) hiddenEventIds.add(id);
     });
-    if (isPendingApproval(record, now)) {
+    if (pendingEventIds ? pendingEventIds.has(record.eventId) : isPendingApproval(record, now)) {
       if (!revealed.has(record.eventId)) hiddenEventIds.add(record.eventId);
       return;
     }

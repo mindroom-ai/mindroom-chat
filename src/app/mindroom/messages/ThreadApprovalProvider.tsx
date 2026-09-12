@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,15 +16,21 @@ import { enqueueThreadApprovalBackfill, useMindroomSyncEngine } from '../engine'
 import { useLiveEventArrive } from '../threads/roomLiveEventArrive';
 import {
   MINDROOM_TOOL_APPROVAL_EVENT,
+  isUndecryptedApprovalCandidate,
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
 import { createApprovalActions, ApprovalAction, ApprovalActionState } from './approvalActions';
-import { collectThreadApprovals, ThreadApprovalRecord } from './threadApprovalModel';
+import {
+  collectThreadApprovals,
+  isPendingApproval,
+  ThreadApprovalRecord,
+} from './threadApprovalModel';
 
 export type ThreadApprovals = {
   records: readonly ThreadApprovalRecord[];
   now: number;
+  pendingEventIds: ReadonlySet<string>;
   loading: boolean;
   error?: string;
   refresh: () => void;
@@ -86,7 +93,9 @@ function ActiveThreadApprovalProvider({
     [events, room.roomId, threadId, now, ignoredUsers]
   );
   const recordsRef = useRef(records);
-  recordsRef.current = records;
+  useLayoutEffect(() => {
+    recordsRef.current = records;
+  }, [records]);
   const actionController = useMemo(
     () =>
       createApprovalActions({
@@ -99,6 +108,23 @@ function ActiveThreadApprovalProvider({
     [mx, room.roomId, threadId]
   );
   const actions = useSyncExternalStore(actionController.subscribe, actionController.getSnapshot);
+  const pendingEventIds = useMemo(
+    () =>
+      new Set(
+        records
+          .filter((record) => {
+            const action = actions.get(record.eventId);
+            return (
+              isPendingApproval(record, now) ||
+              (record.wireStatus === 'pending' &&
+                action?.kind === 'decision' &&
+                action.status !== 'error')
+            );
+          })
+          .map((record) => record.eventId)
+      ),
+    [records, actions, now]
+  );
   const submit = actionController.submit;
   const refresh = useCallback(() => setRequest(({ revision }) => ({ revision: revision + 1 })), []);
   const repairPending = useCallback(
@@ -110,35 +136,48 @@ function ActiveThreadApprovalProvider({
     []
   );
   const ingest = useCallback(
-    (incoming: readonly MatrixEvent[]) => {
-      const relevant = incoming.filter(
-        (event) =>
-          event.getRoomId() === room.roomId &&
-          (event.getType() === MINDROOM_TOOL_APPROVAL_EVENT ||
-            event.getType() === 'm.room.encrypted' ||
-            event.isRedaction())
-      );
-      if (relevant.length === 0) return;
+    (incoming: readonly MatrixEvent[], fromBackfill = false) => {
+      const scoped = incoming.filter((event) => event.getRoomId() === room.roomId);
+      if (scoped.length === 0) return;
       setEvents((old) => {
+        let changed = false;
         const next = new Map(old);
-        relevant.forEach((event) => {
+        scoped.forEach((event) => {
           const id = event.getId();
           if (!id) return;
+          const relation = event.getRelation();
+          const type = event.getType();
+          const relevant =
+            (type === MINDROOM_TOOL_APPROVAL_EVENT &&
+              (event.getOriginalContent().thread_id === threadId ||
+                relation?.rel_type === 'm.replace')) ||
+            (isUndecryptedApprovalCandidate(event) &&
+              (fromBackfill ||
+                (relation?.rel_type === 'm.thread' && relation.event_id === threadId) ||
+                (relation?.rel_type === 'm.replace' &&
+                  !!relation.event_id &&
+                  next.has(relation.event_id)))) ||
+            event.isRedaction();
+          if (!relevant) {
+            changed = next.delete(id) || changed;
+            return;
+          }
+          changed = true;
           const existing = next.get(id);
           // Live objects retain newer SDK replacements and redactions when an older fetch finishes.
           if (
             !existing ||
             event.isRedacted() ||
-            (existing.getType() === 'm.room.encrypted' && event.getType() !== 'm.room.encrypted')
+            (isUndecryptedApprovalCandidate(existing) && !isUndecryptedApprovalCandidate(event))
           )
             next.set(id, event);
           const replacement = event.replacingEvent();
           if (replacement?.getId()) next.set(replacement.getId()!, replacement);
         });
-        return next;
+        return changed ? next : old;
       });
     },
-    [room.roomId]
+    [room.roomId, threadId]
   );
   useLiveEventArrive(
     room,
@@ -205,7 +244,7 @@ function ActiveThreadApprovalProvider({
           repairedOrigins.current.add(id);
           pendingRepair.current.delete(id);
         });
-        ingest(result.events);
+        ingest(result.events, true);
         setError(result.error);
         setLoading(false);
         if (!result.error && pendingRepair.current.size > 0) repairPending();
@@ -244,8 +283,8 @@ function ActiveThreadApprovalProvider({
     actionController.reconcile();
   }, [actionController, records, now]);
   const value = useMemo(
-    () => ({ records, now, loading, error, refresh, ingest, actions, submit }),
-    [records, now, loading, error, refresh, ingest, actions, submit]
+    () => ({ records, now, pendingEventIds, loading, error, refresh, ingest, actions, submit }),
+    [records, now, pendingEventIds, loading, error, refresh, ingest, actions, submit]
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

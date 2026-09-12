@@ -103,3 +103,23 @@ describe('thread approval backfill', () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 });
+
+it('retains the complete page when one unexpected decryption failure rejects', async () => {
+  const { mx, room, scheduler } = setup();
+  vi.spyOn(room, 'hasEncryptionStateEvent').mockReturnValue(true);
+  const encrypted = {
+    ...original,
+    event_id: '$encrypted',
+    type: 'm.room.encrypted',
+    content: { ciphertext: 'late keys' },
+  };
+  vi.spyOn(mx, 'fetchRelations')
+    .mockResolvedValueOnce({ chunk: [original, encrypted] })
+    .mockResolvedValue({ chunk: [] });
+  vi.spyOn(mx, 'decryptEventIfNeeded').mockImplementation(async (event) => {
+    if (event.getId() === '$encrypted') throw new Error('Crypto unavailable');
+  });
+  const result = await enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId);
+  expect(result.events.map((event) => event.getId())).toEqual(['$approval', '$encrypted']);
+  expect(result.error).toContain('decrypt');
+});

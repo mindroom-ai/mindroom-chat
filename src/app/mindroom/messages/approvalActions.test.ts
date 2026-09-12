@@ -6,6 +6,7 @@ import { ThreadApprovalRecord } from './threadApprovalModel';
 const record = (id: string): ThreadApprovalRecord => ({
   eventId: id,
   sender: '@router:example.org',
+  wireStatus: 'pending',
   approval: parseToolApprovalContent('io.mindroom.tool_approval', {
     approval_id: id,
     tool_name: 'shell',
@@ -47,6 +48,7 @@ describe('approval action ownership', () => {
     const finishDecision = finish;
     current = {
       ...current,
+      wireStatus: 'approved',
       approval: {
         ...current.approval,
         status: 'approved',
@@ -87,4 +89,17 @@ describe('approval action ownership', () => {
     await Promise.all(records.map((item) => actions.submit(item, { status: 'approved' })));
     expect(sent).toEqual(['$one', '$two', '$two']);
   });
+});
+
+it('limits a denial to its exact call even if an untyped caller supplies a duration', async () => {
+  const records = [record('$one'), record('$two')];
+  const actions = createApprovalActions({
+    getRecords: () => records,
+    getUserId: () => '@alice:example.org',
+    threadId: '$thread',
+    send: async () => undefined,
+  });
+  // @ts-expect-error Denials cannot carry timed approval capabilities.
+  await actions.submit(records[0], { status: 'denied', duration: 300 });
+  expect([...actions.getSnapshot().keys()]).toEqual(['$one']);
 });

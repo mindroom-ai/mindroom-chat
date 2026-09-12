@@ -17,9 +17,11 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
     approval.fullArguments ?? (loaded?.sourceKey === sourceKey ? loaded.value : undefined);
   useEffect(() => {
     let active = true;
-    if (!open || complete || !approval.argumentSource) return undefined;
+    // Parsing replaces objects on every room update; attachment identity stays fixed.
+    const source = JSON.parse(sourceKey) as ToolApprovalData['argumentSource'];
+    if (!open || complete || !source) return undefined;
     setError(undefined);
-    void downloadMindroomSidecarBlob(mx, approval.argumentSource, auth)
+    void downloadMindroomSidecarBlob(mx, source, auth)
       .then(async (blob) => {
         const value: unknown = JSON.parse(await blob.text());
         if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -32,7 +34,7 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
     return () => {
       active = false;
     };
-  }, [mx, auth, open, approval.argumentSource, complete, sourceKey, retry]);
+  }, [mx, auth, open, complete, sourceKey, retry]);
   return (
     <details className={css.Details} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>Arguments</summary>

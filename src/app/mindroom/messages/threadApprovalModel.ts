@@ -13,6 +13,7 @@ export type ThreadApprovalRecord = {
   eventId: string;
   sender: string;
   approval: ToolApprovalData;
+  wireStatus: ToolApprovalData['status'];
   aliasEventIds?: string[];
 };
 
@@ -60,6 +61,7 @@ export const collectThreadApprovals = (
     const record = {
       eventId,
       sender,
+      wireStatus: approval.status,
       approval: {
         ...approval,
         status: getEffectiveToolApprovalStatus(
@@ -83,11 +85,14 @@ export const collectThreadApprovals = (
     }
     records.push(record);
   });
-  return records.sort(
-    (a, b) =>
-      a.approval.requestedAt.localeCompare(b.approval.requestedAt) ||
+  return records.sort((a, b) => {
+    const left = Date.parse(a.approval.requestedAt);
+    const right = Date.parse(b.approval.requestedAt);
+    return (
+      (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0) ||
       a.eventId.localeCompare(b.eventId)
-  );
+    );
+  });
 };
 
 export const isPendingApproval = (record: ThreadApprovalRecord, now = Date.now()): boolean =>

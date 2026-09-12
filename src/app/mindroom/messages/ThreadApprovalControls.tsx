@@ -8,6 +8,7 @@ import {
   Icon,
   IconButton,
   Icons,
+  Input,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -15,14 +16,10 @@ import {
 } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useThreadApprovals } from './ThreadApprovalProvider';
-import {
-  groupPendingApprovals,
-  groupApprovalRecords,
-  isPendingApproval,
-  ThreadApprovalRecord,
-} from './threadApprovalModel';
+import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
 import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from './toolApproval';
-import { ApprovalArguments } from './ApprovalArguments';
+import { ApprovalReviewCall } from './ApprovalReviewCall';
+import { canSubmitApprovalDecision } from './approvalActions';
 import { ApprovalReceipt } from './ApprovalReceipt';
 import * as css from './ThreadApprovals.css';
 
@@ -78,12 +75,8 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
   const reasonId = useId();
   if (!context || records.length === 0) return null;
   const { approval } = records[0];
-  const available = records.filter(
-    (record) =>
-      isPendingApproval(record, context.now) &&
-      (!record.approval.approverUserId || record.approval.approverUserId === user) &&
-      (!context.actions.has(record.eventId) ||
-        context.actions.get(record.eventId)?.status === 'error')
+  const available = records.filter((record) =>
+    canSubmitApprovalDecision(record, user, context.actions.get(record.eventId), context.now)
   );
   const approvable = available.filter((record) => record.approval.approvable);
   const timed =
@@ -101,26 +94,9 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
       <small>
         {approval.agentName} · Requested by {approval.requesterId ?? 'unknown'}
       </small>
-      {records.map((record, index) => {
-        const action = context.actions.get(record.eventId);
-        return (
-          <div key={record.eventId} data-approval-id={record.eventId}>
-            <small>
-              Call {index + 1} ·{' '}
-              {isPendingApproval(record, context.now)
-                ? action?.status ?? 'pending'
-                : record.approval.status}
-            </small>
-            <ApprovalArguments approval={record.approval} />
-            {action?.error && (
-              <p role="alert">{action.error} Retry this call using the buttons below.</p>
-            )}
-            {!record.approval.approvable && isPendingApproval(record, context.now) && (
-              <p>This call cannot be approved here.</p>
-            )}
-          </div>
-        );
-      })}
+      {records.map((record, index) => (
+        <ApprovalReviewCall key={record.eventId} record={record} index={index} />
+      ))}
       <div className={css.Actions}>
         <Button
           size="300"
@@ -132,7 +108,7 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
           }}
           disabled={approvable.length === 0}
         >
-          <Text size="B300">Approve {approvable.length || records.length} once</Text>
+          <Text size="B300">Approve all {approvable.length || records.length} once</Text>
         </Button>
         <Button
           size="300"
@@ -145,20 +121,19 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
             });
           }}
         >
-          <Text size="B300">Deny {available.length || records.length}</Text>
+          <Text size="B300">Deny all {available.length || records.length}</Text>
         </Button>
       </div>
       {available.length > 0 && (
-        <label htmlFor={reasonId}>
-          <small>Denial reason (optional)</small>
-          <input
-            id={reasonId}
-            aria-label="Denial reason (optional)"
+        <div>
+          <small id={reasonId}>Reason for denying all (optional)</small>
+          <Input
+            aria-labelledby={reasonId}
             value={reason}
             onChange={(event) => setReason(event.currentTarget.value)}
             style={{ display: 'block', width: '100%', padding: 6 }}
           />
-        </label>
+        </div>
       )}
       {timed.length > 0 && (
         <>
@@ -187,7 +162,7 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
       {records.some(
         (record) =>
           context.actions.get(record.eventId)?.status === 'submitted' &&
-          isPendingApproval(record, context.now)
+          context.pendingEventIds.has(record.eventId)
       ) && <small role="status">Submitted. Waiting for room update.</small>}
     </section>
   );
@@ -198,7 +173,16 @@ export function ThreadApprovalQueue() {
   const [selection, setSelection] = useState<string[][]>();
   const trigger = useRef<HTMLButtonElement>(null);
   if (!context) return null;
-  const groups = groupPendingApprovals(context.records, context.now);
+  const groups = groupApprovalRecords(
+    context.records.filter((record) => context.pendingEventIds.has(record.eventId))
+  );
+  const awaitingOnly = groups
+    .flat()
+    .every(
+      (record) =>
+        context.actions.get(record.eventId)?.status === 'submitted' ||
+        context.actions.get(record.eventId)?.status === 'sending'
+    );
   const pendingCount = groups.reduce((sum, group) => sum + group.length, 0);
   return (
     <>
@@ -206,7 +190,9 @@ export function ThreadApprovalQueue() {
         <div className={css.Bar} role="region" aria-label="Thread approvals">
           <small>
             {pendingCount > 0
-              ? `${pendingCount} ${pendingCount === 1 ? 'call needs' : 'calls need'} approval`
+              ? awaitingOnly
+                ? `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} awaiting confirmation`
+                : `${pendingCount} ${pendingCount === 1 ? 'call needs' : 'calls need'} approval`
               : context.error ?? 'Checking approvals…'}
             {context.loading && pendingCount > 0 ? ' · Checking history…' : ''}
           </small>

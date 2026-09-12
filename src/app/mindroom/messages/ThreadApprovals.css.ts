@@ -68,3 +68,18 @@ export const Group = style({
   overflowWrap: 'anywhere',
 });
 export const Actions = style({ display: 'flex', flexWrap: 'wrap', gap: 8 });
+
+export const Call = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: '8px 0',
+  borderBottom: `1px solid ${color.Surface.ContainerLine}`,
+});
+export const CallHeader = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+});

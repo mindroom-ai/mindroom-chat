@@ -184,6 +184,8 @@ const immutableRequestFields = new Set([
   'agent_name',
   'requester_id',
   'approver_user_id',
+  'approvable',
+  'auto_approve_options',
   'requested_at',
   'created_at',
   'expires_at',
@@ -461,3 +463,7 @@ export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
     )
   );
 }
+
+// Failed SDK decryption presents as m.room.message / m.bad.encrypted until keys arrive.
+export const isUndecryptedApprovalCandidate = (event: MatrixEvent): boolean =>
+  event.getType() === 'm.room.encrypted' || event.isDecryptionFailure();

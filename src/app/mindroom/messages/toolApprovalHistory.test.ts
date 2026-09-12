@@ -75,3 +75,24 @@ describe('approval history', () => {
     });
   });
 });
+
+it('does not expand the original call’s approval capabilities through a replacement', () => {
+  const event = new MatrixEvent({
+    type: MINDROOM_TOOL_APPROVAL_EVENT,
+    event_id: '$approval',
+    sender: '@router:example.org',
+    content: { ...original, approvable: false, auto_approve_options: [] },
+  });
+  event.makeReplaced(
+    new MatrixEvent({
+      type: event.getType(),
+      event_id: '$edit',
+      sender: event.getSender(),
+      content: {
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+        'm.new_content': { ...original, approvable: true, auto_approve_options: [600] },
+      },
+    })
+  );
+  expect(parseToolApproval(event)).toMatchObject({ approvable: false, autoApproveOptions: [] });
+});
