@@ -1,0 +1,77 @@
+import { MatrixEvent } from 'matrix-js-sdk';
+import { describe, expect, it } from 'vitest';
+import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApproval } from './toolApproval';
+
+const original = {
+  approval_id: 'approval',
+  tool_name: 'account_call_tool',
+  agent_name: 'assistant',
+  arguments: { command: 'preview' },
+  arguments_truncated: true,
+  full_arguments: { command: 'the exact command' },
+  status: 'pending',
+  requested_at: '2026-09-12T12:00:00Z',
+  expires_at: '2026-09-12T12:30:00Z',
+  thread_id: '$thread',
+  response_event_id: '$response',
+  approval_scope: {
+    id: 'scope',
+    entity_name: 'assistant',
+    invoking_agent: 'assistant',
+    operation: {
+      tool_name: 'account_call_tool',
+      mcp_server_id: 'account',
+      mcp_tool_name: 'matrix_invite_user',
+    },
+  },
+};
+
+describe('approval history', () => {
+  it('keeps complete original arguments when an SDK replacement contains only a preview', () => {
+    const event = new MatrixEvent({
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      event_id: '$approval',
+      sender: '@router:example.org',
+      content: original,
+    });
+    event.makeReplaced(
+      new MatrixEvent({
+        type: MINDROOM_TOOL_APPROVAL_EVENT,
+        event_id: '$edit',
+        sender: '@router:example.org',
+        content: {
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+          'm.new_content': {
+            ...original,
+            full_arguments: undefined,
+            status: 'approved',
+            approval_provenance: {
+              kind: 'timed_grant',
+              grant_id: 'grant',
+              grant_card_event_id: '$approval',
+              granted_by: '@alice:example.org',
+              granted_at: '2026-09-12T12:01:00Z',
+              duration_seconds: 600,
+              expires_at: '2026-09-12T12:11:00Z',
+            },
+            auto_approval: {
+              grant_id: 'grant',
+              expires_at: '2026-09-12T12:11:00Z',
+              revoked_at: '2026-09-12T12:02:00Z',
+            },
+          },
+        },
+      })
+    );
+    const approval = parseToolApproval(event);
+    expect(approval?.status).toBe('approved');
+    expect(approval?.fullArguments).toEqual({ command: 'the exact command' });
+    expect(approval?.scope?.operation.mcpToolName).toBe('matrix_invite_user');
+    expect(approval?.responseEventId).toBe('$response');
+    expect(approval?.provenance).toMatchObject({
+      kind: 'timed_grant',
+      expiresAt: '2026-09-12T12:11:00Z',
+      durationSeconds: 600,
+    });
+  });
+});

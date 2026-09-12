@@ -113,6 +113,12 @@ describe('parseToolApproval', () => {
       resolutionReason: null,
       autoApproveOptions: [],
       autoApproval: null,
+      scope: null,
+      provenance: null,
+      responseEventId: null,
+      argumentsTruncated: false,
+      fullArguments: null,
+      argumentSource: null,
     });
   });
 
@@ -167,6 +173,12 @@ describe('parseToolApproval', () => {
     ).toMatchObject({
       autoApproveOptions: [],
       autoApproval: null,
+      scope: null,
+      provenance: null,
+      responseEventId: null,
+      argumentsTruncated: false,
+      fullArguments: null,
+      argumentSource: null,
     });
   });
 
@@ -240,6 +252,12 @@ describe('parseToolApproval', () => {
       resolutionReason: null,
       autoApproveOptions: [],
       autoApproval: null,
+      scope: null,
+      provenance: null,
+      responseEventId: null,
+      argumentsTruncated: false,
+      fullArguments: null,
+      argumentSource: null,
     });
   });
 
@@ -291,6 +309,12 @@ describe('parseToolApproval', () => {
       resolutionReason: 'Missing justification',
       autoApproveOptions: [],
       autoApproval: null,
+      scope: null,
+      provenance: null,
+      responseEventId: null,
+      argumentsTruncated: false,
+      fullArguments: null,
+      argumentSource: null,
     });
   });
 
@@ -397,6 +421,12 @@ describe('parseToolApproval', () => {
       resolutionReason: null,
       autoApproveOptions: [],
       autoApproval: null,
+      scope: null,
+      provenance: null,
+      responseEventId: null,
+      argumentsTruncated: false,
+      fullArguments: null,
+      argumentSource: null,
     });
   });
 

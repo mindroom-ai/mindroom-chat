@@ -15,6 +15,8 @@ import {
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
 import { ThreadContextBanner } from './ThreadContextBanner';
 
+vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalPermissions: () => null }));
+
 const ISO_1 = '2026-04-07T00:00:01.000Z';
 const ISO_2 = '2026-04-07T00:00:02.000Z';
 const ISO_3 = '2026-04-07T00:00:03.000Z';

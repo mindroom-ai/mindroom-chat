@@ -44,7 +44,7 @@ export const renderMindroomPinnedToolApprovalEvent = (
 
   const resolvedEditedEvent = editedEvent ?? event.replacingEvent();
   const approvalContent = getToolApprovalRenderContent(
-    event.getContent() as Record<string, unknown>,
+    event.getOriginalContent() as Record<string, unknown>,
     resolvedEditedEvent?.getContent() as Record<string, unknown> | undefined
   );
   const getApprovalContent = (() => approvalContent) as GetContentCallback;

@@ -289,3 +289,8 @@ describe('RoomView thread summary sharing', () => {
     renderer?.unmount();
   });
 });
+
+vi.mock('../../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../../messages/ThreadApprovalProvider', () => ({
+  ThreadApprovalProvider: 'thread-approval-provider',
+}));

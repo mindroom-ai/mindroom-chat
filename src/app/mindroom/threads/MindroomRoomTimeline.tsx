@@ -237,6 +237,11 @@ import { useRoomTimelineNavigationController } from './roomTimelineNavigationCon
 import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { useExpandLongMessagesByDefault } from '../settings/useMindroomAccountSettings';
+import { ApprovalHistory } from '../messages/ThreadApprovalControls';
+import {
+  useThreadApprovalTimeline,
+  useThreadApprovalRowMeasurements,
+} from './useThreadApprovalTimeline';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -729,6 +734,13 @@ export function RoomTimeline({
     threadInitialCacheHydrated,
     debugTraceId: threadDebugTraceId,
   });
+  const approvalTimeline = useThreadApprovalTimeline(
+    threadEvents,
+    ignoredUsersSet,
+    threadId,
+    eventId,
+    focusItem?.eventId
+  );
   // Pre-download every long-text sidecar of the open thread so replies render
   // their full Markdown without waiting for viewport entry or expansion (the
   // CollapsibleMessage IntersectionObserver gate still covers room-view rows).
@@ -1094,9 +1106,10 @@ export function RoomTimeline({
       if (!threadId) return defaultRowEstimate;
       const mEvent = index === undefined ? undefined : threadEvents[index];
       if (!mEvent) return defaultRowEstimate;
+      if (approvalTimeline.hiddenEventIds.has(mEvent.getId() ?? '')) return 0;
       return estimateThreadEventRowHeight(mEvent, { compact: compactRowLayout });
     },
-    [compactRowLayout, defaultRowEstimate, threadEvents, threadId]
+    [compactRowLayout, defaultRowEstimate, threadEvents, threadId, approvalTimeline.hiddenEventIds]
   );
   // The paginator runs before the ledger controller in hook order because
   // its returned items define the virtualizer's room surface. Record room
@@ -1213,6 +1226,12 @@ export function RoomTimeline({
     threadPaginatingBack: threadPaginatingBackRef.current,
     threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
   });
+  useThreadApprovalRowMeasurements(
+    roomTimelineVirtualizer,
+    threadEvents,
+    approvalTimeline.hiddenEventIds,
+    estimateRoomTimelineItemSize
+  );
   const roomTimelineLatestVirtualIndex = useMemo(() => {
     if (timelineItems.length === 0) return -1;
     if (!roomOverviewOrderActive) return timelineItems.length - 1;
@@ -2132,6 +2151,7 @@ export function RoomTimeline({
                 </CollapsibleMessage>
               );
             })()}
+            <ApprovalHistory records={approvalTimeline.historyByResponseId.get(mEventId) ?? []} />
           </Message>
         );
       },
@@ -2236,6 +2256,10 @@ export function RoomTimeline({
             >
               {mEvent.isRedacted() ? (
                 <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+              ) : approvalTimeline.fallbackGroupsByEventId.has(mEventId) ? (
+                <ApprovalHistory
+                  records={approvalTimeline.fallbackGroupsByEventId.get(mEventId) ?? []}
+                />
               ) : (
                 <RenderMessageContent
                   displayName={senderDisplayName}
@@ -2377,6 +2401,7 @@ export function RoomTimeline({
                   editedEvent
                 );
                 if (approvalContent) {
+                  if (approvalTimeline.fallbackGroupsByEventId.has(mEventId)) return null;
                   const getContent = (() => approvalContent) as GetContentCallback;
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
@@ -2479,6 +2504,13 @@ export function RoomTimeline({
                 );
               }}
             </EncryptedContent>
+            <ApprovalHistory
+              records={
+                approvalTimeline.historyByResponseId.get(mEventId) ??
+                approvalTimeline.fallbackGroupsByEventId.get(mEventId) ??
+                []
+              }
+            />
           </Message>
         );
       },
@@ -3041,6 +3073,8 @@ export function RoomTimeline({
 
     if (!mEvent || !mEventId) return null;
 
+    if (approvalTimeline.hiddenEventIds.has(mEventId)) return null;
+
     const eventSender = mEvent.getSender();
     if (eventSender && ignoredUsersSet.has(eventSender)) {
       return null;
@@ -3240,6 +3274,7 @@ export function RoomTimeline({
       (previousIndex) => threadEvents[previousIndex],
       index,
       (mEvent) => {
+        if (approvalTimeline.hiddenEventIds.has(mEvent.getId() ?? '')) return true;
         const eventSender = mEvent.getSender();
         if (eventSender && ignoredUsersSet.has(eventSender)) return true;
         return mEvent.isRedacted() && !showHiddenEvents;
@@ -3286,17 +3321,21 @@ export function RoomTimeline({
           width: '100%',
         }}
       >
-        {virtualItems.map((virtualItem) => (
-          <VirtualTile
-            key={virtualItem.key}
-            ref={roomTimelineVirtualizer.measureElement}
-            virtualItem={virtualItem}
-            // Content-relative top — see renderVirtualRoomTimelineItems.
-            style={{ top: virtualItem.start + ledgerPxAtRender }}
-          >
-            {threadEventRenderer(virtualItem.index)}
-          </VirtualTile>
-        ))}
+        {virtualItems
+          .filter(
+            (item) => !approvalTimeline.hiddenEventIds.has(threadEvents[item.index]?.getId() ?? '')
+          )
+          .map((virtualItem) => (
+            <VirtualTile
+              key={virtualItem.key}
+              ref={roomTimelineVirtualizer.measureElement}
+              virtualItem={virtualItem}
+              // Content-relative top — see renderVirtualRoomTimelineItems.
+              style={{ top: virtualItem.start + ledgerPxAtRender }}
+            >
+              {threadEventRenderer(virtualItem.index)}
+            </VirtualTile>
+          ))}
       </div>
     );
   };

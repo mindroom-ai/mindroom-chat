@@ -6,6 +6,9 @@ import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
 const sendEventMock = vi.fn();
+vi.mock('./ThreadApprovals.css', () => ({ Receipt: 'Receipt', ReceiptBody: 'ReceiptBody' }));
+vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => undefined }));
+vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 let currentUserId = '@alice:example.org';
 
 vi.mock('folds', () => ({
@@ -108,6 +111,12 @@ const pendingApproval: ToolApprovalData = {
   resolutionReason: null,
   autoApproveOptions: [],
   autoApproval: null,
+  scope: null,
+  provenance: null,
+  responseEventId: null,
+  argumentsTruncated: false,
+  fullArguments: null,
+  argumentSource: null,
 };
 
 const timedPendingApproval: ToolApprovalData = {
@@ -528,7 +537,7 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('keeps an active originating grant expanded and submits a literal revoke request', async () => {
+  it('keeps an active originating grant inspectable in collapsed history and submits a literal revoke request', async () => {
     vi.useFakeTimers();
     vi.setSystemTime('2026-04-10T12:05:00Z');
     sendEventMock.mockResolvedValue(undefined);
@@ -1053,7 +1062,7 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('renders resolved denied approvals as compact inline summaries', () => {
+  it('retains denied approval evidence in collapsed history', () => {
     const renderer = renderCard({
       ...pendingApproval,
       status: 'denied',
@@ -1066,10 +1075,13 @@ describe('MindroomToolApprovalCard', () => {
 
     expect(text).toContain('web_search');
     expect(text).toContain('Denied by @ops:example.org');
-    expect(text).not.toContain('Arguments');
+    expect(text).toContain('Arguments');
+    expect(
+      renderer.root.findByProps({ 'aria-label': 'Resolved tool approval request' }).props.open
+    ).not.toBe(true);
     expect(text).not.toContain('Approve');
     expect(text).not.toContain('Confirm Deny');
-    expect(renderer.root.findByProps({ title: 'Reason: Missing justification' })).toBeDefined();
+    expect(text).toContain('Reason: Missing justification');
 
     renderer.unmount();
   });

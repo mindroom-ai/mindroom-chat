@@ -1621,3 +1621,5 @@ describe('RoomTimeline collapsible wiring', () => {
     ).toBe('default');
   });
 });
+
+vi.mock('../../messages/ThreadApprovalControls', () => ({ ApprovalHistory: () => null }));

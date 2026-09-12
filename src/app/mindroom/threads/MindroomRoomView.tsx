@@ -29,6 +29,8 @@ import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isLocalEchoEventId } from './threadRouteUtils';
+import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
+import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -135,99 +137,107 @@ export function RoomView({
   );
 
   return (
-    <Page ref={roomViewRef}>
-      <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
-      {effectiveThreadId && (
-        <ThreadContextBanner
-          room={room}
-          threadId={effectiveThreadId}
-          summaryInfo={threadSummaryInfo}
-          onExitThread={handleExitThread}
-        />
-      )}
-      <Box grow="Yes" direction="Column">
-        <RoomTimeline
-          key={`${roomId}:${effectiveThreadId ?? ''}`}
-          room={room}
-          hasMindroomAgents={hasMindroomAgents}
-          eventId={eventId}
-          focusEventInRoom={focusEventInRoom}
-          threadId={effectiveThreadId}
-          threadFilterState={threadFilterState}
-          threadSortFreezeState={threadSortFreezeState}
-          onToggle={handleToggle}
-          onSortDirectionChange={handleSortDirectionChange}
-          onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
-          onToggleUnresolvedOnly={handleToggleUnresolvedOnly}
-          setThreadSortFreezeState={setThreadSortFreezeState}
-          onCycleTag={handleCycleTag}
-          onAddTag={handleAddTag}
-          onRemoveTag={handleRemoveTag}
-          onReset={handleReset}
-          onApplyPreset={handleApplyPreset}
-          onSearchQueryChange={handleSearchQueryChange}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          onThreadLoadError={onThreadLoadError}
-          summaryMap={summaryMap}
-          onStoreThreadSummary={storeThreadSummary}
-          roomInputRef={roomInputRef}
-          compactRoomScrollStateRef={compactRoomScrollStateRef}
-          editor={editor}
-        />
-        <RoomViewTyping room={room} />
-      </Box>
-      <Box shrink="No" direction="Column">
-        <div style={{ padding: `0 ${config.space.S400}` }}>
-          {tombstoneEvent ? (
-            <RoomTombstone
-              roomId={roomId}
-              body={tombstoneEvent.getContent().body}
-              replacementRoomId={tombstoneEvent.getContent().replacement_room}
-            />
-          ) : (
-            <>
-              {canMessage && !pendingThreadRoot && (
-                <RoomInput
-                  room={room}
-                  editor={editor}
-                  roomId={roomId}
-                  threadId={effectiveThreadId}
-                  threadingEnabled={viewMode !== 'classic'}
-                  onRoomMessageSent={handleRoomMessageSent}
-                  fileDropContainerRef={roomViewRef}
-                  ref={roomInputRef}
-                />
-              )}
-              {canMessage && pendingThreadRoot && (
-                <RoomInputPlaceholder
-                  style={{
-                    padding: config.space.S200,
-                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-                  }}
-                  alignItems="Center"
-                  justifyContent="Center"
-                >
-                  <Text align="Center">Replies are available after this message is confirmed.</Text>
-                </RoomInputPlaceholder>
-              )}
-              {!canMessage && (
-                <RoomInputPlaceholder
-                  style={{
-                    padding: config.space.S200,
-                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-                  }}
-                  alignItems="Center"
-                  justifyContent="Center"
-                >
-                  <Text align="Center">You do not have permission to post in this room</Text>
-                </RoomInputPlaceholder>
-              )}
-            </>
-          )}
-        </div>
-        {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
-      </Box>
-    </Page>
+    <ThreadApprovalProvider
+      room={room}
+      threadId={pendingThreadRoot ? undefined : effectiveThreadId}
+    >
+      <Page ref={roomViewRef}>
+        <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
+        {effectiveThreadId && (
+          <ThreadContextBanner
+            room={room}
+            threadId={effectiveThreadId}
+            summaryInfo={threadSummaryInfo}
+            onExitThread={handleExitThread}
+          />
+        )}
+        <Box grow="Yes" direction="Column">
+          <RoomTimeline
+            key={`${roomId}:${effectiveThreadId ?? ''}`}
+            room={room}
+            hasMindroomAgents={hasMindroomAgents}
+            eventId={eventId}
+            focusEventInRoom={focusEventInRoom}
+            threadId={effectiveThreadId}
+            threadFilterState={threadFilterState}
+            threadSortFreezeState={threadSortFreezeState}
+            onToggle={handleToggle}
+            onSortDirectionChange={handleSortDirectionChange}
+            onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
+            onToggleUnresolvedOnly={handleToggleUnresolvedOnly}
+            setThreadSortFreezeState={setThreadSortFreezeState}
+            onCycleTag={handleCycleTag}
+            onAddTag={handleAddTag}
+            onRemoveTag={handleRemoveTag}
+            onReset={handleReset}
+            onApplyPreset={handleApplyPreset}
+            onSearchQueryChange={handleSearchQueryChange}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            onThreadLoadError={onThreadLoadError}
+            summaryMap={summaryMap}
+            onStoreThreadSummary={storeThreadSummary}
+            roomInputRef={roomInputRef}
+            compactRoomScrollStateRef={compactRoomScrollStateRef}
+            editor={editor}
+          />
+          <RoomViewTyping room={room} />
+        </Box>
+        <Box shrink="No" direction="Column">
+          <ThreadApprovalQueue />
+          <div style={{ padding: `0 ${config.space.S400}` }}>
+            {tombstoneEvent ? (
+              <RoomTombstone
+                roomId={roomId}
+                body={tombstoneEvent.getContent().body}
+                replacementRoomId={tombstoneEvent.getContent().replacement_room}
+              />
+            ) : (
+              <>
+                {canMessage && !pendingThreadRoot && (
+                  <RoomInput
+                    room={room}
+                    editor={editor}
+                    roomId={roomId}
+                    threadId={effectiveThreadId}
+                    threadingEnabled={viewMode !== 'classic'}
+                    onRoomMessageSent={handleRoomMessageSent}
+                    fileDropContainerRef={roomViewRef}
+                    ref={roomInputRef}
+                  />
+                )}
+                {canMessage && pendingThreadRoot && (
+                  <RoomInputPlaceholder
+                    style={{
+                      padding: config.space.S200,
+                      paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                    }}
+                    alignItems="Center"
+                    justifyContent="Center"
+                  >
+                    <Text align="Center">
+                      Replies are available after this message is confirmed.
+                    </Text>
+                  </RoomInputPlaceholder>
+                )}
+                {!canMessage && (
+                  <RoomInputPlaceholder
+                    style={{
+                      padding: config.space.S200,
+                      paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                    }}
+                    alignItems="Center"
+                    justifyContent="Center"
+                  >
+                    <Text align="Center">You do not have permission to post in this room</Text>
+                  </RoomInputPlaceholder>
+                )}
+              </>
+            )}
+          </div>
+          {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
+        </Box>
+      </Page>
+    </ThreadApprovalProvider>
   );
 }

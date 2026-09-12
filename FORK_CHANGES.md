@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Compact thread approvals with inspectable history (2026-09-12)
+
+- Pending calls share one bounded bar above the composer; Review captures the current requests and groups only the same canonical permission scope.
+- Each reviewed call retains its exact original arguments, with lazy loading and retry for plaintext or encrypted argument attachments.
+- A batch can be approved once or denied, while eligible operations offer fixed 5, 10, or 30 minute permissions.
+- Thread-scoped action state survives card virtualization, handles partial batch failure, and stays Submitted until an authoritative Matrix update arrives.
+- Active timed permissions live in the thread header, with fixed expiry and per-permission revocation.
+- Resolved and automatic calls become collapsed history beside their response; missing response anchors use a collapsed timeline fallback, and directly focused originals remain reachable.
+- Original arguments, approval kind, actor, decision time, and original grant expiry remain inspectable after revocation or expiry.
+- The existing backfill scheduler owns approval discovery and edit repair independently of visible pagination, including delayed decryption and partial-history retry.
+- Automatic receipt deduplication uses exact call identity, while timeline projection preserves raw event indexes and pagination anchors.
+- Regression coverage includes authoritative acknowledgement races, per-call retry, late decryption, immutable request data, alias receipts, deadline expiry, and attachment failures.
+- Live Chromium against disposable local Matrix accounts verifies grouped approval, subsequent automatic receipts, revocation, preserved arguments, and phone layouts.
+- Screenshots are attached to the pull request through GitHub CLI and are not repository files.
+- Typecheck, production build, and full ESLint pass with the existing warning baseline; full Vitest retains only the four pre-existing failures documented below.
+- Next step: independent pull-request review and integration.
+
 ### Add timed thread tool approval controls (2026-09-12)
 
 - Status: implementation, automated validation, and live interaction checks are complete; ready for independent review.
