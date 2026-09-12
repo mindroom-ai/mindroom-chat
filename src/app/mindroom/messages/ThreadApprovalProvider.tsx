@@ -13,6 +13,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { enqueueThreadApprovalBackfill, useMindroomSyncEngine } from '../engine';
 import { useLiveEventArrive } from '../threads/roomLiveEventArrive';
+import { collectKnownRedactedEventIds } from '../threads/eventRevision';
 import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   isUndecryptedApprovalCandidate,
@@ -114,14 +115,19 @@ function ActiveThreadApprovalProvider({
   );
   // Missing-key failures resolve in the SDK. Retained events own completeness,
   // so late keys and targeted repairs cannot leave a stale or premature success.
-  const unreadableHistory = useMemo(
-    () =>
-      [...events.values()].some(
-        (event) =>
-          !ignoredUsers.includes(event.getSender() ?? '') && isUndecryptedApprovalCandidate(event)
-      ),
-    [events, ignoredUsers]
-  );
+  const unreadableHistory = useMemo(() => {
+    const retained = [...events.values()];
+    const redacted = collectKnownRedactedEventIds(
+      room,
+      retained.map((event) => event.event)
+    );
+    return retained.some(
+      (event) =>
+        !redacted.has(event.getId() ?? '') &&
+        !ignoredUsers.includes(event.getSender() ?? '') &&
+        isUndecryptedApprovalCandidate(event)
+    );
+  }, [events, ignoredUsers, room]);
   const error =
     discoveryError ??
     repairError ??

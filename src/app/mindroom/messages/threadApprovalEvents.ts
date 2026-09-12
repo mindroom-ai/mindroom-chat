@@ -1,5 +1,5 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { hydrateCachedEvents } from '../threads/eventCacheEditUtils';
+import { applyCachedRedactions, hydrateCachedEvents } from '../threads/eventCacheEditUtils';
 import { mergeSameIdEventRevision, withoutRawReplacement } from '../threads/eventRevision';
 import { getSerializedReplacementEvent } from '../../utils/editEvent';
 import { isUndecryptedApprovalCandidate, MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';
@@ -55,11 +55,11 @@ export const hydrateThreadApprovalEvents = (
   // Ciphertext stays in retained evidence for keys; generic cache hydration must
   // only see readable replacements, including those bundled in unsigned data.
   canonical.forEach(removeUnreadableReplacement);
-  rendered.forEach(removeUnreadableReplacement);
   rendered.forEach((target) => {
     const id = target.getId();
     const evidence = id ? canonical.get(id) : undefined;
     if (!id || !evidence || target === evidence) return;
+    removeUnreadableReplacement(target);
     // Keep a decrypted original authoritative while a cached copy still awaits keys.
     if (
       !evidence.isRedacted() &&
@@ -77,6 +77,7 @@ export const hydrateThreadApprovalEvents = (
   });
   // Unreadable relations remain retained for late keys, but cannot replace a
   // reviewed original or be bundled as a decision by cache serialization.
+  applyCachedRedactions(room, [...canonical.values()]);
   const events = [...canonical.values()].filter((event) => !isUndecryptedApprovalCandidate(event));
   hydrateCachedEvents({ room, events });
   return events;

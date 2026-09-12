@@ -739,3 +739,59 @@ it.each(['bundled', 'attached'] as const)(
     expect(current.error).toBeUndefined();
   }
 );
+
+it('leaves ordinary-message encrypted replacement bundles with their timeline owner', async () => {
+  const ordinary = new MatrixEvent({
+    ...event('$ordinary').event,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'original' },
+    unsigned: {
+      'm.relations': {
+        'm.replace': {
+          ...event('$ordinary-edit').event,
+          type: 'm.room.encrypted',
+          origin_server_ts: 2,
+          content: {
+            ciphertext: 'ordinary edit',
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$ordinary' },
+          },
+        },
+      },
+    },
+  });
+  const frozen = structuredClone(ordinary.event);
+  await mount();
+  await act(async () => current.ingestTimeline([event(), ordinary]));
+  expect(ordinary.event).toEqual(frozen);
+  expect(
+    (mocks.persist.mock.lastCall![2] as MatrixEvent[]).some((item) => item.getId() === '$ordinary')
+  ).toBe(false);
+});
+
+it('applies a standalone redaction to a cached ciphertext approval before keys arrive', async () => {
+  const cached = new MatrixEvent({
+    ...event().event,
+    type: 'm.room.encrypted',
+    content: {
+      ciphertext: 'pending key',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    },
+  });
+  const redaction = new MatrixEvent({
+    event_id: '$redaction',
+    room_id: room.roomId,
+    sender: '@router:example.org',
+    type: 'm.room.redaction',
+    content: {},
+    redacts: '$approval',
+  });
+  vi.spyOn(mx, 'decryptEventIfNeeded').mockResolvedValue(undefined);
+  await mount();
+  await act(async () => current.ingestTimeline([cached]));
+  expect(current.error).toContain('could not be decrypted');
+  await act(async () => current.ingestTimeline([cached, redaction]));
+  expect(cached.isRedacted()).toBe(true);
+  expect(current.error).toBeUndefined();
+  const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
+  expect(saved.find((item) => item.getId() === '$approval')!.isRedacted()).toBe(true);
+});
