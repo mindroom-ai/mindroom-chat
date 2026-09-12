@@ -84,7 +84,7 @@ it.each(['review', 'permissions'] as const)(
       pendingEventIds: new Set(mode === 'review' ? ['$approval'] : []),
       loading: false,
       refresh: () => undefined,
-      ingest: () => undefined,
+      ingestTimeline: () => undefined,
       actions: new Map(),
       submit: async () => undefined,
       focusConversation: () => composer.focus(),

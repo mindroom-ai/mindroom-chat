@@ -26,7 +26,7 @@ import {
   isApprovalPending,
 } from './approvalActions';
 import { useApprovalActions } from './useApprovalActions';
-import { mergeThreadApprovalEvents } from './threadApprovalEvents';
+import { hydrateThreadApprovalEvents, mergeThreadApprovalEvents } from './threadApprovalEvents';
 import { collectThreadApprovals, ThreadApprovalRecord } from './threadApprovalModel';
 
 export type ThreadApprovals = {
@@ -38,7 +38,7 @@ export type ThreadApprovals = {
   loading: boolean;
   error?: string;
   refresh: () => void;
-  ingest: (events: readonly MatrixEvent[]) => void;
+  ingestTimeline: (events: readonly MatrixEvent[]) => void;
   actions: ReadonlyMap<string, ApprovalActionState>;
   submit: (record: ThreadApprovalRecord, action: ApprovalAction) => Promise<void>;
   focusConversation?: () => void;
@@ -84,7 +84,8 @@ function ActiveThreadApprovalProvider({
 }) {
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
-  const { scheduler } = useMindroomSyncEngine();
+  const { scheduler, persist } = useMindroomSyncEngine();
+  const timelineEvents = useRef<readonly MatrixEvent[]>([]);
   const [events, setEvents] = useState(() =>
     mergeThreadApprovalEvents(
       new Map(),
@@ -102,7 +103,6 @@ function ActiveThreadApprovalProvider({
   const [now, setNow] = useState(Date.now);
   const fetching = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
-  const pendingRepair = useRef(new Map<string, MatrixEvent>());
   const records = useMemo(
     () =>
       collectThreadApprovals([...events.values()], room.roomId, threadId, now).filter(
@@ -144,14 +144,6 @@ function ActiveThreadApprovalProvider({
     [records, actions, now]
   );
   const refresh = useCallback(() => setRequest(({ revision }) => ({ revision: revision + 1 })), []);
-  const repairPending = useCallback(
-    () =>
-      setRequest(({ revision }) => ({
-        revision: revision + 1,
-        origins: [...pendingRepair.current.values()],
-      })),
-    []
-  );
   const ingest = useCallback(
     (incoming: readonly MatrixEvent[], fromBackfill = false) => {
       setEvents((old) =>
@@ -160,28 +152,22 @@ function ActiveThreadApprovalProvider({
     },
     [room.roomId, threadId]
   );
+  const ingestTimeline = useCallback(
+    (incoming: readonly MatrixEvent[]) => {
+      timelineEvents.current = incoming;
+      ingest(incoming);
+    },
+    [ingest]
+  );
+  useEffect(() => {
+    const repaired = hydrateThreadApprovalEvents(room, events, timelineEvents.current);
+    if (repaired.length > 0) persist.persistThreadEventCache(room, threadId, repaired);
+  }, [room, threadId, events, persist]);
   useLiveEventArrive(
     room,
     useCallback((event) => ingest([event]), [ingest])
   );
-  const decrypted = useCallback(
-    (event: MatrixEvent) => {
-      ingest([event]);
-      const id = event.getId();
-      if (
-        id &&
-        event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
-        event.getRoomId() === room.roomId &&
-        event.getOriginalContent().thread_id === threadId &&
-        event.getRelation()?.rel_type !== 'm.replace' &&
-        !repairedOrigins.current.has(id)
-      ) {
-        pendingRepair.current.set(id, event);
-        if (!fetching.current) repairPending();
-      }
-    },
-    [ingest, room.roomId, threadId, repairPending]
-  );
+  const decrypted = useCallback((event: MatrixEvent) => ingest([event]), [ingest]);
   useEffect(() => {
     const scan = () =>
       ingest([...room.getLiveTimeline().getEvents(), ...(room.getThread(threadId)?.events ?? [])]);
@@ -225,14 +211,12 @@ function ActiveThreadApprovalProvider({
         fetching.current = false;
         result.repairedEventIds.forEach((id) => {
           repairedOrigins.current.add(id);
-          pendingRepair.current.delete(id);
         });
         ingest(result.events, true);
         setRequestError(result.error);
         // Only complete discovery also proves that earlier repair failures recovered.
         if (!request.origins && !result.error) setRepairError(undefined);
         setLoading(false);
-        if (!result.error && pendingRepair.current.size > 0) repairPending();
       })
       .catch(() => {
         if (active) {
@@ -245,7 +229,21 @@ function ActiveThreadApprovalProvider({
       active = false;
       scheduler.abort(room.roomId, threadId, 'thread-approvals');
     };
-  }, [mx, scheduler, room.roomId, threadId, request, ingest, repairPending]);
+  }, [mx, scheduler, room.roomId, threadId, request, ingest]);
+  useEffect(() => {
+    const origins = [...events]
+      .filter(
+        ([id, event]) =>
+          !repairedOrigins.current.has(id) &&
+          !event.isRedacted() &&
+          event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
+          event.getOriginalContent().thread_id === threadId &&
+          event.getRelation()?.rel_type !== 'm.replace'
+      )
+      .map(([, event]) => event);
+    if (!fetching.current && !repairError && origins.length > 0)
+      setRequest(({ revision }) => ({ revision: revision + 1, origins }));
+  }, [events, loading, threadId, repairError]);
   useEffect(() => {
     const deadlines = records.flatMap(({ approval }) => {
       const expiry =
@@ -274,7 +272,7 @@ function ActiveThreadApprovalProvider({
       loading,
       error,
       refresh,
-      ingest,
+      ingestTimeline,
       actions,
       submit,
       focusConversation,
@@ -288,7 +286,7 @@ function ActiveThreadApprovalProvider({
       loading,
       error,
       refresh,
-      ingest,
+      ingestTimeline,
       actions,
       submit,
       focusConversation,

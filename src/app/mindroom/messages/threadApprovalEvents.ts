@@ -1,5 +1,40 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { hydrateCachedEvents } from '../threads/eventCacheEditUtils';
+import { mergeSameIdEventRevision } from '../threads/eventRevision';
 import { isUndecryptedApprovalCandidate, MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';
+
+/** Apply retained evidence to the exact objects currently rendered by cache-first timelines. */
+export const hydrateThreadApprovalEvents = (
+  room: Room,
+  retained: ReadonlyMap<string, MatrixEvent>,
+  rendered: readonly MatrixEvent[]
+): MatrixEvent[] => {
+  const canonical = new Map(retained);
+  rendered.forEach((target) => {
+    const id = target.getId();
+    const evidence = id ? canonical.get(id) : undefined;
+    if (!id || !evidence || target === evidence) return;
+    // Keep a decrypted original authoritative while a cached copy still awaits keys.
+    if (
+      !evidence.isRedacted() &&
+      isUndecryptedApprovalCandidate(target) &&
+      !isUndecryptedApprovalCandidate(evidence)
+    )
+      return;
+    mergeSameIdEventRevision({
+      room,
+      liveEvent: target,
+      rawEvent: evidence.event,
+      mapEvent: (raw) => new MatrixEvent(raw),
+    });
+    canonical.set(id, target);
+  });
+  // Unreadable relations remain retained for late keys, but cannot replace a
+  // reviewed original or be bundled as a decision by cache serialization.
+  const events = [...canonical.values()].filter((event) => !isUndecryptedApprovalCandidate(event));
+  hydrateCachedEvents({ room, events });
+  return events;
+};
 
 export const mergeThreadApprovalEvents = (
   old: ReadonlyMap<string, MatrixEvent>,
@@ -10,24 +45,47 @@ export const mergeThreadApprovalEvents = (
 ): ReadonlyMap<string, MatrixEvent> => {
   let changed = false;
   const next = new Map(old);
+  const scopedIds = new Set(old.keys());
+  const scopedOriginal = (event: MatrixEvent) =>
+    event.getRelation()?.rel_type !== 'm.replace' &&
+    ((event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
+      event.getOriginalContent().thread_id === threadId) ||
+      (isUndecryptedApprovalCandidate(event) &&
+        (event.getRelation()?.rel_type === 'm.thread'
+          ? event.getRelation()?.event_id === threadId
+          : fromBackfill)));
+  // Origins may follow their edits in a cached batch. Establish their scope first.
+  incoming.forEach((event) => {
+    const id = event.getId();
+    if (id && event.getRoomId() === roomId && scopedOriginal(event)) scopedIds.add(id);
+  });
+  incoming.forEach((event) => {
+    const id = event.getId();
+    const relation = event.getRelation();
+    if (
+      id &&
+      event.getRoomId() === roomId &&
+      relation?.rel_type === 'm.replace' &&
+      relation.event_id &&
+      scopedIds.has(relation.event_id)
+    )
+      scopedIds.add(id);
+  });
   incoming.forEach((event) => {
     const id = event.getId();
     if (!id || event.getRoomId() !== roomId) return;
     const existing = next.get(id);
     if (existing?.isRedacted() && !event.isRedacted()) return;
     const relation = event.getRelation();
+    const scopedEdit =
+      relation?.rel_type === 'm.replace' && !!relation.event_id && scopedIds.has(relation.event_id);
     const relevant =
-      event.isRedacted() ||
-      (event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
-        (event.getOriginalContent().thread_id === threadId ||
-          relation?.rel_type === 'm.replace')) ||
-      (isUndecryptedApprovalCandidate(event) &&
-        (fromBackfill ||
-          (relation?.rel_type === 'm.thread' && relation.event_id === threadId) ||
-          (relation?.rel_type === 'm.replace' &&
-            !!relation.event_id &&
-            next.has(relation.event_id)))) ||
-      event.isRedaction();
+      (event.isRedacted() && scopedIds.has(id)) ||
+      scopedOriginal(event) ||
+      (scopedEdit &&
+        (event.getType() === MINDROOM_TOOL_APPROVAL_EVENT ||
+          isUndecryptedApprovalCandidate(event))) ||
+      (event.isRedaction() && !!event.getAssociatedId() && scopedIds.has(event.getAssociatedId()!));
     if (!relevant) {
       changed = next.delete(id) || changed;
       return;

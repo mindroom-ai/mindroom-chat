@@ -192,3 +192,13 @@ it('retains the complete page when one unexpected decryption failure rejects', a
   expect(result.events.map((event) => event.getId())).toEqual(['$approval', '$encrypted']);
   expect(result.error).toContain('decrypt');
 });
+
+it('reports a missing room instead of claiming discovery or repair completed', async () => {
+  const { mx, scheduler } = setup();
+  vi.spyOn(mx, 'getRoom').mockReturnValue(null);
+  const result = await enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId, [
+    new MatrixEvent(original),
+  ]);
+  expect(result.repairedEventIds).toEqual([]);
+  expect(result.error).toBeTruthy();
+});

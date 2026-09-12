@@ -16,6 +16,10 @@
 - Review, permission, and receipt labels retain the MCP server alongside the remote tool, so identically named operations remain distinguishable.
 - Original arguments, approval kind, actor, decision time, and original grant expiry remain inspectable after revocation or expiry.
 - The existing backfill scheduler owns approval discovery and edit repair independently of visible pagination, including delayed decryption and partial-history retry.
+- Approval repair hydrates the exact cached timeline objects through the shared event hydration helpers and persists through the engine cache boundary without claiming whole-thread completeness.
+- Ordinary message repair excludes approvals only inside the matching approval provider scope; standalone scopes retain their existing repair behavior.
+- One provider queue repairs unrepaired origins learned through discovery, plaintext timeline ingress, or late decryption; retained evidence and cache writes stay within the current thread.
+- Unreadable edits remain available for key recovery without replacing or being cached onto a reviewed original; recovered tombstones also redact ciphertext originals.
 - Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.
 - Discovery and targeted-repair failures have separate state; successful repair cannot hide a failed full history scan.
 - Individual denial moves keyboard focus to its reason field and restores the Deny button when cancelled.

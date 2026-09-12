@@ -3,25 +3,27 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MatrixEventEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { hydrateCachedEvents, serializeEventsForCache } from '../threads/eventCacheEditUtils';
 import {
   ThreadApprovalProvider,
   ThreadApprovals,
   useThreadApprovals,
 } from './ThreadApprovalProvider';
 
-const mocks = vi.hoisted(() => ({ backfill: vi.fn(), abort: vi.fn() }));
+const mocks = vi.hoisted(() => ({ backfill: vi.fn(), abort: vi.fn(), persist: vi.fn() }));
 let mx: ReturnType<typeof createClient>;
 let room: Room;
 let ignored: string[];
 const IgnoredContext = React.createContext<string[] | undefined>(undefined);
 const scheduler = { abort: mocks.abort };
+const persist = { persistThreadEventCache: mocks.persist };
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../../hooks/useIgnoredUsers', () => ({
   useIgnoredUsers: () => React.useContext(IgnoredContext) ?? ignored,
 }));
 vi.mock('../engine', () => ({
   enqueueThreadApprovalBackfill: mocks.backfill,
-  useMindroomSyncEngine: () => ({ scheduler }),
+  useMindroomSyncEngine: () => ({ scheduler, persist }),
 }));
 vi.mock('../threads/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 let current: ThreadApprovals;
@@ -47,7 +49,7 @@ const event = (id = '$approval', value = content) =>
     sender: '@router:example.org',
     origin_server_ts: 1,
     type: 'io.mindroom.tool_approval',
-    content: value,
+    content: structuredClone(value),
   });
 const mount = async () => {
   await act(async () => {
@@ -60,8 +62,14 @@ const mount = async () => {
 };
 
 beforeEach(() => {
-  mocks.backfill.mockReset().mockResolvedValue({ events: [], repairedEventIds: [] });
+  mocks.backfill
+    .mockReset()
+    .mockImplementation(async (_mx, _scheduler, _room, _thread, origins?: MatrixEvent[]) => ({
+      events: [],
+      repairedEventIds: (origins ?? []).flatMap((origin) => origin.getId() ?? []),
+    }));
   mocks.abort.mockReset();
+  mocks.persist.mockReset();
   ignored = [];
   mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
   room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -150,7 +158,7 @@ describe('thread approval provider lifecycle', () => {
     );
     await mount();
     await act(async () => {
-      current.ingest([event()]);
+      current.ingestTimeline([event()]);
     });
     const updated = event();
     updated.makeReplaced(
@@ -164,10 +172,11 @@ describe('thread approval provider lifecycle', () => {
       })
     );
     await act(async () => {
-      current.ingest([updated]);
+      current.ingestTimeline([updated]);
       finish({ events: [event()], repairedEventIds: ['$approval'] });
     });
     expect(current.records[0].approval.status).toBe('approved');
+    expect(updated.getContent().status).toBe('approved');
     ignored = ['@router:example.org'];
     await act(async () => {
       renderer.update(
@@ -210,7 +219,7 @@ it('keeps a submitted request in review past local expiry until Matrix acknowled
   expect(current.actions.get('$approval')?.status).toBe('submitted');
   expect(current.pendingEventIds.has('$approval')).toBe(true);
   await act(async () => {
-    current.ingest([
+    current.ingestTimeline([
       new MatrixEvent({
         ...event('$decision').event,
         origin_server_ts: 2,
@@ -313,7 +322,7 @@ it.each([
     });
     mocks.backfill.mockResolvedValueOnce({ events: [tombstone], repairedEventIds: ['$approval'] });
     await act(async () => current.refresh());
-    await act(async () => current.ingest([origin, edit]));
+    await act(async () => current.ingestTimeline([origin, edit]));
     expect(current.error).toBeUndefined();
     expect(current.records.map((record) => record.approval.status)).toEqual(
       target === 'origin' ? [] : ['pending']
@@ -334,7 +343,7 @@ it('preserves concurrent arrivals while a refresh learns an old origin was redac
   );
   await act(async () => current.refresh());
   expect(mocks.backfill.mock.calls[1][5]).toEqual([origin]);
-  await act(async () => current.ingest([event('$new')]));
+  await act(async () => current.ingestTimeline([event('$new')]));
   await act(async () =>
     finish({
       events: [
@@ -379,7 +388,7 @@ it('does not retain ciphertext from another thread and releases decoded non-appr
   });
   await mount();
   await act(async () => {
-    current.ingest([unrelated, relevant]);
+    current.ingestTimeline([unrelated, relevant]);
   });
   expect(unrelated.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   expect(relevant.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
@@ -442,4 +451,180 @@ it('keeps send completion bound to committed records during a suspended transiti
   await act(async () => renderer.update(tree(false)));
   expect(current.records).toHaveLength(1);
   expect(current.actions.get('$approval')?.status).toBe('submitted');
+});
+
+it.each(['during', 'after'] as const)(
+  'repairs and persists the exact cached original ingested %s discovery',
+  async (timing) => {
+    let finish!: (value: { events: MatrixEvent[]; repairedEventIds: string[] }) => void;
+    mocks.backfill.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const cached = event();
+    const edit = new MatrixEvent({
+      ...event('$edit').event,
+      origin_server_ts: 2,
+      content: {
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+        'm.new_content': { ...content, status: 'approved' },
+      },
+    });
+    await mount();
+    if (timing === 'during') await act(async () => current.ingestTimeline([cached]));
+    await act(async () => finish({ events: [event(), edit], repairedEventIds: ['$approval'] }));
+    if (timing === 'after') await act(async () => current.ingestTimeline([cached]));
+    expect(cached.getContent().status).toBe('approved');
+    expect(current.records[0].approval.status).toBe('approved');
+    const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
+    expect(saved).toContain(cached);
+    const reopened = serializeEventsForCache(room, saved).map((raw) => new MatrixEvent(raw));
+    hydrateCachedEvents({ room, events: reopened });
+    expect(reopened.find((item) => item.getId() === '$approval')!.getContent().status).toBe(
+      'approved'
+    );
+  }
+);
+
+it('applies a recovered tombstone to the detached cached original and persists it', async () => {
+  const cached = event();
+  await mount();
+  await act(async () => current.ingestTimeline([cached]));
+  const removed = event();
+  removed.makeRedacted(
+    new MatrixEvent({
+      event_id: '$redaction',
+      room_id: room.roomId,
+      sender: '@router:example.org',
+      type: 'm.room.redaction',
+      content: {},
+      redacts: '$approval',
+    }),
+    room
+  );
+  mocks.backfill.mockResolvedValueOnce({ events: [removed], repairedEventIds: [] });
+  await act(async () => current.refresh());
+  expect(cached.isRedacted()).toBe(true);
+  expect(current.records).toEqual([]);
+  const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
+  expect(saved.find((item) => item.getId() === '$approval')!.isRedacted()).toBe(true);
+});
+
+it('hydrates a late-decrypted edit into the same cached original', async () => {
+  const cached = event();
+  const encryptedEdit = new MatrixEvent({
+    ...event('$edit').event,
+    origin_server_ts: 2,
+    type: 'm.room.encrypted',
+    content: {
+      ciphertext: 'late keys',
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+    },
+  });
+  await encryptedEdit.attemptDecryption({
+    decryptEvent: async () => {
+      throw new Error('Missing key');
+    },
+  } as CryptoBackend);
+  mocks.backfill.mockResolvedValueOnce({
+    events: [event(), encryptedEdit],
+    repairedEventIds: ['$approval'],
+  });
+  await mount();
+  await act(async () => current.ingestTimeline([cached]));
+  expect(cached.getContent().status).toBe('pending');
+  await act(async () => {
+    await encryptedEdit.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: {
+          type: 'io.mindroom.tool_approval',
+          content: {
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+            'm.new_content': { ...content, status: 'approved' },
+          },
+        },
+      }),
+    } as CryptoBackend);
+  });
+  expect(cached.getContent().status).toBe('approved');
+  expect(current.records[0].approval.status).toBe('approved');
+  expect(current.error).toBeUndefined();
+  expect(mocks.persist.mock.lastCall![2]).toContain(cached);
+});
+
+it('keeps foreign approval edits and room redactions out of this thread cache', async () => {
+  const own = event();
+  const foreign = event('$foreign', { ...content, thread_id: '$another' });
+  const foreignEdit = new MatrixEvent({
+    ...event('$foreign-edit').event,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$foreign' },
+      'm.new_content': { ...content, thread_id: '$another', status: 'approved' },
+    },
+  });
+  const foreignRedaction = new MatrixEvent({
+    event_id: '$foreign-redaction',
+    room_id: room.roomId,
+    type: 'm.room.redaction',
+    sender: '@router:example.org',
+    content: {},
+    redacts: '$foreign',
+  });
+  room.getLiveTimeline().getEvents().push(foreign);
+  await mount();
+  await act(async () => current.ingestTimeline([own, foreignEdit, foreignRedaction]));
+  const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
+  expect(saved.map((item) => item.getId())).toEqual(['$approval']);
+  expect(foreign.getContent().status).toBe('pending');
+});
+
+it('redacts an undecrypted cached original when its same-ID tombstone is recovered', async () => {
+  const cached = new MatrixEvent({
+    ...event().event,
+    type: 'm.room.encrypted',
+    content: {
+      ciphertext: 'missing key',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    },
+  });
+  await mount();
+  await act(async () => current.ingestTimeline([cached]));
+  const removed = new MatrixEvent({
+    ...cached.event,
+    content: {},
+    unsigned: {
+      redacted_because: {
+        event_id: '$redaction',
+        room_id: room.roomId,
+        sender: '@router:example.org',
+        type: 'm.room.redaction',
+        content: {},
+        redacts: '$approval',
+      },
+    },
+  });
+  mocks.backfill.mockResolvedValueOnce({ events: [removed], repairedEventIds: [] });
+  await act(async () => current.refresh());
+  expect(cached.isRedacted()).toBe(true);
+  expect(current.records).toEqual([]);
+});
+
+it('repairs a plaintext origin learned after discovery omitted it', async () => {
+  await mount();
+  const cached = event();
+  const edit = new MatrixEvent({
+    ...event('$edit').event,
+    origin_server_ts: 2,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+      'm.new_content': { ...content, status: 'approved' },
+    },
+  });
+  mocks.backfill.mockResolvedValueOnce({ events: [edit], repairedEventIds: ['$approval'] });
+  await act(async () => current.ingestTimeline([cached]));
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
+  expect(mocks.backfill.mock.calls[1][4]).toEqual([cached]);
+  expect(cached.getContent().status).toBe('approved');
 });

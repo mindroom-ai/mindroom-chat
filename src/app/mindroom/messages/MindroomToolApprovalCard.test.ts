@@ -192,7 +192,7 @@ describe('MindroomToolApprovalCard', () => {
       pendingEventIds: new Set(),
       loading: false,
       refresh: vi.fn(),
-      ingest: vi.fn(),
+      ingestTimeline: vi.fn(),
       actions: new Map(),
       submit: vi.fn(),
     };
@@ -223,7 +223,7 @@ describe('MindroomToolApprovalCard', () => {
       pendingEventIds: new Set(),
       loading: false,
       refresh: vi.fn(),
-      ingest: vi.fn(),
+      ingestTimeline: vi.fn(),
       actions: new Map(),
       submit: vi.fn(),
     };

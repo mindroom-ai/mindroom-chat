@@ -12,7 +12,7 @@ export const useThreadApprovalTimeline = (
   focusId?: string
 ) => {
   const context = useThreadApprovals();
-  const ingest = context?.ingest;
+  const ingest = context?.ingestTimeline;
   const revealed = useRef(new Set<string>());
   // Keep the directly inspected original visible after the temporary highlight ends.
   useEffect(() => {
