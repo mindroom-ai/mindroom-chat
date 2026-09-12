@@ -12,9 +12,10 @@
 - Parser validation rejects malformed capability and grant metadata while preserving ordinary approve and deny behavior on existing cards.
 - Card-local request and deny state is keyed by approval identity so reused renderers cannot leak state between cards.
 - Review found ordinary approve and deny controls remained available to users other than a named approver; one shared gate now hides those controls, blocks their submission, and closes an open deny form after an approver edit.
+- Action relevance is shared across loading, success, and error states; approval and revocation responses share one thread/reply relation builder.
 - Regression coverage includes literal timed and revocation payloads, approver gating, non-approvable cards, expiry boundaries, retries, remote edits, and same-mounted-card approval-to-revocation transitions.
-- Focused parser, card, and shared-renderer tests pass all 81 tests, and typecheck, touched-file ESLint, Prettier, and whitespace checks pass; the production build passed on the preceding implementation commit and CI covers the follow-up.
-- The full Vitest run passes 3,653 of 3,657 tests; the same four failures documented on the untouched base remain in two unchanged files.
+- Focused parser, card, and shared-renderer tests pass all 81 tests, and typecheck, touched-file ESLint, Prettier, whitespace checks, and the production build pass after the architecture cleanup.
+- The full Vitest run passes 3,654 of 3,658 tests; the same four failures documented on the untouched base remain in two unchanged files.
 - Live browser checks verify keyboard timed approval, exact wire payloads, continued calls without new cards, thread isolation across restart, correct countdown and absolute expiry, same-mounted-card revocation, and fresh pending cards after revocation.
 - Next step: independent review and integration.
 

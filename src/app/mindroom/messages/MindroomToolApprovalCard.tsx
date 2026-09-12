@@ -191,13 +191,9 @@ export function MindroomToolApprovalCard({
   const submittingActionStillRelevant = isActionStillRelevant(submittingAction);
   const submitting = requestState.status === AsyncStatus.Loading && submittingActionStillRelevant;
   const submitted =
-    requestState.status === AsyncStatus.Success &&
-    requestState.data.cardKey === cardKey &&
-    (requestState.data.kind === 'revoke' ? grantState === 'active' : effectiveStatus === 'pending');
+    requestState.status === AsyncStatus.Success && isActionStillRelevant(requestState.data);
   const errorMessage =
-    requestState.status === AsyncStatus.Error &&
-    requestState.error.cardKey === cardKey &&
-    (requestState.error.kind === 'revoke' ? grantState === 'active' : effectiveStatus === 'pending')
+    requestState.status === AsyncStatus.Error && isActionStillRelevant(requestState.error)
       ? requestState.error.message
       : undefined;
   const disableActions =

@@ -286,6 +286,18 @@ export const getToolApprovalRenderContent = (
   };
 };
 
+const buildToolApprovalRelation = (
+  threadId: string,
+  eventId: string
+): ToolApprovalResponseContent['m.relates_to'] => ({
+  rel_type: RelationType.Thread,
+  event_id: threadId,
+  is_falling_back: true,
+  'm.in_reply_to': {
+    event_id: eventId,
+  },
+});
+
 export const buildToolApprovalResponseContent = (
   status: ToolApprovalResponseStatus,
   threadId: string,
@@ -298,14 +310,7 @@ export const buildToolApprovalResponseContent = (
   ...(status === 'approved' && autoApproveSeconds !== undefined
     ? { auto_approve_seconds: autoApproveSeconds }
     : {}),
-  'm.relates_to': {
-    rel_type: RelationType.Thread,
-    event_id: threadId,
-    is_falling_back: true,
-    'm.in_reply_to': {
-      event_id: eventId,
-    },
-  },
+  'm.relates_to': buildToolApprovalRelation(threadId, eventId),
 });
 
 export const buildToolApprovalRevocationContent = (
@@ -315,14 +320,7 @@ export const buildToolApprovalRevocationContent = (
 ): ToolApprovalRevocationContent => ({
   action: 'revoke_auto_approval',
   grant_id: grantId,
-  'm.relates_to': {
-    rel_type: RelationType.Thread,
-    event_id: threadId,
-    is_falling_back: true,
-    'm.in_reply_to': {
-      event_id: eventId,
-    },
-  },
+  'm.relates_to': buildToolApprovalRelation(threadId, eventId),
 });
 
 export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
