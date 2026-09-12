@@ -17,6 +17,10 @@ const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
+}));
+
 vi.mock('../utils/dom', async () => {
   const actual = await vi.importActual<typeof import('../utils/dom')>('../utils/dom');
   return {
@@ -80,6 +84,13 @@ vi.mock('../styles/CustomHtml.css', () => ({
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
+}));
+
+vi.mock('../mindroom/html/ScrollableTable.css', () => ({
+  Container: 'TableContainer',
+  ScrollArea: 'TableScrollArea',
+  Table: 'Table',
+  Hint: 'TableHint',
 }));
 
 vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({

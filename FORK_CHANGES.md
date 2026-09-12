@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Keep message tables readable with horizontal scrolling (2026-09-12)
+
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Rendered tables share a fork-owned scroll wrapper through the custom HTML renderer, covering HTML tables and Markdown tables supplied as formatted message HTML.
+- Tables keep their natural column widths, while long cell content wraps within a 24 rem limit instead of compressing every column to fit the message.
+- Faint theme-aware cell borders form an internal grid; collapsed hidden table borders suppress the perimeter, including spanning-cell edges.
+- Overflow exposes a thin native scrollbar, a small localized horizontal-scroll hint, and a named keyboard-focusable region.
+- The hint follows both container resizing and table resizing during message edits or media loading; fitting tables omit the hint and extra tab stop.
+- Browser regression evidence: the original phone-width table reduced its first text column to 67 px; the corrected table preserves readable columns without increasing document width.
+- Validation: three Chromium layout tests and 54 focused unit tests pass, including resize and content replacements, keyboard scrolling, and both light and dark grids; typecheck, production/PWA build, formatting, and lint with zero errors and the existing 17 warnings pass.
+- Full Vitest matches the untouched baseline: 3,604 passing tests and seven existing failures across the platform-script, SDK thread-reset, and upload-session suites.
+- Independent review also verified contained scrolling in Bubble, Modern, and Compact message layouts, table accessibility, and nested tables.
+
 ### Keep composer paste handler synchronous (2026-09-02)
 
 - Status: implemented, reviewed once, validated; open in PR #227 (`fix/composer-paste-desync`).
