@@ -86,7 +86,20 @@ describe('thread approval provider lifecycle', () => {
       },
     } as CryptoBackend);
     expect(encrypted.isDecryptionFailure()).toBe(true);
-    mocks.backfill.mockResolvedValueOnce({ events: [encrypted], repairedEventIds: [] });
+    const unreadableMessage = new MatrixEvent({
+      ...event('$unreadable').event,
+      type: 'm.room.encrypted',
+      content: { ciphertext: 'another missing key' },
+    });
+    await unreadableMessage.attemptDecryption({
+      decryptEvent: async () => {
+        throw new Error('Missing room key');
+      },
+    } as CryptoBackend);
+    mocks.backfill.mockResolvedValueOnce({
+      events: [encrypted, unreadableMessage],
+      repairedEventIds: [],
+    });
     const edit = new MatrixEvent({
       ...event('$edit').event,
       origin_server_ts: 2,
@@ -98,6 +111,8 @@ describe('thread approval provider lifecycle', () => {
     mocks.backfill.mockResolvedValueOnce({ events: [edit], repairedEventIds: ['$approval'] });
     await mount();
     expect(current.records).toEqual([]);
+    expect(current.loading).toBe(false);
+    expect(current.error).toContain('decrypt');
     expect(encrypted.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
     await act(async () => {
       await encrypted.attemptDecryption({
@@ -107,6 +122,17 @@ describe('thread approval provider lifecycle', () => {
     expect(mocks.backfill).toHaveBeenCalledTimes(2);
     expect(mocks.backfill.mock.calls[1][4]).toEqual([encrypted]);
     expect(current.records[0].approval.status).toBe('approved');
+    // A successful targeted repair cannot conceal another unreadable event.
+    expect(current.error).toContain('decrypt');
+    await act(async () => {
+      await unreadableMessage.attemptDecryption({
+        decryptEvent: async () => ({
+          clearEvent: { type: 'm.room.message', content: { body: 'Hello' } },
+        }),
+      } as CryptoBackend);
+    });
+    expect(current.error).toBeUndefined();
+    expect(unreadableMessage.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
     await act(async () => {
       encrypted.emit(MatrixEventEvent.Decrypted, encrypted);
     });

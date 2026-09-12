@@ -195,6 +195,7 @@ export function ThreadApprovalQueue() {
                 : `${pendingCount} ${pendingCount === 1 ? 'call needs' : 'calls need'} approval`
               : context.error ?? 'Checking approvals…'}
             {context.loading && pendingCount > 0 ? ' · Checking history…' : ''}
+            {context.error && pendingCount > 0 ? ' · History incomplete' : ''}
           </small>
           {pendingCount > 0 && (
             <Button

@@ -77,7 +77,7 @@ function ActiveThreadApprovalProvider({
   const { scheduler } = useMindroomSyncEngine();
   const [events, setEvents] = useState<ReadonlyMap<string, MatrixEvent>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>();
+  const [loadError, setLoadError] = useState<string>();
   const [request, setRequest] = useState<{ revision: number; origins?: MatrixEvent[] }>({
     revision: 0,
   });
@@ -92,6 +92,18 @@ function ActiveThreadApprovalProvider({
       ),
     [events, room.roomId, threadId, now, ignoredUsers]
   );
+  // Missing-key failures resolve in the SDK. Retained events own completeness,
+  // so late keys and targeted repairs cannot leave a stale or premature success.
+  const unreadableHistory = useMemo(
+    () =>
+      [...events.values()].some(
+        (event) =>
+          !ignoredUsers.includes(event.getSender() ?? '') && isUndecryptedApprovalCandidate(event)
+      ),
+    [events, ignoredUsers]
+  );
+  const error =
+    loadError ?? (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
   const recordsRef = useRef(records);
   useLayoutEffect(() => {
     recordsRef.current = records;
@@ -235,7 +247,7 @@ function ActiveThreadApprovalProvider({
     let active = true;
     fetching.current = true;
     setLoading(true);
-    setError(undefined);
+    setLoadError(undefined);
     void enqueueThreadApprovalBackfill(mx, scheduler, room.roomId, threadId, request.origins)
       .then((result) => {
         if (!active) return;
@@ -245,14 +257,14 @@ function ActiveThreadApprovalProvider({
           pendingRepair.current.delete(id);
         });
         ingest(result.events, true);
-        setError(result.error);
+        setLoadError(result.error);
         setLoading(false);
         if (!result.error && pendingRepair.current.size > 0) repairPending();
       })
       .catch(() => {
         if (active) {
           fetching.current = false;
-          setError('Approval history could not be loaded.');
+          setLoadError('Approval history could not be loaded.');
           setLoading(false);
         }
       });

@@ -1,6 +1,6 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { collectThreadApprovals, groupPendingApprovals } from './threadApprovalModel';
+import { collectThreadApprovals, groupApprovalRecords } from './threadApprovalModel';
 
 const make = (id: string, scope = 'scope', operation = 'invite') =>
   new MatrixEvent({
@@ -66,7 +66,7 @@ describe('thread approval collection', () => {
       '$thread'
     );
     expect(
-      groupPendingApprovals(records).map((group) =>
+      groupApprovalRecords(records).map((group) =>
         group.map((item) => item.approval.arguments.target)
       )
     ).toEqual([['$four'], ['$one', '$two'], ['$three']]);

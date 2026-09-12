@@ -12,6 +12,7 @@
 - Resolved and automatic calls become collapsed history beside their response; missing response anchors use a collapsed timeline fallback, and directly focused originals remain reachable.
 - Original arguments, approval kind, actor, decision time, and original grant expiry remain inspectable after revocation or expiry.
 - The existing backfill scheduler owns approval discovery and edit repair independently of visible pagination, including delayed decryption and partial-history retry.
+- Unreadable retained history keeps an incomplete-history notice and retry available until keys arrive, even when another call's targeted repair succeeds.
 - Automatic receipt deduplication uses exact call identity, while timeline projection preserves raw event indexes and pagination anchors.
 - Regression coverage includes authoritative acknowledgement races, per-call retry, late decryption, immutable request data, alias receipts, deadline expiry, and attachment failures.
 - Live Chromium against disposable local Matrix accounts verifies grouped approval, mixed individual approval and denial, subsequent automatic receipts, revocation, preserved arguments, and phone layouts.

@@ -111,13 +111,6 @@ export const approvalGroupKey = ({ eventId, sender, approval }: ThreadApprovalRe
     approval.scope ?? eventId,
   ]);
 
-export const groupPendingApprovals = (
-  records: readonly ThreadApprovalRecord[],
-  now = Date.now()
-): ThreadApprovalRecord[][] => {
-  return groupApprovalRecords(records.filter((record) => isPendingApproval(record, now)));
-};
-
 export const groupApprovalRecords = (
   records: readonly ThreadApprovalRecord[]
 ): ThreadApprovalRecord[][] => {
