@@ -40,7 +40,7 @@ const getRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> | undefin
   return replacement as Partial<IEvent>;
 };
 
-const withoutRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> => {
+export const withoutRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> => {
   const unsigned = rawEvent.unsigned;
   const relations = unsigned?.['m.relations'];
   if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return rawEvent;

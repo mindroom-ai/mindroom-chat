@@ -1,12 +1,40 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { hydrateCachedEvents } from '../threads/eventCacheEditUtils';
-import { mergeSameIdEventRevision } from '../threads/eventRevision';
+import { mergeSameIdEventRevision, withoutRawReplacement } from '../threads/eventRevision';
+import { getSerializedReplacementEvent } from '../../utils/editEvent';
 import { isUndecryptedApprovalCandidate, MINDROOM_TOOL_APPROVAL_EVENT } from './toolApproval';
 
 export type ThreadApprovalEvents = {
   events: ReadonlyMap<string, MatrixEvent>;
   // Redactions can precede their targets; only known thread identities may be cached.
   scopedEventIds: ReadonlySet<string>;
+};
+
+/** Unpack SDK and cached bundles once; all replacement evidence follows the same path. */
+const withAttachedReplacements = (incoming: readonly MatrixEvent[]): MatrixEvent[] =>
+  incoming.flatMap((event) => {
+    const attached = [event.replacingEvent(), getSerializedReplacementEvent(event)].filter(
+      (replacement): replacement is MatrixEvent =>
+        !!replacement &&
+        replacement.getRelation()?.rel_type === 'm.replace' &&
+        replacement.getRelation()?.event_id === event.getId()
+    );
+    return [
+      event,
+      ...attached.map((replacement) =>
+        replacement.getRoomId()
+          ? replacement
+          : new MatrixEvent({ ...replacement.event, room_id: event.getRoomId() })
+      ),
+    ];
+  });
+
+const removeUnreadableReplacement = (event: MatrixEvent): void => {
+  const bundled = getSerializedReplacementEvent(event);
+  if (bundled && isUndecryptedApprovalCandidate(bundled))
+    event.setUnsigned(withoutRawReplacement(event.event).unsigned ?? {});
+  const attached = event.replacingEvent();
+  if (attached && isUndecryptedApprovalCandidate(attached)) event.makeReplaced();
 };
 
 /** Apply retained evidence to the exact objects currently rendered by cache-first timelines. */
@@ -24,6 +52,10 @@ export const hydrateThreadApprovalEvents = (
           retained.scopedEventIds.has(event.getAssociatedId()!))
     )
   );
+  // Ciphertext stays in retained evidence for keys; generic cache hydration must
+  // only see readable replacements, including those bundled in unsigned data.
+  canonical.forEach(removeUnreadableReplacement);
+  rendered.forEach(removeUnreadableReplacement);
   rendered.forEach((target) => {
     const id = target.getId();
     const evidence = id ? canonical.get(id) : undefined;
@@ -57,6 +89,7 @@ export const mergeThreadApprovalEvents = (
   threadId: string,
   fromBackfill = false
 ): ThreadApprovalEvents => {
+  const observations = withAttachedReplacements(incoming);
   let changed = false;
   const next = new Map(old.events);
   const scopedIds = new Set(old.scopedEventIds);
@@ -69,11 +102,11 @@ export const mergeThreadApprovalEvents = (
           ? event.getRelation()?.event_id === threadId
           : fromBackfill)));
   // Origins may follow their edits in a cached batch. Establish their scope first.
-  incoming.forEach((event) => {
+  observations.forEach((event) => {
     const id = event.getId();
     if (id && event.getRoomId() === roomId && scopedOriginal(event)) scopedIds.add(id);
   });
-  incoming.forEach((event) => {
+  observations.forEach((event) => {
     const id = event.getId();
     const relation = event.getRelation();
     if (
@@ -85,7 +118,7 @@ export const mergeThreadApprovalEvents = (
     )
       scopedIds.add(id);
   });
-  incoming.forEach((event) => {
+  observations.forEach((event) => {
     const id = event.getId();
     if (!id || event.getRoomId() !== roomId) return;
     const existing = next.get(id);
@@ -112,11 +145,6 @@ export const mergeThreadApprovalEvents = (
       (isUndecryptedApprovalCandidate(existing) && !isUndecryptedApprovalCandidate(event))
     ) {
       next.set(id, event);
-    }
-    const replacement = event.replacingEvent();
-    const replacementId = replacement?.getId();
-    if (replacement && replacementId && !next.get(replacementId)?.isRedacted()) {
-      next.set(replacementId, replacement);
     }
   });
   return changed || scopedIds.size !== old.scopedEventIds.size

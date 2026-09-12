@@ -660,3 +660,82 @@ it.each(['redaction', 'tombstone'] as const)(
     expect(saved.find((item) => item.getId() === '$approval')!.isRedacted()).toBe(true);
   }
 );
+
+it('publishes an approved replacement attached to a later SDK original', async () => {
+  const cached = event();
+  await mount();
+  await act(async () => current.ingestTimeline([cached]));
+  const newer = event();
+  const edit = new MatrixEvent({
+    ...event('$sdk-edit').event,
+    origin_server_ts: 2,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+      'm.new_content': { ...content, status: 'approved' },
+    },
+  });
+  newer.makeReplaced(edit);
+  await act(async () => mx.emit(MatrixEventEvent.Replaced, newer));
+  expect(current.records[0].approval.status).toBe('approved');
+  expect(cached.getContent().status).toBe('approved');
+  const saved = serializeEventsForCache(room, mocks.persist.mock.lastCall![2]);
+  const reopened = saved.map((raw) => new MatrixEvent(raw));
+  hydrateCachedEvents({ room, events: reopened });
+  expect(reopened.find((item) => item.getId() === '$approval')!.getContent().status).toBe(
+    'approved'
+  );
+});
+
+it.each(['bundled', 'attached'] as const)(
+  'keeps a %s encrypted edit out of approval hydration until its keys arrive',
+  async (kind) => {
+    const cached = event();
+    const approved = new MatrixEvent({
+      ...event('$approved').event,
+      origin_server_ts: 2,
+      content: {
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+        'm.new_content': { ...content, status: 'approved' },
+      },
+    });
+    cached.makeReplaced(approved);
+    const ciphertext = {
+      ...event('$encrypted-edit').event,
+      origin_server_ts: 3,
+      type: 'm.room.encrypted',
+      content: {
+        ciphertext: 'pending key',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$approval' },
+      },
+    };
+    const decrypt = vi.spyOn(mx, 'decryptEventIfNeeded').mockResolvedValue(undefined);
+    await mount();
+    await act(async () => current.ingestTimeline([cached]));
+    if (kind === 'bundled') cached.setUnsigned({ 'm.relations': { 'm.replace': ciphertext } });
+    else cached.makeReplaced(new MatrixEvent(ciphertext));
+    await act(async () => current.ingestTimeline([cached]));
+    expect(cached.getContent().status).toBe('approved');
+    expect(current.records[0].approval.status).toBe('approved');
+    expect(current.error).toContain('could not be decrypted');
+    const saved = serializeEventsForCache(room, mocks.persist.mock.lastCall![2]);
+    expect(JSON.stringify(saved)).not.toContain('pending key');
+    const retained = decrypt.mock.calls.find(([item]) => item.getId() === '$encrypted-edit')?.[0];
+    expect(retained).toBeDefined();
+    await act(async () => {
+      await retained!.attemptDecryption({
+        decryptEvent: async () => ({
+          clearEvent: {
+            ...approved.event,
+            event_id: '$encrypted-edit',
+            content: {
+              ...approved.event.content,
+              'm.new_content': { ...content, status: 'denied' },
+            },
+          },
+        }),
+      } as CryptoBackend);
+    });
+    expect(cached.getContent().status).toBe('denied');
+    expect(current.error).toBeUndefined();
+  }
+);

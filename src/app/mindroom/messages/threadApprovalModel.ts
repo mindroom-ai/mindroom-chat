@@ -52,7 +52,11 @@ export const collectThreadApprovals = (
   origins.forEach((event, eventId) => {
     const candidates = [...(edits.get(eventId) ?? [])];
     const replacement = event.replacingEvent();
-    if (replacement && !redacted.has(replacement.getId())) candidates.push(replacement);
+    if (
+      replacement?.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
+      !redacted.has(replacement.getId())
+    )
+      candidates.push(replacement);
     const latest = getLatestEdit(event, candidates);
     const approval = parseToolApprovalContent(
       event.getType(),

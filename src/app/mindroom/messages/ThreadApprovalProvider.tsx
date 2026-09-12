@@ -104,6 +104,7 @@ function ActiveThreadApprovalProvider({
   const [now, setNow] = useState(Date.now);
   const fetching = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
+  const decryptionStarted = useRef(new WeakSet<MatrixEvent>());
   const records = useMemo(
     () =>
       collectThreadApprovals([...events.values()], room.roomId, threadId, now).filter(
@@ -194,11 +195,19 @@ function ActiveThreadApprovalProvider({
   }, [mx, room, threadId, ingest, refresh, decrypted]);
   useEffect(() => {
     const retained = [...events.values()];
-    retained.forEach((event) => event.on(MatrixEventEvent.Decrypted, decrypted));
+    retained.forEach((event) => {
+      event.on(MatrixEventEvent.Decrypted, decrypted);
+      if (isUndecryptedApprovalCandidate(event) && !decryptionStarted.current.has(event)) {
+        decryptionStarted.current.add(event);
+        // Bundled edits have no SDK mapper to start decryption. Retention keeps
+        // failures visible and subscribed while the SDK waits for room keys.
+        void mx.decryptEventIfNeeded(event).catch(() => undefined);
+      }
+    });
     return () => {
       retained.forEach((event) => event.off(MatrixEventEvent.Decrypted, decrypted));
     };
-  }, [events, decrypted]);
+  }, [mx, events, decrypted]);
   useEffect(() => {
     let active = true;
     const setRequestError = request.origins ? setRepairError : setDiscoveryError;
