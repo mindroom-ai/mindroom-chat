@@ -453,14 +453,41 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('hides timed choices from anyone except the named approver', () => {
+  it('hides all approval actions from anyone except the named approver', () => {
     currentUserId = '@other:example.org';
     const renderer = renderCard(timedPendingApproval);
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Approve');
-    expect(text).toContain('Deny');
+    expect(text).not.toContain('Approve');
+    expect(text).not.toContain('Deny');
     expect(text).not.toContain('Auto-approve');
+    expect(sendEventMock).not.toHaveBeenCalled();
+
+    renderer.unmount();
+  });
+
+  it('closes an open deny form when a prop edit names another approver', () => {
+    const renderer = renderCard();
+
+    act(() => {
+      findButtonByText(renderer.root, 'Deny').props.onClick();
+    });
+    expect(getNodeText(renderer.root)).toContain('Confirm Deny');
+
+    act(() => {
+      renderer.update(
+        React.createElement(MindroomToolApprovalCard, {
+          approval: {
+            ...pendingApproval,
+            approverUserId: '@other:example.org',
+          },
+          ...approvalContext,
+        })
+      );
+    });
+
+    expect(getNodeText(renderer.root)).not.toContain('Confirm Deny');
+    expect(sendEventMock).not.toHaveBeenCalled();
 
     renderer.unmount();
   });

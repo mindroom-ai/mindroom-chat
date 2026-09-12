@@ -124,10 +124,11 @@ export function MindroomToolApprovalCard({
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
   const canonicalThreadId = threadId ?? approval.threadId;
   const cardKey = `${approval.approvalId}\u0000${eventId ?? ''}`;
-  const showDenyForm = denyCardKey === cardKey;
   const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
   const currentUserId = mx.getUserId();
   const isOriginalApprover = !!approval.approverUserId && currentUserId === approval.approverUserId;
+  const canActOnApproval = approval.approverUserId === null || isOriginalApprover;
+  const showDenyForm = denyCardKey === cardKey && canActOnApproval;
   const canUseTimedApproval =
     canSendResponse &&
     effectiveStatus === 'pending' &&
@@ -200,7 +201,11 @@ export function MindroomToolApprovalCard({
       ? requestState.error.message
       : undefined;
   const disableActions =
-    effectiveStatus !== 'pending' || submitting || submitted || !canSendResponse;
+    effectiveStatus !== 'pending' ||
+    submitting ||
+    submitted ||
+    !canSendResponse ||
+    !canActOnApproval;
   const displayStatus = effectiveStatus === 'pending' && submitted ? 'submitted' : effectiveStatus;
 
   useEffect(() => {
@@ -227,6 +232,13 @@ export function MindroomToolApprovalCard({
       submittingActionRef.current = undefined;
     }
   }, [requestState.status]);
+
+  useEffect(() => {
+    if (denyCardKey !== cardKey || canActOnApproval) return;
+
+    setDenyCardKey(undefined);
+    setDenyReason('');
+  }, [canActOnApproval, cardKey, denyCardKey]);
 
   useEffect(() => {
     if (!showDenyForm || effectiveStatus !== 'pending' || submitted) return;
@@ -262,6 +274,7 @@ export function MindroomToolApprovalCard({
     const grantIsCurrentlyActive =
       !!grant && !grant.revokedAt && grantExpiresTs !== undefined && grantExpiresTs > Date.now();
     if (
+      !canActOnApproval ||
       (isRevoke
         ? !canRevokeAutoApproval || !grantIsCurrentlyActive
         : getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
@@ -292,6 +305,7 @@ export function MindroomToolApprovalCard({
 
   const handleStartDeny = () => {
     if (
+      !canActOnApproval ||
       getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
       disableActions
     ) {
@@ -437,7 +451,7 @@ export function MindroomToolApprovalCard({
         <Text size="T200">Submitted. Waiting for room update.</Text>
       )}
 
-      {effectiveStatus === 'pending' && !showDenyForm && !submitted && (
+      {effectiveStatus === 'pending' && canActOnApproval && !showDenyForm && !submitted && (
         <Box direction="Column" gap="200">
           <Box className={css.Actions}>
             {approval.approvable && (
