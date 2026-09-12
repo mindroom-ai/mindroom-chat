@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Add timed thread tool approval controls (2026-09-12)
+
+- Status: implementation, automated validation, and live interaction checks are complete; ready for independent review.
+- Eligible pending cards let the named approver choose a one-call approval or a fixed 5, 10, or 30 minute window.
+- The card explains that a window is scoped to the current thread, requester, agent, and exact tool operation while allowing arguments to differ.
+- Successful Matrix sends show Submitted until a backend card edit confirms approval or revocation.
+- Originating grant cards remain expanded, show their fixed expiry and active, expired, or stopped state, and let only the named approver request revocation.
+- Parser validation rejects malformed capability and grant metadata while preserving ordinary approve and deny behavior on existing cards.
+- Card-local request and deny state is keyed by approval identity so reused renderers cannot leak state between cards.
+- Regression coverage includes literal timed and revocation payloads, approver gating, non-approvable cards, expiry boundaries, retries, remote edits, and same-mounted-card approval-to-revocation transitions.
+- Focused parser, card, and shared-renderer tests pass all 80 tests, and typecheck, production build, touched-file ESLint, Prettier, and whitespace checks pass.
+- The full Vitest run passes 3,653 of 3,657 tests; the same four failures documented on the untouched base remain in two unchanged files.
+- Live browser checks verify keyboard timed approval, exact wire payloads, continued calls without new cards, thread isolation across restart, correct countdown and absolute expiry, same-mounted-card revocation, and fresh pending cards after revocation.
+- Next step: independent review and integration.
+
 ### Clear thread unread dots from explicit read actions (2026-09-08)
 
 - Status: implementation, independent review, and live Chromium validation are complete; open for review in PR #230 (`fix/thread-unread-receipts`).
