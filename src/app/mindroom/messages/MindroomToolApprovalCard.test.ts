@@ -11,6 +11,8 @@ vi.mock('./ThreadApprovals.css', () => ({
   Receipt: 'Receipt',
   ReceiptBody: 'ReceiptBody',
   ReceiptTool: 'ReceiptTool',
+  Actions: 'Actions',
+  Stack: 'Stack',
 }));
 let threadApprovals: ThreadApprovals | undefined;
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => threadApprovals }));
@@ -64,40 +66,26 @@ vi.mock('folds', () => ({
 
 vi.mock('./MindroomToolApprovalCard.css.ts', () => ({
   Card: 'Card',
-  CardApproved: 'CardApproved',
-  CardDenied: 'CardDenied',
-  CardExpired: 'CardExpired',
-  ResolvedInline: 'ResolvedInline',
-  ResolvedInlineApproved: 'ResolvedInlineApproved',
-  ResolvedInlineDenied: 'ResolvedInlineDenied',
-  ResolvedInlineExpired: 'ResolvedInlineExpired',
   Header: 'Header',
   ToolName: 'ToolName',
-  ResolvedToolName: 'ResolvedToolName',
   StatusLabel: 'StatusLabel',
   Meta: 'Meta',
   MetaDot: 'MetaDot',
   Details: 'Details',
-  DetailsSummary: 'DetailsSummary',
-  DetailsSummaryLabel: 'DetailsSummaryLabel',
   JsonBlock: 'JsonBlock',
-  Actions: 'Actions',
-  DurationActions: 'DurationActions',
   Scope: 'Scope',
   GrantPanel: 'GrantPanel',
-  DenyForm: 'DenyForm',
 }));
 
 vi.mock('../../hooks/useRelativeTime', () => ({
   useRelativeTime: (ts?: number) => (typeof ts === 'number' ? `relative-${ts}` : ''),
 }));
 
-vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    getUserId: () => currentUserId,
-    sendEvent: (...args: unknown[]) => sendEventMock(...args),
-  }),
-}));
+const matrixClientMock = {
+  getUserId: () => currentUserId,
+  sendEvent: (...args: unknown[]) => sendEventMock(...args),
+};
+vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => matrixClientMock }));
 
 const pendingApproval: ToolApprovalData = {
   approvalId: 'approval-1',
@@ -388,6 +376,76 @@ describe('MindroomToolApprovalCard', () => {
 
     renderer.unmount();
   });
+
+  it.each(['submitted', 'failed'] as const)(
+    'clears a %s revocation when the grant expires without an edit',
+    async (outcome) => {
+      vi.useFakeTimers();
+      vi.setSystemTime('2026-04-10T12:04:15Z');
+      if (outcome === 'failed')
+        sendEventMock.mockRejectedValueOnce(new Error('Revoke unavailable'));
+      let renderer!: ReturnType<typeof renderCard>;
+      await act(async () => {
+        renderer = renderCard({
+          ...timedPendingApproval,
+          status: 'approved',
+          autoApproval: { grantId: 'grant-1', expiresAt: '2026-04-10T12:05:00Z', revokedAt: null },
+        });
+      });
+      expect(getNodeText(renderer.root)).toContain('Expires in 1 min');
+      await act(async () => {
+        findButtonByText(renderer.root, 'Stop auto-approval').props.onClick();
+      });
+      expect(getNodeText(renderer.root)).toContain(
+        outcome === 'failed' ? 'Revoke unavailable' : 'Submitted'
+      );
+      act(() => {
+        vi.advanceTimersByTime(45_000);
+      });
+      const text = getNodeText(renderer.root);
+      expect(text).toContain('Auto-approval expired');
+      expect(text).not.toContain('Submitted');
+      expect(text).not.toContain('Revoke unavailable');
+      renderer.unmount();
+    }
+  );
+
+  it.each([
+    ['2026-04-10T12:08:00Z', 'Auto-approval active', 'Expires in 2 min'],
+    ['2026-04-10T12:11:00Z', 'Auto-approval expired', undefined],
+  ])(
+    'uses the current clock for a delayed grant edit arriving at %s',
+    async (arrival, status, countdown) => {
+      vi.useFakeTimers();
+      vi.setSystemTime('2026-04-10T12:00:00Z');
+      let renderer!: ReturnType<typeof renderCard>;
+      await act(async () => {
+        renderer = renderCard(timedPendingApproval);
+      });
+      vi.setSystemTime(arrival);
+      await act(async () => {
+        renderer.update(
+          React.createElement(MindroomToolApprovalCard, {
+            ...approvalContext,
+            approval: {
+              ...timedPendingApproval,
+              status: 'approved',
+              autoApproval: {
+                grantId: 'grant-1',
+                expiresAt: '2026-04-10T12:10:00Z',
+                revokedAt: null,
+              },
+            },
+          })
+        );
+      });
+      const text = getNodeText(renderer.root);
+      expect(text).toContain(status);
+      if (countdown) expect(text).toContain(countdown);
+      else expect(text).not.toContain('Stop auto-approval');
+      renderer.unmount();
+    }
+  );
 
   it('keeps the terminal expired server state authoritative before the deadline', () => {
     vi.useFakeTimers();
@@ -962,7 +1020,7 @@ describe('MindroomToolApprovalCard', () => {
     });
 
     await act(async () => {
-      renderer.root.findByProps({ className: 'DenyForm' }).props.onSubmit({
+      renderer.root.findByType('form').props.onSubmit({
         preventDefault: vi.fn(),
       });
       await Promise.resolve();
@@ -998,7 +1056,7 @@ describe('MindroomToolApprovalCard', () => {
     });
 
     await act(async () => {
-      renderer.root.findByProps({ className: 'DenyForm' }).props.onSubmit({
+      renderer.root.findByType('form').props.onSubmit({
         preventDefault: vi.fn(),
       });
       await Promise.resolve();
@@ -1033,7 +1091,7 @@ describe('MindroomToolApprovalCard', () => {
     });
 
     await act(async () => {
-      const denyForm = renderer.root.findByProps({ className: 'DenyForm' });
+      const denyForm = renderer.root.findByType('form');
       denyForm.props.onSubmit({ preventDefault: vi.fn() });
       denyForm.props.onSubmit({ preventDefault: vi.fn() });
       await Promise.resolve();
@@ -1125,6 +1183,37 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
+  it('keeps a submitted standalone decision pending through its local deadline', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-09-12T12:00:00Z');
+    const approval = { ...pendingApproval, expiresAt: '2026-09-12T12:00:01Z' };
+    let renderer!: ReturnType<typeof renderCard>;
+    act(() => {
+      renderer = renderCard(approval);
+    });
+    await act(async () => {
+      findButtonByText(renderer.root, 'Approve').props.onClick();
+    });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(getNodeText(renderer.root)).toContain('Submitted. Waiting for room update.');
+    expect(
+      renderer.root.findAllByType('button').filter((button) => !button.props.disabled)
+    ).toHaveLength(0);
+    act(() =>
+      renderer.update(
+        React.createElement(MindroomToolApprovalCard, {
+          approval: { ...approval, status: 'approved' },
+          ...approvalContext,
+        })
+      )
+    );
+    expect(getNodeText(renderer.root)).toContain('Approved');
+    expect(getNodeText(renderer.root)).not.toContain('Submitted');
+    renderer.unmount();
+  });
+
   it('retains denied approval evidence in collapsed history', () => {
     const renderer = renderCard({
       ...pendingApproval,
@@ -1151,8 +1240,6 @@ describe('MindroomToolApprovalCard', () => {
 
   it('moves focus into the deny form and restores it to the deny trigger on cancel', () => {
     const nodeMocks: {
-      cancelButton?: { focus: ReturnType<typeof vi.fn> };
-      confirmDenyButton?: { focus: ReturnType<typeof vi.fn> };
       denyInput?: { focus: ReturnType<typeof vi.fn> };
       denyTrigger?: { focus: ReturnType<typeof vi.fn> };
     } = {};
@@ -1162,11 +1249,7 @@ describe('MindroomToolApprovalCard', () => {
         const label = getReactNodeText(element.props.children as React.ReactNode);
         const node = { focus: vi.fn() };
 
-        if (label.includes('Confirm Deny')) {
-          nodeMocks.confirmDenyButton = node;
-        } else if (label.includes('Cancel')) {
-          nodeMocks.cancelButton = node;
-        } else if (label.includes('Deny')) {
+        if (label === 'Deny') {
           nodeMocks.denyTrigger = node;
         }
 
@@ -1195,7 +1278,6 @@ describe('MindroomToolApprovalCard', () => {
     });
 
     expect(nodeMocks.denyInput?.focus).toHaveBeenCalledTimes(1);
-    expect(nodeMocks.confirmDenyButton?.focus).not.toHaveBeenCalled();
 
     act(() => {
       findButtonByText(renderer.root, 'Cancel').props.onClick();

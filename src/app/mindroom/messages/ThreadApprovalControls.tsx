@@ -17,9 +17,10 @@ import {
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
-import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from './toolApproval';
+import { getToolApprovalOperationLabel } from './toolApproval';
 import { ApprovalReviewCall } from './ApprovalReviewCall';
-import { canSubmitApprovalDecision } from './approvalActions';
+import { getApprovalCapabilities, getApprovalGrantState } from './approvalActions';
+import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 import { ApprovalReceipt } from './ApprovalReceipt';
 import * as css from './ThreadApprovals.css';
 
@@ -78,14 +79,22 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
   const reasonId = useId();
   if (!context || records.length === 0) return null;
   const { approval } = records[0];
-  const available = records.filter((record) =>
-    canSubmitApprovalDecision(record, user, context.actions.get(record.eventId), context.now)
+  const available = records.filter(
+    (record) =>
+      getApprovalCapabilities(record, user, context.actions.get(record.eventId), context.now).deny
   );
   const approvable = available.filter((record) => record.approval.approvable);
   const timed =
     approval.approverUserId === user && approval.scope && approvable.length === available.length
       ? approval.autoApproveOptions.filter((duration) =>
-          approvable.every((record) => record.approval.autoApproveOptions.includes(duration))
+          approvable.every((record) =>
+            getApprovalCapabilities(
+              record,
+              user,
+              context.actions.get(record.eventId),
+              context.now
+            ).durations.includes(duration)
+          )
         )
       : [];
   return (
@@ -98,7 +107,15 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
         {approval.agentName} · Requested by {approval.requesterId ?? 'unknown'}
       </small>
       {records.map((record, index) => (
-        <ApprovalReviewCall key={record.eventId} record={record} index={index} />
+        <ApprovalReviewCall
+          key={record.eventId}
+          record={record}
+          index={index}
+          userId={user}
+          action={context.actions.get(record.eventId)}
+          now={context.now}
+          submit={context.submit}
+        />
       ))}
       <div className={css.Actions}>
         <Button
@@ -242,57 +259,14 @@ export function ThreadApprovalQueue() {
   );
 }
 
-export function ApprovalGrantStatus({ record }: { record: ThreadApprovalRecord }) {
-  const context = useThreadApprovals();
-  const user = useMatrixClient().getUserId();
-  const grant = record.approval.autoApproval;
-  if (!context || !grant) return null;
-  const expiry = parseToolApprovalExpiryTimestamp(grant.expiresAt) ?? 0;
-  const active = !grant.revokedAt && expiry > context.now;
-  const action = context.actions.get(record.eventId);
-  return (
-    <>
-      <p>
-        {active
-          ? 'Expires in ' + Math.max(1, Math.ceil((expiry - context.now) / 60_000)) + ' min'
-          : grant.revokedAt
-          ? 'Auto-approval stopped'
-          : 'Auto-approval expired'}
-        <br />
-        Fixed expiry: {new Date(grant.expiresAt).toLocaleString()}
-      </p>
-      <small>Arguments may differ between calls.</small>
-      {active && user === record.approval.approverUserId && (
-        <Button
-          size="300"
-          variant="Critical"
-          outlined
-          disabled={!!action && action.status !== 'error'}
-          onClick={() => {
-            void context.submit(record, { revoke: true });
-          }}
-        >
-          <Text size="B300">
-            {action?.status === 'submitted' ? 'Stopping…' : 'Stop auto-approval'}
-          </Text>
-        </Button>
-      )}
-      {action?.error && <p role="alert">{action.error}</p>}
-    </>
-  );
-}
-
 export function ThreadApprovalPermissions() {
+  const user = useMatrixClient().getUserId();
   const context = useThreadApprovals();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   if (!context) return null;
   const grants = context.records.filter(
-    ({ approval }) =>
-      approval.status === 'approved' &&
-      approval.autoApproval &&
-      !approval.autoApproval.revokedAt &&
-      (parseToolApprovalExpiryTimestamp(approval.autoApproval.expiresAt) ?? 0) > context.now
+    ({ approval }) => getApprovalGrantState(approval, context.now) === 'active'
   );
   if (!open && grants.length === 0) return null;
   return (
@@ -315,7 +289,13 @@ export function ThreadApprovalPermissions() {
                 <small>
                   {approval.agentName} · {approval.requesterId} · This thread
                 </small>
-                <ApprovalGrantStatus record={record} />
+                <ApprovalGrantStatus
+                  record={record}
+                  userId={user}
+                  action={context.actions.get(record.eventId)}
+                  now={context.now}
+                  submit={context.submit}
+                />
               </section>
             );
           })}

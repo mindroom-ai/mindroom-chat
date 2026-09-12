@@ -66,26 +66,8 @@ export const JsonBlock = style({
   lineHeight: 1.45,
 });
 
-export const Actions = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: config.space.S200,
-});
-
-export const DurationActions = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: config.space.S100,
-});
-
 export const Scope = style({
   padding: config.space.S200,
   borderRadius: config.radii.R300,
   backgroundColor: color.Background.Container,
-});
-
-export const DenyForm = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: config.space.S200,
 });

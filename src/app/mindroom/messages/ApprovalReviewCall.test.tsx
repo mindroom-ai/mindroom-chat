@@ -11,18 +11,10 @@ import { ThreadApprovalRecord } from './threadApprovalModel';
 const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   actions: new Map(),
-  pendingEventIds: new Set(['$one', '$two']),
-}));
-vi.mock('./ThreadApprovalProvider', () => ({
-  useThreadApprovals: () => ({ ...mocks, now: Date.now() }),
-}));
-vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
 vi.mock('./ApprovalArguments', () => ({ ApprovalArguments: () => null }));
 vi.mock('./ThreadApprovals.css', () => ({
   Call: 'Call',
-  CallHeader: 'CallHeader',
   Actions: 'Actions',
   Stack: 'Stack',
 }));
@@ -71,7 +63,18 @@ it('moves focus into the denial reason and restores the Deny trigger on cancel',
   const container = document.createElement('div');
   document.body.append(container);
   domRoot = createRoot(container);
-  domAct(() => domRoot!.render(<ApprovalReviewCall record={record('$one')} index={0} />));
+  domAct(() =>
+    domRoot!.render(
+      <ApprovalReviewCall
+        record={record('$one')}
+        index={0}
+        userId="@alice:example.org"
+        action={mocks.actions.get('$one')}
+        now={Date.now()}
+        submit={mocks.submit}
+      />
+    )
+  );
   const button = (label: string) =>
     [...container.querySelectorAll('button')].find((item) => item.textContent === label)!;
   button('Deny').focus();
@@ -87,8 +90,22 @@ it('lets the same review approve one call and deny another with its own reason',
   act(() => {
     renderer = create(
       <>
-        <ApprovalReviewCall record={one} index={0} />
-        <ApprovalReviewCall record={two} index={1} />
+        <ApprovalReviewCall
+          record={one}
+          index={0}
+          userId="@alice:example.org"
+          action={mocks.actions.get('$one')}
+          now={Date.now()}
+          submit={mocks.submit}
+        />
+        <ApprovalReviewCall
+          record={two}
+          index={1}
+          userId="@alice:example.org"
+          action={mocks.actions.get('$two')}
+          now={Date.now()}
+          submit={mocks.submit}
+        />
       </>
     );
   });
@@ -115,7 +132,16 @@ it('lets the same review approve one call and deny another with its own reason',
 it('removes individual actions while the submitted call awaits its Matrix decision', () => {
   mocks.actions.set('$one', { kind: 'decision', status: 'submitted' });
   act(() => {
-    renderer = create(<ApprovalReviewCall record={record('$one')} index={0} />);
+    renderer = create(
+      <ApprovalReviewCall
+        record={record('$one')}
+        index={0}
+        userId="@alice:example.org"
+        action={mocks.actions.get('$one')}
+        now={Date.now()}
+        submit={mocks.submit}
+      />
+    );
   });
   expect(renderer.root.findAllByType('button')).toHaveLength(0);
   expect(JSON.stringify(renderer.toJSON())).toContain('submitted');

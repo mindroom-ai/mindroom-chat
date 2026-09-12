@@ -4,6 +4,7 @@ import {
   buildToolApprovalRevocationContent,
   parseToolApprovalExpiryTimestamp,
   ToolApprovalDuration,
+  ToolApprovalData,
 } from './toolApproval';
 
 export type ApprovalActionState = {
@@ -16,6 +17,15 @@ export type ApprovalAction =
   | { status: 'denied'; reason?: string; duration?: never }
   | { revoke: true };
 
+export type ApprovalControlProps = {
+  record: ThreadApprovalRecord;
+  userId: string | null;
+  action: ApprovalActionState | undefined;
+  submit: (record: ThreadApprovalRecord, action: ApprovalAction) => Promise<void>;
+  now: number;
+  canSend?: boolean;
+};
+
 export const canSubmitApprovalDecision = (
   record: ThreadApprovalRecord,
   userId: string | null,
@@ -25,7 +35,46 @@ export const canSubmitApprovalDecision = (
   isPendingApproval(record, now) &&
   (!record.approval.approverUserId || record.approval.approverUserId === userId) &&
   (!state || state.status === 'error');
-type ResponseContent =
+export const getApprovalGrantState = (approval: ToolApprovalData, now = Date.now()) => {
+  const grant = approval.status === 'approved' ? approval.autoApproval : null;
+  if (!grant) return undefined;
+  if (grant.revokedAt) return 'revoked';
+  return (parseToolApprovalExpiryTimestamp(grant.expiresAt) ?? 0) > now ? 'active' : 'expired';
+};
+
+export const isApprovalPending = (
+  record: ThreadApprovalRecord,
+  state: ApprovalActionState | undefined,
+  now = Date.now()
+): boolean =>
+  isPendingApproval(record, now) ||
+  (record.wireStatus === 'pending' && state?.kind === 'decision' && state.status !== 'error');
+
+export const getApprovalCapabilities = (
+  record: ThreadApprovalRecord,
+  userId: string | null,
+  state: ApprovalActionState | undefined,
+  now = Date.now()
+) => {
+  const deny = canSubmitApprovalDecision(record, userId, state, now);
+  const approve = deny && record.approval.approvable;
+  const originalApprover = !!userId && userId === record.approval.approverUserId;
+  return {
+    approve,
+    deny,
+    durations:
+      approve && originalApprover && record.approval.threadId
+        ? record.approval.autoApproveOptions
+        : [],
+    revoke:
+      originalApprover &&
+      !!record.approval.threadId &&
+      getApprovalGrantState(record.approval, now) === 'active' &&
+      (!state || state.status === 'error'),
+  };
+};
+
+export type ApprovalResponseContent =
   | ReturnType<typeof buildToolApprovalResponseContent>
   | ReturnType<typeof buildToolApprovalRevocationContent>;
 
@@ -38,7 +87,7 @@ export const createApprovalActions = ({
   getRecords: () => readonly ThreadApprovalRecord[];
   getUserId: () => string | null;
   threadId: string;
-  send: (content: ResponseContent) => Promise<unknown>;
+  send: (content: ApprovalResponseContent) => Promise<unknown>;
 }) => {
   let states = new Map<string, ApprovalActionState>();
   const attempts = new Map<string, symbol>();
@@ -50,10 +99,7 @@ export const createApprovalActions = ({
   const relevant = (record: ThreadApprovalRecord, kind: ApprovalActionState['kind']) =>
     kind === 'decision'
       ? record.wireStatus === 'pending'
-      : record.approval.autoApproval &&
-        !record.approval.autoApproval.revokedAt &&
-        (parseToolApprovalExpiryTimestamp(record.approval.autoApproval.expiresAt) ?? 0) >
-          Date.now();
+      : getApprovalGrantState(record.approval) === 'active';
   const reconcile = () => {
     let changed = false;
     states.forEach((state, id) => {
@@ -75,20 +121,15 @@ export const createApprovalActions = ({
     const previous = states.get(eventId);
     if (previous && previous.status !== 'error') return;
     const user = getUserId();
-    if (approval.approverUserId && approval.approverUserId !== user) return;
+    const capabilities = getApprovalCapabilities(record, user, previous);
     const grant = approval.autoApproval;
     const kind = 'revoke' in action ? 'revoke' : 'decision';
     if (!relevant(record, kind)) return;
     if ('revoke' in action) {
-      if (!grant || user !== approval.approverUserId) return;
+      if (!capabilities.revoke) return;
     } else {
-      if (!canSubmitApprovalDecision(record, user, previous)) return;
-      if (action.status === 'approved' && !approval.approvable) return;
-      if (
-        action.duration &&
-        (user !== approval.approverUserId || !approval.autoApproveOptions.includes(action.duration))
-      )
-        return;
+      if (!(action.status === 'approved' ? capabilities.approve : capabilities.deny)) return;
+      if (action.duration && !capabilities.durations.includes(action.duration)) return;
     }
     const affected =
       'status' in action && action.status === 'approved' && action.duration && approval.scope

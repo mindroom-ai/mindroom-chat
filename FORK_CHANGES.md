@@ -7,6 +7,7 @@
 - Pending calls share one bounded bar above the composer; Review captures the current requests and groups only the same canonical permission scope.
 - Each reviewed call retains its exact original arguments, with lazy loading and retry for plaintext or encrypted argument attachments.
 - Each call has individual Approve and Deny controls, including its own optional denial reason, alongside batch actions and eligible fixed 5, 10, or 30 minute permissions.
+- Standalone cards and thread review share one action controller, eligibility selectors, denial form, and grant controls; leaf controls receive records and callbacks without depending on history discovery.
 - Thread-scoped action state survives card virtualization, handles partial batch failure, and stays Submitted through the local request deadline until an authoritative Matrix update arrives.
 - Within the matching room and thread, the approval store exclusively owns card state and timeline visibility; missing records cannot fall back to stale standalone controls, while cards from other scopes remain independently usable.
 - Active timed permissions live in the thread header, with fixed expiry and per-permission revocation.

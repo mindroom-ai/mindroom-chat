@@ -7,7 +7,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react';
 import { MatrixEvent, MatrixEventEvent, Room, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -20,13 +19,15 @@ import {
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
-import { createApprovalActions, ApprovalAction, ApprovalActionState } from './approvalActions';
-import { mergeThreadApprovalEvents } from './threadApprovalEvents';
 import {
-  collectThreadApprovals,
-  isPendingApproval,
-  ThreadApprovalRecord,
-} from './threadApprovalModel';
+  ApprovalAction,
+  ApprovalActionState,
+  ApprovalResponseContent,
+  isApprovalPending,
+} from './approvalActions';
+import { useApprovalActions } from './useApprovalActions';
+import { mergeThreadApprovalEvents } from './threadApprovalEvents';
+import { collectThreadApprovals, ThreadApprovalRecord } from './threadApprovalModel';
 
 export type ThreadApprovals = {
   roomId: string;
@@ -123,42 +124,25 @@ function ActiveThreadApprovalProvider({
     discoveryError ??
     repairError ??
     (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
-  const recordsRef = useRef(records);
   const retainedEventsRef = useRef(events);
   useLayoutEffect(() => {
-    recordsRef.current = records;
     retainedEventsRef.current = events;
-  }, [records, events]);
-  const actionController = useMemo(
-    () =>
-      createApprovalActions({
-        getRecords: () => recordsRef.current,
-        getUserId: () => mx.getUserId(),
-        threadId,
-        send: (content) =>
-          mx.sendEvent(room.roomId, MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any, content),
-      }),
-    [mx, room.roomId, threadId]
+  }, [events]);
+  const send = useCallback(
+    (content: ApprovalResponseContent) =>
+      mx.sendEvent(room.roomId, MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any, content),
+    [mx, room.roomId]
   );
-  const actions = useSyncExternalStore(actionController.subscribe, actionController.getSnapshot);
+  const { actions, submit } = useApprovalActions(records, threadId, now, send);
   const pendingEventIds = useMemo(
     () =>
       new Set(
         records
-          .filter((record) => {
-            const action = actions.get(record.eventId);
-            return (
-              isPendingApproval(record, now) ||
-              (record.wireStatus === 'pending' &&
-                action?.kind === 'decision' &&
-                action.status !== 'error')
-            );
-          })
+          .filter((record) => isApprovalPending(record, actions.get(record.eventId), now))
           .map((record) => record.eventId)
       ),
     [records, actions, now]
   );
-  const submit = actionController.submit;
   const refresh = useCallback(() => setRequest(({ revision }) => ({ revision: revision + 1 })), []);
   const repairPending = useCallback(
     () =>
@@ -280,9 +264,6 @@ function ActiveThreadApprovalProvider({
     );
     return () => clearTimeout(timer);
   }, [records, now]);
-  useEffect(() => {
-    actionController.reconcile();
-  }, [actionController, records, now]);
   const value = useMemo(
     () => ({
       roomId: room.roomId,

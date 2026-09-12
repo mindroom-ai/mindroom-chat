@@ -111,10 +111,3 @@ export const Call = style({
   padding: '8px 0',
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
-export const CallHeader = style({
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-});
