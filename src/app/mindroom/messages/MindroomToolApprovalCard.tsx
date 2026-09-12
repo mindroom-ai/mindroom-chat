@@ -102,21 +102,21 @@ const getStatusIcon = (status: ToolApprovalData['status'] | 'submitted') => {
 };
 
 export function MindroomToolApprovalCard(props: MindroomToolApprovalCardProps) {
-  const { eventId } = props;
+  const { eventId, roomId, approval } = props;
   const context = useThreadApprovals();
-  const record = context?.records.find(
+  if (!context || context.roomId !== roomId || context.threadId !== approval.threadId)
+    return <StandaloneToolApprovalCard {...props} />;
+  const record = context.records.find(
     (item) => item.eventId === eventId || item.aliasEventIds?.includes(eventId ?? '')
   );
-  if (record) {
-    if (context?.pendingEventIds.has(record.eventId))
-      return <ApprovalReviewGroup records={[record]} />;
-    return (
-      <ApprovalReceipt approval={record.approval}>
-        <ApprovalGrantStatus record={record} />
-      </ApprovalReceipt>
-    );
-  }
-  return <StandaloneToolApprovalCard {...props} />;
+  if (!record) return null;
+  if (context.pendingEventIds.has(record.eventId))
+    return <ApprovalReviewGroup records={[record]} />;
+  return (
+    <ApprovalReceipt approval={record.approval}>
+      <ApprovalGrantStatus record={record} />
+    </ApprovalReceipt>
+  );
 }
 
 function StandaloneToolApprovalCard({

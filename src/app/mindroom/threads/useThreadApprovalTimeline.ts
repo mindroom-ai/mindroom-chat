@@ -22,7 +22,7 @@ export const useThreadApprovalTimeline = (
     if (routeId) revealed.current.add(routeId);
     if (focusId) revealed.current.add(focusId);
     return planThreadApprovalTimeline(
-      context?.records ?? [],
+      context?.records,
       events,
       revealed.current,
       ignored,

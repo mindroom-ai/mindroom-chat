@@ -1,8 +1,9 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { ThreadApprovalRecord, isPendingApproval } from '../messages/threadApprovalModel';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 
 export const planThreadApprovalTimeline = (
-  records: readonly ThreadApprovalRecord[],
+  records: readonly ThreadApprovalRecord[] | undefined,
   events: readonly MatrixEvent[],
   revealed: ReadonlySet<string>,
   ignored: ReadonlySet<string>,
@@ -13,6 +14,21 @@ export const planThreadApprovalTimeline = (
   const hiddenEventIds = new Set<string>();
   const historyByResponseId = new Map<string, ThreadApprovalRecord[]>();
   const fallbackGroupsByEventId = new Map<string, ThreadApprovalRecord[]>();
+  if (!records) return { hiddenEventIds, historyByResponseId, fallbackGroupsByEventId };
+  const recordIds = new Set(
+    records.flatMap((record) => [record.eventId, ...(record.aliasEventIds ?? [])])
+  );
+  // Cached timeline copies cannot restore approvals absent from the thread owner.
+  events.forEach((event) => {
+    const id = event.getId();
+    if (
+      id &&
+      id !== threadId &&
+      event.getType() === MINDROOM_TOOL_APPROVAL_EVENT &&
+      !recordIds.has(id)
+    )
+      hiddenEventIds.add(id);
+  });
   const loaded = new Map(
     events
       .filter((event) => !event.isRedacted() && !ignored.has(event.getSender() ?? ''))

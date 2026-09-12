@@ -3,6 +3,7 @@ import React from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
+import { ThreadApprovals } from './ThreadApprovalProvider';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
 const sendEventMock = vi.fn();
@@ -11,7 +12,8 @@ vi.mock('./ThreadApprovals.css', () => ({
   ReceiptBody: 'ReceiptBody',
   ReceiptTool: 'ReceiptTool',
 }));
-vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => undefined }));
+let threadApprovals: ThreadApprovals | undefined;
+vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => threadApprovals }));
 vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 let currentUserId = '@alice:example.org';
 
@@ -179,10 +181,67 @@ describe('MindroomToolApprovalCard', () => {
   beforeEach(() => {
     sendEventMock.mockReset();
     currentUserId = '@alice:example.org';
+    threadApprovals = undefined;
   });
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('does not restore stale standalone controls when the thread removes a record', () => {
+    threadApprovals = {
+      roomId: approvalContext.roomId,
+      threadId: approvalContext.threadId,
+      records: [
+        {
+          eventId: approvalContext.eventId,
+          sender: '@router:example.org',
+          wireStatus: 'approved',
+          approval: { ...pendingApproval, status: 'approved' },
+        },
+      ],
+      now: Date.now(),
+      pendingEventIds: new Set(),
+      loading: false,
+      refresh: vi.fn(),
+      ingest: vi.fn(),
+      actions: new Map(),
+      submit: vi.fn(),
+    };
+    const renderer = renderCard();
+    expect(getNodeText(renderer.root)).toContain('Approved');
+    threadApprovals = { ...threadApprovals, records: [] };
+    act(() =>
+      renderer.update(
+        React.createElement(MindroomToolApprovalCard, {
+          approval: pendingApproval,
+          ...approvalContext,
+        })
+      )
+    );
+    expect(renderer.toJSON()).toBeNull();
+    expect(sendEventMock).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it.each([
+    { roomId: '!another:example.org', threadId: approvalContext.threadId },
+    { roomId: approvalContext.roomId, threadId: '$another-thread' },
+  ])('keeps cards outside the active scope standalone: %j', (scope) => {
+    threadApprovals = {
+      ...scope,
+      records: [],
+      now: Date.now(),
+      pendingEventIds: new Set(),
+      loading: false,
+      refresh: vi.fn(),
+      ingest: vi.fn(),
+      actions: new Map(),
+      submit: vi.fn(),
+    };
+    const renderer = renderCard();
+    expect(findButtonByText(renderer.root, 'Approve').props.disabled).toBe(false);
+    renderer.unmount();
   });
 
   it('renders an already-expired pending approval in the live timestamp format without actions', () => {

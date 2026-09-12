@@ -29,6 +29,8 @@ import {
 } from './threadApprovalModel';
 
 export type ThreadApprovals = {
+  roomId: string;
+  threadId: string;
   records: readonly ThreadApprovalRecord[];
   now: number;
   pendingEventIds: ReadonlySet<string>;
@@ -283,6 +285,8 @@ function ActiveThreadApprovalProvider({
   }, [actionController, records, now]);
   const value = useMemo(
     () => ({
+      roomId: room.roomId,
+      threadId,
       records,
       now,
       pendingEventIds,
@@ -295,6 +299,8 @@ function ActiveThreadApprovalProvider({
       focusConversation,
     }),
     [
+      room.roomId,
+      threadId,
       records,
       now,
       pendingEventIds,

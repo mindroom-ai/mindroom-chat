@@ -53,6 +53,8 @@ it.each(['review', 'permissions'] as const)(
     const root = createRoot(container);
     const Controls = mode === 'review' ? ThreadApprovalQueue : ThreadApprovalPermissions;
     current = {
+      roomId: '!room:example.org',
+      threadId: '$thread',
       records: [
         {
           eventId: '$approval',

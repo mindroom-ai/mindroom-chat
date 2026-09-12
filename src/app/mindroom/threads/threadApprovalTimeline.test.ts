@@ -29,6 +29,28 @@ const response = new MatrixEvent({
   content: { body: 'Done', msgtype: 'm.text' },
 });
 describe('approval timeline projection', () => {
+  it('hides a stale cached approval absent from the authoritative thread records', () => {
+    const plan = planThreadApprovalTimeline(
+      [],
+      [receipt('$a'), response],
+      new Set(['$a']),
+      new Set(),
+      '$thread'
+    );
+    expect([...plan.hiddenEventIds]).toEqual(['$a']);
+    expect(plan.historyByResponseId.size).toBe(0);
+    expect(plan.fallbackGroupsByEventId.size).toBe(0);
+  });
+  it('preserves standalone rows when there is no thread approval owner', () => {
+    const plan = planThreadApprovalTimeline(
+      undefined,
+      [receipt('$a')],
+      new Set(),
+      new Set(),
+      '$thread'
+    );
+    expect(plan.hiddenEventIds.size).toBe(0);
+  });
   it('groups receipts beside the loaded response and preserves a directly focused original', () => {
     const events = [receipt('$a'), response, receipt('$b')];
     const records = collectThreadApprovals(events, '!room:example.org', '$thread');
