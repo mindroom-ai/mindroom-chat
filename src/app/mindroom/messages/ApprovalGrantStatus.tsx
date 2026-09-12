@@ -29,7 +29,7 @@ export function ApprovalGrantStatus({
           ? 'Auto-approval stopped'
           : 'Auto-approval expired'}
         <br />
-        Fixed expiry: {new Date(grant.expiresAt).toLocaleString()}
+        Fixed expiry: {new Date(expiry).toLocaleString()}
       </p>
       {state === 'active' && (
         <p>Expires in {Math.max(1, Math.ceil((expiry - now) / 60_000))} min</p>
