@@ -151,6 +151,7 @@ import {
   buildThreadSummaryMap,
   findLatestThreadSummaryEvent,
   getThreadSummaryEventInfo,
+  hasMindroomThreadSummary,
   isMindroomThreadSummaryEvent,
   MindroomThreadSummaryInfo,
 } from '../../components/message/mindroomThreadSummary';
@@ -576,6 +577,108 @@ const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
     !!relatedEvent?.threadRootId &&
     relatedEvent.threadRootId !== relatedEventId;
   return isThreadReplyMessage || isThreadReplyRelatedEvent;
+};
+
+const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
+  mEvent.getType() === MessageEvent.RoomMessage ||
+  mEvent.getType() === MessageEvent.RoomMessageEncrypted;
+
+type ShouldTrackLiveCollapsibleMessage = {
+  mEvent: MatrixEvent;
+  room: Room;
+  threadId: string | undefined;
+  threadFilter: ThreadFilter;
+  threadResolutionMap: Map<string, { isResolved: boolean }>;
+  ignoredUsersSet: Set<string>;
+  showHiddenEvents: boolean;
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
+};
+
+export const shouldTrackLiveCollapsibleMessage = ({
+  mEvent,
+  room,
+  threadId,
+  threadFilter,
+  threadResolutionMap,
+  ignoredUsersSet,
+  showHiddenEvents,
+  hideMembershipEvents,
+  hideNickAvatarEvents,
+}: ShouldTrackLiveCollapsibleMessage): boolean => {
+  const mEventId = mEvent.getId();
+  if (!mEventId || !isCollapsibleTextMessageEvent(mEvent)) return false;
+
+  if (
+    !isRenderableEvent(
+      mEvent,
+      room,
+      threadId,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents
+    )
+  ) {
+    return false;
+  }
+
+  if (threadId) {
+    return mEventId === threadId || eventBelongsToThread(mEvent, threadId);
+  }
+
+  if (isThreadOnlyRoomActivity(room, mEvent)) {
+    return false;
+  }
+
+  return (
+    getThreadFilteredEvents([mEvent], room, threadResolutionMap, threadId, threadFilter).length > 0
+  );
+};
+
+export const getLiveCollapsibleMessageExpandId = (
+  opts: ShouldTrackLiveCollapsibleMessage
+): string | undefined => {
+  const { mEvent, room } = opts;
+  const mEventId = mEvent.getId();
+  if (!mEventId || !isCollapsibleTextMessageEvent(mEvent)) return undefined;
+
+  const relation = mEvent.getRelation();
+  if (relation?.rel_type === RelationType.Replace) {
+    const targetEventId = relation.event_id;
+    if (!targetEventId) return undefined;
+
+    const targetEvent = room.findEventById(targetEventId);
+    if (
+      targetEvent &&
+      isCollapsibleTextMessageEvent(targetEvent) &&
+      shouldTrackLiveCollapsibleMessage({
+        ...opts,
+        mEvent: targetEvent,
+      })
+    ) {
+      return targetEventId;
+    }
+
+    return undefined;
+  }
+
+  return shouldTrackLiveCollapsibleMessage(opts) ? mEventId : undefined;
+};
+
+export const getCollapsibleMessageMode = (
+  mEventId: string,
+  resolvedContent: IContent,
+  liveExpandOnceIds: Set<string>
+) =>
+  hasMindroomThreadSummary(resolvedContent as Record<string, unknown>)
+    ? 'always-expanded'
+    : liveExpandOnceIds.has(mEventId)
+      ? 'initially-expanded'
+      : 'default';
+
+export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId: string) => {
+  liveExpandOnceIds.delete(mEventId);
 };
 
 const getMainTimelineCacheEvents = (room: Room, linkedTimelines: EventTimeline[]): MatrixEvent[] =>
@@ -1088,6 +1191,7 @@ export function RoomTimeline({
   const [atBottom, setAtBottom] = useState<boolean>(true);
   const [allExpanded, setAllExpanded] = useState(false);
   const atBottomRef = useRef(atBottom);
+  const liveExpandOnceIds = useRef(new Set<string>());
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1175,6 +1279,11 @@ export function RoomTimeline({
   );
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
   const threadResolutionMap = useRoomThreadResolutionMap(room);
+
+  useEffect(() => {
+    liveExpandOnceIds.current.clear();
+  }, [room.roomId, threadId]);
+
   const renderableEvents = useMemo(
     () =>
       getRenderableEvents(
@@ -1667,11 +1776,25 @@ export function RoomTimeline({
         const mEventId = mEvt.getId();
         const relation = mEvt.getRelation();
         const relationTargetId = relation?.event_id;
+        const liveExpandOnceId = getLiveCollapsibleMessageExpandId({
+          mEvent: mEvt,
+          room,
+          threadId,
+          threadFilter,
+          threadResolutionMap,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        });
         const isThreadOnlyActivity = isThreadOnlyRoomActivity(room, mEvt);
         const isVisibleThreadActivity =
           mEventId === threadId ||
           eventBelongsToThread(mEvt, threadId ?? '') ||
           !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
+        if (liveExpandOnceId) {
+          liveExpandOnceIds.current.add(liveExpandOnceId);
+        }
 
         if (threadId) {
           if (isVisibleThreadActivity) {
@@ -1767,17 +1890,17 @@ export function RoomTimeline({
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = true;
 
-          if (
-            isRenderableEvent(
-              mEvt,
-              room,
-              threadId,
-              ignoredUsersSet,
-              showHiddenEvents,
-              hideMembershipEvents,
-              hideNickAvatarEvents
-            )
-          ) {
+          const renderableLiveEvent = isRenderableEvent(
+            mEvt,
+            room,
+            threadId,
+            ignoredUsersSet,
+            showHiddenEvents,
+            hideMembershipEvents,
+            hideNickAvatarEvents
+          );
+
+          if (renderableLiveEvent) {
             if (roomThreadFilterActive) {
               setTimeline((ct) => ({ ...ct }));
             } else {
@@ -1789,6 +1912,8 @@ export function RoomTimeline({
                 },
               }));
             }
+          } else if (liveExpandOnceId) {
+            setTimeline((ct) => ({ ...ct }));
           }
           return;
         }
@@ -1812,6 +1937,8 @@ export function RoomTimeline({
         hideMembershipEvents,
         hideNickAvatarEvents,
         roomThreadFilterActive,
+        threadFilter,
+        threadResolutionMap,
         sessionId,
       ]
     )
@@ -2805,8 +2932,19 @@ export function RoomTimeline({
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-        const getContent = (() =>
-          getLatestMessageContent(mEvent, editedEvent)) as GetContentCallback;
+        const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
+        const getContent = (() => resolvedContent) as GetContentCallback;
+        const collapseMode = getCollapsibleMessageMode(
+          mEventId,
+          resolvedContent,
+          liveExpandOnceIds.current
+        );
+        const onInitialExpandConsumed =
+          collapseMode === 'initially-expanded'
+            ? () => {
+                consumeLiveExpandOnceId(liveExpandOnceIds.current, mEventId);
+              }
+            : undefined;
 
         const senderId = mEvent.getSender() ?? '';
         const senderDisplayName =
@@ -2949,7 +3087,14 @@ export function RoomTimeline({
                 />
               );
               if (isVisualMedia) return content;
-              return <CollapsibleMessage>{content}</CollapsibleMessage>;
+              return (
+                <CollapsibleMessage
+                  collapseMode={collapseMode}
+                  onInitialExpandConsumed={onInitialExpandConsumed}
+                >
+                  {content}
+                </CollapsibleMessage>
+              );
             })()}
           </Message>
         );
@@ -3094,8 +3239,19 @@ export function RoomTimeline({
                   );
                 if (mEvent.getType() === MessageEvent.RoomMessage) {
                   const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-                  const getContent = (() =>
-                    getLatestMessageContent(mEvent, editedEvent)) as GetContentCallback;
+                  const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
+                  const getContent = (() => resolvedContent) as GetContentCallback;
+                  const collapseMode = getCollapsibleMessageMode(
+                    mEventId,
+                    resolvedContent,
+                    liveExpandOnceIds.current
+                  );
+                  const onInitialExpandConsumed =
+                    collapseMode === 'initially-expanded'
+                      ? () => {
+                          consumeLiveExpandOnceId(liveExpandOnceIds.current, mEventId);
+                        }
+                      : undefined;
 
                   const senderId = mEvent.getSender() ?? '';
                   const senderDisplayName =
@@ -3119,7 +3275,14 @@ export function RoomTimeline({
                   const isEncVisualMedia =
                     encMsgType === MsgType.Image || encMsgType === MsgType.Video;
                   if (isEncVisualMedia) return messageContent;
-                  return <CollapsibleMessage>{messageContent}</CollapsibleMessage>;
+                  return (
+                    <CollapsibleMessage
+                      collapseMode={collapseMode}
+                      onInitialExpandConsumed={onInitialExpandConsumed}
+                    >
+                      {messageContent}
+                    </CollapsibleMessage>
+                  );
                 }
                 if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
                   return (

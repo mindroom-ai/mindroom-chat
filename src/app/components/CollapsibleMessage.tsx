@@ -15,28 +15,81 @@ export function collapseAllMessages() {
   listeners.forEach((fn) => fn(false));
 }
 
-function useExpandAllListener(onToggle: (expand: boolean) => void) {
+function useExpandAllListener(onToggle: (expand: boolean) => void, enabled: boolean) {
   useEffect(() => {
+    if (!enabled) return undefined;
     listeners.add(onToggle);
     return () => { listeners.delete(onToggle); };
-  }, [onToggle]);
+  }, [enabled, onToggle]);
 }
+
+const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
+  if (MAX_HEIGHT.endsWith('px')) {
+    const pixelHeight = Number.parseFloat(MAX_HEIGHT);
+    return Number.isFinite(pixelHeight) ? pixelHeight : undefined;
+  }
+
+  if (!MAX_HEIGHT.endsWith('em') || typeof globalThis.getComputedStyle !== 'function') {
+    return undefined;
+  }
+
+  const fontSize = Number.parseFloat(globalThis.getComputedStyle(el).fontSize);
+  if (!Number.isFinite(fontSize)) return undefined;
+
+  return Number.parseFloat(MAX_HEIGHT) * fontSize;
+};
+
+const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean => {
+  const collapsedMaxHeight = getCollapsedMaxHeight(el);
+  if (collapsedMaxHeight !== undefined) {
+    return el.scrollHeight > collapsedMaxHeight + 1;
+  }
+
+  return !expanded && el.scrollHeight > el.clientHeight + 1;
+};
+
+export type CollapsibleMessageCollapseMode =
+  | 'default'
+  | 'always-expanded'
+  | 'initially-expanded';
 
 type CollapsibleMessageProps = {
   children: ReactNode;
+  collapseMode?: CollapsibleMessageCollapseMode;
+  onInitialExpandConsumed?: () => void;
 };
 
-export function CollapsibleMessage({ children }: CollapsibleMessageProps) {
+export function CollapsibleMessage({
+  children,
+  collapseMode = 'default',
+  onInitialExpandConsumed,
+}: CollapsibleMessageProps) {
+  const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
+  const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
+  const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const [overflowing, setOverflowing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => collapseMode !== 'default');
 
-  const checkOverflow = () => {
+  initialExpandConsumedRef.current = onInitialExpandConsumed;
+
+  const checkOverflow = useCallback(() => {
+    if (isExempt) return;
     const el = contentRef.current;
-    if (el && !expanded) {
-      setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    if (!el) return;
+    setOverflowing(isContentOverflowing(el, expanded));
+  }, [expanded, isExempt]);
+
+  useEffect(() => {
+    if (
+      collapseMode === 'initially-expanded' &&
+      previousCollapseModeRef.current !== 'initially-expanded'
+    ) {
+      setExpanded(true);
+      initialExpandConsumedRef.current?.();
     }
-  };
+    previousCollapseModeRef.current = collapseMode;
+  }, [collapseMode]);
 
   // Runs synchronously after every render — catches streaming edits
   useLayoutEffect(checkOverflow);
@@ -44,15 +97,13 @@ export function CollapsibleMessage({ children }: CollapsibleMessageProps) {
   // ResizeObserver for async layout shifts (lazy images, font loading, etc.)
   useEffect(() => {
     const el = contentRef.current;
-    if (!el || expanded) return undefined;
+    if (isExempt || !el || expanded || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
-      if (el.scrollHeight > el.clientHeight + 1) {
-        setOverflowing(true);
-      }
+      setOverflowing(isContentOverflowing(el, expanded));
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded]);
+  }, [expanded, isExempt]);
 
   // Subscribe to global expand/collapse events
   const handleGlobalToggle = useCallback((expand: boolean) => {
@@ -61,20 +112,20 @@ export function CollapsibleMessage({ children }: CollapsibleMessageProps) {
       setOverflowing(false); // will be re-detected by useLayoutEffect
     }
   }, []);
-  useExpandAllListener(handleGlobalToggle);
+  useExpandAllListener(handleGlobalToggle, !isExempt);
 
   return (
     <div style={{ overflowAnchor: 'none' }}>
       <div
         ref={contentRef}
         style={{
-          maxHeight: expanded ? undefined : MAX_HEIGHT,
-          overflow: expanded ? undefined : 'hidden',
+          maxHeight: isExempt || expanded ? undefined : MAX_HEIGHT,
+          overflow: isExempt || expanded ? undefined : 'hidden',
           position: 'relative',
         }}
       >
         {children}
-        {!expanded && overflowing && (
+        {!isExempt && !expanded && overflowing && (
           <div
             style={{
               position: 'absolute',
@@ -88,7 +139,7 @@ export function CollapsibleMessage({ children }: CollapsibleMessageProps) {
           />
         )}
       </div>
-      {(overflowing || expanded) && (
+      {!isExempt && overflowing && (
         <a
           href="#"
           onClick={(e) => {
