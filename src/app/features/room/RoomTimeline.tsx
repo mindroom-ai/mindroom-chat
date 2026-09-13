@@ -2182,12 +2182,23 @@ export function RoomTimeline({
     const BATCH_SIZE = 200;
     const MAX_STALLED_BATCHES = 3;
 
+    // Capture the initial backward pagination token before any cache effects can clear it
+    const initialLiveTimeline = getLiveTimeline(room);
+    const savedPaginationToken = initialLiveTimeline.getPaginationToken(Direction.Backward);
+
     const preload = async () => {
       // Let cache hydration effects settle first
       await new Promise<void>((r) => {
         setTimeout(r, 100);
       });
-      if (cancelled || !alive()) return;
+      if (cancelled || !alive()) {
+        console.log('[eager-preload] cancelled or unmounted before starting loop');
+        return;
+      }
+
+      console.log(
+        `[eager-preload] starting for room ${room.roomId}, limit=${safePaginationLimitRef.current}, savedToken=${savedPaginationToken ? 'yes' : 'no'}`
+      );
 
       let iterations = 0;
       let stalledBatches = 0;
@@ -2235,7 +2246,12 @@ export function RoomTimeline({
           break;
         }
 
-        const backwardToken = firstTimeline.getPaginationToken(Direction.Backward) ?? null;
+        let backwardToken = firstTimeline.getPaginationToken(Direction.Backward);
+        if (!backwardToken && savedPaginationToken && iterations === 0) {
+          console.log('[eager-preload] pagination token was cleared, restoring saved token');
+          firstTimeline.setPaginationToken(savedPaginationToken, Direction.Backward);
+          backwardToken = savedPaginationToken;
+        }
         if (!backwardToken) {
           console.log('[eager-preload] no backward pagination token, breaking');
           preloadSucceeded = true;
