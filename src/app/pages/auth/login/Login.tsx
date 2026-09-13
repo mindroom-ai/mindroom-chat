@@ -54,6 +54,10 @@ export function Login() {
   }
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
+  const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const isMindroomServer = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
+  const disablePasswordLogin = isMindroomServer;
+  const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
   const appleProviderAvailable = hasAppleIdentityProvider(parsedFlows.sso?.identity_providers);
@@ -72,7 +76,7 @@ export function Login() {
       {parsedFlows.token && loginSearchParams.loginToken && (
         <TokenLogin token={loginSearchParams.loginToken} />
       )}
-      {parsedFlows.password && (
+      {showPasswordLogin && (
         <>
           <PasswordLoginForm
             defaultUsername={loginSearchParams.username}
@@ -88,20 +92,22 @@ export function Login() {
             providers={parsedFlows.sso.identity_providers}
             redirectUrl={ssoRedirectUrl}
             action={SSOAction.LOGIN}
-            saveScreenSpace={parsedFlows.password !== undefined}
+            saveScreenSpace={showPasswordLogin}
           />
           <span data-spacing-node />
         </>
       )}
-      {!parsedFlows.password && !parsedFlows.sso && (
+      {!showPasswordLogin && !parsedFlows.sso && (
         <>
           <Text style={{ color: color.Critical.Main }}>
-            {`This client does not support login on "${server}" server. Password and SSO based login method not found.`}
+            {disablePasswordLogin
+              ? `Password login is disabled on "${server}". Use SSO to sign in.`
+              : `This client does not support login on "${server}" server. Password and SSO based login method not found.`}
           </Text>
           <span data-spacing-node />
         </>
       )}
-      {registrationAllowed && (
+      {registrationAllowed && !isMindroomServer && (
         <Text align="Center">
           Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
         </Text>
