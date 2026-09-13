@@ -34,6 +34,9 @@ const getEntryTags = (entry: CrossRoomThreadIndexEntry): string[] =>
 const compareBooleanDesc = (left: boolean, right: boolean): number =>
   left === right ? 0 : left ? -1 : 1;
 
+export const isCrossRoomThreadEntryEligible = (entry: CrossRoomThreadIndexEntry): boolean =>
+  entry.threadRecord.status.replyCount > 0 || entry.threadRecord.status.hasPendingSend === true;
+
 export const compareCrossRoomThreadEntries = (
   left: CrossRoomThreadIndexEntry,
   right: CrossRoomThreadIndexEntry

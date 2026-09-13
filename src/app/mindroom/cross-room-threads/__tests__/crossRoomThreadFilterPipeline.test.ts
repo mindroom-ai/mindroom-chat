@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../crossRoomThreadIndex';
-import { applyCrossRoomThreadFilters } from '../crossRoomThreadFilterPipeline';
+import {
+  applyCrossRoomThreadFilters,
+  isCrossRoomThreadEntryEligible,
+} from '../crossRoomThreadFilterPipeline';
 import { DEFAULT_CROSS_ROOM_THREAD_FILTERS } from '../crossRoomThreadFilters';
 
 const now = Date.UTC(2026, 4, 6, 12, 0, 0);
@@ -15,6 +18,12 @@ const makeEntry = (
     roomName: 'Room',
     parentSpaceIds: [],
     threadRootId,
+    threadRecord: {
+      status: {
+        hasPendingSend: false,
+        replyCount: 1,
+      },
+    } as CrossRoomThreadIndexEntry['threadRecord'],
     lastActivityTs: now,
     isUnread: false,
     isResolved: false,
@@ -29,6 +38,26 @@ const makeEntry = (
   } as CrossRoomThreadIndexEntry);
 
 describe('crossRoomThreadFilterPipeline', () => {
+  it('excludes viewed zero-reply roots while retaining replied and pending threads', () => {
+    const entries = [
+      makeEntry('$viewed-root', {
+        threadRecord: {
+          status: { hasPendingSend: false, replyCount: 0 },
+        } as CrossRoomThreadIndexEntry['threadRecord'],
+      }),
+      makeEntry('$replied'),
+      makeEntry('$pending', {
+        threadRecord: {
+          status: { hasPendingSend: true, replyCount: 0 },
+        } as CrossRoomThreadIndexEntry['threadRecord'],
+      }),
+    ];
+
+    expect(
+      entries.filter(isCrossRoomThreadEntryEligible).map((entry) => entry.threadRootId)
+    ).toEqual(['$replied', '$pending']);
+  });
+
   it('applies each structured filter axis', () => {
     const entries = [
       makeEntry('$a', {

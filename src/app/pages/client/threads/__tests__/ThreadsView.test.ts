@@ -78,6 +78,9 @@ describe('ThreadsView', () => {
                 roomName: 'Room',
                 parentSpaceIds: [],
                 threadRootId: '$root',
+                threadRecord: {
+                  status: { hasPendingSend: false, replyCount: 1 },
+                },
                 lastActivityTs: Date.now(),
                 isUnread: false,
                 isResolved: false,
@@ -125,6 +128,9 @@ describe('ThreadsView', () => {
                 roomName: 'Room',
                 parentSpaceIds: [],
                 threadRootId: '$root',
+                threadRecord: {
+                  status: { hasPendingSend: false, replyCount: 1 },
+                },
                 lastActivityTs: Date.now(),
                 isUnread: false,
                 isResolved: false,
@@ -144,5 +150,46 @@ describe('ThreadsView', () => {
       })
     );
     expect(hasText(filteredOut, 'No threads match your filters')).toBe(true);
+  });
+
+  it('shows the base empty state when the index only contains viewed zero-reply roots', () => {
+    const renderer = create(
+      React.createElement(ThreadsView, {
+        indexSnapshot: makeSnapshot({
+          bootstrapped: true,
+          entries: new Map([
+            [
+              'entry',
+              {
+                key: 'entry',
+                roomId: '!room:example.org',
+                roomName: 'Room',
+                parentSpaceIds: [],
+                threadRootId: '$root',
+                threadRecord: {
+                  status: { hasPendingSend: false, replyCount: 0 },
+                },
+                lastActivityTs: Date.now(),
+                isUnread: false,
+                isResolved: false,
+                hasAttention: false,
+                isInvolved: true,
+                summaryText: 'summary',
+                rootPreviewText: 'root',
+                searchableText: 'root summary',
+                tags: [],
+                generation: 0,
+              },
+            ],
+          ]) as CrossRoomThreadIndexSnapshot['entries'],
+        }),
+        filters: DEFAULT_CROSS_ROOM_THREAD_FILTERS,
+        setFilters: vi.fn(),
+      })
+    );
+
+    expect(hasText(renderer, 'You have not been involved in any threads yet')).toBe(true);
+    expect(hasText(renderer, 'No threads match your filters')).toBe(false);
+    expect(hasText(renderer, 'Clear filters')).toBe(false);
   });
 });

@@ -2,7 +2,10 @@ import React, { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import type { CrossRoomThreadIndexSnapshot } from '../../../mindroom/cross-room-threads/crossRoomThreadIndex';
-import { applyCrossRoomThreadFilters } from '../../../mindroom/cross-room-threads/crossRoomThreadFilterPipeline';
+import {
+  applyCrossRoomThreadFilters,
+  isCrossRoomThreadEntryEligible,
+} from '../../../mindroom/cross-room-threads/crossRoomThreadFilterPipeline';
 import {
   DEFAULT_CROSS_ROOM_THREAD_FILTERS,
   type CrossRoomThreadFilters,
@@ -20,9 +23,13 @@ type ThreadsViewProps = {
 
 export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const eligibleEntries = useMemo(
+    () => Array.from(indexSnapshot.entries.values()).filter(isCrossRoomThreadEntryEligible),
+    [indexSnapshot.entries]
+  );
   const entries = useMemo(
-    () => applyCrossRoomThreadFilters(indexSnapshot.entries.values(), filters),
-    [filters, indexSnapshot.entries]
+    () => applyCrossRoomThreadFilters(eligibleEntries, filters),
+    [eligibleEntries, filters]
   );
   const virtualizer = useVirtualizer({
     count: entries.length,
@@ -40,7 +47,7 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     );
   }
 
-  if (indexSnapshot.entries.size === 0) {
+  if (eligibleEntries.length === 0) {
     return (
       <Box className={css.Empty} direction="Column" gap="300">
         <Icon src={Icons.Thread} size="600" />

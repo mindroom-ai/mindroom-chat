@@ -1,6 +1,14 @@
 import React from 'react';
 import { EventEmitter } from 'events';
-import { EventTimelineSet, MatrixEvent, Room, Thread, ThreadEvent } from 'matrix-js-sdk';
+import {
+  EventStatus,
+  EventTimelineSet,
+  MatrixEvent,
+  Room,
+  RoomEvent,
+  Thread,
+  ThreadEvent,
+} from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
@@ -136,15 +144,16 @@ const makeTimelineSet = (): EventTimelineSet =>
   } as unknown as EventTimelineSet);
 
 const makeRoom = (rootEvent?: MatrixEvent, txnMap?: Map<string, MatrixEvent>): Room =>
-  ({
+  Object.assign(new EventEmitter(), {
     findEventById: vi.fn((eventId: string) =>
       rootEvent?.getId() === eventId ? rootEvent : undefined
     ),
     getEventForTxnId: vi.fn((txnId: string) => txnMap?.get(txnId)),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): MockThread =>
   Object.assign(new EventEmitter(), {
+    id: rootEvent.getId(),
     rootEvent,
     events,
   }) as MockThread;
@@ -522,6 +531,73 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadEventIndexMapRef.current.get('~local-reply')).toBe(1);
 
     renderer.unmount();
+  });
+
+  it('renders a local echo from the room before the SDK thread emits NewReply', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const localEchoReply = makeMessageEvent('~local-reply', 2);
+    localEchoReply.status = EventStatus.SENDING;
+    localEchoReply.event.content['m.relates_to'] = {
+      event_id: '$root',
+      rel_type: 'm.thread',
+    };
+    const room = makeRoom(rootEvent);
+    const roomTimelineSet = makeTimelineSet();
+    const thread = makeThread(rootEvent, []);
+    const unrelatedReply = makeMessageEvent('~unrelated-reply', 3);
+    unrelatedReply.event.content['m.relates_to'] = {
+      event_id: '$other-root',
+      rel_type: 'm.thread',
+    };
+    const edit = makeEditEvent('~edit', 4, '~local-reply');
+
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet,
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: true,
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+    expect((room as unknown as EventEmitter).listenerCount(RoomEvent.LocalEchoUpdated)).toBe(1);
+
+    act(() => {
+      room.emit(RoomEvent.LocalEchoUpdated, unrelatedReply, room);
+      room.emit(RoomEvent.LocalEchoUpdated, edit, room);
+      room.emit(RoomEvent.LocalEchoUpdated, localEchoReply, room);
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual([
+      '$root',
+      '~local-reply',
+    ]);
+    expect(thread.events).toEqual([]);
+
+    act(() => {
+      localEchoReply.status = EventStatus.CANCELLED;
+      room.emit(
+        RoomEvent.LocalEchoUpdated,
+        localEchoReply,
+        room,
+        '~local-reply',
+        EventStatus.SENDING
+      );
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+
+    act(() => {
+      thread.emit(ThreadEvent.NewReply, thread, localEchoReply);
+    });
+
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root']);
+
+    act(() => {
+      renderer.unmount();
+    });
+    expect((room as unknown as EventEmitter).listenerCount(RoomEvent.LocalEchoUpdated)).toBe(0);
   });
 
   it('deduplicates local echo against confirmed event in setSupplementalThreadEvents via fallback resolver', () => {

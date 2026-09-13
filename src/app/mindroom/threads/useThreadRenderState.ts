@@ -7,7 +7,16 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  EventStatus,
+  EventTimelineSet,
+  MatrixEvent,
+  RelationType,
+  Room,
+  RoomEvent,
+  type RoomEventHandlerMap,
+  Thread,
+} from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import { removeAggregatedReactionByEventId } from '../engine/redactionCacheLifecycle';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
@@ -139,8 +148,27 @@ export const useThreadRenderState = ({
     (expectedThreadId: string, events: MatrixEvent[]) => {
       const fallbackState = fallbackThreadEventsRef.current;
       const currentEvents = fallbackState.threadId === expectedThreadId ? fallbackState.events : [];
-      const resolveConfirmedId = buildResolveConfirmedEventId(room, [...currentEvents, ...events]);
-      const mergedEvents = mergeThreadRenderEvents(currentEvents, events, resolveConfirmedId);
+      const cancelledEvents = events.filter((mEvent) => mEvent.status === EventStatus.CANCELLED);
+      const cancelledEventIds = new Set(
+        cancelledEvents
+          .map((mEvent) => mEvent.getId())
+          .filter((eventId): eventId is string => !!eventId)
+      );
+      const retainedCurrentEvents = currentEvents.filter(
+        (candidate) =>
+          !cancelledEvents.includes(candidate) &&
+          (!candidate.getId() || !cancelledEventIds.has(candidate.getId()!))
+      );
+      const activeEvents = events.filter((mEvent) => mEvent.status !== EventStatus.CANCELLED);
+      const resolveConfirmedId = buildResolveConfirmedEventId(room, [
+        ...retainedCurrentEvents,
+        ...activeEvents,
+      ]);
+      const mergedEvents = mergeThreadRenderEvents(
+        retainedCurrentEvents,
+        activeEvents,
+        resolveConfirmedId
+      );
 
       const redactedRelationTargets = hydrateCachedEvents({
         room,
@@ -153,7 +181,7 @@ export const useThreadRenderState = ({
         relationState.relationEventIds = new Set();
       }
       aggregateCachedRelationEvents(
-        events,
+        activeEvents,
         [threadTimelineSet, roomTimelineSet],
         relationState.relationEventIds,
         redactedRelationTargets
@@ -209,6 +237,30 @@ export const useThreadRenderState = ({
     fallbackThreadEventsRef.current = nextFallbackState;
     setFallbackThreadEventsState(nextFallbackState);
   }, []);
+
+  useEffect(() => {
+    if (!threadId) return undefined;
+
+    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
+      mEvent,
+      eventRoom
+    ) => {
+      if (eventRoom.roomId !== room.roomId) return;
+      if (mEvent.getRelation()?.rel_type !== RelationType.Thread) return;
+      if (!eventBelongsToThread(mEvent, threadId)) return;
+
+      // The SDK waits for its background thread-metadata request before it
+      // emits Thread.NewReply. Render the room's direct local echo immediately
+      // so a slow root request cannot hide a newly sent first reply. The
+      // supplemental sink also removes this event if cancellation arrives.
+      setSupplementalThreadEvents(threadId, [mEvent]);
+    };
+
+    room.on(RoomEvent.LocalEchoUpdated, handleLocalEcho);
+    return () => {
+      room.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEcho);
+    };
+  }, [room, setSupplementalThreadEvents, threadId]);
 
   const fallbackEvents = useMemo(() => {
     if (!threadId || fallbackThreadEventsState.threadId !== threadId) {

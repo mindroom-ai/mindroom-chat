@@ -412,6 +412,7 @@ export const useCrossRoomThreadIndex = () => {
 
       room.on(RoomEvent.Receipt, handleReceipt);
       room.on(RoomEvent.Timeline, handleTimeline);
+      room.on(RoomEvent.LocalEchoUpdated, handleTimeline);
       room.on(ThreadEvent.New, handleThread);
       room.on(ThreadEvent.Update, handleThread);
       room.on(ThreadEvent.NewReply, handleThread);
@@ -449,6 +450,7 @@ export const useCrossRoomThreadIndex = () => {
       roomDisposers.set(room.roomId, () => {
         room.removeListener(RoomEvent.Receipt, handleReceipt);
         room.removeListener(RoomEvent.Timeline, handleTimeline);
+        room.removeListener(RoomEvent.LocalEchoUpdated, handleTimeline);
         room.removeListener(ThreadEvent.New, handleThread);
         room.removeListener(ThreadEvent.Update, handleThread);
         room.removeListener(ThreadEvent.NewReply, handleThread);
