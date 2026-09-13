@@ -75,6 +75,11 @@ vi.mock('./message/MindroomLongTextText', () => ({
   MindroomLongTextText: () => null,
 }));
 
+vi.mock('./message/MindroomToolApprovalCard', () => ({
+  MindroomToolApprovalCard: ({ approval }: { approval: { toolName: string } }) =>
+    React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName),
+}));
+
 vi.mock('../plugins/react-custom-html-parser', () => ({
   withMindroomToolTraceMarkerParserOptions: (options: unknown) => options,
 }));
@@ -141,6 +146,41 @@ describe('RenderMessageContent', () => {
     expect(rendered).toContain('summary-card');
     expect(rendered).toContain('Edited summary body');
     expect(rendered).not.toContain('notice');
+
+    renderer.unmount();
+  });
+
+  it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
+    const { RenderMessageContent } = await import('./RenderMessageContent');
+
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'MindRoom',
+        eventType: 'io.mindroom.tool_approval',
+        msgType: '',
+        ts: 0,
+        getContent: (() => ({
+          approval_id: 'approval-1',
+          tool_name: 'web_search',
+          arguments: { query: 'release date' },
+          agent_name: 'research',
+          status: 'pending',
+          created_at: '2026-04-10T12:00:00Z',
+          expires_at: '2026-04-17T12:00:00Z',
+          resolved_at: null,
+          resolved_by: null,
+          resolution_reason: null,
+        })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('tool-approval');
+    expect(rendered).toContain('web_search');
+    expect(rendered).not.toContain('unsupported');
 
     renderer.unmount();
   });

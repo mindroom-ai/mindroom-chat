@@ -3779,6 +3779,30 @@ describe('RoomTimeline', () => {
     expect(
       isRenderableEvent(hiddenEvent as never, room as never, undefined, new Set(), true, false, false)
     ).toBe(true);
+
+    const toolApprovalEvent = makeEvent('$approval', {
+      type: 'io.mindroom.tool_approval',
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        created_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+      },
+    });
+    expect(
+      isRenderableEvent(
+        toolApprovalEvent as never,
+        room as never,
+        undefined,
+        new Set(),
+        false,
+        false,
+        false
+      )
+    ).toBe(true);
   });
 
   it('keeps filtered mode pinned to the full filtered range when live non-matching events arrive', async () => {
