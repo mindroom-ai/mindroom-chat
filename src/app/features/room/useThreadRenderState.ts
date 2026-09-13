@@ -30,16 +30,35 @@ type ThreadFallbackState = {
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
 const buildResolveConfirmedId = (
-  room: Room
+  room: Room,
+  events?: MatrixEvent[]
 ): ((txnId: string) => string | undefined) => {
+  let fallbackMap: Map<string, string> | undefined;
+  const getFallbackMap = (): Map<string, string> => {
+    if (!fallbackMap) {
+      fallbackMap = new Map();
+      if (events) {
+        for (const mEvent of events) {
+          const txn = mEvent.getUnsigned()?.transaction_id;
+          const eid = mEvent.getId();
+          if (typeof txn === 'string' && txn.length > 0 && typeof eid === 'string' && !eid.startsWith('~')) {
+            fallbackMap.set(txn, eid);
+          }
+        }
+      }
+    }
+    return fallbackMap;
+  };
+
   return (txnId: string): string | undefined => {
     const event = room.getEventForTxnId?.(txnId);
-    if (!event) return undefined;
-    const confirmedId = event.getId();
-    if (typeof confirmedId === 'string' && !confirmedId.startsWith('~')) {
-      return confirmedId;
+    if (event) {
+      const confirmedId = event.getId();
+      if (typeof confirmedId === 'string' && !confirmedId.startsWith('~')) {
+        return confirmedId;
+      }
     }
-    return undefined;
+    return getFallbackMap().get(txnId);
   };
 };
 
@@ -86,7 +105,7 @@ const buildThreadEvents = ({
     fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
   }
 
-  const resolveConfirmedId = buildResolveConfirmedId(room);
+  const resolveConfirmedId = buildResolveConfirmedId(room, collectedEvents);
   const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
 
   hydrateCachedEvents({
@@ -138,7 +157,8 @@ export const useThreadRenderState = ({
     (expectedThreadId: string, events: MatrixEvent[]) => {
       const fallbackState = fallbackThreadEventsRef.current;
       const currentEvents = fallbackState.threadId === expectedThreadId ? fallbackState.events : [];
-      const mergedEvents = mergeThreadRenderEvents(currentEvents, events);
+      const resolveConfirmedId = buildResolveConfirmedId(room, [...currentEvents, ...events]);
+      const mergedEvents = mergeThreadRenderEvents(currentEvents, events, resolveConfirmedId);
 
       hydrateCachedEvents({
         room,

@@ -141,6 +141,7 @@ export const normalizeCachedThreadEvents = (
   rawEvents.forEach((rawEvent) => {
     const normalized = toCachedThreadEvent(rawEvent);
     if (!normalized) return;
+    if (isRawLocalEchoEvent(normalized)) return;
     const incomingKeys = getRawEventKeys(normalized);
     if (incomingKeys.length === 0) return;
     const existingEvent = findExistingEvent(incomingKeys);
@@ -155,7 +156,7 @@ export const normalizeCachedThreadEvents = (
   });
 
   const normalizedRoot = rootEvent ? toCachedThreadEvent(rootEvent) : undefined;
-  if (normalizedRoot) {
+  if (normalizedRoot && !isRawLocalEchoEvent(normalizedRoot)) {
     const rootKeys = getRawEventKeys(normalizedRoot);
     if (rootKeys.length > 0 && !findExistingEvent(rootKeys)) {
       setEventForKeys(rootKeys, normalizedRoot);
@@ -361,7 +362,7 @@ export const saveThreadEventsToCache = async (
           earliestEventId,
           beforeTokenForEarliest
         ),
-        rootEvent: rootEvent ?? currentMeta?.rootEvent,
+        rootEvent: (rootEvent && !isRawLocalEchoEvent(rootEvent)) ? rootEvent : currentMeta?.rootEvent,
         updatedAt: Date.now(),
       };
       metaStore.put(nextMeta);
