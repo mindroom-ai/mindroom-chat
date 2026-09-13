@@ -61,7 +61,7 @@ describe('Mindroom editor extension API', () => {
 
   it('owns Matrix math editor markdown reconstruction', () => {
     const inlineNode = parseSingleTag('<span data-mx-maths="x^2">fallback</span>');
-    const blockNode = parseSingleTag(`<div data-mx-maths="a
+    const blockNode = parseSingleTag(`<div data-mx-maths="a\r
 b">fallback</div>`);
 
     expect(getMindroomEditorMathLatex(inlineNode, getText)).toBe('x^2');
@@ -70,6 +70,16 @@ b">fallback</div>`);
     expect(getMindroomEditorMathText(inlineNode, getText, false)).toBe('x^2');
     expect(isMindroomEditorMathBlockElement(inlineNode)).toBe(false);
     expect(isMindroomEditorMathBlockElement(blockNode)).toBe(true);
+    expect(parseMindroomEditorMathBlock(blockNode, getText)).toEqual([
+      {
+        type: BlockType.Paragraph,
+        children: [{ text: 'a' }],
+      },
+      {
+        type: BlockType.Paragraph,
+        children: [{ text: 'b' }],
+      },
+    ]);
     expect(parseMindroomEditorMathBlock(blockNode, getText, true)).toEqual([
       {
         type: BlockType.Paragraph,

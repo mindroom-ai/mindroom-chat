@@ -4,8 +4,8 @@ import { isKeyHotkey } from 'is-hotkey';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
 import { MIN_PAGINATION_LIMIT, sanitizePaginationLimit } from '../threads/preloadSettings';
+import { mindroomSettingsAtom } from './mindroomSettings';
 
 type MindroomMessagePreloadLimitSettingProps = {
   className?: string;
@@ -26,7 +26,7 @@ export function MindroomMessagePreloadLimitSetting({
 }
 
 export function MindroomMessagePreloadLimitInput() {
-  const [paginationLimit, setPaginationLimit] = useSetting(settingsAtom, 'paginationLimit');
+  const [paginationLimit, setPaginationLimit] = useSetting(mindroomSettingsAtom, 'paginationLimit');
   const [currentLimit, setCurrentLimit] = useState(`${paginationLimit}`);
 
   useEffect(() => {

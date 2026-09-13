@@ -6,7 +6,7 @@ import { useAtom } from 'jotai';
 import {
   sanitizeVoiceMessageVolume,
   voiceMessageVolumeAtom,
-} from '../../state/voiceMessageSettings';
+} from '../../mindroom/settings/voiceMessageSettings';
 import { stopPropagation } from '../../utils/keyboard';
 import * as css from './VoiceVolumeButton.css';
 

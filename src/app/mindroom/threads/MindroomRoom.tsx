@@ -14,7 +14,7 @@ import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { CallView } from '../../features/call/CallView';
 import { RoomViewHeader } from './MindroomRoomViewHeader';
 import { callChatAtom } from '../../state/callEmbed';
-import { CallChatView } from '../../features/room/CallChatView';
+import { MindroomCallChatView } from './MindroomCallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteRestore } from './useRoomThreadRouteRestore';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
@@ -76,7 +76,7 @@ export function Room() {
             {screenSize === ScreenSize.Desktop && (
               <Line variant="Background" direction="Vertical" size="300" />
             )}
-            <CallChatView room={room} />
+            <MindroomCallChatView room={room} />
           </>
         )}
         {!callView && screenSize === ScreenSize.Desktop && isDrawer && (

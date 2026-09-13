@@ -2,7 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { voiceMessagePlaybackRateAtom } from '../../state/voiceMessageSettings';
+import { voiceMessagePlaybackRateAtom } from '../../mindroom/settings/voiceMessageSettings';
 import { VoicePlaybackRateButton } from './VoicePlaybackRateButton';
 
 type StorageListener = (event: StorageEvent) => void;

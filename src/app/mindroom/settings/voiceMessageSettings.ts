@@ -1,5 +1,5 @@
 import { atom } from 'jotai';
-import { atomWithLocalStorage } from './utils/atomWithLocalStorage';
+import { atomWithLocalStorage } from '../../state/utils/atomWithLocalStorage';
 
 export const VOICE_PLAYBACK_RATES = [1, 1.5, 2] as const;
 export type VoicePlaybackRate = typeof VOICE_PLAYBACK_RATES[number];

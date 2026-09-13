@@ -17,7 +17,7 @@ import { HTMLReactParserOptions } from 'html-react-parser';
 import classNames from 'classnames';
 import { ReactEditor } from 'slate-react';
 import { Editor } from 'slate';
-import { SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
+import { type SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/membershipData';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtomValue, useSetAtom } from 'jotai';
 import {
@@ -79,7 +79,7 @@ import {
   reactionOrEditEvent,
 } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
-import { MessageLayout, sanitizePaginationLimit, settingsAtom } from '../../state/settings';
+import { MessageLayout, settingsAtom } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
 import { EncryptedContent } from '../../features/room/message/EncryptedContent';
 import { Reactions } from '../../features/room/message/Reactions';
@@ -172,7 +172,8 @@ import {
 } from './roomTimelineViewState';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { useRoomEagerPreload } from './preloadController';
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE, sanitizePaginationLimit } from './preloadSettings';
+import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
@@ -308,7 +309,7 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
-  const [paginationLimitSetting] = useSetting(settingsAtom, 'paginationLimit');
+  const [paginationLimitSetting] = useSetting(mindroomSettingsAtom, 'paginationLimit');
   const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
   const interactivePaginationLimit = Math.min(
     safePaginationLimit,

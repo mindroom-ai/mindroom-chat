@@ -146,8 +146,8 @@ vi.mock('../MindroomRoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
 
-vi.mock('../../../features/room/CallChatView', () => ({
-  CallChatView: () => React.createElement('div'),
+vi.mock('../MindroomCallChatView', () => ({
+  MindroomCallChatView: () => React.createElement('div'),
 }));
 
 vi.mock('../../../state/callEmbed', () => ({

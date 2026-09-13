@@ -7,7 +7,7 @@ import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import {
   voiceMessagePlaybackRateAtom,
   voiceMessageVolumeAtom,
-} from '../../../state/voiceMessageSettings';
+} from '../../../mindroom/settings/voiceMessageSettings';
 import { VoiceAudioContent } from './VoiceAudioContent';
 
 const mocks = vi.hoisted(() => ({
