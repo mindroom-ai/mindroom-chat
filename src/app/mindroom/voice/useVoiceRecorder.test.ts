@@ -1,19 +1,28 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MatrixError, Room } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import { createStore, Provider } from 'jotai';
+import { readFileSync } from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
   VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
-import { useVoiceRecorder } from './useVoiceRecorder';
+import { getVoiceRecorderErrorMessage, useVoiceRecorder } from './useVoiceRecorder';
 import {
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../../state/room/roomInputDrafts';
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: vi.fn(),
+    getPlatform: vi.fn(),
+  },
+}));
 
 type Listener = (event: Event) => void;
 
@@ -208,6 +217,10 @@ describe('useVoiceRecorder', () => {
     MockMediaRecorder.autoStop = true;
     MockMediaRecorder.isTypeSupported.mockReturnValue(true);
     MockAnalyser.sampleIndex = 0;
+    vi.mocked(Capacitor.isNativePlatform).mockReset();
+    vi.mocked(Capacitor.getPlatform).mockReset();
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
 
     vi.stubGlobal('window', secureWindow);
     vi.stubGlobal('navigator', {
@@ -606,6 +619,29 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
+  it('uses Android-specific permission help for blocked microphone access in the native app', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+
+    expect(getVoiceRecorderErrorMessage(new DOMException('', 'NotAllowedError'))).toBe(
+      'Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.'
+    );
+  });
+
+  it('declares the Android permissions Capacitor requests for native voice recording', () => {
+    const manifestSource = readFileSync(
+      new URL('../../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
+      'utf8'
+    );
+
+    expect(manifestSource).toContain(
+      '<uses-permission android:name="android.permission.RECORD_AUDIO" />'
+    );
+    expect(manifestSource).toContain(
+      '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />'
+    );
+  });
+
   it('does not start a new capture while a failed recording draft is pending', async () => {
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
     const { renderer } = await renderHarness({ onSendRecording });
@@ -766,10 +802,7 @@ describe('useVoiceRecorder', () => {
     onSendRecording.mockImplementationOnce(async () => {
       throw new Error('upload failed once');
     });
-    const { renderer } = await renderHarness(
-      { onSendRecording, onSendStopFailure },
-      store
-    );
+    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure }, store);
 
     await act(async () => {
       await recorderState.current?.start();
@@ -807,10 +840,7 @@ describe('useVoiceRecorder', () => {
     onSendRecording.mockImplementationOnce(async () => {
       throw new Error('upload failed once');
     });
-    const { renderer } = await renderHarness(
-      { onSendRecording, onSendStopFailure },
-      store
-    );
+    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure }, store);
 
     await act(async () => {
       await recorderState.current?.start();
@@ -1105,9 +1135,7 @@ describe('useVoiceRecorder', () => {
 
     // Tear down the first mount mid-retry; the inFlight token must survive.
     firstRenderer.unmount();
-    expect(store.get(pendingVoiceSendDraftAtom)?.inFlight?.token).toBe(
-      inFlightAfterStart?.token
-    );
+    expect(store.get(pendingVoiceSendDraftAtom)?.inFlight?.token).toBe(inFlightAfterStart?.token);
 
     // Fresh hook mounts. It must initialize phase to 'sending' from the
     // atom — the test asserts the user-visible promise: a remounted capsule

@@ -1,5 +1,29 @@
 apply plugin: 'com.android.application'
 
+def uploadKeystorePropertiesFile = file("${System.properties['user.home']}/.android/mindroom-upload-keystore.properties")
+def uploadKeystoreProperties = new Properties()
+if (uploadKeystorePropertiesFile.exists()) {
+    uploadKeystorePropertiesFile.withInputStream { inputStream ->
+        uploadKeystoreProperties.load(inputStream)
+    }
+}
+def requiredUploadKeystoreProperties = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+def hasUploadKeystoreProperties = requiredUploadKeystoreProperties.every { propertyName ->
+    uploadKeystoreProperties[propertyName]?.toString()?.trim()
+}
+def mindroomAndroidVersionCodeOverride = System.getenv('MINDROOM_ANDROID_VERSION_CODE')?.trim()
+def mindroomAndroidVersionCode = 30
+if (mindroomAndroidVersionCodeOverride) {
+    if (!mindroomAndroidVersionCodeOverride.isInteger()) {
+        throw new GradleException("MINDROOM_ANDROID_VERSION_CODE must be an integer, got '${mindroomAndroidVersionCodeOverride}'")
+    }
+    mindroomAndroidVersionCode = mindroomAndroidVersionCodeOverride.toInteger()
+    if (mindroomAndroidVersionCode <= 0) {
+        throw new GradleException("MINDROOM_ANDROID_VERSION_CODE must be positive, got '${mindroomAndroidVersionCodeOverride}'")
+    }
+}
+def mindroomAndroidVersionName = System.getenv('MINDROOM_ANDROID_VERSION_NAME')?.trim() ?: "4.11.1"
+
 android {
     namespace = "com.mindroom_ai.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +31,8 @@ android {
         applicationId "com.mindroom_ai.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode mindroomAndroidVersionCode
+        versionName mindroomAndroidVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +40,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasUploadKeystoreProperties) {
+                storeFile file(uploadKeystoreProperties['storeFile'])
+                storePassword uploadKeystoreProperties['storePassword']
+                keyAlias uploadKeystoreProperties['keyAlias']
+                keyPassword uploadKeystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasUploadKeystoreProperties) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

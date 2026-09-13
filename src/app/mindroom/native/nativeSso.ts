@@ -3,10 +3,18 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
+const SUPPORTED_NATIVE_APP_PLATFORMS = new Set(['android', 'ios']);
 type StandaloneNavigator = Navigator & { standalone?: boolean };
 type MindRoomAuthPlugin = {
   authenticate(options: { url: string; callbackScheme: string }): Promise<{ url?: string }>;
   signInWithApple(options?: Record<string, never>): Promise<NativeAppleCredential>;
+};
+type NativeSsoAppPlugin = {
+  addListener(
+    eventName: 'appUrlOpen',
+    listener: (event: { url?: string }) => void
+  ): Promise<unknown>;
+  getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
@@ -65,6 +73,9 @@ const getPathFromHostlessNativeUrl = (pathname: string): string | undefined => {
 export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
+export const isNativeApp = (): boolean =>
+  Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform());
+
 const isIOSWebPlatform = (): boolean => {
   if (typeof window === 'undefined') return false;
 
@@ -98,6 +109,26 @@ export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
   }
 
   return true;
+};
+
+export const registerNativeSsoCallbacks = (nativeApp: NativeSsoAppPlugin): void => {
+  const handleNativeSSOCallback = (url: string) => {
+    routeNativeSsoCallback(url);
+  };
+
+  nativeApp
+    .getLaunchUrl()
+    .then((launchUrl) => {
+      const url = launchUrl?.url;
+      if (url) handleNativeSSOCallback(url);
+    })
+    .catch(() => undefined);
+
+  nativeApp
+    .addListener('appUrlOpen', (event) => {
+      if (event.url) handleNativeSSOCallback(event.url);
+    })
+    .catch(() => undefined);
 };
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, '');

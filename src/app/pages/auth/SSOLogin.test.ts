@@ -125,6 +125,34 @@ describe('SSOLogin', () => {
     });
   });
 
+  it('opens SSO inside the in-app browser on native Android', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Browser.open).mockResolvedValue();
+
+    const renderer = create(
+      React.createElement(SSOLogin, {
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+        action: SSOAction.LOGIN,
+      })
+    );
+
+    const continueButton = findButtonByText(renderer, 'Continue with SSO');
+    const preventDefault = vi.fn();
+
+    await act(async () => {
+      await continueButton?.props.onClick({ preventDefault });
+    });
+
+    expect(continueButton?.props.href).toBeUndefined();
+    expect(continueButton?.props.as).toBeUndefined();
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(Browser.open)).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      presentationStyle: 'fullscreen',
+    });
+  });
+
   it('does not fall back to link navigation when native in-app browser open fails', async () => {
     const error = new Error('native browser unavailable');
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -147,10 +175,7 @@ describe('SSOLogin', () => {
     });
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[SSO] Failed to open native iOS in-app browser',
-      error
-    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith('[SSO] Failed to open native browser', error);
     consoleErrorSpy.mockRestore();
   });
 

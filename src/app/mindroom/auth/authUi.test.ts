@@ -26,12 +26,21 @@ describe('authUi', () => {
     expect(MINDROOM_AUTH_BRANDING.logoAlt).toBe('MindRoom Logo');
   });
 
-  it('uses web SSO redirects outside native iOS', () => {
+  it('uses web SSO redirects outside native apps', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
 
     expect(getMindroomAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
       'https://chat.example/login?addAccount=1'
+    );
+  });
+
+  it('uses the native redirect scheme inside native Android', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+
+    expect(getMindroomAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
+      'mindroom://auth/login?addAccount=1'
     );
   });
 
