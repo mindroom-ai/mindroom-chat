@@ -38,6 +38,7 @@ const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorde
               preventDefault: () => void;
             }) => void | Promise<void>;
             onChange?: () => void;
+            onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
           }
         | undefined,
     },
@@ -136,6 +137,7 @@ vi.mock('../../../components/editor', () => ({
     before,
     after,
     onChange,
+    onKeyDown,
     onPaste,
   }: {
     style?: React.CSSProperties;
@@ -143,9 +145,10 @@ vi.mock('../../../components/editor', () => ({
     before?: React.ReactNode;
     after?: React.ReactNode;
     onChange?: () => void;
+    onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onPaste };
+    customEditorState.props = { onChange, onKeyDown, onPaste };
     return React.createElement('div', { style }, top, before, after);
   },
   EmoticonAutocomplete: () => null,
@@ -352,6 +355,7 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
       );
     },
     getMindroomRoomInputAutocompleteQuery: () => undefined,
+    getMindroomRoomInputMessageRelation: () => undefined,
     getMindroomRoomInputVoiceSendContext: ({
       roomId,
       room,
@@ -722,6 +726,43 @@ describe('RoomInput', () => {
     expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
       msgtype: 'm.text',
       body: `${marker}\n\ntest testing`,
+    });
+
+    renderer.unmount();
+  });
+
+  it('does not duplicate a text message when Enter is pressed twice before send resolves', async () => {
+    const { renderer } = await renderRoomInput();
+    const send = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(send.promise);
+
+    editorOutputState.plainText = 'Hello @ali';
+    editorOutputState.customHtml = 'Hello @ali';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    const firstEnter = { key: 'Enter', preventDefault: vi.fn() };
+    const secondEnter = { key: 'Enter', preventDefault: vi.fn() };
+
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.(firstEnter);
+      customEditorState.props!.onKeyDown?.(secondEnter);
+      await Promise.resolve();
+    });
+
+    expect(firstEnter.preventDefault).toHaveBeenCalledTimes(1);
+    expect(secondEnter.preventDefault).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledWith(
+      ROOM_ID,
+      expect.objectContaining({
+        body: 'Hello @ali',
+        msgtype: 'm.text',
+      })
+    );
+
+    await act(async () => {
+      send.resolve({ event_id: '$sent' });
+      await Promise.resolve();
     });
 
     renderer.unmount();
