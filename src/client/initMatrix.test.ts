@@ -78,10 +78,10 @@ describe('initClient', () => {
             syncAccumulator,
           },
           startup,
-        }) as unknown as IndexedDBStore
+        } as unknown as IndexedDBStore)
     );
     vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({}) as unknown as IndexedDBCryptoStore
+      () => ({} as unknown as IndexedDBCryptoStore)
     );
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
@@ -107,6 +107,12 @@ describe('initClient', () => {
     expect(vi.mocked(IndexedDBCryptoStore)).toHaveBeenCalledWith(
       global.indexedDB,
       `crypto-store::${sessionId}`
+    );
+    expect(vi.mocked(createMatrixClient)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timelineSupport: true,
+        threadSupport: true,
+      })
     );
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
     expect(startup).toHaveBeenCalledTimes(1);
@@ -134,10 +140,10 @@ describe('initClient', () => {
             syncAccumulator,
           },
           startup,
-        }) as unknown as IndexedDBStore
+        } as unknown as IndexedDBStore)
     );
     vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({}) as unknown as IndexedDBCryptoStore
+      () => ({} as unknown as IndexedDBCryptoStore)
     );
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
@@ -500,22 +506,24 @@ describe('clearLoginData', () => {
     });
 
     const indexedDBMock = {
-      databases: vi.fn().mockResolvedValue([
-        { name: getSessionIndexedDbStoreName(session).sync },
-        { name: 'matrix-js-sdk:web-sync-store' },
-        { name: getSessionRustCryptoStoreNames(session)[1] },
-        { name: getSessionRustCryptoStoreNames(session)[0] },
-        { name: getSessionIndexedDbStoreName(session).crypto },
-        { name: 'crypto-store' },
-        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-        { name: 'mindroom-room-event-cache' },
-        { name: 'mindroom-thread-event-cache' },
-        { name: 'matrix-js-sdk:web-sync-store::other-session' },
-        { name: 'crypto-store::other-session' },
-        { name: 'matrix-js-sdk::other-session::OTHERDEVICE::matrix-sdk-crypto' },
-        { name: 'unrelated-db' },
-      ]),
+      databases: vi
+        .fn()
+        .mockResolvedValue([
+          { name: getSessionIndexedDbStoreName(session).sync },
+          { name: 'matrix-js-sdk:web-sync-store' },
+          { name: getSessionRustCryptoStoreNames(session)[1] },
+          { name: getSessionRustCryptoStoreNames(session)[0] },
+          { name: getSessionIndexedDbStoreName(session).crypto },
+          { name: 'crypto-store' },
+          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
+          { name: 'mindroom-room-event-cache' },
+          { name: 'mindroom-thread-event-cache' },
+          { name: 'matrix-js-sdk:web-sync-store::other-session' },
+          { name: 'crypto-store::other-session' },
+          { name: 'matrix-js-sdk::other-session::OTHERDEVICE::matrix-sdk-crypto' },
+          { name: 'unrelated-db' },
+        ]),
       deleteDatabase,
     };
 
@@ -601,18 +609,20 @@ describe('clearLoginData', () => {
     });
 
     const indexedDBMock = {
-      databases: vi.fn().mockResolvedValue([
-        { name: getSessionIndexedDbStoreName(session).sync },
-        { name: getSessionRustCryptoStoreNames(session)[0] },
-        { name: getSessionRustCryptoStoreNames(session)[1] },
-        { name: getSessionIndexedDbStoreName(session).crypto },
-        { name: 'mindroom-room-event-cache' },
-        { name: 'mindroom-thread-event-cache' },
-        { name: 'matrix-js-sdk:web-sync-store' },
-        { name: 'crypto-store' },
-        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-      ]),
+      databases: vi
+        .fn()
+        .mockResolvedValue([
+          { name: getSessionIndexedDbStoreName(session).sync },
+          { name: getSessionRustCryptoStoreNames(session)[0] },
+          { name: getSessionRustCryptoStoreNames(session)[1] },
+          { name: getSessionIndexedDbStoreName(session).crypto },
+          { name: 'mindroom-room-event-cache' },
+          { name: 'mindroom-thread-event-cache' },
+          { name: 'matrix-js-sdk:web-sync-store' },
+          { name: 'crypto-store' },
+          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
+        ]),
       deleteDatabase,
     };
 

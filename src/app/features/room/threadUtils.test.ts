@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { RelationType } from 'matrix-js-sdk';
+import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import {
   buildThreadParticipantMap,
   buildThreadReplyCountMap,
   eventBelongsToThread,
+  getValidThreadRootEvent,
   isThreadReplyEvent,
 } from './threadUtils';
 
@@ -11,12 +12,14 @@ const makeEvent = (
   eventId: string,
   threadRootId?: string,
   relationType?: string,
-  senderId?: string
+  senderId?: string,
+  isThreadRoot = false
 ) => ({
   getId: () => eventId,
   threadRootId,
   getRelation: () => (relationType ? { rel_type: relationType } : undefined),
   getSender: () => senderId,
+  isThreadRoot,
 });
 
 describe('eventBelongsToThread', () => {
@@ -114,5 +117,29 @@ describe('buildThreadParticipantMap', () => {
     );
 
     expect(participants.get('$root')).toEqual(['@carol:example.org', '@bob:example.org']);
+  });
+});
+
+describe('getValidThreadRootEvent', () => {
+  it('returns the known thread root when the SDK has a thread model', () => {
+    const rootEvent = makeEvent('$root', undefined, undefined, undefined, true);
+    const room = {
+      findEventById: () => undefined,
+      getThread: () => ({
+        rootEvent,
+      }),
+    };
+
+    expect(getValidThreadRootEvent(room as never, '$root')).toBe(rootEvent);
+  });
+
+  it('rejects arbitrary non-thread-root events from the room timeline', () => {
+    const nonThreadRootEvent = makeEvent('$bogus');
+    const room = {
+      findEventById: () => nonThreadRootEvent,
+      getThread: () => null,
+    };
+
+    expect(getValidThreadRootEvent(room as never, '$bogus')).toBeUndefined();
   });
 });
