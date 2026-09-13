@@ -5,6 +5,7 @@ import {
   clearRecentThreadsStore,
   makeRecentThreadsAtom,
   registerRecentThreadsAtom,
+  rekeyRecentThread,
 } from './recentThreads';
 import { setImperativeJotaiStore } from '../../state/jotaiStore';
 
@@ -78,6 +79,51 @@ describe('recentThreads', () => {
     ]);
   });
 
+  it('ignores local-echo thread ids when bumping recent threads', () => {
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+    const store = getDefaultStore();
+
+    store.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '~pending',
+      openedAt: 100,
+    });
+
+    expect(store.get(recentThreadsAtom)).toEqual([]);
+  });
+
+  it('drops legacy local-echo thread ids from stored recent threads', () => {
+    localStorage.setItem(
+      'recentThreads:@alice:example.org',
+      JSON.stringify({
+        v: 1,
+        entries: [
+          {
+            roomId: '!room:example.org',
+            threadId: '~pending',
+            openedAt: 200,
+          },
+          {
+            roomId: '!room:example.org',
+            threadId: '$confirmed',
+            openedAt: 100,
+          },
+        ],
+      })
+    );
+
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+
+    expect(getDefaultStore().get(recentThreadsAtom)).toEqual([
+      {
+        roomId: '!room:example.org',
+        threadId: '$confirmed',
+        openedAt: 100,
+      },
+    ]);
+  });
+
   it('rekeys reply ids to canonical roots without downgrading a newer canonical entry', () => {
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const store = getDefaultStore();
@@ -147,6 +193,33 @@ describe('recentThreads', () => {
         openedAt: 125,
       },
     ]);
+  });
+
+  it('does not rekey a recent thread to a local-echo id', () => {
+    const providerStore = createStore();
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+    const unregisterStore = setImperativeJotaiStore(providerStore);
+    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+
+    providerStore.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$confirmed',
+      openedAt: 100,
+    });
+
+    rekeyRecentThread('!room:example.org', '$confirmed', '~pending');
+
+    expect(providerStore.get(recentThreadsAtom)).toEqual([
+      {
+        roomId: '!room:example.org',
+        threadId: '$confirmed',
+        openedAt: 100,
+      },
+    ]);
+
+    unregisterAtom();
+    unregisterStore();
   });
 
   it('writes imperative recent-thread bumps into the registered provider store', () => {

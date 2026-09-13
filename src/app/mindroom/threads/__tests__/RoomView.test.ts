@@ -685,4 +685,21 @@ describe('RoomView', () => {
       undefined
     );
   });
+
+  it('does not persist unresolved local-echo ids in the recent-thread list', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    useThreadRootEventMock.mockReturnValue('~pending-thread');
+
+    await act(async () => {
+      create(
+        React.createElement(RoomView, {
+          room: room as never,
+          threadId: '~pending-thread',
+        })
+      );
+    });
+
+    expect(bumpRecentThreadMock).not.toHaveBeenCalled();
+  });
 });

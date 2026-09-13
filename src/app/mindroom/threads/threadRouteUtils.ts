@@ -5,6 +5,9 @@ import { buildResolveConfirmedEventId } from './threadRenderUtils';
 export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
   typeof eventId === 'string' && eventId.startsWith('~');
 
+export const isConfirmedMatrixEventId = (eventId: unknown): eventId is string =>
+  typeof eventId === 'string' && eventId.startsWith('$');
+
 const getEventTxnId = (event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>): string | undefined => {
   const txnId = event.getTxnId?.() ?? event.getUnsigned()?.transaction_id;
   return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;

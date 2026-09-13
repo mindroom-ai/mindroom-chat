@@ -6,6 +6,8 @@ import {
 } from '../../state/utils/atomWithLocalStorage';
 import { getActiveSession } from '../../state/sessions';
 import { getImperativeJotaiStore } from '../../state/jotaiStore';
+import { isRecord } from '../../utils/isRecord';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
 const LAST_OPEN_THREAD = 'lastOpenThread';
 
@@ -24,6 +26,17 @@ type LastOpenThreadAtom = WritableAtom<Map<string, string>, [LastOpenThreadActio
 
 const getStoreKey = (userId: string): string => `${LAST_OPEN_THREAD}${userId}`;
 
+const sanitizeLastOpenThreadEntries = (value: unknown): Map<string, string> => {
+  if (!isRecord(value)) return new Map();
+
+  return new Map(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] =>
+        entry[0].length > 0 && isConfirmedMatrixEventId(entry[1])
+    )
+  );
+};
+
 let activeLastOpenThreadAtom: LastOpenThreadAtom | undefined;
 const lastOpenThreadAtoms = new Map<string, LastOpenThreadAtom>();
 
@@ -35,7 +48,7 @@ export const makeLastOpenThreadAtom = (userId: string): LastOpenThreadAtom => {
 
   const baseLastOpenThreadAtom = atomWithLocalStorage<Map<string, string>>(
     storeKey,
-    (key) => new Map(Object.entries(getLocalStorageItem<Record<string, string>>(key, {}))),
+    (key) => sanitizeLastOpenThreadEntries(getLocalStorageItem<unknown | null>(key, null)),
     (key, value) => setLocalStorageItem(key, Object.fromEntries(value))
   );
 
@@ -52,6 +65,7 @@ export const makeLastOpenThreadAtom = (userId: string): LastOpenThreadAtom => {
         return;
       }
 
+      if (!action.roomId || !isConfirmedMatrixEventId(action.threadId)) return;
       if (current.get(action.roomId) === action.threadId) return;
 
       const next = new Map(current);

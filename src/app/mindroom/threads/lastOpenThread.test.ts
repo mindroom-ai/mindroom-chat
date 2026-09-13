@@ -48,6 +48,42 @@ describe('lastOpenThread', () => {
     unregister();
   });
 
+  it('ignores local-echo thread ids when storing restore targets', () => {
+    const atom = makeLastOpenThreadAtom('@alice:example.org');
+    const unregister = registerLastOpenThreadAtom(atom);
+
+    setLastOpenThread('!room:example.org', '~pending');
+
+    expect(getLastOpenThread('!room:example.org')).toBeUndefined();
+    expect(storage.get('lastOpenThread@alice:example.org')).toBeUndefined();
+
+    unregister();
+  });
+
+  it('drops legacy local-echo thread ids from stored restore targets', () => {
+    storage.set(
+      'lastOpenThread@alice:example.org',
+      '{"!room:example.org":"~pending","!other:example.org":"$confirmed"}'
+    );
+    const atom = makeLastOpenThreadAtom('@alice:example.org');
+    const unregister = registerLastOpenThreadAtom(atom);
+
+    expect(getLastOpenThread('!room:example.org')).toBeUndefined();
+    expect(getLastOpenThread('!other:example.org')).toBe('$confirmed');
+
+    unregister();
+  });
+
+  it('ignores malformed stored restore targets', () => {
+    storage.set('lastOpenThread@alice:example.org', 'null');
+    const atom = makeLastOpenThreadAtom('@alice:example.org');
+    const unregister = registerLastOpenThreadAtom(atom);
+
+    expect(getLastOpenThread('!room:example.org')).toBeUndefined();
+
+    unregister();
+  });
+
   it('clears the user-scoped store and active registration', () => {
     const atom = makeLastOpenThreadAtom('@alice:example.org');
     registerLastOpenThreadAtom(atom);

@@ -201,6 +201,17 @@ describe('Room', () => {
     expect(setLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org', '$explicit');
   });
 
+  it('does not persist explicit local-echo thread ids from the URL', async () => {
+    roomState.search = '?threadId=~pending';
+    const { Room } = await import('../../../features/room/Room');
+
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+
+    expect(setLastOpenThreadMock).not.toHaveBeenCalled();
+  });
+
   it('does not override an explicit event permalink', async () => {
     roomState.eventId = '$event';
     getLastOpenThreadMock.mockReturnValue('$saved');

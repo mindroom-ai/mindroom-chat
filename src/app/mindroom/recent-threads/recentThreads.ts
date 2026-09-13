@@ -7,6 +7,7 @@ import {
 import { getActiveSession } from '../../state/sessions';
 import { isRecord } from '../../utils/isRecord';
 import { getImperativeJotaiStore } from '../../state/jotaiStore';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 const RECENT_THREADS = 'recentThreads';
 const RECENT_THREADS_STORE_VERSION = 1;
@@ -50,8 +51,7 @@ const isRecentThreadItem = (value: unknown): value is RecentThreadItem =>
   isRecord(value) &&
   typeof value.roomId === 'string' &&
   value.roomId.length > 0 &&
-  typeof value.threadId === 'string' &&
-  value.threadId.length > 0 &&
+  isConfirmedMatrixEventId(value.threadId) &&
   typeof value.openedAt === 'number' &&
   Number.isFinite(value.openedAt) &&
   value.openedAt > 0 &&
@@ -124,6 +124,7 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
 
       if (action.type === 'REKEY') {
         if (!action.roomId || !action.threadId || !action.nextThreadId) return;
+        if (!isConfirmedMatrixEventId(action.nextThreadId)) return;
         if (action.threadId === action.nextThreadId) return;
 
         const existingEntry = current.find(
@@ -154,7 +155,7 @@ export const makeRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
         return;
       }
 
-      if (!action.roomId || !action.threadId) return;
+      if (!action.roomId || !isConfirmedMatrixEventId(action.threadId)) return;
 
       const openedAt =
         typeof action.openedAt === 'number' && Number.isFinite(action.openedAt) && action.openedAt > 0
