@@ -1,5 +1,4 @@
 import React, {
-  ClipboardEventHandler,
   KeyboardEventHandler,
   RefObject,
   forwardRef,
@@ -61,14 +60,12 @@ import { UseStateProvider } from '../../components/UseStateProvider';
 import {
   TUploadContent,
   MatrixUploadErrorStage,
-  encryptFile,
   getImageInfo,
   getMatrixUploadOriginalName,
   getMatrixUploadErrorStage,
   getMxIdLocalPart,
   mxcUrlToHttp,
   toMatrixUploadError,
-  uploadContent,
 } from '../../utils/matrix';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
 import { useFilePicker } from '../../hooks/useFilePicker';
@@ -86,22 +83,10 @@ import {
 import { UploadCardRenderer } from '../../components/upload-card';
 import { UploadBoard, UploadBoardContent, UploadBoardHeader } from '../../components/upload-board';
 import { Upload, UploadStatus, createUploadFamilyObserverAtom } from '../../state/upload';
-import {
-  getDataTransferFiles,
-  getImageUrlBlob,
-  loadImageElement,
-  pauseAllMediaElements,
-} from '../../utils/dom';
-import { safeFile } from '../../utils/mimeTypes';
+import { getImageUrlBlob, loadImageElement, pauseAllMediaElements } from '../../utils/dom';
 import { useSetting } from '../../state/hooks/settings';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { settingsAtom } from '../../state/settings';
-import {
-  getAudioMsgContent,
-  getFileMsgContent,
-  getImageMsgContent,
-  getVideoMsgContent,
-} from '../../features/room/msgContent';
 import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
 import { CommandAutocomplete } from '../../features/room/CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
@@ -123,7 +108,6 @@ import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { Membership } from '../../../types/matrix/room';
 import {
-  createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputAutocompleteQuery,
   getMindroomRoomInputPasteMarkerFileNames,
   isMindroomRoomInputAutocompleteQuery,
@@ -132,7 +116,6 @@ import {
   MindroomVoiceRecorderComposer,
   removeMindroomRoomInputPasteMarkerElements,
   getMindroomRoomInputVoiceSendContext,
-  getMindroomRoomInputVoiceUploadRelation,
   refreshMindroomRoomInputVoiceSendContext,
   useRoomInputSendSessionController,
   type MindroomRoomInputAutocompletePrefix,
@@ -140,67 +123,15 @@ import {
   type MindroomVoiceSendContext,
 } from './RoomInputMindroomExtensions';
 import { restoreEditorContent } from '../../components/editor/utils';
-import {
-  createMindroomPasteAttachment,
-  isMindroomPasteFileName,
-  parseMindroomPasteMarker,
-  withMindroomPasteAttachmentMetadata,
-} from '../messages/pasteAttachmentMarker';
-import { shouldConvertPasteToAttachment } from './pasteAttachment';
-import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
+import { isMindroomPasteFileName } from '../messages/pasteAttachmentMarker';
 import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { hasFailedPasteMarkerInText } from '../threads/useRoomInputSendSessionController';
+import { useRoomInputPaste } from './useRoomInputPaste';
+import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
+
+export { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
-
-export const createMindroomRoomUploadItems = async (
-  files: File[],
-  targetRoom: Room,
-  getMetadata: (file: File, index: number) => TUploadMetadata = () => ({
-    markedAsSpoiler: false,
-  })
-): Promise<TUploadItem[]> => {
-  const safeFiles = files.map(safeFile);
-
-  if (targetRoom.hasEncryptionStateEvent()) {
-    const encryptedFiles = await Promise.allSettled(
-      safeFiles.map(async (file, index) => ({
-        encryptedFile: await encryptFile(file),
-        index,
-      }))
-    );
-
-    return encryptedFiles.reduce<TUploadItem[]>((items, result, settledIndex) => {
-      if (result.status === 'rejected') {
-        const file = safeFiles[settledIndex];
-        if (!file) return items;
-
-        items.push({
-          file,
-          originalFile: file,
-          encInfo: undefined,
-          metadata: getMetadata(file, settledIndex),
-          prepError: toMatrixUploadError(result.reason, 'create'),
-        });
-        return items;
-      }
-
-      const { encryptedFile, index } = result.value;
-      items.push({
-        ...encryptedFile,
-        metadata: getMetadata(safeFiles[index], index),
-      });
-      return items;
-    }, []);
-  }
-
-  return safeFiles.map((file, index) => ({
-    file,
-    originalFile: file,
-    encInfo: undefined,
-    metadata: getMetadata(file, index),
-  }));
-};
 
 export interface RoomInputProps {
   editor: Editor;
@@ -405,18 +336,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       []
     );
 
-    const createUploadItems = useCallback(
-      async (
-        files: File[],
-        getMetadata: (file: File, index: number) => TUploadMetadata = () => ({
-          markedAsSpoiler: false,
-        }),
-        targetRoom = room
-      ): Promise<TUploadItem[]> => {
-        return createMindroomRoomUploadItems(files, targetRoom, getMetadata);
-      },
-      [room]
-    );
+    const {
+      createUploadItems,
+      createVoiceUploadItems,
+      buildUploadMessageContent,
+      uploadItem,
+      uploadItemWhileStaged,
+      sendVoiceItem,
+    } = useRoomInputUploadTransport(mx, store, room);
 
     const appendUploadItemsToRoomBoard = useCallback(
       (ownerRoomId: string, fileItems: TUploadItem[]) => {
@@ -455,105 +382,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [appendUploadItems, createUploadItems]
     );
 
-    const createVoiceUploadItems = useCallback(
-      async (
-        file: File,
-        duration: number,
-        waveform?: number[],
-        targetRoom = room
-      ): Promise<TUploadItem[]> => {
-        const safeVoiceFile = safeFile(file);
-        const metadata: TUploadMetadata = {
-          markedAsSpoiler: false,
-          voiceMessage: {
-            duration,
-            ...(waveform ? { waveform } : {}),
-          },
-        };
-
-        if (targetRoom.hasEncryptionStateEvent()) {
-          const encryptedFile = await encryptFile(safeVoiceFile);
-
-          return [
-            {
-              ...encryptedFile,
-              metadata,
-            },
-          ];
-        }
-
-        return [
-          {
-            file: safeVoiceFile,
-            originalFile: safeVoiceFile,
-            encInfo: undefined,
-            metadata,
-          },
-        ];
-      },
-      [room]
-    );
     const pickFile = useFilePicker(handleFiles, true);
-    // Must stay synchronous and return `undefined` when it does not handle the
-    // paste: slate-react treats any non-null return value (including the
-    // Promise from an async handler) as "handled" and then skips its own
-    // onPaste fallback, so the browser inserts the text into the DOM without
-    // the editor model ever learning about it.
-    const handlePaste: ClipboardEventHandler = useCallback(
-      (evt) => {
-        const files = getDataTransferFiles(evt.clipboardData);
-        if (files) {
-          void handleFiles(files);
-          return;
-        }
-
-        const pastedText = evt.clipboardData.getData('text/plain');
-        if (!pastedText) return;
-
-        const plainText = toPlainText(editor.children, isMarkdown).trim();
-        const customHtml = trimCustomHtml(
-          toMatrixCustomHTML(editor.children, {
-            allowTextFormatting: true,
-            allowBlockMarkdown: isMarkdown,
-            allowInlineMarkdown: isMarkdown,
-          })
-        );
-        const hasFormattedBody = !customHtmlEqualsPlainText(customHtml, plainText);
-        const convertPaste = shouldConvertPasteToAttachment({
-          currentPlainText: plainText,
-          currentFormattedBody: hasFormattedBody ? customHtml : undefined,
-          pastedText,
-          includeFormattedPaste: isMarkdown,
-        });
-
-        if (!convertPaste) return;
-
-        evt.preventDefault();
-        const pasteAttachment = createMindroomPasteAttachment(pastedText);
-        const pasteMarker = parseMindroomPasteMarker(pasteAttachment.marker);
-        if (!pasteMarker) return;
-
-        void (async () => {
-          const pasteUploadItems = await createUploadItems([pasteAttachment.file], () => ({
-            markedAsSpoiler: false,
-            mindroomPasteAttachment: {
-              id: pasteMarker.id,
-              chars: pasteMarker.chars,
-              fileName: pasteMarker.fileName,
-            },
-          }));
-          appendUploadItems(pasteUploadItems);
-          if (pasteUploadItems.some((item) => item.prepError)) {
-            editor.insertText(pastedText);
-            return;
-          }
-
-          editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
-          moveCursor(editor);
-        })();
-      },
-      [appendUploadItems, createUploadItems, editor, handleFiles, isMarkdown]
-    );
+    const handlePaste = useRoomInputPaste({
+      editor,
+      isMarkdown,
+      handleFiles,
+      createUploadItems,
+      appendUploadItems,
+    });
     const dropZoneVisible = useFileDropZone(fileDropContainerRef, handleFiles);
     const [hideStickerBtn, setHideStickerBtn] = useState(document.body.clientWidth < 500);
 
@@ -721,115 +557,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         removeUploadsFromBoard(orphanPasteUploads.map((fileItem) => fileItem.file));
       }
     }, [editor, getPasteUploadFileName, removeUploadsFromBoard]);
-
-    const buildUploadMessageContent = useCallback(
-      async (fileItem: TUploadItem, mxc: string, signalBridgedRoom: boolean) => {
-        if (fileItem.file.type.startsWith('image')) {
-          return getImageMsgContent(mx, fileItem, mxc);
-        }
-        if (fileItem.file.type.startsWith('video')) {
-          return getVideoMsgContent(mx, fileItem, mxc);
-        }
-        if (fileItem.file.type.startsWith('audio')) {
-          return getAudioMsgContent(fileItem, mxc, {
-            voiceMessageMimeTypeOverride: signalBridgedRoom ? 'audio/aac' : undefined,
-          });
-        }
-        return withMindroomPasteAttachmentMetadata(
-          getFileMsgContent(fileItem, mxc),
-          fileItem.metadata.mindroomPasteAttachment
-        );
-      },
-      [mx]
-    );
-
-    const uploadItem = useCallback(
-      async (fileItem: TUploadItem): Promise<string> => {
-        const uploadAtom = roomUploadAtomFamily(fileItem.file);
-        const upload = store.get(uploadAtom);
-        if (upload.status === UploadStatus.Success) return upload.mxc;
-        if (upload.status === UploadStatus.Error) throw upload.error;
-        if (upload.status === UploadStatus.Loading) {
-          try {
-            const response = await upload.promise;
-            if (!response.content_uri) {
-              throw new Error('Upload completed without a content URI.');
-            }
-            store.set(uploadAtom, { mxc: response.content_uri });
-            return response.content_uri;
-          } catch (err) {
-            const error = toMatrixUploadError(err, 'upload');
-            store.set(uploadAtom, { error });
-            throw error;
-          }
-        }
-
-        return new Promise((resolve, reject) => {
-          void uploadContent(mx, fileItem.file, {
-            hideFilename: !!fileItem.encInfo,
-            onPromise: (promise) => store.set(uploadAtom, { promise }),
-            onProgress: (progress) => store.set(uploadAtom, { progress }),
-            onSuccess: (mxc) => {
-              store.set(uploadAtom, { mxc });
-              resolve(mxc);
-            },
-            onError: (error) => {
-              store.set(uploadAtom, { error });
-              reject(error);
-            },
-          }).catch(reject);
-        });
-      },
-      [mx, store]
-    );
-
-    const uploadItemWhileStaged = useCallback(
-      async (ownerRoomId: string, fileItem: TUploadItem): Promise<TUploadItem | undefined> => {
-        const uploadItemsAtom = roomIdToUploadItemsAtomFamily(ownerRoomId);
-        if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
-          return undefined;
-        }
-        let unsubscribe: () => void = () => undefined;
-        const removed = new Promise<undefined>((resolve) => {
-          const resolveIfRemoved = () => {
-            if (!store.get(uploadItemsAtom).some((item) => item.file === fileItem.file)) {
-              resolve(undefined);
-            }
-          };
-          unsubscribe = store.sub(uploadItemsAtom, resolveIfRemoved);
-          resolveIfRemoved();
-        });
-
-        try {
-          return await Promise.race([uploadItem(fileItem).then(() => fileItem), removed]);
-        } finally {
-          unsubscribe();
-        }
-      },
-      [store, uploadItem]
-    );
-
-    const sendVoiceItem = useCallback(
-      async (context: MindroomVoiceSendContext, fileItem: TUploadItem, mxc: string) => {
-        const content = await buildUploadMessageContent(fileItem, mxc, context.signalBridgedRoom);
-        const relation = getMindroomRoomInputVoiceUploadRelation(context, fileItem.file);
-        const contentWithRelation: IContent = relation
-          ? {
-              ...content,
-              'm.relates_to': relation,
-            }
-          : content;
-
-        const response = await mx.sendMessage(context.roomId, contentWithRelation as any);
-        return getRoomMessageSentNotificationEventId({
-          eventId: response.event_id,
-          relation,
-          replyDraft: context.replyDraft,
-          threadId: context.threadId,
-        });
-      },
-      [mx, buildUploadMessageContent]
-    );
 
     const clearReplyDraftForSendContext = useCallback(
       (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => {
