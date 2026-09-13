@@ -185,6 +185,110 @@ describe('useVirtualPaginator', () => {
     });
   });
 
+  it('skips RAF correction when scrolled to the top boundary', () => {
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    // Element is near the top and can't be centered because scrollTop is 0
+    const scrollElement = {
+      scrollTop: 0,
+      scrollHeight: 300,
+      clientHeight: 200,
+      getBoundingClientRect: () => ({
+        ...makeRect(100, 200),
+      }),
+      scrollBy: vi.fn(),
+    } as unknown as HTMLElement;
+    const targetElement = {
+      getBoundingClientRect: () => ({
+        // Element is at top of container — error would be negative (wants to scroll up)
+        ...makeRect(110, 20),
+      }),
+    } as unknown as HTMLElement;
+    let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+
+    act(() => {
+      create(
+        React.createElement(PaginatorHarness, {
+          getScrollElement: () => scrollElement,
+          onApi: (api) => {
+            paginator = api;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      paginator?.scrollToElement(targetElement, {
+        align: 'center',
+        behavior: 'instant',
+      });
+    });
+
+    // First scrollBy fires with a negative delta (wants to scroll up to center)
+    expect(scrollElement.scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollElement.scrollBy).toHaveBeenNthCalledWith(1, {
+      top: -80,
+      behavior: 'instant',
+    });
+    // RAF correction should NOT fire because scrollTop=0 and error<0
+  });
+
+  it('skips RAF correction when scrolled to the bottom boundary', () => {
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    // Element is near the bottom and can't be centered because scrollTop is at max
+    const scrollElement = {
+      scrollTop: 100,
+      scrollHeight: 300,
+      clientHeight: 200,
+      getBoundingClientRect: () => ({
+        ...makeRect(100, 200),
+      }),
+      scrollBy: vi.fn(),
+    } as unknown as HTMLElement;
+    const targetElement = {
+      getBoundingClientRect: () => ({
+        // Element is at bottom of container — error would be positive (wants to scroll down)
+        ...makeRect(280, 20),
+      }),
+    } as unknown as HTMLElement;
+    let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+
+    act(() => {
+      create(
+        React.createElement(PaginatorHarness, {
+          getScrollElement: () => scrollElement,
+          onApi: (api) => {
+            paginator = api;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      paginator?.scrollToElement(targetElement, {
+        align: 'center',
+        behavior: 'instant',
+      });
+    });
+
+    // First scrollBy fires with a positive delta (wants to scroll down to center)
+    expect(scrollElement.scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollElement.scrollBy).toHaveBeenNthCalledWith(1, {
+      top: 90,
+      behavior: 'instant',
+    });
+    // RAF correction should NOT fire because scrollTop=max and error>0
+  });
+
   it('preserves the requested focus anchor when retrying pagination after suppression', () => {
     const rangeRef = {
       current: {
