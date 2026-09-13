@@ -1,5 +1,9 @@
 import { createClient, type ICreateClientOpts } from 'matrix-js-sdk';
 
+type MindroomCreateClientOpts = ICreateClientOpts & {
+  threadSupport?: boolean;
+};
+
 type RuntimeLocation = {
   origin: string;
 };
@@ -39,8 +43,8 @@ export const createMatrixFetchFn = (
         credentials: 'include',
       });
 
-export const createMatrixClient = (options: ICreateClientOpts) =>
+export const createMatrixClient = (options: MindroomCreateClientOpts) =>
   createClient({
     ...options,
     fetchFn: createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
-  });
+  } as ICreateClientOpts);

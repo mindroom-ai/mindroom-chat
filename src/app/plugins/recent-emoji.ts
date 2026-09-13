@@ -42,7 +42,7 @@ export function addRecentEmoji(mx: MatrixClient, unicode: string) {
     entry[1] += 1;
   }
   recentEmoji.unshift(entry);
-  mx.setAccountData(AccountDataEvent.ElementRecentEmoji, {
+  mx.setAccountData(AccountDataEvent.ElementRecentEmoji as any, {
     recent_emoji: recentEmoji.slice(0, 100),
-  });
+  } as any);
 }

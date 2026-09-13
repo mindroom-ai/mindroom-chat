@@ -60,12 +60,11 @@ const downloadSidecarBlob = async (
   source: MindroomLongTextSource,
   textUrl: string
 ): Promise<Blob> => {
-  if (!source.encryptedFile) return downloadMedia(textUrl);
+  const encryptedFile = source.encryptedFile;
+  if (!encryptedFile) return downloadMedia(textUrl);
 
   const mimeType = getLongTextMimeType(source.previewContent);
-  return downloadEncryptedMedia(textUrl, (encBuf) =>
-    decryptFile(encBuf, mimeType, source.encryptedFile)
-  );
+  return downloadEncryptedMedia(textUrl, (encBuf) => decryptFile(encBuf, mimeType, encryptedFile));
 };
 
 export const downloadMindroomLongTextSidecarBlob = async (

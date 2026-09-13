@@ -53,7 +53,8 @@ const buildThreadEvents = ({
   });
 
   const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
-    const eventId = mEvent?.getId();
+    if (!mEvent) return;
+    const eventId = mEvent.getId();
     if (!eventId) return;
     if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId)) return;
     collectedEvents.push(mEvent);

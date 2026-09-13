@@ -1,26 +1,11 @@
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import type { IPusherRequest, MatrixClient } from 'matrix-js-sdk';
 import { ClientConfig } from '../hooks/useClientConfig';
 import { getActiveSession, getSessionScopedStorageKey } from '../state/sessions';
 
-type MatrixPusherRequest = {
-  kind: 'http' | null;
-  app_id: string;
-  pushkey: string;
-  app_display_name?: string;
-  device_display_name?: string;
-  profile_tag?: string;
-  lang?: string;
-  append?: boolean;
-  data?: {
-    url?: string;
-    format?: 'event_id_only' | 'full';
-  };
-};
-
-type MatrixPusherClient = {
-  setPusher: (pusher: MatrixPusherRequest) => Promise<void>;
-};
+type MatrixPusherRequest = IPusherRequest;
+type MatrixPusherClient = Pick<MatrixClient, 'setPusher'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
 
@@ -211,7 +196,7 @@ const disablePusherByToken = async (mx: MatrixPusherClient, appId: string, token
     pushkey: token,
     app_id: appId,
     kind: null,
-  });
+  } as unknown as IPusherRequest);
 };
 
 const parseNativePushPermission = (receive: string | undefined): NativePushPermission => {

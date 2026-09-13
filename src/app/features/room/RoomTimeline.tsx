@@ -267,7 +267,7 @@ const getThreadReplyCount = (
   if (!eventId) return undefined;
   const thread = room.getThread(eventId);
   const threadLength = thread?.length;
-  if (threadLength > 0) return threadLength;
+  if ((threadLength ?? 0) > 0) return threadLength;
 
   // Runtime fallback for threadSupport-disabled mode:
   // derive counts from loaded room timeline events.

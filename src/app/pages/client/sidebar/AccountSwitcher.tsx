@@ -59,7 +59,7 @@ export function AccountSwitcher({
                     renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
                   />
                 </Avatar>
-                <Box direction="Column" grow="Yes" gap="25">
+                <Box direction="Column" grow="Yes" gap="100">
                   <Text size="H5" truncate>
                     {displayName}
                   </Text>

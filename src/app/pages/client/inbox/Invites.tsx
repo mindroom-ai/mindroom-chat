@@ -702,7 +702,7 @@ export function Invites() {
 
   const invitesData = allInviteIds
     .map((inviteId) => mx.getRoom(inviteId))
-    .filter((inviteRoom) => !!inviteRoom)
+    .filter((inviteRoom): inviteRoom is Room => !!inviteRoom)
     .map((inviteRoom) => makeInviteData(mx, inviteRoom, useAuthentication));
 
   const [knownInvites, unknownInvites, spamInvites] = useMemo(() => {
