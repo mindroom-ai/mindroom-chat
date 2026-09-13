@@ -98,7 +98,7 @@ import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { VirtualTile } from '../../components/virtualizer';
 import {
   CollapsibleMessage,
-  ExpandAllInitContext,
+  CollapsibleMessageStateProvider,
   expandAllMessages,
   collapseAllMessages,
 } from './CollapsibleMessage';
@@ -412,6 +412,8 @@ export function RoomTimeline({
   // room:thread, so this state (and the context derived from it) resets on
   // navigation via remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
+  const manualExpansionStateRef = useRef(new Map<string, boolean>());
+  const manualExpansionState = manualExpansionStateRef.current;
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
   atBottomRef.current = atBottom;
@@ -2433,6 +2435,7 @@ export function RoomTimeline({
               return (
                 <CollapsibleMessage
                   collapseMode={collapseMode}
+                  expansionKey={mEventId}
                   forceOverflowing={forceCollapsibleOverflow}
                   measurementKey={measurementKey}
                   onInitialExpandConsumed={onInitialExpandConsumed}
@@ -2757,6 +2760,7 @@ export function RoomTimeline({
                   return (
                     <CollapsibleMessage
                       collapseMode={collapseMode}
+                      expansionKey={mEventId}
                       forceOverflowing={forceCollapsibleOverflow}
                       measurementKey={measurementKey}
                       onInitialExpandConsumed={onInitialExpandConsumed}
@@ -3600,7 +3604,10 @@ export function RoomTimeline({
   };
 
   return (
-    <ExpandAllInitContext.Provider value={expandAllOverride}>
+    <CollapsibleMessageStateProvider
+      expandAllInit={expandAllOverride}
+      manualExpansionState={manualExpansionState}
+    >
       <Box grow="Yes" direction="Column">
         {shouldShowRoomThreadOverviewControls && (
           <RoomThreadOverview
@@ -3670,6 +3677,7 @@ export function RoomTimeline({
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
+                  manualExpansionState.clear();
                   if (expandAllOverride === true) {
                     collapseAllMessages();
                     setExpandAllOverride(false);
@@ -3888,6 +3896,6 @@ export function RoomTimeline({
           )}
         </Box>
       </Box>
-    </ExpandAllInitContext.Provider>
+    </CollapsibleMessageStateProvider>
   );
 }

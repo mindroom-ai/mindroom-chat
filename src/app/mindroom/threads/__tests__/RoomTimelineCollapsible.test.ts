@@ -537,16 +537,32 @@ vi.mock('../CollapsibleMessage', async () => {
 
   return {
     ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
+    CollapsibleMessageStateProvider: ({
+      children,
+      expandAllInit,
+      manualExpansionState,
+    }: {
+      children: React.ReactNode;
+      expandAllInit: boolean | undefined;
+      manualExpansionState: Map<string, boolean>;
+    }) =>
+      ReactImport.createElement(
+        'collapsible-message-state-provider',
+        { expandAllInit, manualExpansionState },
+        children
+      ),
     expandAllMessages: vi.fn(),
     collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({
       children,
       collapseMode = 'default',
+      expansionKey,
       forceOverflowing,
       onInitialExpandConsumed,
     }: {
       children: React.ReactNode | ((state: { expanded: boolean }) => React.ReactNode);
       collapseMode?: string;
+      expansionKey?: string;
       forceOverflowing?: boolean;
       onInitialExpandConsumed?: () => void;
     }) => {
@@ -568,6 +584,7 @@ vi.mock('../CollapsibleMessage', async () => {
         collapsibleType,
         {
           collapseMode,
+          expansionKey,
           forceOverflowing,
           'data-testid': collapsibleTestId,
         },
@@ -1153,6 +1170,47 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(findCollapseModeForEvent(renderer, '$historical')).toBe('default');
+    expect(findCollapsibleForEvent(renderer, '$historical').props.expansionKey).toBe('$historical');
+  });
+
+  it('clears remembered per-message choices before applying an expand-all baseline', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { expandAllMessages } = await import('../CollapsibleMessage');
+    const historicalEvent = makeEvent('$historical', {
+      content: {
+        body: 'Historical message',
+        msgtype: 'm.text',
+      },
+    });
+    const room = makeRoom({ liveEvents: [historicalEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    const provider = renderer.root.findByType('collapsible-message-state-provider');
+    const manualExpansionState = provider.props.manualExpansionState as Map<string, boolean>;
+    manualExpansionState.set('$historical', true);
+    const expandAllButton = renderer.root.find(
+      (node) => node.type === 'button' && node.children.includes('[+all]')
+    );
+
+    act(() => {
+      expandAllButton.props.onClick({ preventDefault: vi.fn() });
+    });
+
+    expect(manualExpansionState.size).toBe(0);
+    expect(expandAllMessages).toHaveBeenCalledTimes(1);
+    const refreshedProvider = renderer.root.findByType('collapsible-message-state-provider');
+    expect(refreshedProvider.props.expandAllInit).toBe(true);
+    expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
   });
 
   it('defers long-text hydration while a default room message row is collapsed', async () => {
@@ -1343,6 +1401,9 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(findCollapseModeForEvent(renderer, '$encrypted-summary')).toBe('always-expanded');
+    expect(findCollapsibleForEvent(renderer, '$encrypted-summary').props.expansionKey).toBe(
+      '$encrypted-summary'
+    );
   });
 
   it('uses always-expanded mode for messages with MindRoom extras', async () => {

@@ -12,6 +12,7 @@ import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
  *  - streaming edits must NOT yank a user who scrolled up back to the bottom
  *  - clicking a reply quote targeting a loaded-but-unmounted row scrolls to it
  *  - expand-all applies to rows that mount only after scrolling
+ *  - a manually expanded row stays expanded after a virtualized remount
  */
 
 const hasCredentials = !!process.env.E2E_USERNAME;
@@ -334,5 +335,43 @@ test.describe('virtualized thread behaviors', () => {
 
     expect(await page.locator('[data-message-item]').count()).toBeGreaterThan(0);
     expect(await page.locator('[data-message-item] [aria-expanded="false"]').count()).toBe(0);
+  });
+
+  test('manual Show more survives scrolling out of and back into the virtual window', async ({
+    page,
+  }) => {
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const seeded = await seedThread(homeserver, session.accessToken, {
+      longBodies: true,
+      replyCount: 80,
+    });
+    const targetId = seeded.replyIds[seeded.replyIds.length - 1];
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await openThread(page, seeded);
+
+    const target = page.locator(`[data-message-id="${targetId}"]`);
+    await expect(target).toBeVisible({ timeout: 15_000 });
+    await target.getByRole('button', { name: 'Show more' }).click();
+    await expect(target.locator('[aria-expanded="true"]')).toBeVisible();
+
+    const timeline = page.locator('[data-message-item]').first();
+    await timeline.hover();
+    for (let i = 0; i < 40; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      if ((await target.count()) === 0) break;
+      // eslint-disable-next-line no-await-in-loop
+      await page.mouse.wheel(0, -1600);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(80);
+    }
+    await expect(target).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Jump to Latest' }).click();
+    await expect(target).toBeVisible({ timeout: 15_000 });
+    await expect(target.locator('[aria-expanded="true"]')).toBeVisible();
+    await expect(target.getByRole('button', { name: 'Show less' })).toBeVisible();
   });
 });
