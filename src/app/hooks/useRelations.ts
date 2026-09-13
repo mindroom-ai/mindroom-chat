@@ -8,6 +8,10 @@ export const useRelations = <T>(
   const [data, setData] = useState(() => getRelations(relations));
 
   useEffect(() => {
+    setData(getRelations(relations));
+  }, [relations, getRelations]);
+
+  useEffect(() => {
     const handleUpdate = () => {
       setData(getRelations(relations));
     };
