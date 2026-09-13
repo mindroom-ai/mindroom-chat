@@ -68,19 +68,13 @@ describe('useEdgeSwipeBack', () => {
 
   const swipeFromLeftEdge = (preventDefault = vi.fn()) => {
     act(() => {
-      mockWindow.dispatch(
-        'touchstart',
-        {
-          touches: createTouchList([{ clientX: 12, clientY: 20 }]),
-        } as unknown as TouchEvent
-      );
-      mockWindow.dispatch(
-        'touchmove',
-        {
-          preventDefault,
-          touches: createTouchList([{ clientX: 96, clientY: 24 }]),
-        } as unknown as TouchEvent
-      );
+      mockWindow.dispatch('touchstart', {
+        touches: createTouchList([{ clientX: 12, clientY: 20 }]),
+      } as unknown as TouchEvent);
+      mockWindow.dispatch('touchmove', {
+        preventDefault,
+        touches: createTouchList([{ clientX: 96, clientY: 24 }]),
+      } as unknown as TouchEvent);
     });
 
     return preventDefault;
