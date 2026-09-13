@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Hide edited labels on MindRoom agent messages (2026-09-13)
+
+- The shared message renderer suppresses `(edited)` when the existing agent-metadata detector recognizes run, stream-status, or tool-trace metadata, including metadata inside `m.new_content`.
+- The same display policy reaches text, notices, emotes, long-text responses, and attachment captions wherever the shared renderer is used.
+- Ordinary edits retain the label, including human messages with unrelated MindRoom metadata.
+- Message content, edit processing, streaming indicators, and pending or failed send indicators are preserved.
+- Regression coverage checks metadata-based label suppression at the renderer boundary and visible caption labels alongside send status.
+- Validation: 45 focused tests, typecheck, production/PWA build, and formatting pass; full ESLint has zero errors and the existing 17 warnings.
+- Full Vitest passes 3,744 tests with seven failures reproduced on untouched `dev` using the same installed dependencies: three each in `xcodeCloudPostClone.test.ts` and `matrixSdkThreadReset.test.ts`, and the caption-restore case in `useRoomInputSendSessionController.test.ts`.
+- A Chromium check of the real shared renderer confirms that streaming edits update the body without an edited label, completion removes the responding indicator, and ordinary human edits retain their label.
+- Independent review found no in-scope defects.
+
 ### Reopen contextual navigation on sidebar section selection (2026-09-13)
 
 - Home, Direct Messages, Threads, individual spaces, and Explore reopen a collapsed contextual panel when selected, including when the selected section is already active.

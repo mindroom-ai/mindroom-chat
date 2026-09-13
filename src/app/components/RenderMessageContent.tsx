@@ -31,6 +31,7 @@ import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { renderMindroomMessageContent } from '../mindroom/messages/renderMindroomMessageContent';
 import { getMindroomMessageStateSuffixRenderer } from '../mindroom/messages/messageStateSuffix';
+import { hasMindroomAgentMessageMetadata } from '../mindroom/matrix/agentIdentity';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -61,7 +62,7 @@ export function RenderMessageContent({
   threadId,
   msgType,
   ts,
-  edited,
+  edited: messageEdited,
   getContent,
   mediaAutoLoad,
   urlPreview,
@@ -74,6 +75,10 @@ export function RenderMessageContent({
   pendingSend,
   failedSend,
 }: RenderMessageContentProps) {
+  const content = getContent<Record<string, unknown>>();
+  // Agent streaming uses edits; only ordinary messages need the edited label.
+  const edited = messageEdited && !hasMindroomAgentMessageMetadata(content);
+
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
@@ -150,7 +155,6 @@ export function RenderMessageContent({
     </>
   );
 
-  const content = getContent<Record<string, unknown>>();
   const mindroomContent = renderMindroomMessageContent({
     displayName,
     eventType,
