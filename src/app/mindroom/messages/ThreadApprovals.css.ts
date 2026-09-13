@@ -1,4 +1,4 @@
-import { style, globalStyle } from '@vanilla-extract/css';
+import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
 export const Bar = style({
@@ -11,6 +11,37 @@ export const Bar = style({
   borderRadius: 8,
   background: color.SurfaceVariant.Container,
   flexShrink: 0,
+});
+export const BarStatus = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  minWidth: 0,
+});
+export const ReviewButton = style({
+  position: 'relative',
+  flexShrink: 0,
+  overflow: 'visible',
+});
+export const ReviewButtonPending = style({
+  boxShadow: `0 0 0 1px ${color.Warning.Main}, 0 0 8px 1px color-mix(in srgb, ${color.Warning.Main} 20%, transparent)`,
+});
+const reviewPulse = keyframes({
+  '0%, 100%': { opacity: 0 },
+  '50%': { opacity: 0.6 },
+});
+export const ReviewPulse = style({
+  position: 'absolute',
+  inset: 0,
+  borderRadius: 'inherit',
+  pointerEvents: 'none',
+  boxShadow: `0 0 12px 3px ${color.Warning.Main}`,
+  opacity: 0,
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': {
+      animation: `${reviewPulse} 2s ease-in-out 2`,
+    },
+  },
 });
 export const Chip = style({
   border: `1px solid ${color.Surface.ContainerLine}`,

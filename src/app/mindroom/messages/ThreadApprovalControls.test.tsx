@@ -15,6 +15,10 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 vi.mock('./ApprovalArguments', () => ({ ApprovalArguments: () => null }));
 vi.mock('./ThreadApprovals.css', () => ({
   Bar: 'Bar',
+  BarStatus: 'BarStatus',
+  ReviewButton: 'ReviewButton',
+  ReviewButtonPending: 'ReviewButtonPending',
+  ReviewPulse: 'ReviewPulse',
   Chip: 'Chip',
   Receipt: 'Receipt',
   ReceiptTool: 'ReceiptTool',

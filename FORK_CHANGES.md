@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Draw attention to pending tool approvals (2026-09-13)
+
+- Actionable Review buttons use a soft amber fill and steady halo while the banner explicitly labels calls as paused for approval.
+- Newly discovered actionable requests trigger two gentle halo pulses over four seconds without moving or resizing the button.
+- Opening Review cancels the pulse; requests discovered during review and ordinary store updates do not restart it after closing.
+- Submitted decisions and requests assigned to another approver keep the ordinary button styling; reduced-motion users receive only the static highlight.
+- Live Chromium coverage exercises arrival, settling, review cancellation, new requests during review, submission, approver eligibility, reduced motion, narrow layouts, and dark-theme adaptation.
+- Validation: typecheck, production/PWA build, formatting, and full ESLint pass with the existing 17-warning baseline.
+- Full Vitest passes 3,736 tests and reproduces the same four failures as the untouched base in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
+- A GIF of the real local Matrix flow is attached to the pull request; recording artifacts remain outside the repository.
+
 ### Keep navigation collapse available on narrow split layouts (2026-09-12)
 
 - The bottom rail chevron now appears on both tablet and desktop layouts, including widths from 751 to 1,124 CSS pixels where the room panel occupies a larger share of the screen.
