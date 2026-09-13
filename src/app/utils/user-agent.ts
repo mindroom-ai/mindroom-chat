@@ -4,6 +4,8 @@ export const ua = () => UAParser(window.navigator.userAgent);
 
 export const isMacOS = () => ua().os.name === 'Mac OS';
 
+export const isIOS = () => ua().os.name === 'iOS';
+
 export const mobileOrTablet = (): boolean => {
   const userAgent = ua();
   const { os, device } = userAgent;
