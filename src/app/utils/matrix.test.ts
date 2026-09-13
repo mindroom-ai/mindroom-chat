@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   getMatrixUploadErrorMessage,
   getMatrixUploadOriginalName,
+  getMatrixUploadErrorStage,
   isTransientMatrixError,
   toMatrixUploadError,
   uploadContent,
 } from './matrix';
 
 const transientMessage = "Couldn't send — your connection dropped. Try again.";
+const prepareUploadMessage = "Couldn't prepare file for upload.";
 
 describe('matrix upload errors', () => {
   it('classifies transient upload errors narrowly', () => {
@@ -17,6 +19,10 @@ describe('matrix upload errors', () => {
     ).toBe(true);
     expect(isTransientMatrixError(new MatrixError({ error: 'Unknown message' }))).toBe(true);
     expect(isTransientMatrixError(new MatrixError({ errcode: 'M_UNKNOWN', error: '' }))).toBe(true);
+    expect(
+      isTransientMatrixError(new MatrixError({ errcode: 'M_UNKNOWN', error: 'Upload failed' }))
+    ).toBe(false);
+    expect(isTransientMatrixError(new MatrixError({ error: 'Upload too large' }, 413))).toBe(false);
     expect(
       isTransientMatrixError(new MatrixError({ errcode: 'M_LIMIT_EXCEEDED', error: '' }))
     ).toBe(false);
@@ -28,8 +34,13 @@ describe('matrix upload errors', () => {
 
   it('preserves existing MatrixError instances while normalizing other upload errors', () => {
     const existing = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Nope' }, 403);
+    const originalData = { ...existing.data };
 
     expect(toMatrixUploadError(existing, 'upload')).toBe(existing);
+    expect(getMatrixUploadErrorStage(existing)).toBe('upload');
+    expect(existing.data).toEqual(originalData);
+    expect(existing.data).not.toHaveProperty('mindroom_upload_stage');
+    expect(existing.data).not.toHaveProperty('mindroom_original_name');
 
     const normalized = toMatrixUploadError(
       new DOMException('The operation was aborted.', 'AbortError'),
@@ -39,6 +50,8 @@ describe('matrix upload errors', () => {
     expect(normalized.errcode).toBe('M_UNKNOWN');
     expect(normalized.message).toContain('The operation was aborted.');
     expect(getMatrixUploadOriginalName(normalized)).toBe('AbortError');
+    expect(normalized.data).not.toHaveProperty('mindroom_upload_stage');
+    expect(normalized.data).not.toHaveProperty('mindroom_original_name');
   });
 
   it('preserves HTTP 413 status when normalizing non-JSON upload errors', () => {
@@ -87,11 +100,67 @@ describe('matrix upload errors', () => {
     expect(getMatrixUploadErrorMessage(matrixTooLarge, 'upload')).not.toBe(transientMessage);
   });
 
+  it('preserves generic upload error messages instead of treating them as transient', () => {
+    const normalized = toMatrixUploadError(new Error('Local file read failed'), 'upload');
+
+    expect(isTransientMatrixError(normalized)).toBe(false);
+    expect(getMatrixUploadErrorMessage(normalized)).toBe('M_UNKNOWN: Local file read failed');
+    expect(getMatrixUploadErrorMessage(normalized)).not.toBe(transientMessage);
+  });
+
+  it('preserves errcode-less MatrixError server rejections instead of treating them as transient', () => {
+    const serverError = new MatrixError({ error: 'Upload failed server-side' }, 500);
+    const forbidden = new MatrixError({ error: 'Uploads are disabled' }, 403);
+
+    expect(isTransientMatrixError(serverError)).toBe(false);
+    expect(getMatrixUploadErrorMessage(serverError, 'upload')).toBe('Upload failed server-side');
+    expect(getMatrixUploadErrorMessage(serverError, 'upload')).not.toBe(transientMessage);
+    expect(isTransientMatrixError(forbidden)).toBe(false);
+    expect(getMatrixUploadErrorMessage(forbidden, 'send')).toBe('Uploads are disabled');
+  });
+
   it('does not use transient network copy for create-stage normalized errors', () => {
     const normalized = toMatrixUploadError(new Error('create failed'), 'create');
 
-    expect(getMatrixUploadErrorMessage(normalized)).toBe("Couldn't prepare voice message.");
+    expect(getMatrixUploadErrorMessage(normalized)).toBe("Couldn't prepare file for upload.");
     expect(getMatrixUploadErrorMessage(normalized)).not.toBe(transientMessage);
+  });
+
+  it('attaches create-stage metadata to existing MatrixError instances', () => {
+    const existing = new MatrixError({ errcode: 'M_UNKNOWN', error: '' });
+    const originalData = { ...existing.data };
+    const normalized = toMatrixUploadError(existing, 'create');
+
+    expect(normalized).toBe(existing);
+    expect(getMatrixUploadErrorStage(normalized)).toBe('create');
+    expect(getMatrixUploadErrorMessage(normalized)).toBe("Couldn't prepare file for upload.");
+    expect(existing.data).toEqual(originalData);
+    expect(existing.data).not.toHaveProperty('mindroom_upload_stage');
+    expect(existing.data).not.toHaveProperty('mindroom_original_name');
+  });
+
+  it('ignores server-shaped MindRoom upload metadata in MatrixError payloads', () => {
+    const spoofedCreateStage = new MatrixError({
+      errcode: 'M_UNKNOWN',
+      error: 'Server rejection',
+      mindroom_upload_stage: 'create',
+      mindroom_original_name: 'AbortError',
+    });
+    const spoofedAbortName = new MatrixError({
+      errcode: 'M_FORBIDDEN',
+      error: '',
+      mindroom_upload_stage: 'upload',
+      mindroom_original_name: 'AbortError',
+    });
+
+    expect(getMatrixUploadErrorStage(spoofedCreateStage)).toBeUndefined();
+    expect(getMatrixUploadOriginalName(spoofedCreateStage)).toBeUndefined();
+    expect(getMatrixUploadErrorMessage(spoofedCreateStage)).toBe('M_UNKNOWN: Server rejection');
+    expect(getMatrixUploadErrorMessage(spoofedCreateStage)).not.toBe(prepareUploadMessage);
+
+    expect(getMatrixUploadOriginalName(spoofedAbortName)).toBeUndefined();
+    expect(isTransientMatrixError(spoofedAbortName)).toBe(false);
+    expect(getMatrixUploadErrorMessage(spoofedAbortName, 'upload')).not.toBe(transientMessage);
   });
 
   it('normalizes uploadContent aborts without copying the human message into errcode', async () => {

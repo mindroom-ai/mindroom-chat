@@ -27,6 +27,10 @@ export const useMediaSeek = (
 
   useEffect(() => {
     const targetEl = getTargetElement();
+    setSeekData({
+      seeking: false,
+      seekable: targetEl?.seekable,
+    });
     const handleChange = () => {
       if (!targetEl) return;
       setSeekData({

@@ -123,11 +123,18 @@ export function UploadCardRenderer({
 
   const uploadAtom = roomUploadAtomFamily(fileItem.file);
   const { metadata } = fileItem;
-  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom, isEncrypted);
+  const encryptedPrepErrorBlock =
+    isEncrypted && fileItem.prepError && !fileItem.encInfo ? fileItem.prepError : undefined;
+  const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom, {
+    hideFilename: !!fileItem.encInfo,
+    blockUploadError: encryptedPrepErrorBlock,
+  });
   const { file } = upload;
   const fileSizeExceeded = file.size >= allowSize;
+  const uploadError =
+    fileItem.prepError ?? (upload.status === UploadStatus.Error ? upload.error : undefined);
 
-  if (upload.status === UploadStatus.Idle && !fileSizeExceeded) {
+  if (upload.status === UploadStatus.Idle && !fileSizeExceeded && !fileItem.prepError) {
     startUpload();
   }
 
@@ -152,7 +159,7 @@ export function UploadCardRenderer({
       before={<Icon src={getFileTypeIcon(Icons, file.type)} />}
       after={
         <>
-          {upload.status === UploadStatus.Error && (
+          {upload.status === UploadStatus.Error && !fileItem.prepError && (
             <Chip
               as="button"
               onClick={startUpload}
@@ -187,23 +194,27 @@ export function UploadCardRenderer({
               <PreviewVideo fileItem={fileItem} />
             </MediaPreview>
           )}
-          {upload.status === UploadStatus.Idle && !fileSizeExceeded && (
+          {upload.status === UploadStatus.Idle && !fileSizeExceeded && !uploadError && (
             <UploadCardProgress sentBytes={0} totalBytes={file.size} />
           )}
           {upload.status === UploadStatus.Loading && (
             <UploadCardProgress sentBytes={upload.progress.loaded} totalBytes={file.size} />
           )}
-          {upload.status === UploadStatus.Error && (
+          {uploadError && (
             <UploadCardError>
               <Text size="T200">
-                {getMatrixUploadErrorMessage(upload.error, 'upload', {
-                  fileSize: file.size,
-                  maxUploadSize,
-                })}
+                {getMatrixUploadErrorMessage(
+                  uploadError,
+                  fileItem.prepError ? 'create' : 'upload',
+                  {
+                    fileSize: file.size,
+                    maxUploadSize,
+                  }
+                )}
               </Text>
             </UploadCardError>
           )}
-          {upload.status === UploadStatus.Idle && fileSizeExceeded && (
+          {upload.status === UploadStatus.Idle && fileSizeExceeded && !uploadError && (
             <UploadCardError>
               <Text size="T200">
                 {getMatrixUploadTooLargeMessage({

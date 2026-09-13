@@ -25,6 +25,7 @@ export const useMediaPlay = (
 
   useEffect(() => {
     const targetEl = getTargetElement();
+    setPlay(targetEl?.paused === false);
     const handleChange = () => {
       if (!targetEl) return;
       setPlay(targetEl.paused === false);

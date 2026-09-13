@@ -3,11 +3,13 @@ import parse, { HTMLReactParserOptions } from 'html-react-parser';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 import { sanitizeCustomHtml, sanitizeText } from '../../utils/sanitize';
 import {
+  MINDROOM_MESSAGE_EXTRAS_TEXT_HTML,
   MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN,
   MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN,
   MindroomMessageExtras as MindroomMessageExtrasData,
   MindroomMessageExtrasSection,
 } from './messageExtrasData';
+import { sanitizeMindroomMessageExtraHtml } from './messageExtrasHtml';
 import * as css from './MindroomMessageExtras.css';
 
 type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
@@ -34,12 +36,21 @@ const renderSectionContent = (
   section: MindroomMessageExtrasSection,
   htmlReactParserOptions: HTMLReactParserOptions
 ) => {
-  if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN) {
-    return <pre className={css.PlainText}>{section.content}</pre>;
-  }
+  try {
+    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN) {
+      return <pre className={css.PlainText}>{section.content}</pre>;
+    }
 
-  if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN) {
-    return <div className={css.Markdown}>{renderMarkdown(section, htmlReactParserOptions)}</div>;
+    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN) {
+      return <div className={css.Markdown}>{renderMarkdown(section, htmlReactParserOptions)}</div>;
+    }
+
+    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
+      const sanitizedHtml = sanitizeMindroomMessageExtraHtml(section.content);
+      return <div className={css.Html}>{parse(sanitizedHtml)}</div>;
+    }
+  } catch {
+    return null;
   }
 
   return null;

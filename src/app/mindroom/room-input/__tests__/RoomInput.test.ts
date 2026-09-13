@@ -3,72 +3,110 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
-import { RoomInput } from '../MindroomRoomInput';
+import { createMindroomRoomUploadItems, RoomInput } from '../MindroomRoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../../../types/matrix/common';
 import {
   IReplyDraft,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
+  roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../../state/room/roomInputDrafts';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../../utils/audioWaveform';
+import {
+  getMatrixUploadErrorMessage,
+  getMatrixUploadErrorStage,
+  toMatrixUploadError,
+} from '../../../utils/matrix';
 
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
 const THIRD_ROOM_ID = '!third:example.org';
 
-const { customEditorState, editorMocks, editorOutputState, mxState, voiceRecorderState } =
-  vi.hoisted(() => ({
-    editorMocks: {
-      insertNode: vi.fn(),
-      moveCursor: vi.fn(),
-      resetEditor: vi.fn(),
-      resetEditorHistory: vi.fn(),
-    },
-    customEditorState: {
-      autocompleteQuery: undefined as { prefix: string; range: unknown; text: string } | undefined,
-      editor: undefined as
-        | {
-            children: Array<any>;
-          }
-        | undefined,
-      props: undefined as
-        | {
-            onPaste?: (evt: {
-              clipboardData: DataTransfer;
-              preventDefault: () => void;
-            }) => void | Promise<void>;
-            onChange?: () => void;
-            onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
-            onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
-          }
-        | undefined,
-    },
-    editorOutputState: {
-      plainText: '',
-      customHtml: '',
-      htmlEqualsPlainText: true,
-    },
-    mxState: {
-      cancelUpload: vi.fn(),
-      getUserId: vi.fn(() => '@me:example.org'),
-      sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-      uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
-    },
-    voiceRecorderState: {
-      props: undefined as
-        | {
-            active?: boolean;
-            sendDisabled?: boolean;
-            onClose: () => void;
-            onRecordingStart?: () => void;
-            onSendStopRequest?: () => boolean | void;
-            onSendStopFailure?: () => void;
-            onSendRecording: (file: File, duration: number, waveform?: number[]) => Promise<void>;
-          }
-        | undefined,
-    },
-  }));
+const {
+  customEditorState,
+  editorMocks,
+  editorOutputState,
+  encryptionState,
+  mxState,
+  voiceRecorderState,
+} = vi.hoisted(() => ({
+  editorMocks: {
+    insertNode: vi.fn(),
+    insertText: vi.fn(),
+    moveCursor: vi.fn(),
+    resetEditor: vi.fn(),
+    resetEditorHistory: vi.fn(),
+  },
+  customEditorState: {
+    autocompleteQuery: undefined as { prefix: string; range: unknown; text: string } | undefined,
+    editor: undefined as
+      | {
+          children: Array<any>;
+        }
+      | undefined,
+    props: undefined as
+      | {
+          onPaste?: (evt: {
+            clipboardData: DataTransfer;
+            preventDefault: () => void;
+          }) => void | Promise<void>;
+          onChange?: () => void;
+          onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
+          onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
+        }
+      | undefined,
+  },
+  editorOutputState: {
+    plainText: '',
+    customHtml: '',
+    htmlEqualsPlainText: true,
+  },
+  mxState: {
+    cancelUpload: vi.fn(),
+    getUserId: vi.fn(() => '@me:example.org'),
+    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+    uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
+  },
+  encryptionState: {
+    encryptAttachment: vi.fn(async (data: ArrayBuffer) => ({
+      data,
+      info: {
+        v: 'v2',
+        key: {
+          alg: 'A256CTR',
+          ext: true,
+          k: 'test-key',
+          key_ops: ['encrypt', 'decrypt'],
+          kty: 'oct',
+        },
+        iv: 'test-iv',
+        hashes: {
+          sha256: 'test-hash',
+        },
+      },
+    })),
+    decryptAttachment: vi.fn(),
+  },
+  voiceRecorderState: {
+    props: undefined as
+      | {
+          active?: boolean;
+          sendDisabled?: boolean;
+          onClose: () => void;
+          onRecordingStart?: () => void;
+          onSendStopRequest?: () => boolean | void;
+          onSendStopFailure?: () => void;
+          onSendRecording: (file: File, duration: number, waveform?: number[]) => Promise<void>;
+        }
+      | undefined,
+  },
+}));
+
+vi.mock('browser-encrypt-attachment', () => ({
+  decryptAttachment: encryptionState.decryptAttachment,
+  encryptAttachment: encryptionState.encryptAttachment,
+}));
 
 vi.mock('slate', () => ({
   Editor: {},
@@ -194,14 +232,49 @@ vi.mock('../../../components/upload-card', () => ({
   UploadCardRenderer: () => null,
 }));
 
-vi.mock('../../../components/upload-board', () => ({
-  UploadBoard: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
-    React.createElement('div', null, header, children),
-  UploadBoardContent: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
-  UploadBoardHeader: ({ onSend }: { onSend: () => Promise<void> }) =>
-    React.createElement('button', { 'aria-label': 'Upload board Send', onClick: onSend }),
-}));
+vi.mock('../../../components/upload-board', async () => {
+  const reactModule = await import('react');
+  const { useAtomValue } = await import('jotai');
+  const { UploadStatus } = await import('../../../state/upload');
+  const { getMatrixUploadErrorStage } = await import('../../../utils/matrix');
+
+  return {
+    UploadBoard: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+      reactModule.createElement('div', null, header, children),
+    UploadBoardContent: ({ children }: { children?: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    UploadBoardHeader: ({
+      uploadFamilyObserverAtom,
+      onSend,
+    }: {
+      uploadFamilyObserverAtom: Parameters<typeof useAtomValue>[0];
+      onSend: () => Promise<void>;
+    }) => {
+      const uploads = useAtomValue(uploadFamilyObserverAtom);
+      const hasMixedPrepErrorSend =
+        uploads.some((upload) => upload.status === UploadStatus.Success) &&
+        uploads.every(
+          (upload) =>
+            upload.status === UploadStatus.Success ||
+            (upload.status === UploadStatus.Error &&
+              getMatrixUploadErrorStage(upload.error) === 'create')
+        );
+      const hasNonPrepErrorUpload = uploads.some(
+        (upload) =>
+          upload.status !== UploadStatus.Error ||
+          getMatrixUploadErrorStage(upload.error) !== 'create'
+      );
+      const canSend = hasMixedPrepErrorSend || hasNonPrepErrorUpload;
+
+      return canSend
+        ? reactModule.createElement('button', {
+            'aria-label': 'Upload board Send',
+            onClick: onSend,
+          })
+        : reactModule.createElement('span', { 'aria-label': 'Upload board Send hidden' });
+    },
+  };
+});
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => mxState,
@@ -463,10 +536,10 @@ const createReplyDraft = (eventId: string, relation?: IReplyDraft['relation']): 
   relation,
 });
 
-const createRoom = (roomId = ROOM_ID) =>
+const createRoom = (roomId = ROOM_ID, encrypted = false) =>
   ({
     roomId,
-    hasEncryptionStateEvent: () => false,
+    hasEncryptionStateEvent: () => encrypted,
     getMember: () => undefined,
     getMembers: () => [],
   } as never);
@@ -478,6 +551,11 @@ const createEditor = () => {
       editorMocks.insertNode(node);
       editor.children[0]?.children.push(node);
       return node;
+    },
+    insertText: (text: string) => {
+      editorMocks.insertText(text);
+      editor.children[0]?.children.push({ text });
+      return text;
     },
   };
   customEditorState.editor = editor;
@@ -515,6 +593,7 @@ const createRoomInputTree = (
     roomId?: string;
     threadId?: string;
     keyedRoomSubtree?: boolean;
+    encryptedRoom?: boolean;
   }
 ) =>
   React.createElement(
@@ -525,7 +604,7 @@ const createRoomInputTree = (
       editor: createEditor(),
       fileDropContainerRef: createRef<HTMLElement>(),
       roomId: props?.roomId ?? ROOM_ID,
-      room: createRoom(props?.roomId ?? ROOM_ID),
+      room: createRoom(props?.roomId ?? ROOM_ID, props?.encryptedRoom),
       threadId: props?.threadId,
     })
   );
@@ -536,6 +615,7 @@ const renderRoomInput = async (
     roomId?: string;
     threadId?: string;
     keyedRoomSubtree?: boolean;
+    encryptedRoom?: boolean;
   }
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
@@ -554,6 +634,7 @@ const updateRoomInput = async (
     roomId?: string;
     threadId?: string;
     keyedRoomSubtree?: boolean;
+    encryptedRoom?: boolean;
   }
 ) => {
   await act(async () => {
@@ -576,7 +657,27 @@ afterEach(() => {
   mxState.sendMessage.mockResolvedValue({ event_id: '$sent' });
   mxState.uploadContent.mockReset();
   mxState.uploadContent.mockResolvedValue({ content_uri: 'mxc://mindroom/voice' });
+  encryptionState.encryptAttachment.mockReset();
+  encryptionState.encryptAttachment.mockImplementation(async (data: ArrayBuffer) => ({
+    data,
+    info: {
+      v: 'v2',
+      key: {
+        alg: 'A256CTR',
+        ext: true,
+        k: 'test-key',
+        key_ops: ['encrypt', 'decrypt'],
+        kty: 'oct',
+      },
+      iv: 'test-iv',
+      hashes: {
+        sha256: 'test-hash',
+      },
+    },
+  }));
+  encryptionState.decryptAttachment.mockReset();
   editorMocks.insertNode.mockReset();
+  editorMocks.insertText.mockReset();
   editorMocks.moveCursor.mockReset();
   editorMocks.resetEditor.mockReset();
   editorMocks.resetEditorHistory.mockReset();
@@ -651,6 +752,90 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('keeps failed paste preparation from inserting a dangling marker', async () => {
+    const { store, renderer } = await renderRoomInput(createStore(), { encryptedRoom: true });
+    const pastedText = 'large paste\n'.repeat(6000);
+    const pasteEvent = createTextPasteEvent(pastedText);
+
+    encryptionState.encryptAttachment.mockRejectedValueOnce(new Error('paste encryption failed'));
+    editorOutputState.plainText = 'Before ';
+    editorOutputState.customHtml = 'Before ';
+    editorOutputState.htmlEqualsPlainText = true;
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(pasteEvent);
+    });
+
+    const [fileItem] = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+
+    expect(pasteEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(fileItem?.file.name).toMatch(/^mindroom-paste-[a-f0-9]{6}\.txt$/);
+    expect(getMatrixUploadErrorStage(fileItem?.prepError)).toBe('create');
+    expect(editorMocks.insertNode).not.toHaveBeenCalled();
+    expect(editorMocks.insertText).toHaveBeenCalledWith(pastedText);
+    expect(
+      customEditorState.editor!.children.some((node: any) =>
+        node?.children?.some((child: any) => child?.type === 'paste-marker')
+      )
+    ).toBe(false);
+
+    await act(async () => {
+      customEditorState.props!.onChange?.();
+    });
+
+    const [retainedFileItem] = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+    expect(retainedFileItem).toBe(fileItem);
+    expect(getMatrixUploadErrorMessage(retainedFileItem?.prepError)).toBe(
+      "Couldn't prepare file for upload."
+    );
+
+    renderer.unmount();
+  });
+
+  it('shows upload-board Send for a successful file mixed with a prep-error file', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    const failed = new File(['failed'], 'failed.txt', { type: 'text/plain' });
+    const sendable = new File(['sendable'], 'sendable.txt', { type: 'text/plain' });
+    const prepError = toMatrixUploadError(new Error('failed to prepare'), 'create');
+
+    await act(async () => {
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), {
+        type: 'PUT',
+        item: [
+          {
+            file: failed,
+            originalFile: failed,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+            prepError,
+          },
+          {
+            file: sendable,
+            originalFile: sendable,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false },
+          },
+        ],
+      });
+      store.set(roomUploadAtomFamily(failed), { error: prepError });
+      store.set(roomUploadAtomFamily(sendable), { mxc: 'mxc://mindroom/sendable' });
+    });
+
+    const uploadBoardSend = renderer.root.findByProps({ 'aria-label': 'Upload board Send' });
+    await act(async () => {
+      await uploadBoardSend.props.onClick();
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+      body: 'sendable.txt',
+      url: 'mxc://mindroom/sendable',
+    });
+
+    renderer.unmount();
+  });
+
   it('leaves small text pastes to the editor default behavior', async () => {
     const { store, renderer } = await renderRoomInput();
     const pasteEvent = createTextPasteEvent('small paste');
@@ -668,6 +853,72 @@ describe('RoomInput', () => {
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
+  });
+
+  it('keeps an errored item and aligned metadata after a middle encryption rejection', async () => {
+    const firstFile = new File(['first'], 'first.txt', { type: 'text/plain' });
+    const secondFile = new File(['second'], 'second.txt', { type: 'text/plain' });
+    const thirdFile = new File(['third'], 'third.txt', { type: 'text/plain' });
+    const decoder = new TextDecoder();
+
+    encryptionState.encryptAttachment.mockImplementation(async (data: ArrayBuffer) => {
+      if (decoder.decode(data) === 'second') {
+        throw new Error('second encryption failed');
+      }
+
+      return {
+        data,
+        info: {
+          v: 'v2',
+          key: {
+            alg: 'A256CTR',
+            ext: true,
+            k: 'test-key',
+            key_ops: ['encrypt', 'decrypt'],
+            kty: 'oct',
+          },
+          iv: 'test-iv',
+          hashes: {
+            sha256: 'test-hash',
+          },
+        },
+      };
+    });
+
+    const uploadItems = await createMindroomRoomUploadItems(
+      [firstFile, secondFile, thirdFile],
+      createRoom(ROOM_ID, true),
+      (file, index) => ({
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: {
+          id: `file-${index}`,
+          chars: file.size,
+          fileName: file.name,
+        },
+      })
+    );
+
+    expect(uploadItems).toHaveLength(3);
+    expect(uploadItems.map((item) => item.originalFile)).toEqual([
+      firstFile,
+      secondFile,
+      thirdFile,
+    ]);
+    expect(uploadItems.map((item) => item.metadata.mindroomPasteAttachment?.fileName)).toEqual([
+      'first.txt',
+      'second.txt',
+      'third.txt',
+    ]);
+    expect(uploadItems.map((item) => item.metadata.mindroomPasteAttachment?.id)).toEqual([
+      'file-0',
+      'file-1',
+      'file-2',
+    ]);
+    expect(uploadItems.map((item) => item.prepError !== undefined)).toEqual([false, true, false]);
+    expect(getMatrixUploadErrorStage(uploadItems[1].prepError)).toBe('create');
+    expect(getMatrixUploadErrorMessage(uploadItems[1].prepError)).toBe(
+      "Couldn't prepare file for upload."
+    );
   });
 
   it('removes the staged paste upload when its composer badge is deleted', async () => {
@@ -1386,6 +1637,48 @@ describe('RoomInput', () => {
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+
+    renderer.unmount();
+  });
+
+  it('propagates encrypted voice preparation failures instead of treating them as sent', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, {
+      threadId: '$thread-a',
+      encryptedRoom: true,
+    });
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const prepareError = new Error('voice encryption failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    encryptionState.encryptAttachment.mockRejectedValueOnce(prepareError);
+
+    let rejectedError: unknown;
+    await act(async () => {
+      try {
+        await voiceRecorderState.props!.onSendRecording(file, 1100);
+      } catch (err) {
+        rejectedError = err;
+      }
+    });
+
+    expect(getMatrixUploadErrorStage(rejectedError)).toBe('create');
+    expect(rejectedError).toMatchObject({
+      errcode: 'M_UNKNOWN',
+      message: expect.stringContaining('voice encryption failed'),
+    });
+    expect(consoleError).toHaveBeenCalledWith('[mr-upload]', {
+      stage: 'create',
+      originalName: 'Error',
+      name: 'M_UNKNOWN',
+      errcode: 'M_UNKNOWN',
+      httpStatus: undefined,
+      message: expect.stringContaining('voice encryption failed'),
+    });
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     consoleError.mockRestore();
 
     renderer.unmount();

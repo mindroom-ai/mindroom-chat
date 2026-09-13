@@ -18,12 +18,16 @@ vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Content: 'Content',
   PlainText: 'PlainText',
   Markdown: 'Markdown',
+  Html: 'Html',
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const createExtras = (sections: MindroomMessageExtrasSection[]): MindroomMessageExtrasData => ({
-  version: 1,
+const createExtras = (
+  sections: MindroomMessageExtrasSection[],
+  version: MindroomMessageExtrasData['version'] = 1
+): MindroomMessageExtrasData => ({
+  version,
   sections,
 });
 
@@ -266,6 +270,175 @@ describe('MindroomMessageExtras', () => {
 
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<img src=x onerror=alert(1)>');
+
+    renderer.unmount();
+  });
+
+  it('renders sanitized text/html as elements inside one Cinny-owned details wrapper', () => {
+    const renderer = create(
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              contentType: 'text/html',
+              content:
+                '<h2>Evidence</h2><p><strong>safe</strong></p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table><a href="https://example.test">link</a>',
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {},
+      })
+    );
+
+    expect(renderer.root.findAllByType('details')).toHaveLength(1);
+    expect(renderer.root.findAllByType('summary')).toHaveLength(1);
+    expect(renderer.root.findAllByType('h2')).toHaveLength(1);
+    expect(renderer.root.findAllByType('strong')).toHaveLength(1);
+    expect(renderer.root.findAllByType('ul')).toHaveLength(1);
+    expect(renderer.root.findAllByType('table')).toHaveLength(1);
+
+    const link = renderer.root.findByType('a');
+    expect(link.props.href).toBe('https://example.test');
+    expect(link.props.target).toBe('_blank');
+    expect(link.props.rel).toBe('noreferrer noopener');
+
+    renderer.unmount();
+  });
+
+  it('removes sender-owned disclosure controls from text/html sections', () => {
+    const renderer = create(
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              contentType: 'text/html',
+              content:
+                '<details open><summary>sender summary</summary><p>sender body</p></details><p>safe</p>',
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {},
+      })
+    );
+
+    expect(renderer.root.findAllByType('details')).toHaveLength(1);
+    expect(renderer.root.findAllByType('summary')).toHaveLength(1);
+    expect(getNodeText(renderer.root)).toContain('safe');
+    expect(getNodeText(renderer.root)).not.toContain('sender summary');
+    expect(getNodeText(renderer.root)).not.toContain('sender body');
+
+    renderer.unmount();
+  });
+
+  it('keeps user-toggled details state when streaming edits change html content', () => {
+    const container = document.createElement('div');
+    let root: Root | undefined;
+
+    const render = (html: string) =>
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              title: 'HTML',
+              contentType: 'text/html',
+              content: html,
+              collapsed: false,
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {},
+      });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(render('<p>initial</p>'));
+    });
+
+    const details = container.querySelector('details');
+    expect(details?.open).toBe(true);
+    expect(container.querySelector('p')?.textContent).toBe('initial');
+
+    if (details) details.open = false;
+
+    act(() => {
+      root?.render(render('<p>streamed update</p>'));
+    });
+
+    expect(container.querySelector('details')).toBe(details);
+    expect(details?.open).toBe(false);
+    expect(container.querySelector('p')?.textContent).toBe('streamed update');
+
+    act(() => {
+      root?.unmount();
+    });
+  });
+
+  it('sanitizes malicious html sections while preserving sibling sections', () => {
+    const renderer = create(
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              title: 'HTML',
+              contentType: 'text/html',
+              content:
+                '<p onclick="alert(1)">safe</p><script>alert(1)</script><img src="https://example.test/x.png"><a href="javascript:alert(1)">bad link</a>',
+            }),
+            section({ title: 'Plain', content: '<strong>literal</strong>' }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {},
+      })
+    );
+
+    expect(renderer.root.findAllByType('script')).toHaveLength(0);
+    expect(renderer.root.findAllByType('img')).toHaveLength(0);
+    expect(renderer.root.findAllByType('p')[0].props.onclick).toBeUndefined();
+    expect(renderer.root.findByType('a').props.href).toBeUndefined();
+    expect(getNodeText(renderer.root)).toContain('safe');
+    expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
+
+    renderer.unmount();
+  });
+
+  it('does not linkify disallowed plain-text URL schemes inside text/html sections', () => {
+    const renderer = create(
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              title: 'HTML',
+              contentType: 'text/html',
+              content:
+                '<p>magnet:?xt=urn:btih:abc ftp://example.test/file https://example.test</p><a href="mailto:user@example.test">mail</a>',
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions: {
+          replace: (domNode) => {
+            if ('type' in domNode && domNode.type === 'text') {
+              const data = 'data' in domNode ? domNode.data : '';
+              if (typeof data === 'string' && data.includes('magnet:')) {
+                return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);
+              }
+            }
+            return undefined;
+          },
+        },
+      })
+    );
+
+    const links = renderer.root.findAllByType('a');
+    expect(links).toHaveLength(1);
+    expect(links[0].props.href).toBe('mailto:user@example.test');
+    expect(getNodeText(renderer.root)).toContain('magnet:?xt=urn:btih:abc');
+    expect(getNodeText(renderer.root)).toContain('ftp://example.test/file');
+    expect(getNodeText(renderer.root)).toContain('https://example.test');
 
     renderer.unmount();
   });

@@ -7,6 +7,7 @@ import {
   MatrixUploadKind,
   TUploadContent,
   getMatrixUploadErrorMessage,
+  getMatrixUploadErrorStage,
   getMatrixUploadTooLargeMessage,
 } from '../../utils/matrix';
 import { getFileTypeIcon } from '../../utils/common';
@@ -100,11 +101,15 @@ export function CompactUploadCardRenderer({
           {upload.status === UploadStatus.Error && (
             <UploadCardError>
               <Text size="T200">
-                {getMatrixUploadErrorMessage(upload.error, 'upload', {
-                  uploadKind,
-                  fileSize: file.size,
-                  maxUploadSize,
-                })}
+                {getMatrixUploadErrorMessage(
+                  upload.error,
+                  getMatrixUploadErrorStage(upload.error) ?? 'upload',
+                  {
+                    uploadKind,
+                    fileSize: file.size,
+                    maxUploadSize,
+                  }
+                )}
               </Text>
             </UploadCardError>
           )}

@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 export const Extras = style({
@@ -40,5 +40,27 @@ export const PlainText = style({
 
 export const Markdown = style({
   minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
+export const Html = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
+globalStyle(`${Html} table`, {
+  display: 'block',
+  maxWidth: '100%',
+  overflowX: 'auto',
+  borderCollapse: 'collapse',
+});
+
+globalStyle(`${Html} pre`, {
+  maxWidth: '100%',
+  overflowX: 'auto',
+  whiteSpace: 'pre-wrap',
+});
+
+globalStyle(`${Html} code`, {
   overflowWrap: 'anywhere',
 });

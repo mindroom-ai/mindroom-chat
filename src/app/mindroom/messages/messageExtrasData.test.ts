@@ -4,6 +4,7 @@ import {
   MINDROOM_MESSAGE_EXTRAS_MAX_CONTENT_CHARS,
   MINDROOM_MESSAGE_EXTRAS_MAX_SECTIONS,
   MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS,
+  hasMindroomMessageExtras,
   parseMindroomMessageExtras,
 } from './messageExtrasData';
 
@@ -31,8 +32,9 @@ describe('parseMindroomMessageExtras', () => {
     expect(parseMindroomMessageExtras({ [MINDROOM_MESSAGE_EXTRAS_KEY]: 'bad' })).toBeNull();
   });
 
-  it('returns null for the wrong version', () => {
-    expect(parseMindroomMessageExtras(createContent([validSection()], { version: 2 }))).toBeNull();
+  it('returns null for unsupported versions', () => {
+    expect(parseMindroomMessageExtras(createContent([validSection()], { version: 0 }))).toBeNull();
+    expect(parseMindroomMessageExtras(createContent([validSection()], { version: 3 }))).toBeNull();
   });
 
   it('returns null when sections is not an array', () => {
@@ -57,6 +59,42 @@ describe('parseMindroomMessageExtras', () => {
       sections: [
         {
           title: 'Evidence',
+          contentType: 'text/markdown',
+          content: '**bold**',
+          collapsed: false,
+        },
+      ],
+    });
+  });
+
+  it('keeps v1 plain and markdown normalization unchanged', () => {
+    expect(
+      parseMindroomMessageExtras(
+        createContent([
+          validSection({
+            title: 'Plain',
+            content_type: 'text/plain',
+            content: '<strong>literal</strong>',
+          }),
+          validSection({
+            title: 'Markdown',
+            content_type: 'text/markdown',
+            content: '**bold**',
+            collapsed: false,
+          }),
+        ])
+      )
+    ).toEqual({
+      version: 1,
+      sections: [
+        {
+          title: 'Plain',
+          contentType: 'text/plain',
+          content: '<strong>literal</strong>',
+          collapsed: true,
+        },
+        {
+          title: 'Markdown',
           contentType: 'text/markdown',
           content: '**bold**',
           collapsed: false,
@@ -91,10 +129,112 @@ describe('parseMindroomMessageExtras', () => {
     expect(extras?.sections[0].title).toBe('Kept');
   });
 
-  it('skips unknown content types', () => {
+  it('skips text/html in v1', () => {
     expect(
       parseMindroomMessageExtras(createContent([validSection({ content_type: 'text/html' })]))
     ).toBeNull();
+  });
+
+  it('skips v1 text/html while keeping valid v1 sections', () => {
+    const extras = parseMindroomMessageExtras(
+      createContent([
+        validSection({ title: 'HTML', content_type: 'text/html', content: '<p>skip</p>' }),
+        validSection({ title: 'Plain', content_type: 'text/plain', content: 'keep' }),
+      ])
+    );
+
+    expect(extras).toEqual({
+      version: 1,
+      sections: [
+        {
+          title: 'Plain',
+          contentType: 'text/plain',
+          content: 'keep',
+          collapsed: true,
+        },
+      ],
+    });
+  });
+
+  it('accepts v2 plain, markdown, and html sections', () => {
+    expect(
+      parseMindroomMessageExtras(
+        createContent(
+          [
+            validSection({ title: 'Plain', content_type: 'text/plain', content: 'plain' }),
+            validSection({ title: 'Markdown', content_type: 'text/markdown', content: '**md**' }),
+            validSection({ title: 'HTML', content_type: 'text/html', content: '<p>html</p>' }),
+          ],
+          { version: 2 }
+        )
+      )
+    ).toEqual({
+      version: 2,
+      sections: [
+        {
+          title: 'Plain',
+          contentType: 'text/plain',
+          content: 'plain',
+          collapsed: true,
+        },
+        {
+          title: 'Markdown',
+          contentType: 'text/markdown',
+          content: '**md**',
+          collapsed: true,
+        },
+        {
+          title: 'HTML',
+          contentType: 'text/html',
+          content: '<p>html</p>',
+          collapsed: true,
+        },
+      ],
+    });
+  });
+
+  it('skips unknown v2 content types while preserving valid sections', () => {
+    const extras = parseMindroomMessageExtras(
+      createContent(
+        [
+          validSection({ title: 'Unsupported', content_type: 'application/json' }),
+          validSection({ title: 'HTML', content_type: 'text/html', content: '<p>ok</p>' }),
+        ],
+        { version: 2 }
+      )
+    );
+
+    expect(extras?.sections).toEqual([
+      {
+        title: 'HTML',
+        contentType: 'text/html',
+        content: '<p>ok</p>',
+        collapsed: true,
+      },
+    ]);
+  });
+
+  it('returns null for v2 envelopes when all sections are invalid', () => {
+    expect(
+      parseMindroomMessageExtras(
+        createContent([validSection({ content_type: 'application/json' })], { version: 2 })
+      )
+    ).toBeNull();
+  });
+
+  it('reports only valid envelopes as collapsible extras metadata', () => {
+    expect(
+      hasMindroomMessageExtras(
+        createContent([validSection({ content_type: 'text/html', content: '<p>ok</p>' })], {
+          version: 2,
+        })
+      )
+    ).toBe(true);
+    expect(
+      hasMindroomMessageExtras(
+        createContent([validSection({ content_type: 'text/html', content: '<p>skip</p>' })])
+      )
+    ).toBe(false);
   });
 
   it('skips oversized content', () => {

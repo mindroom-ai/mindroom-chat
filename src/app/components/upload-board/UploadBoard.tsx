@@ -5,6 +5,7 @@ import { useAtomValue } from 'jotai';
 
 import * as css from './UploadBoard.css';
 import { TUploadFamilyObserverAtom, Upload, UploadStatus } from '../../state/upload';
+import { getMatrixUploadErrorStage } from '../../utils/matrix';
 
 type UploadBoardProps = {
   header: ReactNode;
@@ -42,7 +43,14 @@ export function UploadBoardHeader({
   const sendingRef = useRef(false);
   const uploads = useAtomValue(uploadFamilyObserverAtom);
 
-  const isSuccess = uploads.every((upload) => upload.status === UploadStatus.Success);
+  const canSend =
+    uploads.some((upload) => upload.status === UploadStatus.Success) &&
+    uploads.every(
+      (upload) =>
+        upload.status === UploadStatus.Success ||
+        (upload.status === UploadStatus.Error &&
+          getMatrixUploadErrorStage(upload.error) === 'create')
+    );
   const isError = uploads.some((upload) => upload.status === UploadStatus.Error);
   const progress = uploads.reduce(
     (acc, upload) => {
@@ -84,7 +92,7 @@ export function UploadBoardHeader({
         <Text size="H6">Files</Text>
       </Box>
       <Box className={css.UploadBoardHeaderContent} alignItems="Center" gap="100">
-        {isSuccess && (
+        {canSend && (
           <Chip
             as="button"
             onClick={handleSend}
@@ -101,7 +109,7 @@ export function UploadBoardHeader({
             <Text size="L400">Upload Failed</Text>
           </Badge>
         )}
-        {!isSuccess && !isError && !open && (
+        {!canSend && !isError && !open && (
           <>
             <Badge variant="Secondary" fill="Solid" radii="Pill">
               <Text size="L400">{Math.round(percent(0, progress.total, progress.loaded))}%</Text>
@@ -109,7 +117,7 @@ export function UploadBoardHeader({
             <Spinner variant="Secondary" size="200" />
           </>
         )}
-        {!isSuccess && open && (
+        {!canSend && open && (
           <Chip
             as="button"
             onClick={handleCancel}
