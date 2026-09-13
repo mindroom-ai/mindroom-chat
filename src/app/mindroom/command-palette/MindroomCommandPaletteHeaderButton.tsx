@@ -1,10 +1,12 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 
 export function MindroomCommandPaletteHeaderButton() {
+  const { t } = useTranslation();
   const setCommandPaletteOpen = useSetAtom(commandPaletteOpenAtom);
   const simpleMode = useSimpleMode();
   const handleOpenCommandPalette = useCallback(() => {
@@ -18,7 +20,7 @@ export function MindroomCommandPaletteHeaderButton() {
       offset={4}
       tooltip={
         <Tooltip>
-          <Text>Open command palette</Text>
+          <Text>{t('commandPalette.open')}</Text>
         </Tooltip>
       }
     >
@@ -26,7 +28,7 @@ export function MindroomCommandPaletteHeaderButton() {
         <IconButton
           ref={triggerRef}
           onClick={handleOpenCommandPalette}
-          aria-label="Open command palette"
+          aria-label={t('commandPalette.open')}
         >
           <Icon size="400" src={Icons.Terminal} />
         </IconButton>

@@ -130,6 +130,13 @@ const {
   },
 }));
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('browser-encrypt-attachment', () => ({
   decryptAttachment: encryptionState.decryptAttachment,
   encryptAttachment: encryptionState.encryptAttachment,

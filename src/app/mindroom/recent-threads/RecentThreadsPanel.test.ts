@@ -9,6 +9,13 @@ import { clearRecentThreadsStore } from './recentThreads';
 import { RecentThreadsPageNav, RecentThreadsPanel } from './RecentThreadsPanel';
 import { buildVisibleRecentThreadEntries } from './recentThreadsPanelUtils';
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 vi.mock('./recentThreads.css', () => ({
   EmptyState: 'EmptyState',
   Divider: 'Divider',

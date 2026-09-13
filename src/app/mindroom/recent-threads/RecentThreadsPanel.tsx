@@ -1,5 +1,6 @@
 import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { Box, Scroll, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -34,12 +35,13 @@ export function RecentThreadsPanel({
   collapsed,
   showHeader = true,
 }: RecentThreadsPanelProps) {
+  const { t } = useTranslation();
   const isCollapsed = collapsed ?? height <= RECENT_THREADS_PANEL_COLLAPSED_HEIGHT;
   const countLabel = entries.length === 0 ? undefined : `${entries.length}`;
   const headerContent = (
     <>
       <Text as="h2" size="T200" priority="300">
-        Recent Threads
+        {t('recentThreads.title')}
       </Text>
       <Box as="span" alignItems="Center" gap="100">
         {countLabel && (
@@ -65,7 +67,7 @@ export function RecentThreadsPanel({
           {entries.length === 0 ? (
             <div className={css.EmptyState}>
               <Text size="T200" align="Center">
-                No recent threads
+                {t('recentThreads.empty')}
               </Text>
             </div>
           ) : (

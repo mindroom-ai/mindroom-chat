@@ -10,6 +10,7 @@ import React, {
   useState,
 } from 'react';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -220,6 +221,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const store = useStore();
     const useAuthentication = useMediaAuthentication();
@@ -874,18 +876,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // returns the cached value.
           liveContext = refreshMindroomRoomInputVoiceSendContext(mx, context);
           if (!liveContext) {
-            throw new Error(
-              'This room is no longer available. Discard the unsent voice message and try again later.'
-            );
+            throw new Error(t('composer.voiceRoomUnavailable'));
           }
 
           if (
             store.get(voiceAutoSendPendingAtom) &&
             (!voiceAutoSendClaimedRef.current || voiceAutoSendInFlightRef.current)
           ) {
-            throw new Error(
-              'Another voice message is still sending. Please wait before recording again.'
-            );
+            throw new Error(t('composer.voiceStillSending'));
           }
           if (!voiceAutoSendClaimedRef.current) {
             voiceAutoSendClaimedRef.current = true;
@@ -941,6 +939,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
+        t,
         uploadVoiceItem,
         onRoomMessageSent,
       ]
@@ -1220,9 +1219,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               >
                 <Icon size="600" src={Icons.File} />
                 <Text size="H4" align="Center">
-                  {`Drop Files in "${room?.name || 'Room'}"`}
+                  {t('composer.dropFiles', {
+                    roomName: room.name || t('composer.roomFallback'),
+                  })}
                 </Text>
-                <Text align="Center">Drag and drop files here or click for selection dialog</Text>
+                <Text align="Center">{t('composer.dropFilesHint')}</Text>
               </Box>
             </Dialog>
           </OverlayCenter>
@@ -1270,7 +1271,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editableName="RoomInput"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           editor={editor}
-          placeholder="Send a message..."
+          placeholder={t('composer.placeholder')}
           onChange={handleEditorChange}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
@@ -1358,8 +1359,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 }
                 aria-label={
                   otherPendingVoiceRoomName
-                    ? `Voice recording paused — finish or discard your unsent recording in ${otherPendingVoiceRoomName}`
-                    : 'Record voice message'
+                    ? t('composer.voicePausedInOtherRoom', {
+                        roomName: otherPendingVoiceRoomName,
+                      })
+                    : t('composer.recordVoice')
                 }
               >
                 <Icon src={Icons.Mic} />

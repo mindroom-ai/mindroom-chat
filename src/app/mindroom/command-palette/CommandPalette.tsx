@@ -1,4 +1,6 @@
 import { Box, config, Icon, IconButton, Icons, Input, Line, Scroll, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
+import { type TFunction } from 'i18next';
 import React, {
   ChangeEventHandler,
   KeyboardEventHandler,
@@ -27,23 +29,24 @@ type CommandPaletteProps = {
   mobileSheet?: boolean;
 };
 
-const SECTION_TITLES: Record<CommandPaletteListSection['id'], string> = {
-  actions: 'Actions',
-  threads: 'Threads',
-  rooms: 'Rooms',
-  users: 'Users',
-  messages: 'Messages',
-};
+const SECTION_TITLE_KEYS = {
+  actions: 'commandPalette.sections.actions',
+  threads: 'commandPalette.sections.threads',
+  rooms: 'commandPalette.sections.rooms',
+  users: 'commandPalette.sections.users',
+  messages: 'commandPalette.sections.messages',
+} as const satisfies Record<CommandPaletteListSection['id'], string>;
 
 const getSectionTitle = (
   sectionId: CommandPaletteListSection['id'],
-  parsedQuery: CommandPaletteParsedQuery
+  parsedQuery: CommandPaletteParsedQuery,
+  t: TFunction
 ): string => {
   if (sectionId === 'rooms' && parsedQuery.mode === 'spaces') {
-    return 'Spaces';
+    return t('commandPalette.sections.spaces');
   }
 
-  return SECTION_TITLES[sectionId];
+  return t(SECTION_TITLE_KEYS[sectionId]);
 };
 
 const getSectionItems = ({
@@ -95,11 +98,13 @@ const buildVisibleSections = ({
   sectionOrder,
   source,
   spaceItems,
+  t,
 }: {
   parsedQuery: CommandPaletteParsedQuery;
   sectionOrder: readonly CommandPaletteListSection['id'][];
   source: CommandPaletteSource;
   spaceItems: readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
+  t: TFunction;
 }): CommandPaletteListSection[] =>
   sectionOrder
     .map((sectionId) => {
@@ -113,28 +118,31 @@ const buildVisibleSections = ({
 
       return {
         id: sectionId,
-        title: getSectionTitle(sectionId, parsedQuery),
+        title: getSectionTitle(sectionId, parsedQuery, t),
         items,
       } satisfies CommandPaletteListSection;
     })
     .filter((section): section is CommandPaletteListSection => section !== undefined);
 
-const getResultCountLabel = (sections: readonly CommandPaletteListSection[]): string => {
+const getResultCountLabel = (
+  sections: readonly CommandPaletteListSection[],
+  t: TFunction
+): string => {
   const count = sections.reduce((total, section) => total + section.items.length, 0);
-  if (count === 0) return 'No results';
-  if (count === 1) return '1 result';
-  return `${count} results`;
+  if (count === 0) return t('commandPalette.noResults');
+  return t('commandPalette.resultCount', { count });
 };
 
-const PREFIX_LABELS: Record<(typeof COMMAND_PALETTE_PREFIX_HINTS)[number], string> = {
-  '>': 'actions',
-  '#': 'rooms',
-  '@': 'users',
-  't:': 'threads',
-  '*': 'spaces',
-};
+const PREFIX_LABEL_KEYS = {
+  '>': 'commandPalette.prefixes.actions',
+  '#': 'commandPalette.prefixes.rooms',
+  '@': 'commandPalette.prefixes.users',
+  't:': 'commandPalette.prefixes.threads',
+  '*': 'commandPalette.prefixes.spaces',
+} as const satisfies Record<(typeof COMMAND_PALETTE_PREFIX_HINTS)[number], string>;
 
 export function CommandPalette({ requestClose, source, mobileSheet = false }: CommandPaletteProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const parsedQuery = useMemo(() => parseCommandPaletteQuery(query), [query]);
@@ -151,8 +159,9 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
         sectionOrder,
         source,
         spaceItems,
+        t,
       }),
-    [parsedQuery, sectionOrder, source, spaceItems]
+    [parsedQuery, sectionOrder, source, spaceItems, t]
   );
   const visibleItems = useMemo(
     () => visibleSections.flatMap((section) => section.items),
@@ -226,8 +235,8 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
           <div style={{ flex: '1 1 auto', minWidth: 0 }}>
             <Input
               autoFocus
-              aria-label="Command palette"
-              placeholder="Type a command or search..."
+              aria-label={t('commandPalette.inputAria')}
+              placeholder={t('commandPalette.placeholder')}
               value={query}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
@@ -235,7 +244,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
           </div>
           {mobileSheet && (
             <IconButton
-              aria-label="Close command palette"
+              aria-label={t('commandPalette.closeAria')}
               variant="Surface"
               size="300"
               radii="300"
@@ -245,7 +254,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             </IconButton>
           )}
         </Box>
-        <div aria-live="polite">{getResultCountLabel(visibleSections)}</div>
+        <div aria-live="polite">{getResultCountLabel(visibleSections, t)}</div>
       </Box>
       <Scroll
         style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto' }}
@@ -260,20 +269,21 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             onSelect={handleSelect}
           />
         ) : (
-          <Text size="T300">No results</Text>
+          <Text size="T300">{t('commandPalette.noResults')}</Text>
         )}
       </Scroll>
       <Box direction="Column" gap="200" shrink="No">
         <Line variant="SurfaceVariant" size="300" />
         <Text size="T200" priority="300">
-          Prefixes:{' '}
+          {t('commandPalette.prefixes.label')}{' '}
           {COMMAND_PALETTE_PREFIX_HINTS.map((prefix, index) => (
             <React.Fragment key={prefix}>
               {index > 0 && '  '}
-              <b>{prefix}</b> {PREFIX_LABELS[prefix]}
+              <b>{prefix}</b> {t(PREFIX_LABEL_KEYS[prefix])}
             </React.Fragment>
           ))}
-          . Shortcut: <b>{shortcutLabel}</b> open.
+          {'. '}
+          {t('commandPalette.shortcut')} <b>{shortcutLabel}</b> {t('commandPalette.shortcutOpenSuffix')}
         </Text>
       </Box>
     </Box>

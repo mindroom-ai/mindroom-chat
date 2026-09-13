@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
 import { StoredSession } from '../../../state/sessions';
 import { UserAvatar } from '../../../components/user-avatar';
@@ -30,11 +31,12 @@ export function AccountSwitcher({
   onAddAccount,
   onClose,
 }: AccountSwitcherProps) {
+  const { t } = useTranslation();
   return (
     <Box direction="Column" gap="300" style={{ padding: config.space.S400 }}>
       <Box direction="Column" gap="100">
-        <Text size="H4">Accounts</Text>
-        <Text size="T200">Switch accounts, add another account, or remove an inactive one.</Text>
+        <Text size="H4">{t('accountSwitcher.title')}</Text>
+        <Text size="T200">{t('accountSwitcher.description')}</Text>
       </Box>
 
       <Box direction="Column" gap="200">
@@ -70,7 +72,7 @@ export function AccountSwitcher({
                 {active && (
                   <Box alignItems="Center" gap="100">
                     <Icon size="100" src={Icons.Check} />
-                    <Text size="T200">Active</Text>
+                    <Text size="T200">{t('accountSwitcher.active')}</Text>
                   </Box>
                 )}
               </Box>
@@ -78,7 +80,7 @@ export function AccountSwitcher({
               <Box gap="200" wrap="Wrap">
                 {active ? (
                   <Button size="300" radii="300" onClick={onOpenSettings}>
-                    <Text size="B300">Open Settings</Text>
+                    <Text size="B300">{t('accountSwitcher.openSettings')}</Text>
                   </Button>
                 ) : (
                   <>
@@ -88,7 +90,7 @@ export function AccountSwitcher({
                       onClick={() => onSwitchAccount(session)}
                       disabled={removing}
                     >
-                      <Text size="B300">Switch</Text>
+                      <Text size="B300">{t('accountSwitcher.switch')}</Text>
                     </Button>
                     <Button
                       size="300"
@@ -99,7 +101,7 @@ export function AccountSwitcher({
                       disabled={removing}
                     >
                       <Text size="B300">
-                        {removing ? 'Removing...' : 'Remove from Device'}
+                        {removing ? t('accountSwitcher.removing') : t('accountSwitcher.removeFromDevice')}
                       </Text>
                     </Button>
                     {removing && <Spinner variant="Secondary" size="200" />}
@@ -113,10 +115,10 @@ export function AccountSwitcher({
 
       <Box gap="200" wrap="Wrap">
         <Button size="300" radii="300" onClick={onAddAccount}>
-          <Text size="B300">Add Account</Text>
+          <Text size="B300">{t('accountSwitcher.addAccount')}</Text>
         </Button>
         <Button size="300" radii="300" fill="None" onClick={onClose}>
-          <Text size="B300">Close</Text>
+          <Text size="B300">{t('accountSwitcher.close')}</Text>
         </Button>
       </Box>
     </Box>

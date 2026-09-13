@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +63,7 @@ const blobToDataUrl = async (blob: Blob): Promise<string> =>
   });
 
 export function SettingsTab() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -222,8 +224,11 @@ export function SettingsTab() {
             <SidebarItemTooltip
               tooltip={
                 active
-                  ? `Settings: ${sessionDisplayName}`
-                  : `Switch to ${sessionDisplayName} (${session.userId})`
+                  ? t('accountsRail.settingsTooltip', { name: sessionDisplayName })
+                  : t('accountsRail.switchTooltip', {
+                      name: sessionDisplayName,
+                      userId: session.userId,
+                    })
               }
             >
               {(triggerRef) => (
@@ -231,8 +236,11 @@ export function SettingsTab() {
                   as="button"
                   aria-label={
                     active
-                      ? `Open settings for ${sessionDisplayName}`
-                      : `Switch to account ${sessionDisplayName} (${session.userId})`
+                      ? t('accountsRail.openSettingsAria', { name: sessionDisplayName })
+                      : t('accountsRail.switchAria', {
+                          name: sessionDisplayName,
+                          userId: session.userId,
+                        })
                   }
                   ref={triggerRef}
                   onClick={() => {
@@ -257,11 +265,11 @@ export function SettingsTab() {
       )}
       {accountItems.length > 1 && (
         <SidebarItem>
-          <SidebarItemTooltip tooltip="Manage accounts">
+          <SidebarItemTooltip tooltip={t('accountsRail.manageAccounts')}>
             {(triggerRef) => (
               <SidebarAvatar
                 as="button"
-                aria-label="Manage accounts"
+                aria-label={t('accountsRail.manageAccounts')}
                 ref={triggerRef}
                 outlined
                 onClick={openAccountSwitcher}
@@ -274,11 +282,11 @@ export function SettingsTab() {
       )}
       {!simpleMode && (
         <SidebarItem>
-          <SidebarItemTooltip tooltip="Add Account">
+          <SidebarItemTooltip tooltip={t('accountsRail.addAccount')}>
             {(triggerRef) => (
               <SidebarAvatar
                 as="button"
-                aria-label="Add account"
+                aria-label={t('accountsRail.addAccountAria')}
                 ref={triggerRef}
                 outlined
                 onClick={addAccount}
