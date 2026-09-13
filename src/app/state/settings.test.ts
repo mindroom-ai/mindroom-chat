@@ -81,4 +81,24 @@ describe('getSettings', () => {
 
     storageValue = null;
   });
+
+  it('falls back to defaults when localStorage lacks getItem', async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: {
+        setItem: () => undefined,
+      },
+    });
+
+    try {
+      const { getSettings, PAGE_ZOOM_DEFAULT } = await import('./settings');
+      expect(getSettings().pageZoom).toBe(PAGE_ZOOM_DEFAULT);
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+    }
+  });
 });

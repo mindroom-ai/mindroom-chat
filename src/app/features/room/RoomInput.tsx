@@ -90,7 +90,7 @@ import {
   UploadSuccess,
   createUploadFamilyObserverAtom,
 } from '../../state/upload';
-import { getImageUrlBlob, loadImageElement } from '../../utils/dom';
+import { getImageUrlBlob, loadImageElement, pauseAllMediaElements } from '../../utils/dom';
 import { safeFile } from '../../utils/mimeTypes';
 import { fulfilledPromiseSettledResult } from '../../utils/common';
 import { useSetting } from '../../state/hooks/settings';
@@ -758,7 +758,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 <Icon src={Icons.PlusCircle} />
               </IconButton>
               <IconButton
-                onClick={() => setVoiceRecorderOpen(true)}
+                onClick={() => {
+                  pauseAllMediaElements();
+                  setVoiceRecorderOpen(true);
+                }}
                 variant="SurfaceVariant"
                 size="300"
                 radii="300"

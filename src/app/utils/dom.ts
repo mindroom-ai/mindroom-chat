@@ -93,6 +93,17 @@ export const getImageFileUrl = (fileOrBlob: File | Blob) => URL.createObjectURL(
 
 export const getVideoFileUrl = (fileOrBlob: File | Blob) => URL.createObjectURL(fileOrBlob);
 
+export const pauseAllMediaElements = () => {
+  if (typeof document === 'undefined') return;
+
+  document.querySelectorAll('audio, video').forEach((element) => {
+    const mediaElement = element as Element & { pause?: () => void };
+    if (typeof mediaElement.pause === 'function') {
+      mediaElement.pause();
+    }
+  });
+};
+
 export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = document.createElement('img');

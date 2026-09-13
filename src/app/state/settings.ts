@@ -107,6 +107,7 @@ const defaultSettings: Settings = {
 
 export const getSettings = () => {
   if (typeof localStorage === 'undefined') return defaultSettings;
+  if (typeof localStorage.getItem !== 'function') return defaultSettings;
 
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
@@ -121,6 +122,7 @@ export const getSettings = () => {
 
 export const setSettings = (settings: Settings) => {
   if (typeof localStorage === 'undefined') return;
+  if (typeof localStorage.setItem !== 'function') return;
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 };

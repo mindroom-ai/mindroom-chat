@@ -32,7 +32,9 @@ vi.mock('../features/room/threadEventCache', () => ({
 const flushAsyncWork = async (ticks = 5) => {
   for (let i = 0; i < ticks; i += 1) {
     await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
   }
 };
 
