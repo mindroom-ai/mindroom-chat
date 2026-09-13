@@ -43,9 +43,19 @@ export const MINDROOM_COMMANDS: MindroomCommandItem[] = [
     description: 'Manage MindRoom configuration (admin only).',
   },
   {
+    name: 'desktop',
+    syntax: '!desktop [setup|status|confirm|rotate|disconnect]',
+    description: 'Manage your Desktop target.',
+  },
+  {
     name: 'model',
     syntax: '!model [name|list|reset]',
     description: 'Show or switch the model used in the current thread.',
+  },
+  {
+    name: 'room_model',
+    syntax: '!room_model [name|list|reset]',
+    description: 'Show the room model default or switch it (set/reset require a room admin).',
   },
   {
     name: 'thread_mode',
