@@ -2,18 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { MINDROOM_COMMANDS } from './mindroomCommands';
 
 describe('MINDROOM_COMMANDS', () => {
-  it('contains required command names', () => {
+  it('mirrors the MindRoom bot command set', () => {
     const names = MINDROOM_COMMANDS.map((c) => c.name);
     expect(names).toEqual([
       'help',
+      'reload-plugins',
       'schedule',
       'list_schedules',
       'cancel_schedule',
       'edit_schedule',
-      'widget',
       'config',
+      'model',
+      'thread_mode',
       'hi',
-      'skill',
     ]);
+  });
+
+  it('prefixes every syntax with the command name', () => {
+    MINDROOM_COMMANDS.forEach((command) => {
+      expect(command.syntax.startsWith(`!${command.name}`)).toBe(true);
+    });
   });
 });
