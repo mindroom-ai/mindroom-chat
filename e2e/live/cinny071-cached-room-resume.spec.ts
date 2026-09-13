@@ -1,6 +1,7 @@
 import { devices, expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { readSessionStore } from '../helpers/accounts';
+import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -56,7 +57,7 @@ const installStartupFlashRecorder = async (
 ): Promise<() => Promise<string[]>> => {
   await page.addInitScript(() => {
     const textMatches = /join(?:ing)?\b|heating up|connecting server/i;
-    const store = (window as Window & { __cinnyStartupFlashTexts?: string[] });
+    const store = window as Window & { __cinnyStartupFlashTexts?: string[] };
     store.__cinnyStartupFlashTexts = [];
 
     const record = () => {
@@ -90,15 +91,14 @@ const installStartupFlashRecorder = async (
     });
 };
 
-const findTargetedJoinFlashes = (
-  flashes: string[],
-  targets: string[]
-): string[] =>
-  flashes.filter(
-    (text) =>
-      /\bjoin(?:ing)?\b/i.test(text) &&
+const findTargetedJoinFlashes = (flashes: string[], targets: string[]): string[] =>
+  flashes.filter((text) => {
+    const textWithoutHomeJoinAction = text.replace(/\bjoin with address\b/gi, '');
+    return (
+      /\bjoin(?:ing)?\b/i.test(textWithoutHomeJoinAction) &&
       targets.some((target) => target.length > 0 && text.includes(target))
-  );
+    );
+  });
 
 test.describe('live cinny-071 cached room resume', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -161,7 +161,9 @@ test.describe('live cinny-071 cached room resume', () => {
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-cached-room-resume');
   });
 
-  test('startup from bare home restores the last open thread', async ({ page }) => {
+  test('startup from bare home remains on Home despite a saved room thread route', async ({
+    page,
+  }) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
@@ -172,7 +174,7 @@ test.describe('live cinny-071 cached room resume', () => {
     const roomName = `CINNY-071 Thread Restore ${stamp}`;
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: roomName,
-      topic: 'Regression fixture for restoring the last open thread from bare home.',
+      topic: 'Regression fixture for remaining on Home despite a saved room thread route.',
     });
     const rootBody = `CINNY-071 thread root ${stamp}`;
     const replyBody = `CINNY-071 thread reply ${stamp}`;
@@ -205,28 +207,34 @@ test.describe('live cinny-071 cached room resume', () => {
       'cinny-071-thread-reply'
     );
 
+    const expectedRoute = `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(
+      rootId
+    )}`;
+
     await loginWithPassword(page, { homeserver, username, password });
-    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.goto(expectedRoute);
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
 
     const getStartupFlashes = await installStartupFlashRecorder(page);
+    await expect
+      .poll(async () => {
+        const store = await readSessionStore(page);
+        return store.sessions.find((item) => item.sessionId === store.activeSessionId)
+          ?.lastKnownPath;
+      })
+      .toBe(expectedRoute);
+
     await page.goto('/home/');
 
-    await expect
-      .poll(() => new URL(page.url()).search, {
-        timeout: 30_000,
-        message: 'Bare home startup should restore the last open thread search param',
-      })
-      .toContain(`threadId=${encodeURIComponent(rootId)}`);
-
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
+    await expectLoggedInShellStable(page);
+    await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
+    await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
+    await expect(page.getByText('Thread View')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [roomName, roomId])).toEqual([]);
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-thread-startup-restore');
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-room-thread-bare-home');
   });
 
   test('cold-starting a space thread route does not flash join-space or join-room fallbacks', async ({
@@ -323,7 +331,9 @@ test.describe('live cinny-071 cached room resume', () => {
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-space-thread-root-restore');
   });
 
-  test('startup from bare home preserves the saved space thread route', async ({ page }) => {
+  test('startup from bare home remains on Home despite a saved space thread route', async ({
+    page,
+  }) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
@@ -337,11 +347,11 @@ test.describe('live cinny-071 cached room resume', () => {
     const replyBody = `CINNY-071 bare home space reply ${stamp}`;
     const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
       name: spaceName,
-      topic: 'Regression fixture for bare-home restore into a space thread.',
+      topic: 'Regression fixture for remaining on Home despite a saved space thread route.',
     });
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: roomName,
-      topic: 'Regression fixture child room for bare-home restore into a space thread.',
+      topic: 'Child room fixture for remaining on Home despite a saved space thread route.',
     });
     await addRoomToSpace(homeserver, session.accessToken, spaceId, roomId);
 
@@ -373,39 +383,35 @@ test.describe('live cinny-071 cached room resume', () => {
       'cinny-071-space-home-reply'
     );
 
-    const expectedPathname = `/${encodeURIComponent(spaceId)}/${encodeURIComponent(roomId)}`;
-    const expectedSearch = `threadId=${encodeURIComponent(rootId)}`;
+    const expectedRoute = `/${encodeURIComponent(spaceId)}/${encodeURIComponent(
+      roomId
+    )}?threadId=${encodeURIComponent(rootId)}`;
 
     await loginWithPassword(page, { homeserver, username, password });
-    await page.goto(`${expectedPathname}?${expectedSearch}`);
+    await page.goto(expectedRoute);
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
 
     const getStartupFlashes = await installStartupFlashRecorder(page);
+    await expect
+      .poll(async () => {
+        const store = await readSessionStore(page);
+        return store.sessions.find((item) => item.sessionId === store.activeSessionId)
+          ?.lastKnownPath;
+      })
+      .toBe(expectedRoute);
+
     await page.goto('/home/');
 
-    await expect
-      .poll(() => new URL(page.url()).pathname, {
-        timeout: 30_000,
-        message: 'Bare home startup should preserve the saved space room pathname',
-      })
-      .toBe(expectedPathname);
-
-    await expect
-      .poll(() => new URL(page.url()).search, {
-        timeout: 30_000,
-        message: 'Bare home startup should preserve the thread id on the saved space route',
-      })
-      .toContain(expectedSearch);
-
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(replyBody).first()).toBeVisible({ timeout: 30_000 });
+    await expectLoggedInShellStable(page);
+    await expect(page).toHaveURL((url) => url.pathname === '/home/' && url.search === '');
+    await expect(page.locator('[data-home-room-action="create"]')).toBeVisible();
+    await expect(page.getByText('Thread View')).toHaveCount(0);
     const startupFlashes = await getStartupFlashes();
     expect(findTargetedJoinFlashes(startupFlashes, [spaceName, spaceId, roomName, roomId])).toEqual(
       []
     );
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-space-thread-home-restore');
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-071-space-thread-bare-home');
   });
 });
