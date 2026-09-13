@@ -1,9 +1,10 @@
-import React, { ReactNode, useMemo } from 'react';
+import React, { ReactNode, useLayoutEffect, useMemo } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { makeClosedLobbyCategoriesAtom } from '../../state/closedLobbyCategories';
 import { ClosedLobbyCategoriesProvider } from '../../state/hooks/closedLobbyCategories';
+import { makeLastOpenThreadAtom, registerLastOpenThreadAtom } from '../../state/lastOpenThread';
 import { makeNavToActivePathAtom } from '../../state/navToActivePath';
 import { NavToActivePathProvider } from '../../state/hooks/navToActivePath';
 import { makeOpenedSidebarFolderAtom } from '../../state/openedSidebarFolder';
@@ -24,9 +25,12 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
 
   const navToActivePathAtom = useMemo(() => makeNavToActivePathAtom(userId), [userId]);
 
+  const lastOpenThreadAtom = useMemo(() => makeLastOpenThreadAtom(userId), [userId]);
+
   const openedSidebarFolderAtom = useMemo(() => makeOpenedSidebarFolderAtom(userId), [userId]);
 
   const callPreferencesAtom = useMemo(() => makeCallPreferencesAtom(userId), [userId]);
+  useLayoutEffect(() => registerLastOpenThreadAtom(lastOpenThreadAtom), [lastOpenThreadAtom]);
 
   return (
     <ClosedNavCategoriesProvider value={closedNavCategoriesAtom}>
