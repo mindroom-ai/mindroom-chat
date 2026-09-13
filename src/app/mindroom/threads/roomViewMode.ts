@@ -12,7 +12,10 @@ export type RoomViewMode = 'compact' | 'threaded' | 'classic';
 export const DEFAULT_ROOM_VIEW_MODE: RoomViewMode = 'compact';
 
 export const sanitizeRoomViewMode = (value: unknown): RoomViewMode => {
-  if (value === 'normal') return 'threaded';
+  // Legacy 'normal' (pre 2026-05-10 rename) intentionally falls through to the
+  // default: it was the storage default at the time and the old two-state
+  // toggle materialized it on any round trip, so it does not encode a real
+  // per-room choice of the threaded view.
   if (value === 'compact' || value === 'threaded' || value === 'classic') return value;
   return DEFAULT_ROOM_VIEW_MODE;
 };
