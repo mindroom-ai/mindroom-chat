@@ -1475,6 +1475,13 @@ describe('RoomTimeline', () => {
     );
 
     expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
+    expect(renderer.root.findByType(roomThreadOverviewType).props.statusCounts).toEqual({
+      resolved: 0,
+      streaming: 0,
+      scheduled: 0,
+      unread: 0,
+      idle: 0,
+    });
     expect(
       renderer.root.findAllByProps({
         eventId: fallbackRoot.getId(),
@@ -1616,6 +1623,360 @@ describe('RoomTimeline', () => {
         rootEvent,
         firstReply,
         secondReply,
+      ]);
+    } finally {
+      resolveCacheLoad?.({
+        events: [],
+        hasMoreBefore: false,
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      renderer?.unmount();
+    }
+  });
+
+  it('warms thread-open seed snapshots from room-preloaded thread events', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const threadId = '$thread-root';
+    const rootEvent = makeEvent(threadId, {
+      isThreadRoot: true,
+      ts: 1,
+    });
+    const firstReply = makeEvent('$thread-reply-1', {
+      content: { body: 'thinking...' },
+      threadRootId: threadId,
+      ts: 2,
+    });
+    const threadedEdit = makeEvent('$thread-edit-1', {
+      content: {
+        body: '* edited reply',
+        'm.new_content': {
+          body: 'edited reply',
+          msgtype: 'm.text',
+        },
+      },
+      threadRootId: threadId,
+      relation: { rel_type: 'm.replace', event_id: '$thread-reply-1' },
+      ts: 3,
+    });
+    const secondReply = makeEvent('$thread-reply-2', {
+      threadRootId: threadId,
+      ts: 4,
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([secondReply, threadedEdit, firstReply, rootEvent], {
+        backwardToken: null,
+        forwardToken: null,
+      }),
+      findEventById: (eventId: string) =>
+        [threadId, '$thread-reply-1', '$thread-reply-2'].includes(eventId)
+          ? ({
+              [threadId]: rootEvent,
+              '$thread-reply-1': firstReply,
+              '$thread-reply-2': secondReply,
+            } as const)[eventId]
+          : undefined,
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+      });
+
+      await waitForCondition(
+        () => getThreadOpenSeedSnapshot(room as never, threadId).length === 4,
+        50
+      );
+
+      expect(getThreadOpenSeedSnapshot(room as never, threadId).map((mEvent) => mEvent.getId())).toEqual([
+        threadId,
+        '$thread-reply-1',
+        '$thread-edit-1',
+        '$thread-reply-2',
+      ]);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
+  it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const threadId = '$thread-root';
+    const rootEvent = makeEvent(threadId, {
+      isThreadRoot: true,
+      ts: 1,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 25,
+          },
+        },
+      },
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([rootEvent], {
+        backwardToken: null,
+        forwardToken: null,
+      }),
+      findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
+    });
+    room.getThreads = () =>
+      [
+        {
+          id: threadId,
+          length: 25,
+          rootEvent,
+        },
+      ] as never;
+    const visibleSmallRoot = makeEvent('$visible-root', {
+      isThreadRoot: true,
+      ts: 5,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 2,
+          },
+        },
+      },
+    });
+
+    expect(
+      collectPriorityThreadSeedPrewarmRoots({
+        room: room as never,
+        threadFilteredEventEntries: [{ event: visibleSmallRoot }] as never,
+        threadReplyCountMap: new Map(),
+        threadResolutionMap: new Map(),
+        rangeStart: 0,
+        rangeEnd: 1,
+      })
+    ).toEqual([
+      {
+        threadId,
+        replyCount: 25,
+        visible: false,
+      },
+    ]);
+  });
+
+  it('prioritizes threads from the active overview range over larger off-screen room threads', async () => {
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const visibleRoots = Array.from({ length: 12 }, (_, index) =>
+      makeEvent(`$thread-root-${index + 1}`, {
+        isThreadRoot: true,
+        ts: index + 1,
+        unsigned: {
+          'm.relations': {
+            'm.thread': {
+              count: 25,
+            },
+          },
+        },
+      })
+    );
+    const largeOffscreenRoot = makeEvent('$thread-root-large-offscreen', {
+      isThreadRoot: true,
+      ts: 100,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 400,
+          },
+        },
+      },
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([...visibleRoots, largeOffscreenRoot], {
+        backwardToken: null,
+        forwardToken: null,
+      }),
+    });
+    room.getThreads = () =>
+      [
+        {
+          id: largeOffscreenRoot.getId(),
+          length: 400,
+          rootEvent: largeOffscreenRoot,
+        },
+      ] as never;
+
+    expect(
+      collectPriorityThreadSeedPrewarmRoots({
+        room: room as never,
+        threadFilteredEventEntries: visibleRoots.map((event) => ({ event })) as never,
+        threadReplyCountMap: new Map(),
+        threadResolutionMap: new Map(),
+        rangeStart: 10,
+        rangeEnd: 12,
+      }).slice(0, 2)
+    ).toEqual([
+      {
+        threadId: '$thread-root-3',
+        replyCount: 25,
+        visible: true,
+      },
+      {
+        threadId: '$thread-root-4',
+        replyCount: 25,
+        visible: true,
+      },
+    ]);
+  });
+
+  it('ignores room thread-list entries without a root event or known reply count', async () => {
+    const { collectPriorityThreadSeedPrewarmRoots } = await import('./RoomTimeline');
+    const visibleRoot = makeEvent('$visible-thread-root', {
+      isThreadRoot: true,
+      ts: 1,
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count: 25,
+          },
+        },
+      },
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([visibleRoot], {
+        backwardToken: null,
+        forwardToken: null,
+      }),
+    });
+    room.getThreads = () =>
+      [
+        {
+          id: '$thread-without-root',
+          length: 0,
+          rootEvent: undefined,
+        },
+      ] as never;
+
+    expect(() =>
+      collectPriorityThreadSeedPrewarmRoots({
+        room: room as never,
+        threadFilteredEventEntries: [{ event: visibleRoot }] as never,
+        threadReplyCountMap: new Map(),
+        threadResolutionMap: new Map(),
+        rangeStart: 0,
+        rangeEnd: 1,
+      })
+    ).not.toThrow();
+  });
+
+  it('seeds untargeted first open from the richer in-memory thread snapshot when room and model seeds are thinner', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const { hydrateCachedEvents } = await import('./eventCacheEditUtils');
+    const { loadLatestCachedThreadEvents } = await import('./threadEventCache');
+    const threadId = '$thread-root';
+    const rootEvent = makeEvent(threadId, {
+      isThreadRoot: true,
+      ts: 1,
+    });
+    const firstReply = makeEvent('$thread-reply-1', {
+      content: { body: 'thinking...' },
+      threadRootId: threadId,
+      ts: 2,
+    });
+    const threadedEdit = makeEvent('$thread-edit-1', {
+      content: {
+        body: '* edited reply',
+        'm.new_content': {
+          body: 'edited reply',
+          msgtype: 'm.text',
+        },
+      },
+      threadRootId: threadId,
+      relation: { rel_type: 'm.replace', event_id: '$thread-reply-1' },
+      ts: 3,
+    });
+    const secondReply = makeEvent('$thread-reply-2', {
+      threadRootId: threadId,
+      ts: 4,
+    });
+    const thirdReply = makeEvent('$thread-reply-3', {
+      threadRootId: threadId,
+      ts: 5,
+    });
+    const threadTimeline = makeTimeline([rootEvent, secondReply], {
+      backwardToken: null,
+    });
+    const threadTimelineSet = {
+      getLiveTimeline: () => threadTimeline,
+      getTimelineForEvent: (eventId: string) =>
+        [threadId, '$thread-reply-2'].includes(eventId) ? threadTimeline : undefined,
+    };
+    const threadModel = {
+      rootEvent,
+      events: [secondReply],
+      getUnfilteredTimelineSet: () => threadTimelineSet,
+    };
+    const room = makeRoom({
+      liveTimeline: makeTimeline([threadedEdit, rootEvent, firstReply]),
+      findEventById: (eventId: string) =>
+        [threadId, '$thread-reply-1'].includes(eventId)
+          ? ({
+              [threadId]: rootEvent,
+              '$thread-reply-1': firstReply,
+            } as const)[eventId]
+          : undefined,
+    });
+    room.getMember = ((userId: string) => ({ name: userId })) as never;
+    room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    saveThreadOpenSeedSnapshot(room as never, threadId, [
+      rootEvent,
+      firstReply,
+      threadedEdit,
+      secondReply,
+      thirdReply,
+    ]);
+    let resolveCacheLoad:
+      | ((value: { events: unknown[]; hasMoreBefore: boolean; beforeToken?: string | null }) => void)
+      | undefined;
+    vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCacheLoad = resolve;
+        }) as ReturnType<typeof loadLatestCachedThreadEvents>
+    );
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          })
+        );
+      });
+
+      await waitForCondition(
+        () =>
+          threadRenderStateMock.setSupplementalThreadEvents.mock.calls.some(
+            ([expectedThreadId, events]) =>
+              expectedThreadId === threadId && Array.isArray(events) && events.length === 5
+          ),
+        50
+      );
+
+      expect(vi.mocked(hydrateCachedEvents)).toHaveBeenCalledWith({
+        room,
+        events: [rootEvent, firstReply, threadedEdit],
+        timelineSets: [room.getUnfilteredTimelineSet()],
+      });
+      expect(threadRenderStateMock.setSupplementalThreadEvents).toHaveBeenCalledWith(threadId, [
+        rootEvent,
+        firstReply,
+        threadedEdit,
+        secondReply,
+        thirdReply,
       ]);
     } finally {
       resolveCacheLoad?.({
@@ -2094,9 +2455,9 @@ describe('RoomTimeline', () => {
       const threadCalls = threadRenderStateMock.setSupplementalThreadEvents.mock.calls.filter(
         ([expectedThreadId]) => expectedThreadId === threadId
       );
-      expect(threadCalls).toHaveLength(1);
+      expect(threadCalls.length).toBeGreaterThan(0);
       expect(
-        threadCalls[0]?.[1].map((event: ReturnType<typeof makeEvent>) => event.getId())
+        threadCalls.at(-1)?.[1].map((event: ReturnType<typeof makeEvent>) => event.getId())
       ).toEqual(['$cached-reply-1', '$cached-reply-2']);
     } finally {
       await act(async () => {

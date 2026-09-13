@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientRoot } from './ClientRoot';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import { useSyncState } from '../../hooks/useSyncState';
 import { StoredSession } from '../../state/sessions';
 import {
   initClient,
@@ -105,10 +104,6 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 
 vi.mock('./SpecVersions', () => ({
   SpecVersions: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
-}));
-
-vi.mock('../../hooks/useSyncState', () => ({
-  useSyncState: vi.fn(),
 }));
 
 vi.mock('./SyncStatus', () => ({
@@ -382,9 +377,8 @@ describe('ClientRoot', () => {
     expect(renderer?.toJSON()).toEqual('login page');
   });
 
-  it('clears loading immediately when the client is already syncing before the hook listener attaches', async () => {
+  it('renders cached UI as soon as the client initializes, before sync catches up', async () => {
     const client = {
-      getSyncState: vi.fn(() => 'SYNCING'),
       stopClient: vi.fn(),
       on: vi.fn(),
       removeListener: vi.fn(),
@@ -401,21 +395,34 @@ describe('ClientRoot', () => {
 
     vi.mocked(useActiveSession).mockImplementation(() => currentSession);
     vi.mocked(initClient).mockResolvedValue(client as never);
-    vi.mocked(startClient).mockResolvedValue(undefined);
+    let resolveStartClient: (() => void) | undefined;
+    vi.mocked(startClient).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStartClient = resolve;
+        })
+    );
 
     await act(async () => {
       renderer = create(renderClientRoot());
       await flushEffects();
     });
 
-    expect(client.getSyncState).toHaveBeenCalled();
     expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(false);
+
+    await act(async () => {
+      resolveStartClient?.();
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(true);
   });
 
-  it('clears loading when the sync listener reaches a ready state', async () => {
-    let syncStateHandler: ((state: string) => void) | undefined;
+  it('keeps cached UI rendered after startClient resolves', async () => {
     const client = {
-      getSyncState: vi.fn(() => null),
       stopClient: vi.fn(),
       on: vi.fn(),
       removeListener: vi.fn(),
@@ -431,9 +438,6 @@ describe('ClientRoot', () => {
     };
 
     vi.mocked(useActiveSession).mockImplementation(() => currentSession);
-    vi.mocked(useSyncState).mockImplementation((_mx, onChange) => {
-      syncStateHandler = onChange;
-    });
     vi.mocked(initClient).mockResolvedValue(client as never);
     vi.mocked(startClient).mockResolvedValue(undefined);
 
@@ -442,13 +446,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(hasRenderedText(renderer, 'child')).toBe(false);
-
-    await act(async () => {
-      syncStateHandler?.('CATCHUP');
-      await flushEffects();
-    });
-
     expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(true);
   });
 });

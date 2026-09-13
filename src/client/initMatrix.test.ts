@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
@@ -10,6 +11,8 @@ import {
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
   removeStoredSession,
+  STARTUP_SYNC_TIMELINE_LIMIT,
+  startClient,
 } from './initMatrix';
 import { createMatrixClient } from './matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
@@ -189,6 +192,7 @@ describe('initClient', () => {
         threadSupport: true,
       })
     );
+    expect(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT).toBe(500);
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
     expect(startup).toHaveBeenCalledTimes(1);
     expect(initRustCrypto).toHaveBeenCalledWith({
@@ -198,6 +202,63 @@ describe('initClient', () => {
       }),
     });
     expect(setMaxListeners).toHaveBeenCalledWith(50);
+  });
+
+  it('starts IndexedDB store startup and Rust crypto initialization in parallel', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    let resolveStartup: (() => void) | undefined;
+    let resolveRustCrypto: (() => void) | undefined;
+    const startup = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStartup = resolve;
+        })
+    );
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          startup,
+        } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+
+    const initRustCrypto = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRustCrypto = resolve;
+        })
+    );
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      setMaxListeners: vi.fn(),
+    } as never);
+
+    let settled = false;
+    const initPromise = initClient({
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    }).then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+
+    expect(startup).toHaveBeenCalledTimes(1);
+    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    expect(settled).toBe(false);
+
+    resolveStartup?.();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveRustCrypto?.();
+    await initPromise;
+    expect(settled).toBe(true);
   });
 
   it('does not lower a larger existing sync archive limit', async () => {
@@ -234,6 +295,41 @@ describe('initClient', () => {
     });
 
     expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
+  });
+});
+
+describe('startClient', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('starts syncing with a bounded timeline filter and lazy-loaded members', async () => {
+    const matrixStartClient = vi.fn().mockResolvedValue(undefined);
+    const mx = {
+      canSupport: new Map([[Feature.ThreadUnreadNotifications, ServerSupport.Stable]]),
+      getUserId: vi.fn(() => '@user:example.com'),
+      startClient: matrixStartClient,
+    } as unknown as Parameters<typeof startClient>[0];
+
+    await startClient(mx);
+
+    expect(matrixStartClient).toHaveBeenCalledTimes(1);
+    const startOptions = matrixStartClient.mock.calls[0][0];
+
+    expect(startOptions).toMatchObject({
+      lazyLoadMembers: true,
+      threadSupport: true,
+    });
+    expect(startOptions.filter.getDefinition()).toMatchObject({
+      room: {
+        timeline: {
+          limit: STARTUP_SYNC_TIMELINE_LIMIT,
+        },
+        state: {
+          lazy_load_members: true,
+        },
+      },
+    });
   });
 });
 

@@ -68,6 +68,15 @@ const mountApp = () => {
 };
 
 const bootstrap = async () => {
+  // Request persistent storage to prevent browser from evicting IndexedDB
+  if (navigator.storage?.persist) {
+    navigator.storage.persist().then((granted) => {
+      console.log(`[Cinny] Persistent storage: ${granted ? 'granted' : 'denied'}`);
+    }).catch((err) => {
+      console.warn('[Cinny] Persistent storage request failed:', err);
+    });
+  }
+
   if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
     const postCurrentSessionToSW = () => {
       const session = getActiveSession();

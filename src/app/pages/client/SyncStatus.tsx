@@ -44,7 +44,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
           alignItems="Center"
           justifyContent="Center"
         >
-          <Text size="L400">Connecting...</Text>
+          <Text size="L400">Catching up...</Text>
         </Box>
         <Line variant="Success" size="300" />
       </Box>

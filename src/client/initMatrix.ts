@@ -1,6 +1,8 @@
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 import type { MatrixClient } from 'matrix-js-sdk/lib/client';
+import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
+import { Filter } from 'matrix-js-sdk/lib/filter';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
@@ -33,7 +35,8 @@ import {
   removeActiveSession,
 } from '../app/state/sessions';
 
-export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
+export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
+export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
 
 type SessionCleanupContext = Pick<StoredSession, 'sessionId' | 'userId' | 'deviceId'>;
 
@@ -87,18 +90,41 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     verificationMethods: ['m.sas.v1'],
   });
 
-  await indexedDBStore.startup();
-  await mx.initRustCrypto({
-    cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
-  });
+  await Promise.all([
+    indexedDBStore.startup(),
+    mx.initRustCrypto({
+      cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+    }),
+  ]);
 
   mx.setMaxListeners(50);
 
   return mx;
 };
 
+const createStartupSyncFilter = (mx: MatrixClient): Filter => {
+  const filter = new Filter(mx.getUserId());
+  filter.setDefinition({
+    room: {
+      timeline: {
+        limit: STARTUP_SYNC_TIMELINE_LIMIT,
+      },
+      state: {
+        lazy_load_members: true,
+      },
+    },
+  });
+
+  if (mx.canSupport.get(Feature.ThreadUnreadNotifications) !== ServerSupport.Unsupported) {
+    filter.setUnreadThreadNotifications(true);
+  }
+
+  return filter;
+};
+
 export const startClient = async (mx: MatrixClient) => {
   await mx.startClient({
+    filter: createStartupSyncFilter(mx),
     lazyLoadMembers: true,
     threadSupport: true,
   });
