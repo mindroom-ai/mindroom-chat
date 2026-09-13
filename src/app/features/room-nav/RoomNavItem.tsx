@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
-import { Room } from 'matrix-js-sdk';
+import { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Box,
@@ -23,7 +23,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
-import { getDirectRoomAvatarUrl, getRoomAvatarUrl, getStateEvent } from '../../utils/room';
+import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { nameInitials } from '../../utils/common';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomUnread } from '../../state/hooks/unread';
@@ -37,7 +37,7 @@ import { useRoomTypingMember } from '../../hooks/useRoomTypingMembers';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { stopPropagation } from '../../utils/keyboard';
 import { getMatrixToRoom } from '../../plugins/matrix-to';
-import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../utils/matrix';
+import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { getViaServers } from '../../plugins/via-servers';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
@@ -50,7 +50,7 @@ import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationS
 import { getRoomCreatorsForRoomId, useRoomCreators } from '../../hooks/useRoomCreators';
 import { getRoomPermissionsAPI, useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
-import { useRoomName } from '../../hooks/useRoomMeta';
+import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
 import { useCallMembers, useCallSession } from '../../hooks/useCall';
 import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
 import { callChatAtom } from '../../state/callEmbed';
@@ -226,6 +226,20 @@ type RoomNavItemProps = {
   showAvatar?: boolean;
   direct?: boolean;
 };
+
+const getRoomNavAvatarUrl = (
+  mx: MatrixClient,
+  room: Room,
+  avatarMxc: string | undefined,
+  direct: boolean | undefined,
+  useAuthentication: boolean
+): string | undefined => {
+  if (avatarMxc) {
+    return mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined;
+  }
+  return direct ? getRoomAvatarUrl(mx, room, 96, useAuthentication) : undefined;
+};
+
 export function RoomNavItem({
   room,
   selected,
@@ -246,6 +260,8 @@ export function RoomNavItem({
   );
 
   const roomName = useRoomName(room);
+  const roomAvatarMxc = useRoomAvatar(room, direct);
+  const roomAvatarUrl = getRoomNavAvatarUrl(mx, room, roomAvatarMxc, direct, useAuthentication);
 
   const handleContextMenu: MouseEventHandler<HTMLElement> = (evt) => {
     evt.preventDefault();
@@ -296,6 +312,39 @@ export function RoomNavItem({
     }
   };
 
+  const roomIcon = (
+    <RoomIcon
+      style={{
+        opacity: unread ? config.opacity.P500 : config.opacity.P300,
+      }}
+      filled={selected}
+      size="100"
+      joinRule={room.getJoinRule()}
+      roomType={room.getType()}
+    />
+  );
+  // RoomAvatar keeps image errors in local state; remount it when a replacement URL arrives.
+  const roomAvatar =
+    roomAvatarUrl || showAvatar ? (
+      <RoomAvatar
+        key={roomAvatarUrl}
+        roomId={room.roomId}
+        src={roomAvatarUrl}
+        alt={roomName}
+        renderFallback={() =>
+          showAvatar ? (
+            <Text as="span" size="H6">
+              {nameInitials(roomName)}
+            </Text>
+          ) : (
+            roomIcon
+          )
+        }
+      />
+    ) : (
+      roomIcon
+    );
+
   return (
     <NavItem
       variant="Background"
@@ -311,32 +360,7 @@ export function RoomNavItem({
         <NavItemContent>
           <Box as="span" grow="Yes" alignItems="Center" gap="200">
             <Avatar size="200" radii="400">
-              {showAvatar ? (
-                <RoomAvatar
-                  roomId={room.roomId}
-                  src={
-                    direct
-                      ? getDirectRoomAvatarUrl(mx, room, 96, useAuthentication)
-                      : getRoomAvatarUrl(mx, room, 96, useAuthentication)
-                  }
-                  alt={roomName}
-                  renderFallback={() => (
-                    <Text as="span" size="H6">
-                      {nameInitials(roomName)}
-                    </Text>
-                  )}
-                />
-              ) : (
-                <RoomIcon
-                  style={{
-                    opacity: unread ? config.opacity.P500 : config.opacity.P300,
-                  }}
-                  filled={selected}
-                  size="100"
-                  joinRule={room.getJoinRule()}
-                  roomType={room.getType()}
-                />
-              )}
+              {roomAvatar}
             </Avatar>
             <Box as="span" grow="Yes">
               <Text priority={unread ? '500' : '300'} as="span" size="Inherit" truncate>
