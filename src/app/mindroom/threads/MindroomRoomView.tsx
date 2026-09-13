@@ -25,7 +25,6 @@ import { settingsAtom } from '../../state/settings';
 import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useMobileKeyboardViewportFix } from '../../hooks/useMobileKeyboardViewportFix';
 import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
@@ -118,8 +117,6 @@ export function RoomView({
   } = useRoomViewThreadState({ eventId, hasMindroomAgents, room, threadId });
   const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
 
-  useMobileKeyboardViewportFix();
-
   useKeyDown(
     window,
     useCallback(
@@ -136,7 +133,7 @@ export function RoomView({
   );
 
   return (
-    <Page ref={roomViewRef} style={{ height: 'var(--app-height, 100%)' }}>
+    <Page ref={roomViewRef}>
       <RoomViewHeader threadId={effectiveThreadId} />
       {effectiveThreadId && (
         <ThreadContextBanner
