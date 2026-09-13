@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearBrowserCacheAndReload } from './initMatrix';
+import { IndexedDBCryptoStore, IndexedDBStore } from 'matrix-js-sdk';
+import { clearBrowserCacheAndReload, initClient, LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from './initMatrix';
+import { createMatrixClient } from './matrixClientFactory';
 
 vi.mock('matrix-js-sdk', () => ({
   MatrixClient: vi.fn(),
@@ -18,6 +20,86 @@ vi.mock('./matrixClientFactory', () => ({
 vi.mock('../app/state/navToActivePath', () => ({
   clearNavToActivePathStore: vi.fn(),
 }));
+
+describe('initClient', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
+    const startup = vi.fn().mockResolvedValue(undefined);
+    const syncAccumulator = {
+      opts: {
+        maxTimelineEntries: 50,
+      },
+    };
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          backend: {
+            syncAccumulator,
+          },
+          startup,
+        }) as unknown as IndexedDBStore
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({}) as unknown as IndexedDBCryptoStore
+    );
+
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      setMaxListeners,
+    } as never);
+
+    await initClient({
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    });
+
+    expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
+    expect(startup).toHaveBeenCalledTimes(1);
+    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).toHaveBeenCalledWith(50);
+  });
+
+  it('does not lower a larger existing sync archive limit', async () => {
+    const startup = vi.fn().mockResolvedValue(undefined);
+    const syncAccumulator = {
+      opts: {
+        maxTimelineEntries: 9000,
+      },
+    };
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () =>
+        ({
+          backend: {
+            syncAccumulator,
+          },
+          startup,
+        }) as unknown as IndexedDBStore
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({}) as unknown as IndexedDBCryptoStore
+    );
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      setMaxListeners: vi.fn(),
+    } as never);
+
+    await initClient({
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    });
+
+    expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
+  });
+});
 
 describe('clearBrowserCacheAndReload', () => {
   const originalWindow = globalThis.window;

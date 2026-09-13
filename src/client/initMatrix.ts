@@ -4,6 +4,8 @@ import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
+import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
+import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
 
 type Session = {
   baseUrl: string;
@@ -12,12 +14,36 @@ type Session = {
   deviceId: string;
 };
 
+export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
+
+type IndexedDBStoreWithSyncAccumulator = IndexedDBStore & {
+  backend?: {
+    syncAccumulator?: {
+      opts?: {
+        maxTimelineEntries?: number;
+      };
+    };
+  };
+};
+
+export const configureLargeSyncArchive = (indexedDBStore: IndexedDBStore): void => {
+  const syncAccumulator = (indexedDBStore as IndexedDBStoreWithSyncAccumulator).backend
+    ?.syncAccumulator;
+  if (!syncAccumulator?.opts) return;
+
+  syncAccumulator.opts.maxTimelineEntries = Math.max(
+    syncAccumulator.opts.maxTimelineEntries ?? 0,
+    LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT
+  );
+};
+
 export const initClient = async (session: Session): Promise<MatrixClient> => {
   const indexedDBStore = new IndexedDBStore({
     indexedDB: global.indexedDB,
     localStorage: global.localStorage,
     dbName: 'web-sync-store',
   });
+  configureLargeSyncArchive(indexedDBStore);
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, 'crypto-store');
 
@@ -50,7 +76,7 @@ export const startClient = async (mx: MatrixClient) => {
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  await mx.store.deleteAllData();
+  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache(), deleteRoomEventCache()]);
   window.location.reload();
 };
 
@@ -128,7 +154,7 @@ export const logoutClient = async (mx: MatrixClient) => {
   } catch {
     // ignore if failed to logout
   }
-  await mx.clearStores();
+  await Promise.all([mx.clearStores(), deleteThreadEventCache(), deleteRoomEventCache()]);
   window.localStorage.clear();
   window.location.reload();
 };
@@ -142,6 +168,9 @@ export const clearLoginData = async () => {
       window.indexedDB.deleteDatabase(name);
     }
   });
+
+  await deleteThreadEventCache();
+  await deleteRoomEventCache();
 
   window.localStorage.clear();
   window.location.reload();
