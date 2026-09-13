@@ -384,9 +384,12 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // 3. Lurch invariant: the visible anchor stayed put across quiescence.
     // App writes MAY land here (anchor-restore, quiet-state corrections) —
     // they must be visually invisible, which is what the anchor measures.
-    if (report.anchorDriftPx !== null) {
-      expect(report.anchorDriftPx).toBeLessThan(60);
-    }
+    // The null case (anchor unmounted across quiescence) is EXACTLY the
+    // worst-lurch shape and used to skip the invariant silently (mutant
+    // audit 2026-07-07, e2e static pass): a quiescence event violent
+    // enough to unmount the anchored row must fail, not pass.
+    expect(report.anchorDriftPx).not.toBeNull();
+    expect(report.anchorDriftPx as number).toBeLessThan(60);
 
     // 4. Ride-smoothness budget: per-frame content jumps are estimate
     // error surfacing under the reader (device reports: "small jumps").
@@ -767,6 +770,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         probe: ReturnType<typeof readProbe>;
         tiles: ReturnType<typeof readTiles>;
       }[] = [];
+      // Baseline BEFORE the first write (mutant audit 2026-07-07, e2e
+      // static pass): anchoring on steps[0].scrollTop made iteration 0 a
+      // self-comparison and hid any app write racing the first step —
+      // the snap-back spec's pre-drive baseline is the correct form.
+      const scrollTopBefore = scroller.scrollTop;
       for (let step = 0; step < 8; step += 1) {
         touch('touchmove');
         scroller.scrollTop -= 80;
@@ -781,6 +789,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       }
       touch('touchend');
       return {
+        scrollTopBefore,
         steps,
         distFromBottomAfterUp:
           scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
@@ -790,6 +799,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     console.log(`COMPOSER-REPIN-SCROLLUP ${JSON.stringify(afterUp)}`);
     expect((afterUp as { error?: string }).error).toBeUndefined();
     const upPhase = afterUp as {
+      scrollTopBefore: number;
       steps: { scrollTop: number; scrollHeight: number }[];
       distFromBottomAfterUp: number;
     };
@@ -797,7 +807,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // scroll position (estimate-drift erodes scrollHeight, never scrollTop).
     upPhase.steps.forEach((step, index) => {
       expect(
-        Math.abs(step.scrollTop - (upPhase.steps[0].scrollTop - 80 * index))
+        Math.abs(step.scrollTop - (upPhase.scrollTopBefore - 80 * (index + 1)))
       ).toBeLessThan(4);
     });
     expect(upPhase.distFromBottomAfterUp).toBeGreaterThan(300);
@@ -1002,11 +1012,15 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     // Let the (deliberately truncated) open chain finish and the pin settle.
     await page.waitForTimeout(3_000);
-    // Back-pagination may fetch again from here on.
-    await page.unroute(relationsContinuation);
-    requestPhase = 'stream';
+    // Back-pagination may fetch again from the stream phase on — but the
+    // abort must outlive the rig install: under the one-drain-channel
+    // architecture (PR #87) continuations retry back-to-back the moment
+    // the abort lifts, and unrouting BEFORE the evaluate let the window
+    // fill to 361/361 before threadCountStart was read (battery run
+    // 2026-07-07). The evaluate reads its start count immediately; the
+    // unroute lands while the drive is arming.
 
-    const report = (await page.evaluate(async () => {
+    const reportPromise = page.evaluate(async () => {
       const w = window as Window & {
         __appScrollWrites?: { kind: string; value: number; t: number }[];
         __driverDepth?: number;
@@ -1168,7 +1182,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         jumpEvents,
         settledTop: scroller.scrollTop,
       };
-    })) as {
+    });
+    await page.waitForTimeout(1_000);
+    await page.unroute(relationsContinuation);
+    requestPhase = 'stream';
+    const report = (await reportPromise) as {
       error?: string;
       threadCountStart: number;
       threadCountEnd: number;

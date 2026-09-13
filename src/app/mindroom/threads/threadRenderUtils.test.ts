@@ -428,6 +428,35 @@ describe('shouldSettleLedgerAtBoundary', () => {
       })
     ).toBe(false);
   });
+
+  it('settles grow-debt when the reader approaches the top hard stop (unreachable prepend region)', () => {
+    // Full-surface adversarial review (2026-07-07), ledger finding L4:
+    // px>0 pulls the inner box up by px (negative margin), so the first
+    // px content pixels sit beyond scrollTop 0 — a freshly folded
+    // prepend (px ≈ +2600) is EXACTLY that region. The reachable
+    // content top is innerTop + px; the guard must fire within two
+    // viewports of it, or an upward ride hits the hard stop and the
+    // new rows pop in only after a rest.
+    // scrollTop(content) = 900 → innerTop = -900 - 3000; reachable top
+    // = -900, inside the 1200px guard band above viewport top 0.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 3000,
+        innerTop: -3900,
+        innerBottom: 60000,
+      })
+    ).toBe(true);
+    // Deep mid-content (scrollTop 10000): no settle, keep the momentum.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 3000,
+        innerTop: -13000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+  });
 });
 
 describe('shouldApplyMeasurementScrollCorrection', () => {

@@ -59,6 +59,14 @@ type VirtualPaginatorOptions<TScrollElement extends HTMLElement> = {
   getItemElement: (index: number) => HTMLElement | undefined;
   onEnd?: (back: boolean) => void;
   shouldSuppressPagination?: () => boolean;
+  // The consumer owns backward-prepend scroll compensation (MindRoom
+  // offset ledger): skip this hook's own restore capture for
+  // paginate(Backward), or the anchor gets compensated twice — the
+  // hook's scrollBy(delta) lands before the consumer's margin effect
+  // in the same commit and reads the pre-margin layout (CodeRabbit on
+  // PR #91). Forward-drop restores are unaffected; the ledger only
+  // folds start-decreases.
+  externalBackwardScrollRestore?: boolean;
 };
 
 type VirtualPaginator = {
@@ -194,6 +202,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
     getItemElement,
     onEnd,
     shouldSuppressPagination,
+    externalBackwardScrollRestore,
   } = options;
 
   const initialRenderRef = useRef(true);
@@ -330,7 +339,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
           onEnd?.(true);
           return;
         }
-        if (scrollEl) {
+        if (scrollEl && !externalBackwardScrollRestore) {
           restoreScrollRef.current = getRestoreScrollData(getRestoreAnchorData(Direction.Backward));
         }
         if (scrollEl) {
@@ -360,7 +369,14 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
         end,
       });
     },
-    [getScrollElement, getItemElement, onEnd, onRangeChange, shouldSuppressPagination]
+    [
+      externalBackwardScrollRestore,
+      getScrollElement,
+      getItemElement,
+      onEnd,
+      onRangeChange,
+      shouldSuppressPagination,
+    ]
   );
 
   const retryPagination = useCallback(

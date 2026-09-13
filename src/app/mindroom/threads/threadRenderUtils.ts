@@ -205,8 +205,19 @@ export const shouldSettleLedgerAtBoundary = ({
 }: LedgerBoundaryOpts): boolean => {
   if (ledgerPx > -48 && ledgerPx < 48) return false;
   const guardPx = clientHeight * 2;
-  if (ledgerPx < 0) return innerTop > scrollTop - guardPx;
-  return innerBottom < scrollBottom + guardPx;
+  // Top stop, both signs: shrink-debt (px<0) puts the margin itself as a
+  // blank band above the content box, so the unreadable region starts at
+  // the box top; grow-debt (px>0) pulls the box up by px, carrying the
+  // first px content pixels beyond scrollTop 0 — a freshly folded prepend
+  // IS that region (adversarial review 2026-07-07, finding L4: the old
+  // positive branch only watched the bottom, so an upward ride hit the
+  // hard stop and the new rows appeared only after a rest).
+  const reachableContentTop = innerTop + Math.max(ledgerPx, 0);
+  if (reachableContentTop > scrollTop - guardPx) return true;
+  // Bottom stop, grow-debt only: the negative margin shrinks the scroll
+  // range from the bottom, where the browser clamp bites at rest.
+  if (ledgerPx > 0) return innerBottom < scrollBottom + guardPx;
+  return false;
 };
 
 // Per-row virtualizer estimates from event CONTENT. Thread rows are

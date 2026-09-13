@@ -64,6 +64,18 @@ const installTouchTracker = () => {
   };
   window.addEventListener('touchend', onTouchSettle, { passive: true, capture: true });
   window.addEventListener('touchcancel', onTouchSettle, { passive: true, capture: true });
+  // A swallowed touchend/touchcancel (target unmounted mid-gesture, tab
+  // backgrounded during a touch, UA gesture-cancel racing listener
+  // install) would wedge the counter above zero for the rest of the
+  // session — and every Infinity-cap wait (the ledger settles) would
+  // pend forever, rescued only by the boundary guard (adversarial
+  // review 2026-07-07, periphery F1). No real touch survives a page
+  // lifecycle transition, so those transitions re-zero the model.
+  const onLifecycleReset = () => {
+    windowActiveTouches = 0;
+  };
+  window.addEventListener('visibilitychange', onLifecycleReset, { capture: true });
+  window.addEventListener('pagehide', onLifecycleReset, { capture: true });
 };
 installTouchTracker();
 

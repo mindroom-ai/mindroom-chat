@@ -350,6 +350,13 @@ export type CacheProbeCounters = {
   threadPaginateBackCommitSkippedNoAnchor: number;
   // Thread switched mid-flight; pagination abandoned.
   threadPaginateBackStaleThreadBails: number;
+  // Ledger fold: the capture's anchor event vanished from the render list
+  // (redaction/dedup) and the diff re-anchored on the nearest surviving
+  // baseline row instead of silently skipping the compensation.
+  threadPrependFoldAnchorFallback: number;
+  // Ledger fold: anchor AND every baseline row vanished — no boundary to
+  // diff against; the capture was dropped uncompensated.
+  threadPrependFoldAnchorLost: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -409,6 +416,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPaginateBackNetworkErrors: 0,
   threadPaginateBackCommitSkippedNoAnchor: 0,
   threadPaginateBackStaleThreadBails: 0,
+  threadPrependFoldAnchorFallback: 0,
+  threadPrependFoldAnchorLost: 0,
 });
 
 let counters = createEmptyCounters();

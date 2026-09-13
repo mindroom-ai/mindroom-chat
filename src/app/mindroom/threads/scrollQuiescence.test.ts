@@ -137,6 +137,26 @@ describe('waitForScrollQuiescence', () => {
     expect(isSettled()).toBe(true);
   });
 
+  it('page lifecycle transitions un-wedge a swallowed touchend (Infinity waits must not pend forever)', async () => {
+    // Adversarial review 2026-07-07, periphery F1: if the platform ever
+    // swallows a touchend (target unmounted mid-gesture, tab backgrounded
+    // during a touch), the window tracker would report an active touch
+    // for the rest of the session and every Infinity-cap wait — the
+    // ledger settles — would never resolve. No real touch survives a
+    // page lifecycle transition, so visibilitychange/pagehide re-zero
+    // the model.
+    window.dispatchEvent(new Event('touchstart'));
+    // The touchend is never delivered — the wedge.
+    const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity }));
+    vi.advanceTimersByTime(5_000);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+    vi.advanceTimersByTime(200);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
   it('resolves immediately for a detached element', async () => {
     const detached = document.createElement('div');
     const isSettled = settledFlag(waitForScrollQuiescence(detached));
