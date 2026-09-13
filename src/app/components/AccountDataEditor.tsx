@@ -171,7 +171,7 @@ function AccountDataEdit({
           ref={textAreaRef}
           name="contentTextArea"
           style={{
-            fontFamily: 'monospace',
+            fontFamily: 'var(--font-mono)',
           }}
           onKeyDown={handleKeyDown}
           defaultValue={defaultContent}

@@ -2,6 +2,8 @@ import { createVar, style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { color, config, DefaultReset, Disabled, FocusOutline, toRem } from 'folds';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { motion } from '../../styles/Motion.css';
+import { transition } from '../../styles/transition';
 
 export const Sidebar = style([
   DefaultReset,
@@ -93,7 +95,7 @@ export const SidebarItem = recipe({
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
-      transition: 'transform 200ms cubic-bezier(0, 0.8, 0.67, 0.97)',
+      transition: transition(['transform'], motion.duration.Slow, motion.easing.Decelerate),
 
       selectors: {
         '&:hover': {
@@ -108,7 +110,7 @@ export const SidebarItem = recipe({
           height: toRem(16),
           borderRadius: `0 ${toRem(4)} ${toRem(4)} 0`,
           background: 'CurrentColor',
-          transition: 'height 200ms linear',
+          transition: transition(['height'], motion.duration.Slow, motion.easing.Linear),
         },
         '&:hover::before': {
           display: 'block',

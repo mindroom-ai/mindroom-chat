@@ -1,4 +1,6 @@
 import React from 'react';
+import { motion } from '../../styles/Motion.css';
+import { transition } from '../../styles/transition';
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
 
 export interface ThreadTagPillProps {
@@ -34,7 +36,7 @@ const removeButtonStyle: React.CSSProperties = {
   fontSize: '0.6rem',
   lineHeight: 1,
   color: TAG_TEXT_COLOR,
-  transition: 'opacity 0.15s',
+  transition: transition(['opacity'], motion.duration.Normal),
   display: 'inline-flex',
   alignItems: 'center',
 };

@@ -133,7 +133,9 @@ export function ThreadContextBanner({
         </IconButton>
         <div className={css.TitleColumn}>
           <Box direction="Row" alignItems="Center" gap="200">
-            <Text size="B400">{t('thread.view')}</Text>
+            <Text className={css.ViewLabel} size="L400" priority="300">
+              {t('thread.view')}
+            </Text>
             {/* Desktop: tags inline on title row */}
             {(hasTags || headerModel.canEdit) && (
               <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
@@ -161,8 +163,7 @@ export function ThreadContextBanner({
                   as="span"
                   data-thread-context-summary="true"
                   className={css.SummaryText}
-                  size="T200"
-                  priority="300"
+                  size="T300"
                   truncate
                   title={headerModel.summaryText}
                 >

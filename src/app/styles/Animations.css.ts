@@ -31,9 +31,24 @@ const glowPulse = keyframes({
   },
 });
 
+/**
+ * `wobble` translates and rotates, which is exactly the kind of motion
+ * `prefers-reduced-motion` exists to suppress. `glowPulse` only grows a box
+ * shadow, so it stays: it is what tells you a call is live, and dropping it
+ * would remove the signal rather than the motion. That is also why the global
+ * reduced-motion rule in index.css clamps transitions but not animations -
+ * each animation has to decide for itself which half of it is information.
+ */
+const reduceMotion = '(prefers-reduced-motion: reduce)';
+
 export const WobbleAnimation = style({
   animation: `${wobble} 2000ms ease-in-out`,
   animationIterationCount: 'infinite',
+  '@media': {
+    [reduceMotion]: {
+      animation: 'none',
+    },
+  },
 });
 
 export const GlowAnimation = style({
@@ -44,4 +59,10 @@ export const GlowAnimation = style({
 export const CallAvatarAnimation = style({
   animation: `${wobble} 2000ms ease-in-out, ${glowPulse} 2000ms ease-out`,
   animationIterationCount: 'infinite',
+  '@media': {
+    [reduceMotion]: {
+      animation: `${glowPulse} 2000ms ease-out`,
+      animationIterationCount: 'infinite',
+    },
+  },
 });

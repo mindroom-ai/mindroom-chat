@@ -22,7 +22,7 @@ const BaseCode = style({
 });
 
 const CodeFont = style({
-  fontFamily: 'monospace',
+  fontFamily: 'var(--font-mono)',
 });
 
 export const Block = style([

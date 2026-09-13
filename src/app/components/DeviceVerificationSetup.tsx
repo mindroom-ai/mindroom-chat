@@ -261,7 +261,7 @@ function RecoveryKeyDisplay({ recoveryKey }: RecoveryKeyDisplayProps) {
           justifyContent="Center"
           gap="400"
         >
-          <Text style={{ fontFamily: 'monospace' }} size="T200" priority="300">
+          <Text style={{ fontFamily: 'var(--font-mono)' }} size="T200" priority="300">
             {safeToDisplayKey}
           </Text>
           <Chip onClick={() => setShow(!show)} variant="Secondary" radii="Pill">

@@ -1,5 +1,5 @@
 import FocusTrap from 'focus-trap-react';
-import { Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
+import { config, Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { useAtom } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import React, { useCallback, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ const MOBILE_SHEET_CONTAINER_STYLE: React.CSSProperties = {
   width: '100vw',
 };
 const MOBILE_SHEET_STYLE: React.CSSProperties = {
-  borderRadius: 'var(--radii-400) var(--radii-400) 0 0',
+  borderRadius: `${config.radii.R400} ${config.radii.R400} 0 0`,
   height: MOBILE_SHEET_HEIGHT,
   maxHeight: MOBILE_SHEET_HEIGHT,
   maxWidth: '100vw',
@@ -145,12 +145,7 @@ export function CommandPaletteRenderer() {
 
   return (
     <>
-      {open && (
-        <OpenCommandPalette
-          requestClose={() => setOpen(false)}
-          onLogout={handleLogout}
-        />
-      )}
+      {open && <OpenCommandPalette requestClose={() => setOpen(false)} onLogout={handleLogout} />}
       {logoutOpen && <RenderLogoutDialog requestClose={() => setLogoutOpen(false)} />}
     </>
   );

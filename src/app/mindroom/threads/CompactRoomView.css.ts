@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
+import { transition } from '../../styles/transition';
 
 export const View = style({
   display: 'flex',
@@ -40,7 +41,7 @@ export const Card = style([
     color: color.SurfaceVariant.OnContainer,
     textAlign: 'left',
     cursor: 'pointer',
-    transition: 'background-color 120ms ease, border-color 120ms ease',
+    transition: transition(['background-color', 'border-color']),
     ':hover': {
       backgroundColor: color.SurfaceVariant.ContainerHover,
     },

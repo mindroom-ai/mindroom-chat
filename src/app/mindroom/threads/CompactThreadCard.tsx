@@ -106,7 +106,13 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           {hasFailedSend ? <FailedSendIndicator /> : hasPendingSend && <PendingSendIndicator />}
         </Box>
         <Box className={css.Stats}>
-          <Badge className={css.StatBadge} variant="Secondary" fill="Soft" radii="Pill">
+          {/* `outlined` is load-bearing here, not decoration: this card's own
+              background is SurfaceVariant.Container, which the shared palette
+              sets to the same hex as Secondary.Container in dark, midnight and
+              butter. Without the outline the pill is invisible against the card
+              in those three themes and only appears on hover, when the card
+              moves to ContainerHover. */}
+          <Badge className={css.StatBadge} variant="Secondary" fill="Soft" radii="Pill" outlined>
             <Text as="span" size="T200">
               {messageCountLabel}
             </Text>

@@ -1,5 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config } from 'folds';
+import { motion } from '../../styles/Motion.css';
+import { transition } from '../../styles/transition';
 
 export const ImageViewer = style([
   DefaultReset,
@@ -38,6 +40,6 @@ export const ImageViewerImg = style([
     maxWidth: '100%',
     maxHeight: '100%',
     backgroundColor: color.Surface.Container,
-    transition: 'transform 100ms linear',
+    transition: transition(['transform'], motion.duration.Instant, motion.easing.Linear),
   },
 ]);

@@ -374,7 +374,11 @@ export function RoomNavItem({
             )}
             {!optionsVisible && unread && (
               <UnreadBadgeCenter>
-                <UnreadBadge highlight={unread.highlight > 0} count={unread.total} />
+                <UnreadBadge
+                  highlight={unread.highlight > 0}
+                  count={unread.total}
+                  selected={selected}
+                />
               </UnreadBadgeCenter>
             )}
             {!optionsVisible && notificationMode !== RoomNotificationMode.Unset && (

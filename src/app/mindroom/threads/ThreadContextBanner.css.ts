@@ -7,6 +7,17 @@ export const Banner = style({
   borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
+// "Thread View" is chrome, not content: it says the same thing on every
+// thread the user opens. It reads as an eyebrow over the title below, using
+// the same uppercase/12px/W500 treatment the sidebar category headers and the
+// SHOW MORE pill already use for that role.
+export const ViewLabel = style({
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  fontWeight: config.fontWeight.W500,
+  whiteSpace: 'nowrap',
+});
+
 export const TitleRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -44,16 +55,20 @@ export const ResolveChip = style({
   flexShrink: 0,
 });
 
+// The grey this used to hardcode (rgba(128,128,128,0.2)) is the same slab in
+// all five themes, so it read as a hole in butter and as a smudge in midnight.
+// On the container tokens it tracks the tag pills it sits next to.
 export const OverflowChip = style({
   display: 'inline-flex',
   alignItems: 'center',
   fontSize: '0.65rem',
-  fontWeight: 500,
+  fontWeight: config.fontWeight.W500,
   padding: '0.1rem 0.4rem',
-  borderRadius: '0.5rem',
-  background: 'rgba(128, 128, 128, 0.2)',
+  borderRadius: config.radii.R300,
+  background: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
   cursor: 'default',
-  border: 'none',
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
@@ -83,8 +98,11 @@ export const MobileOnlyTags = style({
   },
 });
 
+// The thread title is the one thing in this bar that differs per thread, so
+// it carries the weight the "Thread View" eyebrow used to take.
 export const SummaryText = style({
   display: 'block',
+  fontWeight: config.fontWeight.W500,
   minWidth: 0,
   flex: '1 1 0',
   overflow: 'hidden',

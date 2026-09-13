@@ -33,6 +33,11 @@ vi.mock('folds', () => ({
     Cross: 'Cross',
     Filter: 'Filter',
   },
+  config: {
+    radii: {
+      R400: 'var(--test-radii-400)',
+    },
+  },
 }));
 
 vi.mock('react-aria', () => ({
@@ -307,7 +312,7 @@ describe('FilterBar', () => {
     expect(getSearchInput()?.props.value).toBe('');
   });
 
-  it('opens the mobile bottom sheet from the filter button', () => {
+  it('opens the mobile bottom sheet with themed top corners', () => {
     const renderer = create(
       React.createElement(FilterBar, {
         filters: DEFAULT_CROSS_ROOM_THREAD_FILTERS,
@@ -323,5 +328,9 @@ describe('FilterBar', () => {
     });
 
     expect(renderer.root.findAllByProps({ 'aria-label': 'Thread filters' }).length).toBe(1);
+    const modal = renderer.root.find(
+      (node) => node.type === 'div' && node.props.style?.height === 'min(85svh, 700px)'
+    );
+    expect(modal.props.style?.borderRadius).toBe('var(--test-radii-400) var(--test-radii-400) 0 0');
   });
 });
