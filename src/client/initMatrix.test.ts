@@ -38,7 +38,10 @@ import {
   deleteRoomEventCache,
   getRoomEventCacheDbName,
 } from '../app/mindroom/threads/roomEventCache';
-import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryStore';
+import {
+  deleteThreadSummaryCache,
+  getThreadSummaryCacheDbName,
+} from '../app/mindroom/threads/threadSummaryStore';
 import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
@@ -106,6 +109,9 @@ vi.mock('../app/mindroom/threads/roomEventCache', () => ({
 
 vi.mock('../app/mindroom/threads/threadSummaryStore', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
+  getThreadSummaryCacheDbName: vi.fn(
+    (sessionId: string) => `mindroom-thread-summary-cache::${sessionId}`
+  ),
 }));
 
 vi.mock('../app/mindroom/native/iosPush', () => ({
@@ -726,6 +732,7 @@ describe('clearAllCacheAndReload', () => {
       ...getLegacySessionRustCryptoStoreNames(session),
       getThreadEventCacheDbName(session.sessionId),
       getRoomEventCacheDbName(session.sessionId),
+      getThreadSummaryCacheDbName(session.sessionId),
     ]);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=6789');
   });

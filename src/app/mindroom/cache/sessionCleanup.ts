@@ -4,6 +4,7 @@ import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
@@ -17,7 +18,10 @@ import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
 } from '../threads/threadEventCache';
-import { deleteThreadSummaryCache } from '../threads/threadSummaryStore';
+import {
+  deleteThreadSummaryCache,
+  getThreadSummaryCacheDbName,
+} from '../threads/threadSummaryStore';
 
 export const MINDROOM_SINGLETON_INDEXED_DB_NAMES = [
   MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
@@ -30,6 +34,7 @@ export const MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES = [IOS_PUSH_LOCAL_STORAGE_KEY
 export const getMindroomSessionIndexedDbNames = (sessionId: string): string[] => [
   getThreadEventCacheDbName(sessionId),
   getRoomEventCacheDbName(sessionId),
+  getThreadSummaryCacheDbName(sessionId),
 ];
 
 export const deleteMindroomSessionCaches = async (sessionId: string): Promise<void> => {
@@ -43,6 +48,7 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 export const clearMindroomSessionUiState = (userId: string): void => {
   clearLastOpenThreadStore(userId);
   clearRoomThreadFiltersStore(userId);
+  clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
   clearRecentThreadsPanelHeightStore(userId);
   clearRecentThreadsPanelMobileExpandedStore(userId);

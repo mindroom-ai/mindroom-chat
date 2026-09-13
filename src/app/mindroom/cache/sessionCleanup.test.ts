@@ -5,12 +5,16 @@ import { IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX, clearIOSPushState } from '../native/
 import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
 import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearLastOpenThreadStore } from '../threads/lastOpenThread';
 import { clearRecentThreadViewModelSharedState } from '../threads/recentThreadViewModel';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { deleteRoomEventCache, getRoomEventCacheDbName } from '../threads/roomEventCache';
 import { deleteThreadEventCache, getThreadEventCacheDbName } from '../threads/threadEventCache';
-import { deleteThreadSummaryCache } from '../threads/threadSummaryStore';
+import {
+  deleteThreadSummaryCache,
+  getThreadSummaryCacheDbName,
+} from '../threads/threadSummaryStore';
 import {
   MINDROOM_OWNED_LOCAL_STORAGE_KEYS,
   MINDROOM_OWNED_LOCAL_STORAGE_PREFIXES,
@@ -33,6 +37,10 @@ vi.mock('../native/iosPush', () => ({
 
 vi.mock('../recent-threads/recentThreads', () => ({
   clearRecentThreadsStore: vi.fn(),
+}));
+
+vi.mock('../cross-room-threads/crossRoomThreadFilters', () => ({
+  clearCrossRoomThreadFiltersStore: vi.fn(),
 }));
 
 vi.mock('../threads/lastOpenThread', () => ({
@@ -69,6 +77,7 @@ vi.mock('../threads/threadEventCache', () => ({
 
 vi.mock('../threads/threadSummaryStore', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
+  getThreadSummaryCacheDbName: vi.fn((sessionId: string) => `summary-cache::${sessionId}`),
 }));
 
 describe('MindRoom session cleanup', () => {
@@ -89,9 +98,11 @@ describe('MindRoom session cleanup', () => {
     expect(getMindroomSessionIndexedDbNames('session-a')).toEqual([
       'thread-cache::session-a',
       'room-cache::session-a',
+      'summary-cache::session-a',
     ]);
     expect(vi.mocked(getThreadEventCacheDbName)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(getRoomEventCacheDbName)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(getThreadSummaryCacheDbName)).toHaveBeenCalledWith('session-a');
   });
 
   it('deletes all MindRoom session caches together', async () => {
@@ -109,6 +120,7 @@ describe('MindRoom session cleanup', () => {
 
     expect(vi.mocked(clearLastOpenThreadStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
+    expect(vi.mocked(clearCrossRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(
       '@alice:example.com'

@@ -1,7 +1,14 @@
 import { ReactNode } from 'react';
 import { useMatch } from 'react-router-dom';
 import { ScreenSize, useScreenSizeContext } from '../hooks/useScreenSize';
-import { DIRECT_PATH, EXPLORE_PATH, HOME_PATH, INBOX_PATH, SPACE_PATH } from './paths';
+import {
+  DIRECT_PATH,
+  EXPLORE_PATH,
+  HOME_PATH,
+  INBOX_PATH,
+  SPACE_PATH,
+  THREADS_PATH,
+} from './paths';
 
 type MobileFriendlyClientNavProps = {
   children: ReactNode;
@@ -11,12 +18,13 @@ export function MobileFriendlyClientNav({ children }: MobileFriendlyClientNavPro
   const homeMatch = useMatch({ path: HOME_PATH, caseSensitive: true, end: true });
   const directMatch = useMatch({ path: DIRECT_PATH, caseSensitive: true, end: true });
   const spaceMatch = useMatch({ path: SPACE_PATH, caseSensitive: true, end: true });
+  const threadsMatch = useMatch({ path: THREADS_PATH, caseSensitive: true, end: true });
   const exploreMatch = useMatch({ path: EXPLORE_PATH, caseSensitive: true, end: true });
   const inboxMatch = useMatch({ path: INBOX_PATH, caseSensitive: true, end: true });
 
   if (
     screenSize === ScreenSize.Mobile &&
-    !(homeMatch || directMatch || spaceMatch || exploreMatch || inboxMatch)
+    !(homeMatch || directMatch || spaceMatch || threadsMatch || exploreMatch || inboxMatch)
   ) {
     return null;
   }
