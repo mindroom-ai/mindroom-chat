@@ -28,6 +28,8 @@ export const roomIdToUploadItemsAtomFamily = atomFamily<string, TUploadListAtom>
 
 export const roomUploadAtomFamily = createUploadAtomFamily();
 
+export const voiceAutoSendPendingAtom = atom(false);
+
 export type RoomIdToMsgAction =
   | {
       type: 'PUT';

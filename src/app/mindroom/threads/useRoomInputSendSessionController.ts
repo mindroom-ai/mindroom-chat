@@ -1,4 +1,5 @@
 import { MutableRefObject, useCallback, useRef } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { resetEditor, resetEditorHistory } from '../../components/editor/utils';
@@ -25,9 +26,18 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
 };
 
+export type RoomInputSendContext = {
+  roomId: string;
+  room: Room;
+  threadId: string | undefined;
+  replyDraft: IReplyDraft | undefined;
+  signalBridgedRoom: boolean;
+};
+
 export type StartRoomInputSendSessionOptions = {
   textContent?: IContent;
   files?: TUploadContent[];
+  context?: RoomInputSendContext;
 };
 
 type UseRoomInputSendSessionControllerOptions = {
@@ -40,6 +50,10 @@ type UseRoomInputSendSessionControllerOptions = {
   editor: Editor;
   sendTypingStatus: (typing: boolean) => void;
   selectedFilesRef: MutableRefObject<TUploadItem[]>;
+  sendSessionFilesRef?: MutableRefObject<TUploadContent[]>;
+  sendSessionUploadItemsRef?: MutableRefObject<TUploadItem[]>;
+  setSendSessionFiles?: Dispatch<SetStateAction<TUploadContent[]>>;
+  mountedRef?: MutableRefObject<boolean>;
   uploadsRef: MutableRefObject<Upload[]>;
   buildUploadMessageContent: (
     fileItem: TUploadItem,
@@ -47,6 +61,7 @@ type UseRoomInputSendSessionControllerOptions = {
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[]) => void;
+  shouldBlockStartSendSession?: () => boolean;
 };
 
 export const useRoomInputSendSessionController = ({
@@ -59,9 +74,14 @@ export const useRoomInputSendSessionController = ({
   editor,
   sendTypingStatus,
   selectedFilesRef,
+  sendSessionFilesRef,
+  sendSessionUploadItemsRef,
+  setSendSessionFiles,
+  mountedRef,
   uploadsRef,
   buildUploadMessageContent,
   removeUploadsFromBoard,
+  shouldBlockStartSendSession,
 }: UseRoomInputSendSessionControllerOptions): {
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
@@ -128,8 +148,12 @@ export const useRoomInputSendSessionController = ({
 
   const sendSessionUpload = useCallback(
     async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
-      const fileItem = selectedFilesRef.current.find((item) => item.file === file);
-      if (!fileItem) return;
+      const fileItem =
+        selectedFilesRef.current.find((item) => item.file === file) ??
+        sendSessionUploadItemsRef?.current.find((item) => item.file === file);
+      if (!fileItem) {
+        throw new Error('Missing upload item for send session.');
+      }
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
       const relation = getUploadRelationForSendSession(session, isRoot);
@@ -152,6 +176,7 @@ export const useRoomInputSendSessionController = ({
     [
       mx,
       selectedFilesRef,
+      sendSessionUploadItemsRef,
       buildUploadMessageContent,
       clearReplyDraftForSession,
       removeUploadsFromBoard,
@@ -169,7 +194,12 @@ export const useRoomInputSendSessionController = ({
         const step = resolveRoomInputSendStep(
           session,
           uploadsRef.current,
-          selectedFilesRef.current.map((fileItem) => fileItem.file)
+          Array.from(
+            new Set([
+              ...selectedFilesRef.current.map((fileItem) => fileItem.file),
+              ...(sendSessionFilesRef?.current ?? []),
+            ])
+          )
         );
 
         if (step.kind === 'wait') {
@@ -177,6 +207,15 @@ export const useRoomInputSendSessionController = ({
         }
         if (step.kind === 'complete') {
           sendSessionRef.current = undefined;
+          if (sendSessionFilesRef) {
+            sendSessionFilesRef.current = [];
+          }
+          if (sendSessionUploadItemsRef) {
+            sendSessionUploadItemsRef.current = [];
+          }
+          if (mountedRef?.current ?? true) {
+            setSendSessionFiles?.([]);
+          }
           return;
         }
 
@@ -204,10 +243,21 @@ export const useRoomInputSendSessionController = ({
     } finally {
       processingSendSessionRef.current = false;
     }
-  }, [uploadsRef, selectedFilesRef, sendSessionText, sendSessionUpload]);
+  }, [
+    uploadsRef,
+    selectedFilesRef,
+    sendSessionFilesRef,
+    sendSessionUploadItemsRef,
+    setSendSessionFiles,
+    mountedRef,
+    sendSessionText,
+    sendSessionUpload,
+  ]);
 
   const startSendSession = useCallback(
-    async ({ textContent, files }: StartRoomInputSendSessionOptions = {}) => {
+    async ({ textContent, files, context }: StartRoomInputSendSessionOptions = {}) => {
+      if (shouldBlockStartSendSession?.()) return;
+
       const existingSession = sendSessionRef.current;
       if (existingSession) {
         if (!hasRoomInputSendFailures(existingSession)) {
@@ -223,24 +273,52 @@ export const useRoomInputSendSessionController = ({
 
       const sendFiles = files ?? selectedFilesRef.current.map((fileItem) => fileItem.file);
       if (sendFiles.length === 0) return;
+      if (sendSessionUploadItemsRef) {
+        sendSessionUploadItemsRef.current = selectedFilesRef.current.filter((item) =>
+          sendFiles.includes(item.file)
+        );
+      }
+      if (sendSessionFilesRef) {
+        sendSessionFilesRef.current = sendFiles;
+      }
+      if (mountedRef?.current ?? true) {
+        setSendSessionFiles?.(sendFiles);
+      }
+
+      const sessionRoomId = context ? context.roomId : roomId;
+      const sessionThreadId = context ? context.threadId : threadId;
+      const sessionReplyDraft = context ? context.replyDraft : replyDraft;
+      const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
 
       sendSessionRef.current = {
-        roomId,
-        threadId,
-        replyDraft,
+        roomId: sessionRoomId,
+        threadId: sessionThreadId,
+        replyDraft: sessionReplyDraft,
         textContent,
         replyCleared: false,
-        signalBridgedRoom: isSignalBridgeRoom(room),
+        signalBridgedRoom,
         ...createRoomInputSendSessionState({
           files: sendFiles,
           hasText: Boolean(textContent),
-          threadId,
-          replyDraft,
+          threadId: sessionThreadId,
+          replyDraft: sessionReplyDraft,
         }),
       };
       await processSendSession();
     },
-    [roomId, threadId, replyDraft, room, selectedFilesRef, processSendSession]
+    [
+      roomId,
+      threadId,
+      replyDraft,
+      room,
+      selectedFilesRef,
+      sendSessionFilesRef,
+      sendSessionUploadItemsRef,
+      setSendSessionFiles,
+      mountedRef,
+      processSendSession,
+      shouldBlockStartSendSession,
+    ]
   );
 
   return {

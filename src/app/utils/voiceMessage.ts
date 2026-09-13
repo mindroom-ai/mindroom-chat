@@ -5,6 +5,7 @@ import {
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../types/matrix/common';
+import { normalizeOptionalMatrixWaveform } from './audioWaveform';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -18,9 +19,7 @@ const sanitizeAudioDetails = (value: unknown): IMatrixAudioDetails | undefined =
     typeof value.duration === 'number' && Number.isFinite(value.duration)
       ? value.duration
       : undefined;
-  const waveform = Array.isArray(value.waveform)
-    ? value.waveform.filter((point): point is number => typeof point === 'number')
-    : undefined;
+  const waveform = normalizeOptionalMatrixWaveform(value.waveform);
 
   if (duration === undefined && waveform === undefined) return undefined;
 
@@ -49,9 +48,10 @@ export const addVoiceMessageMetadata = <T extends UnknownRecord>(
   content: T,
   options: VoiceMessageOptions
 ): T => {
+  const waveform = normalizeOptionalMatrixWaveform(options.waveform);
   const audioDetails: IMatrixAudioDetails = {
     duration: options.duration,
-    ...(options.waveform ? { waveform: options.waveform } : {}),
+    ...(waveform ? { waveform } : {}),
   };
 
   return {
