@@ -91,6 +91,50 @@ describe('routeSessionGuards', () => {
     });
   });
 
+  it('prefers the session last-known path over tab-level home fallback when restoring root visits', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+        clear: () => {
+          store.clear();
+        },
+      },
+      configurable: true,
+    });
+
+    globalThis.localStorage.setItem(
+      'navToActivePath@alice:mindroom.chat',
+      JSON.stringify({
+        home: {
+          pathname: '/home/',
+          search: '',
+          hash: '',
+        },
+      })
+    );
+
+    expect(
+      resolveRootRouteRedirect('https://chat.mindroom.chat/', {
+        sessionId: 'session-a',
+        baseUrl: 'https://chat.mindroom.chat',
+        userId: '@alice:mindroom.chat',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+        lastUsedAt: 1,
+        lastKnownPath: '/home/%23room%3Amindroom.chat?threadId=%24abc#reply',
+      })
+    ).toEqual({
+      redirectTo: '/home/%23room%3Amindroom.chat?threadId=%24abc#reply',
+    });
+  });
+
   it('captures after-login path when redirecting signed-out root visits to login', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {
