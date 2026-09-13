@@ -91,6 +91,16 @@ export const ThreadStreamingDot = style({
   },
 });
 
+export const ThreadScheduledIndicator = style({
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+});
+
+export const ThreadScheduledIcon = style({
+  flexShrink: 0,
+  color: color.Warning.Main,
+});
+
 export const Reply = style({
   marginBottom: toRem(1),
   minWidth: 0,

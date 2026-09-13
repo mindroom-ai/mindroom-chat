@@ -8,3 +8,7 @@ test-results
 .DS_Store
 .idea
 .claude/TASK.md
+.claude/
+dist.*/
+dist-*/
+result
