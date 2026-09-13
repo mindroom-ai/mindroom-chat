@@ -811,6 +811,66 @@ describe('RoomTimeline', () => {
     const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
     expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(false);
         });
+
+  it('captures the first visible thread message as the prepend scroll anchor', async () => {
+    const { captureThreadPrependScrollAnchor } = await import('./RoomTimeline');
+
+    const aboveViewport = {
+      getAttribute: vi.fn().mockReturnValue('$above'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 40,
+        bottom: 90,
+      }),
+    };
+    const anchor = {
+      getAttribute: vi.fn().mockReturnValue('$anchor'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 140,
+        bottom: 180,
+      }),
+    };
+    const scroll = {
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 100,
+        bottom: 500,
+      }),
+      querySelector: vi.fn().mockReturnValue(aboveViewport),
+      querySelectorAll: vi.fn().mockReturnValue([aboveViewport, anchor]),
+    } as unknown as HTMLElement;
+
+    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
+      eventId: '$anchor',
+      top: 140,
+    });
+  });
+
+  it('restores the captured thread prepend anchor position after older messages are prepended', async () => {
+    const { restoreThreadPrependScrollAnchor } = await import('./RoomTimeline');
+
+    const scrollBy = vi.fn();
+    const anchor = {
+      getAttribute: vi.fn().mockReturnValue('$anchor'),
+      getBoundingClientRect: vi.fn().mockReturnValue({
+        top: 420,
+        bottom: 460,
+      }),
+    };
+    const scroll = {
+      querySelectorAll: vi.fn().mockReturnValue([anchor]),
+      scrollBy,
+    } as unknown as HTMLElement;
+
+    expect(
+      restoreThreadPrependScrollAnchor(scroll, {
+        eventId: '$anchor',
+        top: 140,
+      })
+    ).toBe(true);
+    expect(scrollBy).toHaveBeenCalledWith({
+      top: 280,
+      behavior: 'instant',
+    });
+  });
       });
     });
 });

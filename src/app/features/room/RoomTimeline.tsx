@@ -1315,6 +1315,77 @@ const getEventElementById = (
   return null;
 };
 
+export type ThreadPrependScrollAnchor = {
+  eventId: string;
+  top: number;
+};
+
+const resolveThreadScrollContainer = (
+  scrollRoot: HTMLElement,
+  seedElement?: HTMLElement | null
+): HTMLElement => {
+  let current: HTMLElement | null =
+    seedElement ??
+    scrollRoot.querySelector<HTMLElement>('[data-message-id]')?.parentElement ??
+    null;
+
+  while (current && current !== scrollRoot) {
+    if (current.scrollHeight > current.clientHeight) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  return scrollRoot;
+};
+
+export const captureThreadPrependScrollAnchor = (
+  scrollRoot: HTMLElement | null | undefined
+): ThreadPrependScrollAnchor | undefined => {
+  if (!scrollRoot) return undefined;
+
+  const scrollContainer = resolveThreadScrollContainer(scrollRoot);
+  const scrollRect = scrollContainer.getBoundingClientRect();
+  const messageItems = scrollRoot.querySelectorAll<HTMLElement>('[data-message-id]');
+  for (const item of messageItems) {
+    const eventId = item.getAttribute('data-message-id');
+    if (!eventId) continue;
+
+    const itemRect = item.getBoundingClientRect();
+    if (itemRect.bottom <= scrollRect.top || itemRect.top >= scrollRect.bottom) {
+      continue;
+    }
+
+    return {
+      eventId,
+      top: itemRect.top,
+    };
+  }
+
+  return undefined;
+};
+
+export const restoreThreadPrependScrollAnchor = (
+  scrollRoot: HTMLElement | null | undefined,
+  anchor: ThreadPrependScrollAnchor | null | undefined
+): boolean => {
+  if (!scrollRoot || !anchor) return false;
+
+  const target = getEventElementById(scrollRoot, anchor.eventId);
+  if (!target) return false;
+
+  const scrollContainer = resolveThreadScrollContainer(scrollRoot, target);
+  const delta = target.getBoundingClientRect().top - anchor.top;
+  if (Math.abs(delta) <= 1) return true;
+
+  scrollContainer.scrollBy({
+    top: delta,
+    behavior: 'instant',
+  });
+
+  return true;
+};
+
 const getEarliestLoadedThreadReply = (
   events: MatrixEvent[],
   threadId: string
@@ -2698,6 +2769,7 @@ export function RoomTimeline({
   const compactRootEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
+  const suppressThreadOpenBottomPinRef = useRef(false);
   const pendingThreadOpenRef = useRef<
     | {
         threadId: string;
@@ -2706,6 +2778,12 @@ export function RoomTimeline({
         onScroll: ((scrolled: boolean) => void) | undefined;
         attempts: number;
       }
+    | undefined
+  >();
+  const pendingThreadBackPaginationAnchorRef = useRef<
+    | (ThreadPrependScrollAnchor & {
+        threadId: string;
+      })
     | undefined
   >();
   const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
@@ -5865,6 +5943,8 @@ export function RoomTimeline({
     setPendingThreadOpenTick(0);
     threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     pendingThreadOpenRef.current = undefined;
+    pendingThreadBackPaginationAnchorRef.current = undefined;
+    suppressThreadOpenBottomPinRef.current = false;
     resetThreadRenderState(threadId);
     const shouldScrollToLatestOnOpen = !eventId;
     const initialRoomThreadEvents = getLoadedRoomThreadEvents(room, threadId);
@@ -5992,6 +6072,15 @@ export function RoomTimeline({
     }
     setThreadLatestOpenPending(shouldScrollToLatestOnOpen);
     const loadThreadTimeline = async () => {
+      const pinThreadToBottomOnOpen = () => {
+        if (!mounted || threadIdRef.current !== threadId || suppressThreadOpenBottomPinRef.current) {
+          return;
+        }
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+        setAtBottom(true);
+      };
+
       try {
         let hydratedCachedPage;
         try {
@@ -6040,9 +6129,7 @@ export function RoomTimeline({
             threadId,
           });
           void refreshLatestThreadRelationsTail(threadId, hydratedCachedPage).catch(() => undefined);
-          scrollToBottomRef.current.count += 1;
-          scrollToBottomRef.current.smooth = false;
-          setAtBottom(true);
+          pinThreadToBottomOnOpen();
           return;
         }
 
@@ -6076,9 +6163,7 @@ export function RoomTimeline({
               skipNetworkBootstrap: true,
               threadId,
             });
-            scrollToBottomRef.current.count += 1;
-            scrollToBottomRef.current.smooth = false;
-            setAtBottom(true);
+            pinThreadToBottomOnOpen();
             return;
           }
         }
@@ -6091,9 +6176,7 @@ export function RoomTimeline({
             threadId,
           });
           if (shouldScrollToLatestOnOpen) {
-            scrollToBottomRef.current.count += 1;
-            scrollToBottomRef.current.smooth = false;
-            setAtBottom(true);
+            pinThreadToBottomOnOpen();
           }
           return;
         }
@@ -6111,9 +6194,7 @@ export function RoomTimeline({
             threadId,
           });
           if (shouldScrollToLatestOnOpen) {
-            scrollToBottomRef.current.count += 1;
-            scrollToBottomRef.current.smooth = false;
-            setAtBottom(true);
+            pinThreadToBottomOnOpen();
           }
           return;
         }
@@ -6362,9 +6443,7 @@ export function RoomTimeline({
           threadId,
         });
         if (shouldScrollToLatestOnOpen) {
-          scrollToBottomRef.current.count += 1;
-          scrollToBottomRef.current.smooth = false;
-          setAtBottom(true);
+          pinThreadToBottomOnOpen();
         }
 
         // When opening a thread with a specific eventId (e.g. from search),
@@ -6433,6 +6512,8 @@ threadDebugTraceId,
     setPendingThreadOpenTick(0);
     threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     pendingThreadOpenRef.current = undefined;
+    pendingThreadBackPaginationAnchorRef.current = undefined;
+    suppressThreadOpenBottomPinRef.current = false;
     resetThreadRenderState(undefined);
   }, [resetThreadRenderState, threadId]);
 
@@ -6695,6 +6776,19 @@ threadDebugTraceId,
         scrollToBottom(scrollEl, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
     }
   }, [scrollToBottomCount]);
+
+  useLayoutEffect(() => {
+    if (!threadId) {
+      pendingThreadBackPaginationAnchorRef.current = undefined;
+      return;
+    }
+
+    const pendingAnchor = pendingThreadBackPaginationAnchorRef.current;
+    if (!pendingAnchor || pendingAnchor.threadId !== threadId) return;
+
+    restoreThreadPrependScrollAnchor(scrollRef.current, pendingAnchor);
+    pendingThreadBackPaginationAnchorRef.current = undefined;
+  }, [threadEvents.length, threadId, threadTimelineTick]);
 
   // Remove unreadInfo on mark as read
   useEffect(() => {
@@ -8355,6 +8449,16 @@ threadDebugTraceId,
   const handleThreadPaginateBack = useCallback(async () => {
     if (!threadId || threadPaginatingBackRef.current) return;
     const expectedThreadId = threadId;
+    suppressThreadOpenBottomPinRef.current = true;
+    setThreadLatestOpenPending(false);
+    const capturedAnchor = captureThreadPrependScrollAnchor(scrollRef.current);
+    pendingThreadBackPaginationAnchorRef.current = capturedAnchor
+      ? {
+          ...capturedAnchor,
+          threadId: expectedThreadId,
+        }
+      : undefined;
+    let didPaginateBack = false;
     setThreadPaginatingBack(true);
     threadPaginatingBackRef.current = true;
     try {
@@ -8389,6 +8493,7 @@ threadDebugTraceId,
         );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
+        didPaginateBack = true;
         return;
       }
 
@@ -8420,8 +8525,12 @@ threadDebugTraceId,
         );
         setTimeline((ct) => ({ ...ct }));
         setThreadTimelineTick((val) => val + 1);
+        didPaginateBack = true;
       }
     } finally {
+      if (!didPaginateBack && threadIdRef.current === expectedThreadId) {
+        pendingThreadBackPaginationAnchorRef.current = undefined;
+      }
       setThreadPaginatingBack(false);
       threadPaginatingBackRef.current = false;
     }
