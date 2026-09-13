@@ -18,6 +18,7 @@ export const AuthLayout = style({
   position: 'relative',
   isolation: 'isolate',
   overflow: 'hidden',
+  pointerEvents: 'none',
 });
 
 export const AuthCard = style({
@@ -34,6 +35,7 @@ export const AuthCard = style({
   boxShadow: `${config.shadow.E100}, inset 0 1px 0 ${particleCardHighlightVar}`,
   border: `${config.borderWidth.B300} solid ${particleCardBorderVar}`,
   overflow: 'hidden',
+  pointerEvents: 'auto',
 });
 
 export const AuthLogo = style([
@@ -62,6 +64,9 @@ export const AuthCardContent = style({
 });
 
 export const AuthFooter = style({
+  position: 'relative',
+  zIndex: 1,
   padding: config.space.S200,
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+  pointerEvents: 'auto',
 });
