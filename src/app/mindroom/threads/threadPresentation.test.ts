@@ -6,16 +6,29 @@ import {
   resolveThreadPresentationSnapshot,
 } from './threadPresentation';
 
-const makeRootEvent = (
-  eventId: string,
-  body: string,
-  sender = '@root:example.org',
-  ts = 1
-) =>
+const makeRootEvent = (eventId: string, body: string, sender = '@root:example.org', ts = 1) =>
   new MatrixEvent({
     content: {
       body,
       msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender,
+    type: 'm.room.message',
+  });
+
+const makeVoiceRootEvent = (eventId: string, sender = '@root:example.org', ts = 1) =>
+  new MatrixEvent({
+    content: {
+      filename: 'voice-message-2026-04-24T12-02-00.m4a',
+      msgtype: 'm.audio',
+      'm.voice': {},
+      'org.matrix.msc3245.voice': {},
+      'm.audio': {
+        duration: 1200,
+      },
     },
     event_id: eventId,
     origin_server_ts: ts,
@@ -51,7 +64,7 @@ const makeThreadReplyEvent = (
     isRedacted: () => false,
     isRedaction: () => false,
     threadRootId,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const room = {
   getMember: (userId: string) =>
@@ -120,5 +133,21 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(presentation.latestReplyPreviewText).toBeUndefined();
     expect(presentation.messageCount).toBe(0);
     expect(getThreadPrimarySummaryText(presentation)).toBe('Standalone thread root');
+  });
+
+  it('uses a voice message root preview for zero-reply voice threads', () => {
+    const rootEvent = makeVoiceRootEvent('$voice-root');
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$voice-root',
+      rootEvent,
+    });
+
+    expect(presentation.summaryText).toBeUndefined();
+    expect(presentation.rootPreviewText).toBe('Voice message');
+    expect(presentation.latestReplyPreviewText).toBeUndefined();
+    expect(presentation.messageCount).toBe(0);
+    expect(getThreadPrimarySummaryText(presentation)).toBe('Voice message');
   });
 });

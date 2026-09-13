@@ -5,6 +5,7 @@ import {
   buildCompactThreadRootData,
   getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
+  getCompactThreadRootBodyPreviewText,
   isZeroReplyStandaloneThreadRootEvent,
   mergeCompactThreadRootData,
   pickPreferredThreadRootPreviewText,
@@ -12,13 +13,14 @@ import {
 
 const makeEvent = (
   eventId: string,
-  body: string,
+  body: string | undefined,
   editedBody?: string,
   relation?: { event_id: string; rel_type: string; ['m.in_reply_to']?: { event_id: string } },
   options?: {
     ts?: number;
     type?: string;
     msgtype?: string;
+    content?: Record<string, unknown>;
     isRedacted?: boolean;
     threadRootId?: string;
     isSending?: boolean;
@@ -26,20 +28,23 @@ const makeEvent = (
 ) =>
   ({
     event: { event_id: eventId },
-    getContent: () =>
-      editedBody
-        ? {
-            body,
+    getContent: () => {
+      if (options?.content) return options.content;
+
+      return editedBody
+        ? ({
+            ...(typeof body === 'string' ? { body } : {}),
             ...(relation ? { 'm.relates_to': relation } : {}),
             'm.new_content': {
               body: editedBody,
             },
-          }
+          } as Record<string, unknown>)
         : {
-            body,
+            ...(typeof body === 'string' ? { body } : {}),
             ...(options?.msgtype ? { msgtype: options.msgtype } : {}),
             ...(relation ? { 'm.relates_to': relation } : {}),
-          },
+          };
+    },
     getId: () => eventId,
     getRelation: () => relation,
     getType: () => options?.type ?? 'm.room.message',
@@ -64,13 +69,13 @@ const makeEvent = (
             }),
           } as never)
         : undefined,
-  }) as never;
+  } as never);
 
 const makeThread = (id: string, rootEvent?: ReturnType<typeof makeEvent>) =>
   ({
     id,
     rootEvent,
-  }) as never;
+  } as never);
 
 describe('buildCompactThreadRootData', () => {
   const makeRoom = (eventsById?: Record<string, ReturnType<typeof makeEvent>>) =>
@@ -81,8 +86,8 @@ describe('buildCompactThreadRootData', () => {
           relations: {
             getChildEventsForEvent: () => undefined,
           },
-        }) as never,
-    }) as never;
+        } as never),
+    } as never);
 
   it('keeps room-surface thread roots first and appends unseen thread-list roots', () => {
     const data = buildCompactThreadRootData({
@@ -130,6 +135,56 @@ describe('buildCompactThreadRootData', () => {
 
     expect(data.bodyMap.get('$thread-a')).toBe('Edited root');
     expect(data.bodyMap.get('$thread-b')).toBe('Visible body');
+  });
+
+  it('labels stable voice roots instead of exposing filename bodies', () => {
+    const filename = 'voice-message-2026-04-24T12-00-00.m4a';
+    const voiceEvent = makeEvent('$voice', filename, undefined, undefined, {
+      content: {
+        body: filename,
+        filename,
+        msgtype: 'm.audio',
+        'm.voice': {},
+        'm.audio': {
+          duration: 1400,
+        },
+      },
+    });
+
+    expect(isZeroReplyStandaloneThreadRootEvent(voiceEvent)).toBe(true);
+    expect(getCompactThreadRootBodyPreviewText(voiceEvent)).toBe('Voice message');
+  });
+
+  it('labels unstable voice roots with no useful body in zero-reply compact data', () => {
+    const voiceEvent = makeEvent('$voice-empty-body', undefined, undefined, undefined, {
+      content: {
+        filename: 'voice-message-2026-04-24T12-01-00.m4a',
+        msgtype: 'm.audio',
+        'org.matrix.msc3245.voice': {},
+        'org.matrix.msc1767.audio': {
+          duration: 900,
+        },
+      },
+    });
+
+    expect(getCompactThreadRootBodyPreviewText(voiceEvent)).toBe('Voice message');
+
+    const data = buildCompactZeroReplyRootData({
+      room: makeRoom(),
+      roomSurfaceEntries: [{ event: voiceEvent, absoluteIndex: 2 }],
+      knownThreadRootIds: [],
+      now: 10_000,
+    });
+
+    expect(data.ids).toEqual(['$voice-empty-body']);
+    expect(data.indexMap.get('$voice-empty-body')).toBe(2);
+    expect(data.bodyMap.get('$voice-empty-body')).toBe('Voice message');
+  });
+
+  it('keeps text root previews unchanged', () => {
+    const textEvent = makeEvent('$text', 'Normal text thread root');
+
+    expect(getCompactThreadRootBodyPreviewText(textEvent)).toBe('Normal text thread root');
   });
 
   it('does not append server thread-list roots that have no actual reply activity', () => {
