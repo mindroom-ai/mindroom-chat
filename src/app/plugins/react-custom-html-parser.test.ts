@@ -73,6 +73,8 @@ vi.mock('../styles/CustomHtml.css', () => ({
   CodeBlockHeader: 'CodeBlockHeader',
   CodeBlockInternal: 'CodeBlockInternal',
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
+  Code: 'Code',
+  Mention: () => 'Mention',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -199,8 +201,8 @@ describe('CodeBlock clipboard feedback', () => {
   });
 });
 
-const renderCustomHtmlTree = (html: string): ReactTestRenderer => {
-  const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+const renderCustomHtmlTree = (html: string, mx = {} as MatrixClient): ReactTestRenderer => {
+  const opts = getReactCustomHtmlParser(mx, undefined, {
     linkifyOpts: LINKIFY_OPTS,
   });
   const parsed = parse(html, opts);
@@ -216,8 +218,8 @@ const renderCustomHtmlTree = (html: string): ReactTestRenderer => {
   return renderer;
 };
 
-const renderCustomHtmlMarkup = (html: string): string => {
-  const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+const renderCustomHtmlMarkup = (html: string, mx = {} as MatrixClient): string => {
+  const opts = getReactCustomHtmlParser(mx, undefined, {
     linkifyOpts: LINKIFY_OPTS,
   });
   const parsed = parse(html, opts);
@@ -510,6 +512,73 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
 });
 
 describe('getReactCustomHtmlParser', () => {
+  it('renders Matrix user links as mentions only outside inline and fenced code', () => {
+    const userId = '@alice:example.org';
+    const matrixTo = `https://matrix.to/#/${userId}`;
+    const mx = {
+      getRoom: vi.fn(() => undefined),
+      getUserId: vi.fn(() => '@viewer:example.org'),
+    } as unknown as MatrixClient;
+
+    const plainMarkup = renderCustomHtmlMarkup(`<p><a href="${matrixTo}">${userId}</a></p>`, mx);
+    expect(plainMarkup).toContain(`href="${matrixTo}"`);
+    expect(plainMarkup).toContain(`data-mention-id="${userId}"`);
+
+    for (const codeTree of [
+      renderCustomHtmlTree(`<p><code><a href="${matrixTo}">${userId}</a></code></p>`, mx),
+      renderCustomHtmlTree(`<pre><code><a href="${matrixTo}">${userId}</a></code></pre>`, mx),
+    ]) {
+      expect(collectTextContent(codeTree.toJSON())).toContain(userId);
+      expect(codeTree.root.findAllByType('a')).toHaveLength(0);
+      codeTree.unmount();
+    }
+  });
+
+  it('copies the literal Matrix user ID from fenced code', async () => {
+    const userId = '@alice:example.org';
+    const matrixTo = `https://matrix.to/#/${userId}`;
+    clipboardMocks.copyToClipboard.mockReset();
+    clipboardMocks.copyToClipboard.mockResolvedValue(false);
+
+    const codeTree = renderCustomHtmlTree(
+      `<pre><code><a href="${matrixTo}">${userId}</a></code></pre>`
+    );
+    const copyControl = codeTree.root
+      .findAllByType('span')
+      .find((node) => typeof node.props.onClick === 'function');
+
+    await act(async () => {
+      await copyControl?.props.onClick();
+    });
+
+    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(userId);
+    codeTree.unmount();
+  });
+
+  it('preserves intentional Matrix-link labels inside code and Copy', async () => {
+    const matrixTo = 'https://matrix.to/#/@alice:example.org';
+    const customLabel = 'lookup_user()';
+    clipboardMocks.copyToClipboard.mockReset();
+    clipboardMocks.copyToClipboard.mockResolvedValue(false);
+
+    const codeTree = renderCustomHtmlTree(
+      `<pre><code><a href="${matrixTo}">${customLabel}</a></code></pre>`
+    );
+    const copyControl = codeTree.root
+      .findAllByType('span')
+      .find((node) => typeof node.props.onClick === 'function');
+
+    expect(collectTextContent(codeTree.toJSON())).toContain(customLabel);
+    expect(codeTree.root.findAllByType('a')).toHaveLength(0);
+
+    await act(async () => {
+      await copyControl?.props.onClick();
+    });
+
+    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(customLabel);
+    codeTree.unmount();
+  });
+
   it('drops whitespace-only text nodes in table structure while preserving cell content', () => {
     const renderer = renderCustomHtmlTree(`
       <table>
