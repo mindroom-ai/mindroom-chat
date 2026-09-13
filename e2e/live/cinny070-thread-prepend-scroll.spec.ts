@@ -12,6 +12,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { abortRelationsContinuations } from '../helpers/rideRecorder';
 import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
@@ -27,21 +28,43 @@ test.use({
 });
 
 type VisibleAnchor = {
+  bottom: number;
   eventId: string;
   top: number;
   text: string;
+  viewportBottom: number;
+  viewportTop: number;
 };
 
-type LoadOlderClickAnchor = VisibleAnchor & {
+type LoadOlderClick = {
   clicked: boolean;
+  clickedAt: number;
 };
 
-const scrollThreadTimelineToTop = async (page: import('@playwright/test').Page): Promise<boolean> =>
+type ThreadViewport = {
+  anchorIntersects: boolean;
+  bottomGap: number;
+  threadCount: number;
+};
+
+type HeldContinuation = {
+  eventIds: string[];
+  requestStartedAt: number;
+  status: number;
+  url: string;
+};
+
+type AnchorSample = {
+  found: boolean;
+  textMatches: boolean;
+  threadCount: number;
+  top: number | null;
+};
+
+const readThreadViewport = async (page: import('@playwright/test').Page): Promise<ThreadViewport> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
-    if (!firstMessage) return false;
-
-    let scrollContainer: HTMLElement | null = firstMessage.parentElement;
+    let scrollContainer: HTMLElement | null = firstMessage?.parentElement ?? null;
     while (scrollContainer) {
       const { overflowY } = window.getComputedStyle(scrollContainer);
       if (
@@ -52,20 +75,183 @@ const scrollThreadTimelineToTop = async (page: import('@playwright/test').Page):
       }
       scrollContainer = scrollContainer.parentElement;
     }
-    if (!scrollContainer) return false;
+    if (!scrollContainer) {
+      return { anchorIntersects: false, bottomGap: 0, threadCount: -1 };
+    }
 
-    // Real users scroll with wheel/touch gestures, which cancel the timeline's
-    // bottom-pin settle loop; a bare scrollTop write emits no intent event and
-    // gets yanked back to the bottom if the open-at-latest pin is still
-    // settling. Announce the intent the way a user gesture would.
-    scrollContainer.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
-    scrollContainer.scrollTop = 0;
-    return true;
+    const viewport = scrollContainer.getBoundingClientRect();
+    const anchorIntersects = Array.from(
+      scrollContainer.querySelectorAll<HTMLElement>('[data-message-id]')
+    ).some((message) => {
+      const rect = message.getBoundingClientRect();
+      return rect.top >= viewport.top && rect.bottom <= viewport.bottom;
+    });
+    const threadCount = Number(
+      scrollContainer.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1
+    );
+    return {
+      anchorIntersects,
+      bottomGap:
+        scrollContainer.scrollHeight - scrollContainer.clientHeight - scrollContainer.scrollTop,
+      threadCount,
+    };
   });
 
-const clickLoadOlderWithVisibleThreadAnchor = async (
+const wheelToSettledReadingPosition = async (
   page: import('@playwright/test').Page
-): Promise<LoadOlderClickAnchor | null> =>
+): Promise<ThreadViewport> => {
+  await page.locator('[data-message-id]').last().hover();
+  await page.mouse.wheel(0, -800);
+  await expect
+    .poll(async () => {
+      const viewport = await readThreadViewport(page);
+      return viewport.bottomGap > 0 && viewport.anchorIntersects;
+    })
+    .toBe(true);
+  return readThreadViewport(page);
+};
+
+const holdNextRelationsContinuation = async (
+  page: import('@playwright/test').Page,
+  roomId: string,
+  rootId: string
+): Promise<{
+  dispose: () => Promise<void>;
+  ready: Promise<HeldContinuation>;
+  release: () => void;
+}> => {
+  const matcher = (url: URL) => {
+    const path = decodeURIComponent(url.pathname);
+    return path.includes(`/rooms/${roomId}/relations/${rootId}`) && url.searchParams.has('from');
+  };
+  let resolveReady!: (value: HeldContinuation) => void;
+  let rejectReady!: (reason: unknown) => void;
+  let resolveRelease!: () => void;
+  let captured = false;
+  let released = false;
+  const ready = new Promise<HeldContinuation>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
+  const releaseGate = new Promise<void>((resolve) => {
+    resolveRelease = resolve;
+  });
+  const release = () => {
+    if (released) return;
+    released = true;
+    resolveRelease();
+  };
+  const handler = async (route: import('@playwright/test').Route) => {
+    if (captured) {
+      if (released) {
+        await route.continue();
+      } else {
+        await route.abort();
+      }
+      return;
+    }
+    captured = true;
+    const requestStartedAt = Date.now();
+    try {
+      const response = await route.fetch();
+      const body = (await response.json()) as { chunk?: { event_id?: unknown }[] };
+      resolveReady({
+        eventIds: (body.chunk ?? [])
+          .map((event) => event.event_id)
+          .filter((eventId): eventId is string => typeof eventId === 'string'),
+        requestStartedAt,
+        status: response.status(),
+        url: route.request().url(),
+      });
+      await releaseGate;
+      await route.fulfill({ response });
+    } catch (error) {
+      rejectReady(error);
+      throw error;
+    }
+  };
+  await page.route(matcher, handler);
+  return {
+    dispose: async () => {
+      release();
+      await page.unroute(matcher, handler);
+    },
+    ready,
+    release,
+  };
+};
+
+const startAnchorSampler = async (
+  page: import('@playwright/test').Page,
+  anchor: VisibleAnchor
+): Promise<void> =>
+  page.evaluate((expected) => {
+    const sampleWindow = window as typeof window & {
+      __cinny070AnchorSampler?: {
+        active: boolean;
+        samples: AnchorSample[];
+      };
+    };
+    const sampler = { active: true, samples: [] as AnchorSample[] };
+    sampleWindow.__cinny070AnchorSampler = sampler;
+    const sample = () => {
+      const anchorElement = document.querySelector<HTMLElement>(
+        `[data-message-id="${CSS.escape(expected.eventId)}"]`
+      );
+      const scrollContainer = (() => {
+        const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
+        let candidate: HTMLElement | null = firstMessage?.parentElement ?? null;
+        while (candidate) {
+          const { overflowY } = window.getComputedStyle(candidate);
+          if (
+            (overflowY === 'auto' || overflowY === 'scroll') &&
+            candidate.scrollHeight > candidate.clientHeight
+          ) {
+            break;
+          }
+          candidate = candidate.parentElement;
+        }
+        return candidate;
+      })();
+      sampler.samples.push({
+        found: !!anchorElement,
+        textMatches: anchorElement?.textContent === expected.text,
+        threadCount: Number(
+          scrollContainer?.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ??
+            -1
+        ),
+        top: anchorElement?.getBoundingClientRect().top ?? null,
+      });
+      if (sampler.active) window.requestAnimationFrame(sample);
+    };
+    window.requestAnimationFrame(sample);
+  }, anchor);
+
+const stopAnchorSampler = async (page: import('@playwright/test').Page): Promise<AnchorSample[]> =>
+  page.evaluate(() => {
+    const sampleWindow = window as typeof window & {
+      __cinny070AnchorSampler?: {
+        active: boolean;
+        samples: AnchorSample[];
+      };
+    };
+    const sampler = sampleWindow.__cinny070AnchorSampler;
+    if (!sampler) return [];
+    sampler.active = false;
+    return sampler.samples;
+  });
+
+const readAnchorSamples = async (page: import('@playwright/test').Page): Promise<AnchorSample[]> =>
+  page.evaluate(() => {
+    const sampleWindow = window as typeof window & {
+      __cinny070AnchorSampler?: { samples: AnchorSample[] };
+    };
+    return sampleWindow.__cinny070AnchorSampler?.samples ?? [];
+  });
+
+const captureVisibleThreadAnchor = async (
+  page: import('@playwright/test').Page
+): Promise<VisibleAnchor | null> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
     if (!firstMessage) return null;
@@ -87,12 +273,27 @@ const clickLoadOlderWithVisibleThreadAnchor = async (
     const messageItems = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>('[data-message-id]')
     );
-    const anchor = messageItems.find(
-      (item) => item.getBoundingClientRect().bottom > scrollRect.top
-    );
+    const anchor = messageItems.find((item) => {
+      const rect = item.getBoundingClientRect();
+      return rect.top >= scrollRect.top && rect.bottom <= scrollRect.bottom;
+    });
     const eventId = anchor?.getAttribute('data-message-id');
     if (!anchor || !eventId) return null;
 
+    return {
+      bottom: anchor.getBoundingClientRect().bottom,
+      eventId,
+      top: anchor.getBoundingClientRect().top,
+      text: anchor.textContent ?? '',
+      viewportBottom: scrollRect.bottom,
+      viewportTop: scrollRect.top,
+    };
+  });
+
+const clickLoadOlderAtomically = async (
+  page: import('@playwright/test').Page
+): Promise<LoadOlderClick> =>
+  page.evaluate(() => {
     const loadOlderButton = Array.from(
       document.querySelectorAll<HTMLElement>('button, [role="button"]')
     ).find((button) => {
@@ -100,13 +301,12 @@ const clickLoadOlderWithVisibleThreadAnchor = async (
         button.getAttribute('aria-label') ?? button.getAttribute('title') ?? button.textContent;
       return label?.includes('Load Older Messages');
     });
+    const clickedAt = Date.now();
     loadOlderButton?.click();
 
     return {
       clicked: !!loadOlderButton,
-      eventId,
-      top: anchor.getBoundingClientRect().top,
-      text: anchor.textContent ?? '',
+      clickedAt,
     };
   });
 
@@ -133,7 +333,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
 
   test('loading older thread messages does not jump back to the thread bottom', async ({
     page,
-  }) => {
+  }, testInfo) => {
     test.slow();
 
     const diagnostics = attachBrowserDiagnostics(page);
@@ -158,8 +358,9 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
       'cinny-070-root'
     );
 
+    const replyIds: string[] = [];
     for (let index = 1; index <= REPLY_COUNT; index += 1) {
-      await sendRoomMessage(
+      const replyId = await sendRoomMessage(
         homeserver,
         session.accessToken,
         roomId,
@@ -175,71 +376,214 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
         },
         `cinny-070-reply-${index}`
       );
+      replyIds.push(replyId);
     }
 
-    await loginWithPassword(page, { homeserver, username, password });
-    await seedRoomOverviewState({
-      page,
-      roomId,
-      userId: session.userId,
-      viewMode: 'threaded',
-      filterState: createDefaultThreadFilterState(),
-    });
+    const initialResponseIds = new Set<string>();
+    const initialResponseReads: Promise<void>[] = [];
+    const recordInitialRelationResponse = (response: import('@playwright/test').Response) => {
+      const url = new URL(response.url());
+      const path = decodeURIComponent(url.pathname);
+      if (!path.includes(`/rooms/${roomId}/relations/${rootId}`) || url.searchParams.has('from')) {
+        return;
+      }
+      initialResponseReads.push(
+        response.json().then((body: { chunk?: { event_id?: unknown }[] }) => {
+          (body.chunk ?? []).forEach((event) => {
+            if (typeof event.event_id === 'string') initialResponseIds.add(event.event_id);
+          });
+        })
+      );
+    };
+    page.on('response', recordInitialRelationResponse);
 
-    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    let unrouteAbort: (() => Promise<void>) | undefined;
+    let continuationBarrier: Awaited<ReturnType<typeof holdNextRelationsContinuation>> | undefined;
+    let samplerStarted = false;
+    let samples: AnchorSample[] = [];
 
-    const rootMessage = page.locator(`[data-message-id="${rootId}"]`);
-    await expect(rootMessage).toBeVisible({ timeout: 30_000 });
+    try {
+      // Abort continuation pages before login so room overview work cannot
+      // drain this target thread before its reading position is established.
+      unrouteAbort = await abortRelationsContinuations(page);
 
-    const threadButton = rootMessage.getByRole('button', {
-      name: /Thread\s+\d+\s+replies/i,
-    });
-    await expect(threadButton).toBeVisible({ timeout: 30_000 });
-    await threadButton.click();
+      await loginWithPassword(page, { homeserver, username, password });
+      await seedRoomOverviewState({
+        page,
+        roomId,
+        userId: session.userId,
+        viewMode: 'threaded',
+        filterState: createDefaultThreadFilterState(),
+      });
 
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
-    const loadOlderButton = page.getByRole('button', { name: 'Load Older Messages' });
-    await expect(loadOlderButton).toBeVisible({ timeout: 30_000 });
-    expect(await scrollThreadTimelineToTop(page)).toBe(true);
-    await expect(loadOlderButton).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-message-id]').first()).toBeVisible({ timeout: 30_000 });
 
-    const anchor = await clickLoadOlderWithVisibleThreadAnchor(page);
-    expect(anchor).not.toBeNull();
-    if (!anchor) return;
-    expect(anchor.clicked).toBe(true);
+      const loadOlderButton = page.getByRole('button', { name: 'Load Older Messages' });
+      await expect(loadOlderButton).toBeVisible({ timeout: 30_000 });
 
-    // Drain the remaining history with the shared loop instead of a strict
-    // button-vanish wait: when the thread-open bootstrap already preloaded
-    // everything, the homeserver's pagination token can linger through empty
-    // pages and the chip never disappears (pre-existing tail behavior). Any
-    // extra clicks only strengthen the guard — the anchor must hold through
-    // every prepend.
-    await loadAllOlderThreadMessages(page);
+      const readingViewport = await wheelToSettledReadingPosition(page);
+      expect(readingViewport.bottomGap).toBeGreaterThan(0);
+      expect(readingViewport.anchorIntersects).toBe(true);
+      expect(readingViewport.threadCount).toBeGreaterThan(0);
+      expect(readingViewport.threadCount).toBeLessThan(REPLY_COUNT + 1);
+      const initialViewport = readingViewport;
 
-    await expect
-      .poll(
-        async () => {
-          const displacement = await getAnchorDisplacement(page, anchor);
-          if (!displacement.found) return Number.POSITIVE_INFINITY;
-          if (!displacement.text.includes(anchor.text.trim().slice(0, 16))) {
-            return Number.POSITIVE_INFINITY;
-          }
-          return Math.abs((displacement.top ?? 0) - anchor.top);
-        },
-        {
+      const anchor = await captureVisibleThreadAnchor(page);
+      expect(anchor).not.toBeNull();
+      if (!anchor) throw new Error('No fully intersecting thread anchor was available');
+      expect(anchor.bottom).toBeLessThanOrEqual(anchor.viewportBottom);
+      expect(anchor.top).toBeGreaterThanOrEqual(anchor.viewportTop);
+      expect(replyIds).toContain(anchor.eventId);
+      expect(anchor.text).toContain('CINNY-070 reply');
+
+      await startAnchorSampler(page, anchor);
+      samplerStarted = true;
+
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            window.requestAnimationFrame(() => resolve());
+          })
+      );
+      const preReleaseSamples = await readAnchorSamples(page);
+      const preReleaseSample = preReleaseSamples.at(-1);
+      expect(preReleaseSample?.found).toBe(true);
+      expect(preReleaseSample?.textMatches).toBe(true);
+      expect(preReleaseSample?.threadCount).toBe(initialViewport.threadCount);
+
+      // Newer route handlers run before older handlers. Install a one-page
+      // real-response barrier while abort remains armed, then use the chip's
+      // DOM activation so Playwright cannot scroll it into view and disturb
+      // the established anchor.
+      continuationBarrier = await holdNextRelationsContinuation(page, roomId, rootId);
+      const loadOlderClick = await clickLoadOlderAtomically(page);
+      expect(loadOlderClick.clicked).toBe(true);
+      const heldContinuation = await continuationBarrier.ready;
+      expect((await readThreadViewport(page)).threadCount).toBe(initialViewport.threadCount);
+      await Promise.all(initialResponseReads);
+      page.off('response', recordInitialRelationResponse);
+      const preReleaseResponseIds = [...initialResponseIds];
+      const preReleaseResponseIdSet = new Set(preReleaseResponseIds);
+      const newlyIntroducedReplyIds = heldContinuation.eventIds.filter(
+        (eventId) => replyIds.includes(eventId) && !preReleaseResponseIdSet.has(eventId)
+      );
+      expect(heldContinuation.status).toBe(200);
+      expect(newlyIntroducedReplyIds.length).toBeGreaterThan(0);
+
+      await unrouteAbort();
+      unrouteAbort = undefined;
+      continuationBarrier.release();
+
+      await expect
+        .poll(async () => (await readThreadViewport(page)).threadCount, {
+          message: 'Expected the held real continuation page to grow the partial thread window',
+        })
+        .toBeGreaterThan(initialViewport.threadCount);
+      const observedCountAfterFirstGrowth = (await readThreadViewport(page)).threadCount;
+
+      const drainActivations = await loadAllOlderThreadMessages(page);
+      await expect
+        .poll(async () => (await readThreadViewport(page)).threadCount, {
           timeout: 30_000,
-          message:
-            'Expected the previously visible thread message to stay anchored after prepending older replies',
-        }
-      )
-      .toBeLessThanOrEqual(64);
+          message: 'Expected the thread window to cover the root and all 450 replies',
+        })
+        .toBe(REPLY_COUNT + 1);
 
-    const displacement = await getAnchorDisplacement(page, anchor);
-    expect(displacement.found).toBe(true);
-    expect(Math.abs((displacement.top ?? 0) - anchor.top)).toBeLessThanOrEqual(64);
-    await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+          })
+      );
+      samples = await stopAnchorSampler(page);
+      samplerStarted = false;
 
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny070-thread-prepend-scroll');
+      expect(samples.length).toBeGreaterThan(0);
+      const missingAnchorSampleCount = samples.filter((sample) => !sample.found).length;
+      const textMismatchSampleCount = samples.filter((sample) => !sample.textMatches).length;
+      expect(missingAnchorSampleCount).toBe(0);
+      expect(textMismatchSampleCount).toBe(0);
+      const growthSamples = samples.filter(
+        (sample) => sample.threadCount > initialViewport.threadCount
+      );
+      expect(growthSamples.length).toBeGreaterThan(0);
+      const firstSampledGrowthCount = growthSamples[0]?.threadCount ?? -1;
+      expect(firstSampledGrowthCount).toBeGreaterThan(initialViewport.threadCount);
+      const maxAnchorDrift = Math.max(
+        ...samples.map((sample) => Math.abs((sample.top ?? Number.POSITIVE_INFINITY) - anchor.top))
+      );
+      expect(maxAnchorDrift).toBeLessThanOrEqual(64);
+
+      const displacement = await getAnchorDisplacement(page, anchor);
+      expect(displacement.found).toBe(true);
+      expect(displacement.text).toBe(anchor.text);
+      expect(Math.abs((displacement.top ?? 0) - anchor.top)).toBeLessThanOrEqual(64);
+      await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
+
+      const requestOwnership =
+        heldContinuation.requestStartedAt >= loadOlderClick.clickedAt
+          ? 'manual-click-correlated'
+          : 'background-before-click';
+      const evidence = {
+        anchor: {
+          eventId: anchor.eventId,
+          initialBottom: anchor.bottom,
+          maxDriftPx: maxAnchorDrift,
+          text: anchor.text,
+          top: anchor.top,
+          viewportBottom: anchor.viewportBottom,
+          viewportTop: anchor.viewportTop,
+        },
+        drainActivations,
+        finalThreadCount: (await readThreadViewport(page)).threadCount,
+        firstSampledGrowthCount,
+        growthSampleCount: growthSamples.length,
+        heldResponseEventIds: heldContinuation.eventIds,
+        initialResponseEventIds: preReleaseResponseIds,
+        initialThreadCount: initialViewport.threadCount,
+        missingAnchorSampleCount,
+        newlyIntroducedReplyIds,
+        observedCountAfterFirstGrowth,
+        preReleaseSample,
+        readingPosition: readingViewport,
+        requestOwnership,
+        requestStartedAt: heldContinuation.requestStartedAt,
+        sampleCount: samples.length,
+        textMismatchSampleCount,
+      };
+      // eslint-disable-next-line no-console
+      console.log(
+        `CINNY-070-PREPEND ${JSON.stringify({
+          anchor: evidence.anchor,
+          finalThreadCount: evidence.finalThreadCount,
+          firstSampledGrowthCount,
+          growthSampleCount: growthSamples.length,
+          heldResponseEventCount: heldContinuation.eventIds.length,
+          initialThreadCount: initialViewport.threadCount,
+          missingAnchorSampleCount,
+          newlyIntroducedReplyIds,
+          observedCountAfterFirstGrowth,
+          readingPosition: readingViewport,
+          requestOwnership,
+          sampleCount: samples.length,
+          textMismatchSampleCount,
+        })}`
+      );
+      await testInfo.attach('cinny070-prepend-evidence.json', {
+        body: JSON.stringify({ evidence, samples }, null, 2),
+        contentType: 'application/json',
+      });
+
+      await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny070-thread-prepend-scroll');
+    } finally {
+      if (samplerStarted) samples = await stopAnchorSampler(page);
+      await continuationBarrier?.dispose();
+      await unrouteAbort?.();
+      page.off('response', recordInitialRelationResponse);
+      await Promise.all(initialResponseReads);
+    }
   });
 });
