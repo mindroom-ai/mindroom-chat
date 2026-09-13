@@ -101,6 +101,13 @@ export const sortThreadsByActivity = (
 
 const getAllThreadsLiveTimeline = (room: Room) => room.threadsTimelineSets[0]?.getLiveTimeline();
 
+type RoomThreadListLoad = {
+  promise: Promise<void>;
+  progressListeners: Set<() => void>;
+};
+
+const roomThreadListLoads = new WeakMap<Room, RoomThreadListLoad>();
+
 const ensureThreadTimelineSets = async (room: Room): Promise<void> => {
   if (!Thread.hasServerSideListSupport || room.threadsTimelineSets.length > 0) {
     return;
@@ -131,33 +138,81 @@ export const roomThreadListIsComplete = (room: Room): boolean => {
   return allThreadsLiveTimeline.getPaginationToken(Direction.Backward) === null;
 };
 
-export const loadRoomThreads = async (room: Room, onProgress?: () => void): Promise<void> => {
-  await ensureThreadTimelineSets(room);
+const loadRoomThreadsOnce = async (
+  room: Room,
+  onProgress: () => void,
+  onSettled: () => void
+): Promise<void> => {
   try {
-    await room.fetchRoomThreads();
-  } catch (err) {
-    console.warn('[threadList] fetchRoomThreads failed:', err);
-    return;
-  }
-  onProgress?.();
-
-  if (!Thread.hasServerSideListSupport) return;
-
-  const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
-  if (!allThreadsLiveTimeline) return;
-
-  for (;;) {
-    const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-    if (currentToken === null) return;
-
-    const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
-      backwards: true,
-    });
-    onProgress?.();
-
-    const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
-    if (!hasMore || nextToken === currentToken) {
+    await ensureThreadTimelineSets(room);
+    try {
+      await room.fetchRoomThreads();
+    } catch (err) {
+      console.warn('[threadList] fetchRoomThreads failed:', err);
       return;
     }
+    onProgress?.();
+
+    if (!Thread.hasServerSideListSupport) return;
+
+    const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
+    if (!allThreadsLiveTimeline) return;
+
+    for (;;) {
+      const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+      if (currentToken === null) return;
+
+      const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
+        backwards: true,
+      });
+      onProgress?.();
+
+      const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
+      if (!hasMore || nextToken === currentToken) {
+        return;
+      }
+    }
+  } finally {
+    onSettled();
   }
+};
+
+export const loadRoomThreads = (room: Room, onProgress?: () => void): Promise<void> => {
+  let load = roomThreadListLoads.get(room);
+  if (!load) {
+    const progressListeners = new Set<() => void>();
+    let activeLoad: RoomThreadListLoad;
+    const promise = Promise.resolve().then(() =>
+      loadRoomThreadsOnce(
+        room,
+        () => {
+          progressListeners.forEach((listener) => {
+            try {
+              listener();
+            } catch (err) {
+              console.warn('[threadList] progress listener failed:', err);
+            }
+          });
+        },
+        () => {
+          if (roomThreadListLoads.get(room) === activeLoad) {
+            roomThreadListLoads.delete(room);
+          }
+        }
+      )
+    );
+    activeLoad = {
+      progressListeners,
+      promise,
+    };
+    load = activeLoad;
+    roomThreadListLoads.set(room, activeLoad);
+  }
+
+  const progressListener = onProgress ? () => onProgress() : undefined;
+  if (progressListener) load.progressListeners.add(progressListener);
+
+  return load.promise.finally(() => {
+    if (progressListener) load.progressListeners.delete(progressListener);
+  });
 };
