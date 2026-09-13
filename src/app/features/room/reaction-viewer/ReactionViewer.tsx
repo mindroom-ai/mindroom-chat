@@ -18,6 +18,7 @@ import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { getMemberDisplayName } from '../../../utils/room';
 import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
+import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
 import * as css from './ReactionViewer.css';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useRelations } from '../../../hooks/useRelations';
@@ -41,7 +42,7 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
     const useAuthentication = useMediaAuthentication();
     const reactions = useRelations(
       relations,
-      useCallback((rel) => [...(rel.getSortedAnnotationsByKey() ?? [])], [])
+      useCallback((rel) => getActiveAnnotationsByKey(rel), [])
     );
     const space = useSpaceOptionally();
     const openProfile = useOpenUserRoomProfile();

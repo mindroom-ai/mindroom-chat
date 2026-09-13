@@ -79,22 +79,28 @@ vi.mock('./styles.css', () => ({
 }));
 
 class MockRelations {
+  constructor(private groupedAnnotations?: [string, Set<MatrixEvent>][]) {}
+
   on() {}
 
   removeListener() {}
 
   getSortedAnnotationsByKey() {
-    return [
-      [
-        '🔄',
-        new Set([
-          {
-            getSender: () => '@bas:mindroom.chat',
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-          } as MatrixEvent,
-        ]),
-      ],
-    ] as [string, Set<MatrixEvent>][];
+    return (
+      this.groupedAnnotations ??
+      ([
+        [
+          '🔄',
+          new Set([
+            {
+              getSender: () => '@bas:mindroom.chat',
+              getRelation: () => ({ rel_type: 'm.annotation' }),
+              isRedacted: () => false,
+            } as MatrixEvent,
+          ]),
+        ],
+      ] as [string, Set<MatrixEvent>][])
+    );
   }
 }
 
@@ -124,5 +130,42 @@ describe('Reactions', () => {
     });
 
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🔄', undefined, relations);
+  });
+
+  it('ignores redacted reaction shells when rendering counts', () => {
+    const relations = new MockRelations([
+      [
+        '🛑',
+        new Set([
+          {
+            getSender: () => '@bas:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => true,
+          } as MatrixEvent,
+          {
+            getSender: () => '@someone:mindroom.chat',
+            getRelation: () => ({ rel_type: 'm.annotation' }),
+            isRedacted: () => false,
+          } as MatrixEvent,
+        ]),
+      ],
+    ]);
+
+    create(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$event',
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle: vi.fn(),
+      })
+    );
+
+    expect(reactionRenderSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reaction: '🛑',
+        count: 1,
+      })
+    );
   });
 });

@@ -131,7 +131,7 @@ export const useThreadRenderState = ({
       const resolveConfirmedId = buildResolveConfirmedEventId(room, [...currentEvents, ...events]);
       const mergedEvents = mergeThreadRenderEvents(currentEvents, events, resolveConfirmedId);
 
-      hydrateCachedEvents({
+      const redactedRelationTargets = hydrateCachedEvents({
         room,
         events: mergedEvents,
       });
@@ -144,7 +144,8 @@ export const useThreadRenderState = ({
       aggregateCachedRelationEvents(
         events,
         [threadTimelineSet, roomTimelineSet],
-        relationState.relationEventIds
+        relationState.relationEventIds,
+        redactedRelationTargets
       );
 
       const nextFallbackState = {

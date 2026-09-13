@@ -54,6 +54,10 @@ import { isKeyHotkey } from 'is-hotkey';
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useTranslation } from 'react-i18next';
 import { eventWithShortcode, factoryEventSentBy, getMxIdLocalPart } from '../../utils/matrix';
+import {
+  getActiveAnnotationsByKey,
+  getActiveEventsForAnnotationKey,
+} from '../../utils/reactionAnnotations';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator, ItemRange } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
@@ -232,7 +236,9 @@ import {
 } from './threadSummaryCache';
 import {
   aggregateCachedRelationEvents,
+  collectRedactedRelationTargetsFromLookup,
   hydrateCachedEvents,
+  reconcileRelationEventsWithAggregation,
   serializeEventsForCache,
 } from './eventCacheEditUtils';
 import {
@@ -3415,7 +3421,7 @@ export function RoomTimeline({
           const cachedEvents = normalizeCachedRoomEvents(cachedPage.events)
             .map((rawEvent) => mapper(rawEvent))
             .reverse();
-          hydrateCachedEvents({
+          const redactedRelationTargets = hydrateCachedEvents({
             room,
             events: cachedEvents,
           });
@@ -3444,7 +3450,7 @@ export function RoomTimeline({
             ),
             false
           );
-          unknownRelations.forEach((mEvent) => room.relations.aggregateChildEvent(mEvent));
+          reconcileRelationEventsWithAggregation(unknownRelations, [{ relations: room.relations }], undefined, redactedRelationTargets);
 
           const fetchedTimeline =
             firstTimeline.getNeighbouringTimeline(Direction.Backward) ?? firstTimeline;
@@ -4577,6 +4583,96 @@ export function RoomTimeline({
     ]
   );
 
+  const refreshLatestThreadRelationsTail = useCallback(
+    async (
+      expectedThreadId: string,
+      cachedPage: {
+        beforeToken?: string | null;
+        events: Partial<IEvent>[];
+        expectedReplyCount?: number;
+        rootEvent?: Partial<IEvent>;
+        relationSnapshotComplete?: boolean;
+        snapshotComplete?: boolean;
+        tailLoaded?: boolean;
+      }
+    ): Promise<boolean> => {
+      const [err, relData] = await to(
+        mx.fetchRelations(room.roomId, expectedThreadId, null, null, {
+          dir: Direction.Backward,
+          limit: THREAD_BATCH_SIZE,
+          recurse: true,
+        })
+      );
+      if (err || !relData || !alive() || threadIdRef.current !== expectedThreadId) {
+        return false;
+      }
+
+      const mapper = mx.getEventMapper();
+      const latestRelationEvents = relData.chunk
+        .slice()
+        .reverse()
+        .map((rawEvent) => mapper(rawEvent));
+      if (latestRelationEvents.length === 0) {
+        logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-tail-empty', {
+          threadId: expectedThreadId,
+        });
+        return false;
+      }
+
+      const cachedSnapshotEvents = normalizeCachedThreadEvents(
+        cachedPage.events,
+        cachedPage.rootEvent
+      ).map((rawEvent) => mapper(rawEvent));
+      const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
+      const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
+        latestRelationEvents,
+        cachedSnapshotEvents
+      );
+      reconcileRelationEventsWithAggregation(
+        latestRelationEvents,
+        [
+          { relations: roomTimelineSet.relations, timelineSet: roomTimelineSet },
+          liveThreadTimelineSet
+            ? { relations: liveThreadTimelineSet.relations, timelineSet: liveThreadTimelineSet }
+            : undefined,
+        ],
+        undefined,
+        redactedRelationTargets
+      );
+      const mergedEvents = mergeThreadBackfillEvents(cachedSnapshotEvents, latestRelationEvents);
+      const liveRootEvent =
+        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
+      const mappedCachedRootEvent =
+        !liveRootEvent && cachedPage.rootEvent ? mapper(cachedPage.rootEvent) : undefined;
+      const rootEvent =
+        liveRootEvent ??
+        mappedCachedRootEvent ??
+        mergedEvents.find((mEvent) => mEvent.getId() === expectedThreadId);
+
+      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
+      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
+      persistThreadEventCache(
+        expectedThreadId,
+        mergedEvents,
+        rootEvent,
+        cachedPage.beforeToken ?? null,
+        cachedPage.tailLoaded === true,
+        cachedPage.snapshotComplete === true,
+        cachedPage.expectedReplyCount,
+        cachedPage.relationSnapshotComplete === true
+      );
+      setTimeline((ct) => ({ ...ct }));
+      setThreadTimelineTick((val) => val + 1);
+      logTimelineDebug(threadDebugTraceId, 'thread-refresh-latest-tail-complete', {
+        fetchedCount: latestRelationEvents.length,
+        mergedCount: mergedEvents.length,
+        threadId: expectedThreadId,
+      });
+      return true;
+    },
+    [alive, mx, persistThreadEventCache, room, setSupplementalThreadEvents, threadDebugTraceId]
+  );
+
   const getScrollElement = useCallback(() => scrollRef.current, []);
 
   const {
@@ -5641,6 +5737,7 @@ export function RoomTimeline({
             skipNetworkBootstrap: true,
             threadId,
           });
+          void refreshLatestThreadRelationsTail(threadId, hydratedCachedPage).catch(() => undefined);
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = false;
           setAtBottom(true);
@@ -5971,6 +6068,7 @@ export function RoomTimeline({
     backfillThreadRelationsIntoCache,
     persistThreadEventCache,
     resetThreadRenderState,
+    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
     room,
     setSupplementalThreadEvents,
@@ -6449,11 +6547,7 @@ export function RoomTimeline({
     ) => {
       const reactionRelations =
         currentRelations ?? getEventReactions(room.getUnfilteredTimelineSet(), targetEventId);
-      const allReactions =
-        (reactionRelations?.getSortedAnnotationsByKey() as [string, Set<MatrixEvent>][] | undefined) ??
-        [];
-      const [, reactionsSet] = allReactions.find(([k]) => k === key) ?? [];
-      const reactions = reactionsSet ? Array.from(reactionsSet) : ([] as MatrixEvent[]);
+      const reactions = getActiveEventsForAnnotationKey(reactionRelations, key);
       const myReaction = reactions.find(factoryEventSentBy(mx.getUserId()!));
 
       if (myReaction && !!myReaction?.isRelation()) {
@@ -6594,8 +6688,7 @@ export function RoomTimeline({
     {
       [MessageEvent.RoomMessage]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
-        const hasReactions = reactions && reactions.length > 0;
+        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
@@ -6779,8 +6872,7 @@ export function RoomTimeline({
       },
       [MessageEvent.RoomMessageEncrypted]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
-        const hasReactions = reactions && reactions.length > 0;
+        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
@@ -6990,8 +7082,7 @@ export function RoomTimeline({
       },
       [MessageEvent.Sticker]: (mEventId, mEvent, item, timelineSet, collapse) => {
         const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
-        const hasReactions = reactions && reactions.length > 0;
+        const hasReactions = getActiveAnnotationsByKey(reactionRelations).length > 0;
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         return (
