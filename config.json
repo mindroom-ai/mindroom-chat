@@ -79,6 +79,7 @@
   },
 
   "sidebar": {
+    "showThreads": true,
     "showExploreCommunity": false,
     "showAddSpace": false,
     "showMindRoom": true,
