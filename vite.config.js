@@ -18,6 +18,10 @@ const copyFiles = {
       dest: 'public/element-call',
     },
     {
+      src: 'public/runtime-config.js',
+      dest: '',
+    },
+    {
       src: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
       dest: '',
       rename: 'pdf.worker.min.js',
@@ -50,7 +54,8 @@ function serverMatrixSdkCryptoWasm(wasmFilePath) {
     name: 'vite-plugin-serve-matrix-sdk-crypto-wasm',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url === wasmFilePath) {
+        const requestPath = req.url?.split('?')[0];
+        if (requestPath === wasmFilePath) {
           const resolvedPath = path.join(
             path.resolve(),
             '/node_modules/@matrix-org/matrix-sdk-crypto-wasm/pkg/matrix_sdk_crypto_wasm_bg.wasm'
@@ -74,6 +79,42 @@ function serverMatrixSdkCryptoWasm(wasmFilePath) {
   };
 }
 
+function serverRuntimeConfig(runtimeConfigPath) {
+  return {
+    name: 'vite-plugin-serve-runtime-config',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === runtimeConfigPath) {
+          const resolvedPath = path.join(path.resolve(), 'public/runtime-config.js');
+
+          if (fs.existsSync(resolvedPath)) {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache');
+
+            const fileStream = fs.createReadStream(resolvedPath);
+            fileStream.pipe(res);
+          } else {
+            res.writeHead(404);
+            res.end('File not found');
+          }
+        } else {
+          next();
+        }
+      });
+    },
+  };
+}
+
+const appBasePath = buildConfig.base === '/' ? '' : buildConfig.base.replace(/\/+$/g, '');
+const matrixCryptoWasmPath =
+  appBasePath && appBasePath !== '.'
+    ? `${appBasePath}/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm`
+    : '/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm';
+const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? 'cinny-dev.lab.nijho.lt')
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean);
+
 export default defineConfig({
   appType: 'spa',
   publicDir: false,
@@ -81,13 +122,15 @@ export default defineConfig({
   server: {
     port: 8080,
     host: true,
+    allowedHosts,
     fs: {
       // Allow serving files from one level up to the project root
       allow: ['..'],
     },
   },
   plugins: [
-    serverMatrixSdkCryptoWasm('/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm'),
+    serverRuntimeConfig('/runtime-config.js'),
+    serverMatrixSdkCryptoWasm(matrixCryptoWasmPath),
     topLevelAwait({
       // The export name of top-level await promise for each chunk module
       promiseExportName: '__tla',
