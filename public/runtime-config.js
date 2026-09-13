@@ -1,2 +1,3 @@
 window.__APP_BASE_PATH__ = '/';
 window.__ENABLE_SERVICE_WORKER__ = true;
+window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = [];

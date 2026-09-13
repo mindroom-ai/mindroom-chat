@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { copyFiles } from '../../../vite.config';
-import { isServiceWorkerEnabled } from './runtimeConfig';
+import {
+  getServiceWorkerNavigationFallbackExcludePaths,
+  isServiceWorkerEnabled,
+} from './runtimeConfig';
 
 const repoRoot = path.resolve(__dirname, '../../..');
 
@@ -36,6 +39,26 @@ describe('isServiceWorkerEnabled', () => {
     } finally {
       (globalThis as { __ENABLE_SERVICE_WORKER__?: unknown }).__ENABLE_SERVICE_WORKER__ =
         originalValue;
+    }
+  });
+});
+
+describe('getServiceWorkerNavigationFallbackExcludePaths', () => {
+  it('returns normalized deployment-provided path prefixes', () => {
+    const runtime = globalThis as {
+      __SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__?: unknown;
+    };
+    const originalValue = runtime.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__;
+
+    try {
+      runtime.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = [
+        '/other-app/',
+        '/other-app',
+        'relative',
+      ];
+      expect(getServiceWorkerNavigationFallbackExcludePaths()).toEqual(['/other-app']);
+    } finally {
+      runtime.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = originalValue;
     }
   });
 });

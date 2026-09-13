@@ -1,4 +1,5 @@
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
+import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 
 declare const __MINDROOM_BUILD_VERSION__: string;
 
@@ -93,8 +94,7 @@ export const startAppVersionMonitor = ({
       if (!publishedVersion || publishedVersion === APP_BUILD_VERSION || stopped) return;
 
       pendingVersion = publishedVersion;
-      const swUrl = new URL(appUrl('sw.js'), window.location.origin);
-      swUrl.searchParams.set('version', publishedVersion);
+      const swUrl = createServiceWorkerUrl(publishedVersion);
       const registration = await navigator.serviceWorker.register(swUrl, {
         scope: ensureBasePathTrailingSlash(getAppBasePath()),
         type: 'classic',

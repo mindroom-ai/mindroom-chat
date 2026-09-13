@@ -22,6 +22,7 @@ import { bootstrapRideTraceFlagFromUrl } from './app/mindroom/threads/rideTraceR
 import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroomSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
+import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -75,7 +76,7 @@ const bootstrap = async () => {
 
     const isProductionSW = import.meta.env.MODE === 'production';
     const swUrl = isProductionSW
-      ? `${appUrl('sw.js')}?version=${encodeURIComponent(APP_BUILD_VERSION)}`
+      ? createServiceWorkerUrl(APP_BUILD_VERSION)
       : appUrl('dev-sw.js?dev-sw');
 
     navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);

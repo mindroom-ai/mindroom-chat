@@ -9,6 +9,10 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
+import {
+  navigationFallbackExcludePathPattern,
+  readNavigationFallbackExcludePaths,
+} from './serviceWorkerNavigation';
 
 export type {};
 declare const self: ServiceWorkerGlobalScope & {
@@ -34,6 +38,9 @@ const navigationFallbackDenylist = [
   // the denylist against pathname + search, so "?" is a valid boundary too
   // (fragments never reach the service worker, so "#" is not).
   /^\/(?:[^/]+\/)?public(?:\/|\?|$)/,
+  ...readNavigationFallbackExcludePaths(self.location.href).map(
+    navigationFallbackExcludePathPattern
+  ),
 ];
 
 // createHandlerBoundToURL throws for non-precached URLs, which would fail
