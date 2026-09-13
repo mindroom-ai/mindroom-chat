@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';
-import MindRoomSVG from '../../../../../public/res/svg/mindroom.svg';
+import MindRoomLogo from '../../../../../public/res/branding/mindroom-logo.png';
 import { Modal500 } from '../../../components/Modal500';
 import { Settings, SettingsPages } from '../../../features/settings';
 
@@ -14,7 +14,7 @@ export function MindroomTab() {
           {(triggerRef) => (
             <SidebarAvatar as="button" ref={triggerRef} outlined onClick={() => setSettings(true)}>
               <img
-                src={MindRoomSVG}
+                src={MindRoomLogo}
                 alt="MindRoom"
                 width={22}
                 height={22}
