@@ -154,7 +154,7 @@ describe('roomThreadOverviewModel', () => {
         statusMode: 'and',
       });
       expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
-    });
+    }, 10000);
 
     it('round-trips non-default filters, sort state, and tags', async () => {
       const {

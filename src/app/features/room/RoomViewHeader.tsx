@@ -25,6 +25,7 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
+import { useSetAtom } from 'jotai';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
@@ -56,6 +57,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from './room-pin-menu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
+import { commandPaletteOpenAtom } from '../../state/commandPalette';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -410,6 +412,7 @@ export function RoomViewHeader({
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinMenuAnchor, setPinMenuAnchor] = useState<RectCords>();
   const direct = useIsDirectRoom();
+  const setCommandPaletteOpen = useSetAtom(commandPaletteOpenAtom);
 
   const pinnedEvents = useRoomPinnedEvents(room);
   const encryptionEvent = useStateEvent(room, StateEvent.RoomEncryption);
@@ -431,6 +434,10 @@ export function RoomViewHeader({
       ? getSpaceSearchPath(getCanonicalAliasOrRoomId(mx, space.roomId))
       : getHomeSearchPath();
     navigate(withSearchParam(path, searchParams));
+  };
+
+  const handleOpenCommandPalette = () => {
+    setCommandPaletteOpen(true);
   };
 
   const handleOpenMenu: MouseEventHandler<HTMLButtonElement> = (evt) => {
@@ -526,6 +533,25 @@ export function RoomViewHeader({
         </Box>
 
         <Box shrink="No">
+          <TooltipProvider
+            position="Bottom"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                <Text>Open command palette</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                onClick={handleOpenCommandPalette}
+                aria-label="Open command palette"
+              >
+                <Icon size="400" src={Icons.Terminal} />
+              </IconButton>
+            )}
+          </TooltipProvider>
           {!encryptedRoom && (
             <TooltipProvider
               position="Bottom"

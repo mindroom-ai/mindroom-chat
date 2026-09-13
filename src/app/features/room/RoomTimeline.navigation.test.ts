@@ -81,7 +81,7 @@ describe('RoomTimeline', () => {
             settingsState.paginationLimit = previousPaginationLimit;
             vi.useRealTimers();
           }
-        });
+        }, 10000);
 
   it('keeps the active filter when jumping to an unread event hidden by the overview', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');

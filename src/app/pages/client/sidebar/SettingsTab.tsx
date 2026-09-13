@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
+import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { SidebarItem, SidebarItemTooltip, SidebarAvatar } from '../../../components/sidebar';
 import { UserAvatar } from '../../../components/user-avatar';
@@ -7,11 +8,11 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { nameInitials } from '../../../utils/common';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
-import { Settings } from '../../../features/settings';
 import { useUserProfile } from '../../../hooks/useUserProfile';
 import { Modal500 } from '../../../components/Modal500';
 import { useActiveSession, useStoredSessions } from '../../../hooks/useSessionStore';
 import { setActiveSession, updateSessionProfile } from '../../../state/sessions';
+import { settingsModalAtom } from '../../../state/settingsModal';
 import { getLoginPath } from '../../pathUtils';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { removeStoredSession } from '../../../../client/initMatrix';
@@ -63,6 +64,7 @@ export function SettingsTab() {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const setSettingsModal = useSetAtom(settingsModalAtom);
   const rawActiveSession = useActiveSession();
   const sessions = useStoredSessions();
   const activeSession = useMemo(
@@ -74,7 +76,6 @@ export function SettingsTab() {
   const profile = useUserProfile(userId);
 
   const [accountSwitcher, setAccountSwitcher] = useState(false);
-  const [settings, setSettings] = useState(false);
   const [removingSessionId, setRemovingSessionId] = useState<string>();
 
   const displayName = profile.displayName ?? getMxIdLocalPart(userId) ?? userId;
@@ -180,8 +181,7 @@ export function SettingsTab() {
 
   const openAccountSwitcher = () => setAccountSwitcher(true);
   const closeAccountSwitcher = () => setAccountSwitcher(false);
-  const openSettings = () => setSettings(true);
-  const closeSettings = () => setSettings(false);
+  const openSettings = () => setSettingsModal({});
   const openSettingsFromSwitcher = () => {
     closeAccountSwitcher();
     openSettings();
@@ -296,11 +296,6 @@ export function SettingsTab() {
             onAddAccount={addAccount}
             onClose={closeAccountSwitcher}
           />
-        </Modal500>
-      )}
-      {settings && (
-        <Modal500 requestClose={closeSettings}>
-          <Settings requestClose={closeSettings} />
         </Modal500>
       )}
     </>

@@ -1,10 +1,12 @@
 import React from 'react';
+import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getHomePath, getLoginPath } from '../../pathUtils';
 import { SettingsTab } from './SettingsTab';
 import { useActiveSession, useStoredSessions } from '../../../hooks/useSessionStore';
 import { setActiveSession, updateSessionProfile } from '../../../state/sessions';
+import { settingsModalAtom } from '../../../state/settingsModal';
 import { withAddAccountSearch } from '../../auth/addAccount';
 import { useUserProfile } from '../../../hooks/useUserProfile';
 import { mxcUrlToHttp } from '../../../utils/matrix';
@@ -73,10 +75,6 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../../features/settings', () => ({
-  Settings: () => React.createElement('div', { 'data-testid': 'settings-modal' }, 'settings'),
-}));
-
 vi.mock('../../../hooks/useUserProfile', () => ({
   useUserProfile: vi.fn(() => ({
     displayName: 'Alice',
@@ -132,14 +130,20 @@ const findButtonByAriaLabel = (renderer: ReturnType<typeof create>, label: strin
     (node) => node.type === 'button' && node.props['aria-label'] === label
   )[0];
 
-const findByTestId = (renderer: ReturnType<typeof create>, testId: string) =>
-  renderer.root.findAll((node) => node.props['data-testid'] === testId)[0];
-
 const renderSettingsTab = (sessions = [activeSession, inactiveSession]) => {
   vi.mocked(useActiveSession).mockReturnValue(activeSession);
   vi.mocked(useStoredSessions).mockReturnValue(sessions);
 
-  return create(React.createElement(SettingsTab));
+  const store = createStore();
+  const renderer = create(
+    React.createElement(
+      Provider,
+      { store },
+      React.createElement(SettingsTab)
+    )
+  );
+
+  return { renderer, store };
 };
 
 describe('SettingsTab', () => {
@@ -150,39 +154,39 @@ describe('SettingsTab', () => {
   });
 
   it('opens settings from the active avatar instead of the account switcher', async () => {
-    const renderer = renderSettingsTab();
+    const { renderer, store } = renderSettingsTab();
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Open settings for Alice').props.onClick();
     });
 
-    expect(findByTestId(renderer, 'settings-modal')).toBeDefined();
-    expect(findByTestId(renderer, 'account-switcher')).toBeUndefined();
+    expect(store.get(settingsModalAtom)).toEqual({});
+    expect(renderer.root.findAll((node) => node.props['data-testid'] === 'account-switcher')).toHaveLength(0);
     expect(vi.mocked(setActiveSession)).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
 
   it('shows the manage accounts trigger only when multiple sessions exist', () => {
-    const multiSessionRenderer = renderSettingsTab();
+    const { renderer: multiSessionRenderer } = renderSettingsTab();
     expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage accounts')).toBeDefined();
 
-    const singleSessionRenderer = renderSettingsTab([activeSession]);
+    const { renderer: singleSessionRenderer } = renderSettingsTab([activeSession]);
     expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage accounts')).toBeUndefined();
   });
 
   it('opens the account switcher from the manage accounts trigger', async () => {
-    const renderer = renderSettingsTab();
+    const { renderer, store } = renderSettingsTab();
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
     });
 
-    expect(findByTestId(renderer, 'account-switcher')).toBeDefined();
-    expect(findByTestId(renderer, 'settings-modal')).toBeUndefined();
+    expect(renderer.root.findAll((node) => node.props['data-testid'] === 'account-switcher')).toHaveLength(1);
+    expect(store.get(settingsModalAtom)).toBeUndefined();
   });
 
   it('restores the stored last route when switching to another account', async () => {
-    const renderer = renderSettingsTab();
+    const { renderer } = renderSettingsTab();
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -193,7 +197,10 @@ describe('SettingsTab', () => {
   });
 
   it('falls back to home when the stored path is missing or invalid', async () => {
-    const renderer = renderSettingsTab([{ ...activeSession }, { ...inactiveSession, lastKnownPath: 'https://matrix.org/outside' }]);
+    const { renderer } = renderSettingsTab([
+      { ...activeSession },
+      { ...inactiveSession, lastKnownPath: 'https://matrix.org/outside' },
+    ]);
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
@@ -213,7 +220,13 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(localSession);
     vi.mocked(useStoredSessions).mockReturnValue([localSession]);
 
-    const renderer = create(React.createElement(SettingsTab));
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store: createStore() },
+        React.createElement(SettingsTab)
+      )
+    );
 
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Add account').props.onClick();
@@ -243,7 +256,13 @@ describe('SettingsTab', () => {
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithCachedAvatar]);
 
     await act(async () => {
-      create(React.createElement(SettingsTab));
+      create(
+        React.createElement(
+          Provider,
+          { store: createStore() },
+          React.createElement(SettingsTab)
+        )
+      );
       await Promise.resolve();
     });
 
@@ -264,7 +283,13 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(sessionWithCachedAvatar);
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithCachedAvatar]);
 
-    const renderer = create(React.createElement(SettingsTab));
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store: createStore() },
+        React.createElement(SettingsTab)
+      )
+    );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0];
@@ -310,7 +335,13 @@ describe('SettingsTab', () => {
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithLastKnownAvatar]);
 
     await act(async () => {
-      create(React.createElement(SettingsTab));
+      create(
+        React.createElement(
+          Provider,
+          { store: createStore() },
+          React.createElement(SettingsTab)
+        )
+      );
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -337,7 +368,13 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(sessionWithLastKnownAvatar);
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithLastKnownAvatar]);
 
-    const renderer = create(React.createElement(SettingsTab));
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store: createStore() },
+        React.createElement(SettingsTab)
+      )
+    );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0];
@@ -368,7 +405,13 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(staleActiveSession);
     vi.mocked(useStoredSessions).mockReturnValue([refreshedSession]);
 
-    const renderer = create(React.createElement(SettingsTab));
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store: createStore() },
+        React.createElement(SettingsTab)
+      )
+    );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0];

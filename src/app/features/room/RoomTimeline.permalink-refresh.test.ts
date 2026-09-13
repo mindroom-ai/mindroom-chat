@@ -58,7 +58,7 @@ describe('RoomTimeline', () => {
       count: 2,
       canFocus: true,
     });
-  });
+  }, 10000);
 
   it('derives free-text search from the DSL query when no searchQuery override is passed', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');

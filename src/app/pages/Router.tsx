@@ -62,7 +62,8 @@ import { CreateRoomModalRenderer } from '../features/create-room';
 import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
-import { SearchModalRenderer } from '../features/search';
+import { CommandPaletteRenderer } from '../features/command-palette';
+import { SettingsModalRenderer } from '../features/settings';
 import { CallStatusRenderer } from './CallStatusRenderer';
 import { CallEmbedProvider } from '../components/CallEmbedProvider';
 import { getAppBasePath } from '../utils/basePath';
@@ -140,7 +141,8 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
                         </ClientLayout>
                         <CallStatusRenderer />
                       </CallEmbedProvider>
-                      <SearchModalRenderer />
+                      <CommandPaletteRenderer />
+                      <SettingsModalRenderer />
                       <UserRoomProfileRenderer />
                       <CreateRoomModalRenderer />
                       <CreateSpaceModalRenderer />

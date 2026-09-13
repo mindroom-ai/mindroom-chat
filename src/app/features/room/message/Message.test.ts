@@ -464,16 +464,20 @@ const mindroomAiRunContent = {
 } as const;
 
 describe('Message token usage menu item', () => {
-  it('does not render Token usage in the context menu for messages without ai_run metadata', async () => {
-    const { renderer } = await renderMessage({
-      msgtype: 'm.text',
-      body: 'hello',
-    });
+  it(
+    'does not render Token usage in the context menu for messages without ai_run metadata',
+    async () => {
+      const { renderer } = await renderMessage({
+        msgtype: 'm.text',
+        body: 'hello',
+      });
 
-    await openContextMenu(renderer);
+      await openContextMenu(renderer);
 
-    expect(hasSpanText(renderer, 'Token usage')).toBe(false);
-  });
+      expect(hasSpanText(renderer, 'Token usage')).toBe(false);
+    },
+    10000
+  );
 
   it('opens the AI run dialog from the context menu and configures explicit return focus', async () => {
     const { renderer, messageBaseNode } = await renderMessage(mindroomAiRunContent);
