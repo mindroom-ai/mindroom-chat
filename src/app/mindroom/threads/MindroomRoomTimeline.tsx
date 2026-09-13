@@ -298,6 +298,7 @@ export function RoomTimeline({
     viewMode,
   });
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
+  const roomEagerPreloadEnabled = !threadId && !eventId && effectiveViewMode !== 'classic';
   const showThreadBadgesInRoom = effectiveViewMode !== 'classic';
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
@@ -380,7 +381,7 @@ export function RoomTimeline({
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
-  const [eagerPreloading, setEagerPreloading] = useState(!threadId && !eventId);
+  const [eagerPreloading, setEagerPreloading] = useState(roomEagerPreloadEnabled);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
@@ -472,9 +473,9 @@ export function RoomTimeline({
   // useLayoutEffect so the reset fires before paint, preventing a single-frame skeleton flash
   useLayoutEffect(() => {
     if (!eventId && !threadId) {
-      setEagerPreloading(true);
+      setEagerPreloading(roomEagerPreloadEnabled);
     }
-  }, [eventId, threadId]);
+  }, [eventId, roomEagerPreloadEnabled, threadId]);
   useLayoutEffect(() => {
     if (prevShowThreadRepliesInRoomRef.current === showThreadRepliesInRoom) return;
     prevShowThreadRepliesInRoomRef.current = showThreadRepliesInRoom;
@@ -814,6 +815,7 @@ export function RoomTimeline({
 
   useRoomEagerPreload({
     alive,
+    enabled: roomEagerPreloadEnabled,
     eventId,
     eagerPreloadDoneForRoomRef,
     mx,
@@ -999,7 +1001,10 @@ export function RoomTimeline({
     }
 
     const virtualIndex = anchor.item - activeTimelineRange.start;
-    const offset = Math.max(virtualIndex * estimateRoomTimelineItemSize() - anchor.viewportOffset, 0);
+    const offset = Math.max(
+      virtualIndex * estimateRoomTimelineItemSize() - anchor.viewportOffset,
+      0
+    );
     roomTimelineVirtualizer.scrollToOffset(offset, { behavior: 'auto' });
     roomVirtualPrependAnchorRef.current = undefined;
 
