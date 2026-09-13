@@ -4,8 +4,14 @@ on:
   pull_request:
     paths:
       - 'Dockerfile'
+      - '.dockerignore'
       - '.github/workflows/docker-pr.yml'
+      - '.github/workflows/docker-publish-push.yml'
       - '.github/workflows/prod-deploy.yml'
+      - 'scripts/build-version.mjs'
+      - 'scripts/verify-container-publisher-version.mjs'
+      - 'src/buildVersion.test.ts'
+      - 'vite.config.js'
 
 jobs:
   docker-build:
@@ -17,6 +23,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Verify publisher build-version wiring
+        run: node scripts/verify-container-publisher-version.mjs
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
@@ -56,8 +65,20 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
+            mindroom-chat:docker-check
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MINDROOM_BUILD_VERSION=${{ github.event.pull_request.head.sha }}
+
+      - name: Verify embedded build version
+        env:
+          EXPECTED_BUILD_VERSION: ${{ github.event.pull_request.head.sha }}
+        run: |
+          actual="$(docker run --rm --entrypoint cat mindroom-chat:docker-check /app/version.json)"
+          expected="{\"version\":\"${EXPECTED_BUILD_VERSION}\"}"
+          test "${actual}" = "${expected}"
 
       - name: Show Docker images
         run: docker images
