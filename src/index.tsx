@@ -16,7 +16,7 @@ import './index.css';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
 import { getAppPathFromNativeSsoUrl } from './app/utils/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
-import { pushSessionToSW } from './sw-session';
+import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
 import App from './app/pages/App';
 
@@ -55,34 +55,6 @@ if (isNativeIOS) {
   }).catch(() => undefined);
 }
 
-// Register Service Worker
-if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
-  const postCurrentSessionToSW = () => {
-    const session = getActiveSession();
-    pushSessionToSW(session?.baseUrl, session?.accessToken);
-  };
-  subscribeToSessionStore(postCurrentSessionToSW);
-
-  const swUrl =
-    import.meta.env.MODE === 'production'
-      ? appUrl('sw.js')
-      : appUrl('dev-sw.js?dev-sw');
-
-  navigator.serviceWorker.register(swUrl, { scope: ensureBasePathTrailingSlash(getAppBasePath()) });
-  navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
-  navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data?.type === 'token' && event.data?.responseKey) {
-      // Get the token for SW.
-      const token = getActiveSession()?.accessToken;
-      event.source?.postMessage({
-        responseKey: event.data.responseKey,
-        token,
-      });
-    }
-  });
-}
-
 const mountApp = () => {
   const rootContainer = document.getElementById('root');
 
@@ -95,4 +67,48 @@ const mountApp = () => {
   root.render(<App />);
 };
 
-mountApp();
+const bootstrap = async () => {
+  if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
+    const postCurrentSessionToSW = () => {
+      const session = getActiveSession();
+      pushSessionToSW(session?.baseUrl, session?.accessToken);
+    };
+    subscribeToSessionStore(postCurrentSessionToSW);
+
+    const swUrl =
+      import.meta.env.MODE === 'production'
+        ? appUrl('sw.js')
+        : appUrl('dev-sw.js?dev-sw');
+
+    navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
+    navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'token' && event.data?.responseKey) {
+        // Get the token for SW.
+        const token = getActiveSession()?.accessToken;
+        event.source?.postMessage({
+          responseKey: event.data.responseKey,
+          token,
+        });
+      }
+    });
+
+    try {
+      await navigator.serviceWorker.register(swUrl, {
+        scope: ensureBasePathTrailingSlash(getAppBasePath()),
+      });
+    } catch {
+      // Keep booting even if service worker registration fails.
+    }
+
+    if (!navigator.serviceWorker.controller && getActiveSession()) {
+      await waitForServiceWorkerControl();
+    }
+
+    postCurrentSessionToSW();
+  }
+
+  mountApp();
+};
+
+bootstrap().catch(() => undefined);
