@@ -25,6 +25,7 @@ const {
   loadCachedRoomPaginationTokenMock,
   saveRoomEventsToCacheMock,
   virtualPaginatorState,
+  settingsState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -63,6 +64,10 @@ const {
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
+  isTimelineAtLiveEndMock: vi.fn(() => true),
+  settingsState: {
+    paginationLimit: 300,
+  },
   virtualPaginatorState: {
     lastOptions: undefined as
       | {
@@ -146,7 +151,7 @@ vi.mock('../../state/hooks/settings', () => ({
       case 'dateFormatString':
         return ['MMM D'];
       case 'paginationLimit':
-        return [300];
+        return [settingsState.paginationLimit];
       default:
         return [false];
     }
@@ -663,6 +668,15 @@ const flushAsyncWork = async (cycles = 5) => {
   }
 };
 
+const waitForCondition = async (condition: () => boolean, cycles = 500) => {
+  for (let index = 0; index < cycles; index += 1) {
+    if (condition()) return;
+    await flushAsyncWork(1);
+  }
+
+  throw new Error('Condition not reached in time');
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   threadResolutionMapMock.clear();
@@ -689,6 +703,7 @@ beforeEach(() => {
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
+  settingsState.paginationLimit = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;
@@ -954,6 +969,69 @@ describe('RoomTimeline', () => {
       renderer?.unmount();
       await flushAsyncWork(1);
     });
+  });
+
+  it('keeps eager-preloading past fifty batches in thread-heavy rooms until the configured limit is reached', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    settingsState.paginationLimit = 60;
+
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const liveEvents = [makeEvent('$visible-0', { ts: 1_000 })];
+    const liveTimeline = makeTimeline(liveEvents, {
+      backwardToken: 'page-0',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const preloadTarget = 59;
+    let page = 0;
+    let renderer: ReturnType<typeof create> | undefined;
+
+    matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
+      page += 1;
+      liveEvents.unshift(
+        makeEvent(`$visible-${page}`, { ts: 1_000 - page * 10 }),
+        ...Array.from({ length: 4 }, (_, index) =>
+          makeEvent(`$thread-${page}-${index}`, {
+            ts: 1_000 - page * 10 - index - 1,
+            threadRootId: `$root-${page}`,
+          })
+        )
+      );
+      liveTimeline.__paginationTokens.backward = page < preloadTarget ? `page-${page}` : null;
+      return true;
+    });
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+        await new Promise((resolve) => {
+          setTimeout(resolve, 150);
+        });
+        await flushAsyncWork(10);
+      });
+
+      await act(async () => {
+        await waitForCondition(
+          () => matrixClientMock.paginateEventTimeline.mock.calls.length >= preloadTarget,
+          800
+        );
+        await flushAsyncWork(20);
+      });
+
+      expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(preloadTarget);
+      expect(page).toBe(preloadTarget);
+      expect(virtualPaginatorState.lastOptions?.count).toBe(60);
+    } finally {
+      consoleLogSpy.mockRestore();
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
   });
 
   it('uses cache ordering for same-timestamp earliest room events when resolving room-start state', async () => {
