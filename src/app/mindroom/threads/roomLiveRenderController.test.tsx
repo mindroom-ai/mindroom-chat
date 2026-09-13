@@ -29,6 +29,11 @@ const makeRoom = () => {
 
   return {
     room,
+    emitTimelineReply: (event: MatrixEvent, liveEvent: boolean) => {
+      listeners.get(RoomEvent.Timeline)?.forEach((listener) => {
+        listener(event, room, !liveEvent, false, { liveEvent });
+      });
+    },
     emitPendingReply: (event: MatrixEvent, oldStatus?: EventStatus) => {
       listeners.get(RoomEvent.LocalEchoUpdated)?.forEach((listener) => {
         listener(event, room, oldStatus === undefined ? undefined : event.getId(), oldStatus);
@@ -52,7 +57,8 @@ const makePendingReply = (): MatrixEvent =>
   } as unknown as MatrixEvent);
 
 const renderController = (scrollTop: number) => {
-  const { room, emitPendingReply } = makeRoom();
+  const { room, emitPendingReply, emitTimelineReply } = makeRoom();
+  const markLiveExpansionCandidate = vi.fn();
   const scrollToBottomRef = { current: { count: 0, smooth: false } };
   const scrollElement = {
     clientHeight: 400,
@@ -69,7 +75,7 @@ const renderController = (scrollTop: number) => {
       hideMembershipEvents: false,
       hideNickAvatarEvents: false,
       ignoredUsersSet: new Set(),
-      liveExpandOnceIds: { current: new Set() },
+      markLiveExpansionCandidate,
       mx: { getUserId: () => '@alice:example.org' } as MatrixClient,
       normalThreadRecordMap: new Map(),
       onStoreThreadSummary: vi.fn(),
@@ -102,12 +108,25 @@ const renderController = (scrollTop: number) => {
 
   return {
     emitPendingReply,
+    emitTimelineReply,
+    markLiveExpansionCandidate,
     renderer: renderer!,
     scrollToBottomRef,
   };
 };
 
 describe('useRoomLiveRenderController pending thread replies', () => {
+  it('marks expansion candidates only for live timeline appends', () => {
+    const { emitTimelineReply, markLiveExpansionCandidate, renderer } = renderController(600);
+    const event = makePendingReply();
+    act(() => emitTimelineReply(event, false));
+    expect(markLiveExpansionCandidate).not.toHaveBeenCalled();
+    act(() => emitTimelineReply(event, true));
+    expect(markLiveExpansionCandidate).toHaveBeenCalledTimes(1);
+    expect(markLiveExpansionCandidate).toHaveBeenCalledWith('~pending-reply');
+    renderer.unmount();
+  });
+
   it('arms smooth bottom-follow when a local echo arrives near the bottom', () => {
     const { emitPendingReply, renderer, scrollToBottomRef } = renderController(600);
 

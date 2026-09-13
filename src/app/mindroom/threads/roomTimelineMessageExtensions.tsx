@@ -13,9 +13,11 @@ export const MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT = MINDROOM_TOOL_APPROVAL_EVEN
 
 type RoomTimelineEventRendererArgs = [string, MatrixEvent, number, EventTimelineSet, boolean];
 
-export const getMindroomRoomTimelineMessageRenderers = (
-  renderApprovalEvent: EventRenderer<RoomTimelineEventRendererArgs>
-): EventRendererOpts<RoomTimelineEventRendererArgs> => ({
+export const getMindroomRoomTimelineMessageRenderers = <
+  T extends unknown[] = RoomTimelineEventRendererArgs
+>(
+  renderApprovalEvent: EventRenderer<T>
+): EventRendererOpts<T> => ({
   [MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT]: renderApprovalEvent,
 });
 

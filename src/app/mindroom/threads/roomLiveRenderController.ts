@@ -67,7 +67,7 @@ export const useRoomLiveRenderController = ({
   hideMembershipEvents,
   hideNickAvatarEvents,
   ignoredUsersSet,
-  liveExpandOnceIds,
+  markLiveExpansionCandidate,
   mx,
   normalThreadRecordMap,
   onStoreThreadSummary,
@@ -96,7 +96,7 @@ export const useRoomLiveRenderController = ({
   hideMembershipEvents: boolean;
   hideNickAvatarEvents: boolean;
   ignoredUsersSet: Set<string>;
-  liveExpandOnceIds: MutableRefObject<Set<string>>;
+  markLiveExpansionCandidate: (eventId: string) => void;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
@@ -190,7 +190,7 @@ export const useRoomLiveRenderController = ({
         // -688px — the browser clamped the reader to the bottom (snap-back
         // e2e, device rounds 5-6).
         if (liveExpandOnceId && timelineMeta.liveEvent) {
-          liveExpandOnceIds.current.add(liveExpandOnceId);
+          markLiveExpansionCandidate(liveExpandOnceId);
         }
 
         // Redactions: the engine owns the cache side (delete + reaction
@@ -378,7 +378,7 @@ export const useRoomLiveRenderController = ({
         hideMembershipEvents,
         hideNickAvatarEvents,
         ignoredUsersSet,
-        liveExpandOnceIds,
+        markLiveExpansionCandidate,
         mx,
         normalThreadRecordMap,
         onStoreThreadSummary,

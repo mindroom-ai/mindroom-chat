@@ -15,7 +15,14 @@ import { StateEvent } from '../../../types/matrix/room';
 import { Event } from '../messages/MindroomMessage';
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 
-type RoomTimelineEventArgs = [string, MatrixEvent, number, EventTimelineSet, boolean];
+export type RoomTimelineEventArgs = [
+  string,
+  MatrixEvent,
+  number,
+  EventTimelineSet,
+  boolean,
+  boolean?
+];
 
 type RoomTimelineStateEventOptions = {
   room: Room;
@@ -53,12 +60,19 @@ export const createRoomTimelineStateEventRenderers = ({
   t,
 }: RoomTimelineStateEventOptions) => {
   const stateEventRenderers: EventRendererOpts<RoomTimelineEventArgs> = {
-    [StateEvent.RoomMember]: (mEventId, mEvent, item) => {
+    [StateEvent.RoomMember]: (
+      mEventId,
+      mEvent,
+      item,
+      _timelineSet,
+      _collapse,
+      highlightOverride
+    ) => {
       const membershipChanged = isMembershipChanged(mEvent);
       if (membershipChanged && hideMembershipEvents) return null;
       if (!membershipChanged && hideNickAvatarEvents) return null;
 
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+      const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
       const parsed = parseMemberEvent(mEvent);
 
       const timeJSX = (
@@ -98,8 +112,8 @@ export const createRoomTimelineStateEventRenderers = ({
         </Event>
       );
     },
-    [StateEvent.RoomName]: (mEventId, mEvent, item) => {
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+    [StateEvent.RoomName]: (mEventId, mEvent, item, _timelineSet, _collapse, highlightOverride) => {
+      const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -141,8 +155,15 @@ export const createRoomTimelineStateEventRenderers = ({
         </Event>
       );
     },
-    [StateEvent.RoomTopic]: (mEventId, mEvent, item) => {
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+    [StateEvent.RoomTopic]: (
+      mEventId,
+      mEvent,
+      item,
+      _timelineSet,
+      _collapse,
+      highlightOverride
+    ) => {
+      const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -184,8 +205,15 @@ export const createRoomTimelineStateEventRenderers = ({
         </Event>
       );
     },
-    [StateEvent.RoomAvatar]: (mEventId, mEvent, item) => {
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+    [StateEvent.RoomAvatar]: (
+      mEventId,
+      mEvent,
+      item,
+      _timelineSet,
+      _collapse,
+      highlightOverride
+    ) => {
+      const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -227,8 +255,15 @@ export const createRoomTimelineStateEventRenderers = ({
         </Event>
       );
     },
-    [StateEvent.GroupCallMemberPrefix]: (mEventId, mEvent, item) => {
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+    [StateEvent.GroupCallMemberPrefix]: (
+      mEventId,
+      mEvent,
+      item,
+      _timelineSet,
+      _collapse,
+      highlightOverride
+    ) => {
+      const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -279,9 +314,16 @@ export const createRoomTimelineStateEventRenderers = ({
       );
     },
   };
-  const renderStateEvent: EventRenderer<RoomTimelineEventArgs> = (mEventId, mEvent, item) => {
+  const renderStateEvent: EventRenderer<RoomTimelineEventArgs> = (
+    mEventId,
+    mEvent,
+    item,
+    _timelineSet,
+    _collapse,
+    highlightOverride
+  ) => {
     if (!showHiddenEvents) return null;
-    const highlighted = focusItem?.index === item && focusItem.highlight;
+    const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
     const senderId = mEvent.getSender() ?? '';
     const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -325,13 +367,20 @@ export const createRoomTimelineStateEventRenderers = ({
       </Event>
     );
   };
-  const renderEvent: EventRenderer<RoomTimelineEventArgs> = (mEventId, mEvent, item) => {
+  const renderEvent: EventRenderer<RoomTimelineEventArgs> = (
+    mEventId,
+    mEvent,
+    item,
+    _timelineSet,
+    _collapse,
+    highlightOverride
+  ) => {
     if (!showHiddenEvents) return null;
     if (Object.keys(mEvent.getContent()).length === 0) return null;
     if (mEvent.getRelation()) return null;
     if (mEvent.isRedaction()) return null;
 
-    const highlighted = focusItem?.index === item && focusItem.highlight;
+    const highlighted = highlightOverride ?? (focusItem?.index === item && focusItem.highlight);
     const senderId = mEvent.getSender() ?? '';
     const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 

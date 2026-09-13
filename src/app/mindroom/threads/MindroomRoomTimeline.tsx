@@ -11,11 +11,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Direction, EventTimelineSet, MatrixEvent, Room, MsgType } from 'matrix-js-sdk';
-import { HTMLReactParserOptions } from 'html-react-parser';
+import { Direction, EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Editor } from 'slate';
-import { useAtomValue, useSetAtom } from 'jotai';
 import {
   Badge,
   Box,
@@ -31,104 +29,32 @@ import {
   config,
   toRem,
 } from 'folds';
-import { isKeyHotkey } from 'is-hotkey';
-import { Opts as LinkifyOpts } from 'linkifyjs';
-import { useTranslation } from 'react-i18next';
-import { getMxIdLocalPart } from '../../utils/matrix';
-import { getRenderableAnnotationsByKey } from '../messages/stopReaction';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
-import { editableActiveElement, scrollToBottom } from '../../utils/dom';
-import {
-  DefaultPlaceholder,
-  CompactPlaceholder,
-  Reply,
-  MessageBase,
-  MessageUnsupportedContent,
-  MessageNotDecryptedContent,
-  RedactedContent,
-  MSticker,
-  ImageContent,
-} from '../../components/message';
-import {
-  factoryRenderLinkifyWithMention,
-  getReactCustomHtmlParser,
-  LINKIFY_OPTS,
-  makeMentionCustomProps,
-  renderMatrixMention,
-} from '../../plugins/react-custom-html-parser';
-import {
-  canEditEvent,
-  getEditedEvent,
-  getEventReactions,
-  getLatestMessageContent,
-  getLatestEditableEvt,
-  getMemberDisplayName,
-  reactionOrEditEvent,
-} from '../../utils/room';
+import { scrollToBottom } from '../../utils/dom';
+import { DefaultPlaceholder, CompactPlaceholder, MessageBase } from '../../components/message';
+import { reactionOrEditEvent } from '../../utils/room';
 import { useSetting } from '../../state/hooks/settings';
 import { MessageLayout, settingsAtom } from '../../state/settings';
-import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
-import { EncryptedContent } from '../../features/room/message/EncryptedContent';
-import { Reactions } from '../../features/room/message/Reactions';
-import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import { RoomIntro } from '../../components/room-intro';
 import { getResizeObserverEntry, useResizeObserver } from '../../hooks/useResizeObserver';
 import * as css from '../../features/room/RoomTimeline.css';
 import { inSameDay, minuteDifference, timeDayMonthYear, today, yesterday } from '../../utils/time';
-import { isEmptyEditor } from '../../components/editor';
-import { roomIdToReplyDraftAtomFamily } from '../../state/room/roomInputDrafts';
-import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
-import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
-import { useKeyDown } from '../../hooks/useKeyDown';
-import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { VirtualTile } from '../../components/virtualizer';
-import {
-  CollapsibleMessage,
-  CollapsibleMessageStateProvider,
-  expandAllMessages,
-  collapseAllMessages,
-} from './CollapsibleMessage';
-import { useTimelineBulkExpansionAnchor } from './useTimelineBulkExpansionAnchor';
-import { Image } from '../../components/media';
-import { ImageViewer } from '../../components/image-viewer';
-import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { useRoomUnread } from '../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
-import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
-import { useSpoilerClickHandler } from '../../hooks/useSpoilerClickHandler';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
-import { useImagePackRooms } from '../../hooks/useImagePackRooms';
-import { useIsDirectRoom } from '../../hooks/useRoom';
-import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { createSessionId } from '../../state/sessions';
-import { useSpaceOptionally } from '../../hooks/useSpace';
-import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useRoomPermissions } from '../../hooks/useRoomPermissions';
-import { useAccessiblePowerTagColors, useGetMemberPowerTag } from '../../hooks/useMemberPowerTag';
-import { useTheme } from '../../hooks/useTheme';
-import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
-import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
-import { Message } from '../messages/MindroomMessage';
-import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import { useMindroomLongTextPrewarm } from '../messages/longTextPrewarm';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
-  consumeLiveExpandOnceId,
-  getCollapsibleMessageMeasurementKey,
-  getCollapsibleMessageMode,
-  shouldForceCollapsibleMessageOverflow,
-} from './threadCollapsibleMessages';
-import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
   estimateThreadEventRowHeight,
-  isThreadFallbackReply,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
 } from './threadRenderUtils';
@@ -156,11 +82,6 @@ import { useThreadSummaryPublishController } from './threadSummaryPublishControl
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 import { useThreadSortFreezeController } from './threadSortFreezeController';
 import { useMindroomThreadIndex } from './useMindroomThreadIndex';
-import {
-  getMindroomRoomTimelineApprovalContentIfSupported,
-  getMindroomRoomTimelineMessageRenderers,
-  renderMindroomRoomTimelineThreadBadge,
-} from './roomTimelineMessageExtensions';
 import type { ThreadFilterKey } from './RoomThreadOverview';
 import {
   type ThreadFilterState,
@@ -215,8 +136,7 @@ import { useRoomTimelineWindowController } from './roomTimelineWindowController'
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import { TimelineMinimap } from './TimelineMinimap';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
-import { useRoomTimelineMessageActions } from './useRoomTimelineMessageActions';
-import { createRoomTimelineStateEventRenderers } from './roomTimelineStateEventRenderers';
+import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import {
   useRoomEventOpenController,
   useRoomEventRouteOpenController,
@@ -227,8 +147,6 @@ import {
 } from './roomFocusScrollController';
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { useThreadTimelineState } from './useThreadTimelineState';
-import { useExpandLongMessagesByDefault } from '../settings/useMindroomAccountSettings';
-import { ApprovalHistory } from '../messages/ThreadApprovalControls';
 import {
   useThreadApprovalTimeline,
   useThreadApprovalRowMeasurements,
@@ -317,12 +235,9 @@ export function RoomTimeline({
   const mx = useMatrixClient();
   const initialClientCatchupInProgress = useInitialClientCatchup(mx);
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
-  const useAuthentication = useMediaAuthentication();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const [messageLayout] = useSetting(settingsAtom, 'messageLayout');
   const [messageSpacing] = useSetting(settingsAtom, 'messageSpacing');
-  const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
-  const direct = useIsDirectRoom();
   const {
     effectiveViewMode,
     focusedRoomOverviewRequested,
@@ -337,16 +252,9 @@ export function RoomTimeline({
   });
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
   const roomEagerPreloadEnabled = !threadId && !eventId && effectiveViewMode !== 'classic';
-  const showThreadBadgesInRoom = effectiveViewMode !== 'classic';
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
-  const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
-  const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
-  const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
-  const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
-  const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
-  const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
   const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
   const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
@@ -355,45 +263,11 @@ export function RoomTimeline({
   const prefetchDepthRef = useRef(prefetchDepth);
   prefetchDepthRef.current = prefetchDepth;
 
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-  const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
-
   const ignoredUsersList = useIgnoredUsers();
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsersList), [ignoredUsersList]);
 
-  const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));
-  const powerLevels = usePowerLevelsContext();
-  const creators = useRoomCreators(room);
-
-  const creatorsTag = useRoomCreatorsTag();
-  const powerLevelTags = usePowerLevelTags(room, powerLevels);
-  const getMemberPowerTag = useGetMemberPowerTag(room, creators, powerLevels);
-
-  const theme = useTheme();
-  const accessiblePowerTagColors = useAccessiblePowerTagColors(
-    theme.kind,
-    creatorsTag,
-    powerLevelTags
-  );
-
-  const permissions = useRoomPermissions(creators, powerLevels);
-
-  const canRedact = permissions.action('redact', mx.getSafeUserId());
-  const canDeleteOwn = permissions.event(MessageEvent.RoomRedaction, mx.getSafeUserId());
-  const canSendReaction = permissions.event(MessageEvent.Reaction, mx.getSafeUserId());
-  const canPinEvent = permissions.stateEvent(StateEvent.RoomPinnedEvents, mx.getSafeUserId());
-  const [editId, setEditId] = useState<string>();
-
-  const roomToParents = useAtomValue(roomToParentsAtom);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
-  const mentionClickHandler = useMentionClickHandler(room.roomId);
-  const spoilerClickHandler = useSpoilerClickHandler();
-  const openUserRoomProfile = useOpenUserRoomProfile();
-  const space = useSpaceOptionally();
-
-  const imagePackRooms: Room[] = useImagePackRooms(room.roomId, roomToParents);
-
   const [unreadInfo, setUnreadInfo] = useState(() => getRoomUnreadInfo(room, true));
   const readUptoEventIdRef = useRef<string>();
   if (unreadInfo) {
@@ -402,19 +276,23 @@ export function RoomTimeline({
 
   const atBottomAnchorRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState<boolean>(true);
-  // `undefined` = no expand/collapse-all override; the timeline is keyed by
-  // room:thread, so this state (and the context derived from it) resets on
-  // navigation via remount.
-  const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
-  const expandAll = expandAllOverride ?? expandLongMessagesByDefault;
-  const manualExpansionStateRef = useRef(new Map<string, boolean>());
-  const manualExpansionState = manualExpansionStateRef.current;
   const atBottomRef = useRef(atBottom);
-  const liveExpandOnceIds = useRef(new Set<string>());
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const restoreBulkExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
+  const messageFeature = useTimelineMessageFeature({
+    room,
+    editor,
+    threadId,
+    showThreadRepliesInRoom,
+    scrollRef,
+    messageLayout,
+    messageSpacing,
+    hideActivity,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    showHiddenEvents,
+  });
   const scrollToBottomRef = useRef({
     count: 0,
     smooth: true,
@@ -484,26 +362,6 @@ export function RoomTimeline({
     threadId,
   });
 
-  const linkifyOpts = useMemo<LinkifyOpts>(
-    () => ({
-      ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention((href) =>
-        renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
-      ),
-    }),
-    [mx, room, mentionClickHandler]
-  );
-  const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
-    () =>
-      getReactCustomHtmlParser(mx, room.roomId, {
-        linkifyOpts,
-        useAuthentication,
-        handleSpoilerClick: spoilerClickHandler,
-        handleMentionClick: mentionClickHandler,
-      }),
-    [mx, room, linkifyOpts, spoilerClickHandler, mentionClickHandler, useAuthentication]
-  );
-  const parseMemberEvent = useMemberEventParser();
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
@@ -519,9 +377,6 @@ export function RoomTimeline({
   const prevShowThreadRepliesInRoomRef = useRef(showThreadRepliesInRoom);
   const eventsLength = getTimelinesEventsCount(timeline.linkedTimelines);
   const threadResolutionMap = useRoomThreadResolutionMap(room);
-  useEffect(() => {
-    liveExpandOnceIds.current.clear();
-  }, [room.roomId, threadId]);
   // CINNY-207 P4.3: the eagerPreloading reset layout-effect is gone.
   // The band-4 deep-history job runs entirely in the engine and does
   // not gate any rendering signal — the skeleton logic below relies on
@@ -1542,7 +1397,7 @@ export function RoomTimeline({
     hideMembershipEvents,
     hideNickAvatarEvents,
     ignoredUsersSet,
-    liveExpandOnceIds,
+    markLiveExpansionCandidate: messageFeature.markLiveExpansionCandidate,
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
@@ -1695,31 +1550,6 @@ export function RoomTimeline({
     unreadInfo,
   });
 
-  // Handle up arrow edit
-  useKeyDown(
-    window,
-    useCallback(
-      (evt) => {
-        if (
-          isKeyHotkey('arrowup', evt) &&
-          editableActiveElement() &&
-          document.activeElement?.getAttribute('data-editable-name') === 'RoomInput' &&
-          isEmptyEditor(editor)
-        ) {
-          const editableEvt = getLatestEditableEvt(
-            room.getLiveTimeline(),
-            (mEvt) => isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt)
-          );
-          const editableEvtId = editableEvt?.getId();
-          if (!editableEvtId) return;
-          setEditId(editableEvtId);
-          evt.preventDefault();
-        }
-      },
-      [mx, room, editor]
-    )
-  );
-
   useRoomEventRouteOpenController({
     effectiveViewMode,
     eventId,
@@ -1774,7 +1604,7 @@ export function RoomTimeline({
     alive,
     atBottomAnchorRef,
     cancelThreadBottomSettle,
-    editId,
+    editId: messageFeature.editingEventId,
     focusItem,
     focusScrollResetToken: effectiveThreadFilterState,
     pendingThreadOpenRef,
@@ -1837,25 +1667,6 @@ export function RoomTimeline({
       unreadInfo,
     });
 
-  const {
-    handleUserClick,
-    handleUsernameClick,
-    handleReplyClick,
-    handleReactionToggle,
-    handleEdit,
-  } = useRoomTimelineMessageActions({
-    mx,
-    room,
-    space,
-    editor,
-    openUserRoomProfile,
-    showThreadRepliesInRoom,
-    setReplyDraft,
-    navigateRoomThread,
-    setEditId,
-  });
-  const { t } = useTranslation();
-
   useThreadSummaryPublishController({
     onStoreThreadSummary,
     thread,
@@ -1887,618 +1698,6 @@ export function RoomTimeline({
     threadResolutionMap,
   });
 
-  const { stateEventRenderers, renderStateEvent, renderEvent } =
-    createRoomTimelineStateEventRenderers({
-      room,
-      mx,
-      focusItem,
-      messageSpacing,
-      messageLayout,
-      hour24Clock,
-      dateFormatString,
-      canRedact,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      showHiddenEvents,
-      hideActivity,
-      showDeveloperTools,
-      parseMemberEvent,
-      t,
-    });
-
-  const renderMatrixEvent = useMatrixEventRenderer<
-    [string, MatrixEvent, number, EventTimelineSet, boolean]
-  >(
-    {
-      [MessageEvent.RoomMessage]: (mEventId, mEvent, item, timelineSet, collapse) => {
-        const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
-        const { replyEventId, threadRootId } = mEvent;
-        const highlighted = focusItem?.index === item && focusItem.highlight;
-
-        const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-        const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
-        const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
-        const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const getContent = (() => resolvedContent) as GetContentCallback;
-        const collapseMode = getCollapsibleMessageMode(
-          mEventId,
-          resolvedContent,
-          liveExpandOnceIds.current
-        );
-        const forceCollapsibleOverflow = shouldForceCollapsibleMessageOverflow(resolvedContent);
-        const onInitialExpandConsumed =
-          collapseMode === 'initially-expanded'
-            ? () => {
-                consumeLiveExpandOnceId(liveExpandOnceIds.current, mEventId);
-              }
-            : undefined;
-
-        const senderId = mEvent.getSender() ?? '';
-        const senderDisplayName =
-          getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-        const threadSummary = showThreadBadgesInRoom
-          ? renderMindroomRoomTimelineThreadBadge({
-              eventId: mEventId,
-              event: mEvent,
-              threadRecordMap,
-              activeThreadId: threadId,
-              room,
-              onClick: handleOpenReply,
-              includeRecentSummaryData: true,
-            })
-          : null;
-
-        return (
-          <Message
-            key={mEvent.getId()}
-            data-message-item={item}
-            data-message-id={mEventId}
-            room={room}
-            mEvent={mEvent}
-            resolvedMessageContent={resolvedContent}
-            messageSpacing={messageSpacing}
-            messageLayout={messageLayout}
-            collapse={collapse}
-            highlight={highlighted}
-            edit={editId === mEventId}
-            canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
-            canSendReaction={canSendReaction}
-            canPinEvent={canPinEvent}
-            imagePackRooms={imagePackRooms}
-            relations={hasReactions ? reactionRelations : undefined}
-            onUserClick={handleUserClick}
-            onUsernameClick={handleUsernameClick}
-            onReplyClick={handleReplyClick}
-            onReactionToggle={handleReactionToggle}
-            onEditId={handleEdit}
-            reply={
-              !(
-                threadId &&
-                replyEventId &&
-                (isThreadFallbackReply(mEvent) ||
-                  replyEventId === prevEvent?.getId() ||
-                  replyEventId === threadId)
-              ) &&
-              replyEventId && (
-                <Reply
-                  room={room}
-                  timelineSet={timelineSet}
-                  replyEventId={replyEventId}
-                  threadRootId={threadRootId}
-                  getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                  hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
-                  onClick={handleOpenReply}
-                  getMemberPowerTag={getMemberPowerTag}
-                  accessibleTagColors={accessiblePowerTagColors}
-                  legacyUsernameColor={legacyUsernameColor || direct}
-                />
-              )
-            }
-            reactions={
-              (threadSummary || reactionRelations) && (
-                <>
-                  {threadSummary}
-                  {reactionRelations && (
-                    <Reactions
-                      style={{ marginTop: config.space.S200 }}
-                      room={room}
-                      relations={reactionRelations}
-                      mEventId={mEventId}
-                      targetEvent={mEvent}
-                      canSendReaction={canSendReaction}
-                      onReactionToggle={handleReactionToggle}
-                    />
-                  )}
-                </>
-              )
-            }
-            hideReadReceipts={hideActivity}
-            showDeveloperTools={showDeveloperTools}
-            memberPowerTag={getMemberPowerTag(senderId)}
-            accessibleTagColors={accessiblePowerTagColors}
-            legacyUsernameColor={legacyUsernameColor || direct}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          >
-            {(() => {
-              if (mEvent.isRedacted()) {
-                return (
-                  <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
-                );
-              }
-              const msgType = mEvent.getContent().msgtype;
-              const isVisualMedia = msgType === MsgType.Image || msgType === MsgType.Video;
-              const renderContent = (loadFullContent = true) => (
-                <RenderMessageContent
-                  displayName={senderDisplayName}
-                  eventType={mEvent.getType()}
-                  msgType={msgType ?? ''}
-                  ts={mEvent.getTs()}
-                  edited={!!editedEvent}
-                  pendingSend={pendingSend}
-                  failedSend={failedSend}
-                  getContent={getContent}
-                  mediaAutoLoad={mediaAutoLoad}
-                  urlPreview={showUrlPreview}
-                  showMessageExtras
-                  htmlReactParserOptions={htmlReactParserOptions}
-                  linkifyOpts={linkifyOpts}
-                  outlineAttachment={messageLayout === MessageLayout.Bubble}
-                  hydrateLongText={loadFullContent}
-                />
-              );
-              const content = renderContent();
-              const measurementKey = getCollapsibleMessageMeasurementKey(
-                mEvent,
-                collapseMode,
-                editedEvent
-              );
-              if (isVisualMedia) return content;
-              return (
-                <CollapsibleMessage
-                  collapseMode={collapseMode}
-                  expansionKey={mEventId}
-                  forceOverflowing={forceCollapsibleOverflow}
-                  measurementKey={measurementKey}
-                  onInitialExpandConsumed={onInitialExpandConsumed}
-                >
-                  {({ loadFullContent }) => renderContent(loadFullContent)}
-                </CollapsibleMessage>
-              );
-            })()}
-            <ApprovalHistory records={approvalTimeline.historyByResponseId.get(mEventId) ?? []} />
-          </Message>
-        );
-      },
-      ...getMindroomRoomTimelineMessageRenderers(
-        (mEventId, mEvent, item, timelineSet, collapse) => {
-          const reactionRelations = getEventReactions(timelineSet, mEventId);
-          const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
-          const { replyEventId, threadRootId } = mEvent;
-          const highlighted = focusItem?.index === item && focusItem.highlight;
-          const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-          const pendingSend =
-            isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
-          const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
-          const approvalContent =
-            getMindroomRoomTimelineApprovalContentIfSupported(mEvent, editedEvent) ??
-            mEvent.getContent();
-          const getContent = (() => approvalContent) as GetContentCallback;
-          const senderId = mEvent.getSender() ?? '';
-          const senderDisplayName =
-            getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-          const threadSummary = showThreadBadgesInRoom
-            ? renderMindroomRoomTimelineThreadBadge({
-                eventId: mEventId,
-                event: mEvent,
-                threadRecordMap,
-                activeThreadId: threadId,
-                room,
-                onClick: handleOpenReply,
-                includeRecentSummaryData: true,
-              })
-            : null;
-
-          return (
-            <Message
-              key={mEvent.getId()}
-              data-message-item={item}
-              data-message-id={mEventId}
-              room={room}
-              mEvent={mEvent}
-              resolvedMessageContent={approvalContent}
-              messageSpacing={messageSpacing}
-              messageLayout={messageLayout}
-              collapse={collapse}
-              highlight={highlighted}
-              canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
-              canSendReaction={canSendReaction}
-              canPinEvent={canPinEvent}
-              imagePackRooms={imagePackRooms}
-              relations={hasReactions ? reactionRelations : undefined}
-              onUserClick={handleUserClick}
-              onUsernameClick={handleUsernameClick}
-              onReplyClick={handleReplyClick}
-              onReactionToggle={handleReactionToggle}
-              reply={
-                !(
-                  threadId &&
-                  replyEventId &&
-                  (isThreadFallbackReply(mEvent) ||
-                    replyEventId === prevEvent?.getId() ||
-                    replyEventId === threadId)
-                ) &&
-                replyEventId && (
-                  <Reply
-                    room={room}
-                    timelineSet={timelineSet}
-                    replyEventId={replyEventId}
-                    threadRootId={threadRootId}
-                    getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                    hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
-                    onClick={handleOpenReply}
-                    getMemberPowerTag={getMemberPowerTag}
-                    accessibleTagColors={accessiblePowerTagColors}
-                    legacyUsernameColor={legacyUsernameColor || direct}
-                  />
-                )
-              }
-              reactions={
-                (threadSummary || reactionRelations) && (
-                  <>
-                    {threadSummary}
-                    {reactionRelations && (
-                      <Reactions
-                        style={{ marginTop: config.space.S200 }}
-                        room={room}
-                        relations={reactionRelations}
-                        mEventId={mEventId}
-                        targetEvent={mEvent}
-                        canSendReaction={canSendReaction}
-                        onReactionToggle={handleReactionToggle}
-                      />
-                    )}
-                  </>
-                )
-              }
-              hideReadReceipts={hideActivity}
-              showDeveloperTools={showDeveloperTools}
-              memberPowerTag={getMemberPowerTag(senderId)}
-              accessibleTagColors={accessiblePowerTagColors}
-              legacyUsernameColor={legacyUsernameColor || direct}
-              hour24Clock={hour24Clock}
-              dateFormatString={dateFormatString}
-            >
-              {mEvent.isRedacted() ? (
-                <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
-              ) : approvalTimeline.fallbackGroupsByEventId.has(mEventId) ? (
-                <ApprovalHistory
-                  records={approvalTimeline.fallbackGroupsByEventId.get(mEventId) ?? []}
-                />
-              ) : (
-                <RenderMessageContent
-                  displayName={senderDisplayName}
-                  eventType={mEvent.getType()}
-                  roomId={room.roomId}
-                  eventId={mEventId}
-                  threadId={mEvent.threadRootId ?? threadId}
-                  msgType={
-                    typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''
-                  }
-                  ts={mEvent.getTs()}
-                  edited={!!editedEvent}
-                  pendingSend={pendingSend}
-                  failedSend={failedSend}
-                  getContent={getContent}
-                  mediaAutoLoad={mediaAutoLoad}
-                  urlPreview={showUrlPreview}
-                  htmlReactParserOptions={htmlReactParserOptions}
-                  linkifyOpts={linkifyOpts}
-                  outlineAttachment={messageLayout === MessageLayout.Bubble}
-                />
-              )}
-            </Message>
-          );
-        }
-      ),
-      [MessageEvent.RoomMessageEncrypted]: (mEventId, mEvent, item, timelineSet, collapse) => {
-        const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
-        const { replyEventId, threadRootId } = mEvent;
-        const highlighted = focusItem?.index === item && focusItem.highlight;
-        const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-        const pendingSend = isPendingLocalEchoEvent(mEvent) || isPendingLocalEchoEvent(editedEvent);
-        const failedSend = isFailedLocalEchoEvent(mEvent) || isFailedLocalEchoEvent(editedEvent);
-        const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
-        const threadSummary = showThreadBadgesInRoom
-          ? renderMindroomRoomTimelineThreadBadge({
-              eventId: mEventId,
-              event: mEvent,
-              threadRecordMap,
-              activeThreadId: threadId,
-              room,
-              onClick: handleOpenReply,
-              includeRecentSummaryData: true,
-            })
-          : null;
-
-        return (
-          <Message
-            key={mEvent.getId()}
-            data-message-item={item}
-            data-message-id={mEventId}
-            room={room}
-            mEvent={mEvent}
-            resolvedMessageContent={resolvedContent}
-            messageSpacing={messageSpacing}
-            messageLayout={messageLayout}
-            collapse={collapse}
-            highlight={highlighted}
-            edit={editId === mEventId}
-            canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
-            canSendReaction={canSendReaction}
-            canPinEvent={canPinEvent}
-            imagePackRooms={imagePackRooms}
-            relations={hasReactions ? reactionRelations : undefined}
-            onUserClick={handleUserClick}
-            onUsernameClick={handleUsernameClick}
-            onReplyClick={handleReplyClick}
-            onReactionToggle={handleReactionToggle}
-            onEditId={handleEdit}
-            reply={
-              !(
-                threadId &&
-                replyEventId &&
-                (isThreadFallbackReply(mEvent) ||
-                  replyEventId === prevEvent?.getId() ||
-                  replyEventId === threadId)
-              ) &&
-              replyEventId && (
-                <Reply
-                  room={room}
-                  timelineSet={timelineSet}
-                  replyEventId={replyEventId}
-                  threadRootId={threadRootId}
-                  getLocally={threadId ? () => threadEventMap.get(replyEventId) : undefined}
-                  hideThreadIndicator={!!threadId || showThreadRepliesInRoom}
-                  onClick={handleOpenReply}
-                  getMemberPowerTag={getMemberPowerTag}
-                  accessibleTagColors={accessiblePowerTagColors}
-                  legacyUsernameColor={legacyUsernameColor || direct}
-                />
-              )
-            }
-            reactions={
-              (threadSummary || reactionRelations) && (
-                <>
-                  {threadSummary}
-                  {reactionRelations && (
-                    <Reactions
-                      style={{ marginTop: config.space.S200 }}
-                      room={room}
-                      relations={reactionRelations}
-                      mEventId={mEventId}
-                      targetEvent={mEvent}
-                      canSendReaction={canSendReaction}
-                      onReactionToggle={handleReactionToggle}
-                    />
-                  )}
-                </>
-              )
-            }
-            hideReadReceipts={hideActivity}
-            showDeveloperTools={showDeveloperTools}
-            memberPowerTag={getMemberPowerTag(mEvent.getSender() ?? '')}
-            accessibleTagColors={accessiblePowerTagColors}
-            legacyUsernameColor={legacyUsernameColor || direct}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          >
-            <EncryptedContent mEvent={mEvent}>
-              {() => {
-                if (mEvent.isRedacted()) return <RedactedContent />;
-                if (mEvent.getType() === MessageEvent.Sticker)
-                  return (
-                    <MSticker
-                      content={mEvent.getContent()}
-                      renderImageContent={(props) => (
-                        <ImageContent
-                          {...props}
-                          autoPlay={mediaAutoLoad}
-                          renderImage={(p) => <Image {...p} loading="lazy" />}
-                          renderViewer={(p) => <ImageViewer {...p} />}
-                        />
-                      )}
-                    />
-                  );
-                const approvalContent = getMindroomRoomTimelineApprovalContentIfSupported(
-                  mEvent,
-                  editedEvent
-                );
-                if (approvalContent) {
-                  if (approvalTimeline.fallbackGroupsByEventId.has(mEventId)) return null;
-                  const getContent = (() => approvalContent) as GetContentCallback;
-                  const senderId = mEvent.getSender() ?? '';
-                  const senderDisplayName =
-                    getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-
-                  return (
-                    <RenderMessageContent
-                      displayName={senderDisplayName}
-                      eventType={mEvent.getType()}
-                      roomId={room.roomId}
-                      eventId={mEventId}
-                      threadId={mEvent.threadRootId ?? threadId}
-                      msgType={
-                        typeof approvalContent.msgtype === 'string' ? approvalContent.msgtype : ''
-                      }
-                      ts={mEvent.getTs()}
-                      edited={!!editedEvent}
-                      pendingSend={pendingSend}
-                      failedSend={failedSend}
-                      getContent={getContent}
-                      mediaAutoLoad={mediaAutoLoad}
-                      urlPreview={showUrlPreview}
-                      htmlReactParserOptions={htmlReactParserOptions}
-                      linkifyOpts={linkifyOpts}
-                      outlineAttachment={messageLayout === MessageLayout.Bubble}
-                    />
-                  );
-                }
-                if (mEvent.getType() === MessageEvent.RoomMessage) {
-                  const getContent = (() => resolvedContent) as GetContentCallback;
-                  const collapseMode = getCollapsibleMessageMode(
-                    mEventId,
-                    resolvedContent,
-                    liveExpandOnceIds.current
-                  );
-                  const forceCollapsibleOverflow =
-                    shouldForceCollapsibleMessageOverflow(resolvedContent);
-                  const measurementKey = getCollapsibleMessageMeasurementKey(
-                    mEvent,
-                    collapseMode,
-                    editedEvent
-                  );
-                  const onInitialExpandConsumed =
-                    collapseMode === 'initially-expanded'
-                      ? () => {
-                          consumeLiveExpandOnceId(liveExpandOnceIds.current, mEventId);
-                        }
-                      : undefined;
-
-                  const senderId = mEvent.getSender() ?? '';
-                  const senderDisplayName =
-                    getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
-                  const renderMessageContent = (loadFullContent = true) => (
-                    <RenderMessageContent
-                      displayName={senderDisplayName}
-                      eventType={mEvent.getType()}
-                      msgType={mEvent.getContent().msgtype ?? ''}
-                      ts={mEvent.getTs()}
-                      edited={!!editedEvent}
-                      pendingSend={pendingSend}
-                      failedSend={failedSend}
-                      getContent={getContent}
-                      mediaAutoLoad={mediaAutoLoad}
-                      urlPreview={showUrlPreview}
-                      showMessageExtras
-                      htmlReactParserOptions={htmlReactParserOptions}
-                      linkifyOpts={linkifyOpts}
-                      outlineAttachment={messageLayout === MessageLayout.Bubble}
-                      hydrateLongText={loadFullContent}
-                    />
-                  );
-                  const messageContent = renderMessageContent();
-
-                  const encMsgType = mEvent.getContent().msgtype;
-                  const isEncVisualMedia =
-                    encMsgType === MsgType.Image || encMsgType === MsgType.Video;
-                  if (isEncVisualMedia) return messageContent;
-                  return (
-                    <CollapsibleMessage
-                      collapseMode={collapseMode}
-                      expansionKey={mEventId}
-                      forceOverflowing={forceCollapsibleOverflow}
-                      measurementKey={measurementKey}
-                      onInitialExpandConsumed={onInitialExpandConsumed}
-                    >
-                      {({ loadFullContent }) => renderMessageContent(loadFullContent)}
-                    </CollapsibleMessage>
-                  );
-                }
-                if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
-                  return (
-                    <Text>
-                      <MessageNotDecryptedContent />
-                    </Text>
-                  );
-                return (
-                  <Text>
-                    <MessageUnsupportedContent />
-                  </Text>
-                );
-              }}
-            </EncryptedContent>
-            <ApprovalHistory
-              records={
-                approvalTimeline.historyByResponseId.get(mEventId) ??
-                approvalTimeline.fallbackGroupsByEventId.get(mEventId) ??
-                []
-              }
-            />
-          </Message>
-        );
-      },
-      [MessageEvent.Sticker]: (mEventId, mEvent, item, timelineSet, collapse) => {
-        const reactionRelations = getEventReactions(timelineSet, mEventId);
-        const hasReactions = getRenderableAnnotationsByKey(reactionRelations, mEvent).length > 0;
-        const highlighted = focusItem?.index === item && focusItem.highlight;
-
-        return (
-          <Message
-            key={mEvent.getId()}
-            data-message-item={item}
-            data-message-id={mEventId}
-            room={room}
-            mEvent={mEvent}
-            messageSpacing={messageSpacing}
-            messageLayout={messageLayout}
-            collapse={collapse}
-            highlight={highlighted}
-            canDelete={canRedact || (canDeleteOwn && mEvent.getSender() === mx.getUserId())}
-            canSendReaction={canSendReaction}
-            canPinEvent={canPinEvent}
-            imagePackRooms={imagePackRooms}
-            relations={hasReactions ? reactionRelations : undefined}
-            onUserClick={handleUserClick}
-            onUsernameClick={handleUsernameClick}
-            onReplyClick={handleReplyClick}
-            onReactionToggle={handleReactionToggle}
-            reactions={
-              reactionRelations && (
-                <Reactions
-                  style={{ marginTop: config.space.S200 }}
-                  room={room}
-                  relations={reactionRelations}
-                  mEventId={mEventId}
-                  targetEvent={mEvent}
-                  canSendReaction={canSendReaction}
-                  onReactionToggle={handleReactionToggle}
-                />
-              )
-            }
-            hideReadReceipts={hideActivity}
-            showDeveloperTools={showDeveloperTools}
-            memberPowerTag={getMemberPowerTag(mEvent.getSender() ?? '')}
-            accessibleTagColors={accessiblePowerTagColors}
-            legacyUsernameColor={legacyUsernameColor || direct}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          >
-            {mEvent.isRedacted() ? (
-              <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
-            ) : (
-              <MSticker
-                content={mEvent.getContent()}
-                renderImageContent={(props) => (
-                  <ImageContent
-                    {...props}
-                    autoPlay={mediaAutoLoad}
-                    renderImage={(p) => <Image {...p} loading="lazy" />}
-                    renderViewer={(p) => <ImageViewer {...p} />}
-                  />
-                )}
-              />
-            )}
-          </Message>
-        );
-      },
-      ...stateEventRenderers,
-    },
-    renderStateEvent,
-    renderEvent
-  );
   useThreadEditBackfillController({
     atLiveEndRef,
     eventId,
@@ -2714,14 +1913,17 @@ export function RoomTimeline({
 
     const eventJSX = reactionOrEditEvent(mEvent)
       ? null
-      : renderMatrixEvent(
-          mEvent.getType(),
-          typeof mEvent.getStateKey() === 'string',
-          mEventId,
-          mEvent,
-          item,
-          timelineSet,
-          collapsed
+      : messageFeature.renderEvent(
+          {
+            eventId: mEventId,
+            event: mEvent,
+            index: item,
+            timelineSet,
+            collapse: collapsed,
+            highlighted: focusItem?.index === item && !!focusItem.highlight,
+            previousEventId: prevEvent?.getId(),
+          },
+          { threadRecordMap, threadEventMap, approvalTimeline, handleOpenReply }
         );
     prevEvent = mEvent;
     isPrevRendered = !!eventJSX;
@@ -2938,302 +2140,263 @@ export function RoomTimeline({
     );
   };
 
-  return (
-    <CollapsibleMessageStateProvider
-      expandAllInit={expandAll}
-      manualExpansionState={manualExpansionState}
-      onExpansionLayoutChange={restoreBulkExpansionAnchor}
-    >
-      <Box grow="Yes" direction="Column">
-        {shouldShowRoomThreadOverviewControls && (
-          <RoomThreadOverview
-            hasMindroomAgents={hasMindroomAgents}
-            threadCount={
-              showCompactRoomView
-                ? compactFilteredThreadRootIds.length
-                : filteredThreadRootIds.length
-            }
-            totalThreadCount={
-              showCompactRoomView
-                ? compactThreadRootData.ids.length
-                : visibleThreadRootData.ids.length
-            }
-            statusCounts={statusCounts}
-            tagCounts={tagCounts}
-            state={liveThreadFilterState}
-            availableTags={availableRoomTags}
-            viewMode={viewMode}
-            onViewModeChange={onViewModeChange}
-            isThreadSortFrozen={threadSortFreezeState !== null}
-            onToggle={onToggle}
-            onSortDirectionChange={onSortDirectionChange}
-            onToggleThreadSortFreeze={onToggleThreadSortFreeze}
-            onToggleUnresolvedOnly={onToggleUnresolvedOnly}
-            onReset={onReset}
-            onCycleTag={onCycleTag}
-            onAddTag={onAddTag}
-            onRemoveTag={onRemoveTag}
-            onApplyPreset={onApplyPreset}
-            onSearchQueryChange={onSearchQueryChange}
+  return messageFeature.wrapExpansion(
+    <Box grow="Yes" direction="Column">
+      {shouldShowRoomThreadOverviewControls && (
+        <RoomThreadOverview
+          hasMindroomAgents={hasMindroomAgents}
+          threadCount={
+            showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length
+          }
+          totalThreadCount={
+            showCompactRoomView
+              ? compactThreadRootData.ids.length
+              : visibleThreadRootData.ids.length
+          }
+          statusCounts={statusCounts}
+          tagCounts={tagCounts}
+          state={liveThreadFilterState}
+          availableTags={availableRoomTags}
+          viewMode={viewMode}
+          onViewModeChange={onViewModeChange}
+          isThreadSortFrozen={threadSortFreezeState !== null}
+          onToggle={onToggle}
+          onSortDirectionChange={onSortDirectionChange}
+          onToggleThreadSortFreeze={onToggleThreadSortFreeze}
+          onToggleUnresolvedOnly={onToggleUnresolvedOnly}
+          onReset={onReset}
+          onCycleTag={onCycleTag}
+          onAddTag={onAddTag}
+          onRemoveTag={onRemoveTag}
+          onApplyPreset={onApplyPreset}
+          onSearchQueryChange={onSearchQueryChange}
+        />
+      )}
+      <Box grow="Yes" style={{ position: 'relative' }}>
+        {showCompactRoomView ? (
+          <CompactRoomView
+            room={room}
+            threadRootIds={overviewThreadRootIds}
+            threadRecordMap={threadRecordMap}
+            onThreadClick={handleOpenCompactThread}
+            compactRoomScrollStateRef={compactRoomScrollStateRef}
           />
-        )}
-        <Box grow="Yes" style={{ position: 'relative' }}>
-          {showCompactRoomView ? (
-            <CompactRoomView
-              room={room}
-              threadRootIds={overviewThreadRootIds}
-              threadRecordMap={threadRecordMap}
-              onThreadClick={handleOpenCompactThread}
-              compactRoomScrollStateRef={compactRoomScrollStateRef}
-            />
-          ) : (
-            <>
-              {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
-                <TimelineFloat position="Top">
-                  <Chip
-                    variant="Primary"
-                    radii="Pill"
-                    outlined
-                    before={<Icon size="50" src={Icons.MessageUnread} />}
-                    onClick={handleJumpToUnread}
-                  >
-                    <Text size="L400">Jump to Unread</Text>
-                  </Chip>
-
-                  <Chip
-                    variant="SurfaceVariant"
-                    radii="Pill"
-                    outlined
-                    before={<Icon size="50" src={Icons.CheckTwice} />}
-                    onClick={handleMarkAsRead}
-                  >
-                    <Text size="L400">Mark as Read</Text>
-                  </Chip>
-                </TimelineFloat>
-              )}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  manualExpansionState.clear();
-                  if (expandAll) {
-                    collapseAllMessages();
-                    setExpandAllOverride(false);
-                  } else {
-                    expandAllMessages();
-                    setExpandAllOverride(true);
-                  }
-                }}
-                style={{
-                  position: 'absolute',
-                  top: config.space.S200,
-                  right: config.space.S400,
-                  zIndex: 2,
-                  color: color.Primary.Main,
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontFamily: 'var(--font-mono)',
-                  opacity: 0.7,
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                }}
-              >
-                {expandAll ? '[-all]' : '[+all]'}
-              </button>
-              <Scroll
-                ref={scrollRef}
-                visibility="Hover"
-                style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
-              >
-                <Box
-                  direction="Column"
-                  justifyContent={threadId ? 'Start' : 'End'}
-                  style={{
-                    minHeight: '100%',
-                    padding: `${config.space.S600} 0`,
-                    position: 'relative',
-                  }}
+        ) : (
+          <>
+            {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
+              <TimelineFloat position="Top">
+                <Chip
+                  variant="Primary"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.MessageUnread} />}
+                  onClick={handleJumpToUnread}
                 >
-                  {!threadId &&
-                    !roomHasMoreCachedBack &&
-                    !canPaginateBack &&
-                    rangeAtStart &&
-                    timelineItems.length > 0 && (
-                      <div
-                        style={{
-                          padding: `${config.space.S700} ${config.space.S400} ${
-                            config.space.S600
-                          } ${
-                            messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
-                          }`,
-                        }}
+                  <Text size="L400">Jump to Unread</Text>
+                </Chip>
+
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.CheckTwice} />}
+                  onClick={handleMarkAsRead}
+                >
+                  <Text size="L400">Mark as Read</Text>
+                </Chip>
+              </TimelineFloat>
+            )}
+            {messageFeature.expansionControl}
+            <Scroll
+              ref={scrollRef}
+              visibility="Hover"
+              style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
+            >
+              <Box
+                direction="Column"
+                justifyContent={threadId ? 'Start' : 'End'}
+                style={{
+                  minHeight: '100%',
+                  padding: `${config.space.S600} 0`,
+                  position: 'relative',
+                }}
+              >
+                {!threadId &&
+                  !roomHasMoreCachedBack &&
+                  !canPaginateBack &&
+                  rangeAtStart &&
+                  timelineItems.length > 0 && (
+                    <div
+                      style={{
+                        padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
+                          messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
+                        }`,
+                      }}
+                    >
+                      <RoomIntro room={room} />
+                    </div>
+                  )}
+                {threadId && threadLoadError && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                        <Text size="L400">Failed to load this thread.</Text>
+                      </Badge>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
+                {threadId && showThreadLoadOlderMessages && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Chip
+                        variant="SurfaceVariant"
+                        radii="Pill"
+                        outlined
+                        before={<Icon size="50" src={Icons.ArrowTop} />}
+                        onClick={handleThreadPaginateBack}
                       >
-                        <RoomIntro room={room} />
-                      </div>
-                    )}
-                  {threadId && threadLoadError && (
-                    <MessageBase space={messageSpacing}>
-                      <TimelineDivider variant="Surface">
-                        <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                          <Text size="L400">Failed to load this thread.</Text>
-                        </Badge>
-                      </TimelineDivider>
-                    </MessageBase>
-                  )}
-                  {threadId && showThreadLoadOlderMessages && (
-                    <MessageBase space={messageSpacing}>
-                      <TimelineDivider variant="Surface">
-                        <Chip
-                          variant="SurfaceVariant"
-                          radii="Pill"
-                          outlined
-                          before={<Icon size="50" src={Icons.ArrowTop} />}
-                          onClick={handleThreadPaginateBack}
-                        >
-                          <Text size="L400">
-                            {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
-                          </Text>
-                        </Chip>
-                      </TimelineDivider>
-                    </MessageBase>
-                  )}
-                  {threadId &&
-                    threadInitialRenderMode === 'loading' &&
-                    !threadLoadError &&
-                    (messageLayout === MessageLayout.Compact ? (
-                      <>
-                        <MessageBase>
-                          <CompactPlaceholder />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder />
-                        </MessageBase>
-                      </>
-                    ) : (
-                      <>
-                        <MessageBase>
-                          <DefaultPlaceholder />
-                        </MessageBase>
-                        <MessageBase>
-                          <DefaultPlaceholder />
-                        </MessageBase>
-                      </>
-                    ))}
-                  {!threadId &&
-                    (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
-                    (messageLayout === MessageLayout.Compact ? (
-                      <>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase ref={observeBackAnchor}>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                      </>
-                    ) : (
-                      <>
-                        <MessageBase>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase ref={observeBackAnchor}>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                      </>
-                    ))}
+                        <Text size="L400">
+                          {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                        </Text>
+                      </Chip>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
+                {threadId &&
+                  threadInitialRenderMode === 'loading' &&
+                  !threadLoadError &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase>
+                        <DefaultPlaceholder />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder />
+                      </MessageBase>
+                    </>
+                  ))}
+                {!threadId &&
+                  (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase ref={observeBackAnchor}>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase ref={observeBackAnchor}>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ))}
 
-                  {threadId ? renderVirtualThreadTimelineItems() : renderVirtualRoomTimelineItems()}
-                  {threadId && canPaginateThreadFront && (
-                    <MessageBase space={messageSpacing}>
-                      <TimelineDivider variant="Surface">
-                        <Chip
-                          variant="SurfaceVariant"
-                          radii="Pill"
-                          outlined
-                          before={<Icon size="50" src={Icons.ArrowBottom} />}
-                          onClick={handleThreadPaginateFront}
-                        >
-                          <Text size="L400">
-                            {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
-                          </Text>
-                        </Chip>
-                      </TimelineDivider>
-                    </MessageBase>
-                  )}
+                {threadId ? renderVirtualThreadTimelineItems() : renderVirtualRoomTimelineItems()}
+                {threadId && canPaginateThreadFront && (
+                  <MessageBase space={messageSpacing}>
+                    <TimelineDivider variant="Surface">
+                      <Chip
+                        variant="SurfaceVariant"
+                        radii="Pill"
+                        outlined
+                        before={<Icon size="50" src={Icons.ArrowBottom} />}
+                        onClick={handleThreadPaginateFront}
+                      >
+                        <Text size="L400">
+                          {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                        </Text>
+                      </Chip>
+                    </TimelineDivider>
+                  </MessageBase>
+                )}
 
-                  {!threadId &&
-                    (!liveTimelineLinked || !rangeAtEnd) &&
-                    (messageLayout === MessageLayout.Compact ? (
-                      <>
-                        <MessageBase ref={observeFrontAnchor}>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <CompactPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                      </>
-                    ) : (
-                      <>
-                        <MessageBase ref={observeFrontAnchor}>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                        <MessageBase>
-                          <DefaultPlaceholder key={timelineItems.length} />
-                        </MessageBase>
-                      </>
-                    ))}
-                  <span ref={atBottomAnchorRef} />
-                </Box>
-              </Scroll>
-              <TimelineMinimap
-                items={minimapItems}
-                stripMap={minimapStripMap}
-                onSelect={handleMinimapSelect}
-              />
-              {!atBottom && (
-                <TimelineFloat position="Bottom">
-                  <Chip
-                    variant="SurfaceVariant"
-                    radii="Pill"
-                    outlined
-                    before={<Icon size="50" src={Icons.ArrowBottom} />}
-                    onClick={handleJumpToLatest}
-                  >
-                    <Text size="L400">Jump to Latest</Text>
-                  </Chip>
-                </TimelineFloat>
-              )}
-            </>
-          )}
-        </Box>
+                {!threadId &&
+                  (!liveTimelineLinked || !rangeAtEnd) &&
+                  (messageLayout === MessageLayout.Compact ? (
+                    <>
+                      <MessageBase ref={observeFrontAnchor}>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <CompactPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ) : (
+                    <>
+                      <MessageBase ref={observeFrontAnchor}>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                      <MessageBase>
+                        <DefaultPlaceholder key={timelineItems.length} />
+                      </MessageBase>
+                    </>
+                  ))}
+                <span ref={atBottomAnchorRef} />
+              </Box>
+            </Scroll>
+            <TimelineMinimap
+              items={minimapItems}
+              stripMap={minimapStripMap}
+              onSelect={handleMinimapSelect}
+            />
+            {!atBottom && (
+              <TimelineFloat position="Bottom">
+                <Chip
+                  variant="SurfaceVariant"
+                  radii="Pill"
+                  outlined
+                  before={<Icon size="50" src={Icons.ArrowBottom} />}
+                  onClick={handleJumpToLatest}
+                >
+                  <Text size="L400">Jump to Latest</Text>
+                </Chip>
+              </TimelineFloat>
+            )}
+          </>
+        )}
       </Box>
-    </CollapsibleMessageStateProvider>
+    </Box>
   );
 }
