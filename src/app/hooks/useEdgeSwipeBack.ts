@@ -1,4 +1,6 @@
+import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
+import { imageViewerOpenAtom } from '../state/imageViewer';
 
 const EDGE_START_MAX_X = 28;
 const MIN_SWIPE_DISTANCE_X = 72;
@@ -11,6 +13,7 @@ type TouchEventWithFlag = TouchEvent & {
 
 export const useEdgeSwipeBack = (onBack: () => void, enabled: boolean = true): void => {
   const onBackRef = useRef(onBack);
+  const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
 
   useEffect(() => {
     onBackRef.current = onBack;
@@ -18,6 +21,7 @@ export const useEdgeSwipeBack = (onBack: () => void, enabled: boolean = true): v
 
   useEffect(() => {
     if (!enabled) return;
+    if (imageViewerOpen) return;
     if (typeof window === 'undefined') return;
 
     let tracking = false;
@@ -95,5 +99,5 @@ export const useEdgeSwipeBack = (onBack: () => void, enabled: boolean = true): v
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [enabled]);
+  }, [enabled, imageViewerOpen]);
 };
