@@ -32,7 +32,13 @@ import FocusTrap from 'focus-trap-react';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';
-import { DateFormat, MessageLayout, MessageSpacing, settingsAtom } from '../../../state/settings';
+import {
+  DateFormat,
+  MessageLayout,
+  MessageSpacing,
+  sanitizePaginationLimit,
+  settingsAtom,
+} from '../../../state/settings';
 import { SettingTile } from '../../../components/setting-tile';
 import { KeySymbol } from '../../../utils/key-symbol';
 import { isMacOS } from '../../../utils/user-agent';
@@ -298,6 +304,57 @@ function PageZoomInput() {
       onChange={handleZoomChange}
       onKeyDown={handleZoomEnter}
       after={<Text size="T300">%</Text>}
+      outlined
+    />
+  );
+}
+
+function PaginationLimitInput() {
+  const [paginationLimit, setPaginationLimit] = useSetting(settingsAtom, 'paginationLimit');
+  const [currentLimit, setCurrentLimit] = useState(`${paginationLimit}`);
+
+  const commitValue = (raw: string) => {
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return;
+    const safe = sanitizePaginationLimit(parsed);
+    setPaginationLimit(safe);
+    setCurrentLimit(safe.toString());
+  };
+
+  const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
+    setCurrentLimit(evt.target.value);
+  };
+
+  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (evt) => {
+    if (isKeyHotkey('escape', evt)) {
+      evt.stopPropagation();
+      setCurrentLimit(paginationLimit.toString());
+    }
+    if (
+      isKeyHotkey('enter', evt) &&
+      'value' in evt.target &&
+      typeof evt.target.value === 'string'
+    ) {
+      commitValue(evt.target.value);
+    }
+  };
+
+  const handleBlur = () => {
+    commitValue(currentLimit);
+  };
+
+  return (
+    <Input
+      style={{ width: toRem(100) }}
+      variant={paginationLimit === parseInt(currentLimit, 10) ? 'Secondary' : 'Success'}
+      size="300"
+      radii="300"
+      type="number"
+      min="50"
+      value={currentLimit}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
       outlined
     />
   );
@@ -905,6 +962,13 @@ function Messages() {
       </SequenceCard>
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile title="Message Spacing" after={<SelectMessageSpacing />} />
+      </SequenceCard>
+      <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
+        <SettingTile
+          title="Message Preload Limit"
+          description="Number of messages to load per batch for rooms and threads. Minimum 50. Higher values use more memory."
+          after={<PaginationLimitInput />}
+        />
       </SequenceCard>
       <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
         <SettingTile
