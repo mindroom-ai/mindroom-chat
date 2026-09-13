@@ -76,6 +76,9 @@ test.describe('compact Resolve action', () => {
       'compact-resolve-idle-reply'
     );
 
+    // Keep relative-time labels stable while comparing exact hover geometry.
+    await page.clock.setFixedTime(new Date());
+
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
     await seedRoomOverviewState({
