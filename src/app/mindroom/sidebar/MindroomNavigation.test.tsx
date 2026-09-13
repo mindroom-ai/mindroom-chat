@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScreenSize } from '../../hooks/useScreenSize';
+import { getScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
 import {
   MindroomNavigationProvider,
@@ -11,7 +11,6 @@ import {
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';
 const EXPAND_LABEL = 'Expand navigation panel';
-const screenSizeState = { value: ScreenSize.Desktop };
 const storageState = new Map<string, string>();
 
 vi.mock('folds', () => ({
@@ -21,14 +20,6 @@ vi.mock('folds', () => ({
     ChevronRight: 'chevron-right',
   },
 }));
-
-vi.mock('../../hooks/useScreenSize', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../hooks/useScreenSize')>();
-  return {
-    ...actual,
-    useScreenSizeContext: () => screenSizeState.value,
-  };
-});
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
@@ -68,23 +59,38 @@ vi.mock('../../pages/MobileFriendly', () => ({
 }));
 
 vi.mock('../../pages/client/SidebarNav', () => ({
-  SidebarNav: ({ footer }: { footer?: React.ReactNode }) =>
-    React.createElement('nav', { 'data-testid': 'sidebar-rail' }, footer),
+  SidebarNav: ({
+    footer,
+    onPageNavSelect,
+  }: {
+    footer?: React.ReactNode;
+    onPageNavSelect?: () => void;
+  }) =>
+    React.createElement(
+      'nav',
+      { 'data-testid': 'sidebar-rail' },
+      React.createElement('button', { 'aria-label': 'Select section', onClick: onPageNavSelect }),
+      footer
+    ),
 }));
 
 type Renderer = ReturnType<typeof create>;
 
-const renderNavigation = (): Renderer => {
+const navigationAtWidth = (width: number) => (
+  <ScreenSizeProvider value={getScreenSize(width)}>
+    <MindroomNavigationProvider>
+      <MindroomSidebarNav />
+      <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
+        <main data-testid="page-content" />
+      </MindroomPageRoot>
+    </MindroomNavigationProvider>
+  </ScreenSizeProvider>
+);
+
+const renderNavigation = (width = 1280): Renderer => {
   let renderer: Renderer;
   act(() => {
-    renderer = create(
-      <MindroomNavigationProvider>
-        <MindroomSidebarNav />
-        <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
-          <main data-testid="page-content" />
-        </MindroomPageRoot>
-      </MindroomNavigationProvider>
-    );
+    renderer = create(navigationAtWidth(width));
   });
   return renderer!;
 };
@@ -119,7 +125,6 @@ describe('MindroomNavigation', () => {
   const storageKey = getDesktopPageNavCollapsedStorageKey('@alice:example.org');
 
   beforeEach(() => {
-    screenSizeState.value = ScreenSize.Desktop;
     storageState.clear();
     vi.stubGlobal('localStorage', {
       clear: vi.fn(() => storageState.clear()),
@@ -138,8 +143,8 @@ describe('MindroomNavigation', () => {
     storageState.clear();
   });
 
-  it('persists desktop page navigation collapse while keeping the icon rail visible', () => {
-    let renderer = renderNavigation();
+  it.each([751, 1124, 1125])('persists page navigation collapse at %i px', (width) => {
+    let renderer = renderNavigation(width);
 
     expectNavigationState(renderer, false);
 
@@ -149,7 +154,7 @@ describe('MindroomNavigation', () => {
     expect(localStorage.getItem(storageKey)).toBe('true');
 
     act(() => renderer.unmount());
-    renderer = renderNavigation();
+    renderer = renderNavigation(width);
 
     expectNavigationState(renderer, true);
 
@@ -171,17 +176,66 @@ describe('MindroomNavigation', () => {
     act(() => renderer.unmount());
   });
 
-  it.each([ScreenSize.Tablet, ScreenSize.Mobile])(
-    'keeps %s navigation visible without desktop controls',
-    (screenSize) => {
-      screenSizeState.value = screenSize;
+  it.each([751, 1280])('reopens and persists navigation on section selection at %i px', (width) => {
+    let renderer = renderNavigation(width);
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+
+    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+
+    expectNavigationState(renderer, false);
+    expect(localStorage.getItem(storageKey)).toBe('false');
+    act(() => renderer.unmount());
+    renderer = renderNavigation(width);
+    expectNavigationState(renderer, false);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the saved split-layout collapse choice when selecting a section on mobile', () => {
+    localStorage.setItem(storageKey, 'true');
+    const renderer = renderNavigation(750);
+
+    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+
+    expectNavigationWithoutToggle(renderer);
+    expect(localStorage.getItem(storageKey)).toBe('true');
+    act(() => renderer.unmount());
+  });
+
+  it.each([375, 750])(
+    'keeps single-pane navigation visible at %i px despite a saved collapse choice',
+    (width) => {
       localStorage.setItem(storageKey, 'true');
 
-      const renderer = renderNavigation();
+      const renderer = renderNavigation(width);
 
       expectNavigationWithoutToggle(renderer);
 
       act(() => renderer.unmount());
     }
   );
+
+  it('preserves the collapse choice across desktop, tablet, and mobile resizing', () => {
+    const renderer = renderNavigation(1280);
+
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+
+    act(() => renderer.update(navigationAtWidth(1024)));
+    expectNavigationState(renderer, true);
+
+    act(() => renderer.update(navigationAtWidth(750)));
+    expectNavigationWithoutToggle(renderer);
+    expect(localStorage.getItem(storageKey)).toBe('true');
+
+    act(() => renderer.update(navigationAtWidth(751)));
+    expectNavigationState(renderer, true);
+
+    act(() => findButtons(renderer, EXPAND_LABEL)[0].props.onClick());
+    expectNavigationState(renderer, false);
+
+    act(() => renderer.update(navigationAtWidth(1280)));
+    expectNavigationState(renderer, false);
+    expect(localStorage.getItem(storageKey)).toBe('false');
+
+    act(() => renderer.unmount());
+  });
 });

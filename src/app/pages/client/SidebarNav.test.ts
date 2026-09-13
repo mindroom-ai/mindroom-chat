@@ -70,10 +70,15 @@ describe('SidebarNav', () => {
     mocks.simpleMode = false;
   });
 
-  it('shows the Threads tab by default', () => {
+  it('shows Threads after Direct Messages and before spaces by default', () => {
     const renderer = renderSidebarNav();
 
-    expect(hasTab(renderer, 'threads')).toBe(true);
+    expect(
+      renderer.root
+        .findAll((node) => typeof node.props['data-tab'] === 'string')
+        .map((node) => node.props['data-tab'])
+        .slice(0, 4)
+    ).toEqual(['home', 'direct', 'threads', 'spaces']);
 
     renderer.unmount();
   });

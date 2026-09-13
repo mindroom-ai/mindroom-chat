@@ -40,7 +40,7 @@ const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, re
   );
 });
 
-export function HomeTab() {
+export function HomeTab({ onSelect }: { onSelect?: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
@@ -54,6 +54,7 @@ export function HomeTab() {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleHomeClick = () => {
+    onSelect?.();
     const activePath = navToActivePath.get('home');
     if (activePath) {
       navigate(joinPathComponent(activePath));

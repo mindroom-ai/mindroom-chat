@@ -40,7 +40,7 @@ const DirectMenu = forwardRef<HTMLDivElement, DirectMenuProps>(({ requestClose }
   );
 });
 
-export function DirectTab() {
+export function DirectTab({ onSelect }: { onSelect?: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
@@ -55,6 +55,7 @@ export function DirectTab() {
   const directSelected = useDirectSelected();
 
   const handleDirectClick = () => {
+    onSelect?.();
     const activePath = navToActivePath.get('direct');
     if (activePath && screenSize !== ScreenSize.Mobile) {
       navigate(joinPathComponent(activePath));

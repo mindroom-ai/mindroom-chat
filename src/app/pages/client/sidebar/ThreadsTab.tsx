@@ -6,7 +6,7 @@ import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../compone
 import { useThreadsSelected } from '../../../hooks/router/useThreadsSelected';
 import { getThreadsPath } from '../../pathUtils';
 
-export function ThreadsTab() {
+export function ThreadsTab({ onSelect }: { onSelect?: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const selected = useThreadsSelected();
@@ -19,7 +19,10 @@ export function ThreadsTab() {
             as="button"
             ref={triggerRef}
             outlined
-            onClick={() => navigate(getThreadsPath())}
+            onClick={() => {
+              onSelect?.();
+              navigate(getThreadsPath());
+            }}
           >
             <Icon src={Icons.Thread} filled={selected} />
           </SidebarAvatar>
