@@ -325,9 +325,7 @@ describe('estimateThreadEventRowHeight', () => {
   });
 
   it('uses the smaller compact base', () => {
-    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
-      26
-    );
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(26);
   });
 
   it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
@@ -379,11 +377,13 @@ describe('estimateThreadEventRowHeight', () => {
 
 describe('shouldSettleLedgerAtBoundary', () => {
   // Viewport 600px tall at client top 0; guard band = 2 viewports.
+  // 60000px of content bounds the physical range at offset 59400.
   const base = {
     scrollTop: 0,
     scrollBottom: 600,
     scrollOffset: 1000,
     clientHeight: 600,
+    scrollHeight: 60000,
     scrollDirection: 'backward' as const,
   };
 
@@ -523,6 +523,36 @@ describe('shouldSettleLedgerAtBoundary', () => {
         innerBottom: 590,
       })
     ).toBe(true);
+  });
+
+  it('defers settles while the scroller is rubber-banding out of bounds', () => {
+    // iPad trace ride-trace-1783802452438 frame 192: a grow-debt settle
+    // written 64px past the bottom edge, mid-bounce, slipped 87px. The
+    // same crossed-edge geometry settles in bounds (previous test); past
+    // either physical edge it waits for the bounce's landing event or the
+    // zero-slip quiescence settle.
+    const crossedBottom = {
+      ...base,
+      scrollDirection: 'backward' as const,
+      ledgerPx: 5000,
+      innerTop: -60000,
+      innerBottom: 590,
+    };
+    expect(shouldSettleLedgerAtBoundary({ ...crossedBottom, scrollOffset: 59464 })).toBe(false);
+    // Top rubber band defers the physical-exhaustion settle the same way;
+    // the landing event at offset 0 still fires it (covered above by the
+    // positive-ledger physical-exhaustion test).
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        scrollOffset: -30,
+        ledgerPx: 3000,
+        innerTop: -3000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
+    // Fractional-offset slack: the exact bottom edge is NOT overscroll.
+    expect(shouldSettleLedgerAtBoundary({ ...crossedBottom, scrollOffset: 59400.5 })).toBe(true);
   });
 });
 

@@ -5,3 +5,4 @@ package-lock.json
 LICENSE
 README.md
 FORK_CHANGES.md
+src/app/mindroom/threads/__tests__/traces/

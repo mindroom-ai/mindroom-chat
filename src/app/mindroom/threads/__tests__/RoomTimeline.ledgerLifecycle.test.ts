@@ -120,7 +120,10 @@ const makeLedgerSettleElements = (
     getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
     querySelector: vi.fn(() => undefined),
     querySelectorAll: vi.fn(() => []),
-    scrollHeight: 4000,
+    // Must contain the trace-shaped offsets (~34.4k) used below: the
+    // boundary guard defers settles for offsets outside the physical
+    // range (rubber-band overscroll).
+    scrollHeight: 40_000,
     clientHeight: 600,
     get scrollTop() {
       return scrollTopValue;

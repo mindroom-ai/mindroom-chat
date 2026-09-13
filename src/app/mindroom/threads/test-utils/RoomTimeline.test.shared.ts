@@ -718,14 +718,16 @@ vi.mock('../CollapsibleMessage', async () => {
       children,
       collapseMode = 'default',
     }: {
-      children: React.ReactNode | ((state: { expanded: boolean }) => React.ReactNode);
+      children:
+        | React.ReactNode
+        | ((state: { expanded: boolean; loadFullContent: boolean }) => React.ReactNode);
       collapseMode?: string;
     }) =>
       ReactImport.createElement(
         passthrough,
         undefined,
         typeof children === 'function'
-          ? children({ expanded: collapseMode !== 'default' })
+          ? children({ expanded: collapseMode !== 'default', loadFullContent: true })
           : children
       ),
   };
