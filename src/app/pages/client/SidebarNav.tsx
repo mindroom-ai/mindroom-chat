@@ -26,8 +26,8 @@ import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSetting
 export function SidebarNav({ footer }: { footer?: ReactNode }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
-  // Simple mode keeps only the essentials: Home and Direct, plus the sticky
-  // Inbox/Settings stack below.
+  // Simple mode keeps the essentials: Home, Direct, existing spaces, and the
+  // sticky Inbox/Settings stack below.
   const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
   const showThreads = !simpleMode && (sidebar?.showThreads ?? true);
@@ -46,7 +46,7 @@ export function SidebarNav({ footer }: { footer?: ReactNode }) {
               <DirectTab />
               {showThreads && <ThreadsTab />}
             </SidebarStack>
-            {!simpleMode && <SpaceTabs scrollRef={scrollRef} />}
+            <SpaceTabs scrollRef={scrollRef} />
             {showSecondStack && (
               <>
                 <SidebarStackSeparator />

@@ -1,8 +1,12 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../hooks/useClientConfig';
 import { SidebarNav } from './SidebarNav';
+
+const mocks = vi.hoisted(() => ({
+  simpleMode: false,
+}));
 
 vi.mock('folds', () => ({
   Scroll: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
@@ -45,6 +49,10 @@ vi.mock('../../mindroom/sidebar/MindroomTab', () => ({
   MindroomTab: () => React.createElement('div', { 'data-tab': 'mindroom' }),
 }));
 
+vi.mock('../../mindroom/settings/useMindroomAccountSettings', () => ({
+  useSimpleMode: () => mocks.simpleMode,
+}));
+
 const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
   create(
     React.createElement(
@@ -58,6 +66,10 @@ const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boo
   renderer.root.findAll((node) => node.props['data-tab'] === tab).length > 0;
 
 describe('SidebarNav', () => {
+  beforeEach(() => {
+    mocks.simpleMode = false;
+  });
+
   it('shows the Threads tab by default', () => {
     const renderer = renderSidebarNav();
 
@@ -74,6 +86,19 @@ describe('SidebarNav', () => {
     });
 
     expect(hasTab(renderer, 'threads')).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('keeps spaces visible in Simple Mode while hiding advanced navigation', () => {
+    mocks.simpleMode = true;
+    const renderer = renderSidebarNav();
+
+    expect(hasTab(renderer, 'spaces')).toBe(true);
+    expect(hasTab(renderer, 'threads')).toBe(false);
+    expect(hasTab(renderer, 'explore')).toBe(false);
+    expect(hasTab(renderer, 'mindroom')).toBe(false);
+    expect(hasTab(renderer, 'create')).toBe(false);
 
     renderer.unmount();
   });

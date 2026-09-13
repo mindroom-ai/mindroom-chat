@@ -51,7 +51,7 @@
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",
-        "simpleModeDescription": "Hide advanced features like spaces, the command palette and thread filters. Synced across your devices.",
+        "simpleModeDescription": "Hide advanced features like the command palette and thread filters. Synced across your devices.",
         "expandLongMessagesByDefault": "Expand long messages by default",
         "expandLongMessagesByDefaultDescription": "Show long messages in full instead of folding them behind Show more. Synced across your devices.",
         "saveFailed": "Could not save the change. Check your connection and try again."

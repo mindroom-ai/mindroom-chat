@@ -51,7 +51,7 @@
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Eenvoudige modus",
-        "simpleModeDescription": "Verbergt geavanceerde functies zoals spaces, het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
+        "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
         "expandLongMessagesByDefault": "Lange berichten standaard uitklappen",
         "expandLongMessagesByDefaultDescription": "Toont lange berichten volledig in plaats van ze achter ‘Meer tonen’ in te klappen. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."

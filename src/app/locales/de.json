@@ -51,7 +51,7 @@
       "interface": {
         "sectionTitle": "Oberfläche",
         "simpleMode": "Einfacher Modus",
-        "simpleModeDescription": "Blendet erweiterte Funktionen wie Spaces, die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
+        "simpleModeDescription": "Blendet erweiterte Funktionen wie die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
         "expandLongMessagesByDefault": "Lange Nachrichten standardmäßig aufklappen",
         "expandLongMessagesByDefaultDescription": "Zeigt lange Nachrichten vollständig an, anstatt sie hinter „Mehr anzeigen“ einzuklappen. Wird zwischen deinen Geräten synchronisiert.",
         "saveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
