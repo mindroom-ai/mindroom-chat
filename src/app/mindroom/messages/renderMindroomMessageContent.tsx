@@ -19,6 +19,7 @@ import { isMindroomThinkingPlaceholderBody } from './thinkingPlaceholder';
 import { getMindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
+import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 
 export type RenderMindroomMessageContentOptions = {
   displayName: string;
@@ -29,6 +30,7 @@ export type RenderMindroomMessageContentOptions = {
   msgType: string;
   edited?: boolean;
   content: Record<string, unknown>;
+  pendingSend?: boolean;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   highlightRegex?: RegExp;
   htmlReactParserOptions: HTMLReactParserOptions;
@@ -63,6 +65,7 @@ export const renderMindroomMessageContent = ({
   msgType,
   edited,
   content,
+  pendingSend,
   renderUrlsPreview,
   highlightRegex,
   htmlReactParserOptions,
@@ -166,6 +169,13 @@ export const renderMindroomMessageContent = ({
     }
   };
 
+  const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
+    getMindroomMessageStateSuffixRenderer({
+      edited,
+      pendingSend,
+      renderStateSuffix,
+    });
+
   const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
   if (threadSummaryInfo) {
     return (
@@ -197,6 +207,7 @@ export const renderMindroomMessageContent = ({
       return (
         <MText
           content={content}
+          renderStateSuffix={getMessageStateSuffix()}
           renderBody={() => <MindroomThinkingPlaceholder />}
           renderAfterBody={renderMessageExtras(content)}
         />
@@ -209,7 +220,9 @@ export const renderMindroomMessageContent = ({
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
-          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+          renderStateSuffix={getMessageStateSuffix(
+            isStreaming ? renderMindroomStreamingIndicator : undefined
+          )}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
@@ -245,7 +258,9 @@ export const renderMindroomMessageContent = ({
       return (
         <MText
           edited={edited}
-          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+          renderStateSuffix={getMessageStateSuffix(
+            isStreaming ? renderMindroomStreamingIndicator : undefined
+          )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
           renderAfterBody={renderMessageExtras(renderableContent, [content])}
@@ -264,7 +279,9 @@ export const renderMindroomMessageContent = ({
           kind={MindroomLongTextKind.Emote}
           displayName={displayName}
           edited={edited}
-          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+          renderStateSuffix={getMessageStateSuffix(
+            isStreaming ? renderMindroomStreamingIndicator : undefined
+          )}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
@@ -293,7 +310,9 @@ export const renderMindroomMessageContent = ({
       <MEmote
         displayName={displayName}
         edited={edited}
-        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+        renderStateSuffix={getMessageStateSuffix(
+          isStreaming ? renderMindroomStreamingIndicator : undefined
+        )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
         renderAfterBody={renderMessageExtras(renderableContent, [content])}
@@ -310,7 +329,9 @@ export const renderMindroomMessageContent = ({
         <MindroomLongTextText
           kind={MindroomLongTextKind.Notice}
           edited={edited}
-          renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+          renderStateSuffix={getMessageStateSuffix(
+            isStreaming ? renderMindroomStreamingIndicator : undefined
+          )}
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
@@ -338,7 +359,9 @@ export const renderMindroomMessageContent = ({
     return (
       <MNotice
         edited={edited}
-        renderStateSuffix={isStreaming ? renderMindroomStreamingIndicator : undefined}
+        renderStateSuffix={getMessageStateSuffix(
+          isStreaming ? renderMindroomStreamingIndicator : undefined
+        )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
         renderAfterBody={renderMessageExtras(renderableContent, [content])}

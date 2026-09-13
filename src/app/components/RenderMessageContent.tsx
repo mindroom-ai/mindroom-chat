@@ -30,6 +30,7 @@ import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { renderMindroomMessageContent } from '../mindroom/messages/renderMindroomMessageContent';
+import { getMindroomMessageStateSuffixRenderer } from '../mindroom/messages/messageStateSuffix';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -50,6 +51,7 @@ type RenderMessageContentProps = {
   outlineAttachment?: boolean;
   hydrateLongText?: boolean;
   onLongTextHydratedMessageExtrasRendered?: () => void;
+  pendingSend?: boolean;
 };
 export function RenderMessageContent({
   displayName,
@@ -70,6 +72,7 @@ export function RenderMessageContent({
   outlineAttachment,
   hydrateLongText = true,
   onLongTextHydratedMessageExtrasRendered,
+  pendingSend,
 }: RenderMessageContentProps) {
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -90,6 +93,10 @@ export function RenderMessageContent({
         <MText
           style={{ marginTop: config.space.S200 }}
           edited={edited}
+          renderStateSuffix={getMindroomMessageStateSuffixRenderer({
+            edited,
+            pendingSend,
+          })}
           content={content}
           renderBody={(props) => (
             <RenderBody
@@ -152,6 +159,7 @@ export function RenderMessageContent({
     msgType,
     edited,
     content,
+    pendingSend,
     renderUrlsPreview: urlPreview ? renderUrlsPreview : undefined,
     highlightRegex,
     htmlReactParserOptions,

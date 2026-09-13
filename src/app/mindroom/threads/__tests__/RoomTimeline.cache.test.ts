@@ -1257,6 +1257,72 @@ describe('RoomTimeline', () => {
     }
   });
 
+  it('adds pending local-echo replies to an open thread after liveEvent:false dispatch', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const threadId = '$thread-root';
+    const rootEvent = makeEvent(threadId, {
+      isThreadRoot: true,
+      ts: 100,
+    });
+    const threadTimeline = makeTimeline([rootEvent]);
+    const room = makeRoom({
+      liveEvents: [rootEvent],
+      threads: [
+        {
+          id: threadId,
+          rootEvent,
+          events: [],
+          timeline: [],
+          getUnfilteredTimelineSet: () => ({
+            getLiveTimeline: () => threadTimeline,
+          }),
+        },
+      ],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      threadRenderStateMock.setSupplementalThreadEvents.mockClear();
+      const pendingReply = makeEvent('~pending-reply', {
+        content: {
+          body: 'Pending thread reply',
+          msgtype: 'm.text',
+        },
+        isSending: true,
+        relation: {
+          event_id: threadId,
+          rel_type: 'm.thread',
+        },
+        threadRootId: threadId,
+        ts: 200,
+      });
+
+      await act(async () => {
+        room.__listeners.get(RoomEvent.Timeline)?.(pendingReply, room, false, false, {
+          liveEvent: false,
+        });
+        await flushAsyncWork(2);
+      });
+
+      expect(threadRenderStateMock.setSupplementalThreadEvents).toHaveBeenCalledWith(threadId, [
+        pendingReply,
+      ]);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
   it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
       '../threadBadgeViewModel'

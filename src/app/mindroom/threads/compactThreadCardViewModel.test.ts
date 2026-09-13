@@ -1,4 +1,4 @@
-import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
+import { EventStatus, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
 import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
@@ -10,6 +10,7 @@ const makeEvent = ({
   sender,
   body,
   content,
+  status,
   ts = 1000,
 }: {
   eventId: string;
@@ -17,6 +18,7 @@ const makeEvent = ({
   sender?: string;
   body?: string;
   content?: Record<string, unknown>;
+  status?: EventStatus;
   ts?: number;
 }): MatrixEvent =>
   ({
@@ -32,6 +34,7 @@ const makeEvent = ({
     getUnsigned: () => undefined,
     isRedacted: () => false,
     isRedaction: () => false,
+    status,
   } as unknown as MatrixEvent);
 
 const makeRoom = ({
@@ -244,5 +247,71 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     expect(model.isResolved).toBe(true);
     expect(model.tags).toEqual(['triage']);
     expect(model.attentionState).toBe('resolved');
+  });
+
+  it('marks compact models pending while a zero-reply root local echo is sending', () => {
+    const rootEvent = makeEvent({
+      eventId: '~root',
+      sender: '@me:server',
+      body: 'Pending root body',
+      status: EventStatus.SENDING,
+    });
+    const room = makeRoom({ rootEvent });
+
+    const model = buildModel(room, {
+      threadRootId: '~root',
+      threadRootEvent: rootEvent,
+      fallbackMessageCount: 0,
+    });
+
+    expect((model as { hasPendingSend?: boolean }).hasPendingSend).toBe(true);
+  });
+
+  it('marks compact models pending while the latest visible reply local echo is sending', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Root body',
+      ts: 1000,
+    });
+    const reply = makeEvent({
+      eventId: '~reply',
+      threadRootId: '$root',
+      sender: '@me:server',
+      body: 'Pending reply body',
+      status: EventStatus.SENDING,
+      ts: 2000,
+    });
+    const thread = {
+      id: '$root',
+      rootEvent,
+      events: [reply],
+      timeline: [reply],
+      lastReply: () => reply,
+      replyToEvent: undefined,
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({
+          getEvents: () => [rootEvent, reply],
+          getNeighbouringTimeline: () => undefined,
+        }),
+        relations: {
+          getChildEventsForEvent: () => undefined,
+        },
+      }),
+    } as unknown as ReturnType<Room['getThread']>;
+    const room = makeRoom({
+      rootEvent,
+      thread,
+      memberNames: {
+        '@me:server': 'Me',
+      },
+    });
+
+    const model = buildModel(room, {
+      threadRootEvent: rootEvent,
+    });
+
+    expect(model.previewText).toBe('Me: Pending reply body');
+    expect((model as { hasPendingSend?: boolean }).hasPendingSend).toBe(true);
   });
 });

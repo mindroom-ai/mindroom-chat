@@ -93,6 +93,10 @@ vi.mock('./StreamingIndicator', () => ({
     React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
+vi.mock('./PendingSendIndicator.css', () => ({
+  Container: 'PendingSendIndicator',
+}));
+
 vi.mock('./MindroomThinkingPlaceholder', () => ({
   MindroomThinkingPlaceholder: () =>
     React.createElement('span', { 'data-renderer': 'thinking-placeholder' }, 'Making progress'),
@@ -202,6 +206,63 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).toContain('The actual answer has started');
     expect(rendered).toContain('streaming');
     expect(rendered).not.toContain('thinking-placeholder');
+
+    renderer.unmount();
+  });
+
+  it('renders a pending send suffix for pending local echo text', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      pendingSend: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Uploading message',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Uploading message');
+    expect(rendered).toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('composes streaming and pending send suffixes', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      pendingSend: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'The actual answer has started',
+        'io.mindroom.stream_status': 'streaming',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('streaming');
+    expect(rendered).toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('composes edited and pending send suffixes', async () => {
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      edited: true,
+      pendingSend: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Edited local echo',
+      },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Edited local echo');
+    expect(rendered).toContain('(edited)');
+    expect(rendered).toContain('Message sending');
 
     renderer.unmount();
   });

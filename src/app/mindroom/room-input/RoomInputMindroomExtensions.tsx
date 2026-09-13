@@ -12,6 +12,7 @@ import type {
 } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
+import { PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
@@ -51,6 +52,7 @@ export type MindroomVoiceSendContext = PendingVoiceSendContext;
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
   leading?: React.ReactNode;
+  pendingSend?: boolean;
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
   threadId?: string;
@@ -226,6 +228,7 @@ export function MindroomRoomInputThreadIndicator({
 export function MindroomRoomInputReplyContext({
   children,
   leading,
+  pendingSend,
   relation,
   room,
   threadId,
@@ -246,6 +249,7 @@ export function MindroomRoomInputReplyContext({
             Sending to this thread
           </Text>
         )}
+        {pendingSend && <PendingSendIndicator />}
       </Box>
     </Box>
   );

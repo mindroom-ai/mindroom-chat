@@ -164,6 +164,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     isResolved: status.isResolved,
     isUnread: status.isUnread,
     isStreaming: status.isStreaming,
+    hasPendingSend: status.hasPendingSend === true,
     scheduledDisplayText,
     scheduledTaskLabel,
     lastActivityTs: status.lastActivityTs,

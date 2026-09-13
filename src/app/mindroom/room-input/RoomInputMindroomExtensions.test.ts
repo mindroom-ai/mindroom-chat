@@ -24,6 +24,10 @@ vi.mock('../threads/ThreadIndicator', () => ({
   ThreadIndicator: () => null,
 }));
 
+vi.mock('../messages/PendingSendIndicator.css', () => ({
+  Container: 'PendingSendIndicator',
+}));
+
 vi.mock('../voice/VoiceRecorderDialog', () => ({
   VoiceRecorderComposer: () => null,
 }));

@@ -20,10 +20,8 @@ import {
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadParticipantIds,
 } from './threadUtils';
-import {
-  EMPTY_THREAD_SCHEDULED_STATUS,
-  type ThreadScheduledStatus,
-} from './threadScheduledStatus';
+import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
+import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -83,6 +81,18 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
     : thread?.timeline && thread.timeline.length > 0
     ? thread.timeline
     : undefined;
+
+const isPendingThreadEvent = (event: MatrixEvent | undefined): boolean =>
+  isPendingLocalEchoEvent(event) || isPendingLocalEchoEvent(event?.replacingEvent?.());
+
+const getThreadPendingSend = (
+  threadRootEvent: MatrixEvent | undefined,
+  thread: ReturnType<Room['getThread']>
+): boolean => {
+  if (isPendingThreadEvent(threadRootEvent)) return true;
+
+  return getPreferredVisibleThreadReplyEvents(thread).some((event) => isPendingThreadEvent(event));
+};
 
 export const getThreadReplyCount = (
   room: Room,
@@ -296,6 +306,7 @@ export const buildThreadRecord = ({
     (thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false);
   const isResolved = threadResolution?.isResolved ?? false;
   const isStreaming = getThreadStreamingState(room, threadRootId);
+  const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, thread);
 
   return {
     roomId: room.roomId,
@@ -325,6 +336,7 @@ export const buildThreadRecord = ({
       isResolved,
       isUnread,
       isStreaming,
+      hasPendingSend,
       scheduledTaskCount: resolvedScheduledTaskCount,
       nextScheduledTs: resolvedNextScheduledTs,
       lastActivityTs,
