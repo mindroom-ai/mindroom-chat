@@ -17,7 +17,6 @@ describe('app version updates', () => {
   const originalWindow = globalThis.window;
 
   let reload: ReturnType<typeof vi.fn>;
-  let sessionState: Map<string, string>;
   let serviceWorker: MockServiceWorkerContainer;
 
   beforeEach(() => {
@@ -26,15 +25,9 @@ describe('app version updates', () => {
     serviceWorker = new EventTarget() as MockServiceWorkerContainer;
     serviceWorker.register = vi.fn();
 
-    sessionState = new Map<string, string>();
     const windowTarget = new EventTarget();
     Object.assign(windowTarget, {
       location: { origin: 'https://chat.example.com', reload },
-      sessionStorage: {
-        getItem: (key: string) => sessionState.get(key) ?? null,
-        setItem: (key: string, value: string) => sessionState.set(key, value),
-        removeItem: (key: string) => sessionState.delete(key),
-      },
       setInterval,
       clearInterval,
     });
@@ -112,7 +105,7 @@ describe('app version updates', () => {
       json: vi.fn().mockResolvedValue({ version: APP_BUILD_VERSION }),
     });
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: fetchMock });
-    const stop = startAppVersionMonitor({ reload });
+    const stop = startAppVersionMonitor();
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
     const requestedUrl = fetchMock.mock.calls[0]?.[0] as URL;
@@ -124,7 +117,7 @@ describe('app version updates', () => {
     stop();
   });
 
-  it('activates a cache-busted worker and reloads once after its controller takes over', async () => {
+  it('stages a cache-busted worker without reloading the active page', async () => {
     const publishedVersion = 'abcdef123456';
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
@@ -136,44 +129,20 @@ describe('app version updates', () => {
     const nextRegistration = { active: {} };
     serviceWorker.register.mockResolvedValue(nextRegistration);
 
-    const stop = startAppVersionMonitor({ reload });
+    const stop = startAppVersionMonitor();
     await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
 
     expect(serviceWorker.register).toHaveBeenCalledWith(
-      new URL(`https://chat.example.com/sw.js?version=${publishedVersion}`),
+      new URL(`https://chat.example.com/sw.js?version=${publishedVersion}&non-disruptive-update=1`),
       expect.objectContaining({ updateViaCache: 'none' })
     );
     serviceWorker.dispatchEvent(new Event('controllerchange'));
     serviceWorker.dispatchEvent(new Event('controllerchange'));
-    expect(reload).toHaveBeenCalledTimes(1);
-    stop();
-  });
-
-  it('does not reload when stopped while worker activation is still pending', async () => {
-    const publishedVersion = 'abcdef123456';
-    Object.defineProperty(globalThis, 'fetch', {
-      configurable: true,
-      value: vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ version: publishedVersion }),
-      }),
-    });
-    const installingWorker = new EventTarget() as EventTarget & { state: string };
-    installingWorker.state = 'installing';
-    serviceWorker.register.mockResolvedValue({ installing: installingWorker });
-
-    const stop = startAppVersionMonitor({ reload });
-    await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
-    stop();
-
-    installingWorker.state = 'activated';
-    installingWorker.dispatchEvent(new Event('statechange'));
-    await Promise.resolve();
-
     expect(reload).not.toHaveBeenCalled();
+    stop();
   });
 
-  it('can reload after a stale session guard is cleared', async () => {
+  it('does not register the same staged version again on later checks', async () => {
     const publishedVersion = 'abcdef123456';
     Object.defineProperty(globalThis, 'fetch', {
       configurable: true,
@@ -183,16 +152,16 @@ describe('app version updates', () => {
       }),
     });
     serviceWorker.register.mockResolvedValue({ active: {} });
-    sessionState.set('mindroom_app_version_reloading', publishedVersion);
 
-    const stop = startAppVersionMonitor({ reload });
+    const stop = startAppVersionMonitor({ pollIntervalMs: 1000 });
     await vi.waitFor(() => expect(serviceWorker.register).toHaveBeenCalledTimes(1));
+    await vi.advanceTimersByTimeAsync(5000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('online'));
+    await Promise.resolve();
+
+    expect(serviceWorker.register).toHaveBeenCalledTimes(1);
     expect(reload).not.toHaveBeenCalled();
-
-    sessionState.delete('mindroom_app_version_reloading');
-    serviceWorker.dispatchEvent(new Event('controllerchange'));
-
-    expect(reload).toHaveBeenCalledTimes(1);
     stop();
   });
 
@@ -203,7 +172,7 @@ describe('app version updates', () => {
       configurable: true,
       value: { onLine: false, serviceWorker },
     });
-    const stop = startAppVersionMonitor({ pollIntervalMs: 1000, reload });
+    const stop = startAppVersionMonitor({ pollIntervalMs: 1000 });
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(fetchMock).not.toHaveBeenCalled();

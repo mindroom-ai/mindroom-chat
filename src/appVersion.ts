@@ -7,7 +7,6 @@ export const APP_BUILD_VERSION =
   typeof __MINDROOM_BUILD_VERSION__ === 'string' ? __MINDROOM_BUILD_VERSION__ : 'development-build';
 export const APP_VERSION_POLL_INTERVAL_MS = 5 * 60 * 1000;
 export const APP_VERSION_FETCH_TIMEOUT_MS = 5 * 1000;
-const SERVICE_WORKER_ACTIVATION_TIMEOUT_MS = 15 * 1000;
 
 type AppVersionManifest = {
   version?: unknown;
@@ -40,110 +39,54 @@ export const fetchPublishedAppVersion = async (): Promise<string | undefined> =>
   }
 };
 
-const waitForWorkerActivation = async (
-  registration: ServiceWorkerRegistration
-): Promise<boolean> => {
-  const worker = registration.installing ?? registration.waiting;
-  if (!worker) {
-    // No candidate means the fetched worker was byte-identical to the active
-    // one. The active worker already owns the newly published app shell.
-    return Boolean(registration.active);
-  }
-  if (worker.state === 'activated') return true;
-  if (worker.state === 'redundant') return false;
-
-  return new Promise<boolean>((resolve) => {
-    let finish: (activated: boolean) => void = () => undefined;
-    const handleStateChange = () => {
-      if (worker.state === 'activated') finish(true);
-      if (worker.state === 'redundant') finish(false);
-    };
-    const timeoutId = globalThis.setTimeout(
-      () => finish(false),
-      SERVICE_WORKER_ACTIVATION_TIMEOUT_MS
-    );
-    finish = (activated: boolean) => {
-      globalThis.clearTimeout(timeoutId);
-      worker.removeEventListener('statechange', handleStateChange);
-      resolve(activated);
-    };
-    worker.addEventListener('statechange', handleStateChange);
-    handleStateChange();
-  });
-};
-
 type AppVersionMonitorOptions = {
   pollIntervalMs?: number;
-  reload?: () => void;
 };
 
 export const startAppVersionMonitor = ({
   pollIntervalMs = APP_VERSION_POLL_INTERVAL_MS,
-  reload = () => window.location.reload(),
 }: AppVersionMonitorOptions = {}): (() => void) => {
   let stopped = false;
   let checking = false;
-  let pendingVersion: string | undefined;
-  let reloadRequestedVersion: string | undefined;
+  let stagedVersion: string | undefined;
 
   const check = async () => {
     if (stopped || checking || !navigator.onLine) return;
     checking = true;
     try {
       const publishedVersion = await fetchPublishedAppVersion();
-      if (!publishedVersion || publishedVersion === APP_BUILD_VERSION || stopped) return;
+      if (
+        !publishedVersion ||
+        publishedVersion === APP_BUILD_VERSION ||
+        publishedVersion === stagedVersion ||
+        stopped
+      )
+        return;
 
-      pendingVersion = publishedVersion;
       const swUrl = createServiceWorkerUrl(publishedVersion);
-      const registration = await navigator.serviceWorker.register(swUrl, {
+      await navigator.serviceWorker.register(swUrl, {
         scope: ensureBasePathTrailingSlash(getAppBasePath()),
         type: 'classic',
         updateViaCache: 'none',
       });
-      if (await waitForWorkerActivation(registration)) handleControllerChange();
+      stagedVersion = publishedVersion;
+      // Activation may replace the controller, but it must not navigate this
+      // document. The new shell takes over on the user's next reload or visit.
     } catch {
       // A failed update check is equivalent to no update. Keep the current,
       // fully loaded application running, especially when connectivity drops.
-      pendingVersion = undefined;
     } finally {
       checking = false;
     }
   };
 
-  const handleControllerChange = () => {
-    if (stopped || !pendingVersion || !navigator.onLine) return;
-    if (reloadRequestedVersion === pendingVersion) return;
-    try {
-      const reloadKey = 'mindroom_app_version_reloading';
-      if (window.sessionStorage.getItem(reloadKey) === pendingVersion) return;
-      window.sessionStorage.setItem(reloadKey, pendingVersion);
-    } catch {
-      // Reloading is still safe if sessionStorage is blocked: controllerchange
-      // only fires once for this newly activated worker.
-    }
-    reloadRequestedVersion = pendingVersion;
-    reload();
-  };
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') check().catch(() => undefined);
   };
   const handleOnline = () => {
-    const controllerVersion = (() => {
-      try {
-        const scriptUrl = navigator.serviceWorker.controller?.scriptURL;
-        return scriptUrl ? new URL(scriptUrl).searchParams.get('version') : undefined;
-      } catch {
-        return undefined;
-      }
-    })();
-    if (pendingVersion && controllerVersion === pendingVersion) {
-      handleControllerChange();
-      return;
-    }
     check().catch(() => undefined);
   };
 
-  navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('online', handleOnline);
   const intervalId = window.setInterval(() => check().catch(() => undefined), pollIntervalMs);
@@ -152,7 +95,6 @@ export const startAppVersionMonitor = ({
   return () => {
     stopped = true;
     window.clearInterval(intervalId);
-    navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('online', handleOnline);
   };
