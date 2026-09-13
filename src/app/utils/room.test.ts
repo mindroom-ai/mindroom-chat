@@ -303,6 +303,44 @@ describe('room edit helpers', () => {
       'io.mindroom.stream_status': 'completed',
     });
   });
+
+  it('preserves MindRoom message extras when replacement new_content omits them', () => {
+    const extras = {
+      version: 1,
+      sections: [
+        {
+          title: 'Evidence',
+          content_type: 'text/plain',
+          content: 'extra payload',
+        },
+      ],
+    };
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'Thinking...  ⋯');
+    const replacementEvent = new MatrixEvent({
+      content: {
+        body: '* Final answer',
+        'com.mindroom.message_extras': extras,
+        'm.new_content': {
+          body: 'Final answer',
+          msgtype: 'm.text',
+        },
+        'm.relates_to': {
+          event_id: '$target',
+          rel_type: 'm.replace',
+        },
+        msgtype: 'm.text',
+      },
+      event_id: '$edit-final',
+      origin_server_ts: 2000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+
+    const resolvedContent = getLatestMessageContent(targetEvent, replacementEvent);
+
+    expect(resolvedContent['com.mindroom.message_extras']).toEqual(extras);
+  });
 });
 
 describe('roomHaveUnread', () => {

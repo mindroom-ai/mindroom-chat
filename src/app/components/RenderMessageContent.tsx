@@ -43,10 +43,12 @@ type RenderMessageContentProps = {
   getContent: <T>() => T;
   mediaAutoLoad?: boolean;
   urlPreview?: boolean;
+  showMessageExtras?: boolean;
   highlightRegex?: RegExp;
   htmlReactParserOptions: HTMLReactParserOptions;
   linkifyOpts: Opts;
   outlineAttachment?: boolean;
+  onLongTextHydratedMessageExtrasRendered?: () => void;
 };
 export function RenderMessageContent({
   displayName,
@@ -60,10 +62,12 @@ export function RenderMessageContent({
   getContent,
   mediaAutoLoad,
   urlPreview,
+  showMessageExtras = false,
   highlightRegex,
   htmlReactParserOptions,
   linkifyOpts,
   outlineAttachment,
+  onLongTextHydratedMessageExtrasRendered,
 }: RenderMessageContentProps) {
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -150,6 +154,8 @@ export function RenderMessageContent({
     highlightRegex,
     htmlReactParserOptions,
     linkifyOpts,
+    showMessageExtras,
+    onLongTextHydratedMessageExtrasRendered,
   });
   if (mindroomContent !== undefined) return mindroomContent;
 

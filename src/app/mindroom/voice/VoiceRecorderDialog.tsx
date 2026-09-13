@@ -10,8 +10,8 @@ import {
   Text,
   config,
 } from 'folds';
-import { VoiceRecordingCapsule } from '../../features/room/VoiceRecordingCapsule';
-import { useVoiceRecorder } from '../../features/room/useVoiceRecorder';
+import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
+import { useVoiceRecorder } from './useVoiceRecorder';
 
 type VoiceRecorderComposerProps = {
   active: boolean;

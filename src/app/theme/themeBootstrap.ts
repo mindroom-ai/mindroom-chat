@@ -7,14 +7,14 @@ import {
   type Theme,
   ThemeKind,
 } from '../hooks/useTheme';
+import { MINDROOM_SESSION_STORE_KEY } from '../mindroom/cache/sessionStoreConfig';
 import { getSettings } from '../state/settings';
 
 const UNAUTH_ROUTE_PATH_PATTERN = /(?:^|\/)(login|register|reset-password)(?:\/[^/]+)?\/?$/;
 const hasOwn = Object.prototype.hasOwnProperty;
-const SESSION_STORE_KEY = 'mindroom_multi_account_store'; // mirror of state/sessions.ts SESSION_STORE_KEY
 
 const THEME_IDS = [LightTheme.id, SilverTheme.id, DarkTheme.id, ButterTheme.id] as const;
-type ThemeId = (typeof THEME_IDS)[number];
+type ThemeId = typeof THEME_IDS[number];
 type ThemeScheme = 'light' | 'dark';
 
 type ThemeLike = Pick<Theme, 'id' | 'kind' | 'classNames'>;
@@ -102,15 +102,13 @@ const hasActiveStoredSession = (): boolean => {
       return false;
     }
 
-    const rawSessionStore = localStorage.getItem(SESSION_STORE_KEY);
+    const rawSessionStore = localStorage.getItem(MINDROOM_SESSION_STORE_KEY);
     if (!rawSessionStore) return false;
 
-    const parsed = JSON.parse(rawSessionStore) as
-      | {
-          sessions?: Array<{ sessionId?: unknown }>;
-          activeSessionId?: unknown;
-        }
-      | null;
+    const parsed = JSON.parse(rawSessionStore) as {
+      sessions?: Array<{ sessionId?: unknown }>;
+      activeSessionId?: unknown;
+    } | null;
     if (!parsed || typeof parsed !== 'object') return false;
 
     const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];

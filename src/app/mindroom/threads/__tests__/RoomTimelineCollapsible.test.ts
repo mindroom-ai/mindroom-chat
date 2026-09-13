@@ -1171,6 +1171,54 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapseModeForEvent(renderer, '$encrypted-summary')).toBe('always-expanded');
   });
 
+  it('uses always-expanded mode for messages with MindRoom extras', async () => {
+    const { getCollapsibleMessageMode } = await import(
+      '../threadCollapsibleMessages'
+    );
+    const eventWithExtras = makeEvent('$extras', {
+      content: {
+        body: 'Message with extras',
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 1,
+          sections: [
+            {
+              title: 'Evidence',
+              content_type: 'text/plain',
+              content: 'extra payload',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(
+      getCollapsibleMessageMode(eventWithExtras.getId(), eventWithExtras.getContent(), new Set())
+    ).toBe('always-expanded');
+  });
+
+  it('uses always-expanded mode after hydrated long-text extras are observed', async () => {
+    const { getCollapsibleMessageMode, getHydratedLongTextExtrasCollapseKey } = await import(
+      '../threadCollapsibleMessages'
+    );
+    const longTextContent = {
+      body: 'Long text sidecar',
+      msgtype: 'm.file',
+      url: 'mxc://server/long-text',
+      'io.mindroom.long_text': {
+        version: 2,
+        encoding: 'matrix_event_content_json',
+      },
+    };
+    const collapseKey = getHydratedLongTextExtrasCollapseKey('$long-text', longTextContent);
+
+    expect(collapseKey).toBe(JSON.stringify(['$long-text', 'mxc://server/long-text']));
+    expect(getCollapsibleMessageMode('$long-text', longTextContent, new Set())).toBe('default');
+    expect(
+      getCollapsibleMessageMode('$long-text', longTextContent, new Set(), new Set([collapseKey!]))
+    ).toBe('always-expanded');
+  });
+
   it('marks visible live thread replies for initially-expanded mode', async () => {
     const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } = await import(
       '../threadCollapsibleMessages'

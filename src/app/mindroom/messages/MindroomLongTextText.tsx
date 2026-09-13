@@ -37,6 +37,10 @@ type MindroomLongTextTextProps = {
   content: Record<string, unknown>;
   longTextSource: MindroomLongTextSource;
   renderBody: (content: Record<string, unknown>, props: RenderBodyProps) => ReactNode;
+  renderAfterBody?: (
+    content: Record<string, unknown>,
+    fallbackContent: Record<string, unknown>
+  ) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
 
@@ -197,6 +201,7 @@ export function MindroomLongTextText({
   content,
   longTextSource,
   renderBody,
+  renderAfterBody,
   renderUrlsPreview,
 }: MindroomLongTextTextProps) {
   const mx = useMatrixClient();
@@ -255,6 +260,8 @@ export function MindroomLongTextText({
     };
   }, [loading]);
 
+  const afterBody = renderAfterBody?.(content, resolvedContent);
+
   let textContent: ReactNode;
   if (kind === MindroomLongTextKind.Emote) {
     textContent = (
@@ -264,6 +271,7 @@ export function MindroomLongTextText({
         renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
+        renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -274,6 +282,7 @@ export function MindroomLongTextText({
         renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
+        renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -284,6 +293,7 @@ export function MindroomLongTextText({
         renderStateSuffix={renderStateSuffix}
         content={resolvedContent}
         renderBody={(props) => renderBody(resolvedContent, props)}
+        renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
     );

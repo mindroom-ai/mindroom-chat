@@ -3,6 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
 const matrixMocks = vi.hoisted(() => ({
@@ -34,7 +35,21 @@ vi.mock('./longText', async () => {
 vi.mock('../../components/message/MsgTypeRenderers', () => ({
   MEmote: () => null,
   MNotice: () => null,
-  MText: () => null,
+  MText: ({
+    content,
+    renderAfterBody,
+    renderBody,
+  }: {
+    content: Record<string, unknown>;
+    renderAfterBody?: React.ReactNode;
+    renderBody: (props: { body: string }) => React.ReactNode;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'long-text-body' },
+      renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody
+    ),
 }));
 vi.mock('folds', () => ({
   Box: () => null,
@@ -82,7 +97,12 @@ const createPreviewContent = () => ({
   'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
 });
 
-const createDeferred = <T,>() => {
+const createMessageExtras = (content: string) => ({
+  version: 1,
+  sections: [{ title: 'Evidence', content_type: 'text/plain', content }],
+});
+
+const createDeferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((res) => {
     resolve = res;
@@ -401,6 +421,130 @@ describe('MindroomLongTextText hydration identity', () => {
       renderer.unmount();
     });
   });
+
+  it('keeps preview extras available when hydrated content omits them', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const previewContent = {
+      ...createPreviewContent(),
+      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('preview extra'),
+    };
+    const deferred = createDeferred<Record<string, unknown>>();
+    let renderer!: ReactTestRenderer;
+
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(MindroomLongTextText, {
+          kind: MindroomLongTextKind.Text,
+          content: previewContent,
+          longTextSource: createLongTextSource({ previewContent }),
+          renderBody: (_content, props) => props.body,
+          renderAfterBody: (extrasContent, fallbackContent) =>
+            React.createElement(
+              'span',
+              { 'data-testid': 'extras-probe' },
+              extrasContent[MINDROOM_MESSAGE_EXTRAS_KEY] ||
+                fallbackContent[MINDROOM_MESSAGE_EXTRAS_KEY]
+                ? 'extras-present'
+                : 'extras-missing'
+            ),
+        })
+      );
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
+      'extras-present',
+    ]);
+
+    await act(async () => {
+      deferred.resolve({ body: 'Hydrated response', msgtype: 'm.text' });
+      await deferred.promise;
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Hydrated response'
+    );
+    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
+      'extras-present',
+    ]);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('prefers live extras over stale hydrated extras when only extras change', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const previewContent = {
+      ...createPreviewContent(),
+      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('hydrated extra E1'),
+    };
+    const liveEditedContent = {
+      ...previewContent,
+      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('live extra E2'),
+    };
+    const hydratedContent = {
+      body: 'Hydrated response',
+      msgtype: 'm.text',
+      [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('hydrated extra E1'),
+    };
+    const deferred = createDeferred<Record<string, unknown>>();
+    let renderer!: ReactTestRenderer;
+
+    const render = (nextContent: Record<string, unknown>) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content: nextContent,
+        longTextSource: createLongTextSource({ previewContent: nextContent }),
+        renderBody: (_content, props) => props.body,
+        renderAfterBody: (extrasContent, fallbackContent) =>
+          React.createElement(
+            'span',
+            { 'data-testid': 'extras-probe' },
+            parseMindroomMessageExtras(extrasContent)?.sections[0]?.content ??
+              (!(MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent)
+                ? parseMindroomMessageExtras(fallbackContent)?.sections[0]?.content
+                : undefined) ??
+              'extras-missing'
+          ),
+      });
+
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+
+    await act(async () => {
+      renderer = create(render(previewContent));
+    });
+
+    await act(async () => {
+      deferred.resolve(hydratedContent);
+      await deferred.promise;
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Hydrated response'
+    );
+    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
+      'hydrated extra E1',
+    ]);
+
+    await act(async () => {
+      renderer.update(render(liveEditedContent));
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Hydrated response'
+    );
+    expect(renderer.root.findByProps({ 'data-testid': 'extras-probe' }).children).toEqual([
+      'live extra E2',
+    ]);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
 });
 
 describe('useMindroomLongTextResolvedContent', () => {
@@ -411,18 +555,14 @@ describe('useMindroomLongTextResolvedContent', () => {
       'https://example.org/_matrix/media/v3/download/server/content'
     );
 
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
       actualMindroomLongText.hydrateMindroomLongTextSource
     );
   });
 
   it('returns cached content synchronously without fetching again', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     const source = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
@@ -545,9 +685,7 @@ describe('useMindroomLongTextResolvedContent', () => {
   });
 
   it('does not return stale resolved content when the source mxcUri changes', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>(
-      './longText'
-    );
+    const actualMindroomLongText = await vi.importActual<typeof import('./longText')>('./longText');
     const sourceA = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),

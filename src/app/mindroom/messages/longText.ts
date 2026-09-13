@@ -1,5 +1,4 @@
 import { IEncryptedFile } from '../../../types/matrix/common';
-import { AI_RUN_METADATA_KEY } from './aiRun';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -163,30 +162,13 @@ const normalizeHydratedMindroomContent = (
 
   const normalizedContent: Record<string, unknown> = { ...newContent };
 
-  if (
-    normalizedContent['io.mindroom.tool_trace'] === undefined &&
-    hydratedContent['io.mindroom.tool_trace'] !== undefined
-  ) {
-    normalizedContent['io.mindroom.tool_trace'] = hydratedContent['io.mindroom.tool_trace'];
-  }
-  if (
-    normalizedContent[AI_RUN_METADATA_KEY] === undefined &&
-    hydratedContent[AI_RUN_METADATA_KEY] !== undefined
-  ) {
-    normalizedContent[AI_RUN_METADATA_KEY] = hydratedContent[AI_RUN_METADATA_KEY];
-  }
-  if (
-    normalizedContent['m.mentions'] === undefined &&
-    hydratedContent['m.mentions'] !== undefined
-  ) {
-    normalizedContent['m.mentions'] = hydratedContent['m.mentions'];
-  }
-  if (
-    normalizedContent['com.mindroom.skip_mentions'] === undefined &&
-    hydratedContent['com.mindroom.skip_mentions'] !== undefined
-  ) {
-    normalizedContent['com.mindroom.skip_mentions'] = hydratedContent['com.mindroom.skip_mentions'];
-  }
+  Object.entries(hydratedContent).forEach(([key, value]) => {
+    if (normalizedContent[key] !== undefined) return;
+    if (key === 'm.mentions' || key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.')) {
+      normalizedContent[key] = value;
+    }
+  });
+
   if (typeof normalizedContent.body !== 'string' && typeof hydratedContent.body === 'string') {
     normalizedContent.body = hydratedContent.body;
   }
