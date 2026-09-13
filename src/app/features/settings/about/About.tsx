@@ -1,5 +1,17 @@
 import React from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll, Button, Spinner, config, toRem } from 'folds';
+import {
+  Box,
+  Text,
+  IconButton,
+  Icon,
+  Icons,
+  Scroll,
+  Button,
+  Spinner,
+  Switch,
+  config,
+  toRem,
+} from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
@@ -11,15 +23,105 @@ import {
   MINDROOM_CLIENT_BRANDING,
   getMindroomWelcomePageContent,
 } from '../../../mindroom/branding/clientBranding';
+import { isNativeIOS } from '../../../mindroom/native/nativeSso';
+import { saveFile } from '../../../mindroom/native/nativeFileSave';
+import { getFlightRecorderStatus } from '../../../mindroom/diagnostics/flightRecorder';
+import {
+  clearDeepTrace,
+  getDeepTraceEnabled,
+  getDeepTraceRuntimeStatus,
+  setDeepTraceEnabled,
+  subscribeDeepTraceStatus,
+  type DeepTraceRuntimeStatus,
+} from '../../../mindroom/diagnostics/deepTrace';
+import { buildDiagnosticsExport } from '../../../mindroom/diagnostics/diagnosticsExport';
 
 type AboutProps = {
   requestClose: () => void;
 };
+
+type DeepTraceError = 'storage' | 'preference' | undefined;
+
+const getDeepTraceDescription = ({
+  runtimeStatus,
+  enabled,
+  error,
+}: {
+  runtimeStatus: DeepTraceRuntimeStatus;
+  enabled: boolean;
+  error: DeepTraceError;
+}): string => {
+  let description: string;
+
+  if (runtimeStatus === 'unavailable') {
+    description = enabled
+      ? 'Enabled, but trace storage is currently unavailable.'
+      : 'Trace storage unavailable.';
+  } else if (error === 'storage') {
+    description = 'Trace storage unavailable.';
+  } else if (runtimeStatus === 'recording') {
+    description =
+      'Recording a bounded, privacy-safe performance and interaction trace on this device.';
+  } else if (runtimeStatus === 'starting') {
+    description =
+      'Starting a bounded, privacy-safe performance and interaction trace on this device.';
+  } else {
+    description =
+      'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.';
+  }
+
+  if (error === 'preference') {
+    description +=
+      ' Off for this session, but the preference could not be saved and may re-enable after restart.';
+  }
+
+  return description;
+};
+
 export function About({ requestClose }: AboutProps) {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
   const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome);
   const [clearing, setClearing] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportError, setExportError] = React.useState(false);
+  const [deepTracing, setDeepTracing] = React.useState(getDeepTraceEnabled);
+  const [deepTraceRuntimeStatus, setDeepTraceRuntimeStatus] =
+    React.useState(getDeepTraceRuntimeStatus);
+  const [deepTraceError, setDeepTraceError] = React.useState<DeepTraceError>();
+  const [deepTraceChanging, setDeepTraceChanging] = React.useState(false);
+  const [clearingDeepTrace, setClearingDeepTrace] = React.useState(false);
+  const deepTraceChangePending = React.useRef(false);
+  const nativeIOS = isNativeIOS();
+  const diagnosticsStatus = getFlightRecorderStatus();
+  const diagnosticsDescription = {
+    unexpected: 'Previous session ended unexpectedly; the cause is unknown.',
+    none: 'No unexpected session retained.',
+    unavailable: 'Diagnostics storage unavailable.',
+  }[diagnosticsStatus];
+
+  React.useEffect(
+    () =>
+      subscribeDeepTraceStatus((status) => {
+        setDeepTraceRuntimeStatus(status);
+        if (!deepTraceChangePending.current) {
+          setDeepTraceChanging(status === 'starting');
+        }
+        if (status === 'unavailable') {
+          setDeepTracing(getDeepTraceEnabled());
+          setDeepTraceError('storage');
+        } else if (status === 'starting') {
+          setDeepTracing(true);
+          setDeepTraceError(undefined);
+        } else if (status === 'recording') {
+          setDeepTracing(true);
+          setDeepTraceError(undefined);
+        } else {
+          setDeepTracing(false);
+        }
+      }),
+    []
+  );
 
   const handleClearCache = async () => {
     if (clearing) return;
@@ -30,6 +132,55 @@ export function About({ requestClose }: AboutProps) {
       await clearAllCacheAndReload(mx);
     } catch {
       setClearing(false);
+    }
+  };
+
+  const handleExportDiagnostics = async () => {
+    if (exporting) return;
+
+    setExporting(true);
+    setExportError(false);
+
+    try {
+      const { blob, fileName } = await buildDiagnosticsExport();
+      await saveFile(blob, fileName);
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeepTraceChange = async (enabled: boolean) => {
+    if (deepTraceChangePending.current) return;
+    deepTraceChangePending.current = true;
+    setDeepTraceChanging(true);
+    setDeepTracing(enabled);
+    setDeepTraceError(undefined);
+    let saved = false;
+    try {
+      saved = await setDeepTraceEnabled(enabled);
+    } catch {
+      saved = false;
+    }
+    if (!saved) {
+      setDeepTraceError(enabled ? 'storage' : 'preference');
+    }
+    setDeepTracing(enabled ? getDeepTraceEnabled() : false);
+    deepTraceChangePending.current = false;
+    setDeepTraceChanging(false);
+  };
+
+  const handleClearDeepTrace = async () => {
+    if (clearingDeepTrace) return;
+    setClearingDeepTrace(true);
+    setDeepTraceError(undefined);
+    try {
+      await clearDeepTrace();
+    } catch {
+      setDeepTraceError('storage');
+    } finally {
+      setClearingDeepTrace(false);
     }
   };
 
@@ -126,6 +277,72 @@ export function About({ requestClose }: AboutProps) {
                       </Button>
                     }
                   />
+                  {nativeIOS && (
+                    <SettingTile
+                      title="Deep diagnostic tracing"
+                      description={getDeepTraceDescription({
+                        runtimeStatus: deepTraceRuntimeStatus,
+                        enabled: deepTracing,
+                        error: deepTraceError,
+                      })}
+                      after={
+                        <Box alignItems="Center" gap="200">
+                          <Button
+                            onClick={handleClearDeepTrace}
+                            variant="Secondary"
+                            fill="Soft"
+                            size="300"
+                            radii="300"
+                            outlined
+                            disabled={clearingDeepTrace || deepTraceChanging}
+                            before={
+                              clearingDeepTrace && (
+                                <Spinner size="200" variant="Secondary" fill="Soft" />
+                              )
+                            }
+                          >
+                            <Text size="B300">
+                              {clearingDeepTrace ? 'Clearing...' : 'Clear trace'}
+                            </Text>
+                          </Button>
+                          <Switch
+                            variant="Primary"
+                            value={deepTracing}
+                            onChange={handleDeepTraceChange}
+                            disabled={deepTraceChanging}
+                          />
+                        </Box>
+                      }
+                    />
+                  )}
+                  {nativeIOS && (
+                    <SettingTile
+                      title="On-device diagnostics"
+                      description={`${diagnosticsDescription}${
+                        exportError && diagnosticsStatus !== 'unavailable'
+                          ? ' Export failed. Try again.'
+                          : ''
+                      }`}
+                      after={
+                        <Button
+                          onClick={handleExportDiagnostics}
+                          variant="Secondary"
+                          fill="Soft"
+                          size="300"
+                          radii="300"
+                          outlined
+                          disabled={exporting}
+                          before={
+                            exporting && <Spinner size="200" variant="Secondary" fill="Soft" />
+                          }
+                        >
+                          <Text size="B300">
+                            {exporting ? 'Exporting...' : 'Export diagnostics'}
+                          </Text>
+                        </Button>
+                      }
+                    />
+                  )}
                 </SequenceCard>
               </Box>
               <Box direction="Column" gap="100">
