@@ -19,6 +19,7 @@ vi.mock('./CompactRoomView.css', () => ({
   StatBadge: 'StatBadge',
   Stats: 'Stats',
   StatusChip: 'StatusChip',
+  TouchResolutionByline: 'TouchResolutionByline',
   TimeText: 'TimeText',
   TitleLead: 'TitleLead',
   TitleRow: 'TitleRow',
@@ -116,6 +117,39 @@ describe('CompactThreadCard', () => {
     expect(rendered).not.toContain('data-pending-send-icon');
     expect(ariaLabel).toContain('Localized message failure');
     expect(ariaLabel).not.toContain('Message failed to send');
+
+    renderer.unmount();
+  });
+
+  it('reveals the resolver from the resolved status dot and accessible card label', () => {
+    const viewModel = makeViewModel({
+      attentionState: 'resolved',
+      attentionStatusText: 'Resolved',
+      isResolved: true,
+      resolvedByDisplayName: 'Alice',
+    } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
+    const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    const resolvedDot = renderer.root.findByProps({ 'data-attention-state': 'resolved' });
+
+    expect(resolvedDot.props.title).toBe('Resolved by Alice');
+    expect(renderer.root.findByType('button').props['aria-label']).toContain('Resolved by Alice');
+
+    renderer.unmount();
+  });
+
+  it('renders an explicit touch-layout resolver byline for resolved cards', () => {
+    const viewModel = makeViewModel({
+      attentionState: 'resolved',
+      attentionStatusText: 'Resolved',
+      isResolved: true,
+      resolvedByDisplayName: 'Alice',
+    } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
+    const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    const resolverByline = renderer.root.findByProps({
+      'data-thread-resolution-touch-byline': 'true',
+    });
+
+    expect(resolverByline.findByType('span').children).toContain('Resolved by Alice');
 
     renderer.unmount();
   });

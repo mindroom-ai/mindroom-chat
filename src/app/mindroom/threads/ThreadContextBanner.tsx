@@ -14,6 +14,7 @@ import { useMutateThreadTags } from './useMutateThreadTags';
 import { ThreadTagPill } from './ThreadTagPill';
 import { ThreadTagPicker } from './ThreadTagPicker';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
 
 export interface ThreadContextBannerProps {
@@ -95,6 +96,14 @@ export function ThreadContextBanner({
     availableTags,
     pickerDisabled,
   });
+  const resolvedByDisplayName = getThreadResolverDisplayName(
+    room,
+    headerRecord.status.resolvedByUserId
+  );
+  const resolvedByLabel =
+    headerModel.isResolved && resolvedByDisplayName
+      ? t('thread.resolvedBy', { name: resolvedByDisplayName })
+      : undefined;
 
   useEffect(() => {
     if (error) {
@@ -235,11 +244,23 @@ export function ThreadContextBanner({
             radii="300"
             onClick={handleToggleResolve}
             disabled={!headerModel.canEdit || headerModel.pickerDisabled}
+            title={resolvedByLabel}
           >
             <Text size="T200">
               {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
             </Text>
           </Button>
+          {resolvedByDisplayName && (
+            <Text
+              className={css.ResolutionByline}
+              data-thread-resolution-byline="true"
+              size="T200"
+              priority="300"
+              truncate
+            >
+              {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
+            </Text>
+          )}
         </div>
       </div>
     </div>

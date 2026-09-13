@@ -105,6 +105,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
   ResolveChip: 'ResolveChip',
+  ResolutionByline: 'ResolutionByline',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
   SubtitleRow: 'SubtitleRow',
@@ -285,6 +286,7 @@ describe('ThreadContextBanner rendering', () => {
   beforeEach(() => {
     bannerMocks.useThreadRootEvent.mockReturnValue('$root');
     bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
       displayTags: [],
       isResolved: false,
       canEdit: false,
@@ -306,6 +308,10 @@ describe('ThreadContextBanner rendering', () => {
           roomId: '!room:example.org',
           getThread: () => undefined,
           findEventById: () => undefined,
+          getMember: (userId: string) =>
+            userId === '@alice:example.org'
+              ? { rawDisplayName: 'Alice', name: 'Alice' }
+              : undefined,
           hasEncryptionStateEvent: () => false,
         } as unknown as Room,
         threadId: '$root',
@@ -451,5 +457,31 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).toContain('in 3m');
     expect(tree).toContain('·');
     expect(tree).toContain('Resolve');
+  });
+
+  it('shows resolver attribution below the resolved button and in its tooltip', () => {
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {
+        resolved: {
+          set_by: '@alice:example.org',
+          set_at: '2026-08-27T12:00:00.000Z',
+        },
+      },
+      displayTags: [],
+      isResolved: true,
+      canEdit: true,
+      availableTags: [],
+    });
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 0,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: undefined,
+    });
+
+    const renderer = renderBanner();
+
+    expect(renderer.root.findByProps({ title: 'Resolved by Alice' })).toBeTruthy();
+    const byline = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' });
+    expect(byline.findByType('span').children).toContain('by Alice');
   });
 });

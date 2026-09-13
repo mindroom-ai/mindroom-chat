@@ -272,6 +272,8 @@
     "view": "Thread View",
     "resolve": "Resolve",
     "resolved": "Resolved",
+    "resolvedBy": "Resolved by {{name}}",
+    "resolvedByShort": "by {{name}}",
     "replyCount_one": "{{count}} reply",
     "replyCount_other": "{{count}} replies",
     "aria": {

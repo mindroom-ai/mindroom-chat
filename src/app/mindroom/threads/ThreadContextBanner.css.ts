@@ -53,6 +53,22 @@ export const SubtitleRow = style({
 export const ResolveChip = style({
   marginLeft: 'auto',
   flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: config.space.S100,
+});
+
+export const ResolutionByline = style({
+  maxWidth: '10rem',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  '@media': {
+    '(max-width: 480px)': {
+      maxWidth: '6rem',
+    },
+  },
 });
 
 // The grey this used to hardcode (rgba(128,128,128,0.2)) is the same slab in

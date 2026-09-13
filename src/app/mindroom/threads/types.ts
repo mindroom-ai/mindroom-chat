@@ -24,6 +24,7 @@ export type ThreadStatusSnapshot = {
   isKnownThreadRoot: boolean;
   replyCount: number;
   isResolved: boolean;
+  resolvedByUserId?: string;
   isUnread: boolean;
   isStreaming: boolean;
   hasPendingSend?: boolean;
@@ -120,6 +121,7 @@ export type CompactThreadCardViewModel = {
   participants: ThreadParticipantViewModel[];
   tags: string[];
   isResolved: boolean;
+  resolvedByDisplayName?: string;
   isUnread: boolean;
   isStreaming: boolean;
   hasPendingSend?: boolean;

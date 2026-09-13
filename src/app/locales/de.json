@@ -272,6 +272,8 @@
     "view": "Thread-Ansicht",
     "resolve": "Auflösen",
     "resolved": "Gelöst",
+    "resolvedBy": "Gelöst von {{name}}",
+    "resolvedByShort": "von {{name}}",
     "replyCount_one": "{{count}} Antwort",
     "replyCount_other": "{{count}} Antworten",
     "aria": {

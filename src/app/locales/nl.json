@@ -272,6 +272,8 @@
     "view": "Threadweergave",
     "resolve": "Oplossen",
     "resolved": "Opgelost",
+    "resolvedBy": "Opgelost door {{name}}",
+    "resolvedByShort": "door {{name}}",
     "replyCount_one": "{{count}} antwoord",
     "replyCount_other": "{{count}} antwoorden",
     "aria": {

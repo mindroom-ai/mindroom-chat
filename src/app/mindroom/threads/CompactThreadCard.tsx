@@ -37,6 +37,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     participants,
     tags,
     isResolved,
+    resolvedByDisplayName,
     isUnread,
     isStreaming,
     hasPendingSend,
@@ -48,12 +49,18 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     primarySummaryText,
   } = viewModel;
   const relativeTime = useRelativeTime(lastActivityTs);
+  const resolvedByLabel =
+    isResolved && resolvedByDisplayName
+      ? t('thread.resolvedBy', { name: resolvedByDisplayName })
+      : undefined;
   const ariaLabel = [
     t('thread.aria.openThread', { title: titleText }),
     attentionStatusText,
     previewText,
     messageCountLabel,
-    isResolved ? t('thread.aria.resolvedThread') : t('thread.aria.unresolvedThread'),
+    isResolved
+      ? resolvedByLabel ?? t('thread.aria.resolvedThread')
+      : t('thread.aria.unresolvedThread'),
     isUnread ? t('thread.aria.unreadMessages') : undefined,
     isStreaming ? t('thread.aria.agentStreaming') : undefined,
     hasFailedSend ? t('thread.aria.messageFailed') : undefined,
@@ -78,6 +85,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           <span
             className={css.AttentionDot({ state: attentionState })}
             data-attention-state={attentionState}
+            title={resolvedByLabel}
             aria-hidden="true"
           />
           <span className={css.ScreenReaderText}>{`Thread status: ${attentionStatusText}.`}</span>
@@ -140,6 +148,19 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           )}
         </Box>
       </Box>
+
+      {resolvedByLabel && (
+        <Text
+          as="span"
+          className={css.TouchResolutionByline}
+          data-thread-resolution-touch-byline="true"
+          size="T200"
+          priority="300"
+          truncate
+        >
+          {resolvedByLabel}
+        </Text>
+      )}
 
       {hasMetadata && (
         <Box className={css.MetadataRow}>
