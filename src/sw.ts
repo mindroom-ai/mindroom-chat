@@ -20,9 +20,9 @@ cleanupOutdatedCaches();
 
 const navigationFallbackDenylist = [
   /^\/api(?:\/|$)/,
-  /^\/_matrix(?:\/|$)/,
-  /^\/_synapse(?:\/|$)/,
-  /^\/\.well-known(?:\/|$)/,
+  /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,
+  /^\/(?:[^/]+\/)?_synapse(?:\/|$)/,
+  /^\/(?:[^/]+\/)?\.well-known(?:\/|$)/,
 ];
 
 registerRoute(
