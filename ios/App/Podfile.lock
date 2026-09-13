@@ -54,17 +54,17 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 47b825120c6b8b6d6f9f053e9350a8960d436710
-  CapacitorApp: 942306cd1acf7774a00e89a3986af3a67c8cad7a
-  CapacitorAppLauncher: 43949ccc5aaa5139a1ebe27a98c0a4d76c883fa7
-  CapacitorBrowser: e72e572d5dbdbb854fda5950586a2451e981f2d6
+  Capacitor: 830fc6ff88e99bb5ba48350f02c01ab01ba3b2b8
+  CapacitorApp: fcd990168c3249d2c5a7ae94920a031d05789e73
+  CapacitorAppLauncher: fc7c313549920528d0f28493b60d20de679deba4
+  CapacitorBrowser: 6a7fed906d5f7cc58bc09d145bdb57c8243a235a
   CapacitorCordova: e8b76fd95fc1e157775abc484c59cc0de464095d
-  CapacitorHaptics: 2079d9fa04c5a71e18663b4722323c304c58245c
-  CapacitorKeyboard: d7868c079a4d5277a3deca27a10a488fcbbb8b69
-  CapacitorPushNotifications: 99644101c6a82036e459929b6d897ee1cb27d97f
-  CapacitorSplashScreen: 4b46c72298db552b3c57ce021ef028b6dc7f1fa7
-  CapacitorStatusBar: 32206abd53b14f339763da26f71286deaa891e16
+  CapacitorHaptics: 7a77ce744c4b516b3ffd7f8c96d3de574d77b898
+  CapacitorKeyboard: 0a2e7c0635ccf3db60abed14bd6f35147ce25942
+  CapacitorPushNotifications: 3f34fa7041f65ffb6d1aed24d7f3d5a8abf53db2
+  CapacitorSplashScreen: 1281f7df4d9b4a72bccab8d03e6b2bbd17dff122
+  CapacitorStatusBar: 7fc9bb6737a29524034dfdc51ae1f1880d972b4d
 
-PODFILE CHECKSUM: 5fa6fbdb7c5384b0bf92e59ea66630d3babd1ab2
+PODFILE CHECKSUM: 56fef9d9e7a78c63adbfb62ab9952d5adb8f3662
 
 COCOAPODS: 1.16.2

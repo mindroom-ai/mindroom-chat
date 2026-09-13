@@ -31,7 +31,11 @@
     "test:e2e:docker-matrix": "./scripts/test-e2e-docker-matrix.sh",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:mindroom": "./scripts/test-e2e-mindroom.sh",
-    "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed"
+    "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed",
+    "ios:phone": "node scripts/ios-phone.mjs",
+    "ios:phone:watch": "node scripts/ios-phone.mjs --watch",
+    "ios:phone:bg": "node scripts/ios-phone.mjs --background",
+    "ios:phone:stop": "node scripts/ios-phone.mjs --stop"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint",
