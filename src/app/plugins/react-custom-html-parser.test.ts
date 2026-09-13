@@ -8,8 +8,8 @@ import {
   LINKIFY_OPTS,
   getReactCustomHtmlParser,
   renderTextWithLatex,
-  withMindroomToolTraceMarkerParserOptions,
 } from './react-custom-html-parser';
+import { withMindroomToolTraceMarkerParserOptions } from '../mindroom/messages/MindroomHtmlBlocks';
 
 vi.mock('folds', async () => {
   const ReactModule = await import('react');
@@ -55,6 +55,9 @@ vi.mock('folds', async () => {
 vi.mock('../styles/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
+}));
+
+vi.mock('../mindroom/html/MatrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
 }));
