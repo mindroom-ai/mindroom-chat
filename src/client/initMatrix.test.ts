@@ -569,7 +569,7 @@ describe('clearAllCacheAndReload', () => {
     expect(localStorageState.has('mx_pending_events_!room:example.com')).toBe(false);
     expect(localStorageState.has('mxjssdk_memory_filter_sync')).toBe(false);
     expect(localStorageState.has('crypto.account')).toBe(false);
-    expect(replace).toHaveBeenCalledWith('/mindroom?clear_cache=1234');
+    expect(replace).toHaveBeenCalledWith('/mindroom/?clear_cache=1234');
   });
 
   it('collects live-session, inactive-session, legacy, and event-cache IndexedDB names from indexedDB.databases()', async () => {
@@ -765,7 +765,7 @@ describe('clearAllCacheAndReload', () => {
 
     await clearAllCacheAndReload();
 
-    expect(replace).toHaveBeenCalledWith('/mindroom?client=web&clear_cache=7890');
+    expect(replace).toHaveBeenCalledWith('/mindroom/?client=web&clear_cache=7890');
   });
 
   it('does not hang when IndexedDB delete requests are blocked', async () => {
