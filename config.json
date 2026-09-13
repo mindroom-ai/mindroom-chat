@@ -17,7 +17,9 @@
 
   "sidebar": {
     "showExploreCommunity": false,
-    "showAddSpace": false
+    "showAddSpace": false,
+    "showMindRoom": true,
+    "mindRoomUrl": "https://docs.mindroom.chat/"
   },
 
   "auth": {
