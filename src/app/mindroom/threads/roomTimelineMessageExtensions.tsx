@@ -24,7 +24,7 @@ export const getMindroomRoomTimelineApprovalContent = (
   editedEvent?: MatrixEvent
 ): Record<string, unknown> =>
   getToolApprovalRenderContent(
-    event.getContent() as Record<string, unknown>,
+    event.getOriginalContent() as Record<string, unknown>,
     editedEvent?.getContent() as Record<string, unknown> | undefined
   );
 

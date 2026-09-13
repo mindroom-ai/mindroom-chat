@@ -463,6 +463,7 @@ export const removeRoomIdFromMDirect = async (mx: MatrixClient, roomId: string):
 
 export const downloadMedia = async (src: string, init?: RequestInit): Promise<Blob> => {
   const res = await fetch(src, { ...init, method: 'GET' });
+  if (!res.ok) throw new Error(`Unable to download media (${res.status})`);
   const blob = await res.blob();
   return blob;
 };

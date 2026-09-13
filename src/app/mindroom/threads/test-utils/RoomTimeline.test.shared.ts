@@ -169,6 +169,8 @@ const create: typeof baseCreate = ((...args: Parameters<typeof baseCreate>) => {
   return renderer;
 }) as typeof baseCreate;
 
+vi.mock('../../messages/ThreadApprovalControls', () => ({ ApprovalHistory: () => null }));
+
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
 
@@ -1308,6 +1310,7 @@ const makeEvent = (
     threadRootId: opts.threadRootId,
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
+    getOriginalContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
     getRelation: () => opts.relation,
     getRedactionEvent: () => undefined,

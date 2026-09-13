@@ -6,14 +6,25 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import { Direction, RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  RelationType,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { getLatestEdit } from '../../utils/room';
 import { logMindroomEditDebug as logEditDebug } from '../messages/editDebug';
 import { getLinkedTimelines } from './timelinePagination';
 import { isScrollNearBottom } from './timelineScrollUtils';
-import { markThreadEditBackfillAttempted, shouldFetchThreadEditBackfill } from './threadEditBackfill';
+import {
+  markThreadEditBackfillAttempted,
+  shouldFetchThreadEditBackfill,
+} from './threadEditBackfill';
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
+import { useThreadApprovals } from '../messages/ThreadApprovalProvider';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
 
 type ScrollToBottomState = {
   count: number;
@@ -51,6 +62,8 @@ export const useThreadEditBackfillController = ({
   threadIdRef: MutableRefObject<string | undefined>;
   threadTailLoaded: boolean;
 }): void => {
+  const approvals = useThreadApprovals();
+  const approvalRepairOwned = approvals?.roomId === room.roomId && approvals?.threadId === threadId;
   // Task #129: events currently being backfilled, so a re-run of this
   // effect (its dep list includes `threadEvents`, which our cache work
   // churns frequently) does not re-enqueue an in-flight fetch. This
@@ -95,6 +108,7 @@ export const useThreadEditBackfillController = ({
       return (
         !!id &&
         !inFlight.has(id) &&
+        !(approvalRepairOwned && mEvent.getType() === MINDROOM_TOOL_APPROVAL_EVENT) &&
         shouldFetchThreadEditBackfill(
           mEvent,
           threadEditFetchAttemptedRef.current,
@@ -292,6 +306,7 @@ export const useThreadEditBackfillController = ({
     // each worker releases its own token-guarded claim.
     return undefined;
   }, [
+    approvalRepairOwned,
     atLiveEndRef,
     eventId,
     forceTimelineUpdate,

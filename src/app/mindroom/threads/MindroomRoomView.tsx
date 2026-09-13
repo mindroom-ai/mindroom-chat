@@ -29,6 +29,8 @@ import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isLocalEchoEventId } from './threadRouteUtils';
+import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
+import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -87,6 +89,7 @@ export function RoomView({
   const { roomId } = room;
   const mx = useMatrixClient();
   const editor = useEditor();
+  const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -127,56 +130,63 @@ export function RoomView({
         if (editableActiveElement()) return;
         if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
-          ReactEditor.focus(editor);
+          focusConversation();
         }
       },
-      [editor, pendingThreadRoot]
+      [focusConversation, pendingThreadRoot]
     )
   );
 
   return (
     <Page ref={roomViewRef}>
-      <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
-      {effectiveThreadId && (
-        <ThreadContextBanner
-          room={room}
-          threadId={effectiveThreadId}
-          summaryInfo={threadSummaryInfo}
-          onExitThread={handleExitThread}
-        />
-      )}
-      <Box grow="Yes" direction="Column">
-        <RoomTimeline
-          key={`${roomId}:${effectiveThreadId ?? ''}`}
-          room={room}
-          hasMindroomAgents={hasMindroomAgents}
-          eventId={eventId}
-          focusEventInRoom={focusEventInRoom}
-          threadId={effectiveThreadId}
-          threadFilterState={threadFilterState}
-          threadSortFreezeState={threadSortFreezeState}
-          onToggle={handleToggle}
-          onSortDirectionChange={handleSortDirectionChange}
-          onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
-          onToggleUnresolvedOnly={handleToggleUnresolvedOnly}
-          setThreadSortFreezeState={setThreadSortFreezeState}
-          onCycleTag={handleCycleTag}
-          onAddTag={handleAddTag}
-          onRemoveTag={handleRemoveTag}
-          onReset={handleReset}
-          onApplyPreset={handleApplyPreset}
-          onSearchQueryChange={handleSearchQueryChange}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          onThreadLoadError={onThreadLoadError}
-          summaryMap={summaryMap}
-          onStoreThreadSummary={storeThreadSummary}
-          roomInputRef={roomInputRef}
-          compactRoomScrollStateRef={compactRoomScrollStateRef}
-          editor={editor}
-        />
-        <RoomViewTyping room={room} />
-      </Box>
+      <ThreadApprovalProvider
+        room={room}
+        threadId={pendingThreadRoot ? undefined : effectiveThreadId}
+        focusConversation={focusConversation}
+      >
+        <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
+        {effectiveThreadId && (
+          <ThreadContextBanner
+            room={room}
+            threadId={effectiveThreadId}
+            summaryInfo={threadSummaryInfo}
+            onExitThread={handleExitThread}
+          />
+        )}
+        <Box grow="Yes" direction="Column">
+          <RoomTimeline
+            key={`${roomId}:${effectiveThreadId ?? ''}`}
+            room={room}
+            hasMindroomAgents={hasMindroomAgents}
+            eventId={eventId}
+            focusEventInRoom={focusEventInRoom}
+            threadId={effectiveThreadId}
+            threadFilterState={threadFilterState}
+            threadSortFreezeState={threadSortFreezeState}
+            onToggle={handleToggle}
+            onSortDirectionChange={handleSortDirectionChange}
+            onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
+            onToggleUnresolvedOnly={handleToggleUnresolvedOnly}
+            setThreadSortFreezeState={setThreadSortFreezeState}
+            onCycleTag={handleCycleTag}
+            onAddTag={handleAddTag}
+            onRemoveTag={handleRemoveTag}
+            onReset={handleReset}
+            onApplyPreset={handleApplyPreset}
+            onSearchQueryChange={handleSearchQueryChange}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            onThreadLoadError={onThreadLoadError}
+            summaryMap={summaryMap}
+            onStoreThreadSummary={storeThreadSummary}
+            roomInputRef={roomInputRef}
+            compactRoomScrollStateRef={compactRoomScrollStateRef}
+            editor={editor}
+          />
+          <RoomViewTyping room={room} />
+        </Box>
+        <ThreadApprovalQueue />
+      </ThreadApprovalProvider>
       <Box shrink="No" direction="Column">
         <div style={{ padding: `0 ${config.space.S400}` }}>
           {tombstoneEvent ? (

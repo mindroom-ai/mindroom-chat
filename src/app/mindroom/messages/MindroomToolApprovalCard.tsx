@@ -1,17 +1,28 @@
-import classNames from 'classnames';
-import { Box, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
-import React, { FormEventHandler, useEffect, useMemo, useRef, useState } from 'react';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { Box, Icon, Icons, Text } from 'folds';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import {
-  buildToolApprovalResponseContent,
   getEffectiveToolApprovalStatus,
   MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
   parseToolApprovalExpiryTimestamp,
   ToolApprovalData,
 } from './toolApproval';
 import * as css from './MindroomToolApprovalCard.css';
+import { ApprovalReceipt } from './ApprovalReceipt';
+import { ApprovalArguments } from './ApprovalArguments';
+import { useThreadApprovals } from './ThreadApprovalProvider';
+import { ApprovalReviewGroup } from './ThreadApprovalControls';
+import {
+  ApprovalResponseContent,
+  getApprovalCapabilities,
+  getApprovalGrantState,
+  isApprovalPending,
+} from './approvalActions';
+import { useApprovalActions } from './useApprovalActions';
+import { ThreadApprovalRecord } from './threadApprovalModel';
+import { ApprovalDecisionControls } from './ApprovalDecisionControls';
+import { ApprovalGrantStatus } from './ApprovalGrantStatus';
 
 type MindroomToolApprovalCardProps = {
   approval: ToolApprovalData;
@@ -28,263 +39,138 @@ const getTimestamp = (value: string | null): number | undefined => {
 
 const MAX_TIMEOUT_DELAY = 2_147_483_647;
 
-const getActionErrorMessage = (error: unknown): string =>
-  error instanceof Error && error.message
-    ? error.message
-    : 'Unable to send response. Please try again.';
+export function MindroomToolApprovalCard(props: MindroomToolApprovalCardProps) {
+  const { eventId, roomId, approval, threadId } = props;
+  const userId = useMatrixClient().getUserId();
+  const context = useThreadApprovals();
+  if (!context || context.roomId !== roomId || context.threadId !== approval.threadId)
+    return (
+      <StandaloneToolApprovalCard
+        key={`${approval.approvalId}:${eventId ?? ''}:${roomId ?? ''}:${threadId ?? ''}`}
+        {...props}
+      />
+    );
+  const record = context.records.find(
+    (item) => item.eventId === eventId || item.aliasEventIds?.includes(eventId ?? '')
+  );
+  if (!record) return null;
+  if (context.pendingEventIds.has(record.eventId))
+    return <ApprovalReviewGroup records={[record]} />;
+  return (
+    <ApprovalReceipt approval={record.approval}>
+      <ApprovalGrantStatus
+        record={record}
+        userId={userId}
+        action={context.actions.get(record.eventId)}
+        now={context.now}
+        submit={context.submit}
+      />
+    </ApprovalReceipt>
+  );
+}
 
-const isResolvedApprovalStatus = (status: ToolApprovalData['status']): boolean =>
-  status === 'approved' || status === 'denied' || status === 'expired';
-
-const getStatusText = (status: ToolApprovalData['status'] | 'submitted'): string => {
-  switch (status) {
-    case 'approved':
-      return 'Approved';
-    case 'denied':
-      return 'Denied';
-    case 'expired':
-      return 'Expired';
-    case 'submitted':
-      return 'Submitted';
-    case 'pending':
-    default:
-      return 'Pending approval';
-  }
-};
-
-const getStatusIcon = (status: ToolApprovalData['status'] | 'submitted') => {
-  switch (status) {
-    case 'approved':
-      return Icons.CheckTwice;
-    case 'denied':
-      return Icons.Cross;
-    case 'expired':
-      return Icons.Warning;
-    case 'submitted':
-      return Icons.Check;
-    case 'pending':
-    default:
-      return Icons.Code;
-  }
-};
-
-export function MindroomToolApprovalCard({
+function StandaloneToolApprovalCard({
   approval,
   roomId,
   eventId,
   threadId,
 }: MindroomToolApprovalCardProps) {
   const mx = useMatrixClient();
-  const [showDenyForm, setShowDenyForm] = useState(false);
-  const [denyReason, setDenyReason] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string>();
-  const submittingRef = useRef(false);
-  const denyTriggerRef = useRef<HTMLButtonElement>(null);
-  const denyReasonInputRef = useRef<HTMLInputElement>(null);
-  const confirmDenyButtonRef = useRef<HTMLButtonElement>(null);
-  const restoreDenyTriggerFocusRef = useRef(false);
   const requestedTs = getTimestamp(approval.requestedAt);
   const expiresTs = parseToolApprovalExpiryTimestamp(approval.expiresAt);
-  const resolvedTs = getTimestamp(approval.resolvedAt);
   const requestedRelative = useRelativeTime(requestedTs);
-  const resolvedRelative = useRelativeTime(resolvedTs);
-  const [expiryCheckVersion, setExpiryCheckVersion] = useState(0);
-  const effectiveStatus = getEffectiveToolApprovalStatus(approval.status, expiresTs);
+  const [clockTick, setClockTick] = useState(0);
+  const now = Date.now();
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
+  const canonicalThreadId = threadId ?? approval.threadId;
   const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
-  const argumentsText = useMemo(
-    () => JSON.stringify(approval.arguments, null, 2) ?? '{}',
-    [approval.arguments]
+  const currentUserId = mx.getUserId();
+  const record = useMemo<ThreadApprovalRecord>(
+    () => ({
+      eventId: eventId ?? '',
+      sender: '',
+      wireStatus: approval.status,
+      approval: { ...approval, threadId: canonicalThreadId ?? null },
+    }),
+    [approval, eventId, canonicalThreadId]
   );
-
-  const [requestState, submitAction] = useAsyncCallback<void, Error, ['approve' | 'deny', string?]>(
-    async (action, reason) => {
-      if (!roomId || !eventId || !responseThreadId) {
+  const records = useMemo(() => [record], [record]);
+  const send = useCallback(
+    (content: ApprovalResponseContent) => {
+      if (!roomId || !eventId || !responseThreadId)
         throw new Error('Approval responses are unavailable here.');
-      }
-
-      await mx.sendEvent(
-        roomId,
-        MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any,
-        buildToolApprovalResponseContent(
-          action === 'approve' ? 'approved' : 'denied',
-          responseThreadId,
-          eventId,
-          reason
-        )
-      );
-    }
+      return mx.sendEvent(roomId, MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any, content);
+    },
+    [mx, roomId, eventId, responseThreadId]
   );
-
-  const submitting = requestState.status === AsyncStatus.Loading;
-  const submitted = requestState.status === AsyncStatus.Success;
-  const disableActions =
-    effectiveStatus !== 'pending' || submitting || submitted || !canSendResponse;
-  const displayStatus = effectiveStatus === 'pending' && submitted ? 'submitted' : effectiveStatus;
+  const { actions, submit } = useApprovalActions(records, responseThreadId ?? '', now, send);
+  const action = actions.get(record.eventId);
+  const pending = isApprovalPending(record, action, now);
+  const effectiveStatus = pending
+    ? 'pending'
+    : getEffectiveToolApprovalStatus(approval.status, expiresTs, now);
+  const canUseTimedApproval =
+    canSendResponse &&
+    getApprovalCapabilities(record, currentUserId, undefined, now).durations.length > 0;
+  const grant = approval.status === 'approved' ? approval.autoApproval : null;
+  const grantState = getApprovalGrantState(record.approval, now);
+  const grantExpiresTs = grant ? parseToolApprovalExpiryTimestamp(grant.expiresAt) : undefined;
+  const submitted = action?.status === 'submitted';
+  const controls = {
+    record,
+    userId: currentUserId,
+    action,
+    submit,
+    now,
+    canSend: canSendResponse,
+  };
 
   useEffect(() => {
-    if (approval.status !== 'pending' || expiresTs === undefined) return undefined;
+    const pendingDeadline = approval.status === 'pending' ? expiresTs : undefined;
+    const grantDeadline = grantState === 'active' ? grantExpiresTs : undefined;
+    const nextDeadline = [pendingDeadline, grantDeadline]
+      .filter((deadline): deadline is number => deadline !== undefined)
+      .sort((left, right) => left - right)[0];
+    if (nextDeadline === undefined) return undefined;
 
-    const timeUntilExpiry = expiresTs - Date.now();
+    const timeUntilExpiry = nextDeadline - Date.now();
     if (timeUntilExpiry <= 0) return undefined;
 
     const timeoutId = setTimeout(
-      () => setExpiryCheckVersion((version) => version + 1),
-      Math.min(timeUntilExpiry, MAX_TIMEOUT_DELAY)
+      () => setClockTick((tick) => tick + 1),
+      Math.min(
+        timeUntilExpiry,
+        grantDeadline === undefined ? MAX_TIMEOUT_DELAY : timeUntilExpiry % 60_000 || 60_000
+      )
     );
 
     return () => clearTimeout(timeoutId);
-  }, [approval.status, expiresTs, expiryCheckVersion]);
+  }, [approval.status, expiresTs, clockTick, grantExpiresTs, grantState]);
 
-  useEffect(() => {
-    if (requestState.status === AsyncStatus.Error) {
-      setErrorMessage(getActionErrorMessage(requestState.error));
-      return;
-    }
-
-    setErrorMessage(undefined);
-  }, [requestState]);
-
-  useEffect(() => {
-    if (requestState.status !== AsyncStatus.Loading) {
-      submittingRef.current = false;
-    }
-  }, [requestState.status]);
-
-  useEffect(() => {
-    if (isResolvedApprovalStatus(effectiveStatus)) {
-      setErrorMessage(undefined);
-    }
-  }, [effectiveStatus]);
-
-  useEffect(() => {
-    if (!showDenyForm || effectiveStatus !== 'pending' || submitted) return;
-
-    if (denyReasonInputRef.current) {
-      denyReasonInputRef.current.focus();
-      return;
-    }
-
-    confirmDenyButtonRef.current?.focus();
-  }, [effectiveStatus, showDenyForm, submitted]);
-
-  useEffect(() => {
-    if (showDenyForm || !restoreDenyTriggerFocusRef.current) return;
-
-    restoreDenyTriggerFocusRef.current = false;
-    denyTriggerRef.current?.focus();
-  }, [showDenyForm]);
-
-  const cardClassName = classNames(css.Card, {
-    [css.CardApproved]: effectiveStatus === 'approved',
-    [css.CardDenied]: effectiveStatus === 'denied',
-    [css.CardExpired]: effectiveStatus === 'expired',
-  });
-
-  const submitApprovalAction = (action: 'approve' | 'deny', reason?: string) => {
-    if (
-      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
-      submitted ||
-      submittingRef.current
-    ) {
-      return;
-    }
-
-    submittingRef.current = true;
-    void submitAction(action, reason).catch(() => undefined);
-  };
-
-  const handleApprove = () => {
-    submitApprovalAction('approve');
-  };
-
-  const handleStartDeny = () => {
-    if (
-      getEffectiveToolApprovalStatus(approval.status, expiresTs) !== 'pending' ||
-      disableActions
-    ) {
-      return;
-    }
-
-    restoreDenyTriggerFocusRef.current = false;
-    setShowDenyForm(true);
-  };
-
-  const handleCancelDeny = () => {
-    if (disableActions) return;
-    restoreDenyTriggerFocusRef.current = true;
-    setShowDenyForm(false);
-    setDenyReason('');
-  };
-
-  const handleConfirmDeny: FormEventHandler<HTMLFormElement> = (event) => {
-    event.preventDefault();
-    submitApprovalAction('deny', denyReason);
-  };
-
-  const resolvedMeta =
-    effectiveStatus === 'approved'
-      ? `Approved by ${approval.resolvedBy ?? 'unknown'}`
-      : effectiveStatus === 'denied'
-      ? `Denied by ${approval.resolvedBy ?? 'unknown'}`
-      : effectiveStatus === 'expired'
-      ? 'Approval expired'
-      : undefined;
-
-  if (isResolvedApprovalStatus(effectiveStatus)) {
-    const resolvedClassName = classNames(css.ResolvedInline, {
-      [css.ResolvedInlineApproved]: effectiveStatus === 'approved',
-      [css.ResolvedInlineDenied]: effectiveStatus === 'denied',
-      [css.ResolvedInlineExpired]: effectiveStatus === 'expired',
-    });
-    const resolvedTooltip =
-      effectiveStatus === 'denied' && approval.resolutionReason
-        ? `Reason: ${approval.resolutionReason}`
-        : undefined;
-
+  if (effectiveStatus !== 'pending') {
     return (
-      <Box
-        as="span"
-        className={resolvedClassName}
-        aria-label="Resolved tool approval request"
-        title={resolvedTooltip}
-      >
-        <Icon size="50" src={getStatusIcon(effectiveStatus)} />
-        <Text size="T200" className={css.ResolvedToolName}>
-          {approval.toolName}
-        </Text>
-        {resolvedMeta && (
-          <>
-            <Text className={css.MetaDot}>-</Text>
-            <Text size="T200">{resolvedMeta}</Text>
-          </>
-        )}
-        {resolvedRelative && <Text className={css.MetaDot}>•</Text>}
-        {resolvedRelative && <Text size="T200">{resolvedRelative}</Text>}
-        {!resolvedRelative && approval.resolvedAt && (
-          <>
-            <Text className={css.MetaDot}>•</Text>
-            <Text size="T200">{approval.resolvedAt}</Text>
-          </>
-        )}
-      </Box>
+      <ApprovalReceipt approval={{ ...approval, status: effectiveStatus }}>
+        <ApprovalGrantStatus {...controls} />
+      </ApprovalReceipt>
     );
   }
 
   return (
-    <Box className={cardClassName} direction="Column" gap="200" aria-label="Tool approval request">
+    <Box className={css.Card} direction="Column" gap="200" aria-label="Tool approval request">
       <Box className={css.Header}>
         <Text size="T300" className={css.ToolName}>
           {approval.toolName}
         </Text>
         <Box as="span" className={css.StatusLabel}>
-          <Icon size="50" src={getStatusIcon(displayStatus)} />
-          <Text size="T200">{getStatusText(displayStatus)}</Text>
+          <Icon size="50" src={submitted ? Icons.Check : Icons.Code} />
+          <Text size="T200">{submitted ? 'Submitted' : 'Pending approval'}</Text>
         </Box>
       </Box>
 
       <Box className={css.Meta}>
         <Text size="T200">{approval.agentName}</Text>
+        {approval.requesterId && <Text className={css.MetaDot}>•</Text>}
+        {approval.requesterId && <Text size="T200">Requested by {approval.requesterId}</Text>}
         {requestedRelative && <Text className={css.MetaDot}>•</Text>}
         {requestedRelative && <Text size="T200">{requestedRelative}</Text>}
         {!requestedRelative && approval.requestedAt && (
@@ -295,110 +181,15 @@ export function MindroomToolApprovalCard({
         )}
       </Box>
 
-      <details className={css.Details}>
-        <summary className={css.DetailsSummary}>
-          <span className={css.DetailsSummaryLabel}>
-            <Icon size="50" src={Icons.ChevronBottom} />
-            <Text size="T200">Arguments</Text>
-          </span>
-        </summary>
-        <pre className={css.JsonBlock}>{argumentsText}</pre>
-      </details>
-
-      {effectiveStatus === 'pending' && submitted && (
-        <Text size="T200">Submitted. Waiting for room update.</Text>
-      )}
-
-      {effectiveStatus === 'pending' && !showDenyForm && !submitted && (
-        <Box className={css.Actions}>
-          <Button
-            size="300"
-            variant="Success"
-            fill="Solid"
-            radii="300"
-            onClick={handleApprove}
-            disabled={disableActions}
-            before={
-              submitting ? (
-                <Spinner size="100" variant="Success" fill="Solid" />
-              ) : (
-                <Icon src={Icons.Check} />
-              )
-            }
-          >
-            <Text size="B300">Approve</Text>
-          </Button>
-          <Button
-            size="300"
-            variant="Critical"
-            outlined
-            radii="300"
-            ref={denyTriggerRef}
-            onClick={handleStartDeny}
-            disabled={disableActions}
-            before={<Icon src={Icons.Cross} />}
-          >
-            <Text size="B300">Deny</Text>
-          </Button>
+      {canUseTimedApproval && (
+        <Box className={css.Scope} direction="Column" gap="100">
+          <Text size="T200">Auto-approval applies to this thread, requester, agent, and tool.</Text>
+          <Text size="T200">Arguments may differ between calls.</Text>
         </Box>
       )}
 
-      {effectiveStatus === 'pending' && showDenyForm && !submitted && (
-        <Box as="form" className={css.DenyForm} onSubmit={handleConfirmDeny}>
-          <Text size="T200">
-            <b>Deny reason</b>{' '}
-            <Text as="span" size="T200">
-              (optional)
-            </Text>
-          </Text>
-          <Input
-            ref={denyReasonInputRef}
-            value={denyReason}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-              setDenyReason(event.currentTarget.value)
-            }
-            aria-label="Deny reason (optional)"
-            placeholder="Why should this tool call be denied?"
-            variant="Background"
-          />
-          <Box className={css.Actions}>
-            <Button
-              ref={confirmDenyButtonRef}
-              type="submit"
-              size="300"
-              variant="Critical"
-              fill="Solid"
-              radii="300"
-              disabled={disableActions}
-              before={
-                submitting ? (
-                  <Spinner size="100" variant="Critical" fill="Solid" />
-                ) : (
-                  <Icon src={Icons.Cross} />
-                )
-              }
-            >
-              <Text size="B300">Confirm Deny</Text>
-            </Button>
-            <Button
-              type="button"
-              size="300"
-              outlined
-              radii="300"
-              onClick={handleCancelDeny}
-              disabled={disableActions}
-            >
-              <Text size="B300">Cancel</Text>
-            </Button>
-          </Box>
-        </Box>
-      )}
-
-      {errorMessage && (
-        <Text size="T200" style={{ color: 'inherit' }}>
-          {errorMessage}
-        </Text>
-      )}
+      <ApprovalArguments approval={approval} />
+      <ApprovalDecisionControls {...controls} showDurations />
     </Box>
   );
 }

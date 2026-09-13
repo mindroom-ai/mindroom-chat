@@ -61,6 +61,7 @@ export type BackfillJobKind =
   | 'gap-fill'
   | 'room-deep-history'
   | 'thread-backfill'
+  | 'thread-approvals'
   | 'thread-seed'
   | 'reconcile';
 

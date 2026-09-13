@@ -16,6 +16,7 @@ vi.mock('./ThreadBadgeRenderer', () => ({
 const makeEvent = (content: Record<string, unknown>, threadRootId?: string) =>
   ({
     getContent: () => content,
+    getOriginalContent: () => content,
     threadRootId,
   } as any);
 

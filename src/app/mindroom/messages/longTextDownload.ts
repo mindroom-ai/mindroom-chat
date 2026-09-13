@@ -1,12 +1,6 @@
 import { MatrixClient } from 'matrix-js-sdk';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../utils/matrix';
-import { validMediaRequest } from '../../../swMediaAuth';
 import { MindroomLongTextSource } from './longText';
+import { downloadMindroomSidecarBlob } from './sidecarDownload';
 
 const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
 const FILENAME_EXT_REG = /\.[A-Za-z0-9]{1,8}$/;
@@ -40,52 +34,16 @@ const getLongTextMimeType = (content: Record<string, unknown>): string => {
   return typeof info?.mimetype === 'string' ? info.mimetype : 'application/json';
 };
 
-const downloadSidecarBlob = async (
-  source: MindroomLongTextSource,
-  textUrl: string,
-  requestInit?: RequestInit
-): Promise<Blob> => {
-  const encryptedFile = source.encryptedFile;
-  if (!encryptedFile) {
-    return requestInit ? downloadMedia(textUrl, requestInit) : downloadMedia(textUrl);
-  }
-
-  const mimeType = getLongTextMimeType(source.previewContent);
-  const decryptContent = (encBuf: ArrayBuffer) => decryptFile(encBuf, mimeType, encryptedFile);
-  return requestInit
-    ? downloadEncryptedMedia(textUrl, decryptContent, requestInit)
-    : downloadEncryptedMedia(textUrl, decryptContent);
-};
-
-const getAuthenticatedRequestInit = (
-  mx: MatrixClient,
-  textUrl: string,
-  useAuthentication: boolean
-): RequestInit | undefined => {
-  if (!useAuthentication) return undefined;
-
-  const accessToken = mx.getAccessToken();
-  if (!accessToken || !validMediaRequest(textUrl, mx.getHomeserverUrl())) return undefined;
-
-  return {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  };
-};
-
 export const downloadMindroomLongTextSidecarBlob = async (
   mx: MatrixClient,
   source: MindroomLongTextSource,
   useAuthentication: boolean
 ): Promise<Blob> => {
-  const textUrl = mxcUrlToHttp(mx, source.mxcUri, useAuthentication);
-  if (!textUrl) {
-    throw new Error('Unable to resolve sidecar URL');
-  }
-
-  return downloadSidecarBlob(
+  return downloadMindroomSidecarBlob(
+    mx,
     source,
-    textUrl,
-    getAuthenticatedRequestInit(mx, textUrl, useAuthentication)
+    useAuthentication,
+    getLongTextMimeType(source.previewContent)
   );
 };
 
