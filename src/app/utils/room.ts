@@ -500,6 +500,34 @@ export const getEditedEvent = (
   return latestEdit;
 };
 
+export const getLatestMessageContent = (
+  mEvent: MatrixEvent,
+  editedEvent?: MatrixEvent
+): Record<string, unknown> => {
+  const originalContent = mEvent.getContent() as Record<string, unknown>;
+  const newContent = editedEvent?.getContent()['m.new_content'];
+
+  if (!newContent || typeof newContent !== 'object' || Array.isArray(newContent)) {
+    return originalContent;
+  }
+
+  const resolvedContent: Record<string, unknown> = {
+    ...(newContent as Record<string, unknown>),
+    'm.new_content': newContent as Record<string, unknown>,
+  };
+
+  Object.entries(originalContent).forEach(([key, value]) => {
+    if (
+      resolvedContent[key] === undefined &&
+      (key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.'))
+    ) {
+      resolvedContent[key] = value;
+    }
+  });
+
+  return resolvedContent;
+};
+
 export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent) => {
   const content = mEvent.getContent();
   const relationType = content['m.relates_to']?.rel_type;
