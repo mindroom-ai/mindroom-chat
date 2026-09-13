@@ -20,6 +20,12 @@ import {
   getThreadOpenSeedSnapshot,
   saveThreadOpenSeedSnapshot,
 } from '../threadOpenSeedCache';
+import {
+  createBackfillScheduler,
+  createEnginePersistFacade,
+  MindroomSyncEngineProvider,
+  type MindroomSyncEngine,
+} from '../../engine';
 import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
 
 const {
@@ -52,7 +58,6 @@ const {
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   loadLatestCachedRoomEventsMock,
-  loadLatestCachedThreadSummaryInfoMock,
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
   saveCachedThreadSummaryMock,
@@ -114,13 +119,12 @@ const {
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
   loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadSummaryInfoMock: vi.fn(async () => undefined),
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
-    paginationLimit: 300,
+    prefetchDepth: 300,
   },
   virtualPaginatorState: {
     lastOptions: undefined as
@@ -225,8 +229,10 @@ vi.mock('../../../state/hooks/settings', () => ({
         return ['400'];
       case 'dateFormatString':
         return ['MMM D'];
-      case 'paginationLimit':
-        return [settingsState.paginationLimit];
+      case 'prefetchDepth':
+        return [settingsState.prefetchDepth];
+      case 'prefetchScope':
+        return ['my-server'];
       default:
         return [false];
     }
@@ -1037,21 +1043,34 @@ vi.mock('../useThreadRenderState', () => ({
   useThreadRenderState: () => threadRenderStateMock,
 }));
 
-vi.mock('../threadEventCache', () => ({
-  getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
-    rawEvent?.event_id
-      ? {
-          eventId: rawEvent.event_id,
-          ts: rawEvent.origin_server_ts ?? 0,
-        }
-      : undefined
-  ),
-  loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadLatestCachedThreadSummaryInfo: loadLatestCachedThreadSummaryInfoMock,
-  loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  normalizeCachedThreadEvents: (events: unknown[]) => events,
-  saveThreadEventsToCache: vi.fn(async () => undefined),
-}));
+// CINNY-207 P2.3: eventRepository imports thread APIs directly from
+// `./cacheStore` (the shim modules are gone), so the mock target is
+// the cacheStore barrel. `loadLatestCachedThreadSummaryInfo` was dead
+// code and is no longer exported.
+vi.mock('../cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../cacheStore')>();
+  return {
+    ...actual,
+    getThreadCursorAnchor: vi.fn((rawEvent?: { event_id?: string; origin_server_ts?: number }) =>
+      rawEvent?.event_id
+        ? {
+            eventId: rawEvent.event_id,
+            ts: rawEvent.origin_server_ts ?? 0,
+          }
+        : undefined
+    ),
+    loadCachedThreadEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    loadLatestCachedThreadEvents: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+    normalizeCachedThreadEvents: (events: unknown[]) => events,
+    saveThreadEventsToCache: vi.fn(async () => undefined),
+    loadCachedThreadSummaries: loadCachedThreadSummariesMock,
+    saveCachedThreadSummary: saveCachedThreadSummaryMock,
+    loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
+    loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
+    loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
+    saveRoomEventsToCache: saveRoomEventsToCacheMock,
+  };
+});
 
 vi.mock('../threadPaginationUtils', () => ({
   computeReconciliationToken: () => undefined,
@@ -1064,21 +1083,9 @@ vi.mock('../eventCacheTokenUtils', async (importOriginal) => {
   return actual;
 });
 
-vi.mock('../threadSummaryCache', () => ({
-  loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-  saveCachedThreadSummary: saveCachedThreadSummaryMock,
-}));
-
-vi.mock('../roomEventCache', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../roomEventCache')>();
-  return {
-    ...actual,
-    loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
-    loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
-    loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
-    saveRoomEventsToCache: saveRoomEventsToCacheMock,
-  };
-});
+// CINNY-207 P2.3: legacy `threadSummaryCache` / `roomEventCache` shim
+// mocks are folded into the `../cacheStore` mock above (single choke
+// point).
 
 vi.mock('../eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
@@ -1423,11 +1430,10 @@ beforeEach(() => {
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
-  loadLatestCachedThreadSummaryInfoMock.mockResolvedValue(undefined);
   loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   saveCachedThreadSummaryMock.mockResolvedValue(undefined);
-  settingsState.paginationLimit = 300;
+  settingsState.prefetchDepth = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
   virtualPaginatorState.renderItems = true;
@@ -1579,6 +1585,39 @@ const threadFilterStateFromLegacy = (
   }
 };
 
+// CINNY-207 P3.3: shared stub sync engine wired to the real persist
+// facade. `useMindroomSyncEngine` inside RoomTimeline consumers
+// resolves to this object, so persist calls flow through the real
+// `persist*Snapshot` seams and hit the already-mocked
+// `save…ToCache` fns. Only `persist` is exercised by these tests
+// (the real client-level engine and its listeners live under
+// ClientRoot, out of scope here).
+const HARNESS_TEST_SESSION_ID = 'test-session';
+const harnessSyncEngine: MindroomSyncEngine = {
+  mx: matrixClientMock as unknown as MindroomSyncEngine['mx'],
+  sessionId: HARNESS_TEST_SESSION_ID,
+  start: () => undefined,
+  stop: () => undefined,
+  isLiveMode: () => true,
+  persist: createEnginePersistFacade({ sessionId: HARNESS_TEST_SESSION_ID }),
+  // CINNY-207 P4.1: harness gets a real (empty) scheduler so consumers
+  // that reach for `engine.scheduler.enqueue(...)` in future phases don't
+  // trip a type error here. No mx handoff is required — the scheduler
+  // is only exercised end-to-end in dedicated tests.
+  scheduler: createBackfillScheduler(),
+  // CINNY-207 P4.2: harness needs a callable no-op so consumers wired
+  // to `engine.noteRoomFocused(...)` don't blow up. The mock cacheStore
+  // in the harness would ignore the writes anyway.
+  noteRoomFocused: () => undefined,
+};
+
+// Pass children as a prop rather than positionally: this file is .ts, not
+// .tsx, so avoiding JSX keeps its import shape unchanged.
+const wrapWithSyncEngine = (element: React.ReactElement): React.ReactElement => {
+  const props = { engine: harnessSyncEngine, children: element };
+  return React.createElement(MindroomSyncEngineProvider, props);
+};
+
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
@@ -1661,27 +1700,36 @@ const createControlledRoomTimelineHarness = (
       );
     }, []);
 
-    return React.createElement(RoomTimelineComponent, {
-      room,
-      eventId,
-      focusEventInRoom,
-      threadId,
-      summaryMap,
-      onStoreThreadSummary,
-      threadFilterState,
-      threadSortFreezeState,
-      onToggle,
-      onSortDirectionChange,
-      onToggleThreadSortFreeze,
-      setThreadSortFreezeState,
-      onCycleTag: vi.fn(),
-      onAddTag: vi.fn(),
-      onRemoveTag: vi.fn(),
-      onReset,
-      viewMode,
-      onViewModeChange: setViewMode,
-      roomInputRef,
-      editor,
+    // CINNY-207 P3.3: the room timeline consumes the persist facade
+    // off `useMindroomSyncEngine`. Wrap the harness with a stub engine
+    // provider so tests exercise the real persist snapshot seams
+    // (which delegate to the already-mocked `save…ToCache` fns) without
+    // requiring a full ClientRoot mount.
+    // eslint-disable-next-line react/no-children-prop
+    return React.createElement(MindroomSyncEngineProvider, {
+      engine: harnessSyncEngine,
+      children: React.createElement(RoomTimelineComponent, {
+        room,
+        eventId,
+        focusEventInRoom,
+        threadId,
+        summaryMap,
+        onStoreThreadSummary,
+        threadFilterState,
+        threadSortFreezeState,
+        onToggle,
+        onSortDirectionChange,
+        onToggleThreadSortFreeze,
+        setThreadSortFreezeState,
+        onCycleTag: vi.fn(),
+        onAddTag: vi.fn(),
+        onRemoveTag: vi.fn(),
+        onReset,
+        viewMode,
+        onViewModeChange: setViewMode,
+        roomInputRef,
+        editor,
+      }),
     });
   };
 };
@@ -1714,7 +1762,6 @@ export {
   loadCachedRoomPaginationTokenMock,
   loadCachedThreadSummariesMock,
   loadLatestCachedRoomEventsMock,
-  loadLatestCachedThreadSummaryInfoMock,
   makeCachedRoomEvent,
   makeEvent,
   makeRoom,
@@ -1745,5 +1792,6 @@ export {
   roomTimelineVirtualizerState,
   virtualPaginatorState,
   waitForCondition,
+  wrapWithSyncEngine,
   isTimelineAtLiveEndMock,
 };

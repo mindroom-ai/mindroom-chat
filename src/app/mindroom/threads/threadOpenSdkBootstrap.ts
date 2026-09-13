@@ -103,7 +103,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   let threadModel = room.getThread(threadId);
   if (!threadModel) {
     const [ctxErr] = await to(mx.getEventTimeline(room.getUnfilteredTimelineSet(), threadId));
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      return false;
+    }
     if (ctxErr) {
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-context-error', {
         threadId,
@@ -124,7 +126,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
         limit: 50,
       })
     );
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      return false;
+    }
     if (relErr) {
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-relations-error', {
         threadId,
@@ -172,7 +176,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
 
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-  if (!isMounted()) return false;
+  if (!isMounted()) {
+    return false;
+  }
   if (err) {
     logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-get-thread-timeline-error', {
       error: err,
@@ -195,7 +201,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
         limit: 50,
       })
     );
-    if (!isMounted()) return false;
+    if (!isMounted()) {
+      return false;
+    }
     if (!relErr && relData?.chunk?.length) {
       const mapper = mx.getEventMapper();
       const mappedEvents = relData.chunk

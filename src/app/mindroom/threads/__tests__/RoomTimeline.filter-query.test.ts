@@ -9,7 +9,7 @@ import {
 } from '../roomThreadOverviewModel';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../scheduledTaskContract';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery, serializeThreadFilterQuery } from '../threadFilterDsl';
-import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock } from '../test-utils/RoomTimeline.test.shared';
+import { create, flushAsyncWork, getRenderedEventIds, makeEvent, makeRoom, roomThreadOverviewType, stateEventsByTypeMock, threadStreamingStateMock, wrapWithSyncEngine } from '../test-utils/RoomTimeline.test.shared';
 
 const { scheduledEventsByType } = vi.hoisted(() => ({
   scheduledEventsByType: new Map<string, unknown[]>(),
@@ -56,7 +56,7 @@ const setup = async () => {
   const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
   const Harness = ({ room }: { room: ReturnType<typeof makeRoom> }) => {
     const [threadFilterState, setThreadFilterState] = React.useState(createDefaultThreadFilterState());
-    return React.createElement(RoomTimeline as never, {
+    return wrapWithSyncEngine(React.createElement(RoomTimeline as never, {
       room,
       summaryMap: new Map(),
       onStoreThreadSummary: vi.fn(),
@@ -77,7 +77,7 @@ const setup = async () => {
       onViewModeChange: vi.fn(),
       roomInputRef: React.createRef<HTMLElement>(),
       editor: {} as never,
-    });
+    }));
   };
   const roomState = makeThreadRoom();
   let renderer: ReturnType<typeof create>;

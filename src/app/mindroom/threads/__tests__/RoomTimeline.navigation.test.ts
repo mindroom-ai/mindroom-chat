@@ -27,14 +27,14 @@ describe('RoomTimeline', () => {
       describe('filter navigation', () => {
         it('keeps the default overview range when reset restores default sorting', async () => {
           vi.useFakeTimers();
-          const previousPaginationLimit = settingsState.paginationLimit;
-          const paginationLimit = 50;
-          settingsState.paginationLimit = paginationLimit;
+          const previousPrefetchDepth = settingsState.prefetchDepth;
+          const windowLimit = 50;
+          settingsState.prefetchDepth = windowLimit;
           try {
             const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
             const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
             const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
-            const liveEvents = Array.from({ length: paginationLimit - 1 }, (_, index) =>
+            const liveEvents = Array.from({ length: windowLimit - 1 }, (_, index) =>
               makeEvent(`$message-${index}`)
             );
             liveEvents.push(unresolvedThread);
@@ -80,7 +80,7 @@ describe('RoomTimeline', () => {
 
             expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
           } finally {
-            settingsState.paginationLimit = previousPaginationLimit;
+            settingsState.prefetchDepth = previousPrefetchDepth;
             vi.useRealTimers();
           }
         }, 10000);

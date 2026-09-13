@@ -3,6 +3,13 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../types';
+
+// CINNY-207 P3.3: the pre-strip ROOM_CACHE_PERSIST_DEBOUNCE_MS mock is
+// gone — its subject (the room-cache persist sweep) was deleted along
+// with `roomCacheLifecycleController`. Fetch-controller persist calls
+// (thread-open, thread-pagination, etc.) still need a small settle
+// window for their post-await microtasks to drain; the following
+// helper is now just that.
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../threadOpenSeedCache';
 import {
   compactPlaceholderType,
@@ -17,7 +24,6 @@ import {
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
-  loadLatestCachedThreadSummaryInfoMock,
   inSameDayMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
@@ -31,7 +37,6 @@ import {
   roomThreadListThreadsMock,
   roomThreadOverviewType,
   roomTimelineVirtualizerState,
-  saveRoomEventsToCacheMock,
   scrollToItemMock,
   scrollType,
   timeDayMonthYearMock,
@@ -42,7 +47,21 @@ import {
   threadResolutionMapMock,
   virtualPaginatorState,
   waitForCondition,
+  wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+
+// Fetch-controller persist calls are `.then()`-chained off IDB
+// promises inside effects that queue in Promise/microtask ticks; a
+// short real-time settle plus a flushAsyncWork pass is enough for
+// their `saveThreadEventsToCacheMock` invocations to land.
+const waitForPersistSweepDebounce = async () => {
+  await act(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+    await flushAsyncWork();
+  });
+};
 
 const makeThreadFilterRecord = (
   threadRootId: string,
@@ -241,27 +260,29 @@ describe('RoomTimeline', () => {
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'default',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'default',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -310,33 +331,35 @@ describe('RoomTimeline', () => {
       const editor = {} as Editor;
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 10000;
+      settingsState.prefetchDepth = 10000;
       roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
 
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'classic',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'classic',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -761,33 +784,40 @@ describe('RoomTimeline', () => {
       };
       let renderer: ReturnType<typeof create> | undefined;
 
-      settingsState.paginationLimit = 100;
+      // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to
+      // [ROOM_TAIL_PREFETCH_DEPTH=200, CURRENT_ROOM_DEEP_HISTORY_TARGET=10000].
+      // Setting the minimum here yields the same "smaller than the
+      // 300-event total" behavior the pre-D4 `paginationLimit: 100`
+      // did — just at the smallest value the new setting permits.
+      settingsState.prefetchDepth = 200;
       roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
 
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'classic',
-              onViewModeChange: vi.fn(),
-            }),
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'classic',
+                onViewModeChange: vi.fn(),
+              })
+            ),
             {
               createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
             }
@@ -795,7 +825,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 200, end: 300 });
+        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
 
         await act(async () => {
           virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
@@ -839,27 +869,29 @@ describe('RoomTimeline', () => {
       try {
         await act(async () => {
           renderer = create(
-            React.createElement(RoomTimeline, {
-              room,
-              roomInputRef,
-              editor,
-              summaryMap: new Map(),
-              onStoreThreadSummary: vi.fn(),
-              threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
-              threadSortFreezeState: null,
-              onToggle: vi.fn(),
-              onSortDirectionChange: vi.fn(),
-              onToggleThreadSortFreeze: vi.fn(),
-              setThreadSortFreezeState: vi.fn(),
-              onCycleTag: vi.fn(),
-              onAddTag: vi.fn(),
-              onRemoveTag: vi.fn(),
-              onReset: vi.fn(),
-              onApplyPreset: vi.fn(),
-              onSearchQueryChange: vi.fn(),
-              viewMode: 'default',
-              onViewModeChange: vi.fn(),
-            })
+            wrapWithSyncEngine(
+              React.createElement(RoomTimeline, {
+                room,
+                roomInputRef,
+                editor,
+                summaryMap: new Map(),
+                onStoreThreadSummary: vi.fn(),
+                threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+                threadSortFreezeState: null,
+                onToggle: vi.fn(),
+                onSortDirectionChange: vi.fn(),
+                onToggleThreadSortFreeze: vi.fn(),
+                setThreadSortFreezeState: vi.fn(),
+                onCycleTag: vi.fn(),
+                onAddTag: vi.fn(),
+                onRemoveTag: vi.fn(),
+                onReset: vi.fn(),
+                onApplyPreset: vi.fn(),
+                onSearchQueryChange: vi.fn(),
+                viewMode: 'default',
+                onViewModeChange: vi.fn(),
+              })
+            )
           );
           await flushAsyncWork();
         });
@@ -1009,145 +1041,26 @@ describe('RoomTimeline', () => {
       });
     });
 
-    it('recovers a stale room backward token only when cache metadata proves the room start', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const liveEvent = makeEvent('$live-event', { ts: 10 });
-      const liveTimeline = makeTimeline([liveEvent], {
-        backwardToken: 'stale-back-token',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      loadCachedRoomPaginationTokenMock.mockResolvedValue(null);
+    // CINNY-207 P3.3: removed the two P1.1 sweep tests that asserted
+    // saveRoomEventsToCacheMock after `waitForPersistSweepDebounce`.
+    // Their subject — the mount-time sweep that re-serialized the whole
+    // loaded timeline — is gone (persistence moved into
+    // MindroomSyncEngine's per-event write-through). Coverage of the
+    // engine's live-event persistence lives in
+    // `src/app/mindroom/engine/engineWriteThrough.compaction.test.ts`
+    // (13 tests) and `src/app/mindroom/engine/__tests__/engineAllRoomsCoverage.test.ts`
+    // (2 tests).
 
-      let renderer: ReturnType<typeof create> | undefined;
-
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-      expect(liveTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
-      expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
-      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
-      expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
-      expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
-
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    });
-
-    it('keeps eager-preloading past fifty batches in thread-heavy rooms until the configured limit is reached', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      settingsState.paginationLimit = 60;
-
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-      const liveEvents = [makeEvent('$visible-0', { ts: 1_000 })];
-      const liveTimeline = makeTimeline(liveEvents, {
-        backwardToken: 'page-0',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      const preloadTarget = 59;
-      let page = 0;
-      let renderer: ReturnType<typeof create> | undefined;
-
-      matrixClientMock.paginateEventTimeline.mockImplementation(async () => {
-        page += 1;
-        liveEvents.unshift(
-          makeEvent(`$visible-${page}`, { ts: 1_000 - page * 10 }),
-          ...Array.from({ length: 4 }, (_, index) =>
-            makeEvent(`$thread-${page}-${index}`, {
-              ts: 1_000 - page * 10 - index - 1,
-              threadRootId: `$root-${page}`,
-            })
-          )
-        );
-        liveTimeline.__paginationTokens.backward = page < preloadTarget ? `page-${page}` : null;
-        return true;
-      });
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await new Promise((resolve) => {
-            setTimeout(resolve, 150);
-          });
-          await flushAsyncWork(10);
-        });
-
-        await act(async () => {
-          await waitForCondition(
-            () => matrixClientMock.paginateEventTimeline.mock.calls.length >= preloadTarget,
-            800
-          );
-          await flushAsyncWork(20);
-        });
-
-        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(preloadTarget);
-        expect(page).toBe(preloadTarget);
-        expect(virtualPaginatorState.lastOptions?.count).toBe(60);
-      } finally {
-        consoleLogSpy.mockRestore();
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(1);
-        });
-      }
-    });
-
-    it('uses cache ordering for same-timestamp earliest room events when resolving room-start state', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const sdkFirstEvent = makeEvent('$b-event', { ts: 10 });
-      const cacheFirstEvent = makeEvent('$a-event', { ts: 10 });
-      const liveTimeline = makeTimeline([sdkFirstEvent, cacheFirstEvent], {
-        backwardToken: 'stale-back-token',
-      });
-      const room = makeRoom({ liveTimeline });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      loadCachedRoomPaginationTokenMock.mockImplementation(
-        async (_sessionId: string, _roomId: string, eventId?: string) =>
-          eventId === '$a-event' ? null : undefined
-      );
-
-      let renderer: ReturnType<typeof create> | undefined;
-
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
-        await flushAsyncWork();
-      });
-
-      expect(loadCachedRoomPaginationTokenMock.mock.calls).not.toHaveLength(0);
-      expect(
-        loadCachedRoomPaginationTokenMock.mock.calls.every(
-          ([, , eventId]) => eventId === '$a-event'
-        )
-      ).toBe(true);
-      expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
-      expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
-      expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
-      expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
-      expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
-
-      await act(async () => {
-        renderer?.unmount();
-        await flushAsyncWork(1);
-      });
-    });
+    // CINNY-207 P4.3: the "keeps eager-preloading past fifty batches"
+    // test asserted the deleted `useRoomEagerPreload` loop drove
+    // `mx.paginateEventTimeline` iteratively against the SDK live
+    // timeline. That loop is gone — deep-history sweep runs in the
+    // engine as a band-4 `BackfillScheduler` job that calls
+    // `mx.createMessagesRequest` and persists straight to IDB. The
+    // scheduler-side behavior is covered by
+    // `src/app/mindroom/engine/__tests__/deepHistoryJob.test.ts`,
+    // and the "no direct createMessagesRequest in RoomTimeline"
+    // guard in `RoomTimeline.architecture.test.ts` pins the boundary.
 
     it('renders the room thread overview outside thread view', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
@@ -2166,7 +2079,7 @@ describe('RoomTimeline', () => {
 
     it('preloads cached overview metadata in the frozen display order', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
       const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
       const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -2233,7 +2146,10 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(3);
       });
 
-      expect(loadLatestCachedThreadSummaryInfoMock).not.toHaveBeenCalled();
+      // CINNY-207 P2.3: the `loadLatestCachedThreadSummaryInfo` API was
+      // removed with the shim files — no render-path read to guard
+      // against exists anymore. The rendering contract remains: no
+      // per-visible-thread summary cache reads from the render path.
 
       await act(async () => {
         renderer?.unmount();
@@ -2315,7 +2231,7 @@ describe('RoomTimeline', () => {
     it('seeds thread fallback immediately from room-loaded replies for targeted opens before thread cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2395,74 +2311,24 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('warms thread-open seed snapshots from room-preloaded thread events', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'thinking...' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const threadedEdit = makeEvent('$thread-edit-1', {
-        content: {
-          body: '* edited reply',
-          'm.new_content': {
-            body: 'edited reply',
-            msgtype: 'm.text',
-          },
-        },
-        threadRootId: threadId,
-        relation: { rel_type: 'm.replace', event_id: '$thread-reply-1' },
-        ts: 3,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        threadRootId: threadId,
-        ts: 4,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([secondReply, threadedEdit, firstReply, rootEvent], {
-          backwardToken: null,
-          forwardToken: null,
-        }),
-        findEventById: (eventId: string) =>
-          [threadId, '$thread-reply-1', '$thread-reply-2'].includes(eventId)
-            ? (
-                {
-                  [threadId]: rootEvent,
-                  '$thread-reply-1': firstReply,
-                  '$thread-reply-2': secondReply,
-                } as const
-              )[eventId]
-            : undefined,
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let renderer: ReturnType<typeof create> | undefined;
-
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-        });
-
-        await waitForCondition(
-          () => getThreadOpenSeedSnapshot(room as never, threadId).length === 4,
-          50
-        );
-
-        expect(
-          getThreadOpenSeedSnapshot(room as never, threadId).map((mEvent) => mEvent.getId())
-        ).toEqual([threadId, '$thread-reply-1', '$thread-edit-1', '$thread-reply-2']);
-      } finally {
-        renderer?.unmount();
-      }
-    });
+    // CINNY-207 P3.3: removed the mount-time sweep that grouped a
+    // room's loaded thread events and called
+    // `persistThreadCacheFromRoomEventsSnapshot` (which as a side
+    // effect populated `saveThreadOpenSeedSnapshot`). The engine
+    // write-through only sees LIVE events, so pre-loaded room-thread
+    // events are no longer warmed at component mount time. Seed
+    // warming for opened threads still runs via
+    // `threadOpenCacheController` and `threadSeedPrewarmController`.
+    // The removed tests below were exercising sweep-mediated behavior:
+    //   - "warms thread-open seed snapshots from room-preloaded thread events"
+    //   - "marks room-derived thread cache snapshots complete only when the known reply count is satisfied"
+    //   - "keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded"
+    //   - "does not downgrade room-derived thread cache completeness when the room tail is still unknown"
+    //   - "does not treat sdk thread length as authoritative when root counts are sparse"
+    //   - "persists root-targeted relations into the thread cache during room cache persistence"
+    //   - "persists redactions targeting thread replies into the thread cache during room cache persistence"
+    // Unit coverage of `persistThreadCacheFromRoomEventsSnapshot`
+    // itself lives in `eventRepository.test.ts`.
 
     it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
       const { collectPriorityThreadSeedPrewarmRoots } = await import('../threadBootstrap');
@@ -2630,7 +2496,7 @@ describe('RoomTimeline', () => {
     it('seeds untargeted first open from the richer in-memory thread snapshot when room and model seeds are thinner', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { hydrateCachedEvents } = await import('../eventCacheEditUtils');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2756,7 +2622,7 @@ describe('RoomTimeline', () => {
 
     it('seeds untargeted thread reopen immediately from an existing local thread model before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2840,7 +2706,7 @@ describe('RoomTimeline', () => {
 
     it('seeds untargeted zero-reply thread opens from the locally available root before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '~pending-root';
       const rootEvent = makeEvent(threadId, {
         content: { body: 'YOLO' },
@@ -2908,7 +2774,7 @@ describe('RoomTimeline', () => {
 
     it('opens confirmed zero-reply roots without warning when no sdk thread model exists yet', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
       const threadId = '$zero-reply-root';
       const rootEvent = makeEvent(threadId, {
@@ -2966,7 +2832,7 @@ describe('RoomTimeline', () => {
 
     it('reuses the in-memory thread snapshot on untargeted reopen before cache hydration resolves', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -3064,7 +2930,7 @@ describe('RoomTimeline', () => {
     it('hydrates every cached thread page before falling back to network bootstrap', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadCachedThreadEventsBefore, loadLatestCachedThreadEvents } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const room = makeRoom();
@@ -3155,7 +3021,7 @@ describe('RoomTimeline', () => {
 
     it('skips thread bootstrap but still refreshes the latest relations tail on untargeted complete cache hits', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -3232,7 +3098,7 @@ describe('RoomTimeline', () => {
 
     it('prefers cached thread hydrate over a tiny room seed on untargeted open', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -3373,7 +3239,7 @@ describe('RoomTimeline', () => {
     it('repairs complete cached thread snapshots that are missing relation hydration', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
@@ -3526,7 +3392,7 @@ describe('RoomTimeline', () => {
 
     it('infers a complete cached thread snapshot from the persisted expected reply count when root counts are sparse', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3668,7 +3534,7 @@ describe('RoomTimeline', () => {
 
     it('does not trust stale complete cache flags when the persisted expected reply count is larger than the cached reply set', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3758,7 +3624,7 @@ describe('RoomTimeline', () => {
     it('prefers fresher room root counts over stale cached root counts when checking complete cached thread snapshots', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const room = makeRoom({
@@ -3887,7 +3753,7 @@ describe('RoomTimeline', () => {
 
     it('falls back to the cached root count when the fresher room root is sparse', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom({
         findEventById: (eventId: string) =>
@@ -3993,7 +3859,7 @@ describe('RoomTimeline', () => {
     it('fills incomplete cached thread snapshots from thread relations before falling back to sdk bootstrap', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
@@ -4098,7 +3964,19 @@ describe('RoomTimeline', () => {
         snapshotComplete: false,
         tailLoaded: true,
       } as never);
-      matrixClientMock.fetchRelations.mockResolvedValueOnce({
+      // CINNY-207 AC2 revision (2026-07-04): both the choke-point
+      // reconciler (kind='reconcile') and the backfill executor
+      // (kind='thread-backfill') fire `fetchRelations` on this open,
+      // in that order (the choke-point is now the FIRST call site
+      // inside `runThreadOpenCacheFirst`, above coverage branching).
+      // Both need the same chunk: the backfill uses it to compute
+      // `completed: true` (which is what makes the branch skip SDK
+      // bootstrap); the reconciler uses it to detect divergence
+      // against the cached window. Pre-revision this test only needed
+      // one mockResolvedValueOnce because the reconciler was scheduled
+      // AFTER the backfill returned — its fetch landed after the
+      // assertions window and its default empty response was harmless.
+      const relationsChunkResponse = {
         chunk: [
           {
             content: {
@@ -4141,7 +4019,10 @@ describe('RoomTimeline', () => {
           },
         ],
         next_batch: null,
-      });
+      };
+      matrixClientMock.fetchRelations
+        .mockResolvedValueOnce(relationsChunkResponse)
+        .mockResolvedValueOnce(relationsChunkResponse);
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -4155,9 +4036,19 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // CINNY-207 AC2 revision (2026-07-04): the choke-point schedule
+        // at the top of `runThreadOpenCacheFirst` fires the reconciler's
+        // `/relations` BEFORE the coverage branching runs; the backfill
+        // then fires its own `/relations` when the partial-coverage
+        // branch calls `backfillThreadRelationsIntoCache`. Both live in
+        // different dedup domains (reconciler `kind='reconcile'`,
+        // backfill `kind='thread-backfill'`) so the scheduler doesn't
+        // collapse them. Total = 2, same total STEP d asserted; only
+        // the call ordering flipped (reconciler now first, not second).
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
@@ -4190,7 +4081,7 @@ describe('RoomTimeline', () => {
     it('does not treat an empty relations backfill as complete when the known reply count is still unmet', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
-        '../threadEventCache'
+        '../cacheStore'
       );
       const threadId = '$thread-root-empty-backfill';
       const firstReplyId = '$thread-reply-1-empty-backfill';
@@ -4303,7 +4194,14 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        // CINNY-207 P5.1 (D7 / AC9): partial-coverage open now
+        // schedules a reconcile pass after the SDK bootstrap in
+        // addition to the existing `backfillThreadRelationsIntoCache`
+        // /relations call, so `fetchRelations` fires twice per open
+        // (once for the backfill, once for the reconcile) rather than
+        // the pre-P5 single call.
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        await waitForPersistSweepDebounce();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
           expect.any(String),
@@ -4327,7 +4225,7 @@ describe('RoomTimeline', () => {
 
     it('clears stale sdk backward tokens on complete cached thread hydrate', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -4420,7 +4318,7 @@ describe('RoomTimeline', () => {
 
     it('does not treat a sparse cached thread page as complete without a loaded tail marker', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { loadLatestCachedThreadEvents } = await import('../threadEventCache');
+      const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
       const room = makeRoom();
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -4476,378 +4374,25 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('marks room-derived thread cache snapshots complete only when the known reply count is satisfied', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 1,
-            },
-          },
-        },
-      });
-      const threadedReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, threadedReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    // CINNY-207 P3.3: removed six sweep-derived room→thread persist
+    // tests. Their subject was the pre-strip sweep in
+    // `roomCacheLifecycleController` calling
+    // `persistThreadCacheFromRoomEvents` on the room's loaded thread
+    // events. The sweep is gone with P3.3; the engine only sees
+    // LIVE events. Unit coverage for the
+    // `persistThreadCacheFromRoomEventsSnapshot` function itself
+    // lives in `eventRepository.test.ts`. Removed tests:
+    //   - 'marks room-derived thread cache snapshots complete only when the known reply count is satisfied'
+    //   - 'keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded'
+    //   - 'does not downgrade room-derived thread cache completeness when the room tail is still unknown'
+    //   - 'does not treat sdk thread length as authoritative when root counts are sparse'
+    //   - 'persists root-targeted relations into the thread cache during room cache persistence'
+    //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
 
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          null,
-          true,
-          true,
-          1,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 5,
-            },
-          },
-        },
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply-1' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        content: { body: 'reply-2' },
-        threadRootId: threadId,
-        ts: 3,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, firstReply, secondReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          true,
-          false,
-          5,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('does not downgrade room-derived thread cache completeness when the room tail is still unknown', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-        unsigned: {
-          'm.relations': {
-            'm.thread': {
-              count: 5,
-            },
-          },
-        },
-      });
-      const firstReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply-1' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const secondReply = makeEvent('$thread-reply-2', {
-        content: { body: 'reply-2' },
-        threadRootId: threadId,
-        ts: 3,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, firstReply, secondReply], {
-          forwardToken: 'forward-gap',
-        }),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-            expect.objectContaining({ event_id: '$thread-reply-2' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          undefined,
-          undefined,
-          5,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('does not treat sdk thread length as authoritative when root counts are sparse', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const threadedReply = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, threadedReply]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      room.getThread = () =>
-        ({
-          length: 1,
-        } as never);
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
-          expect.any(String),
-          room.roomId,
-          threadId,
-          expect.arrayContaining([
-            expect.objectContaining({ event_id: threadId }),
-            expect.objectContaining({ event_id: '$thread-reply-1' }),
-          ]),
-          expect.objectContaining({ event_id: threadId }),
-          undefined,
-          true,
-          undefined,
-          undefined,
-          undefined
-        );
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('persists root-targeted relations into the thread cache during room cache persistence', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const reactionEvent = makeEvent('$thread-root-reaction', {
-        associatedId: threadId,
-        relation: { event_id: threadId, rel_type: 'm.annotation' },
-        ts: 2,
-        type: 'm.reaction',
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, reactionEvent]),
-        findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(
-          vi
-            .mocked(saveThreadEventsToCache)
-            .mock.calls.some(
-              ([, , expectedThreadId, rawEvents]) =>
-                expectedThreadId === threadId &&
-                Array.isArray(rawEvents) &&
-                rawEvents.some(
-                  (rawEvent) =>
-                    typeof rawEvent?.event_id === 'string' &&
-                    rawEvent.event_id === '$thread-root-reaction'
-                )
-            )
-        ).toBe(true);
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
-
-    it('persists redactions targeting thread replies into the thread cache during room cache persistence', async () => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
-      const threadId = '$thread-root';
-      const rootEvent = makeEvent(threadId, {
-        isThreadRoot: true,
-        ts: 1,
-      });
-      const replyEvent = makeEvent('$thread-reply-1', {
-        content: { body: 'reply' },
-        threadRootId: threadId,
-        ts: 2,
-      });
-      const redactionEvent = makeEvent('$thread-reply-1-redaction', {
-        associatedId: '$thread-reply-1',
-        isRedaction: true,
-        ts: 3,
-        type: 'm.room.redaction',
-      });
-      const room = makeRoom({
-        liveTimeline: makeTimeline([rootEvent, replyEvent, redactionEvent]),
-        findEventById: (eventId: string) =>
-          eventId === threadId ? rootEvent : eventId === '$thread-reply-1' ? replyEvent : undefined,
-      });
-      const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-
-      let renderer: ReturnType<typeof create> | undefined;
-      try {
-        await act(async () => {
-          renderer = create(
-            React.createElement(ControlledRoomTimeline, {
-              room,
-            })
-          );
-          await flushAsyncWork(10);
-        });
-
-        await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
-        expect(
-          vi
-            .mocked(saveThreadEventsToCache)
-            .mock.calls.some(
-              ([, , expectedThreadId, rawEvents]) =>
-                expectedThreadId === threadId &&
-                Array.isArray(rawEvents) &&
-                rawEvents.some(
-                  (rawEvent) =>
-                    typeof rawEvent?.event_id === 'string' &&
-                    rawEvent.event_id === '$thread-reply-1-redaction'
-                )
-            )
-        ).toBe(true);
-      } finally {
-        await act(async () => {
-          renderer?.unmount();
-          await flushAsyncWork(2);
-        });
-      }
-    });
 
     it('persists paginated thread-only room events into the thread cache', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
-      const { saveThreadEventsToCache } = await import('../threadEventCache');
+      const { saveThreadEventsToCache } = await import('../cacheStore');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,

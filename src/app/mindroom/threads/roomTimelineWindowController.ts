@@ -36,7 +36,7 @@ export type RoomTimelineWindowControllerOptions = {
   room: Room;
   roomSurfaceEventEntries: TimelineEventEntry[];
   roomThreadListThreads: Thread[];
-  safePaginationLimit: number;
+  prefetchDepth: number;
   threadEventsLength: number;
   threadHasMoreCachedBack: boolean;
   threadId?: string;
@@ -72,7 +72,7 @@ export const useRoomTimelineWindowController = ({
   room,
   roomSurfaceEventEntries,
   roomThreadListThreads,
-  safePaginationLimit,
+  prefetchDepth,
   threadEventsLength,
   threadHasMoreCachedBack,
   threadId,
@@ -163,9 +163,9 @@ export const useRoomTimelineWindowController = ({
         filteredRoomThreadActive,
         timeline.range,
         filteredLength,
-        safePaginationLimit
+        prefetchDepth
       ),
-    [threadId, filteredRoomThreadActive, timeline.range, filteredLength, safePaginationLimit]
+    [threadId, filteredRoomThreadActive, timeline.range, filteredLength, prefetchDepth]
   );
 
   const priorityThreadSeedPrewarmRoots = useMemo(() => {

@@ -1,0 +1,274 @@
+/**
+ * CINNY-207 P4.2: gap-fill executor.
+ *
+ * Phase 3.2 planted a `GapFillScheduler` interface with an in-memory
+ * queue and a `gapFillsEnqueued` probe counter — that gave AC13 a
+ * detection signal but no execution. This module is the executor: it
+ * hands each enqueued gap-fill job to the P4.1 `BackfillScheduler` (so
+ * we get dedup + priority + concurrency cap for free), fetches the
+ * missing tail via `mx.createMessagesRequest`, persists the returned
+ * raw events through `saveRoomEventsToCache`, and clears the durable
+ * `tailDiscontinuity` marker when done.
+ *
+ * Contract with the durable marker:
+ *   - On success (any events persisted OR the SDK confirmed there is
+ *     nothing left to fetch): clear the marker so the next boot skips
+ *     the retry.
+ *   - On abort: leave the marker in place — the next boot will retry.
+ *   - On error: leave the marker in place. We swallow the error so the
+ *     scheduler slot frees; the next `RoomEvent.TimelineReset` or
+ *     `Sync -> PREPARED` will re-enqueue.
+ *
+ * Ordering: the scheduler already runs my-server-room work at bands 1
+ * (`gap-fill` on other rooms) and 0 (jobs targeting the current room),
+ * so the same `BackfillJobKind = 'gap-fill'` is used for both — the
+ * caller controls priority. Federated rooms are skipped entirely per
+ * the prefetch policy.
+ */
+
+import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
+import { Direction } from 'matrix-js-sdk';
+import { clearRoomTailDiscontinuity } from '../threads/cacheStore';
+import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
+import type { BackfillScheduler } from './backfillScheduler';
+import type { GapFillJob, GapFillScheduler } from './engineGapTracker';
+import {
+  DEFAULT_PREFETCH_SCOPE,
+  isRoomEligibleForBackgroundPrefetch,
+  isRoomEligibleForRawFetch,
+  resolveRoomPrefetchTier,
+  type PrefetchConfig,
+} from './prefetchPolicy';
+
+// Batch size for the /messages page — matches the app's other backfill
+// batches so the scheduler's cooperative abort granularity is
+// consistent across job kinds.
+const GAP_FILL_BATCH_SIZE = 200;
+
+// Cap on iterations per gap-fill job. Guards against pathological
+// homeservers that stream tokens forever. In practice a gap-fill
+// terminates when the SDK returns `end === undefined` (no more
+// history) or when we've reached the current live tail.
+const GAP_FILL_MAX_ITERATIONS = 20;
+
+export type GapFillExecutorOptions = {
+  readonly mx: MatrixClient;
+  readonly sessionId: string;
+  readonly scheduler: BackfillScheduler;
+  /** Priority band for gap-fills on rooms other than the focused one. */
+  readonly priority?: 0 | 1 | 2;
+  /**
+   * CINNY-207 P7.2 audit finding #5: supplies the live user
+   * `PrefetchConfig` on every runOnce. The executor consults
+   * `config.scope` via `isRoomEligibleForBackgroundPrefetch` before
+   * fetching, so a user switching to `current-room-only` immediately
+   * suppresses background gap-fills on non-focused rooms.
+   * Optional to preserve back-compat for existing test constructors.
+   * When absent, the executor falls back to the default `my-server`
+   * policy — the historical behavior.
+   */
+  readonly getPrefetchConfig?: () => PrefetchConfig;
+  /**
+   * CINNY-207 P7.2 audit finding #5: returns the currently-focused
+   * room id (populated by `MindroomSyncEngine.noteRoomFocused`). Only
+   * consulted when `config.scope === 'current-room-only'`. Optional
+   * for the same back-compat reason as `getPrefetchConfig`.
+   */
+  readonly getFocusedRoomId?: () => string | undefined;
+};
+
+/**
+ * Wire the executor to a `GapFillScheduler` (the Phase 3.2 queue).
+ * On wire we drain any jobs already queued (typically zero, since the
+ * gap tracker only enqueues after Sync->PREPARED and TimelineReset),
+ * and subscribe to future enqueues so a fresh limited-sync reset
+ * dispatches a fill immediately. Returns a teardown that unsubscribes
+ * and blocks further enqueues.
+ */
+export type GapFillExecutor = {
+  drainNow(): void;
+  stop(): void;
+};
+
+export const createGapFillExecutor = (
+  options: GapFillExecutorOptions,
+  gapFillScheduler: GapFillScheduler
+): GapFillExecutor => {
+  const { mx, sessionId, scheduler } = options;
+  const priority = options.priority ?? 1;
+  const getPrefetchConfig = options.getPrefetchConfig;
+  const getFocusedRoomId = options.getFocusedRoomId ?? (() => undefined);
+  let stopped = false;
+
+  const runOnce = async (job: GapFillJob, signal: AbortSignal): Promise<void> => {
+    const room: Room | null | undefined = mx.getRoom?.(job.roomId);
+    if (!room) return;
+
+    // CINNY-207 P7.2 audit finding #5: scope-aware gate. Under
+    // `my-server` (default) this collapses to the historical
+    // `isRoomEligibleForRawFetch` policy (own-tier + not encrypted).
+    // Under `all-rooms` federated rooms become eligible. Under
+    // `current-room-only` only the currently-focused room passes.
+    //
+    // Encrypted rooms are always blocked by the helper — ciphertext is
+    // unusable without decryption context. The marker-clearing branch
+    // below still runs the historical own-tier check because that's
+    // the shape it was designed for (encrypted-own clears, federated
+    // preserves per Deviations §8); scope only affects the gating,
+    // not the marker semantics for skipped rooms.
+    const scope = getPrefetchConfig ? getPrefetchConfig().scope : DEFAULT_PREFETCH_SCOPE;
+    const eligible = isRoomEligibleForBackgroundPrefetch({
+      mx,
+      room,
+      scope,
+      focusedRoomId: getFocusedRoomId(),
+    });
+    // Policy gate — federated / encrypted rooms are skipped entirely.
+    // The gap-fill queue holds them because the P4 gate fix removed
+    // the enqueue-time short-circuit (so `gapFillsEnqueued` and
+    // `schedulerEnqueued` stay in lockstep for observability); this is
+    // where they actually get filtered out.
+    if (!eligible) {
+      // Marker semantics preserved from the pre-#5 shape: encrypted-
+      // own rooms clear their marker (we've declined to fill them
+      // permanently — ciphertext is unusable), federated preserves
+      // per Deviations §8. When `current-room-only` blocks a normally-
+      // eligible room, preserve the marker so a scope-widen later
+      // picks the work back up.
+      if (isRoomEligibleForRawFetch(mx, room)) {
+        // Only reachable under `current-room-only` for a non-focused
+        // eligible room. Marker preserved.
+      } else if (resolveRoomPrefetchTier(mx, room) === 'own') {
+        await clearRoomTailDiscontinuity(sessionId, room.roomId).catch(
+          () => undefined
+        );
+      }
+      return;
+    }
+
+    let fromToken: string | null = job.prevBatch ?? null;
+    let iterations = 0;
+    let reachedEnd = false;
+    while (iterations < GAP_FILL_MAX_ITERATIONS) {
+      if (signal.aborted) return;
+      iterations += 1;
+      let response;
+      try {
+        response = await mx.createMessagesRequest(
+          job.roomId,
+          fromToken,
+          GAP_FILL_BATCH_SIZE,
+          Direction.Backward
+        );
+      } catch (error) {
+        // Homeserver error — bail without clearing the marker so the
+        // next boot re-attempts. Swallow so the scheduler slot frees.
+        return;
+      }
+      if (signal.aborted) return;
+      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
+        ? (response.chunk as Partial<IEvent>[])
+        : [];
+      if (chunk.length > 0) {
+        // CINNY-207 P7.2 audit finding #3: chunks must funnel through
+        // `createPreferLiveEventMapper` (see reconciler.ts header + I2)
+        // — Tuwunel serves un-pruned copies of redacted events for
+        // ~10s, and last-writer-wins on `eventStore.put` would let a
+        // gap-fill overwrite a cached tombstone with pre-redaction
+        // plaintext at rest. The shared helper maps every raw event
+        // (either through the mapper to a fresh MatrixEvent, or to the
+        // SDK's live instance with `unsigned.redacted_because` applied)
+        // and persists via `persistRoomEventCacheSnapshot` — the same
+        // serialize+save path the write-through uses. Ordering is
+        // normalized inside `runSaveRoomEventsTxn` via
+        // origin_server_ts sorting.
+        persistRoomChunkWithPreferLive({
+          mx,
+          sessionId,
+          room,
+          chunk,
+          beforeTokenForEarliest: response.end ?? null,
+        });
+      }
+      // `end === undefined` (or an empty end string) means the SDK has
+      // no more history to fetch in this direction.
+      if (!response.end) {
+        reachedEnd = true;
+        break;
+      }
+      // Same token twice in a row means the SDK is stuck — bail.
+      if (response.end === fromToken) {
+        reachedEnd = true;
+        break;
+      }
+      fromToken = response.end;
+      // Empty chunk after the first iteration indicates we've walked
+      // past the useful range — stop persisting nothing.
+      if (chunk.length === 0 && iterations > 1) {
+        reachedEnd = true;
+        break;
+      }
+    }
+
+    // CINNY-207 P5 review (greptile P1: gap marker clears early):
+    // only clear the marker when the server has signaled "no more
+    // history in this direction" (reachedEnd). Previously we cleared
+    // as soon as ANY batch persisted, which meant a gap larger than
+    // GAP_FILL_MAX_ITERATIONS × GAP_FILL_BATCH_SIZE (= 4,000 events)
+    // dropped the marker while the tail was still incomplete —
+    // removing the only durable retry signal for the remaining gap.
+    //
+    // With this contract, if we hit the iteration cap with more
+    // history still available (response.end still present after
+    // batch 20), the marker survives and a subsequent boot / focus-
+    // triggered run picks up from where we stopped. `prevBatch` on
+    // the marker still points at the ORIGINAL gap boundary — the
+    // executor re-fetches from there each run — so the next attempt
+    // walks forward using the same paging contract until reachedEnd
+    // is observed or the gap is truly closed.
+    if (reachedEnd) {
+      await clearRoomTailDiscontinuity(sessionId, job.roomId).catch(() => undefined);
+    }
+  };
+
+  const enqueue = (job: GapFillJob): void => {
+    if (stopped) return;
+    // P4 gate fix: NO tier short-circuit here. Every tracker enqueue
+    // must produce a scheduler enqueue so `gapFillsEnqueued` and
+    // `schedulerEnqueued` stay in lockstep — otherwise a probe snapshot
+    // showing `gapFillsEnqueued>=1, schedulerCompleted=0` is ambiguous
+    // (silent policy skip vs. real execution failure). The runOnce
+    // policy gate (`isRoomEligibleForRawFetch`) still rejects federated
+    // and encrypted rooms; those runs resolve fast (marker cleared for
+    // encrypted-own, marker preserved for federated per Deviations §8)
+    // and count as `schedulerCompleted`.
+    scheduler
+      .enqueue({
+        roomId: job.roomId,
+        kind: 'gap-fill',
+        priority,
+        execute: (signal) => runOnce(job, signal),
+      })
+      .catch(() => undefined);
+  };
+
+  const drainNow = (): void => {
+    if (stopped) return;
+    const pending = gapFillScheduler.pendingJobs();
+    if (pending.length === 0) return;
+    pending.forEach(enqueue);
+    gapFillScheduler.clear();
+  };
+
+  // Drain everything already queued (usually nothing on wire), then
+  // subscribe so future enqueues dispatch immediately.
+  drainNow();
+  const unsubscribe = gapFillScheduler.onEnqueue((job) => enqueue(job));
+
+  const stop = (): void => {
+    stopped = true;
+    unsubscribe();
+  };
+
+  return { drainNow, stop };
+};

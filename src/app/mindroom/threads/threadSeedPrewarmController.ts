@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
-import { loadThreadCachedSnapshot } from './eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from './threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { useMindroomSyncEngine } from '../engine';
 
 type ThreadSeedPrewarmTarget = {
   threadId: string;
@@ -35,7 +33,7 @@ export const useThreadSeedPrewarmController = ({
   room,
   mx,
   sessionId,
-  safePaginationLimitRef,
+  prefetchDepthRef,
   activeThreadId,
   priorityTargets,
   loadThreadOpenSeedSnapshotFromCache: loadThreadOpenSeedSnapshotFromCacheProp,
@@ -44,12 +42,13 @@ export const useThreadSeedPrewarmController = ({
   room: Room;
   mx: MatrixClient;
   sessionId: string;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepthRef: MutableRefObject<number>;
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
   loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
   debugTraceId: string;
 }): ThreadSeedPrewarmController => {
+  const syncEngine = useMindroomSyncEngine();
   const activeThreadIdRef = useRef(activeThreadId);
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -84,20 +83,29 @@ export const useThreadSeedPrewarmController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        limit: prefetchDepthRef.current,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
       return cachedSnapshot?.events ?? [];
     },
-    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room.roomId, safePaginationLimitRef, sessionId]
+    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, prefetchDepthRef, sessionId]
   );
 
+  // CINNY-207 P4.4: dedup migrated onto the engine's BackfillScheduler.
+  // The per-controller `prewarmingThreadSeedPromisesRef` map used to be
+  // the F9 dedup point — but it only deduped WITHIN a single
+  // MindroomRoomTimeline mount. Routing the actual work through
+  // `syncEngine.scheduler.enqueue({kind: 'thread-seed', ...})` gives us
+  // client-scoped dedup: concurrent seeds for the same (room, thread)
+  // from any producer (remount, sibling controller, priority target
+  // drain below) share the same in-flight promise. The controller-
+  // local refs are still populated so downstream consumers
+  // (threadOpenSeedController's untargeted-seed wait) continue to work
+  // unchanged — the refs mirror scheduler state, they no longer own
+  // dedup.
   const ensureThreadSeedPrewarm = useCallback(
-    (
-      expectedThreadId: string,
-      opts?: EnsureThreadSeedPrewarmOptions
-    ): Promise<void> => {
+    (expectedThreadId: string, opts?: EnsureThreadSeedPrewarmOptions): Promise<void> => {
       const existingPromise = prewarmingThreadSeedPromisesRef.current.get(expectedThreadId);
       if (existingPromise) return existingPromise;
       if (prewarmedThreadSeedIdsRef.current.has(expectedThreadId)) {
@@ -112,52 +120,66 @@ export const useThreadSeedPrewarmController = ({
         threadId: expectedThreadId,
       });
 
-      const prewarmPromise = (async () => {
-        try {
-          const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
-          if (generation !== threadSeedPrewarmGenerationRef.current) return;
-          if (!opts?.allowWhileThreadOpen && activeThreadIdRef.current) return;
+      const prewarmPromise = syncEngine.scheduler.enqueue<void>({
+        roomId: room.roomId,
+        threadId: expectedThreadId,
+        kind: 'thread-seed',
+        // Priority 3 = thread inventory prewarm band; deep-history
+        // band-4 jobs yield to us so a room-open makes thread-open
+        // fast even if a room-deep-history sweep is running.
+        priority: 3,
+        execute: async () => {
+          try {
+            const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
+            if (generation !== threadSeedPrewarmGenerationRef.current) return;
+            if (!opts?.allowWhileThreadOpen && activeThreadIdRef.current) return;
 
-          if (cachedSeedEvents.length > 0) {
-            const nextSeedEvents = mergeThreadBackfillEvents(
-              getThreadOpenSeedSnapshot(room, expectedThreadId),
-              cachedSeedEvents
-            );
-            saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
-            logTimelineDebug(traceId, `${logPrefix}-complete`, {
-              cachedCount: cachedSeedEvents.length,
-              seedCount: nextSeedEvents.length,
-              threadId: expectedThreadId,
-            });
-          } else {
-            logTimelineDebug(traceId, `${logPrefix}-empty`, {
+            if (cachedSeedEvents.length > 0) {
+              const nextSeedEvents = mergeThreadBackfillEvents(
+                getThreadOpenSeedSnapshot(room, expectedThreadId),
+                cachedSeedEvents
+              );
+              saveThreadOpenSeedSnapshot(room, expectedThreadId, nextSeedEvents);
+              logTimelineDebug(traceId, `${logPrefix}-complete`, {
+                cachedCount: cachedSeedEvents.length,
+                seedCount: nextSeedEvents.length,
+                threadId: expectedThreadId,
+              });
+            } else {
+              logTimelineDebug(traceId, `${logPrefix}-empty`, {
+                threadId: expectedThreadId,
+              });
+            }
+
+            prewarmedThreadSeedIdsRef.current.add(expectedThreadId);
+          } catch (error) {
+            logTimelineDebug(traceId, `${logPrefix}-error`, {
+              error: error instanceof Error ? error.message : String(error),
               threadId: expectedThreadId,
             });
           }
-
-          prewarmedThreadSeedIdsRef.current.add(expectedThreadId);
-        } catch (error) {
-          logTimelineDebug(traceId, `${logPrefix}-error`, {
-            error: error instanceof Error ? error.message : String(error),
-            threadId: expectedThreadId,
-          });
-        } finally {
-          prewarmingThreadSeedIdsRef.current.delete(expectedThreadId);
-        }
-      })();
+        },
+      });
 
       prewarmingThreadSeedPromisesRef.current.set(expectedThreadId, prewarmPromise);
-      void prewarmPromise.finally(() => {
-        if (
-          prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise
-        ) {
+      // CINNY-207 P7.2 audit finding #2: `void p.finally(cb)` returns a
+      // NEW promise that re-rejects with the original reason and is
+      // unhandled. The 'thread-seed' executor swallows its own errors,
+      // so the promise only ever rejects via the scheduler's queued-abort
+      // path (`abortAll` at engine teardown / logout). Route cleanup
+      // through `.then(cb, cb)` so cleanup fires on both fulfil and
+      // reject without producing a further unhandled rejection.
+      const cleanupPrewarmRefs = () => {
+        prewarmingThreadSeedIdsRef.current.delete(expectedThreadId);
+        if (prewarmingThreadSeedPromisesRef.current.get(expectedThreadId) === prewarmPromise) {
           prewarmingThreadSeedPromisesRef.current.delete(expectedThreadId);
         }
-      });
+      };
+      void prewarmPromise.then(cleanupPrewarmRefs, cleanupPrewarmRefs);
 
       return prewarmPromise;
     },
-    [debugTraceId, loadThreadOpenSeedSnapshotFromCache, room]
+    [debugTraceId, loadThreadOpenSeedSnapshotFromCache, room, syncEngine]
   );
 
   useEffect(() => {
@@ -187,11 +209,21 @@ export const useThreadSeedPrewarmController = ({
           if (prewarmedThreadSeedIdsRef.current.has(expectedThreadId)) continue;
           if (prewarmingThreadSeedIdsRef.current.has(expectedThreadId)) continue;
 
+          // CINNY-207 P7.2 audit finding #2: ensureThreadSeedPrewarm
+          // returns the scheduler promise verbatim; that promise
+          // rejects with the abort reason when the scheduler drains
+          // a queued 'thread-seed' job at engine.stop(). Swallow the
+          // rejection so the drain loop keeps going (the aborted job
+          // is discarded, the next queued id gets a fresh enqueue) and
+          // the outer `void prewarmThreadSeeds()` never sees an unhandled
+          // rejection. Non-abort errors in the executor are already
+          // logged via the try/catch inside execute() and never
+          // surface here.
           await ensureThreadSeedPrewarm(expectedThreadId, {
             generation,
             logPrefix: 'room-thread-seed-prewarm',
             traceId: debugTraceId,
-          });
+          }).catch(() => undefined);
         }
       } finally {
         if (generation === threadSeedPrewarmGenerationRef.current) {
@@ -205,13 +237,13 @@ export const useThreadSeedPrewarmController = ({
           queueMicrotask(() => {
             if (threadSeedPrewarmRunningRef.current) return;
             threadSeedPrewarmRunningRef.current = true;
-            void prewarmThreadSeeds();
+            void prewarmThreadSeeds().catch(() => undefined);
           });
         }
       }
     };
 
-    void prewarmThreadSeeds();
+    void prewarmThreadSeeds().catch(() => undefined);
 
     return undefined;
   }, [activeThreadId, debugTraceId, ensureThreadSeedPrewarm, priorityTargets]);

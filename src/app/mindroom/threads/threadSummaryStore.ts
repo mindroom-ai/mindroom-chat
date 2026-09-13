@@ -1,10 +1,8 @@
 export type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 export {
-  deleteThreadSummaryCache,
-  getThreadSummaryCacheDbName,
   loadCachedThreadSummaries,
   saveCachedThreadSummary,
-} from './threadSummaryCache';
+} from './cacheStore';
 export {
   clearThreadSummarySharedState,
   ensureThreadSummaryStateLoaded,

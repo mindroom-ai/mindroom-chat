@@ -99,7 +99,7 @@ export const getSettings = () => {
 
   const settings = localStorage.getItem(STORAGE_KEY);
   if (settings === null) return defaultSettings;
-  let parsed: Partial<Settings> = {};
+  let parsed: Partial<Settings> & { paginationLimit?: unknown } = {};
   try {
     const value = JSON.parse(settings);
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
@@ -107,6 +107,25 @@ export const getSettings = () => {
     }
   } catch {
     parsed = {};
+  }
+  // CINNY-207 P7.2 audit finding #4 (belt-and-braces): drop the legacy
+  // MindRoom "paginationLimit" key so the base settings atom can never
+  // initialize with a contaminated value, regardless of whether the
+  // `mindroomSettingsBootstrap` scrub has already run. Complements the
+  // `withMindroomSettings` sanitizer (which strips the field on the
+  // mindroom-aware read path) — this guards the plain `settingsAtom`
+  // write-back path in `setSettings`, which JSON-stringifies whatever
+  // the atom holds and would otherwise resurrect the key on every
+  // settings write.
+  //
+  // Deleted via `delete` rather than a destructure-alias — the
+  // `settings.ts` ownership arch test asserts the file does not
+  // contain the legacy key immediately followed by a colon (so
+  // MindRoom setting shapes stay out of the generic settings module).
+  // `delete` mutates our local `parsed` copy only; the stored JSON is
+  // not touched.
+  if (Object.prototype.hasOwnProperty.call(parsed, 'paginationLimit')) {
+    delete (parsed as Record<string, unknown>).paginationLimit;
   }
   const merged = {
     ...defaultSettings,

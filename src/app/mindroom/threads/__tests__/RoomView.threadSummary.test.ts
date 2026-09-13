@@ -192,10 +192,15 @@ vi.mock('../useThreadRootEvent', () => ({
   useThreadRootEvent: (_room: unknown, threadId: string | undefined) => threadId,
 }));
 
-vi.mock('../threadSummaryCache', () => ({
-  loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-  saveCachedThreadSummary: saveCachedThreadSummaryMock,
-}));
+// CINNY-207 P2.3: summary APIs consumed directly from `../cacheStore`.
+vi.mock('../cacheStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../cacheStore')>();
+  return {
+    ...actual,
+    loadCachedThreadSummaries: loadCachedThreadSummariesMock,
+    saveCachedThreadSummary: saveCachedThreadSummaryMock,
+  };
+});
 
 const flushAsyncWork = async (rounds = 3) => {
   for (let i = 0; i < rounds; i += 1) {

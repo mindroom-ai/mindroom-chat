@@ -186,8 +186,12 @@ import {
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
 } from './roomTimelineViewState';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
-import { useRoomEagerPreload } from './preloadController';
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE, sanitizePaginationLimit } from './preloadSettings';
+// CINNY-207 P4.3: the eager preload hook was deleted. Deep-history
+// sweep is now a band-4 job on the engine's BackfillScheduler (see
+// engine/deepHistoryJob.ts) and never touches the SDK live timeline.
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import { sanitizePrefetchDepth,
+  sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { type PendingThreadOpen } from './threadOpenTargetEvent';
@@ -195,14 +199,19 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import { useThreadCachePersistenceController } from './threadCachePersistenceController';
+import {
+  enqueueRoomDeepHistoryJob,
+  scheduleReconcile as scheduleEngineReconcile,
+  useMindroomSyncEngine,
+} from '../engine';
+import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useThreadPaginationCommandController } from './threadPaginationCommandController';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
-import { useRoomCacheLifecycleController } from './roomCacheLifecycleController';
+import { useRoomCachedBackState } from './useRoomCachedBackState';
 import { useRoomCacheHydrationController } from './roomCacheHydrationController';
-import { useRoomLiveEventController } from './roomLiveEventController';
+import { useRoomLiveRenderController } from './roomLiveRenderController';
 import { useThreadOpenLifecycleController } from './threadOpenLifecycleController';
 import { useRoomTimelineWindowController } from './roomTimelineWindowController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
@@ -326,14 +335,16 @@ export function RoomTimeline({
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
   const [showDeveloperTools] = useSetting(settingsAtom, 'developerTools');
-  const [paginationLimitSetting] = useSetting(mindroomSettingsAtom, 'paginationLimit');
-  const safePaginationLimit = sanitizePaginationLimit(paginationLimitSetting);
+  const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
+  const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
+  const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
+  const prefetchScope = sanitizePrefetchScope(prefetchScopeSetting);
   const interactivePaginationLimit = Math.min(
-    safePaginationLimit,
+    prefetchDepth,
     ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE
   );
-  const safePaginationLimitRef = useRef(safePaginationLimit);
-  safePaginationLimitRef.current = safePaginationLimit;
+  const prefetchDepthRef = useRef(prefetchDepth);
+  prefetchDepthRef.current = prefetchDepth;
 
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
@@ -402,7 +413,6 @@ export function RoomTimeline({
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
   const [threadLoadError, setThreadLoadError] = useState(false);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
-  const [eagerPreloading, setEagerPreloading] = useState(roomEagerPreloadEnabled);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
@@ -432,7 +442,6 @@ export function RoomTimeline({
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
-  const eagerPreloadDoneForRoomRef = useRef<string | null>(null);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
@@ -473,7 +482,7 @@ export function RoomTimeline({
   const [timeline, setTimeline] = useState<Timeline>(() =>
     eventId
       ? getEmptyTimeline()
-      : getInitialTimeline(room, safePaginationLimit, {
+      : getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -498,21 +507,17 @@ export function RoomTimeline({
       return next;
     });
   }, []);
-  // Reset eagerPreloading when transitioning from event-focused view back to room
-  // (component is reused since key is roomId:threadId, so useState initializer won't re-run)
-  // useLayoutEffect so the reset fires before paint, preventing a single-frame skeleton flash
-  useLayoutEffect(() => {
-    if (!eventId && !threadId) {
-      setEagerPreloading(roomEagerPreloadEnabled);
-    }
-  }, [eventId, roomEagerPreloadEnabled, threadId]);
+  // CINNY-207 P4.3: the eagerPreloading reset layout-effect is gone.
+  // The band-4 deep-history job runs entirely in the engine and does
+  // not gate any rendering signal — the skeleton logic below relies on
+  // cache/live counts alone.
   useLayoutEffect(() => {
     if (prevShowThreadRepliesInRoomRef.current === showThreadRepliesInRoom) return;
     prevShowThreadRepliesInRoomRef.current = showThreadRepliesInRoom;
     if (eventId || threadId) return;
 
     setTimeline(
-      getInitialTimeline(room, safePaginationLimit, {
+      getInitialTimeline(room, prefetchDepth, {
         threadId,
         ignoredUsersSet,
         showHiddenEvents,
@@ -525,7 +530,7 @@ export function RoomTimeline({
     eventId,
     threadId,
     room,
-    safePaginationLimit,
+    prefetchDepth,
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
@@ -726,7 +731,7 @@ export function RoomTimeline({
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,
-    safePaginationLimit,
+    prefetchDepth,
     threadEventsLength: threadEvents.length,
     threadHasMoreCachedBack,
     threadId,
@@ -744,7 +749,6 @@ export function RoomTimeline({
     activeTimelineRange,
     canPaginateThreadBack,
     canPaginateThreadFront,
-    eagerPreloading,
     eventsLength,
     filteredLength,
     renderableEventCount: renderableEventEntries.length,
@@ -767,7 +771,7 @@ export function RoomTimeline({
 
     if (wasActive && !roomThreadFilterActive && !threadId) {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -786,7 +790,7 @@ export function RoomTimeline({
     hideMembershipEvents,
     hideNickAvatarEvents,
     showThreadRepliesInRoom,
-    safePaginationLimit,
+    prefetchDepth,
   ]);
 
   const timelineAtLiveEnd = isTimelineAtLiveEnd({
@@ -826,15 +830,40 @@ export function RoomTimeline({
     recalibrateFilterOptsRef
   );
 
+  // CINNY-207 P3.3: persistence moved into the MindroomSyncEngine
+  // write-through (client-level, all rooms). The component reads the
+  // room-bound persist facade off the engine and hands the fns down
+  // to the fetch controllers (same shapes as the pre-strip props).
+  const syncEngine = useMindroomSyncEngine();
+  const enginePersistForRoom = useMemo(
+    () => syncEngine.persist.forRoom(room),
+    [syncEngine, room]
+  );
+  const {
+    persistRoomEventCache,
+    persistThreadEventCache,
+    queueRoomThreadCachePersist,
+  } = enginePersistForRoom;
+
+  // CINNY-207 P4.2: whenever the mounted room (or the currently open
+  // thread) changes, tell the engine so it can stamp the ledger
+  // federation flag, protect this room from eviction, and bump the
+  // meta lastOpenedTs for both the room and thread scopes. Idempotent
+  // per-call — safe to fire on every render-relevant change.
+  useEffect(() => {
+    syncEngine.noteRoomFocused(room.roomId, threadId);
+  }, [syncEngine, room.roomId, threadId]);
+
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
     alive,
     handleTimelinePagination,
     mx,
+    persistRoomEventCache,
     recalibrateFilterOptsRef,
     room,
     roomIdRef,
     roomPaginatingBackRef,
-    safePaginationLimitRef,
+    prefetchDepthRef,
     sessionId,
     setRoomHasMoreCachedBack,
     setTimeline,
@@ -843,43 +872,58 @@ export function RoomTimeline({
     timeline,
   });
 
-  useRoomEagerPreload({
-    alive,
-    enabled: roomEagerPreloadEnabled,
-    eventId,
-    eagerPreloadDoneForRoomRef,
-    mx,
-    recalibrateFilterOptsRef,
-    room,
-    roomDebugTraceId,
-    roomIdRef,
-    roomPaginatingBackRef,
-    safePaginationLimitRef,
-    setEagerPreloading,
-    setTimeline,
-    threadId,
-    threadIdRef,
-    useSurfacePreloadTarget,
-  });
-
-  const { persistThreadCacheFromRoomEvents, persistThreadEventCache, queueRoomThreadCachePersist } =
-    useThreadCachePersistenceController({
-      alive,
-      room,
-      roomDebugTraceId,
-      roomIdRef,
+  // CINNY-207 P4.3: enqueue the band-4 room-deep-history job once per
+  // mounted (roomId, threadId=undefined). The scheduler dedupes by
+  // (roomId, undefined, 'room-deep-history') so remounts (view mode
+  // flips, thread open/close) don't fire redundant sweeps. The engine
+  // scheduler's abortAll on stop() tears it down on account switch.
+  // CINNY-207 P6.1 / D4: `prefetchDepth` — the user-facing "current
+  // room history depth" setting — is threaded through as the job's
+  // `targetEventCount`. Snapshot at the effect fire (not via ref)
+  // because the dedup key does not include the depth: a mid-focus
+  // depth change won't reset the running job, but the next mount
+  // (room switch, view mode flip) picks up the new value.
+  useEffect(() => {
+    if (!roomEagerPreloadEnabled) return undefined;
+    if (eventId || threadId) return undefined;
+    enqueueRoomDeepHistoryJob({
+      mx,
       sessionId,
-      threadDebugTraceId,
-      threadIdRef,
-    });
+      scheduler: syncEngine.scheduler,
+      roomId: room.roomId,
+      targetEventCount: prefetchDepth,
+      scope: prefetchScope,
+    }).catch(() => undefined);
+    // CINNY-207 P4.3 review (gemini PR #70 high): abort the deep
+    // history job on room switch / unmount. Without this, opening a
+    // different room, opening a thread, or unmounting leaves the
+    // previous room's job draining in the background (up to
+    // CURRENT_ROOM_DEEP_HISTORY_TARGET events fetched, one batch at
+    // a time), clogging the scheduler's concurrent slots and
+    // delaying higher-priority tasks for the newly focused room. The
+    // executor already checks `signal.aborted` between batches (see
+    // `deepHistoryJob.ts`), so aborting here is cooperative and
+    // ends the sweep at the next batch boundary.
+    return () => {
+      syncEngine.scheduler.abort(room.roomId, undefined, 'room-deep-history');
+    };
+  }, [
+    eventId,
+    mx,
+    prefetchDepth,
+    prefetchScope,
+    room.roomId,
+    roomEagerPreloadEnabled,
+    sessionId,
+    syncEngine,
+    threadId,
+  ]);
 
-  const { persistRoomEventCache } = useRoomCacheLifecycleController({
+  useRoomCachedBackState({
     alive,
     eventId,
     eventsLength,
-    persistThreadCacheFromRoomEvents,
     room,
-    roomDebugTraceId,
     roomIdRef,
     sessionId,
     setRoomHasMoreCachedBack,
@@ -910,7 +954,7 @@ export function RoomTimeline({
     room,
     mx,
     sessionId,
-    safePaginationLimitRef,
+    prefetchDepthRef,
     activeThreadId: threadId,
     priorityTargets: priorityThreadSeedPrewarmRoots,
     debugTraceId: roomDebugTraceId,
@@ -923,7 +967,6 @@ export function RoomTimeline({
   const {
     backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
   } = useThreadOpenCacheController({
     alive,
@@ -933,8 +976,7 @@ export function RoomTimeline({
     persistThreadEventCache,
     room,
     roomIdRef,
-    roomTimelineSet,
-    safePaginationLimitRef,
+    scheduler: syncEngine.scheduler,
     sessionId,
     setSupplementalThreadEvents,
     setThreadHasMoreCachedBack,
@@ -942,6 +984,23 @@ export function RoomTimeline({
     setThreadTimelineTick,
     threadIdRef,
   });
+
+  // CINNY-207 P5.1 (D7 / AC9): bound `scheduleReconcile` binding for
+  // the thread-open flow. Every open (complete or partial coverage)
+  // schedules exactly one reconcile against server truth — the
+  // scheduler dedups so an open followed immediately by a re-focus
+  // does not fire duplicate `/relations` fetches.
+  const scheduleReconcile = useCallback<ScheduleReconcileFn>(
+    (args) =>
+      scheduleEngineReconcile({
+        mx,
+        sessionId: syncEngine.sessionId,
+        scheduler: syncEngine.scheduler,
+        debugTraceId: threadDebugTraceId,
+        ...args,
+      }),
+    [mx, syncEngine, threadDebugTraceId]
+  );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
   const getTimelineItemElement = useCallback(
@@ -1485,8 +1544,8 @@ export function RoomTimeline({
     recalibrateFilterOptsRef,
     roomOverviewOrderActive,
     roomThreadListThreads,
-    safePaginationLimit,
-    safePaginationLimitRef,
+    prefetchDepth,
+    prefetchDepthRef,
     cancelThreadBottomSettle,
     scheduledStatusMap,
     scrollRef,
@@ -1512,7 +1571,7 @@ export function RoomTimeline({
     threadSummaryInfoMap,
   });
 
-  useRoomLiveEventController({
+  useRoomLiveRenderController({
     atBottomRef,
     atLiveEndRef,
     effectiveThreadFilterState,
@@ -1524,9 +1583,6 @@ export function RoomTimeline({
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
-    persistRoomEventCache,
-    persistThreadCacheFromRoomEvents,
-    persistThreadEventCache,
     queueRoomThreadCachePersist,
     room,
     roomDebugTraceId,
@@ -1576,7 +1632,7 @@ export function RoomTimeline({
 
   const buildRoomCacheHydratedTimeline = useCallback(
     () =>
-      getInitialTimeline(room, safePaginationLimitRef.current, {
+      getInitialTimeline(room, prefetchDepthRef.current, {
         threadId: undefined,
         ignoredUsersSet: recalibrateFilterOptsRef.current?.ignoredUsersSet ?? new Set(),
         showHiddenEvents: recalibrateFilterOptsRef.current?.showHiddenEvents ?? false,
@@ -1590,17 +1646,14 @@ export function RoomTimeline({
   useRoomCacheHydrationController({
     alive,
     buildInitialTimeline: buildRoomCacheHydratedTimeline,
-    eagerPreloadDoneForRoomRef,
     eventId,
     mx,
     room,
     roomDebugTraceId,
     roomIdRef,
-    safePaginationLimit,
     scrollToBottomRef,
     sessionId,
     setAtBottom,
-    setEagerPreloading,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,
@@ -1614,7 +1667,7 @@ export function RoomTimeline({
     refreshLatestThreadSlice,
     onRoomRefresh: useCallback(() => {
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet,
           showHiddenEvents,
@@ -1631,7 +1684,7 @@ export function RoomTimeline({
       hideMembershipEvents,
       hideNickAvatarEvents,
       showThreadRepliesInRoom,
-      safePaginationLimit,
+      prefetchDepth,
     ]),
   });
 
@@ -1727,8 +1780,8 @@ export function RoomTimeline({
     prewarmingThreadSeedIdsRef,
     prewarmingThreadSeedPromisesRef,
     queuedThreadSeedIdsRef,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
+    scheduleReconcile,
     resetThreadBackPagination,
     resetThreadRenderState,
     room,
@@ -1807,7 +1860,7 @@ export function RoomTimeline({
       navigateRoomThread,
       refreshLatestThreadSlice,
       room,
-      safePaginationLimit,
+      prefetchDepth,
       scrollRef,
       scrollToBottomRef,
       setAtBottom,
@@ -3318,7 +3371,6 @@ export function RoomTimeline({
                       </>
                     ))}
                   {!threadId &&
-                    !eagerPreloading &&
                     (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
                     (messageLayout === MessageLayout.Compact ? (
                       <>

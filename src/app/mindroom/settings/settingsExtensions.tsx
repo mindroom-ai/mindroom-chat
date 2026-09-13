@@ -1,7 +1,7 @@
 import React from 'react';
 import { type SettingsPage } from '../../features/settings/settingsPages';
 import { renderLocalMindroomSettingsPage } from '../local-mindroom/settingsRenderer';
-import { MindroomMessagePreloadLimitSetting } from './MindroomMessagePreloadLimitSetting';
+import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';
 
 type MindroomGeneralMessageSettingsProps = {
   className?: string;
@@ -14,5 +14,5 @@ export const renderMindroomSettingsPage = (
 ): React.ReactNode => renderLocalMindroomSettingsPage(activePage, enabled, requestClose);
 
 export function MindroomGeneralMessageSettings({ className }: MindroomGeneralMessageSettingsProps) {
-  return <MindroomMessagePreloadLimitSetting className={className} />;
+  return <MindroomPrefetchSettings className={className} />;
 }

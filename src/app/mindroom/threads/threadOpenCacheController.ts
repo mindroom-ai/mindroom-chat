@@ -1,7 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import {
   Direction,
-  type EventTimelineSet,
   type IEvent,
   type MatrixClient,
   type MatrixEvent,
@@ -11,13 +10,13 @@ import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
 import { getLinkedTimelines } from './timelinePagination';
-import {
-  collectRedactedRelationTargetsFromLookup,
-  reconcileRelationEventsWithAggregation,
-} from './eventCacheEditUtils';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
-import { loadThreadCachedSnapshot, mapCachedThreadPageEvents } from './eventRepository';
-import { fetchAllThreadRelations, MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
+import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import {
+  enqueueThreadBackfillJob,
+  type BackfillScheduler,
+} from '../engine';
 import {
   getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,
@@ -36,6 +35,23 @@ export type HydratedThreadCachePage = {
   beforeToken?: string | null;
   cacheCoverage: ThreadCacheCoverage;
   events: Partial<IEvent>[];
+  /**
+   * CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): the SAME MatrixEvent
+   * instances that were handed to `setSupplementalThreadEvents` on cache
+   * hydrate — i.e. the objects the render layer is holding via
+   * `fallbackThreadEventsState.events`. The reconciler needs identity
+   * with these to make `applyCachedReplaceRelations`/`makeRedacted`
+   * mutations actually visible in the render, instead of mutating a
+   * fresh clone nobody reads. Undefined on the empty-cache branch.
+   */
+  hydratedEvents?: MatrixEvent[];
+  /**
+   * Companion to `hydratedEvents` for the root event. Same identity
+   * contract: this is the instance the render will pick up when
+   * `thread?.rootEvent` is unavailable (e.g. cold cache-first reopen
+   * with an empty SDK thread model).
+   */
+  hydratedRootEvent?: MatrixEvent;
   expectedReplyCount?: number;
   hasMoreBefore: boolean;
   relationSnapshotComplete: boolean;
@@ -62,11 +78,13 @@ export type ThreadOpenCacheController = {
     baselineEvents?: MatrixEvent[],
     expectedReplyCount?: number
   ) => Promise<{ completed: boolean; fetchedCount: number } | undefined>;
-  hydrateThreadFromCache: (expectedThreadId: string) => Promise<HydratedThreadCachePage | undefined>;
-  refreshLatestThreadRelationsTail: (
-    expectedThreadId: string,
-    cachedPage: HydratedThreadCachePage
-  ) => Promise<boolean>;
+  hydrateThreadFromCache: (
+    expectedThreadId: string
+  ) => Promise<HydratedThreadCachePage | undefined>;
+  // CINNY-207 P5.1: `refreshLatestThreadRelationsTail` is gone — the
+  // engine reconciler (`scheduleReconcile`) owns the post-open server
+  // verify. This controller only reads/paints now; write-side is fully
+  // engine-owned.
   refreshLatestThreadSlice: (
     expectedThreadId: string,
     opts?: {
@@ -83,8 +101,7 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache,
   room,
   roomIdRef,
-  roomTimelineSet,
-  safePaginationLimitRef,
+  scheduler,
   sessionId,
   setSupplementalThreadEvents,
   setThreadHasMoreCachedBack,
@@ -99,8 +116,19 @@ export const useThreadOpenCacheController = ({
   persistThreadEventCache: PersistThreadEventCache;
   room: Room;
   roomIdRef: MutableRefObject<string>;
-  roomTimelineSet: EventTimelineSet;
-  safePaginationLimitRef: MutableRefObject<number>;
+  // CINNY-207 P5.1: `roomTimelineSet` used to be plumbed through here
+  // for `refreshLatestThreadRelationsTail`'s aggregation reconcile
+  // call. That method moved to `engine/reconciler.ts` — the reconciler
+  // reads the room's timeline set from `room.getThread(...)` when it
+  // needs one. The controller no longer touches it.
+  /**
+   * CINNY-207 P5.1 Commit 2: `backfillThreadRelationsIntoCache` now
+   * routes its `/relations` fetch through the engine's scheduler as a
+   * `'thread-backfill'` job (P4.4 dedup domain shared with the
+   * overview-resume producer). Render-state side effects stay in this
+   * controller; the network side lives in engine/threadBackfillJob.ts.
+   */
+  scheduler: BackfillScheduler;
   sessionId: string;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
   setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
@@ -111,7 +139,7 @@ export const useThreadOpenCacheController = ({
   const hydrateThreadFromCache = useCallback(
     async (expectedThreadId: string) => {
       logTimelineDebug(debugTraceId, 'thread-cache-hydrate-start', {
-        limit: safePaginationLimitRef.current,
+        limit: THREAD_BATCH_SIZE,
         threadId: expectedThreadId,
       });
       const mapper = mx.getEventMapper();
@@ -119,9 +147,14 @@ export const useThreadOpenCacheController = ({
         sessionId,
         roomId: room.roomId,
         threadId: expectedThreadId,
-        limit: safePaginationLimitRef.current,
+        // CINNY-207 PR #72 review (greptile P2): paint-time cache reads
+        // use the interactive batch bound. `prefetchDepth` (default
+        // 10_000) governs only the BACKGROUND deep-history job — using
+        // it here paged thousands of IDB records into memory before
+        // first paint on deep threads.
+        limit: THREAD_BATCH_SIZE,
         maxPages: MAX_THREAD_FETCH_ITERATIONS,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
         shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
         onPage: (page, pageIndex, snapshot) => {
           logTimelineDebug(debugTraceId, 'thread-cache-hydrate-page', {
@@ -222,10 +255,19 @@ export const useThreadOpenCacheController = ({
         tailLoaded,
         threadId: expectedThreadId,
       });
+      // CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): expose the exact
+      // MatrixEvent instances the render layer just received via
+      // `setSupplementalThreadEvents`. On complete-coverage cache-first
+      // reopens the SDK bootstrap is skipped by design, so these clones
+      // ARE the render's source of truth — the reconciler must apply
+      // `makeReplaced`/`makeRedacted` against them (not fresh remaps)
+      // for the repair to become visible. See engine/reconciler.ts.
       return {
         ...cachedPage,
         cacheCoverage,
         expectedReplyCount: authoritativeExpectedReplyCount,
+        hydratedEvents: cachedEvents,
+        hydratedRootEvent: cachedRootMatrixEvent,
         relationSnapshotComplete: cachedRelationSnapshotComplete,
         snapshotComplete,
         tailLoaded,
@@ -237,7 +279,6 @@ export const useThreadOpenCacheController = ({
       forceTimelineUpdate,
       mx,
       room,
-      safePaginationLimitRef,
       sessionId,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,
@@ -375,13 +416,19 @@ export const useThreadOpenCacheController = ({
         threadId: expectedThreadId,
       });
 
-      const relationPageResult = await fetchAllThreadRelations(
+      // CINNY-207 P5.1 Commit 2: fetch through the engine's scheduler.
+      // Dedup domain shared with the P4.4 overview-resume 'thread-backfill'
+      // job — if resume already fetched this thread's relations, the
+      // scheduler returns the in-flight promise identity instead of
+      // firing a second /relations round-trip.
+      const relationPageResult = await enqueueThreadBackfillJob({
         mx,
-        room.roomId,
-        expectedThreadId,
-        THREAD_BATCH_SIZE,
-        () => !alive() || threadIdRef.current !== expectedThreadId
-      );
+        scheduler,
+        room,
+        threadId: expectedThreadId,
+        priority: 0,
+        shouldContinue: () => alive() && threadIdRef.current === expectedThreadId,
+      });
       if (!relationPageResult || !alive() || threadIdRef.current !== expectedThreadId) {
         return undefined;
       }
@@ -458,6 +505,7 @@ export const useThreadOpenCacheController = ({
       mx,
       persistThreadEventCache,
       room,
+      scheduler,
       setSupplementalThreadEvents,
       setThreadHasMoreCachedBack,
       setThreadTailLoaded,
@@ -466,101 +514,9 @@ export const useThreadOpenCacheController = ({
     ]
   );
 
-  const refreshLatestThreadRelationsTail = useCallback(
-    async (expectedThreadId: string, cachedPage: HydratedThreadCachePage): Promise<boolean> => {
-      const [err, relData] = await to(
-        mx.fetchRelations(room.roomId, expectedThreadId, null, null, {
-          dir: Direction.Backward,
-          limit: THREAD_BATCH_SIZE,
-          recurse: true,
-        })
-      );
-      if (err || !relData || !alive() || threadIdRef.current !== expectedThreadId) {
-        return false;
-      }
-
-      const mapper = mx.getEventMapper();
-      const latestRelationEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map((rawEvent) => mapper(rawEvent));
-      if (latestRelationEvents.length === 0) {
-        logTimelineDebug(debugTraceId, 'thread-refresh-latest-tail-empty', {
-          threadId: expectedThreadId,
-        });
-        return false;
-      }
-
-      const cachedSnapshotEvents = mapCachedThreadPageEvents({
-        events: cachedPage.events,
-        rootEvent: cachedPage.rootEvent,
-        mapEvent: (rawEvent) => mapper(rawEvent),
-      });
-      const liveThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-      const redactedRelationTargets = collectRedactedRelationTargetsFromLookup(
-        latestRelationEvents,
-        cachedSnapshotEvents
-      );
-      reconcileRelationEventsWithAggregation(
-        latestRelationEvents,
-        [
-          { relations: roomTimelineSet.relations, timelineSet: roomTimelineSet },
-          liveThreadTimelineSet
-            ? { relations: liveThreadTimelineSet.relations, timelineSet: liveThreadTimelineSet }
-            : undefined,
-        ],
-        undefined,
-        redactedRelationTargets
-      );
-      const mergedEvents = mergeThreadBackfillEvents(cachedSnapshotEvents, latestRelationEvents);
-      const liveRootEvent =
-        room.getThread(expectedThreadId)?.rootEvent ?? room.findEventById(expectedThreadId);
-      const mappedCachedRootEvent =
-        !liveRootEvent && cachedPage.rootEvent ? mapper(cachedPage.rootEvent) : undefined;
-      const rootEvent =
-        liveRootEvent ??
-        mappedCachedRootEvent ??
-        mergedEvents.find((mEvent) => mEvent.getId() === expectedThreadId);
-
-      setSupplementalThreadEvents(expectedThreadId, mergedEvents);
-      saveThreadOpenSeedSnapshot(room, expectedThreadId, mergedEvents);
-      persistThreadEventCache(
-        expectedThreadId,
-        mergedEvents,
-        rootEvent,
-        cachedPage.beforeToken ?? null,
-        cachedPage.tailLoaded === true,
-        cachedPage.snapshotComplete === true,
-        cachedPage.expectedReplyCount,
-        cachedPage.relationSnapshotComplete === true
-      );
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
-      logTimelineDebug(debugTraceId, 'thread-refresh-latest-tail-complete', {
-        fetchedCount: latestRelationEvents.length,
-        mergedCount: mergedEvents.length,
-        threadId: expectedThreadId,
-      });
-      return true;
-    },
-    [
-      alive,
-      debugTraceId,
-      forceTimelineUpdate,
-      mx,
-      persistThreadEventCache,
-      room,
-      roomTimelineSet,
-      setSupplementalThreadEvents,
-      setThreadTimelineTick,
-      threadIdRef,
-    ]
-  );
-
   return {
     backfillThreadRelationsIntoCache,
     hydrateThreadFromCache,
-    refreshLatestThreadRelationsTail,
     refreshLatestThreadSlice,
   };
 };

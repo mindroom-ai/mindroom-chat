@@ -65,8 +65,8 @@ export const useRoomEventOpenController = ({
   room,
   roomOverviewOrderActive,
   roomThreadListThreads,
-  safePaginationLimit,
-  safePaginationLimitRef,
+  prefetchDepth,
+  prefetchDepthRef,
   scheduledStatusMap,
   scrollRef,
   scrollThreadEventIntoView,
@@ -112,8 +112,8 @@ export const useRoomEventOpenController = ({
   room: Room;
   roomOverviewOrderActive: boolean;
   roomThreadListThreads: Thread[];
-  safePaginationLimit: number;
-  safePaginationLimitRef: MutableRefObject<number>;
+  prefetchDepth: number;
+  prefetchDepthRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   scrollRef: RefObject<HTMLElement>;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
@@ -261,8 +261,8 @@ export const useRoomEventOpenController = ({
         setTimeline({
           linkedTimelines,
           range: {
-            start: Math.max(focusIndex - safePaginationLimitRef.current, 0),
-            end: Math.min(focusIndex + safePaginationLimitRef.current, count),
+            start: Math.max(focusIndex - prefetchDepthRef.current, 0),
+            end: Math.min(focusIndex + prefetchDepthRef.current, count),
           },
         });
       },
@@ -281,7 +281,7 @@ export const useRoomEventOpenController = ({
         room,
         roomOverviewOrderActive,
         roomThreadListThreads,
-        safePaginationLimitRef,
+        prefetchDepthRef,
         searchQuery,
         scheduledStatusMap,
         setFocusItem,
@@ -301,7 +301,7 @@ export const useRoomEventOpenController = ({
       if (!alive()) return;
       const filterOpts = recalibrateFilterOptsRef.current;
       setTimeline(
-        getInitialTimeline(room, safePaginationLimit, {
+        getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
           showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
@@ -321,7 +321,7 @@ export const useRoomEventOpenController = ({
       ignoredUsersSet,
       recalibrateFilterOptsRef,
       room,
-      safePaginationLimit,
+      prefetchDepth,
       scrollToBottomRef,
       setTimeline,
       showHiddenEvents,

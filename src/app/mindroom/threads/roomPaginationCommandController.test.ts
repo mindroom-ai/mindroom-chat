@@ -88,6 +88,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -102,7 +103,7 @@ describe('useRoomPaginationCommandController', () => {
         room,
         roomIdRef: { current: '!room:server' },
         roomPaginatingBackRef: { current: false },
-        safePaginationLimitRef: { current: 10000 },
+        prefetchDepthRef: { current: 10000 },
         sessionId: 'session',
         setRoomHasMoreCachedBack: vi.fn(),
         setTimeline: vi.fn(),
@@ -169,6 +170,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -183,7 +185,7 @@ describe('useRoomPaginationCommandController', () => {
         room,
         roomIdRef: { current: '!room:server' },
         roomPaginatingBackRef: { current: false },
-        safePaginationLimitRef: { current: 50 },
+        prefetchDepthRef: { current: 50 },
         sessionId: 'session',
         setRoomHasMoreCachedBack: vi.fn(),
         setTimeline: (update) => {
@@ -249,6 +251,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
+        persistRoomEventCache: vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -263,7 +266,7 @@ describe('useRoomPaginationCommandController', () => {
         room,
         roomIdRef: { current: '!room:server' },
         roomPaginatingBackRef: { current: false },
-        safePaginationLimitRef: { current: 50 },
+        prefetchDepthRef: { current: 50 },
         sessionId: 'session',
         setRoomHasMoreCachedBack: vi.fn(),
         setTimeline: vi.fn(),
@@ -292,5 +295,91 @@ describe('useRoomPaginationCommandController', () => {
       'older-before-token'
     );
     expect(timelineEvents).toEqual([olderRoot, olderReply, root]);
+  });
+});
+
+// CINNY-207 P3.3 review (PR #69): the explicit persist point for network
+// back-pagination must (a) collect the NEWLY FETCHED events — which are
+// OLDER than the pre-fetch earliest and sit at the start of the timeline
+// when the SDK extends in place — and (b) pass the timeline's backward
+// token as the continuity proof for the new overall-earliest cached event.
+describe('network back-pagination persist point (CINNY-207 P3.3)', () => {
+  it('persists the newly fetched older slice with the backward token', async () => {
+    const root = makeRoomEvent('$root');
+    const fetchedOld1 = makeRoomEvent('$old-1');
+    const fetchedOld2 = makeRoomEvent('$old-2');
+    const timelineEvents: unknown[] = [root];
+    const timelineObj = {
+      getEvents: () => timelineEvents,
+      getPaginationToken: (direction: Direction) =>
+        direction === Direction.Backward ? 'deeper-before-token' : undefined,
+      setPaginationToken: vi.fn(),
+      getNeighbouringTimeline: () => null,
+    } as never;
+    const initialTimeline: Timeline = {
+      linkedTimelines: [timelineObj],
+      range: { start: 0, end: 1 },
+    };
+    let callback: ((backwards: boolean) => Promise<void>) | undefined;
+    let renderer: ReactTestRenderer | undefined;
+
+    loadRoomCachedPaginationSnapshotMock.mockResolvedValue({ status: 'cache-miss' });
+    const persistRoomEventCache = vi.fn();
+    const handleTimelinePagination = vi.fn(async () => {
+      // SDK extends the same timeline in place: older events prepend.
+      timelineEvents.unshift(fetchedOld1, fetchedOld2);
+    });
+
+    const room = {
+      roomId: '!room:server',
+      partitionThreadedEvents: vi.fn((events) => [events, [], []]),
+      addEventsToTimeline: vi.fn(),
+      processThreadRoots: vi.fn(),
+      hasEncryptionStateEvent: () => false,
+      relations: {},
+    } as never;
+    const mx = {
+      getEventMapper: () => (rawEvent: unknown) => rawEvent,
+      processAggregatedTimelineEvents: vi.fn(),
+    } as never;
+
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination,
+        mx,
+        persistRoomEventCache,
+        recalibrateFilterOptsRef: { current: undefined },
+        room,
+        roomIdRef: { current: '!room:server' },
+        roomPaginatingBackRef: { current: false },
+        prefetchDepthRef: { current: 50 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack: vi.fn(),
+        setTimeline: vi.fn(),
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: initialTimeline,
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      await callback?.(true);
+    });
+    renderer?.unmount();
+
+    expect(handleTimelinePagination).toHaveBeenCalledWith(true);
+    expect(persistRoomEventCache).toHaveBeenCalledTimes(1);
+    const [persisted, token] = persistRoomEventCache.mock.calls[0];
+    // Oldest -> newest, only the newly fetched slice.
+    expect((persisted as Array<{ getId: () => string }>).map((e) => e.getId())).toEqual([
+      '$old-1',
+      '$old-2',
+    ]);
+    expect(token).toBe('deeper-before-token');
   });
 });

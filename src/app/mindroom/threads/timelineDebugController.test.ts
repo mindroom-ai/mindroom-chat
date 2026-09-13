@@ -53,7 +53,6 @@ const RangeHarness = ({
     activeTimelineRange: { start: 2, end: 7 },
     canPaginateThreadBack: true,
     canPaginateThreadFront: false,
-    eagerPreloading: false,
     eventsLength: 20,
     filteredLength: 11,
     renderableEventCount: 12,

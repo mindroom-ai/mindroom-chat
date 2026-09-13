@@ -161,6 +161,44 @@ describe('serializeEventsForCache', () => {
     });
     expect(serializedTarget?.content).toEqual({});
   });
+
+  // CINNY-207 P1.4 (finding F5, decision D5): standalone same-sender
+  // m.replace events are dropped — their content is bundled onto the target.
+  it('excludes standalone same-sender m.replace events (bundled onto target)', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const firstEdit = makeEditEvent('$edit-1', 2000, '$target', '@alice:example.org', 'first');
+    const secondEdit = makeEditEvent('$edit-2', 3000, '$target', '@alice:example.org', 'second');
+
+    const serialized = serializeEventsForCache(room, [targetEvent, firstEdit, secondEdit]);
+
+    expect(serialized.map((event) => event.event_id)).toEqual(['$target']);
+    const serializedTarget = serialized[0];
+    expect(serializedTarget?.unsigned?.['m.relations']?.['m.replace']).toMatchObject({
+      event_id: '$edit-2',
+      content: { 'm.new_content': { body: 'second' } },
+    });
+  });
+
+  it('does not exclude cross-sender m.replace events', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org');
+    const mallory = '@mallory:example.org';
+    const crossEdit = makeEditEvent('$cross', 2000, '$target', mallory, 'malicious');
+
+    const serialized = serializeEventsForCache(room, [targetEvent, crossEdit]);
+
+    expect(new Set(serialized.map((event) => event.event_id))).toEqual(
+      new Set(['$target', '$cross'])
+    );
+  });
+
+  it('keeps a same-sender m.replace record when its target is not in the batch', () => {
+    // Without the target in the batch the bundled representation cannot be
+    // emitted, so the replace record must still be persisted to preserve the
+    // information (this is the pre-compaction fallback shape).
+    const edit = makeEditEvent('$edit-1', 2000, '$missing-target');
+    const serialized = serializeEventsForCache(room, [edit]);
+    expect(serialized.map((event) => event.event_id)).toEqual(['$edit-1']);
+  });
 });
 
 describe('hydrateCachedEvents', () => {
@@ -262,6 +300,24 @@ describe('applyCachedRedactions', () => {
     expect(targetEvent.isRedacted()).toBe(true);
     expect(targetEvent.getRedactionEvent()).toMatchObject({
       event_id: '$redact',
+    });
+  });
+
+  // Greptile review (PR 5): the instance's existing redaction must win —
+  // re-applying a different cached redaction would churn `redacted_because`
+  // metadata away from what the live timeline attached.
+  it('keeps the existing redaction on an already-redacted instance', () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'visible');
+    const liveRedaction = makeRedactionEvent('$redact-live', 2000, '$target');
+    targetEvent.makeRedacted(liveRedaction, room);
+    // Same timestamp, lexicographically larger id — would win the D12 pick
+    // if the tie-break were (wrongly) allowed to override live state.
+    const cachedRedaction = makeRedactionEvent('$redact-zzz', 2000, '$target');
+
+    applyCachedRedactions(room, [targetEvent, cachedRedaction]);
+
+    expect(targetEvent.getRedactionEvent()).toMatchObject({
+      event_id: '$redact-live',
     });
   });
 });

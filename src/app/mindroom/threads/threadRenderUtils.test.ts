@@ -1,6 +1,7 @@
 import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { inSameDay } from '../../utils/time';
+import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
@@ -186,6 +187,32 @@ describe('pickPreferredThreadRenderEvent', () => {
 
     expect(pickPreferredThreadRenderEvent(existingEvent, incomingEvent)).toBe(existingEvent);
   });
+
+  // Review candidate-3 (2026-07-04): the picker's local-echo branch
+  // returns early, BEFORE the replacement-preference rules. A repaired
+  // cache-hydrated instance has a real event id and isSending()=false,
+  // so it must never classify as a local echo and lose to an
+  // unrepaired sync-delivered instance — even when it carries local
+  // send metadata (unsigned.transaction_id persisted at seed time),
+  // which makes its key set intersect the incoming instance's on both
+  // the event and txn dimensions.
+  it('keeps a repaired confirmed instance over an unrepaired sync instance despite txn metadata', () => {
+    const repairedHydrated = makeMessageEvent('$target');
+    repairedHydrated.event.unsigned = { transaction_id: 'txn-repair-1' };
+    // Foreign-sender raw replacement: the effective-replacement block
+    // yields nothing for either side (sender-mismatch filter), so the
+    // decision falls through the local-echo branch and the effective
+    // block to the asymmetric raw-presence rule.
+    const foreignEdit = makeEditEvent('$target', '$edit-2', 2);
+    foreignEdit.event.sender = '@mallory:example.org';
+    repairedHydrated.makeReplaced(foreignEdit);
+    const syncInstance = makeMessageEvent('$target');
+
+    expect(repairedHydrated.isSending()).toBe(false);
+    expect(syncInstance.isSending()).toBe(false);
+    expect(pickPreferredThreadRenderEvent(repairedHydrated, syncInstance)).toBe(repairedHydrated);
+    expect(pickPreferredThreadRenderEvent(syncInstance, repairedHydrated)).toBe(repairedHydrated);
+  });
 });
 
 describe('shouldPinThreadToBottomOnOpen', () => {
@@ -324,6 +351,241 @@ describe('mergeThreadRenderEvents', () => {
     const result = mergeThreadRenderEvents([], [confirmed], resolver);
     expect(result).toEqual([confirmed]);
     expect(result).toHaveLength(1);
+  });
+});
+
+// CINNY-207 AC2 render-gap RG5d (2026-07-04): key-canonicalization
+// invariant. `mergeThreadRenderEvents` maintains one MatrixEvent
+// instance per event identity in its internal `eventMap` regardless of
+// how many key sets the incoming events arrive under. The tests below
+// exercise the dual-key scenarios team-lead named in the B-approval /
+// RG5c-approval messages: entry under {txnId, eventId} followed by a
+// second instance under {eventId} only. Post-canonicalization, the map
+// must resolve to exactly one instance reachable under both keys, and
+// (per the replacement-preferring rule) that instance must be the one
+// carrying an effective replacement.
+describe('mergeThreadRenderEvents RG5d key canonicalization', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+
+  const makeMessageEventWithReplacement = (eventId: string, ts: number, editTs: number) => {
+    const target = makeMessageEvent(eventId, ts);
+    const edit = makeEditEvent(eventId, `$edit-${eventId}`, editTs);
+    target.makeReplaced(edit);
+    return target;
+  };
+
+  it('collapses a dual-key entry and a same-id single-key entry to one instance under both keys', () => {
+    // Team-lead's dual-key scenario, verbatim: event enters under
+    // {txnId, id}, second instance arrives under {id} only, map ends
+    // with exactly one instance reachable under both keys, and it's
+    // the replacement-carrying one (per the picker's preference rule
+    // from RG5-fix2).
+    const dualKey = makeMessageEvent('$remote-dual', 10);
+    dualKey.event.unsigned = { transaction_id: 'txn-dual' };
+    const singleKeyRepaired = makeMessageEventWithReplacement('$remote-dual', 10, 15);
+
+    // Existing = dual-key without replacement.
+    // Incoming = single-key WITH replacement.
+    // Picker must prefer the replacement-carrying instance (asymmetric
+    // raw check from 3fbe8afd). Canonicalizer must displace the loser
+    // from BOTH of its keys, and install the winner under the union.
+    const result = mergeThreadRenderEvents([dualKey], [singleKeyRepaired]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(singleKeyRepaired);
+    // Displacement was observable.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
+
+  it('does not bump the displacement counter when incoming has no conflict', () => {
+    const first = makeMessageEvent('$a', 10);
+    const second = makeMessageEvent('$b', 20);
+    const result = mergeThreadRenderEvents([first], [second]);
+    expect(result).toHaveLength(2);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('does not bump when the same instance is re-registered', () => {
+    const shared = makeMessageEvent('$same', 10);
+    // Both loops write the same instance under the same keys; no
+    // conflict, no displacement.
+    const result = mergeThreadRenderEvents([shared], [shared]);
+    expect(result).toEqual([shared]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('preserves the winner even when the loser held a key the winner did not', () => {
+    // Losing instance has a txnId the winner never had. The
+    // canonicalizer must reclaim that key onto the winner so any
+    // consumer looking up by txnId still resolves to the winner.
+    const withTxn = makeMessageEvent('$id', 10);
+    withTxn.event.unsigned = { transaction_id: 'txn-lost' };
+    const winnerRepaired = makeMessageEventWithReplacement('$id', 10, 15);
+
+    const result = mergeThreadRenderEvents([withTxn], [winnerRepaired]);
+    expect(result).toEqual([winnerRepaired]);
+    // Downstream reachability check: the winner survives regardless
+    // of which key a subsequent merge cycle happens to observe.
+    // Simulate a subsequent merge that supplies only the loser's
+    // txnId — the winner must still be the resolvable instance for
+    // that id via the picker's normal `mergedKeys` logic.
+    const later = makeMessageEvent('$id', 10);
+    later.event.unsigned = { transaction_id: 'txn-lost' };
+    const secondPass = mergeThreadRenderEvents(result, [later]);
+    // The second-pass picker will prefer the raw-replacement carrier
+    // (winnerRepaired) over `later` per the asymmetric rule from
+    // RG5-fix2, so the survivor is still the repaired instance.
+    expect(secondPass).toHaveLength(1);
+    expect(secondPass[0]).toBe(winnerRepaired);
+  });
+
+  it('bumps displacements per losing instance in a 3-way conflict, not per key', () => {
+    // Three instances of the same event id arrive across the two
+    // input arrays, with partially overlapping keys. Two of them
+    // must lose; the counter must bump exactly twice (per-instance).
+    const a = makeMessageEvent('$same', 10);
+    a.event.unsigned = { transaction_id: 'txn-a' };
+    const b = makeMessageEvent('$same', 10);
+    b.event.unsigned = { transaction_id: 'txn-b' };
+    const cRepaired = makeMessageEventWithReplacement('$same', 10, 15);
+
+    const result = mergeThreadRenderEvents([a, b], [cRepaired]);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(cRepaired);
+    // Two losers displaced (a and b). Note: existingEvents pass writes
+    // a, then b — b already conflicts with a via `event:$same`, so b
+    // triggers a displacement of a. Then incoming cRepaired displaces
+    // b. Total per-instance displacements: 2.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(2);
+  });
+
+  it('symmetric — replacement-carrier wins whether it is existing or incoming', () => {
+    const bareA = makeMessageEvent('$id', 10);
+    bareA.event.unsigned = { transaction_id: 'txn-x' };
+    const repairedA = makeMessageEventWithReplacement('$id', 10, 15);
+
+    // Existing repaired, incoming bare — repaired must win.
+    expect(mergeThreadRenderEvents([repairedA], [bareA])).toEqual([repairedA]);
+    resetCacheProbe();
+
+    const bareB = makeMessageEvent('$id2', 10);
+    bareB.event.unsigned = { transaction_id: 'txn-y' };
+    const repairedB = makeMessageEventWithReplacement('$id2', 10, 15);
+
+    // Existing bare, incoming repaired — repaired must win.
+    expect(mergeThreadRenderEvents([bareB], [repairedB])).toEqual([repairedB]);
+  });
+
+  it('permanent must-stay-0 tripwire: registrySwappedRepairedForUnrepaired never fires under the picker rule', () => {
+    // The RG5c tripwire re-homed at the canonicalization site (per
+    // team-lead's F1 correction): must stay 0 across every scenario the
+    // picker guards. Any non-zero reading names a picker-rule violation
+    // (a loser carried `.replacingEvent()` non-null while the chosen
+    // winner had it null — the RG5-fix2 raw-presence rule was
+    // bypassed).
+    //
+    // Exercise every RG5d scenario in one describe-scoped assertion so
+    // the invariant is checked against the full canonicalizer surface,
+    // not just one path.
+    resetCacheProbe();
+    const scenarios: Array<() => void> = [
+      // Simple dual-key + single-key collapse.
+      () => {
+        const dual = makeMessageEvent('$s1', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s1' };
+        const repaired = makeMessageEventWithReplacement('$s1', 10, 15);
+        mergeThreadRenderEvents([dual], [repaired]);
+      },
+      // Reversed: existing repaired, incoming bare.
+      () => {
+        const dual = makeMessageEvent('$s2', 10);
+        dual.event.unsigned = { transaction_id: 'txn-s2' };
+        const repaired = makeMessageEventWithReplacement('$s2', 10, 15);
+        mergeThreadRenderEvents([repaired], [dual]);
+      },
+      // Three-way conflict.
+      () => {
+        const a = makeMessageEvent('$s3', 10);
+        a.event.unsigned = { transaction_id: 'txn-3a' };
+        const b = makeMessageEvent('$s3', 10);
+        b.event.unsigned = { transaction_id: 'txn-3b' };
+        const repaired = makeMessageEventWithReplacement('$s3', 10, 15);
+        mergeThreadRenderEvents([a, b], [repaired]);
+      },
+      // Neither side carries replacement — tripwire must not fire.
+      () => {
+        const a = makeMessageEvent('$s4', 10);
+        a.event.unsigned = { transaction_id: 'txn-4' };
+        const b = makeMessageEvent('$s4', 10);
+        mergeThreadRenderEvents([a], [b]);
+      },
+    ];
+    scenarios.forEach((run) => run());
+    expect(getCacheProbeSnapshot().registrySwappedRepairedForUnrepaired).toBe(0);
+  });
+
+  // Greptile P2 on PR #73: two DISTINCT confirmed events that happen to
+  // share a transaction_id (server misbehavior / cross-device
+  // coincidence) are separate identities. The shared `txn:` key must
+  // not let one displace the other's `event:` entry — pre-fix, the
+  // conflict scan treated any key collision as same-identity and
+  // silently dropped one real message from the merge output.
+  it('keeps two distinct confirmed events that share a transaction id', () => {
+    const first = makeMessageEvent('$distinct-1', 10);
+    first.event.unsigned = { transaction_id: 'txn-shared' };
+    const second = makeMessageEvent('$distinct-2', 11);
+    second.event.unsigned = { transaction_id: 'txn-shared' };
+
+    const merged = mergeThreadRenderEvents([first], [second]);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(first);
+    expect(merged).toContain(second);
+    // Distinct identities — no displacement work should be counted.
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('still collapses a local echo with its own confirmed event across a shared txn key', () => {
+    const { localEcho, remoteEcho } = makeLocalEchoPair('txn-collapse');
+
+    const merged = mergeThreadRenderEvents([localEcho], [remoteEcho]);
+
+    expect(merged).toEqual([remoteEcho]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
+  });
+
+  // Greptile P1 on PR #73: an echo whose txn already RESOLVES to a
+  // known confirmed id must not collapse a DIFFERENT confirmed event
+  // that reuses its transaction key — the echo-confirmation bridge
+  // only applies to the echo's own confirmation.
+  it('does not let a resolved local echo collapse a different confirmed event reusing its txn key', () => {
+    const localEcho = makeMessageEvent('~local-txn-x', 10);
+    localEcho.setTxnId('txn-x');
+    const impostor = makeMessageEvent('$real-b', 11);
+    impostor.event.unsigned = { transaction_id: 'txn-x' };
+    // Resolver knows txn-x confirms to $real-a — NOT the impostor.
+    const resolver = (txnId: string) => (txnId === 'txn-x' ? '$real-a' : undefined);
+
+    const merged = mergeThreadRenderEvents([localEcho], [impostor], resolver);
+
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(localEcho);
+    expect(merged).toContain(impostor);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(0);
+  });
+
+  it('collapses an unresolved local echo with a same-txn confirmed arrival (the confirmation)', () => {
+    const localEcho = makeMessageEvent('~local-txn-y', 10);
+    localEcho.setTxnId('txn-y');
+    const confirmation = makeMessageEvent('$real-y', 10);
+    confirmation.event.unsigned = { transaction_id: 'txn-y' };
+    // No resolver: the echo's confirmed id is not yet known, so a
+    // same-txn confirmed arrival IS the confirmation by definition.
+    const merged = mergeThreadRenderEvents([localEcho], [confirmation]);
+
+    expect(merged).toEqual([confirmation]);
+    expect(getCacheProbeSnapshot().eventMapCanonicalizedDisplacements).toBe(1);
   });
 });
 

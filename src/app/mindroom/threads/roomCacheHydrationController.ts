@@ -1,20 +1,14 @@
-import {
-  useEffect,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from 'react';
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { decryptAllTimelineEvent } from '../../utils/room';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
+import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
+import { getLinkedTimelines, getLiveTimeline, type Timeline } from './timelinePagination';
 import {
-  getLinkedTimelines,
-  getLiveTimeline,
-  type Timeline,
-} from './timelinePagination';
-import {
+  createPreferLiveEventMapper,
   getMainTimelineCacheEvents,
   loadLatestRoomCacheHydrationSnapshot,
 } from './eventRepository';
@@ -27,17 +21,14 @@ type ScrollToBottomState = {
 export const useRoomCacheHydrationController = ({
   alive,
   buildInitialTimeline,
-  eagerPreloadDoneForRoomRef,
   eventId,
   mx,
   room,
   roomDebugTraceId,
   roomIdRef,
-  safePaginationLimit,
   scrollToBottomRef,
   sessionId,
   setAtBottom,
-  setEagerPreloading,
   setRoomInitialCacheHydratedKey,
   setTimeline,
   threadId,
@@ -45,17 +36,14 @@ export const useRoomCacheHydrationController = ({
 }: {
   alive: () => boolean;
   buildInitialTimeline: () => Timeline;
-  eagerPreloadDoneForRoomRef: MutableRefObject<string | null>;
   eventId?: string;
   mx: MatrixClient;
   room: Room;
   roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
-  safePaginationLimit: number;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   sessionId: string;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
-  setEagerPreloading: Dispatch<SetStateAction<boolean>>;
   setRoomInitialCacheHydratedKey: Dispatch<SetStateAction<string | undefined>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   threadId: string | undefined;
@@ -66,8 +54,9 @@ export const useRoomCacheHydrationController = ({
 
     let cancelled = false;
     const hydrateRoomFromCache = async () => {
+      markCacheHydrateStart('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
-        limit: safePaginationLimit,
+        limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -78,9 +67,14 @@ export const useRoomCacheHydrationController = ({
       const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
         sessionId,
         roomId: room.roomId,
-        limit: safePaginationLimit,
+        // CINNY-207 PR #72 review (greptile P2): paint-time hydration
+        // reads the interactive bound, not `prefetchDepth` (default
+        // 10_000, which scanned/materialized thousands of IDB records
+        // before first paint). Background depth belongs to the
+        // deep-history job alone.
+        limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
         loadedEvents: loadedRoomEvents,
-        mapEvent: (rawEvent) => mapper(rawEvent),
+        mapEvent: createPreferLiveEventMapper(room, mapper),
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -131,6 +125,7 @@ export const useRoomCacheHydrationController = ({
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
       setAtBottom(true);
+      markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
         hydratedCount: cachedEvents.length,
         timelineWasEmpty,
@@ -148,12 +143,10 @@ export const useRoomCacheHydrationController = ({
         if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
           setRoomInitialCacheHydratedKey(room.roomId);
         }
-        // On re-entry (preload already done for this room), clear eagerPreloading
-        // regardless of whether cache hydration ran. On initial mount the preload
-        // effect handles clearing it, so only clear when preload is already done.
-        if (!cancelled && eagerPreloadDoneForRoomRef.current === room.roomId) {
-          setEagerPreloading(false);
-        }
+        // CINNY-207 P4.3: the old preload-done bookkeeping (used to
+        // clear the eagerPreloading state when re-entering a room)
+        // is gone with `useRoomEagerPreload`. Deep history now runs
+        // in the engine's scheduler and does not gate rendering.
       });
     return () => {
       cancelled = true;
@@ -161,17 +154,14 @@ export const useRoomCacheHydrationController = ({
   }, [
     alive,
     buildInitialTimeline,
-    eagerPreloadDoneForRoomRef,
     eventId,
     mx,
     room,
     roomDebugTraceId,
     roomIdRef,
-    safePaginationLimit,
     scrollToBottomRef,
     sessionId,
     setAtBottom,
-    setEagerPreloading,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,

@@ -161,7 +161,7 @@ export const recalibrateTimelinePagination = (
 
 export const getInitialTimeline = (
   room: Room,
-  paginationLimit: number,
+  windowLimit: number,
   filterOpts?: {
     threadId: string | undefined;
     ignoredUsersSet: Set<string>;
@@ -187,7 +187,7 @@ export const getInitialTimeline = (
   return {
     linkedTimelines,
     range: {
-      start: Math.max(count - paginationLimit, 0),
+      start: Math.max(count - windowLimit, 0),
       end: count,
     },
   };
@@ -198,22 +198,22 @@ export const getEmptyTimeline = (): Timeline => ({
   linkedTimelines: [],
 });
 
-export const getLatestTimelineRange = (count: number, paginationLimit: number): ItemRange => ({
-  start: Math.max(count - paginationLimit, 0),
+export const getLatestTimelineRange = (count: number, windowLimit: number): ItemRange => ({
+  start: Math.max(count - windowLimit, 0),
   end: count,
 });
 
 export const getVisibleTimelineRange = (
   range: ItemRange,
   count: number,
-  paginationLimit: number
+  windowLimit: number
 ): ItemRange => {
   if (count === 0) {
     return { start: 0, end: 0 };
   }
 
   if (range.start >= count || range.start >= range.end) {
-    return getLatestTimelineRange(count, paginationLimit);
+    return getLatestTimelineRange(count, windowLimit);
   }
 
   const start = Math.max(range.start, 0);
@@ -227,7 +227,7 @@ export const getActiveTimelineRange = (
   roomThreadOverviewActive: boolean,
   range: ItemRange,
   count: number,
-  paginationLimit: number
+  windowLimit: number
 ): ItemRange => {
   if (threadId) {
     return { start: 0, end: 0 };
@@ -237,7 +237,7 @@ export const getActiveTimelineRange = (
     return { start: 0, end: count };
   }
 
-  return getVisibleTimelineRange(range, count, paginationLimit);
+  return getVisibleTimelineRange(range, count, windowLimit);
 };
 
 export const getFocusedRoomEventIndex = (

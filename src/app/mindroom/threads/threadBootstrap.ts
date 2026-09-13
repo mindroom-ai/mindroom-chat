@@ -1,6 +1,5 @@
-import { Direction, MatrixError, RelationType } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import to from 'await-to-js';
+import { MatrixError, RelationType } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { ErrorCode } from '../../cs-errorcode';
 import { getCompactThreadRootBodyPreviewText } from './compactThreadRootData';
 import {
@@ -19,8 +18,20 @@ import { getKnownThreadReplyCount } from './threadBadgeViewModel';
 import { mergeThreadBackfillEvents } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 
-export const MAX_THREAD_FETCH_EVENTS = 5000;
-export const MAX_THREAD_FETCH_ITERATIONS = 50;
+// CINNY-207 P5.1 Commit 2: `fetchAllThreadRelations`,
+// `MAX_THREAD_FETCH_EVENTS`, and `MAX_THREAD_FETCH_ITERATIONS` moved
+// to `engine/threadRelationsFetcher.ts` so the `/relations` boundary
+// can be arch-guarded to "defined in engine/, imported only within
+// engine/**". Re-exported here for the existing unit test surface
+// (`threadBootstrap.test.ts` covers the fetcher end-to-end) and any
+// call sites that haven't been rewired yet — see arch guard for the
+// current allowlist.
+export {
+  fetchAllThreadRelations,
+  MAX_THREAD_FETCH_EVENTS,
+  MAX_THREAD_FETCH_ITERATIONS,
+  type ThreadRelationPageResult,
+} from '../engine/threadRelationsFetcher';
 export const THREAD_OPEN_PREWARM_WAIT_MS = 400;
 
 const VISIBLE_THREAD_CACHE_PREWARM_LIMIT = 8;
@@ -228,56 +239,6 @@ export const collectPriorityThreadSeedPrewarmRoots = ({
     })
     .slice(0, VISIBLE_THREAD_CACHE_PREWARM_LIMIT);
 };
-
-export type ThreadRelationPageResult = {
-  events: MatrixEvent[];
-  nextBatchToken: string | undefined;
-};
-
-export async function fetchAllThreadRelations(
-  mx: MatrixClient,
-  roomId: string,
-  threadId: string,
-  batchSize: number,
-  isAborted: () => boolean
-): Promise<ThreadRelationPageResult | null> {
-  const mapper = mx.getEventMapper();
-  const allBatches: MatrixEvent[][] = [];
-  let nextBatchToken: string | undefined;
-  let totalEventCount = 0;
-
-  for (let iteration = 0; iteration < MAX_THREAD_FETCH_ITERATIONS; iteration++) {
-    const [err, relData] = await to(
-      mx.fetchRelations(roomId, threadId, null, null, {
-        dir: Direction.Backward,
-        limit: batchSize,
-        recurse: true,
-        ...(nextBatchToken ? { from: nextBatchToken } : {}),
-      })
-    );
-    if (err || !relData) {
-      if (iteration === 0) return null;
-      break;
-    }
-    if (isAborted()) return null;
-
-    const batchEvents = relData.chunk
-      .slice()
-      .reverse()
-      .map((rawEvent) => mapper(rawEvent));
-    allBatches.push(batchEvents);
-    totalEventCount += batchEvents.length;
-    nextBatchToken = relData.next_batch ?? undefined;
-
-    if (!nextBatchToken || totalEventCount >= MAX_THREAD_FETCH_EVENTS) break;
-  }
-
-  if (isAborted()) return null;
-
-  const events = sortThreadSeedEvents(allBatches.flat());
-
-  return { events, nextBatchToken };
-}
 
 export const getCompactRootEventsNeedingBackfill = ({
   room,
