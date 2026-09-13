@@ -725,6 +725,59 @@ const useLiveTimelineRefresh = (room: Room, onRefresh: () => void) => {
   }, [room, onRefresh]);
 };
 
+type UseThreadAwareTimelineRefresh = {
+  room: Room;
+  threadId?: string;
+  liveTimelineLinked: boolean;
+  refreshLatestThreadSlice: (threadId: string) => Promise<boolean>;
+  onRoomRefresh: () => void;
+};
+
+export const useThreadAwareTimelineRefresh = ({
+  room,
+  threadId,
+  liveTimelineLinked,
+  refreshLatestThreadSlice,
+  onRoomRefresh,
+}: UseThreadAwareTimelineRefresh) => {
+  const threadRefreshInFlightRef = useRef<string>();
+  const pendingRefreshRef = useRef(false);
+  const activeThreadIdRef = useRef(threadId);
+
+  if (activeThreadIdRef.current !== threadId) {
+    activeThreadIdRef.current = threadId;
+    pendingRefreshRef.current = false;
+  }
+
+  useLiveTimelineRefresh(
+    room,
+    useCallback(() => {
+      if (threadId) {
+        if (threadRefreshInFlightRef.current === threadId) {
+          pendingRefreshRef.current = true;
+          return;
+        }
+        const runRefresh = (tid: string) => {
+          threadRefreshInFlightRef.current = tid;
+          pendingRefreshRef.current = false;
+          void refreshLatestThreadSlice(tid).finally(() => {
+            if (threadRefreshInFlightRef.current !== tid) return;
+            if (pendingRefreshRef.current && activeThreadIdRef.current === tid) {
+              runRefresh(tid);
+            } else {
+              pendingRefreshRef.current = false;
+              threadRefreshInFlightRef.current = undefined;
+            }
+          });
+        };
+        runRefresh(threadId);
+      } else if (liveTimelineLinked) {
+        onRoomRefresh();
+      }
+    }, [liveTimelineLinked, onRoomRefresh, refreshLatestThreadSlice, threadId])
+  );
+};
+
 const getInitialTimeline = (
   room: Room,
   filterOpts?: {
@@ -1519,16 +1572,30 @@ export function RoomTimeline({ room, eventId, threadId, roomInputRef, editor }: 
     [mx, room, renderableEvents, scrollToItem, scrollToElement, loadEventTimeline, threadId]
   );
 
-  useLiveTimelineRefresh(
+  useThreadAwareTimelineRefresh({
     room,
-    useCallback(() => {
-      if (liveTimelineLinked) {
-        setTimeline(
-          getInitialTimeline(room, { threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents })
-        );
-      }
-    }, [room, liveTimelineLinked, threadId, ignoredUsersSet, showHiddenEvents, hideMembershipEvents, hideNickAvatarEvents])
-  );
+    threadId,
+    liveTimelineLinked,
+    refreshLatestThreadSlice,
+    onRoomRefresh: useCallback(() => {
+      setTimeline(
+        getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      );
+    }, [
+      room,
+      threadId,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents,
+    ]),
+  });
 
   // Stay at bottom when room editor resize
   useResizeObserver(
