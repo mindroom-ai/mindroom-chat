@@ -44,7 +44,7 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   scheduled: 'any',
   unread: 'any',
   idle: 'any',
-  sortBy: 'natural',
+  sortBy: 'lastReply',
   sortDirection: 'desc',
   tags: new Map(),
   searchQuery: '',
