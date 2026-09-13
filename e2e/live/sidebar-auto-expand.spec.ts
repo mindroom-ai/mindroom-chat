@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { activeAccountButtonNamePattern, loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, loginToMatrix, matrixFetch } from '../helpers/matrix';
@@ -52,11 +52,19 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
     await loginWithPassword(page, { homeserver, ...credentials });
     const collapse = page.getByRole('button', { name: 'Collapse navigation panel', exact: true });
     const expand = page.getByRole('button', { name: 'Expand navigation panel', exact: true });
-    const rail = page.locator('[class*="Sidebar_Sidebar__"]');
+    const spaceButton = page.locator('button[data-id="' + spaceId + '"]');
+    const scrollableRail = spaceButton.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
+    const primarySections = scrollableRail.locator(
+      'xpath=./*[@role="separator"][1]/preceding-sibling::*[1]'
+    );
+    const optionalSections = scrollableRail.locator(
+      'xpath=./*[@role="separator"][last()]/following-sibling::*[1]'
+    );
+    const activeAccount = page.getByRole('button', { name: activeAccountButtonNamePattern });
+    const inbox = activeAccount.locator('xpath=../preceding-sibling::*[1]//button');
     const storageKey = `mindroom.pageNav.desktopCollapsed:${session.userId}`;
     const savedCollapse = () => page.evaluate((key) => localStorage.getItem(key), storageKey);
-    const selectTab = async (index: number, label: string, keyboard = false) => {
-      const button = rail.getByRole('button').nth(index);
+    const selectTab = async (button: Locator, label: string, keyboard = false) => {
       await button.hover();
       await expect(page.getByRole('tooltip')).toHaveText(label);
       if (keyboard) {
@@ -72,20 +80,19 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       for (const [index, label] of ['Home', 'Direct Messages', 'Threads'].entries()) {
         await collapse.click();
         await expect(expand).toBeVisible();
-        await selectTab(index, label, width === 800);
+        await selectTab(primarySections.getByRole('button').nth(index), label, width === 800);
         await expect(collapse).toBeVisible();
         await expect.poll(savedCollapse).toBe('false');
 
         // Reselecting the active section must work even when its URL is unchanged.
         const activeUrl = page.url();
         await collapse.click();
-        await selectTab(index, label);
+        await selectTab(primarySections.getByRole('button').nth(index), label);
         await expect(collapse).toBeVisible();
         await expect(page).toHaveURL(activeUrl);
       }
 
       await collapse.click();
-      const spaceButton = rail.locator(`button[data-id="${spaceId}"]`);
       const beforeSuppressedClick = page.url();
       await spaceButton.evaluate((button) => {
         button.addEventListener('click', (event) => event.preventDefault(), {
@@ -101,27 +108,18 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       await expect(page).toHaveURL(new RegExp(`/${encodeURIComponent(spaceId)}/lobby$`));
 
       await collapse.click();
-      const explore = rail
-        .locator('[class*="Sidebar_SidebarStack__"]')
-        .nth(2)
-        .getByRole('button')
-        .first();
-      await explore.hover();
-      await expect(page.getByRole('tooltip')).toHaveText('Explore Community');
-      await explore.click();
+      await selectTab(optionalSections.getByRole('button').first(), 'Explore Community');
       await expect(collapse).toBeVisible();
       await expect(page.getByRole('link', { name: 'Featured', exact: true })).toBeVisible();
 
       await collapse.click();
       await expect(page.getByRole('link', { name: 'Featured', exact: true })).toHaveCount(0);
-      await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
+      await activeAccount.click();
       await expect.poll(savedCollapse).toBe('true');
       await page.keyboard.press('Escape');
       await expect(expand).toBeVisible();
 
-      // Inbox is the bottom invite entry point; selecting it must not reopen navigation.
-      // This single-account fixture ends with Inbox, Settings, Add account, and the toggle.
-      await selectTab(-4, 'Inbox');
+      await selectTab(inbox, 'Inbox');
       await expect(page).toHaveURL(/\/inbox/);
       await expect(expand).toBeVisible();
       await expect.poll(savedCollapse).toBe('true');
