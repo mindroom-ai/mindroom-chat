@@ -9,9 +9,14 @@ import { useMatrixClient } from '../hooks/useMatrixClient';
 export const SUPPORTED_IN_APP_UIA_STAGES = [AuthType.Password, AuthType.Sso];
 
 export const pickUIAFlow = (uiaFlows: UIAFlow[]): UIAFlow | undefined => {
+  const ssoFlow = getUIAFlowForStages(uiaFlows, [AuthType.Sso]);
+  if (ssoFlow) return ssoFlow;
+
   const passwordFlow = getUIAFlowForStages(uiaFlows, [AuthType.Password]);
   if (passwordFlow) return passwordFlow;
-  return getUIAFlowForStages(uiaFlows, [AuthType.Sso]);
+
+  // Keep a deterministic fallback for any remaining supported multi-stage flow.
+  return uiaFlows[0];
 };
 
 type ActionUIAProps = {
@@ -65,7 +70,7 @@ export function ActionUIAFlowsLoader({
   children,
 }: ActionUIAFlowsLoaderProps) {
   const supportedFlows = useSupportedUIAFlows(authData.flows ?? [], SUPPORTED_IN_APP_UIA_STAGES);
-  const ongoingFlow = supportedFlows.length > 0 ? supportedFlows[0] : undefined;
+  const ongoingFlow = pickUIAFlow(supportedFlows);
 
   if (!ongoingFlow) return unsupported();
 
