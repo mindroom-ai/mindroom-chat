@@ -494,11 +494,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [room]
     );
     const pickFile = useFilePicker(handleFiles, true);
+    // Must stay synchronous and return `undefined` when it does not handle the
+    // paste: slate-react treats any non-null return value (including the
+    // Promise from an async handler) as "handled" and then skips its own
+    // onPaste fallback, so the browser inserts the text into the DOM without
+    // the editor model ever learning about it.
     const handlePaste: ClipboardEventHandler = useCallback(
-      async (evt) => {
+      (evt) => {
         const files = getDataTransferFiles(evt.clipboardData);
         if (files) {
-          await handleFiles(files);
+          void handleFiles(files);
           return;
         }
 
@@ -528,22 +533,24 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const pasteMarker = parseMindroomPasteMarker(pasteAttachment.marker);
         if (!pasteMarker) return;
 
-        const pasteUploadItems = await createUploadItems([pasteAttachment.file], () => ({
-          markedAsSpoiler: false,
-          mindroomPasteAttachment: {
-            id: pasteMarker.id,
-            chars: pasteMarker.chars,
-            fileName: pasteMarker.fileName,
-          },
-        }));
-        appendUploadItems(pasteUploadItems);
-        if (pasteUploadItems.some((item) => item.prepError)) {
-          editor.insertText(pastedText);
-          return;
-        }
+        void (async () => {
+          const pasteUploadItems = await createUploadItems([pasteAttachment.file], () => ({
+            markedAsSpoiler: false,
+            mindroomPasteAttachment: {
+              id: pasteMarker.id,
+              chars: pasteMarker.chars,
+              fileName: pasteMarker.fileName,
+            },
+          }));
+          appendUploadItems(pasteUploadItems);
+          if (pasteUploadItems.some((item) => item.prepError)) {
+            editor.insertText(pastedText);
+            return;
+          }
 
-        editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
-        moveCursor(editor);
+          editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
+          moveCursor(editor);
+        })();
       },
       [appendUploadItems, createUploadItems, editor, handleFiles, isMarkdown]
     );

@@ -1083,10 +1083,15 @@ describe('RoomInput', () => {
     editorOutputState.customHtml = 'Before ';
     editorOutputState.htmlEqualsPlainText = true;
 
+    let result: unknown;
     await act(async () => {
-      await customEditorState.props!.onPaste?.(pasteEvent);
+      result = customEditorState.props!.onPaste?.(pasteEvent);
     });
 
+    // slate-react treats any non-null return value (including a Promise from an
+    // async handler) as "handled" and skips its own paste fallback, which would
+    // leave the text in the DOM but not in the editor model.
+    expect(result).toBeUndefined();
     expect(pasteEvent.preventDefault).not.toHaveBeenCalled();
     expect(editorMocks.insertNode).not.toHaveBeenCalled();
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
