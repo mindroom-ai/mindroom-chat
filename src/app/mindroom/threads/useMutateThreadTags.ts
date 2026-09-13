@@ -16,6 +16,9 @@ import {
   setPendingThreadTagsContent,
 } from './threadTagPending';
 import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
+import { getResolvableThreadRootEvent } from './threadResolvableRoot';
+
+type ThreadRootEventResolver = typeof getValidThreadRootEvent;
 
 export type UseMutateThreadTagsResult = {
   addTag: (threadRootId: string, tagName: string) => Promise<void>;
@@ -68,7 +71,8 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         next: ThreadTagsContent;
         stateKey: string;
         eventContent: Record<string, unknown>;
-      }
+      },
+      resolveThreadRootEvent: ThreadRootEventResolver = getValidThreadRootEvent
     ) => {
       if (pendingRef.current) return;
       pendingRef.current = true;
@@ -76,7 +80,7 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
       setError(null);
       try {
         const userId = mx.getSafeUserId();
-        const validThreadRootId = getValidThreadRootEvent(room, threadRootId)?.getId();
+        const validThreadRootId = resolveThreadRootEvent(room, threadRootId)?.getId();
         if (!validThreadRootId) {
           throw new Error('Thread tags are only available for known thread roots.');
         }
@@ -98,7 +102,7 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
           stateKey
         );
       } catch (err) {
-        const validThreadRootId = getValidThreadRootEvent(room, threadRootId)?.getId();
+        const validThreadRootId = resolveThreadRootEvent(room, threadRootId)?.getId();
         if (validThreadRootId) {
           clearPendingThreadTagsContent(room.roomId, validThreadRootId);
         }
@@ -133,15 +137,19 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
 
   const setResolved = useCallback(
     (threadRootId: string, resolved: boolean) =>
-      sendUpdate(threadRootId, (existing, validThreadRootId, userId, setAt) => ({
-        next: resolved
-          ? buildAddTagContent(existing, RESOLVED_TAG, userId, setAt)
-          : buildRemoveTagContent(existing, RESOLVED_TAG),
-        stateKey: buildPerTagStateKey(validThreadRootId, RESOLVED_TAG),
-        eventContent: resolved
-          ? buildPerTagEventContent(userId, undefined, undefined, setAt)
-          : {},
-      })),
+      sendUpdate(
+        threadRootId,
+        (existing, validThreadRootId, userId, setAt) => ({
+          next: resolved
+            ? buildAddTagContent(existing, RESOLVED_TAG, userId, setAt)
+            : buildRemoveTagContent(existing, RESOLVED_TAG),
+          stateKey: buildPerTagStateKey(validThreadRootId, RESOLVED_TAG),
+          eventContent: resolved
+            ? buildPerTagEventContent(userId, undefined, undefined, setAt)
+            : {},
+        }),
+        getResolvableThreadRootEvent
+      ),
     [sendUpdate]
   );
 

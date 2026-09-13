@@ -12,7 +12,7 @@ import { getResolvedRecentThreadRootId } from '../recent-threads/recentThreadSum
 import { buildCommandPaletteThreadViewModelFromRecord } from './commandPaletteThreadViewModel';
 import { buildThreadRecord } from './threadRecord';
 import { resolveCanonicalThreadRootId } from './threadRouteUtils';
-import { getValidThreadRootEvent } from './threadUtils';
+import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import {
   buildPerTagEventContent,
   buildPerTagStateKey,
@@ -227,7 +227,7 @@ export const useMindroomCommandPaletteThreadItems = ({
     (resolved: boolean) => {
       if (!selectedRoom || !currentThreadRootId) return;
 
-      const rootEvent = getValidThreadRootEvent(selectedRoom, currentThreadRootId);
+      const rootEvent = getResolvableThreadRootEvent(selectedRoom, currentThreadRootId);
       const threadRootId = rootEvent?.getId();
       if (!threadRootId) return;
 

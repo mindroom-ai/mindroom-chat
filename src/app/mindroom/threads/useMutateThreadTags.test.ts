@@ -61,6 +61,16 @@ const makeThreadRootEvent = (eventId: string) => {
   return event;
 };
 
+const makeStandaloneMessageEvent = (eventId: string) =>
+  new MatrixEvent({
+    content: { body: 'Standalone message', msgtype: 'm.text' },
+    event_id: eventId,
+    origin_server_ts: 1,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+  });
+
 const makeLegacyThreadTagsEvent = (
   stateKey: string,
   tags: Record<string, Record<string, unknown>>
@@ -90,12 +100,12 @@ const makePerTagEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makeRoom = (events: MatrixEvent[] = []) =>
+const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixEvent> = {}) =>
   ({
     roomId: '!room:example.org',
     getThread: (threadId: string) =>
       threadId === '$root' ? ({ rootEvent: makeThreadRootEvent('$root') } as never) : undefined,
-    findEventById: () => undefined,
+    findEventById: (eventId: string) => eventsById[eventId],
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) =>
@@ -122,6 +132,7 @@ describe('useMutateThreadTags', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     resetPendingThreadTagsForTests();
   });
 
@@ -288,6 +299,70 @@ describe('useMutateThreadTags', () => {
         resolved: { set_by: '@alice:example.org', set_at: ISO_2 },
       },
     });
+
+    renderer.unmount();
+  });
+
+  it('resolves a standalone zero-reply root without requiring an SDK thread model', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_2));
+    const room = makeRoom([], {
+      $standalone: makeStandaloneMessageEvent('$standalone'),
+    });
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.setResolved('$standalone', true);
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      {
+        set_by: '@alice:example.org',
+        set_at: ISO_2,
+      },
+      '["$standalone","resolved"]'
+    );
+    expect(getPendingThreadTagsContent('!room:example.org', '$standalone')).toEqual({
+      tags: {
+        resolved: { set_by: '@alice:example.org', set_at: ISO_2 },
+      },
+    });
+
+    renderer.unmount();
+  });
+
+  it('keeps arbitrary tag writes restricted to SDK thread roots', async () => {
+    const room = makeRoom([], {
+      $standalone: makeStandaloneMessageEvent('$standalone'),
+    });
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.addTag('$standalone', 'triage');
+    });
+
+    expect(sendStateEvent).not.toHaveBeenCalled();
+    expect(snapshot?.error?.message).toBe('Thread tags are only available for known thread roots.');
 
     renderer.unmount();
   });
