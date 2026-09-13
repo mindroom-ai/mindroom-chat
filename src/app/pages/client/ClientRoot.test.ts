@@ -70,6 +70,10 @@ vi.mock('../../components/splash-screen', () => ({
     React.createElement('div', null, children),
 }));
 
+vi.mock('../../components/particle-background', () => ({
+  MindRoomParticleBackground: () => React.createElement('div', null),
+}));
+
 vi.mock('../../components/ServerConfigsLoader', () => ({
   ServerConfigsLoader: ({
     mx,
