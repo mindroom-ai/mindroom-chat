@@ -117,7 +117,8 @@ describe('buildThreadRecord', () => {
       fallbackLatestReplyPreviewText: 'stale cached reply',
       fallbackMessageCount: 4,
       scheduledStatus: {
-        scheduledTaskCount: 2,
+        scheduledTaskCount: 1,
+        cronDescription: 'At 09:00',
       },
       currentUserId: '@me:server',
       readUpToTs: null,
@@ -148,7 +149,8 @@ describe('buildThreadRecord', () => {
       status: {
         isResolved: true,
         isUnread: true,
-        scheduledTaskCount: 2,
+        scheduledTaskCount: 1,
+        cronDescription: 'At 09:00',
         tags: ['followup'],
       },
       cache: {

@@ -4,6 +4,7 @@ import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
 export type ThreadScheduledStatus = {
   scheduledTaskCount: number;
   nextScheduledTs?: number;
+  cronDescription?: string;
 };
 
 export const EMPTY_THREAD_SCHEDULED_STATUS: ThreadScheduledStatus = Object.freeze({
@@ -15,6 +16,7 @@ export const buildRoomThreadScheduledStatusMap = (
   now = Date.now()
 ): Map<string, ThreadScheduledStatus> => {
   const statusMap = new Map<string, ThreadScheduledStatus>();
+  const completeTimestampThreads = new Set<string>();
 
   scheduledTaskEvents.forEach((event) => {
     const parsedTask = parseScheduledTaskStateEvent(event);
@@ -33,16 +35,29 @@ export const buildRoomThreadScheduledStatusMap = (
     }
 
     const current = statusMap.get(parsedTask.threadId) ?? EMPTY_THREAD_SCHEDULED_STATUS;
+    const previousTimestampsComplete =
+      current.scheduledTaskCount === 0 || completeTimestampThreads.has(parsedTask.threadId);
+    const allTasksHaveTimestamps = executeAtTs !== undefined && previousTimestampsComplete;
+    if (allTasksHaveTimestamps) {
+      completeTimestampThreads.add(parsedTask.threadId);
+    } else {
+      completeTimestampThreads.delete(parsedTask.threadId);
+    }
     const nextScheduledTs =
-      executeAtTs === undefined
-        ? current.nextScheduledTs
+      executeAtTs === undefined || !previousTimestampsComplete
+        ? undefined
         : current.nextScheduledTs === undefined || executeAtTs < current.nextScheduledTs
         ? executeAtTs
         : current.nextScheduledTs;
+    const cronDescription =
+      current.scheduledTaskCount === 0 && executeAtTs === undefined
+        ? parsedTask.cronDescription
+        : undefined;
 
     statusMap.set(parsedTask.threadId, {
       scheduledTaskCount: current.scheduledTaskCount + 1,
       nextScheduledTs,
+      ...(cronDescription ? { cronDescription } : {}),
     });
   });
 
@@ -53,7 +68,9 @@ export const getThreadScheduledStatus = (
   scheduledStatusMap: ReadonlyMap<string, ThreadScheduledStatus>,
   threadRootId: string | undefined
 ): ThreadScheduledStatus =>
-  threadRootId ? scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS : EMPTY_THREAD_SCHEDULED_STATUS;
+  threadRootId
+    ? scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS
+    : EMPTY_THREAD_SCHEDULED_STATUS;
 
 export const getRoomScheduledTaskCounts = (
   scheduledTaskEvents: readonly MatrixEvent[],
@@ -71,5 +88,7 @@ export const getNextThreadScheduledTs = (
   threadRootId: string | undefined,
   now = Date.now()
 ): number | undefined =>
-  getThreadScheduledStatus(buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now), threadRootId)
-    .nextScheduledTs;
+  getThreadScheduledStatus(
+    buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now),
+    threadRootId
+  ).nextScheduledTs;

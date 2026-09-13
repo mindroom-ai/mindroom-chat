@@ -9,6 +9,7 @@ type ScheduledTaskStateEventContent = {
   new_thread?: unknown;
   execute_at?: unknown;
   scheduled_at?: unknown;
+  cron_description?: unknown;
 };
 
 type ScheduledTaskWorkflow = {
@@ -30,6 +31,7 @@ export type ParsedScheduledTask = {
   threadId: string | null;
   newThread: boolean;
   executeAt: string | null;
+  cronDescription?: string;
 };
 
 const parseThreadId = (value: unknown): string | null | undefined => {
@@ -45,6 +47,12 @@ const parseScheduledAt = (value: unknown): string | null | undefined => {
   if (typeof value === 'string') return value;
   if (value === null) return null;
   return undefined;
+};
+
+const parseCronDescription = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const description = value.trim();
+  return description || undefined;
 };
 
 const parseWorkflow = (workflow: unknown): ParsedWorkflow | null => {
@@ -91,6 +99,7 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     new_thread: topLevelNewThread,
     execute_at: topLevelExecuteAt,
     scheduled_at: topLevelScheduledAt,
+    cron_description: topLevelCronDescription,
     workflow,
   } = content;
   if (typeof status !== 'string') return null;
@@ -100,6 +109,7 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
   const parsedTopLevelNewThread = parseNewThread(topLevelNewThread);
   const parsedTopLevelExecuteAt =
     parseScheduledAt(topLevelExecuteAt) ?? parseScheduledAt(topLevelScheduledAt);
+  const cronDescription = parseCronDescription(topLevelCronDescription);
 
   if (
     workflow !== undefined &&
@@ -115,5 +125,6 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     threadId: parsedTopLevelThreadId ?? parsedWorkflow?.threadId ?? null,
     newThread: parsedTopLevelNewThread ?? parsedWorkflow?.newThread ?? false,
     executeAt: parsedTopLevelExecuteAt ?? parsedWorkflow?.executeAt ?? null,
+    ...(cronDescription ? { cronDescription } : {}),
   };
 };

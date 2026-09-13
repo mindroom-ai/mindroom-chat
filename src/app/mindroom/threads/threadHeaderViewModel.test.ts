@@ -101,8 +101,28 @@ describe('buildThreadHeaderViewModelFromRecord', () => {
       pickerDisabled: true,
     });
 
-    expect(model.scheduledLabel).toBe('2 scheduled tasks');
+    expect(model.scheduledLabel).toBe('2 pending scheduled tasks');
     expect(model.bannerScheduledText).toBe('2 scheduled tasks');
+  });
+
+  it('uses one recurring schedule description as display detail', () => {
+    const record = makeRecord({
+      status: {
+        scheduledTaskCount: 1,
+        cronDescription: 'At 09:00',
+      },
+    });
+
+    const model = buildThreadHeaderViewModelFromRecord({
+      record,
+      scheduledDisplayText: 'At 09:00',
+      canEdit: false,
+      availableTags: [],
+      pickerDisabled: true,
+    });
+
+    expect(model.scheduledLabel).toBe('1 pending scheduled task, At 09:00');
+    expect(model.bannerScheduledText).toBe('At 09:00');
   });
 
   it('prefixes scheduled-only countdown copy with Next task', () => {

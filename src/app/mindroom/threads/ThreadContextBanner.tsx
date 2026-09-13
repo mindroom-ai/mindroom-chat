@@ -64,10 +64,8 @@ export function ThreadContextBanner({
 }: ThreadContextBannerProps) {
   const { t } = useTranslation();
   const rootEventId = useThreadRootEvent(room, threadId);
-  const { scheduledTaskCount, nextScheduledTs, scheduledDisplayText } = useThreadHeaderInfo(
-    room,
-    threadId
-  );
+  const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
+    useThreadHeaderInfo(room, threadId);
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
@@ -86,6 +84,7 @@ export function ThreadContextBanner({
     scheduledStatus: {
       scheduledTaskCount,
       nextScheduledTs,
+      cronDescription,
     },
   });
   const pickerDisabled = !mutableThreadRootId || updating;

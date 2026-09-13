@@ -308,6 +308,8 @@ export const buildThreadRecord = ({
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =
     resolvedScheduledTaskCount > 0 ? scheduledStatus.nextScheduledTs : undefined;
+  const resolvedCronDescription =
+    resolvedScheduledTaskCount > 0 ? scheduledStatus.cronDescription : undefined;
   const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
   const lastActivityTs =
     Math.max(
@@ -355,6 +357,7 @@ export const buildThreadRecord = ({
       hasFailedSend,
       scheduledTaskCount: resolvedScheduledTaskCount,
       nextScheduledTs: resolvedNextScheduledTs,
+      cronDescription: resolvedCronDescription,
       lastActivityTs,
       tags: getThreadStatusTags(threadResolution),
     },
