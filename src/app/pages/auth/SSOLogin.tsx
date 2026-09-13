@@ -1,6 +1,9 @@
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { AppLauncher } from '@capacitor/app-launcher';
+import { Browser } from '@capacitor/browser';
 import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import {
@@ -27,6 +30,40 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const orderedProviders = sortIdentityProviders(providers);
   const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
+  const nativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+  const openingNativeSSORef = useRef(false);
+
+  const openFallbackBrowser = async (url: string): Promise<void> => {
+    try {
+      await Browser.open({ url });
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const handleSSONavigate =
+    (url: string) =>
+    async (evt: React.MouseEvent<HTMLElement>): Promise<void> => {
+      if (!nativeIOS) return;
+
+      evt.preventDefault();
+      if (openingNativeSSORef.current) return;
+      openingNativeSSORef.current = true;
+      try {
+        const result = await AppLauncher.openUrl({ url });
+        if (!result.completed) {
+          await openFallbackBrowser(url);
+        }
+      } catch {
+        await openFallbackBrowser(url);
+      } finally {
+        // Avoid multiple rapid taps creating overlapping SSO sessions/states.
+        window.setTimeout(() => {
+          openingNativeSSORef.current = false;
+        }, 2000);
+      }
+    };
 
   const getProviderIconUrl = (provider: IIdentityProvider): string | undefined => {
     if (isAppleIdentityProvider(provider)) return AppleLogo;
@@ -66,6 +103,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
                 key={id}
                 as="a"
                 href={getSSOIdUrl(id)}
+                onClick={handleSSONavigate(getSSOIdUrl(id))}
                 aria-label={buttonTitle}
                 size="300"
                 radii="300"
@@ -85,6 +123,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
               key={id}
               as="a"
               href={getSSOIdUrl(id)}
+              onClick={handleSSONavigate(getSSOIdUrl(id))}
               size="500"
               variant={appleProvider ? 'Primary' : 'Secondary'}
               fill={appleProvider ? 'Solid' : 'Soft'}
@@ -111,6 +150,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           style={{ width: '100%' }}
           as="a"
           href={getSSOIdUrl()}
+          onClick={handleSSONavigate(getSSOIdUrl())}
           size="500"
           variant="Secondary"
           fill="Soft"
