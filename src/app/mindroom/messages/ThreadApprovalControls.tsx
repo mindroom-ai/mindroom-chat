@@ -1,4 +1,5 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -190,8 +191,30 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
 
 export function ThreadApprovalQueue() {
   const context = useThreadApprovals();
+  const user = useMatrixClient().getUserId();
   const [selection, setSelection] = useState<string[][]>();
   const trigger = useRef<HTMLButtonElement>(null);
+  const noticed = useRef(new Set<string>());
+  const [pulse, setPulse] = useState(0);
+  const actionableIds = useMemo(
+    () =>
+      context?.records
+        .filter(
+          (record) =>
+            context.pendingEventIds.has(record.eventId) &&
+            getApprovalCapabilities(record, user, context.actions.get(record.eventId), context.now)
+              .deny
+        )
+        .map((record) => record.eventId) ?? [],
+    [context, user]
+  );
+  const needsAttention = actionableIds.length > 0;
+  useEffect(() => {
+    const hasNewRequest = actionableIds.some((id) => !noticed.current.has(id));
+    actionableIds.forEach((id) => noticed.current.add(id));
+    if (selection || actionableIds.length === 0) setPulse(0);
+    else if (hasNewRequest) setPulse((previous) => previous + 1);
+  }, [actionableIds, selection]);
   if (!context) return null;
   const groups = groupApprovalRecords(
     context.records.filter((record) => context.pendingEventIds.has(record.eventId))
@@ -208,24 +231,39 @@ export function ThreadApprovalQueue() {
     <>
       {(pendingCount > 0 || context.loading || context.error) && (
         <div className={css.Bar} role="region" aria-label="Thread approvals">
-          <small>
-            {pendingCount > 0
-              ? awaitingOnly
-                ? `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} awaiting confirmation`
-                : `${pendingCount} ${pendingCount === 1 ? 'call needs' : 'calls need'} approval`
-              : context.error ?? 'Checking approvals…'}
-            {context.loading && pendingCount > 0 ? ' · Checking history…' : ''}
-            {context.error && pendingCount > 0 ? ' · History incomplete' : ''}
+          <small className={css.BarStatus} role="status">
+            {pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />}
+            <span>
+              {pendingCount > 0
+                ? awaitingOnly
+                  ? `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} awaiting confirmation`
+                  : `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} paused for approval`
+                : context.error ?? 'Checking approvals…'}
+              {context.loading && pendingCount > 0 ? ' · Checking history…' : ''}
+              {context.error && pendingCount > 0 ? ' · History incomplete' : ''}
+            </span>
           </small>
           {pendingCount > 0 && (
             <Button
               ref={trigger}
               size="300"
-              onClick={() =>
-                setSelection(groups.map((group) => group.map((record) => record.eventId)))
-              }
+              variant={needsAttention ? 'Warning' : 'Primary'}
+              fill={needsAttention ? 'Soft' : 'Solid'}
+              className={classNames(css.ReviewButton, needsAttention && css.ReviewButtonPending)}
+              onClick={() => {
+                setPulse(0);
+                setSelection(groups.map((group) => group.map((record) => record.eventId)));
+              }}
             >
               <Text size="B300">Review {pendingCount}</Text>
+              {needsAttention && !selection && pulse > 0 && (
+                <span
+                  key={pulse}
+                  aria-hidden
+                  className={css.ReviewPulse}
+                  onAnimationEnd={() => setPulse(0)}
+                />
+              )}
             </Button>
           )}
           {context.error && (
