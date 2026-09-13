@@ -1,13 +1,14 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import type { CompactThreadCardViewModel } from '../../mindroom/threads/types';
 import { CompactRoomView } from './CompactRoomView';
 import type { ThreadOverviewMetadata } from './roomThreadOverviewModel';
 
-const { passthrough, renderedCardProps } = vi.hoisted(() => ({
+const { passthrough, renderedCardProps, useCompactThreadCardViewModelsMock } = vi.hoisted(() => ({
   passthrough: 'div',
   renderedCardProps: vi.fn(),
+  useCompactThreadCardViewModelsMock: vi.fn(),
 }));
 
 const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverviewMetadata => ({
@@ -28,6 +29,31 @@ const makeMetadata = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOv
   ...overrides,
 });
 
+const makeViewModel = (
+  threadRootId: string,
+  overrides: Partial<CompactThreadCardViewModel> = {}
+): CompactThreadCardViewModel => ({
+  id: {
+    roomId: '!room:server',
+    threadRootId,
+  },
+  titleText: 'Thread title',
+  displayTitleText: 'Thread title',
+  previewText: 'Latest reply',
+  primarySummaryText: 'Primary summary',
+  recentThreadSummaryText: 'Recent summary',
+  messageCount: 2,
+  messageCountLabel: '2 msgs',
+  attentionState: 'idle',
+  attentionStatusText: 'Idle',
+  participants: [],
+  tags: [],
+  isResolved: false,
+  isUnread: false,
+  isStreaming: false,
+  ...overrides,
+});
+
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
 
@@ -38,38 +64,28 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
+vi.mock('../../mindroom/threads/compactThreadCardViewModel', () => ({
+  useCompactThreadCardViewModels: useCompactThreadCardViewModelsMock,
+}));
+
 vi.mock('./CompactThreadCard', () => ({
   CompactThreadCard: ({
-    threadRootId,
-    threadRootEvent,
-    metadata,
-    summaryInfo,
+    viewModel,
     onClick,
-    room,
   }: {
-    threadRootId: string;
-    threadRootEvent?: { getId?: () => string | undefined };
-    metadata?: ThreadOverviewMetadata;
-    summaryInfo?: MindroomThreadSummaryInfo;
+    viewModel: CompactThreadCardViewModel;
     onClick: (threadRootId: string, summaryText?: string) => void;
-    room: unknown;
   }) => {
-    renderedCardProps({
-      room,
-      threadRootId,
-      threadRootEventId: threadRootEvent?.getId?.(),
-      metadata,
-      summaryInfo,
-    });
+    renderedCardProps({ viewModel });
 
     return React.createElement(
       'button',
       {
         type: 'button',
-        'data-thread-root-id': threadRootId,
-        onClick: () => onClick(threadRootId, summaryInfo?.summaryText ?? metadata?.rootPreviewText),
+        'data-thread-root-id': viewModel.id.threadRootId,
+        onClick: () => onClick(viewModel.id.threadRootId, viewModel.primarySummaryText),
       },
-      summaryInfo?.summaryText ?? 'thread'
+      viewModel.titleText
     );
   },
 }));
@@ -79,180 +95,76 @@ vi.mock('./CompactRoomView.css', () => ({
   EmptyState: 'EmptyState',
 }));
 
-const makeEvent = (eventId: string) =>
+const makeRoom = () =>
   ({
-    getId: () => eventId,
-    replacingEvent: () => undefined,
-    getUnsigned: () => undefined,
-    getContent: () => ({}),
-    getType: () => 'm.room.message',
-    getSender: () => undefined,
-    getRelation: () => undefined,
-    getTs: () => 0,
-  } as never);
-
-const makeRoom = ({
-  rootEvent,
-  fallbackEvent,
-}: {
-  rootEvent?: ReturnType<typeof makeEvent>;
-  fallbackEvent?: ReturnType<typeof makeEvent>;
-} = {}) =>
-  ({
-    getThread: vi.fn(() => (rootEvent ? { rootEvent } : undefined)),
-    findEventById: vi.fn(() => fallbackEvent),
-    getUnfilteredTimelineSet: vi.fn(() => ({
-      relations: {
-        getChildEventsForEvent: () => undefined,
-      },
-    })),
+    roomId: '!room:server',
   } as never);
 
 describe('CompactRoomView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useCompactThreadCardViewModelsMock.mockReturnValue([]);
   });
 
   it('renders an empty state when there are no thread roots', () => {
+    const room = makeRoom();
     const renderer = create(
       React.createElement(CompactRoomView, {
-        room: makeRoom(),
+        room,
         threadRootIds: [],
         metadataMap: new Map(),
         onThreadClick: vi.fn(),
       })
     );
 
+    expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
+      room,
+      threadRootIds: [],
+      metadataMap: new Map(),
+      summaryMap: undefined,
+    });
     expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(1);
     expect(renderedCardProps).not.toHaveBeenCalled();
   });
 
-  it('passes the room, live root event, and summary-map info through to each card', () => {
-    const room = makeRoom({ rootEvent: makeEvent('$root') });
-    const summaryInfo: MindroomThreadSummaryInfo = {
-      summaryText: 'AI summary',
-      messageCount: 42,
-    };
+  it('builds compact card view models through the shared MindRoom selector', () => {
+    const room = makeRoom();
+    const metadataMap = new Map([['$thread-1', makeMetadata({ summaryText: 'metadata summary' })]]);
+    const summaryMap = new Map([['$thread-1', { summaryText: 'AI summary', messageCount: 42 }]]);
+    const viewModel = makeViewModel('$thread-1', { titleText: 'AI summary' });
+    useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
 
     create(
       React.createElement(CompactRoomView, {
         room,
         threadRootIds: ['$thread-1'],
-        metadataMap: new Map([['$thread-1', makeMetadata({ summaryText: 'metadata summary' })]]),
-        summaryMap: new Map([['$thread-1', summaryInfo]]),
+        metadataMap,
+        summaryMap,
         onThreadClick: vi.fn(),
       })
     );
 
-    expect(room.getThread).toHaveBeenCalledWith('$thread-1');
-    expect(renderedCardProps).toHaveBeenCalledWith({
+    expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
       room,
-      threadRootId: '$thread-1',
-      threadRootEventId: '$root',
-      metadata: makeMetadata({ summaryText: 'metadata summary' }),
-      summaryInfo,
+      threadRootIds: ['$thread-1'],
+      metadataMap,
+      summaryMap,
     });
+    expect(renderedCardProps).toHaveBeenCalledWith({ viewModel });
   });
 
-  it('falls back to metadata-derived summary info when no summary map entry exists', () => {
-    const room = makeRoom({ fallbackEvent: makeEvent('$fallback-root') });
-
-    create(
-      React.createElement(CompactRoomView, {
-        room,
-        threadRootIds: ['$thread-2'],
-        metadataMap: new Map([
-          [
-            '$thread-2',
-            makeMetadata({
-              summaryText: 'Fallback summary',
-              messageCount: 7,
-            }),
-          ],
-        ]),
-        onThreadClick: vi.fn(),
-      })
-    );
-
-    expect(room.findEventById).toHaveBeenCalledWith('$thread-2');
-    expect(renderedCardProps).toHaveBeenCalledWith({
-      room,
-      threadRootId: '$thread-2',
-      threadRootEventId: '$fallback-root',
-      metadata: makeMetadata({
-        summaryText: 'Fallback summary',
-        messageCount: 7,
-      }),
-      summaryInfo: {
-        summaryText: 'Fallback summary',
-        messageCount: 7,
-      },
-    });
-  });
-
-  it('passes metadata root preview text through to each card', () => {
-    const room = makeRoom({ fallbackEvent: makeEvent('$fallback-root') });
-
-    create(
-      React.createElement(CompactRoomView, {
-        room,
-        threadRootIds: ['$thread-4'],
-        metadataMap: new Map([
-          [
-            '$thread-4',
-            makeMetadata({
-              rootPreviewText: 'Edited root preview',
-            }),
-          ],
-        ]),
-        onThreadClick: vi.fn(),
-      })
-    );
-
-    expect(renderedCardProps).toHaveBeenCalledWith({
-      room,
-      threadRootId: '$thread-4',
-      threadRootEventId: '$fallback-root',
-      metadata: makeMetadata({
-        rootPreviewText: 'Edited root preview',
-      }),
-      summaryInfo: undefined,
-    });
-  });
-
-  it('prefers room events over stale thread root events when both exist', () => {
-    const room = makeRoom({
-      rootEvent: makeEvent('$stale-thread-root'),
-      fallbackEvent: makeEvent('$fresh-room-root'),
-    });
-
-    create(
-      React.createElement(CompactRoomView, {
-        room,
-        threadRootIds: ['$thread-5'],
-        metadataMap: new Map([['$thread-5', makeMetadata()]]),
-        onThreadClick: vi.fn(),
-      })
-    );
-
-    expect(renderedCardProps).toHaveBeenCalledWith({
-      room,
-      threadRootId: '$thread-5',
-      threadRootEventId: '$fresh-room-root',
-      metadata: makeMetadata(),
-      summaryInfo: undefined,
-    });
-  });
-
-  it('forwards click events from a rendered card', () => {
+  it('forwards card clicks using the recent-thread summary from the view model', () => {
     const onThreadClick = vi.fn();
+    const viewModel = makeViewModel('$thread-3', {
+      primarySummaryText: 'Card title',
+      recentThreadSummaryText: 'Recent sidebar summary',
+    });
+    useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
     const renderer = create(
       React.createElement(CompactRoomView, {
-        room: makeRoom({ rootEvent: makeEvent('$root') }),
+        room: makeRoom(),
         threadRootIds: ['$thread-3'],
-        metadataMap: new Map([
-          ['$thread-3', makeMetadata({ summaryText: 'Compact stored summary' })],
-        ]),
+        metadataMap: new Map([['$thread-3', makeMetadata({ summaryText: 'Stored summary' })]]),
         onThreadClick,
       })
     );
@@ -263,6 +175,6 @@ describe('CompactRoomView', () => {
       button.props.onClick();
     });
 
-    expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Compact stored summary');
+    expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Recent sidebar summary');
   });
 });
