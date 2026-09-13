@@ -9,6 +9,7 @@
 - Opening Review cancels the pulse; requests discovered during review and ordinary store updates do not restart it after closing.
 - Submitted decisions and requests assigned to another approver keep the ordinary button styling; reduced-motion users receive only the static highlight.
 - Live Chromium coverage exercises arrival, settling, review cancellation, new requests during review, submission, approver eligibility, reduced motion, narrow layouts, and dark-theme adaptation.
+- Review follow-up reuses the shared credential guard so the live test skips when either required login credential is absent.
 - Validation: typecheck, production/PWA build, formatting, and full ESLint pass with the existing 17-warning baseline.
 - Full Vitest passes 3,736 tests and reproduces the same four failures as the untouched base in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
 - A GIF of the real local Matrix flow is attached to the pull request; recording artifacts remain outside the repository.

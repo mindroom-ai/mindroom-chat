@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getHomeserver, getPrimaryCredentials } from '../env';
+import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
   createThreadFixture,
@@ -9,7 +9,7 @@ import {
 } from '../helpers/matrix';
 
 test.use({ viewport: { width: 1100, height: 760 } });
-test.skip(!process.env.E2E_USERNAME, 'Local Matrix credentials required');
+test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
 
 test('approval attention settles, stops on review, and respects actionability and reduced motion', async ({
   page,
