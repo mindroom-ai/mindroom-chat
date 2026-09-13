@@ -81,6 +81,34 @@ export const RecentlyOpenedList = style({
   paddingBottom: config.space.S200,
 });
 
+// Recently Opened rows are two text lines.
+// folds line boxes leave 3px of half-leading on each side.
+// The old 4px column gap made lines inside a row 10px apart while adjacent rows were only 6px apart.
+// That spacing grouped each title with the next row's room name.
+// Moving the 4px to the row boundary inverts the proximity without changing the 42px pitch.
+export const RecentlyOpenedEntry = style({
+  position: 'relative',
+  selectors: {
+    '& + &': {
+      marginTop: config.space.S100,
+    },
+    // The hairline sits inside the 4px band.
+    // Absolute positioning costs no layout height and keeps it outside each hovered row's rounded rect.
+    // Insets match NavItemContent's text paddings.
+    // The integral -2px offset keeps a 1px rule crisp at DPR 1 instead of antialiasing across two device pixels.
+    '& + &::before': {
+      content: '""',
+      position: 'absolute',
+      top: `calc(-1 * ${config.space.S100} / 2)`,
+      right: config.space.S300,
+      left: config.space.S200,
+      height: config.borderWidth.B300,
+      backgroundColor: color.Background.ContainerLine,
+      pointerEvents: 'none',
+    },
+  },
+});
+
 export const Entry = style({
   position: 'relative',
 });

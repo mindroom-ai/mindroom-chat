@@ -8,6 +8,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
+import * as css from './threadNav.css';
 
 type RecentThreadEntryProps = {
   room: Room;
@@ -56,7 +57,7 @@ export const RecentThreadEntry = memo(
     ]);
 
     return (
-      <NavItem variant="Background" radii="400">
+      <NavItem className={css.RecentlyOpenedEntry} variant="Background" radii="400">
         <NavButton
           type="button"
           onClick={() => {
@@ -70,7 +71,10 @@ export const RecentThreadEntry = memo(
           aria-label={ariaLabel}
         >
           <NavItemContent as="span">
-            <Box as="span" grow="Yes" direction="Column" gap="100" style={{ minWidth: 0 }}>
+            <Box as="span" grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+              <Text as="span" size="T300" truncate>
+                {viewModel.summaryText}
+              </Text>
               <Box as="span" alignItems="Center" justifyContent="SpaceBetween" gap="100">
                 <Text as="span" size="T200" priority="300" truncate>
                   {viewModel.roomName}
@@ -81,9 +85,6 @@ export const RecentThreadEntry = memo(
                   </Text>
                 )}
               </Box>
-              <Text as="span" size="T300" truncate>
-                {viewModel.summaryText}
-              </Text>
             </Box>
           </NavItemContent>
         </NavButton>
