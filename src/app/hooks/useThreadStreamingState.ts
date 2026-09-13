@@ -15,6 +15,7 @@ const TERMINAL_STREAM_STATES = new Set([
   'error',
   'failed',
   'stopped',
+  'cancelled',
 ]);
 const STOP_REACTION_KEYS = new Set(['⏹', '⏹️']);
 

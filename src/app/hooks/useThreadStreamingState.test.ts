@@ -178,7 +178,10 @@ const makeRoom = ({
     getUnfilteredTimelineSet: () => roomTimelineSet,
   } as unknown as Room);
 
-const renderHookHarness = (room: Room, threadRootId = '$root'): {
+const renderHookHarness = (
+  room: Room,
+  threadRootId = '$root'
+): {
   getSnapshot: () => HookValue;
   renderer: ReactTestRenderer;
 } => {
@@ -449,6 +452,32 @@ describe('useThreadStreamingState', () => {
       lastReply: replies[replies.length - 1],
       relationMap,
       timelineEvents: replies,
+    });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(false);
+
+    renderer.unmount();
+  });
+  it('treats cancelled stream_status as terminal (no false positive with stop reaction)', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      'io.mindroom.stream_status': { status: 'cancelled' },
+    });
+    const stopReaction = makeMessageEvent('$reaction', 210, {
+      'm.relates_to': { event_id: '$reply', key: '⏹️', rel_type: 'm.annotation' },
+    });
+    const relations = makeRelations();
+    relations.setGroupedAnnotations([['⏹️', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
     });
     const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
 
