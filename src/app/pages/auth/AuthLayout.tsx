@@ -122,6 +122,12 @@ export function AuthLayout() {
   const [autoDiscoveryError, autoDiscoveryInfo] =
     discoveryState.status === AsyncStatus.Success ? discoveryState.data.response : [];
 
+  const serverList = clientConfig.homeserverList ?? [];
+  const hideServerPicker =
+    clientConfig.auth?.hideServerPickerWhenSingle === true &&
+    !clientConfig.allowCustomHomeservers &&
+    serverList.length === 1;
+
   return (
     <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
       <Box
@@ -139,17 +145,19 @@ export function AuthLayout() {
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column">
-            <Box direction="Column" gap="100">
-              <Text as="label" size="L400" priority="300">
-                Server
-              </Text>
-              <ServerPicker
-                server={server}
-                serverList={clientConfig.homeserverList ?? []}
-                allowCustomServer={clientConfig.allowCustomHomeservers}
-                onServerChange={selectServer}
-              />
-            </Box>
+            {!hideServerPicker && (
+              <Box direction="Column" gap="100">
+                <Text as="label" size="L400" priority="300">
+                  Server
+                </Text>
+                <ServerPicker
+                  server={server}
+                  serverList={serverList}
+                  allowCustomServer={clientConfig.allowCustomHomeservers}
+                  onServerChange={selectServer}
+                />
+              </Box>
+            )}
             {discoveryState.status === AsyncStatus.Loading && (
               <AuthLayoutLoading message="Looking for server..." />
             )}

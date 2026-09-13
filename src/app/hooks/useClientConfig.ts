@@ -24,6 +24,10 @@ export type ClientConfig = {
     showAddSpace?: boolean;
   };
 
+  auth?: {
+    hideServerPickerWhenSingle?: boolean;
+  };
+
   welcome?: {
     title?: string;
     subtitle?: string;
