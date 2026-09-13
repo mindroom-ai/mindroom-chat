@@ -38,12 +38,18 @@ html.dark-theme {
   color-scheme: dark;
 }
 
+html.midnight-theme {
+  --app-bg-color: #17161D;
+  color-scheme: dark;
+}
+
 html.butter-theme {
   --app-bg-color: #1A1916;
   color-scheme: dark;
 }
 
 .dark-theme,
+.midnight-theme,
 .butter-theme {
   --tc-link: hsl(213deg 100% 80%);
 
@@ -63,6 +69,10 @@ html.butter-theme {
 .dark-theme {
   --app-bg-color: #1A1A1A;
   background-color: #1A1A1A;
+}
+.midnight-theme {
+  --app-bg-color: #17161D;
+  background-color: #17161D;
 }
 .butter-theme {
   --app-bg-color: #1A1916;

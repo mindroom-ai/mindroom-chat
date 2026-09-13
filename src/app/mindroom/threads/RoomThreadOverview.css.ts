@@ -12,33 +12,19 @@ export const Overview = style({
 
 export const ToolbarHeader = style({
   display: 'flex',
-  flexWrap: 'nowrap',
+  // Wrap between groups when the room is narrow; groups themselves never
+  // break apart (see ToggleGroup), so controls stay in recognizable rows.
+  flexWrap: 'wrap',
   alignItems: 'center',
-  gap: config.space.S100,
-  '@media': {
-    [`screen and (max-width: ${toRem(480)})`]: {
-      flexWrap: 'wrap',
-    },
-  },
+  gap: config.space.S200,
 });
 
 export const ToggleGroup = style({
   display: 'flex',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
+  flexShrink: 0,
   alignItems: 'center',
   gap: config.space.S100,
-});
-
-export const SectionSeparator = style({
-  width: config.borderWidth.B300,
-  height: toRem(20),
-  backgroundColor: color.SurfaceVariant.ContainerLine,
-  flexShrink: 0,
-  '@media': {
-    [`screen and (max-width: ${toRem(480)})`]: {
-      display: 'none',
-    },
-  },
 });
 
 export const CompactCount = style({
