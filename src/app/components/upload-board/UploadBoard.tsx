@@ -1,11 +1,10 @@
-import React, { ReactNode, useRef } from 'react';
+import React, { ReactNode } from 'react';
 import { Badge, Box, Chip, Header, Icon, Icons, Spinner, Text, as, percent } from 'folds';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 
 import * as css from './UploadBoard.css';
 import { TUploadFamilyObserverAtom, Upload, UploadStatus } from '../../state/upload';
-import { getMatrixUploadErrorStage } from '../../utils/matrix';
 
 type UploadBoardProps = {
   header: ReactNode;
@@ -30,7 +29,6 @@ type UploadBoardHeaderProps = {
   onToggle: () => void;
   uploadFamilyObserverAtom: TUploadFamilyObserverAtom;
   onCancel: (uploads: Upload[]) => void;
-  onSend: () => Promise<void>;
 };
 
 export function UploadBoardHeader({
@@ -38,20 +36,13 @@ export function UploadBoardHeader({
   onToggle,
   uploadFamilyObserverAtom,
   onCancel,
-  onSend,
 }: UploadBoardHeaderProps) {
-  const sendingRef = useRef(false);
   const uploads = useAtomValue(uploadFamilyObserverAtom);
 
-  const canSend =
-    uploads.some((upload) => upload.status === UploadStatus.Success) &&
-    uploads.every(
-      (upload) =>
-        upload.status === UploadStatus.Success ||
-        (upload.status === UploadStatus.Error &&
-          getMatrixUploadErrorStage(upload.error) === 'create')
-    );
   const isError = uploads.some((upload) => upload.status === UploadStatus.Error);
+  const isUploading = uploads.some(
+    (upload) => upload.status === UploadStatus.Idle || upload.status === UploadStatus.Loading
+  );
   const progress = uploads.reduce(
     (acc, upload) => {
       acc.total += upload.file.size;
@@ -66,15 +57,6 @@ export function UploadBoardHeader({
     { loaded: 0, total: 0 }
   );
 
-  const handleSend = async () => {
-    if (sendingRef.current) return;
-    sendingRef.current = true;
-    try {
-      await onSend();
-    } finally {
-      sendingRef.current = false;
-    }
-  };
   const handleCancel = () => onCancel(uploads);
 
   return (
@@ -92,32 +74,20 @@ export function UploadBoardHeader({
         <Text size="H6">Files</Text>
       </Box>
       <Box className={css.UploadBoardHeaderContent} alignItems="Center" gap="100">
-        {canSend && (
-          <Chip
-            as="button"
-            onClick={handleSend}
-            variant="Primary"
-            radii="Pill"
-            outlined
-            after={<Icon src={Icons.Send} size="50" filled />}
-          >
-            <Text size="B300">Send</Text>
-          </Chip>
-        )}
         {isError && !open && (
           <Badge variant="Critical" fill="Solid" radii="300">
             <Text size="L400">Upload Failed</Text>
           </Badge>
         )}
-        {!canSend && !isError && !open && (
+        {!isError && !open && (
           <>
             <Badge variant="Secondary" fill="Solid" radii="Pill">
               <Text size="L400">{Math.round(percent(0, progress.total, progress.loaded))}%</Text>
             </Badge>
-            <Spinner variant="Secondary" size="200" />
+            {isUploading && <Spinner variant="Secondary" size="200" />}
           </>
         )}
-        {!canSend && open && (
+        {open && (
           <Chip
             as="button"
             onClick={handleCancel}

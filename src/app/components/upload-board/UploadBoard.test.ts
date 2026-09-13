@@ -44,7 +44,7 @@ vi.mock('./UploadBoard.css', () => ({
 const createFile = (name: string) => new File(['content'], name, { type: 'text/plain' });
 
 describe('UploadBoardHeader', () => {
-  it('shows Send when successful uploads are mixed with create-stage prep errors', async () => {
+  it('keeps removal available without rendering a second Send action', async () => {
     const successful = createFile('sendable.txt');
     const failedPrep = createFile('failed.txt');
     const uploadFamilyObserverAtom = atom([
@@ -59,7 +59,7 @@ describe('UploadBoardHeader', () => {
         error: toMatrixUploadError(new Error('encryption failed'), 'create'),
       },
     ]) as TUploadFamilyObserverAtom;
-    const onSend = vi.fn();
+    const onCancel = vi.fn();
 
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
@@ -71,24 +71,32 @@ describe('UploadBoardHeader', () => {
             open: true,
             onToggle: vi.fn(),
             uploadFamilyObserverAtom,
-            onCancel: vi.fn(),
-            onSend,
+            onCancel,
           })
         )
       );
     });
 
-    const sendButton = renderer.root
-      .findAllByType('button')
-      .find((button) =>
+    const buttons = renderer.root.findAllByType('button');
+    expect(
+      buttons.some((button) =>
         button.findAllByType('span').some((span) => span.children.includes('Send'))
-      );
-
-    expect(sendButton).toBeTruthy();
+      )
+    ).toBe(false);
+    const removeButton = buttons.find((button) =>
+      button.findAllByType('span').some((span) => span.children.includes('Remove All'))
+    );
+    expect(removeButton).toBeTruthy();
     await act(async () => {
-      await sendButton?.props.onClick();
+      await removeButton?.props.onClick();
     });
 
-    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: successful,
+        }),
+      ])
+    );
   });
 });

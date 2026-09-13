@@ -2,7 +2,7 @@ import React, { MutableRefObject, useEffect, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TUploadItem } from '../../state/room/roomInputDrafts';
+import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
@@ -28,6 +28,8 @@ type HarnessApi = {
   sendSessionFilesRef: MutableRefObject<TUploadContent[]>;
   sendSessionUploadItemsRef: MutableRefObject<TUploadItem[]>;
   uploadsRef: MutableRefObject<Upload[]>;
+  mountedRef: MutableRefObject<boolean>;
+  hasActiveSendSession: () => boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
   processSendSession: () => Promise<void>;
 };
@@ -76,6 +78,16 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
   mxc,
 });
 
+const loadingUpload = (file: File): Upload => ({
+  file,
+  status: UploadStatus.Loading,
+  promise: Promise.resolve({ content_uri: `mxc://mindroom/${file.name}` }),
+  progress: {
+    loaded: 0,
+    total: file.size,
+  },
+});
+
 const prepErrorUpload = (file: File): Upload => ({
   file,
   status: UploadStatus.Error,
@@ -88,6 +100,9 @@ const TestHarness = ({
   mx,
   editor,
   sendTypingStatus,
+  replyDraft,
+  clearReplyDraft,
+  restoreComposerFallbackForRoom,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -98,11 +113,15 @@ const TestHarness = ({
   };
   editor: { children: unknown[] };
   sendTypingStatus: ReturnType<typeof vi.fn>;
+  replyDraft?: IReplyDraft;
+  clearReplyDraft: ReturnType<typeof vi.fn>;
+  restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
   const sendSessionUploadItemsRef = useRef<TUploadItem[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
+  const mountedRef = useRef(true);
 
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
@@ -114,13 +133,14 @@ const TestHarness = ({
     } as never,
     roomId: '!room:example.org',
     threadId: undefined,
-    replyDraft: undefined,
-    setReplyDraft: vi.fn(),
+    replyDraft,
+    clearReplyDraft,
     editor: editor as never,
     sendTypingStatus,
     selectedFilesRef,
     sendSessionFilesRef,
     sendSessionUploadItemsRef,
+    mountedRef,
     uploadsRef,
     buildUploadMessageContent: async (fileItem, mxc) => ({
       msgtype: 'm.file',
@@ -140,6 +160,7 @@ const TestHarness = ({
       );
       uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
     },
+    restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
 
@@ -149,6 +170,7 @@ const TestHarness = ({
       sendSessionFilesRef,
       sendSessionUploadItemsRef,
       uploadsRef,
+      mountedRef,
       ...controller,
     });
   }, [controller, onReady]);
@@ -157,7 +179,10 @@ const TestHarness = ({
 };
 
 const renderHarness = (
-  options: { onRoomMessageSent?: (eventId: string) => boolean | void } = {}
+  options: {
+    onRoomMessageSent?: (eventId: string) => boolean | void;
+    replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
+  } = {}
 ) => {
   let sentEvents = 0;
   let transactionIds = 0;
@@ -180,6 +205,8 @@ const renderHarness = (
     children: [{ type: 'paragraph', children: [{ text: 'caption draft' }] }],
   };
   const sendTypingStatus = vi.fn();
+  const clearReplyDraft = vi.fn();
+  const restoreComposerFallbackForRoom = vi.fn();
   let api!: HarnessApi;
 
   act(() => {
@@ -188,6 +215,9 @@ const renderHarness = (
         mx,
         editor,
         sendTypingStatus,
+        replyDraft: options.replyDraft,
+        clearReplyDraft,
+        restoreComposerFallbackForRoom,
         onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
           api = nextApi;
@@ -196,8 +226,112 @@ const renderHarness = (
     );
   });
 
-  return { api, mx, editor, localEvents, sendTypingStatus };
+  return {
+    api,
+    mx,
+    editor,
+    localEvents,
+    sendTypingStatus,
+    clearReplyDraft,
+    restoreComposerFallbackForRoom,
+  };
 };
+
+describe('useRoomInputSendSessionController active session query', () => {
+  it('tracks waiting, failed, retried, and completed sessions', async () => {
+    const { api, mx } = renderHarness();
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+
+    expect(api.hasActiveSendSession()).toBe(false);
+
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [loadingUpload(root), successUpload(child)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(true);
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.uploadsRef.current = [successUpload(root), successUpload(child)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('root send failed'));
+
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(api.hasActiveSendSession()).toBe(false);
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    ['root', false, ['root.txt']],
+    ['child', true, ['root.txt', 'voice.m4a']],
+  ] as const)(
+    'uses explicit items and surfaces the original lifecycle-complete %s error',
+    async (_failedMember, rootSucceeds, expectedBodies) => {
+      const { api, mx } = renderHarness();
+      const root = createFile('root.txt');
+      const voice = createFile('voice.m4a');
+      const sendFailure = new Error('send failed');
+      const fileItems = [createUploadItem(root), createUploadItem(voice)];
+      if (rootSucceeds) {
+        mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' });
+      }
+      mx.sendMessage.mockRejectedValueOnce(sendFailure);
+
+      let failure: unknown;
+      await act(async () => {
+        try {
+          await api.startSendSession({
+            batch: { fileItems, uploads: [successUpload(root), successUpload(voice)] },
+            completeWithinCall: true,
+          });
+        } catch (error) {
+          failure = error;
+        }
+      });
+
+      expect(failure).toBe(sendFailure);
+      expect(mx.sendMessage).toHaveBeenCalledTimes(expectedBodies.length);
+      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+        ...expectedBodies,
+      ]);
+      expect(api.hasActiveSendSession()).toBe(false);
+      expect(api.sendSessionFilesRef.current).toEqual([]);
+      expect(api.sendSessionUploadItemsRef.current).toEqual([]);
+    }
+  );
+
+  it('clears a consumed reply through the captured room context', async () => {
+    const replyDraft: IReplyDraft = {
+      userId: '@alice:example.org',
+      eventId: '$reply',
+      body: 'Original reply',
+    };
+    const { api, clearReplyDraft } = renderHarness({ replyDraft });
+    const file = createFile('reply.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(clearReplyDraft).toHaveBeenCalledWith({
+      roomId: '!room:example.org',
+      replyDraft,
+    });
+  });
+});
 
 describe('useRoomInputSendSessionController prep-error uploads', () => {
   beforeEach(() => {
@@ -382,24 +516,30 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     mocks.restoreEditorContent.mockReset();
   });
 
-  it('restores the caption to the composer and completes the session when the caption fails', async () => {
+  it('restores the caption and clears the session when lifecycle-complete sending fails', async () => {
     const { api, mx, editor } = renderHarness();
     const image = createFile('image.png');
+    const textFailure = new Error('caption send failed');
 
     api.selectedFilesRef.current = [createUploadItem(image)];
     api.uploadsRef.current = [successUpload(image)];
 
     mx.sendMessage.mockImplementationOnce(async () => ({ event_id: '$root' }));
-    mx.sendMessage.mockImplementationOnce(async () => {
-      throw new Error('caption send failed');
-    });
+    mx.sendMessage.mockRejectedValueOnce(textFailure);
 
+    let failure: unknown;
     await act(async () => {
-      await api.startSendSession({
-        textContent: { msgtype: 'm.text', body: 'caption draft' },
-      });
+      try {
+        await api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'caption draft' },
+          completeWithinCall: true,
+        });
+      } catch (error) {
+        failure = error;
+      }
     });
 
+    expect(failure).toBe(textFailure);
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
     expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
       url: 'mxc://mindroom/image.png',
@@ -423,6 +563,80 @@ describe('useRoomInputSendSessionController caption send failures', () => {
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });
+  });
+
+  it('restores an already-cleared caption when an earlier lifecycle upload fails', async () => {
+    const { api, mx, editor } = renderHarness();
+    const root = createFile('root.txt');
+    const failed = createFile('failed.txt');
+    const voice = createFile('voice.m4a');
+    const sendFailure = new Error('companion send failed');
+    const composerFallback = [
+      { type: 'paragraph', children: [{ text: 'captured caption' }] },
+    ] as never;
+    const onUploadSent = vi.fn();
+
+    mx.sendMessage.mockResolvedValueOnce({ event_id: '$root' });
+    mx.sendMessage.mockRejectedValueOnce(sendFailure);
+
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'captured caption' },
+          batch: {
+            fileItems: [createUploadItem(root), createUploadItem(failed), createUploadItem(voice)],
+            uploads: [successUpload(root), successUpload(failed), successUpload(voice)],
+          },
+          completeWithinCall: true,
+          composerFallback,
+          composerAlreadyReset: true,
+          onUploadSent,
+        });
+      } catch (error) {
+        failure = error;
+      }
+    });
+
+    expect(failure).toBe(sendFailure);
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(onUploadSent).toHaveBeenCalledWith(root);
+    expect(onUploadSent).not.toHaveBeenCalledWith(voice);
+    expect(mocks.resetEditor).not.toHaveBeenCalledWith(editor);
+    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, composerFallback);
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('restores a lifecycle caption through room draft storage after unmount', async () => {
+    const { api, mx, restoreComposerFallbackForRoom } = renderHarness();
+    const attachment = createFile('attachment.txt');
+    const sendFailure = new Error('attachment send failed');
+    const composerFallback = [
+      { type: 'paragraph', children: [{ text: 'durable caption' }] },
+    ] as never;
+    api.mountedRef.current = false;
+    mx.sendMessage.mockRejectedValueOnce(sendFailure);
+
+    await act(async () => {
+      await expect(
+        api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'durable caption' },
+          batch: {
+            fileItems: [createUploadItem(attachment)],
+            uploads: [successUpload(attachment)],
+          },
+          completeWithinCall: true,
+          composerFallback,
+          composerAlreadyReset: true,
+        })
+      ).rejects.toBe(sendFailure);
+    });
+
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
+      '!room:example.org',
+      composerFallback
+    );
   });
 
   it('restores a failed text snapshot without erasing newer composer input', async () => {

@@ -51,7 +51,7 @@ vi.mock('../../components/voice/VoiceWaveform.css', () => ({
 }));
 
 describe('VoiceRecordingCapsule', () => {
-  it('renders only discard, waveform, timer, pause, and send controls', () => {
+  it('renders only discard, waveform, timer, and pause controls', () => {
     const renderer = create(
       React.createElement(VoiceRecordingCapsule, {
         phase: 'recording',
@@ -61,7 +61,6 @@ describe('VoiceRecordingCapsule', () => {
         onDiscard: vi.fn(),
         onPause: vi.fn(),
         onResume: vi.fn(),
-        onSend: vi.fn(),
       })
     );
 
@@ -69,7 +68,6 @@ describe('VoiceRecordingCapsule', () => {
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Discard voice recording',
       'Pause voice recording',
-      'Send voice recording',
     ]);
     expect(renderer.toJSON()).toEqual(expect.not.stringContaining('Add to uploads'));
     expect(renderer.toJSON()).toEqual(expect.not.stringContaining('Record again'));
@@ -78,11 +76,10 @@ describe('VoiceRecordingCapsule', () => {
     renderer.unmount();
   });
 
-  it('toggles pause/resume and calls send/discard handlers', () => {
+  it('toggles pause/resume and calls discard handler', () => {
     const onDiscard = vi.fn();
     const onPause = vi.fn();
     const onResume = vi.fn();
-    const onSend = vi.fn();
     const renderer = create(
       React.createElement(VoiceRecordingCapsule, {
         phase: 'paused',
@@ -92,7 +89,6 @@ describe('VoiceRecordingCapsule', () => {
         onDiscard,
         onPause,
         onResume,
-        onSend,
       })
     );
 
@@ -102,13 +98,11 @@ describe('VoiceRecordingCapsule', () => {
     act(() => {
       buttons[0].props.onClick();
       buttons[1].props.onClick();
-      buttons[2].props.onClick();
     });
 
     expect(onDiscard).toHaveBeenCalledOnce();
     expect(onResume).toHaveBeenCalledOnce();
     expect(onPause).not.toHaveBeenCalled();
-    expect(onSend).toHaveBeenCalledOnce();
 
     renderer.unmount();
   });
@@ -123,7 +117,6 @@ describe('VoiceRecordingCapsule', () => {
         onDiscard: vi.fn(),
         onPause: vi.fn(),
         onResume: vi.fn(),
-        onSend: vi.fn(),
       })
     );
 
@@ -135,10 +128,9 @@ describe('VoiceRecordingCapsule', () => {
     renderer.unmount();
   });
 
-  it('reuses the capsule controls for a pending recording ready to retry', () => {
+  it('keeps a pending recording ready for primary composer Send', () => {
     const onDiscard = vi.fn();
     const onPause = vi.fn();
-    const onSend = vi.fn();
     const renderer = create(
       React.createElement(VoiceRecordingCapsule, {
         phase: 'idle',
@@ -149,7 +141,6 @@ describe('VoiceRecordingCapsule', () => {
         onDiscard,
         onPause,
         onResume: vi.fn(),
-        onSend,
       })
     );
 
@@ -157,20 +148,16 @@ describe('VoiceRecordingCapsule', () => {
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Discard voice recording',
       'Pause voice recording',
-      'Retry sending voice recording',
     ]);
     expect(buttons[1].props.disabled).toBe(true);
-    expect(buttons[2].props.disabled).toBeFalsy();
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice recording ready to retry');
 
     act(() => {
       buttons[0].props.onClick();
-      buttons[2].props.onClick();
     });
 
     expect(onDiscard).toHaveBeenCalledOnce();
     expect(onPause).not.toHaveBeenCalled();
-    expect(onSend).toHaveBeenCalledOnce();
 
     renderer.unmount();
   });
