@@ -14,13 +14,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import React, {
-  MouseEventHandler,
-  ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { MouseEventHandler, ReactNode, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
@@ -443,7 +437,10 @@ export function ClientRoot({ children }: ClientRootProps) {
 
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
-      {clientState.status !== 'error' && mx && (!hasSeenSyncActivity ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
+      {clientState.status !== 'error' &&
+        canRenderReadyContent &&
+        mx &&
+        (!hasSeenSyncActivity ? <ClientRootSyncingStatus /> : <SyncStatus mx={mx} />)}
       {clientState.status !== 'error' && !mx && (
         <ClientRootOptions mx={mx} activeSession={activeSession} />
       )}
@@ -476,7 +473,11 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {clientState.status !== 'error' && !canRenderReadyContent ? <ClientRootLoading /> : readyContent}
+      {clientState.status !== 'error' && !canRenderReadyContent ? (
+        <ClientRootLoading />
+      ) : (
+        readyContent
+      )}
     </SpecVersions>
   );
 }
