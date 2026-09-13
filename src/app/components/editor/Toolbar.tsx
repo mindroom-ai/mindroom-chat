@@ -123,7 +123,6 @@ export function HeadingBlockButton() {
   const level = headingLevel(editor);
   const [anchor, setAnchor] = useState<RectCords>();
   const isActive = isBlockActive(editor, BlockType.Heading);
-  const modKey = isMacOS() ? KeySymbol.Command : 'Ctrl';
 
   const handleMenuSelect = (selectedLevel: HeadingLevel) => {
     setAnchor(undefined);
@@ -157,10 +156,7 @@ export function HeadingBlockButton() {
         >
           <Menu style={{ padding: config.space.S100 }}>
             <Box gap="100">
-              <TooltipProvider
-                tooltip={<BtnTooltip text="Heading 1" shortCode={`${modKey} + 1`} />}
-                delay={500}
-              >
+              <TooltipProvider tooltip={<BtnTooltip text="Heading 1" />} delay={500}>
                 {(triggerRef) => (
                   <IconButton
                     ref={triggerRef}
@@ -172,10 +168,7 @@ export function HeadingBlockButton() {
                   </IconButton>
                 )}
               </TooltipProvider>
-              <TooltipProvider
-                tooltip={<BtnTooltip text="Heading 2" shortCode={`${modKey} + 2`} />}
-                delay={500}
-              >
+              <TooltipProvider tooltip={<BtnTooltip text="Heading 2" />} delay={500}>
                 {(triggerRef) => (
                   <IconButton
                     ref={triggerRef}
@@ -187,10 +180,7 @@ export function HeadingBlockButton() {
                   </IconButton>
                 )}
               </TooltipProvider>
-              <TooltipProvider
-                tooltip={<BtnTooltip text="Heading 3" shortCode={`${modKey} + 3`} />}
-                delay={500}
-              >
+              <TooltipProvider tooltip={<BtnTooltip text="Heading 3" />} delay={500}>
                 {(triggerRef) => (
                   <IconButton
                     ref={triggerRef}
