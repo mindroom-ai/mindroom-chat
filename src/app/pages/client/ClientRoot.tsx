@@ -49,6 +49,11 @@ import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { getLoginPath } from '../pathUtils';
 
+const READY_SYNC_STATES = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
+
+const isClientReadySyncState = (state: string | null | undefined): boolean =>
+  !!state && READY_SYNC_STATES.has(state);
+
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
     event: HttpApiEvent.SessionLoggedOut,
@@ -281,18 +286,6 @@ export function ClientRoot({ children }: ClientRootProps) {
           session: clientBootstrapSession,
           mx: nextClient,
         });
-
-        await startClient(nextClient);
-        if (disposed) {
-          nextClient.stopClient();
-          return;
-        }
-
-        setClientState({
-          status: 'success',
-          session: clientBootstrapSession,
-          mx: nextClient,
-        });
       } catch (error) {
         if (nextClient) {
           nextClient.stopClient();
@@ -317,14 +310,67 @@ export function ClientRoot({ children }: ClientRootProps) {
     };
   }, [clientBootstrapSession, retryCount]);
 
+  useEffect(() => {
+    if (clientState.status !== 'starting' || !clientState.mx) return undefined;
+
+    let disposed = false;
+    const { mx: nextClient, session } = clientState;
+
+    const startInitializedClient = async () => {
+      try {
+        await startClient(nextClient);
+        if (disposed) return;
+
+        setClientState((currentState) => {
+          if (
+            currentState.status !== 'starting' ||
+            currentState.mx !== nextClient ||
+            currentState.session.sessionId !== session.sessionId
+          ) {
+            return currentState;
+          }
+
+          return {
+            status: 'success',
+            session,
+            mx: nextClient,
+          };
+        });
+      } catch (error) {
+        nextClient.stopClient();
+        if (disposed) return;
+
+        setLoading(false);
+        setClientState({
+          status: 'error',
+          session,
+          error: error instanceof Error ? error : new Error('Failed to initialize Matrix client.'),
+          mx: nextClient,
+        });
+      }
+    };
+
+    startInitializedClient().catch(() => undefined);
+    return () => {
+      disposed = true;
+    };
+  }, [clientState]);
+
   useSyncState(
     mx,
     useCallback((state: string) => {
-      if (state === 'PREPARED') {
+      if (isClientReadySyncState(state)) {
         setLoading(false);
       }
     }, [])
   );
+
+  useEffect(() => {
+    if (!mx || typeof mx.getSyncState !== 'function') return;
+    if (isClientReadySyncState(mx.getSyncState())) {
+      setLoading(false);
+    }
+  }, [mx]);
 
   useEffect(() => {
     setLoading(true);

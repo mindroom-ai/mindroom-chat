@@ -1,11 +1,15 @@
 import { IEvent } from 'matrix-js-sdk';
-import { getSessionScopedStorageKey } from '../../state/sessions';
+import { getSessionScopedStorageKey, listSessions } from '../../state/sessions';
 import {
   CachedPaginationTokenMap,
   compareCachedPaginationAnchors,
   getCachedPaginationToken,
   mergeCachedPaginationTokens,
 } from './eventCacheTokenUtils';
+import {
+  copyLegacyIndexedDbIfTargetStoreEmpty,
+  openExistingDatabase,
+} from './cacheDbMigrationUtils';
 
 const DB_NAME = 'mindroom-room-event-cache';
 const DB_VERSION = 2;
@@ -95,6 +99,33 @@ export const getRoomCursorAnchor = (
 export const getRoomEventCacheDbName = (sessionId: string): string =>
   getSessionScopedStorageKey(sessionId, DB_NAME);
 
+const shouldAttemptLegacyRoomEventCacheMigration = (sessionId: string): boolean => {
+  const sessions = listSessions();
+  return sessions.length === 0 || (sessions.length === 1 && sessions[0]?.sessionId === sessionId);
+};
+
+const migrateLegacyRoomEventCacheIfNeeded = async (
+  sessionId: string,
+  targetDb: IDBDatabase
+): Promise<void> => {
+  if (!shouldAttemptLegacyRoomEventCacheMigration(sessionId)) return;
+  if (targetDb.name === DB_NAME) return;
+
+  const legacyDb = await openExistingDatabase(DB_NAME);
+  if (!legacyDb || legacyDb.name === targetDb.name) return;
+
+  try {
+    await copyLegacyIndexedDbIfTargetStoreEmpty<CachedRoomEventRecord, CachedRoomMetaRecord>({
+      targetDb,
+      legacyDb,
+      primaryStoreName: EVENT_STORE,
+      secondaryStoreName: META_STORE,
+    });
+  } finally {
+    legacyDb.close();
+  }
+};
+
 const openRoomEventCache = (sessionId: string): Promise<IDBDatabase | undefined> => {
   const dbName = getRoomEventCacheDbName(sessionId);
   const currentPromise = dbPromiseByName.get(dbName);
@@ -132,7 +163,9 @@ const openRoomEventCache = (sessionId: string): Promise<IDBDatabase | undefined>
         db.close();
         dbPromiseByName.delete(dbName);
       };
-      resolve(db);
+      migrateLegacyRoomEventCacheIfNeeded(sessionId, db)
+        .catch(() => undefined)
+        .finally(() => resolve(db));
     };
     request.onerror = () => reject(request.error);
   });

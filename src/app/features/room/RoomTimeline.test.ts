@@ -24,6 +24,7 @@ const {
   retryPaginationMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
+  loadLatestCachedRoomEventsMock,
   saveRoomEventsToCacheMock,
   virtualPaginatorState,
   settingsState,
@@ -65,6 +66,7 @@ const {
   retryPaginationMock: vi.fn(),
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
+  loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
@@ -471,6 +473,7 @@ vi.mock('./roomEventCache', async (importOriginal) => {
     ...actual,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
     loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
+    loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
     saveRoomEventsToCache: saveRoomEventsToCacheMock,
   };
 });
@@ -553,6 +556,7 @@ const makeEvent = (
   getContent: () => opts.content ?? { body: eventId },
   getId: () => eventId,
   getRelation: () => opts.relation,
+  getRedactionEvent: () => undefined,
   getRoomId: () => '!room:example.org',
   getSender: () => opts.sender ?? '@alice:example.org',
   getServerAggregatedRelation: () => undefined,
@@ -562,6 +566,7 @@ const makeEvent = (
   getUnsigned: () => ({}),
   isRedacted: () => opts.isRedacted ?? false,
   isRedaction: () => opts.isRedaction ?? false,
+  makeRedacted: vi.fn(),
   makeReplaced: vi.fn(),
   replacingEvent: () => undefined,
 });
@@ -643,6 +648,9 @@ const makeRoom = ({
   return {
     __listeners: listeners,
     addEventsToTimeline: vi.fn(),
+    addLiveEvents: vi.fn(async (events: ReturnType<typeof makeEvent>[]) => {
+      currentLiveEvents.push(...events);
+    }),
     roomId: '!room:example.org',
     client: {
       getUserId: () => '@alice:example.org',
@@ -708,6 +716,7 @@ beforeEach(() => {
   );
   loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
+  loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   settingsState.paginationLimit = 300;
   virtualPaginatorState.lastOptions = undefined;
@@ -816,6 +825,135 @@ describe('RoomTimeline', () => {
         })
       )
     ).not.toThrow();
+  });
+
+  it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
+    const { shouldHydrateLatestRoomCache } = await import('./RoomTimeline');
+
+    expect(
+      shouldHydrateLatestRoomCache(makeCachedRoomEvent('$loaded', 100), makeCachedRoomEvent('$cached', 200))
+    ).toBe(true);
+    expect(
+      shouldHydrateLatestRoomCache(makeCachedRoomEvent('$loaded', 200), makeCachedRoomEvent('$cached', 200))
+    ).toBe(false);
+    expect(
+      shouldHydrateLatestRoomCache(makeCachedRoomEvent('$loaded', 300), makeCachedRoomEvent('$cached', 200))
+    ).toBe(false);
+  });
+
+  it('deduplicates cached room hydration events against already loaded SDK events', async () => {
+    const { filterLatestRoomCacheHydrationEvents } = await import('./RoomTimeline');
+
+    expect(
+      filterLatestRoomCacheHydrationEvents(
+        [makeCachedRoomEvent('$loaded', 100), makeCachedRoomEvent('$new', 200)],
+        [makeEvent('$loaded', { ts: 100 })] as never
+      )
+    ).toEqual([makeCachedRoomEvent('$new', 200)]);
+  });
+
+  it('hydrates cached room events into the live timeline', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const { hydrateCachedEvents } = await import('./eventCacheEditUtils');
+    const room = makeRoom({
+      liveEvents: [makeEvent('$loaded', { ts: 100 })],
+    });
+    const roomInputRef = createRef<HTMLElement>();
+    const editor = {} as Editor;
+    let renderer: ReturnType<typeof create> | undefined;
+
+    loadLatestCachedRoomEventsMock.mockResolvedValue({
+      beforeToken: undefined,
+      events: [makeCachedRoomEvent('$cached', 200)],
+      hasMoreBefore: false,
+    });
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(RoomTimeline, {
+            room,
+            roomInputRef,
+            editor,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(hydrateCachedEvents).toHaveBeenCalledWith({
+        room,
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            getId: expect.any(Function),
+          }),
+        ]),
+      });
+      expect(room.addLiveEvents).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            getId: expect.any(Function),
+          }),
+        ]),
+        expect.objectContaining({
+          fromCache: true,
+          timelineWasEmpty: false,
+          addToState: false,
+        })
+      );
+      expect(room.getLiveTimeline().getEvents().map((event) => event.getId())).toEqual([
+        '$loaded',
+        '$cached',
+      ]);
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
+  });
+
+  it('logs room cache hydration failures instead of swallowing them', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const hydrationError = new Error('hydrate failed');
+    const room = makeRoom({
+      liveEvents: [makeEvent('$loaded', { ts: 100 })],
+    });
+    const roomInputRef = createRef<HTMLElement>();
+    const editor = {} as Editor;
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    loadLatestCachedRoomEventsMock.mockResolvedValue({
+      beforeToken: undefined,
+      events: [makeCachedRoomEvent('$cached', 200)],
+      hasMoreBefore: false,
+    });
+    room.addLiveEvents.mockRejectedValueOnce(hydrationError);
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(RoomTimeline, {
+            room,
+            roomInputRef,
+            editor,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to hydrate latest room cache for',
+        room.roomId,
+        hydrationError
+      );
+    } finally {
+      consoleErrorSpy.mockRestore();
+      await act(async () => {
+        renderer?.unmount();
+        await flushAsyncWork(1);
+      });
+    }
   });
 
   it('preserves an explicit null backward token when hydrating cached room history', async () => {
