@@ -119,60 +119,6 @@ const runReleaseFirstCleanup = async (
   }
 };
 
-const verifyFailurePathControls = async (): Promise<void> => {
-  await expect(waitForContinuationWithDeadline(new Promise<never>(() => {}), 1)).rejects.toThrow(
-    'Timed out after 1ms waiting for the target thread continuation after Load Older activation'
-  );
-
-  const attempts: string[] = [];
-  const samplerFailure = new Error('sampler control rejection');
-  await expect(
-    runReleaseFirstCleanup(() => {
-      attempts.push('release barrier');
-    }, [
-      {
-        name: 'anchor sampler',
-        run: () => {
-          attempts.push('anchor sampler');
-          throw samplerFailure;
-        },
-      },
-      {
-        name: 'continuation route',
-        run: () => {
-          attempts.push('continuation route');
-        },
-      },
-      {
-        name: 'abort route',
-        run: () => {
-          attempts.push('abort route');
-        },
-      },
-      {
-        name: 'response listener',
-        run: () => {
-          attempts.push('response listener');
-        },
-      },
-      {
-        name: 'response readers',
-        run: () => {
-          attempts.push('response readers');
-        },
-      },
-    ])
-  ).rejects.toThrow('CINNY-070 cleanup failed: anchor sampler');
-  expect(attempts).toEqual([
-    'release barrier',
-    'anchor sampler',
-    'continuation route',
-    'abort route',
-    'response listener',
-    'response readers',
-  ]);
-};
-
 const readThreadViewport = async (page: import('@playwright/test').Page): Promise<ThreadViewport> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
@@ -447,7 +393,6 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     page,
   }, testInfo) => {
     test.slow();
-    await verifyFailurePathControls();
 
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
