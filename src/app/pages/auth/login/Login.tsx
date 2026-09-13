@@ -19,6 +19,7 @@ import {
   getMindroomAuthSsoRedirectUrl,
   isMindroomHomeserver,
   shouldDisablePasswordLogin,
+  shouldRequireAppleProvider,
 } from '../../../mindroom/auth/authUi';
 
 const getLoginTokenSearchParam = () => {
@@ -67,7 +68,7 @@ export function Login() {
   const disablePasswordLogin = shouldDisablePasswordLogin(server, auth);
   const showPasswordLogin = parsedFlows.password !== undefined && !disablePasswordLogin;
   const registrationAllowed = auth?.allowRegistration !== false;
-  const requireAppleProvider = auth?.requireAppleProvider === true;
+  const requireAppleProvider = shouldRequireAppleProvider(server, auth);
   const appleProviderAvailable = hasAppleIdentityProvider(parsedFlows.sso?.identity_providers);
 
   return (
