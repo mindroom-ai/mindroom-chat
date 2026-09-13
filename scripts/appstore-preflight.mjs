@@ -11,6 +11,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const configFileName = 'config.mindroom.json';
 const configPath = path.join(repoRoot, configFileName);
+const capacitorConfigPath = path.join(repoRoot, 'capacitor.config.ts');
 const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
 const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
@@ -34,6 +35,7 @@ const check = (condition, message) => {
 };
 
 const config = JSON.parse(readText(configPath));
+const capacitorConfig = readText(capacitorConfigPath);
 const xcodeProject = readText(xcodeProjectPath);
 const infoPlist = readText(infoPlistPath);
 const entitlements = fs.existsSync(entitlementsPath) ? readText(entitlementsPath) : '';
@@ -52,12 +54,14 @@ const isHttpsUrl = (value) => {
     return false;
   }
 };
+const capacitorAppIdMatch = capacitorConfig.match(/appId:\s*['"]([^'"]+)['"]/);
 const hasPlistKey = (plist, key) =>
   new RegExp(`<key>\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*</key>`).test(plist);
 const hasSingleValue = (values) => new Set(values).size === 1;
 
 let marketingVersions = [];
 let buildNumbers = [];
+let bundleIdentifiers = [];
 
 try {
   marketingVersions = getAppTargetBuildSettingValues(xcodeProject, 'MARKETING_VERSION').map(
@@ -66,6 +70,10 @@ try {
   buildNumbers = getAppTargetBuildSettingValues(xcodeProject, 'CURRENT_PROJECT_VERSION').map(
     (record) => record.value
   );
+  bundleIdentifiers = getAppTargetBuildSettingValues(
+    xcodeProject,
+    'PRODUCT_BUNDLE_IDENTIFIER'
+  ).map((record) => record.value);
 } catch (error) {
   check(false, `Xcode project: ${error.message}`);
 }
@@ -113,6 +121,14 @@ check(
   'Xcode project: App target CURRENT_PROJECT_VERSION values must match across build configurations.'
 );
 check(
+  bundleIdentifiers.length > 0,
+  'Xcode project: missing App target PRODUCT_BUNDLE_IDENTIFIER entries.'
+);
+check(
+  hasSingleValue(bundleIdentifiers),
+  'Xcode project: App target PRODUCT_BUNDLE_IDENTIFIER values must match across build configurations.'
+);
+check(
   xcodeProject.includes('com.apple.SignInWithApple'),
   'Xcode project: missing Sign in with Apple capability.'
 );
@@ -129,6 +145,15 @@ if (iosPushConfig.enabled === true) {
   check(
     isHttpsUrl(iosPushConfig.gatewayUrl),
     `${configFileName}: push.ios.gatewayUrl must be a HTTPS URL when push.ios.enabled is true.`
+  );
+  check(
+    capacitorAppIdMatch?.[1] === iosPushConfig.appId,
+    `capacitor.config.ts: appId must match ${configFileName} push.ios.appId when iOS push is enabled.`
+  );
+  check(
+    bundleIdentifiers.length > 0 &&
+      bundleIdentifiers.every((value) => value === iosPushConfig.appId),
+    `Xcode project: PRODUCT_BUNDLE_IDENTIFIER must match ${configFileName} push.ios.appId when iOS push is enabled.`
   );
   check(
     fs.existsSync(entitlementsPath),

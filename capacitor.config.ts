@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.mindroom-ai.app',
+  appId: 'chat.mindroom.app',
   appName: 'MindRoom',
   webDir: 'dist',
   server: {
