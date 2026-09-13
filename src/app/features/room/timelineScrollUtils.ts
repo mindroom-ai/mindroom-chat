@@ -42,3 +42,30 @@ export const shouldAutoScrollThreadOnLiveEvent = ({
   isTimelineAtLiveEnd: atLiveEnd,
 }: ThreadAutoScrollOpts): boolean =>
   relationType === 'm.thread' && isNearBottom && atLiveEnd;
+
+type RoomAutoScrollOpts = {
+  scrollElement: HTMLElement | null;
+  isTimelineAtLiveEnd: boolean;
+  thresholdPx?: number;
+};
+
+/**
+ * Determines whether the main room timeline should auto-scroll to bottom
+ * on a live event by measuring the **current** scroll position instead of
+ * relying on the debounced `atBottom` state.  This prevents streaming
+ * `m.replace` edits from trapping the user at the bottom when they have
+ * already scrolled away (CINNY-031).
+ */
+export const shouldAutoScrollRoomOnLiveEvent = ({
+  scrollElement,
+  isTimelineAtLiveEnd,
+  thresholdPx = 100,
+}: RoomAutoScrollOpts): boolean => {
+  if (!isTimelineAtLiveEnd || !scrollElement) return false;
+  return isScrollNearBottom({
+    scrollHeight: scrollElement.scrollHeight,
+    scrollTop: scrollElement.scrollTop,
+    clientHeight: scrollElement.clientHeight,
+    thresholdPx,
+  });
+};

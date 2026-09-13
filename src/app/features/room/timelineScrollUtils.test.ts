@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isScrollNearBottom,
   isTimelineAtLiveEnd,
+  shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
 
@@ -100,5 +101,68 @@ describe('shouldAutoScrollThreadOnLiveEvent', () => {
         isTimelineAtLiveEnd: true,
       })
     ).toBe(false);
+  });
+});
+
+describe('shouldAutoScrollRoomOnLiveEvent', () => {
+  const makeScrollElement = (scrollHeight: number, scrollTop: number, clientHeight: number) =>
+    ({ scrollHeight, scrollTop, clientHeight }) as unknown as HTMLElement;
+
+  it('returns true when at live end and scroll is near bottom (within 100px threshold)', () => {
+    // scrollHeight 1000, clientHeight 400 → max scrollTop = 600
+    // scrollTop 550 → distance from bottom = 1000 - 550 - 400 = 50 → within 100px
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: makeScrollElement(1000, 550, 400),
+        isTimelineAtLiveEnd: true,
+      })
+    ).toBe(true);
+  });
+
+  it('returns false when user has scrolled up beyond threshold', () => {
+    // scrollTop 400 → distance from bottom = 1000 - 400 - 400 = 200 → beyond 100px
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: makeScrollElement(1000, 400, 400),
+        isTimelineAtLiveEnd: true,
+      })
+    ).toBe(false);
+  });
+
+  it('returns false when not at live end even if near bottom', () => {
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: makeScrollElement(1000, 580, 400),
+        isTimelineAtLiveEnd: false,
+      })
+    ).toBe(false);
+  });
+
+  it('returns false when scrollElement is null', () => {
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: null,
+        isTimelineAtLiveEnd: true,
+      })
+    ).toBe(false);
+  });
+
+  it('respects custom thresholdPx', () => {
+    // distance from bottom = 1000 - 550 - 400 = 50
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: makeScrollElement(1000, 550, 400),
+        isTimelineAtLiveEnd: true,
+        thresholdPx: 30,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldAutoScrollRoomOnLiveEvent({
+        scrollElement: makeScrollElement(1000, 550, 400),
+        isTimelineAtLiveEnd: true,
+        thresholdPx: 60,
+      })
+    ).toBe(true);
   });
 });

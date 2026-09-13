@@ -493,6 +493,7 @@ vi.mock('./eventCacheEditUtils', () => ({
 vi.mock('./timelineScrollUtils', () => ({
   isScrollNearBottom: () => true,
   isTimelineAtLiveEnd: () => true,
+  shouldAutoScrollRoomOnLiveEvent: () => false,
   shouldAutoScrollThreadOnLiveEvent: () => false,
 }));
 
