@@ -11,7 +11,11 @@ export function SidebarContent({ scrollable, sticky }: SidebarContentProps) {
       <Box direction="Column" grow="Yes">
         {scrollable}
       </Box>
-      <Box direction="Column" shrink="No">
+      <Box
+        direction="Column"
+        shrink="No"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         {sticky}
       </Box>
     </>

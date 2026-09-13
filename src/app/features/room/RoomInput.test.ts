@@ -93,14 +93,16 @@ vi.mock('../../components/editor', () => ({
   AutocompletePrefix: {},
   AutocompleteQuery: {},
   CustomEditor: ({
+    style,
     top,
     before,
     after,
   }: {
+    style?: React.CSSProperties;
     top?: React.ReactNode;
     before?: React.ReactNode;
     after?: React.ReactNode;
-  }) => React.createElement('div', null, top, before, after),
+  }) => React.createElement('div', { style }, top, before, after),
   EmoticonAutocomplete: () => null,
   RoomMentionAutocomplete: () => null,
   Toolbar: () => null,
@@ -343,6 +345,20 @@ afterEach(() => {
 });
 
 describe('RoomInput', () => {
+  it('extends the composer surface into the bottom safe area', async () => {
+    const { renderer } = await renderRoomInput();
+
+    const editorSurface = renderer.root.find(
+      (node) =>
+        node.type === 'div' &&
+        node.props.style?.paddingBottom === 'env(safe-area-inset-bottom, 0px)'
+    );
+
+    expect(editorSurface).toBeTruthy();
+
+    renderer.unmount();
+  });
+
   it('keeps same-tick voice sends alive until the upload becomes sendable', async () => {
     const { store, renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
 

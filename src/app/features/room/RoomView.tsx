@@ -362,7 +362,10 @@ export function RoomView({
               )}
               {!canMessage && (
                 <RoomInputPlaceholder
-                  style={{ padding: config.space.S200 }}
+                  style={{
+                    padding: config.space.S200,
+                    paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+                  }}
                   alignItems="Center"
                   justifyContent="Center"
                 >

@@ -23,6 +23,7 @@ export const PdfViewerFooter = style([
   {
     borderTopWidth: config.borderWidth.B300,
     borderBottomWidth: 0,
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
   },
 ]);
 
