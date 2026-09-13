@@ -1,4 +1,4 @@
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import {
   type Dispatch,
@@ -14,8 +14,10 @@ import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../native/useEdgeSwipeBack';
+import { useEdgeSwipeForward } from '../native/useEdgeSwipeForward';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
+import { lastExitedThreadAtom } from './lastExitedThread';
 import { getRoomThreadExitTargetFromHistoryState } from './roomNavigateState';
 import {
   addTagFilter,
@@ -87,8 +89,11 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  const [threadSortFreezeState, setThreadSortFreezeState] =
-    useState<ThreadSortFreezeState | null>(null);
+  const lastExitedThread = useAtomValue(lastExitedThreadAtom);
+  const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
+  const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
+    null
+  );
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -114,16 +119,14 @@ export const useRoomViewThreadState = ({
 
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
+    setLastExitedThread({ roomId: room.roomId, threadId: effectiveThreadId });
     const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
     if (
       historyExitTarget?.roomId === room.roomId &&
       historyExitTarget.threadId === effectiveThreadId
     ) {
       const standaloneWebApp = isIOSStandaloneWebApp();
-      if (
-        historyExitTarget.exitPath &&
-        (!historyExitTarget.useHistoryBack || standaloneWebApp)
-      ) {
+      if (historyExitTarget.exitPath && (!historyExitTarget.useHistoryBack || standaloneWebApp)) {
         navigatePath(historyExitTarget.exitPath, { replace: true });
         return;
       }
@@ -133,8 +136,22 @@ export const useRoomViewThreadState = ({
       }
     }
     navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
-  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId]);
+  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId, setLastExitedThread]);
+
+  const handleSwipeForwardToThread = useCallback(() => {
+    if (threadId) return;
+    if (!lastExitedThread || lastExitedThread.roomId !== room.roomId) return;
+
+    const targetThreadId = lastExitedThread.threadId;
+    setLastExitedThread(null);
+    navigateRoomThread(room.roomId, targetThreadId);
+  }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId]);
+
   useEdgeSwipeBack(handleExitThread, !!threadId);
+  useEdgeSwipeForward(
+    handleSwipeForwardToThread,
+    !threadId && lastExitedThread?.roomId === room.roomId
+  );
 
   const updateFromEffectiveQueryState = useCallback(
     (updater: (state: ThreadFilterState) => ThreadFilterState) => {
@@ -227,6 +244,19 @@ export const useRoomViewThreadState = ({
   useEffect(() => {
     setThreadSortFreezeState(null);
   }, [roomId]);
+
+  useEffect(() => {
+    if (threadId) {
+      setLastExitedThread(null);
+      return;
+    }
+
+    if (lastExitedThread && lastExitedThread.roomId !== roomId) {
+      setLastExitedThread(null);
+    }
+  }, [lastExitedThread, roomId, setLastExitedThread, threadId]);
+
+  useEffect(() => () => setLastExitedThread(null), [setLastExitedThread]);
 
   useEffect(() => {
     if (threadFilterState.sortBy === 'natural') {
