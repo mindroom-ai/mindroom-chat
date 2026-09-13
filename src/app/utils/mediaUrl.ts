@@ -44,8 +44,17 @@ export const mxcUrlToHttp = (
 
   if (!mediaUrl || !useAuthentication) return mediaUrl;
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return mediaUrl;
-  if (window.location?.protocol !== 'capacitor:') return mediaUrl;
-  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) return mediaUrl;
+  const isCapacitor = window.location?.protocol === 'capacitor:';
+  const serviceWorkerAvailable =
+    typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
+  const serviceWorkerControlled =
+    serviceWorkerAvailable && !!navigator.serviceWorker?.controller;
+
+  // When authenticated media is enabled but the page is not yet controlled by the
+  // service worker, native image/media elements cannot receive the Authorization
+  // header. Use a query token fallback until controller takeover completes.
+  if (!isCapacitor && serviceWorkerControlled) return mediaUrl;
+  if (!isCapacitor && !serviceWorkerAvailable) return mediaUrl;
 
   const accessToken = getActiveSession()?.accessToken;
   if (!accessToken) return mediaUrl;
