@@ -48,6 +48,7 @@ type RenderMessageContentProps = {
   htmlReactParserOptions: HTMLReactParserOptions;
   linkifyOpts: Opts;
   outlineAttachment?: boolean;
+  hydrateLongText?: boolean;
   onLongTextHydratedMessageExtrasRendered?: () => void;
 };
 export function RenderMessageContent({
@@ -67,6 +68,7 @@ export function RenderMessageContent({
   htmlReactParserOptions,
   linkifyOpts,
   outlineAttachment,
+  hydrateLongText = true,
   onLongTextHydratedMessageExtrasRendered,
 }: RenderMessageContentProps) {
   const renderUrlsPreview = (urls: string[]) => {
@@ -155,6 +157,7 @@ export function RenderMessageContent({
     htmlReactParserOptions,
     linkifyOpts,
     showMessageExtras,
+    hydrateLongText,
     onLongTextHydratedMessageExtrasRendered,
   });
   if (mindroomContent !== undefined) return mindroomContent;

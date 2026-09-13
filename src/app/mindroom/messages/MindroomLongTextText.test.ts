@@ -401,6 +401,58 @@ describe('shouldResetResolvedContentToPreview', () => {
 });
 
 describe('MindroomLongTextText hydration identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Resolved response',
+      msgtype: 'm.text',
+    });
+  });
+
+  it('defers sidecar hydration until hydration is enabled', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const content = createPreviewContent();
+    let renderer!: ReactTestRenderer;
+
+    const render = (hydrate: boolean) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        hydrate,
+        content,
+        longTextSource: createLongTextSource({ previewContent: content }),
+        renderBody: (_content, props) => props.body,
+      });
+
+    longTextMocks.hydrateMindroomLongTextSource.mockClear();
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Hydrated response',
+      msgtype: 'm.text',
+    });
+
+    await act(async () => {
+      renderer = create(render(false));
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Preview response'
+    );
+
+    await act(async () => {
+      renderer.update(render(true));
+      await Promise.resolve();
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
+      'Hydrated response'
+    );
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
     const { renderer, update } = await renderMindroomLongTextText(content);

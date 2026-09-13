@@ -241,6 +241,41 @@ vi.mock('../../../hooks/useVirtualPaginator', () => ({
   }),
 }));
 
+vi.mock('../../../components/virtualizer', () => ({
+  VirtualTile: React.forwardRef<
+    HTMLDivElement,
+    {
+      children?: React.ReactNode;
+      virtualItem?: {
+        index: number;
+      };
+    }
+  >(({ children, virtualItem }, ref) =>
+    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index }, children)
+  ),
+}));
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (options: { count: number; estimateSize?: () => number }) => {
+    const estimatedSize = options.estimateSize?.() ?? 100;
+    return {
+      getTotalSize: () => options.count * estimatedSize,
+      getVirtualItems: () =>
+        Array.from({ length: options.count }, (_value, index) => ({
+          end: (index + 1) * estimatedSize,
+          index,
+          key: index,
+          lane: 0,
+          size: estimatedSize,
+          start: index * estimatedSize,
+        })),
+      measureElement: vi.fn(),
+      scrollToIndex: vi.fn(),
+      scrollToOffset: vi.fn(),
+    };
+  },
+}));
+
 vi.mock('../../../hooks/useMatrixEventRenderer', () => ({
   useMatrixEventRenderer:
     (
@@ -481,13 +516,17 @@ vi.mock('../CollapsibleMessage', async () => {
     CollapsibleMessage: ({
       children,
       collapseMode = 'default',
+      forceOverflowing,
       onInitialExpandConsumed,
     }: {
-      children: React.ReactNode;
+      children: React.ReactNode | ((state: { expanded: boolean }) => React.ReactNode);
       collapseMode?: string;
+      forceOverflowing?: boolean;
       onInitialExpandConsumed?: () => void;
     }) => {
       const previousCollapseModeRef = ReactImport.useRef<string | undefined>(undefined);
+      const expanded = collapseMode !== 'default';
+      const renderedChildren = typeof children === 'function' ? children({ expanded }) : children;
 
       ReactImport.useEffect(() => {
         if (
@@ -503,9 +542,10 @@ vi.mock('../CollapsibleMessage', async () => {
         collapsibleType,
         {
           collapseMode,
+          forceOverflowing,
           'data-testid': collapsibleTestId,
         },
-        children
+        renderedChildren
       );
     },
   };
@@ -587,9 +627,7 @@ vi.mock('../useThreadRenderState', async () => {
       threadRenderStateControl.currentThreadEvents = threadEvents;
 
       const threadEventIndexMapRef = {
-        current: new Map(
-        threadEvents.map((event, index) => [event.getId(), index])
-        ),
+        current: new Map(threadEvents.map((event, index) => [event.getId(), index])),
       };
 
       return {
@@ -604,7 +642,8 @@ vi.mock('../useThreadRenderState', async () => {
             ...threadRenderStateControl.initialThreadEvents,
             ...events,
           ];
-          threadRenderStateControl.currentThreadEvents = threadRenderStateControl.initialThreadEvents;
+          threadRenderStateControl.currentThreadEvents =
+            threadRenderStateControl.initialThreadEvents;
         },
         resetThreadRenderState: vi.fn(),
       };
@@ -645,8 +684,7 @@ vi.mock('../eventCacheEditUtils', () => ({
 }));
 
 vi.mock('../timelineScrollUtils', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../timelineScrollUtils')>();
+  const actual = await importOriginal<typeof import('../timelineScrollUtils')>();
   return {
     ...actual,
     isScrollNearBottom: () => true,
@@ -814,16 +852,12 @@ const makeRoom = ({
   const roomTimelineSet = {
     getLiveTimeline: () => liveTimeline,
     getTimelineForEvent: (eventId: string) =>
-      liveEvents.some((event) => event.getId() === eventId)
-        ? liveTimeline
-        : undefined,
+      liveEvents.some((event) => event.getId() === eventId) ? liveTimeline : undefined,
   };
   const threadTimelineSet = {
     getLiveTimeline: () => threadTimeline,
     getTimelineForEvent: (eventId: string) =>
-      getThreadEvents().some((event) => event.getId() === eventId)
-        ? threadTimeline
-        : undefined,
+      getThreadEvents().some((event) => event.getId() === eventId) ? threadTimeline : undefined,
   };
 
   liveTimeline.getTimelineSet = () => roomTimelineSet;
@@ -926,6 +960,28 @@ const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) 
     .find(
       (node) => node.type === collapsibleType && node.props['data-testid'] === collapsibleTestId
     ).props.collapseMode;
+
+const findCollapsibleForEvent = (renderer: ReactTestRenderer, eventId: string) =>
+  renderer.root
+    .find(
+      (node) =>
+        node.type === messageType &&
+        node.props['data-testid'] === messageTestId &&
+        node.props['data-message-id'] === eventId
+    )
+    .find(
+      (node) => node.type === collapsibleType && node.props['data-testid'] === collapsibleTestId
+    );
+
+const findRenderMessageContentPropsForEvent = (renderer: ReactTestRenderer, eventId: string) =>
+  renderer.root
+    .find(
+      (node) =>
+        node.type === messageType &&
+        node.props['data-testid'] === messageTestId &&
+        node.props['data-message-id'] === eventId
+    )
+    .find((node) => node.type === passthrough && typeof node.props.getContent === 'function').props;
 
 const emitLiveTimelineEvent = async (room: ReturnType<typeof makeRoom>, event: MockEvent) => {
   const handler = room.__listeners.get(ROOM_TIMELINE_EVENT);
@@ -1037,6 +1093,64 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(findCollapseModeForEvent(renderer, '$historical')).toBe('default');
+  });
+
+  it('defers long-text hydration while a default room message row is collapsed', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const longTextEvent = makeEvent('$long-text', {
+      content: {
+        body: 'Long output.txt',
+        msgtype: 'm.file',
+        url: 'mxc://server/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+    const room = makeRoom({ liveEvents: [longTextEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(findCollapseModeForEvent(renderer, '$long-text')).toBe('default');
+    expect(findCollapsibleForEvent(renderer, '$long-text').props.forceOverflowing).toBe(true);
+    expect(findRenderMessageContentPropsForEvent(renderer, '$long-text').hydrateLongText).toBe(
+      false
+    );
+  });
+
+  it('forces overflow for very long plain text without measuring the collapsed row', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const longPlainTextEvent = makeEvent('$long-plain-text', {
+      content: {
+        body: Array.from({ length: 120 }, (_value, index) => `long line ${index}`).join('\n'),
+        msgtype: 'm.text',
+      },
+    });
+    const room = makeRoom({ liveEvents: [longPlainTextEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(findCollapseModeForEvent(renderer, '$long-plain-text')).toBe('default');
+    expect(findCollapsibleForEvent(renderer, '$long-plain-text').props.forceOverflowing).toBe(true);
   });
 
   it('uses initially-expanded mode for visible live messages and consumes it after mount', async () => {
@@ -1172,9 +1286,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('uses always-expanded mode for messages with MindRoom extras', async () => {
-    const { getCollapsibleMessageMode } = await import(
-      '../threadCollapsibleMessages'
-    );
+    const { getCollapsibleMessageMode } = await import('../threadCollapsibleMessages');
     const eventWithExtras = makeEvent('$extras', {
       content: {
         body: 'Message with extras',
@@ -1269,9 +1381,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('keeps cached-mode thread replies in default collapse mode on first paint', async () => {
-    const { getCollapsibleMessageMode } = await import(
-      '../threadCollapsibleMessages'
-    );
+    const { getCollapsibleMessageMode } = await import('../threadCollapsibleMessages');
     const threadRootEvent = makeEvent('$thread-root', {
       content: {
         body: 'Thread root',
@@ -1281,10 +1391,9 @@ describe('RoomTimeline collapsible wiring', () => {
     });
     const cachedReply = makeEvent('$cached-reply', {
       content: {
-        body:
-          'This is a long cached thread reply that should stay collapsed by default on first paint. '.repeat(
-            6
-          ),
+        body: 'This is a long cached thread reply that should stay collapsed by default on first paint. '.repeat(
+          6
+        ),
         msgtype: 'm.text',
       },
       threadRootId: '$thread-root',
@@ -1295,11 +1404,7 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(threadRootEvent.getId()).toBe('$thread-root');
     expect(cachedReply.threadRootId).toBe('$thread-root');
     expect(
-      getCollapsibleMessageMode(
-        cachedReply.getId(),
-        cachedReply.getContent(),
-        liveExpandOnceIds
-      )
+      getCollapsibleMessageMode(cachedReply.getId(), cachedReply.getContent(), liveExpandOnceIds)
     ).toBe('default');
   });
 });

@@ -32,6 +32,7 @@ import {
   roomIntroType,
   roomThreadListThreadsMock,
   roomThreadOverviewType,
+  roomTimelineVirtualizerState,
   saveRoomEventsToCacheMock,
   scrollToItemMock,
   scrollType,
@@ -290,6 +291,129 @@ describe('RoomTimeline', () => {
         renderer?.unmount();
         await flushAsyncWork(1);
       });
+    }
+  });
+
+  it('renders only the visible virtual slice of a large classic room timeline', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const events = Array.from({ length: 300 }, (_value, index) =>
+      makeEvent(`$event-${index}`, { ts: index })
+    );
+    const room = makeRoom({ liveEvents: events });
+    const roomInputRef = createRef<HTMLElement>();
+    const editor = {} as Editor;
+    let renderer: ReturnType<typeof create> | undefined;
+
+    settingsState.paginationLimit = 10000;
+    roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(RoomTimeline, {
+            room,
+            roomInputRef,
+            editor,
+            summaryMap: new Map(),
+            onStoreThreadSummary: vi.fn(),
+            threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            threadSortFreezeState: null,
+            onToggle: vi.fn(),
+            onSortDirectionChange: vi.fn(),
+            onToggleThreadSortFreeze: vi.fn(),
+            setThreadSortFreezeState: vi.fn(),
+            onCycleTag: vi.fn(),
+            onAddTag: vi.fn(),
+            onRemoveTag: vi.fn(),
+            onReset: vi.fn(),
+            onApplyPreset: vi.fn(),
+            onSearchQueryChange: vi.fn(),
+            viewMode: 'classic',
+            onViewModeChange: vi.fn(),
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 300 });
+      expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(300);
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        '$event-295',
+        '$event-296',
+        '$event-297',
+        '$event-298',
+        '$event-299',
+      ]);
+    } finally {
+      renderer?.unmount();
+    }
+  });
+
+  it('keeps the first visible classic room message anchored when prepending an older virtual range', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const events = Array.from({ length: 300 }, (_value, index) =>
+      makeEvent(`$event-${index}`, { ts: index })
+    );
+    const room = makeRoom({ liveEvents: events });
+    const roomInputRef = createRef<HTMLElement>();
+    const editor = {} as Editor;
+    const visibleAnchor = {
+      getAttribute: vi.fn((name: string) => (name === 'data-message-item' ? '200' : null)),
+      getBoundingClientRect: vi.fn(() => ({ top: 120, bottom: 180 })),
+    };
+    const scrollElement = {
+      getBoundingClientRect: vi.fn(() => ({ top: 100, bottom: 700 })),
+      querySelector: vi.fn(() => undefined),
+      querySelectorAll: vi.fn(() => [visibleAnchor]),
+    };
+    let renderer: ReturnType<typeof create> | undefined;
+
+    settingsState.paginationLimit = 100;
+    roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(RoomTimeline, {
+            room,
+            roomInputRef,
+            editor,
+            summaryMap: new Map(),
+            onStoreThreadSummary: vi.fn(),
+            threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+            threadSortFreezeState: null,
+            onToggle: vi.fn(),
+            onSortDirectionChange: vi.fn(),
+            onToggleThreadSortFreeze: vi.fn(),
+            setThreadSortFreezeState: vi.fn(),
+            onCycleTag: vi.fn(),
+            onAddTag: vi.fn(),
+            onRemoveTag: vi.fn(),
+            onReset: vi.fn(),
+            onApplyPreset: vi.fn(),
+            onSearchQueryChange: vi.fn(),
+            viewMode: 'classic',
+            onViewModeChange: vi.fn(),
+          }),
+          {
+            createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+          }
+        );
+        await flushAsyncWork();
+      });
+
+      expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 200, end: 300 });
+
+      await act(async () => {
+        virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 300 });
+        await flushAsyncWork();
+      });
+
+      expect(roomTimelineVirtualizerState.scrollToOffsetMock).toHaveBeenCalledWith(19180, {
+        behavior: 'auto',
+      });
+    } finally {
+      renderer?.unmount();
     }
   });
 
