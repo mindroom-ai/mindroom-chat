@@ -4,6 +4,7 @@ type SearchParamsGetter<T> = (searchParams: URLSearchParams) => T;
 
 export const getRoomSearchParams: SearchParamsGetter<_RoomSearchParams> = (searchParams) => ({
   viaServers: searchParams.get('viaServers') ?? undefined,
+  threadId: searchParams.get('threadId') ?? undefined,
 });
 
 export const getDirectCreateSearchParams: SearchParamsGetter<DirectCreateSearchParams> = (

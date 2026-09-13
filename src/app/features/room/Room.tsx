@@ -1,6 +1,6 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Box, Line } from 'folds';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { isKeyHotkey } from 'is-hotkey';
 import { useAtomValue } from 'jotai';
 import { RoomView } from './RoomView';
@@ -20,11 +20,15 @@ import { callChatAtom } from '../../state/callEmbed';
 import { CallChatView } from './CallChatView';
 import { useCallEmbed } from '../../hooks/useCallEmbed';
 import { useCallMembers, useCallSession } from '../../hooks/useCall';
+import { getRoomSearchParams } from '../../pages/pathSearchParam';
 
 export function Room() {
   const { eventId } = useParams();
+  const [searchParams] = useSearchParams();
   const room = useRoom();
   const mx = useMatrixClient();
+  const roomSearchParams = useMemo(() => getRoomSearchParams(searchParams), [searchParams]);
+  const { threadId } = roomSearchParams;
 
   const callSession = useCallSession(room);
   const callMembers = useCallMembers(callSession);
@@ -66,7 +70,7 @@ export function Room() {
           <Box grow="Yes" direction="Column">
             <RoomViewHeader />
             <Box grow="Yes">
-              <RoomView eventId={eventId} />
+              <RoomView room={room} eventId={eventId} threadId={threadId} />
             </Box>
           </Box>
         )}
