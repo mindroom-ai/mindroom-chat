@@ -1,11 +1,11 @@
 import type { ClientConfig } from '../../hooks/useClientConfig';
 import {
   MINDROOM_APP_NAME,
+  MINDROOM_CHAT_SOURCE_URL,
   MINDROOM_DEFAULT_POWERED_BY,
   MINDROOM_DOCS_URL,
   MINDROOM_LOGO_ALT,
   MINDROOM_LOGO_SRC,
-  MINDROOM_SOURCE_URL,
 } from './branding';
 
 export const MINDROOM_CLIENT_BRANDING = {
@@ -14,7 +14,7 @@ export const MINDROOM_CLIENT_BRANDING = {
   logoAlt: MINDROOM_LOGO_ALT,
   logoSrc: MINDROOM_LOGO_SRC,
   poweredBy: MINDROOM_DEFAULT_POWERED_BY,
-  sourceUrl: MINDROOM_SOURCE_URL,
+  sourceUrl: MINDROOM_CHAT_SOURCE_URL,
   subtitle: 'AI agents that live in your chat rooms.',
 } as const;
 

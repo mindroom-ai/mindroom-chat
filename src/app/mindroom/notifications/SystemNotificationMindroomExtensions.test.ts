@@ -12,8 +12,8 @@ vi.mock('../native/IOSPushNotification', () => ({
 }));
 
 describe('SystemNotificationMindroomExtensions', () => {
-  it('provides MindRoom email pusher branding', () => {
-    expect(getMindroomEmailNotificationPusherData()).toEqual({ brand: 'MindRoom' });
+  it('provides MindRoom Chat email pusher branding', () => {
+    expect(getMindroomEmailNotificationPusherData()).toEqual({ brand: 'MindRoom Chat' });
   });
 
   it('mounts the MindRoom native notification settings component', () => {

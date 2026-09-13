@@ -59,7 +59,7 @@ def login():
             "type": "m.login.password",
             "identifier": {"type": "m.id.user", "user": username},
             "password": password,
-            "initial_device_display_name": "Cinny E2E",
+            "initial_device_display_name": "MindRoom Chat E2E",
         },
     )
 
@@ -68,7 +68,7 @@ def register():
     initial = {
         "username": username,
         "password": password,
-        "initial_device_display_name": "Cinny E2E",
+        "initial_device_display_name": "MindRoom Chat E2E",
     }
 
     try:

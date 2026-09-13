@@ -3,7 +3,7 @@ import React, { ReactNode, useMemo } from 'react';
 import { useNativeSplashOverlay } from '../../mindroom/native/useNativeSplashOverlay';
 import { SplashScreen } from './SplashScreen';
 
-export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom'] as const;
+export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom Chat'] as const;
 
 export const pickMindRoomSplashMessage = (
   messages: readonly string[] | undefined,

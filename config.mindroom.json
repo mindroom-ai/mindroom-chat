@@ -8,8 +8,8 @@
       "enabled": true,
       "appId": "chat.mindroom.app",
       "gatewayUrl": "https://push.mindroom.chat/_matrix/push/v1/notify",
-      "appDisplayName": "MindRoom iOS",
-      "deviceDisplayName": "MindRoom iOS",
+      "appDisplayName": "MindRoom Chat iOS",
+      "deviceDisplayName": "MindRoom Chat iOS",
       "append": true,
       "format": "full"
     }
@@ -29,7 +29,7 @@
 
   "splash": {
     "loadingMessages": [
-      "Loading MindRoom",
+      "Loading MindRoom Chat",
       "Booting the agents",
       "Warming the agents",
       "Assembling context",
@@ -96,10 +96,10 @@
   },
 
   "welcome": {
-    "title": "Welcome to MindRoom",
+    "title": "Welcome to MindRoom Chat",
     "subtitle": "AI agents that live in your chat rooms.",
     "sourceLabel": "Source Code",
-    "sourceUrl": "https://github.com/mindroom-ai/mindroom",
+    "sourceUrl": "https://github.com/mindroom-ai/mindroom-chat",
     "docsLabel": "Docs",
     "docsUrl": "https://docs.mindroom.chat/",
     "poweredBy": [
@@ -116,8 +116,8 @@
         "url": "https://cinny.in"
       },
       {
-        "label": "MindRoom Cinny Fork",
-        "url": "https://github.com/mindroom-ai/mindroom-cinny"
+        "label": "MindRoom Chat",
+        "url": "https://github.com/mindroom-ai/mindroom-chat"
       }
     ]
   }

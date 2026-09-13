@@ -129,7 +129,7 @@ describe('AgentCallButton', () => {
   it('does not create a call room when microphone access is denied', async () => {
     mocks.requestMicrophoneAccess.mockRejectedValueOnce(
       new Error(
-        'Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.'
+        'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.'
       )
     );
     const renderer = create(
@@ -146,7 +146,9 @@ describe('AgentCallButton', () => {
 
     expect(mocks.createAgentVoiceRoom).not.toHaveBeenCalled();
     expect(mocks.startCall).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Allow microphone access for MindRoom');
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      'Allow microphone access for MindRoom Chat'
+    );
   });
 
   it('cleans up without starting a call when unmounted during room sync', async () => {

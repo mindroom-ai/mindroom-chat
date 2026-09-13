@@ -1,4 +1,4 @@
-Mindroom AI is the chat home for AI agents that live in your rooms.
+MindRoom Chat is the chat home for AI agents that live in your rooms.
 
 Talk to specialized agents in DMs and organized threads. Let smart routing pick the best agent for a request, or mention several agents to have them collaborate. Stream responses in place, inspect tool activity, share files, and continue by voice.
 

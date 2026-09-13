@@ -131,8 +131,8 @@ describe('resolveIOSPushConfig', () => {
     expect(config).toBeDefined();
     expect(config?.appId).toBe('com.mindroom-ios');
     expect(config?.gatewayUrl).toBe('https://push.example.com/_matrix/push/v1/notify');
-    expect(config?.appDisplayName).toBe('MindRoom iOS');
-    expect(config?.deviceDisplayName).toBe('MindRoom iOS');
+    expect(config?.appDisplayName).toBe('MindRoom Chat iOS');
+    expect(config?.deviceDisplayName).toBe('MindRoom Chat iOS');
     expect(config?.format).toBe('event_id_only');
     expect(config?.append).toBe(true);
     expect(config?.profileTag).toEqual(expect.any(String));
@@ -207,7 +207,7 @@ describe('resolveIOSPushConfig', () => {
     const pushConfig = {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
-      appDisplayName: 'MindRoom iOS',
+      appDisplayName: 'MindRoom Chat iOS',
       deviceDisplayName: 'iPhone',
       profileTag: 'profile-1',
       append: true,
@@ -334,7 +334,7 @@ describe('buildIOSPushPusherRequest', () => {
     const request = buildIOSPushPusherRequest('token-123', {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
-      appDisplayName: 'MindRoom iOS',
+      appDisplayName: 'MindRoom Chat iOS',
       deviceDisplayName: 'iPhone',
       profileTag: 'profile-1',
       append: true,
@@ -346,7 +346,7 @@ describe('buildIOSPushPusherRequest', () => {
       kind: 'http',
       app_id: 'com.mindroom-ios',
       pushkey: 'token-123',
-      app_display_name: 'MindRoom iOS',
+      app_display_name: 'MindRoom Chat iOS',
       device_display_name: 'iPhone',
       profile_tag: 'profile-1',
       append: true,
@@ -357,7 +357,7 @@ describe('buildIOSPushPusherRequest', () => {
         default_payload: {
           aps: {
             alert: {
-              title: 'MindRoom iOS',
+              title: 'MindRoom Chat iOS',
               body: 'New message',
             },
             sound: 'default',
@@ -371,7 +371,7 @@ describe('buildIOSPushPusherRequest', () => {
     const request = buildIOSPushPusherRequest('token-123', {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
-      appDisplayName: 'MindRoom iOS',
+      appDisplayName: 'MindRoom Chat iOS',
       deviceDisplayName: 'iPhone',
       profileTag: 'profile-1',
       append: true,

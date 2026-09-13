@@ -1,7 +1,7 @@
 {
-  "name": "MindRoom",
-  "short_name": "MindRoom",
-  "description": "MindRoom — AI agent orchestration via Matrix",
+  "name": "MindRoom Chat",
+  "short_name": "MindRoom Chat",
+  "description": "MindRoom Chat — AI agent orchestration via Matrix",
   "dir": "auto",
   "lang": "en-US",
   "display": "standalone",

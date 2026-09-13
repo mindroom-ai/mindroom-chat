@@ -1,15 +1,16 @@
 import { Capacitor } from '@capacitor/core';
+import { MINDROOM_APP_NAME } from '../branding/branding';
 import { isNativeApp } from '../native/nativeSso';
 
 const getBlockedMicrophoneMessage = (): string => {
   const nativePlatform = isNativeApp() ? Capacitor.getPlatform() : undefined;
 
   if (nativePlatform === 'android') {
-    return 'Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.';
+    return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in Android app settings and try again.`;
   }
 
   if (nativePlatform === 'ios') {
-    return 'Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.';
+    return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in iPhone settings and try again.`;
   }
 
   return 'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.';

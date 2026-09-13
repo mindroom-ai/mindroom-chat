@@ -55,8 +55,9 @@ describe('MindRoom runtime client config defaults', () => {
       allowRegistration: true,
       requireAppleProvider: true,
     });
-    expect(mindroomConfig.welcome?.title).toBe('Welcome to MindRoom');
-    expect(mindroomConfig.splash?.loadingMessages).toContain('Loading MindRoom');
+    expect(mindroomConfig.welcome?.title).toBe('Welcome to MindRoom Chat');
+    expect(mindroomConfig.welcome?.sourceUrl).toBe('https://github.com/mindroom-ai/mindroom-chat');
+    expect(mindroomConfig.splash?.loadingMessages).toContain('Loading MindRoom Chat');
     expect(mindroomConfig.mindroom?.thinkingPlaceholderMessages).toContain('Thinking');
     expect(mindroomConfig.push?.ios?.appId).toBe('chat.mindroom.app');
     expect(mindroomConfig.push?.ios?.format).toBe('full');
