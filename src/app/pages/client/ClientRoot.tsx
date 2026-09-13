@@ -22,6 +22,7 @@ import React, {
   useState,
 } from 'react';
 import { Navigate } from 'react-router-dom';
+import { ClientEvent } from 'matrix-js-sdk';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import {
@@ -236,6 +237,17 @@ export function ClientRoot({ children }: ClientRootProps) {
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
   const mx = 'mx' in clientState ? clientState.mx : undefined;
   const activeSessionId = activeSession?.sessionId;
+  // Gate UI rendering on first sync to prevent flash of intermediate screens
+  const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
+  useEffect(() => {
+    if (!mx) {
+      setHasSyncedOnce(false);
+      return;
+    }
+    const onSync = () => { setHasSyncedOnce(true); };
+    mx.once(ClientEvent.Sync, onSync);
+    return () => { mx.removeListener(ClientEvent.Sync, onSync); };
+  }, [mx]);
   const activeSessionBaseUrl = activeSession?.baseUrl;
   const activeSessionUserId = activeSession?.userId;
   const activeSessionDeviceId = activeSession?.deviceId;
@@ -384,7 +396,7 @@ export function ClientRoot({ children }: ClientRootProps) {
   return (
     <SpecVersions baseUrl={activeSession.baseUrl}>
       {clientState.status !== 'error' &&
-        (clientState.status === 'starting' && mx ? (
+        ((clientState.status === 'starting' || !hasSyncedOnce) && mx ? (
           <ClientRootSyncingStatus />
         ) : (
           mx && <SyncStatus mx={mx} />
@@ -421,7 +433,7 @@ export function ClientRoot({ children }: ClientRootProps) {
           </Box>
         </SplashScreen>
       )}
-      {clientState.status !== 'error' && !mx ? <ClientRootLoading /> : readyContent}
+      {clientState.status !== 'error' && (!mx || !hasSyncedOnce) ? <ClientRootLoading /> : readyContent}
     </SpecVersions>
   );
 }
