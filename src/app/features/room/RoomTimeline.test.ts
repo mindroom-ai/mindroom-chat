@@ -1466,12 +1466,7 @@ describe('RoomTimeline', () => {
       })
     );
 
-    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
-      unresolved: 1,
-      resolved: 0,
-      unread: 0,
-      all: 1,
-    });
+    expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
     expect(
       renderer.root.findAllByProps({
         eventId: fallbackRoot.getId(),

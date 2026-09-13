@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { EventTimeline } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StateEvent } from '../../../types/matrix/room';
 import {
   getTagNames,
   isThreadTagsTombstone,
@@ -7,7 +12,126 @@ import {
   buildResolvedTagsContent,
   buildUnresolvedTagsContent,
 } from './threadTags';
-import { parseLegacyResolutionContent } from './useRoomThreadTags';
+import { parseLegacyResolutionContent, useToggleThreadResolution } from './useRoomThreadTags';
+
+const { getSafeUserIdMock, sendStateEventMock, stateEventPermissionMock } = vi.hoisted(() => ({
+  getSafeUserIdMock: vi.fn(() => '@alice:example.org'),
+  sendStateEventMock: vi.fn(() => Promise.resolve()),
+  stateEventPermissionMock: vi.fn(() => true),
+}));
+
+vi.mock('../../hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({
+    getSafeUserId: getSafeUserIdMock,
+    sendStateEvent: sendStateEventMock,
+  }),
+}));
+
+vi.mock('../../hooks/usePowerLevels', () => ({
+  usePowerLevelsContext: () => ({}),
+}));
+
+vi.mock('../../hooks/useRoomCreators', () => ({
+  useRoomCreators: () => [],
+}));
+
+vi.mock('../../hooks/useRoomPermissions', () => ({
+  useRoomPermissions: () => ({
+    stateEvent: stateEventPermissionMock,
+  }),
+}));
+
+type ToggleHookValue = ReturnType<typeof useToggleThreadResolution>;
+
+type ToggleHarnessProps = {
+  room: Room;
+  onRender: (value: ToggleHookValue) => void;
+};
+
+type MockRoom = Room & {
+  getLiveTimeline: () => {
+    getState: ReturnType<typeof vi.fn>;
+  };
+  getThread: ReturnType<typeof vi.fn>;
+  findEventById: ReturnType<typeof vi.fn>;
+  roomId: string;
+  __mocks: {
+    getState: ReturnType<typeof vi.fn>;
+    getStateEvents: ReturnType<typeof vi.fn>;
+  };
+};
+
+function ToggleHarness({ room, onRender }: ToggleHarnessProps) {
+  const value = useToggleThreadResolution(room);
+  onRender(value);
+  return null;
+}
+
+const renderToggleHook = (
+  room: Room
+): { getSnapshot: () => ToggleHookValue; renderer: ReactTestRenderer } => {
+  let latestValue: ToggleHookValue | undefined;
+  let renderer: ReactTestRenderer | undefined;
+
+  act(() => {
+    renderer = create(
+      React.createElement(ToggleHarness, {
+        room,
+        onRender: (value) => {
+          latestValue = value;
+        },
+      })
+    );
+  });
+
+  return {
+    getSnapshot: () => latestValue as ToggleHookValue,
+    renderer: renderer as ReactTestRenderer,
+  };
+};
+
+const makeToggleRoom = (currentContent: unknown = null): MockRoom => {
+  const currentEvent =
+    currentContent === undefined
+      ? undefined
+      : {
+          getContent: () => currentContent,
+        };
+  const getStateEvents = vi.fn(() => currentEvent);
+  const getState = vi.fn(() => ({
+    getStateEvents,
+  }));
+  const rootEvent = {
+    getId: () => '$thread-1',
+    isThreadRoot: true,
+  };
+
+  return {
+    roomId: '!room:example.org',
+    getLiveTimeline: () => ({
+      getState,
+    }),
+    getThread: vi.fn((threadRootId: string) =>
+      threadRootId === '$thread-1' ? { rootEvent } : undefined
+    ),
+    findEventById: vi.fn((eventId: string) => (eventId === '$thread-1' ? rootEvent : undefined)),
+    __mocks: {
+      getState,
+      getStateEvents,
+    },
+  } as MockRoom;
+};
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.runOnlyPendingTimers();
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
 
 describe('parseThreadTagsContent', () => {
   it('parses valid tags payload with TagMetadata', () => {
@@ -124,6 +248,55 @@ describe('buildUnresolvedTagsContent', () => {
 
   it('returns empty tags for null', () => {
     expect(buildUnresolvedTagsContent(null)).toEqual({ tags: {} });
+  });
+});
+
+describe('useToggleThreadResolution', () => {
+  it('reads the live thread-tags state with EventTimeline.FORWARDS', async () => {
+    const room = makeToggleRoom();
+    const { getSnapshot, renderer } = renderToggleHook(room);
+
+    await act(async () => {
+      await getSnapshot().setResolved('$thread-1', true);
+    });
+
+    expect(room.__mocks.getState).toHaveBeenCalledWith(EventTimeline.FORWARDS);
+    expect(room.__mocks.getStateEvents).toHaveBeenCalledWith(
+      StateEvent.ThreadTags,
+      '$thread-1'
+    );
+
+    renderer.unmount();
+  });
+
+  it('sends the thread-tags state event when resolving a thread', async () => {
+    const room = makeToggleRoom({
+      tags: {
+        blocked: { set_by: '@mod:example.org', set_at: '2024-01-01T00:00:00Z' },
+      },
+    });
+    const { getSnapshot, renderer } = renderToggleHook(room);
+
+    await act(async () => {
+      await getSnapshot().setResolved('$thread-1', true);
+    });
+
+    expect(sendStateEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      StateEvent.ThreadTags,
+      {
+        tags: {
+          blocked: { set_by: '@mod:example.org', set_at: '2024-01-01T00:00:00Z' },
+          resolved: {
+            set_by: '@alice:example.org',
+            set_at: expect.any(String),
+          },
+        },
+      },
+      '$thread-1'
+    );
+
+    renderer.unmount();
   });
 });
 
