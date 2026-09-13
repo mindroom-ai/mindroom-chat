@@ -7,9 +7,10 @@ export const Bar = style({
   justifyContent: 'space-between',
   gap: 8,
   padding: '8px 12px',
-  margin: '0 12px',
-  borderRadius: 8,
+  margin: `0 ${config.space.S400} ${config.space.S200}`,
+  borderRadius: config.radii.R400,
   background: color.SurfaceVariant.Container,
+  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
   flexShrink: 0,
 });
 export const BarStatus = style({

@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Match the approval bar to the message composer (2026-09-13)
+
+- The approval bar now uses the composer's shared side-spacing and corner-radius tokens, matching its width and rounding at every viewport size.
+- The surface uses the same subtle inset outline, with an eight-pixel gap above the composer.
+- Live Chromium measurements at 390, 768, and 1,440 pixels confirm identical left and right edges, radius, background, and outline without horizontal overflow.
+- Independent review found no issues; typecheck, production/PWA build, and full ESLint pass with the existing 17-warning baseline.
+- Full Vitest passes 3,736 tests with the same four failures reproduced on the untouched base in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
+- Screenshots use a disposable local Matrix chat and remain outside the repository for attachment to the pull request.
+
 ### Draw attention to pending tool approvals (2026-09-13)
 
 - Actionable Review buttons use a soft amber fill and steady halo while the banner explicitly labels calls as paused for approval.
