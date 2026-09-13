@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useEffect } from 'react';
 import { IThumbnailContent } from '../../../../types/matrix/common';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { decryptFile, downloadEncryptedMedia, mxcUrlToHttp } from '../../../utils/matrix';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
@@ -35,6 +36,7 @@ export function ThumbnailContent({ info, renderImage }: ThumbnailContentProps) {
       return mediaUrl;
     }, [mx, info, useAuthentication])
   );
+  useBlobUrlCleanup(thumbSrcState);
 
   useEffect(() => {
     loadThumbSrc();
