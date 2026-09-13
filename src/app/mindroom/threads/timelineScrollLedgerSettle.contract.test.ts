@@ -19,6 +19,8 @@
 import { Virtualizer } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { applyLedgerSettle } from './timelineScrollLedgerController';
+import { buildMeasurementScrollCorrectionHook } from './threadRenderUtils';
+import { createRoomAutomaticFill } from './roomAutomaticFill';
 
 const ROW_ESTIMATE = 50;
 const COUNT = 400;
@@ -74,6 +76,128 @@ const rangeOf = (virtualizer: Virtualizer<Element, Element>): [number, number] =
 };
 
 describe('ledger settle contract (real virtual-core)', () => {
+  it('captures the negative-settle target before removing margin clamps the native range', () => {
+    const { virtualizer, inner } = makeSettledScroller();
+    const debt = -160;
+    inner.style.marginTop = '160px';
+    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 160 });
+    let nativeOffset = COUNT * ROW_ESTIMATE + 160 - VIEWPORT.height;
+    const clamp = (offset: number) =>
+      Math.min(
+        offset,
+        COUNT * ROW_ESTIMATE + (Number.parseFloat(inner.style.marginTop) || 0) - VIEWPORT.height
+      );
+    const root = {
+      get scrollTop() {
+        // A layout read after margin removal observes native range clamping.
+        nativeOffset = clamp(nativeOffset);
+        return nativeOffset;
+      },
+      set scrollTop(offset: number) {
+        nativeOffset = clamp(offset);
+      },
+    };
+    virtualizer.scrollOffset = nativeOffset;
+    const anchorBefore = virtualizer.getMeasurements()[COUNT - 1].start - root.scrollTop;
+    applyLedgerSettle(inner, root, debt, virtualizer);
+    expect(virtualizer.getMeasurements()[COUNT - 1].start - root.scrollTop).toBe(anchorBefore);
+    expect(virtualizer.scrollOffset).toBe(COUNT * ROW_ESTIMATE - VIEWPORT.height);
+  });
+
+  it.each([
+    { direction: null, cancel: false },
+    { direction: 'forward' as const, cancel: false },
+    { direction: null, cancel: true },
+  ])(
+    'retains immediate desktop correction outside automatic fill ($direction, cancelled: $cancel)',
+    ({ direction, cancel }) => {
+      const { virtualizer, element, inner } = makeSettledScroller();
+      applyLedgerSettle(inner, element, FOLD_PX, virtualizer);
+      const owner = createRoomAutomaticFill({ readGeometry: () => undefined, schedule: () => {} });
+      if (cancel) owner.cancel();
+      let debt = 0;
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
+        {
+          isIOSWebKitDevice: () => false,
+          shouldDeferAutomaticFillCorrection: cancel ? owner.isActive : undefined,
+          onDroppedCorrection: (delta) => {
+            debt += delta;
+          },
+        }
+      );
+      virtualizer.setOptions({
+        ...virtualizer.options,
+        scrollToFn: (offset, options) => {
+          element.scrollTop = offset + (options.adjustments ?? 0);
+        },
+      });
+      virtualizer.scrollDirection = direction;
+      const before = element.scrollTop;
+      virtualizer.resizeItem(150, 20);
+      expect(element.scrollTop).toBe(before - 30);
+      expect(debt).toBe(0);
+    }
+  );
+
+  it('keeps the latest anchor fixed when a visible predecessor finishes its initial measurement', () => {
+    const { virtualizer, element, inner } = makeSettledScroller();
+    applyLedgerSettle(inner, element, FOLD_PX, virtualizer);
+    let debt = 0;
+    const policy = {
+      isIOSWebKitDevice: () => false,
+      shouldDeferAutomaticFillCorrection: (item: { index?: number } = {}) =>
+        (item.index ?? Infinity) < 180,
+      onDroppedCorrection: (delta: number) => {
+        debt += delta;
+      },
+    };
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+      buildMeasurementScrollCorrectionHook(policy);
+    const before = virtualizer.getMeasurements()[180].start - element.scrollTop;
+    virtualizer.resizeItem(170, 20);
+    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: -debt });
+    inner.style.marginTop = `${-debt}px`;
+    expect(virtualizer.getMeasurements()[180].start - element.scrollTop).toBe(before);
+    expect(debt).toBe(-30);
+    virtualizer.resizeItem(180, 20);
+    expect(debt).toBe(-30);
+  });
+
+  it('keeps committed anchors fixed during latest-open shrinks after positive prepend settlement', () => {
+    const { virtualizer, element, inner } = makeSettledScroller();
+    let debt = 0;
+    const policy = {
+      isIOSWebKitDevice: () => false,
+      shouldDeferAutomaticFillCorrection: () => true,
+      onDroppedCorrection: (delta: number) => {
+        debt += delta;
+      },
+    };
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+      buildMeasurementScrollCorrectionHook(policy);
+    virtualizer.setOptions({
+      ...virtualizer.options,
+      scrollToFn: (offset, options) => {
+        element.scrollTop = Math.max(0, offset + (options.adjustments ?? 0));
+      },
+    });
+    applyLedgerSettle(inner, element, FOLD_PX, virtualizer);
+    const anchorIndex = 180;
+    const committedTop = virtualizer.getMeasurements()[anchorIndex].start;
+    const before = committedTop - element.scrollTop;
+    virtualizer.resizeItem(150, 20);
+    virtualizer.resizeItem(151, 20);
+    // ResizeObserver runs after rAF: native movement here can paint while
+    // React still owns the previous row positions.
+    expect(committedTop - element.scrollTop).toBe(before);
+    expect(debt).toBe(-60);
+    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: -debt });
+    inner.style.marginTop = `${-debt}px`;
+    expect(virtualizer.getMeasurements()[anchorIndex].start - element.scrollTop).toBe(before);
+    applyLedgerSettle(inner, element, debt, virtualizer);
+    expect(virtualizer.getMeasurements()[anchorIndex].start - element.scrollTop).toBe(before);
+  });
+
   it('keeps the computed window identical across the production settle block', () => {
     const { virtualizer, element, inner } = makeSettledScroller();
     const before = rangeOf(virtualizer);

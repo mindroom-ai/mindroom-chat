@@ -294,6 +294,20 @@ vi.mock('@tanstack/react-virtual', () => ({
   },
 }));
 
+// This suite owns collapsible prop wiring; its virtualizer above does not
+// measure DOM rows. Initial measured reveal is covered by the real scroll
+// policy/controller contracts and the classic-room browser regression.
+vi.mock('../roomAutomaticFill', () => {
+  const owner = {
+    cancel: () => {},
+    defer: (retry: () => boolean) => retry(),
+    isActive: () => false,
+    hideInitialRows: false,
+    geometryReader: { current: () => undefined },
+  };
+  return { useRoomAutomaticFill: () => owner };
+});
+
 vi.mock('../../../hooks/useMatrixEventRenderer', () => ({
   useMatrixEventRenderer:
     (

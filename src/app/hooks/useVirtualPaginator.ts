@@ -59,6 +59,7 @@ type VirtualPaginatorOptions<TScrollElement extends HTMLElement> = {
   getItemElement: (index: number) => HTMLElement | undefined;
   onEnd?: (back: boolean) => void;
   shouldSuppressPagination?: () => boolean;
+  deferAutomaticPagination?: (retry: () => boolean) => void;
   // The consumer owns backward-prepend scroll compensation (MindRoom
   // offset ledger): skip this hook's own restore capture for
   // paginate(Backward), or the anchor gets compensated twice — the
@@ -202,6 +203,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
     getItemElement,
     onEnd,
     shouldSuppressPagination,
+    deferAutomaticPagination,
     externalBackwardScrollRestore,
   } = options;
 
@@ -247,7 +249,8 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
         return false;
       }
 
-      const delta = element.getBoundingClientRect().top - getDesiredElementTop(scrollElement, element, opts);
+      const delta =
+        element.getBoundingClientRect().top - getDesiredElementTop(scrollElement, element, opts);
 
       scrollElement.scrollBy({
         top: delta,
@@ -382,7 +385,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
   const retryPagination = useCallback(
     (opts?: RetryPaginationOptions) => {
       const scrollElement = getScrollElement();
-      if (!scrollElement) return;
+      if (!scrollElement) return false;
 
       const backAnchor = scrollElement.querySelector(
         `[${PAGINATOR_ANCHOR_ATTR}="${Direction.Backward}"]`
@@ -393,17 +396,28 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
 
       if (backAnchor && isIntersectingScrollView(scrollElement, backAnchor)) {
         paginate(Direction.Backward, opts);
-        return;
+        return true;
       }
       if (frontAnchor && isIntersectingScrollView(scrollElement, frontAnchor)) {
         paginate(Direction.Forward, opts);
+        return true;
       }
+      return false;
     },
     [getScrollElement, paginate]
   );
 
+  const retryAutomaticPagination = useCallback(() => {
+    if (deferAutomaticPagination) deferAutomaticPagination(retryPagination);
+    else retryPagination();
+  }, [deferAutomaticPagination, retryPagination]);
+
   const handlePaginatorElIntersection: OnIntersectionCallback = useCallback(
     (entries) => {
+      if (deferAutomaticPagination) {
+        if (entries.some((entry) => entry.isIntersecting)) retryAutomaticPagination();
+        return;
+      }
       const anchorB = entries.find(
         (entry) => entry.target.getAttribute(PAGINATOR_ANCHOR_ATTR) === Direction.Backward
       );
@@ -417,7 +431,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
         paginate(Direction.Forward);
       }
     },
-    [paginate]
+    [deferAutomaticPagination, paginate, retryAutomaticPagination]
   );
 
   const intersectionObserver = useIntersectionObserver(
@@ -475,8 +489,8 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
       initialRenderRef.current = false;
       return;
     }
-    retryPagination();
-  }, [range, retryPagination]);
+    retryAutomaticPagination();
+  }, [range, retryAutomaticPagination]);
 
   return {
     getItems,

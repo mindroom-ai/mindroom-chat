@@ -58,6 +58,10 @@ export type TimelineScrollLedgerControllerOptions = {
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadPaginatingBack: boolean;
   threadPendingAnchorSeq?: number;
+  automaticFill?: {
+    isActive: () => boolean;
+    geometryReader: MutableRefObject<() => string | undefined>;
+  };
 };
 
 export type TimelineScrollLedgerController = {
@@ -121,8 +125,11 @@ export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
   // The next React commit will paint the newer snapshot coherently; its
   // layout effect re-arms settlement.
   if (!isLedgerSettleSnapshotCurrent(inner, px)) return undefined;
+  // Removing a positive margin can clamp a bottom-aligned native offset.
+  // Capture the target first or a negative debt would be subtracted twice.
+  const targetScrollTop = scrollElement.scrollTop + px;
   inner.style.marginTop = '';
-  scrollElement.scrollTop += px;
+  scrollElement.scrollTop = targetScrollTop;
   // Read back the browser-clamped value instead of assuming old+px.
   const settledScrollTop = scrollElement.scrollTop;
   virtualizer.scrollOffset = settledScrollTop;
@@ -154,6 +161,7 @@ export const useTimelineScrollLedgerController = ({
   threadInitialRenderMode,
   threadPaginatingBack,
   threadPendingAnchorSeq,
+  automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
   const virtualInnerRef = useRef<HTMLDivElement>(null);
@@ -478,11 +486,20 @@ export const useTimelineScrollLedgerController = ({
     threadInitialRenderMode,
   ]);
 
-  useLayoutEffect(() => {
+  const commitLedgerMargin = () => {
     const inner = virtualInnerRef.current;
     if (!inner) return;
     const marginTop = ledgerPxAtRender === 0 ? '' : `${-ledgerPxAtRender}px`;
     if (inner.style.marginTop !== marginTop) inner.style.marginTop = marginTop;
+  };
+  // Height mutations can shrink the physical scroll range. Commit the paired
+  // margin before child refs or layout effects read geometry and force native
+  // clamping. Run on every accepted commit: settlement may have cleared an
+  // otherwise equal margin snapshot imperatively.
+  useInsertionEffect(commitLedgerMargin);
+  useLayoutEffect(() => {
+    // The inner ref is unattached during the initial insertion effect.
+    commitLedgerMargin();
     if (ledgerSettleWantedRef.current) {
       ledgerSettleWantedRef.current = false;
       armSettleAtRest();
@@ -499,14 +516,38 @@ export const useTimelineScrollLedgerController = ({
     });
   }, [getScrollElement, roomId, threadId]);
 
+  const isAutomaticFillActive = automaticFill?.isActive;
   const measurementScrollCorrectionHook = useMemo(
     () =>
       buildMeasurementScrollCorrectionHook({
         isIOSWebKitDevice,
         onDroppedCorrection: handleDroppedCorrection,
+        shouldDeferAutomaticFillCorrection: (item) =>
+          !!isAutomaticFillActive?.() && (item.index ?? itemCount) < itemCount - 1,
       }),
-    [handleDroppedCorrection]
+    [isAutomaticFillActive, handleDroppedCorrection, itemCount]
   );
+
+  useLayoutEffect(() => {
+    if (!automaticFill) return;
+    automaticFill.geometryReader.current = () => {
+      const root = getScrollElement();
+      const inner = virtualInnerRef.current;
+      if (
+        !root ||
+        !inner ||
+        pendingRoomFoldPxRef.current !== 0 ||
+        scrollCompensationPxRef.current !== 0 ||
+        inner.style.marginTop !== ''
+      )
+        return undefined;
+      const items = virtualizer.getVirtualItems();
+      if (items.some((item) => !virtualizer.itemSizeCache.has(item.key))) return undefined;
+      return `${root.clientHeight}|${root.scrollTop}|${root.scrollHeight}|${items
+        .map((item) => `${item.key}:${item.start}:${item.size}`)
+        .join(',')}`;
+    };
+  }, [automaticFill, getScrollElement, pendingRoomFoldPxRef, virtualizer]);
 
   // Configure only the committed virtualizer; abandoned renders must not
   // mutate the live instance.

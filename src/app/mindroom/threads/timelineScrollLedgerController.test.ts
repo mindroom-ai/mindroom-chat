@@ -3,12 +3,14 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import type { ThreadLedgerEvent } from './threadScrollLedger';
+import { createRoomAutomaticFill } from './roomAutomaticFill';
 
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: {},
   setOptions: vi.fn(),
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
+  getVirtualItems: () => [],
 }));
 const settleWaits = vi.hoisted(() => [] as Array<() => void>);
 
@@ -43,6 +45,125 @@ beforeEach(() => {
 });
 
 describe('useTimelineScrollLedgerController', () => {
+  it('commits shrink compensation before child layout reads can clamp the native offset', () => {
+    let scrollTop = 3400;
+    let height = 4000;
+    const inner = { style: { marginTop: '' } };
+    const root = {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      get scrollTop() {
+        const margin = Number.parseFloat(inner.style.marginTop) || 0;
+        scrollTop = Math.min(scrollTop, height + margin - 600);
+        return scrollTop;
+      },
+    } as unknown as HTMLDivElement;
+    const seen: number[] = [];
+    const ReadLayout = ({ debt }: { debt: number }) => {
+      React.useLayoutEffect(() => {
+        // Host height is committed before child callback refs/layout effects.
+        height = 4000 + debt;
+        seen.push(root.scrollTop);
+      });
+      return null;
+    };
+    const Harness = () => {
+      const controller = useTimelineScrollLedgerController({
+        alive: () => true,
+        clearPendingThreadAnchor: () => {},
+        estimateSize: () => 100,
+        getItemKey: (index) => index,
+        getScrollElement: () => root,
+        itemCount: 40,
+        pendingRoomFoldPxRef: useRef(0),
+        roomFoldPriceRef: useRef(() => 100),
+        roomId: '!room:example.org',
+        threadEventIndexMap: new Map(),
+        threadEvents: [],
+        threadInitialRenderMode: 'live',
+        threadPaginatingBack: false,
+      });
+      return React.createElement(
+        'inner',
+        { ref: controller.virtualInnerRef },
+        React.createElement(ReadLayout, { debt: controller.ledgerPxAtRender })
+      );
+    };
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Harness), { createNodeMock: () => inner });
+    });
+    expect(seen).toEqual([3400]);
+    const correction = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as (
+      item: { end: number },
+      delta: number,
+      instance: { scrollOffset: number; scrollDirection: null }
+    ) => boolean;
+    act(() => {
+      correction({ end: 100 }, -200, { scrollOffset: 3400, scrollDirection: null });
+    });
+    expect(seen.at(-1)).toBe(3400);
+    expect(inner.style.marginTop).toBe('200px');
+    // Settlement can clear the imperative margin. An equal snapshot must
+    // restore it on the next commit even if React props would compare equal.
+    inner.style.marginTop = '';
+    act(() => renderer.update(React.createElement(Harness)));
+    expect(seen.at(-1)).toBe(3400);
+    expect(inner.style.marginTop).toBe('200px');
+    act(() => renderer.unmount());
+  });
+
+  it('allows a measured empty room to request its initial history', () => {
+    const checks: (() => void)[] = [];
+    const geometryReader = { current: (): string | undefined => undefined };
+    const owner = createRoomAutomaticFill({
+      readGeometry: () => geometryReader.current(),
+      schedule: (check) => {
+        checks.push(check);
+      },
+    });
+    const root = {
+      scrollTop: 0,
+      scrollHeight: 600,
+      clientHeight: 600,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    } as unknown as HTMLDivElement;
+    const inner = { style: { marginTop: '' } };
+    const Harness = () => {
+      const controller = useTimelineScrollLedgerController({
+        alive: () => true,
+        clearPendingThreadAnchor: () => {},
+        estimateSize: () => 144,
+        getItemKey: (index) => index,
+        getScrollElement: () => root,
+        itemCount: 0,
+        pendingRoomFoldPxRef: useRef(0),
+        roomFoldPriceRef: useRef(() => 144),
+        roomId: '!room:example.org',
+        threadEventIndexMap: new Map(),
+        threadEvents: [],
+        threadInitialRenderMode: 'live',
+        threadPaginatingBack: false,
+        automaticFill: { ...owner, geometryReader },
+      });
+      return React.createElement('inner', { ref: controller.virtualInnerRef });
+    };
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Harness), { createNodeMock: () => inner });
+    });
+    let requests = 0;
+    owner.defer(() => {
+      requests += 1;
+      return false;
+    });
+    checks.shift()?.();
+    checks.shift()?.();
+    expect(requests).toBe(1);
+    act(() => renderer.unmount());
+  });
+
   it('defers a settle until the painted margin catches up with the live ledger', async () => {
     let scrollTop = 5000;
     const writes: number[] = [];

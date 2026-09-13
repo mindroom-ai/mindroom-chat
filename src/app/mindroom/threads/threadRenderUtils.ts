@@ -145,12 +145,11 @@ export const shouldApplyMeasurementScrollCorrection = ({
   itemFullyAboveViewport && !isIOS && !isScrollingBackward;
 
 type MeasurementScrollCorrectionHookDeps = {
+  shouldDeferAutomaticFillCorrection?: (item: { index?: number }) => boolean;
   // Read lazily per correction: iOS detection is cached module state.
   isIOSWebKitDevice: () => boolean;
-  // Fired for every fully-above correction that is DEFERRED TO THE
-  // LEDGER. The delta is what virtual-core would have added to
-  // scrollTop; the caller folds it into the offset ledger so estimate
-  // error never shifts content under the reader.
+  // The delta is folded into the offset ledger to preserve the owned
+  // anchor: normally the viewport, or the latest event during room fill.
   onDroppedCorrection: (deltaPx: number) => void;
 };
 
@@ -160,9 +159,13 @@ type MeasurementScrollCorrectionHookDeps = {
 // production closure against the real, unmocked virtual-core — not a
 // re-implementation that could drift.
 export const buildMeasurementScrollCorrectionHook =
-  ({ isIOSWebKitDevice, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
+  ({
+    isIOSWebKitDevice,
+    onDroppedCorrection,
+    shouldDeferAutomaticFillCorrection,
+  }: MeasurementScrollCorrectionHookDeps) =>
   (
-    item: { end: number },
+    item: { end: number; index?: number },
     delta: number,
     instance: {
       scrollOffset: number | null;
@@ -170,15 +173,18 @@ export const buildMeasurementScrollCorrectionHook =
     }
   ): boolean => {
     const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
-    const apply = shouldApplyMeasurementScrollCorrection({
-      itemFullyAboveViewport,
-      isIOSWebKitDevice: isIOSWebKitDevice(),
-      isScrollingBackward: instance.scrollDirection === 'backward',
-    });
-    // Only fully-above drops are ledgered: a visible (straddling) row's
-    // resize is SUPPOSED to reflow in place. Desktop forward/quiet
-    // corrections are still applied by virtual-core itself.
-    if (!apply && itemFullyAboveViewport) {
+    const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
+    const apply =
+      !automaticFillPredecessor &&
+      shouldApplyMeasurementScrollCorrection({
+        itemFullyAboveViewport,
+        isIOSWebKitDevice: isIOSWebKitDevice(),
+        isScrollingBackward: instance.scrollDirection === 'backward',
+      });
+    // During latest-open fill, visible predecessors also move the retained
+    // latest anchor. Its own height cannot move its start and is excluded by
+    // the owner. Ordinary visible rows keep their natural reflow policy.
+    if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
     return apply;

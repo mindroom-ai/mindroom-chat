@@ -32,6 +32,8 @@ type PaginatorHarnessProps = {
   onApi: (paginator: ReturnType<typeof useVirtualPaginator>) => void;
   onRangeChange?: (range: { start: number; end: number }) => void;
   shouldSuppressPagination?: () => boolean;
+  deferAutomaticPagination?: (retry: () => boolean) => void;
+  onEnd?: (back: boolean) => void;
 };
 
 function PaginatorHarness({
@@ -43,6 +45,8 @@ function PaginatorHarness({
   onApi,
   onRangeChange,
   shouldSuppressPagination,
+  deferAutomaticPagination,
+  onEnd,
 }: PaginatorHarnessProps) {
   const [range, setRange] = React.useState(initialRange);
   const paginator = useVirtualPaginator({
@@ -56,6 +60,8 @@ function PaginatorHarness({
     getScrollElement,
     getItemElement: (index: number) => getItemElement?.(index, range),
     shouldSuppressPagination,
+    ...{ deferAutomaticPagination },
+    onEnd,
   });
 
   React.useLayoutEffect(() => {
@@ -72,6 +78,69 @@ const makeRect = (top: number, height: number) => ({
 });
 
 describe('useVirtualPaginator', () => {
+  it.each([false, true])(
+    'rechecks settled backfill geometry (short history: %s)',
+    (shortHistory) => {
+      let visible = true;
+      let retry: (() => boolean) | undefined;
+      let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+      const onEnd = vi.fn();
+      const root = {
+        offsetTop: 0,
+        offsetHeight: 600,
+        scrollHeight: 30000,
+        scrollTop: 0,
+        scrollBy: () => {},
+        getBoundingClientRect: () => makeRect(0, 600),
+        querySelector: (selector: string) =>
+          selector.includes('"B"')
+            ? {
+                getBoundingClientRect: () => makeRect(visible ? 250 : -30000, 50),
+              }
+            : null,
+      } as unknown as HTMLElement;
+      act(() => {
+        create(
+          React.createElement(PaginatorHarness, {
+            count: 208,
+            limit: 200,
+            initialRange: { start: 200, end: 208 },
+            getScrollElement: () => root,
+            onEnd,
+            getItemElement: () =>
+              ({
+                offsetTop: 0,
+                clientHeight: 50,
+                getBoundingClientRect: () => makeRect(0, 50),
+              } as HTMLElement),
+            onApi: (api) => {
+              paginator = api;
+            },
+            deferAutomaticPagination: (next) => {
+              retry = next;
+            },
+          })
+        );
+      });
+      act(() => {
+        paginator?.retryPagination();
+      });
+      expect(paginator?.getItems()).toHaveLength(208);
+      expect(onEnd).not.toHaveBeenCalled();
+      visible = shortHistory;
+      act(() => {
+        retry?.();
+      });
+      expect(onEnd).toHaveBeenCalledTimes(shortHistory ? 1 : 0);
+      // A deliberate retry still paginates, without waiting for automatic fill.
+      visible = true;
+      act(() => {
+        paginator?.retryPagination();
+      });
+      expect(onEnd).toHaveBeenCalledTimes(shortHistory ? 2 : 1);
+    }
+  );
+
   beforeEach(() => {
     intersectionState.callback = undefined;
     vi.unstubAllGlobals();
@@ -323,8 +392,7 @@ describe('useVirtualPaginator', () => {
       return {
         offsetTop,
         clientHeight: 20,
-        getBoundingClientRect: () =>
-          makeRect(range.start === 10 ? topBefore : topAfter, 20),
+        getBoundingClientRect: () => makeRect(range.start === 10 ? topBefore : topAfter, 20),
       } as HTMLElement;
     };
     let paginator: ReturnType<typeof useVirtualPaginator> | undefined;

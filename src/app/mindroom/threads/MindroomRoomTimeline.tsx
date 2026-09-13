@@ -115,6 +115,7 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
 import {
@@ -962,6 +963,21 @@ export function RoomTimeline({
   // prepend debt here; the controller consumes it only with the render that
   // commits the matching range.
   const pendingRoomLedgerFoldPxRef = useRef(0);
+  const roomAutomaticFill = useRoomAutomaticFill({
+    viewKey: `${room.roomId}|${threadId ?? ''}`,
+    enabled:
+      !threadId &&
+      !eventId &&
+      !focusItem?.scrollTo &&
+      (!unreadInfo?.scrollTo ||
+        unreadInfo.readUptoEventId === threadFilteredEventEntries.at(-1)?.event.getId()) &&
+      !roomOverviewOrderActive &&
+      timelineAtLiveEnd,
+    latestEventId: threadFilteredEventEntries.at(-1)?.event.getId(),
+    contentKey: `${activeTimelineRange.start}:${activeTimelineRange.end}:${filteredLength}`,
+    getScrollElement,
+    isPaginating: () => roomPaginatingBackRef.current,
+  });
   const roomLedgerFoldPriceRef = useRef((_key: string | number | bigint, index: number) =>
     estimateRoomTimelineItemSize(index)
   );
@@ -1005,6 +1021,7 @@ export function RoomTimeline({
     getScrollElement,
     getItemElement: getTimelineItemElement,
     onEnd: handleRoomTimelinePagination,
+    deferAutomaticPagination: roomAutomaticFill.defer,
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
     // The ledger fold above owns backward-prepend compensation; without
     // this the paginator's own restore scrollBy lands first in the same
@@ -1052,6 +1069,7 @@ export function RoomTimeline({
   } = useTimelineScrollLedgerController({
     alive,
     clearPendingThreadAnchor: clearPendingThreadBackPaginationAnchor,
+    automaticFill: roomAutomaticFill,
     estimateSize: estimateRoomTimelineItemSize,
     // Keep this function fresh. virtual-core uses its identity to rebuild
     // unmeasured rows from the latest content-aware estimates.
@@ -1319,8 +1337,10 @@ export function RoomTimeline({
   const cancelThreadBottomSettle = useCallback(() => {
     threadSettleStopRef.current?.();
   }, []);
+  const cancelRoomAutomaticFill = roomAutomaticFill.cancel;
   const scrollToTimelineItem = useCallback(
     (index: number, opts?: Parameters<typeof scrollToItem>[1]) => {
+      if (index !== filteredLength - 1) cancelRoomAutomaticFill();
       if (threadId || index < activeTimelineRange.start || index >= activeTimelineRange.end) {
         return scrollToItem(index, opts);
       }
@@ -1338,9 +1358,11 @@ export function RoomTimeline({
     [
       activeTimelineRange.end,
       activeTimelineRange.start,
+      filteredLength,
       getTimelineItemElement,
       roomTimelineVirtualizer,
       scrollToItem,
+      cancelRoomAutomaticFill,
       threadId,
     ]
   );
@@ -2036,7 +2058,9 @@ export function RoomTimeline({
       <div
         ref={virtualInnerRef}
         data-testid="room-virtual-inner"
+        aria-busy={roomAutomaticFill.hideInitialRows || undefined}
         style={{
+          visibility: roomAutomaticFill.hideInitialRows ? 'hidden' : undefined,
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
           width: '100%',
