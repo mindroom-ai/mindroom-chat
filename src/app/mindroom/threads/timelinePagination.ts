@@ -147,16 +147,23 @@ export const recalibrateTimelinePagination = (
     offsetRange = getTimelinesEventsCount(topAddedTm) + (backwards ? topTmAddedEvt : 0);
   }
 
-  setTimeline((currentTimeline) => ({
-    linkedTimelines: newLTimelines,
-    range:
-      offsetRange > 0
-        ? {
-            start: currentTimeline.range.start + offsetRange,
-            end: currentTimeline.range.end + offsetRange,
-          }
-      : { ...currentTimeline.range },
-  }));
+  setTimeline((currentTimeline) => {
+    // Pagination captures one linked chain before awaiting cache/network.
+    // A route change or TimelineReset can install a different chain while
+    // that work is in flight; never let the stale completion replace it.
+    if (currentTimeline.linkedTimelines !== linkedTimelines) return currentTimeline;
+
+    return {
+      linkedTimelines: newLTimelines,
+      range:
+        offsetRange > 0
+          ? {
+              start: currentTimeline.range.start + offsetRange,
+              end: currentTimeline.range.end + offsetRange,
+            }
+          : { ...currentTimeline.range },
+    };
+  });
 };
 
 export const getInitialTimeline = (

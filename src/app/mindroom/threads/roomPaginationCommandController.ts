@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type RefObject,
@@ -66,16 +67,10 @@ export const useRoomPaginationCommandController = ({
   threadId: string | undefined;
   threadIdRef: MutableRefObject<string | undefined>;
   timeline: RoomTimelineState;
-}) =>
-  useCallback(
-    async (backwards: boolean) => {
-      if (threadId) return;
-      if (!backwards) {
-        await handleTimelinePagination(false);
-        return;
-      }
-      if (roomPaginatingBackRef.current) return;
-
+}) => {
+  const backPaginationPromiseRef = useRef<Promise<void>>();
+  const runBackwardPagination = useCallback(
+    async () => {
       roomPaginatingBackRef.current = true;
       try {
         const currentLinkedTimelines = timeline.linkedTimelines;
@@ -246,8 +241,30 @@ export const useRoomPaginationCommandController = ({
       sessionId,
       setRoomHasMoreCachedBack,
       setTimeline,
-      threadId,
       threadIdRef,
       timeline.linkedTimelines,
     ]
   );
+
+  return useCallback(
+    (backwards: boolean): Promise<void> => {
+      if (threadId) return Promise.resolve();
+      if (!backwards) {
+        return handleTimelinePagination(false);
+      }
+
+      const activePagination = backPaginationPromiseRef.current;
+      if (activePagination) return activePagination;
+
+      const work = runBackwardPagination();
+      const trackedPagination = work.finally(() => {
+        if (backPaginationPromiseRef.current === trackedPagination) {
+          backPaginationPromiseRef.current = undefined;
+        }
+      });
+      backPaginationPromiseRef.current = trackedPagination;
+      return trackedPagination;
+    },
+    [handleTimelinePagination, runBackwardPagination, threadId]
+  );
+};

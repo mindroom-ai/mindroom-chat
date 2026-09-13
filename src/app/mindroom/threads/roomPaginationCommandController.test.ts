@@ -56,6 +56,94 @@ const makeTimeline = (events: unknown[]) =>
   } as never);
 
 describe('useRoomPaginationCommandController', () => {
+  it('joins and clears an active backward pagination', async () => {
+    const timeline = makeTimeline([makeRoomEvent('$loaded')]);
+    const initialTimeline: Timeline = {
+      linkedTimelines: [timeline],
+      range: { start: 0, end: 1 },
+    };
+    let callback: ((backwards: boolean) => Promise<void>) | undefined;
+    let renderer: ReactTestRenderer | undefined;
+    let rejectSnapshot: ((reason?: unknown) => void) | undefined;
+    loadRoomCachedPaginationSnapshotMock.mockClear();
+    loadRoomCachedPaginationSnapshotMock.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSnapshot = reject;
+        })
+    );
+
+    const room = {
+      roomId: '!room:server',
+      partitionThreadedEvents: vi.fn((events) => [events, [], []]),
+      addEventsToTimeline: vi.fn(),
+      processThreadRoots: vi.fn(),
+      hasEncryptionStateEvent: () => false,
+      relations: {},
+    } as never;
+    const mx = {
+      getEventMapper: () => (rawEvent: unknown) => rawEvent,
+      processAggregatedTimelineEvents: vi.fn(),
+    } as never;
+
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination: vi.fn(),
+        mx,
+        persistRoomEventCache: vi.fn(),
+        recalibrateFilterOptsRef: { current: undefined },
+        room,
+        roomIdRef: { current: '!room:server' },
+        roomPaginatingBackRef: { current: false },
+        prefetchDepthRef: { current: 50 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack: vi.fn(),
+        setTimeline: vi.fn(),
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: initialTimeline,
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    const first = callback?.(true);
+    const second = callback?.(true);
+    expect(second).toBe(first);
+    const settled = Promise.allSettled([first, second]);
+    let joinedSettled = false;
+    void settled.then(() => {
+      joinedSettled = true;
+    });
+    await Promise.resolve();
+
+    expect(loadRoomCachedPaginationSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(joinedSettled).toBe(false);
+
+    rejectSnapshot?.(new Error('cache failed'));
+    let results: PromiseSettledResult<void>[] = [];
+    await act(async () => {
+      results = await settled;
+    });
+
+    expect(results).toEqual([
+      expect.objectContaining({ status: 'rejected' }),
+      expect.objectContaining({ status: 'rejected' }),
+    ]);
+
+    loadRoomCachedPaginationSnapshotMock.mockResolvedValue({ status: 'start-known' });
+    await act(async () => {
+      await callback?.(true);
+    });
+    renderer?.unmount();
+
+    expect(loadRoomCachedPaginationSnapshotMock).toHaveBeenCalledTimes(2);
+  });
+
   it('uses a bounded interactive cache page size when the preload target is large', async () => {
     const loaded = makeRoomEvent('$loaded');
     const timeline = makeTimeline([loaded]);
