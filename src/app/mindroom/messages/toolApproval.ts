@@ -43,6 +43,81 @@ const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
   'expired',
 ]);
 
+const RFC3339_TIMESTAMP =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+export const parseToolApprovalExpiryTimestamp = (value: string): number | undefined => {
+  const match = RFC3339_TIMESTAMP.exec(value);
+  if (!match) return undefined;
+
+  const [
+    ,
+    yearValue,
+    monthValue,
+    dayValue,
+    hourValue,
+    minuteValue,
+    secondValue,
+    fractionValue,
+    timezoneValue,
+    offsetSignValue,
+    offsetHourValue,
+    offsetMinuteValue,
+  ] = match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const millisecond = Number((fractionValue ?? '').padEnd(3, '0').slice(0, 3));
+  const offsetHour = Number(offsetHourValue ?? 0);
+  const offsetMinute = Number(offsetMinuteValue ?? 0);
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return undefined;
+  }
+
+  // Avoid Date.parse because the backend emits sub-millisecond fractions, whose support varies
+  // between browser engines.
+  const wallClockDate = new Date(0);
+  wallClockDate.setUTCFullYear(year, month - 1, day);
+  wallClockDate.setUTCHours(hour, minute, second, millisecond);
+
+  if (
+    wallClockDate.getUTCFullYear() !== year ||
+    wallClockDate.getUTCMonth() !== month - 1 ||
+    wallClockDate.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+
+  const offsetDirection = offsetSignValue === '-' ? -1 : 1;
+  const offsetMilliseconds =
+    timezoneValue === 'Z' ? 0 : offsetDirection * (offsetHour * 60 + offsetMinute) * 60_000;
+  return wallClockDate.getTime() - offsetMilliseconds;
+};
+
+export const getEffectiveToolApprovalStatus = (
+  status: ToolApprovalStatus,
+  expiresTs: number | undefined,
+  currentTime = Date.now()
+): ToolApprovalStatus => {
+  if (status !== 'pending') return status;
+  if (expiresTs === undefined) return status;
+
+  return expiresTs <= currentTime ? 'expired' : status;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -54,10 +129,7 @@ const getApprovalCandidates = (content: Record<string, unknown>): Record<string,
   return newContent ? [newContent, content] : [content];
 };
 
-const pickCandidateValue = (
-  content: Record<string, unknown>,
-  key: string
-): unknown | undefined => {
+const pickCandidateValue = (content: Record<string, unknown>, key: string): unknown | undefined => {
   const candidates = getApprovalCandidates(content);
 
   for (let i = 0; i < candidates.length; i += 1) {

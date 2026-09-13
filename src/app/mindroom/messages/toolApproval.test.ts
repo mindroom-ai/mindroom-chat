@@ -2,10 +2,12 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   buildToolApprovalResponseContent,
+  getEffectiveToolApprovalStatus,
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApproval,
   parseToolApprovalContent,
+  parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
 
 const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOOL_APPROVAL_EVENT) =>
@@ -17,6 +19,63 @@ const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOO
     sender: '@alice:example.org',
     type,
   });
+
+describe('parseToolApprovalExpiryTimestamp', () => {
+  it('parses sub-millisecond fractions and numeric offsets deterministically', () => {
+    const expected = Date.UTC(2026, 3, 26, 2, 46, 29, 899);
+
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T02:46:29.899252+00:00')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T04:16:29.899252+01:30')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-25T21:16:29.899252-05:30')).toBe(expected);
+    expect(parseToolApprovalExpiryTimestamp('2026-04-26T02:46:29.8Z')).toBe(
+      Date.UTC(2026, 3, 26, 2, 46, 29, 800)
+    );
+  });
+
+  it('accepts leap-day timestamps only in leap years', () => {
+    expect(parseToolApprovalExpiryTimestamp('2028-02-29T12:00:00Z')).toBe(
+      Date.UTC(2028, 1, 29, 12, 0, 0)
+    );
+    expect(parseToolApprovalExpiryTimestamp('2000-02-29T12:00:00Z')).toBe(
+      Date.UTC(2000, 1, 29, 12, 0, 0)
+    );
+    expect(parseToolApprovalExpiryTimestamp('2026-02-29T12:00:00Z')).toBeUndefined();
+    expect(parseToolApprovalExpiryTimestamp('1900-02-29T12:00:00Z')).toBeUndefined();
+  });
+
+  it('rejects invalid calendar and offset values', () => {
+    [
+      'not-a-timestamp',
+      '0',
+      '2026-02-30T12:00:00Z',
+      '2026-04-31T12:00:00Z',
+      '2026-04-26T02:46:29',
+      '2026-04-26T02:46:29+24:00',
+      '2026-04-26T02:46:29+00:60',
+    ].forEach((value) => {
+      expect(parseToolApprovalExpiryTimestamp(value)).toBeUndefined();
+    });
+  });
+});
+
+describe('getEffectiveToolApprovalStatus', () => {
+  it('expires a pending approval exactly at its deadline', () => {
+    expect(getEffectiveToolApprovalStatus('pending', 1_000, 999)).toBe('pending');
+    expect(getEffectiveToolApprovalStatus('pending', 1_000, 1_000)).toBe('expired');
+    expect(getEffectiveToolApprovalStatus('pending', 1_000, 1_001)).toBe('expired');
+  });
+
+  it('keeps a pending approval without a parsed deadline pending', () => {
+    expect(getEffectiveToolApprovalStatus('pending', undefined, 1_000)).toBe('pending');
+  });
+
+  it('passes terminal statuses through regardless of the deadline', () => {
+    (['approved', 'denied', 'expired'] as const).forEach((status) => {
+      expect(getEffectiveToolApprovalStatus(status, 1_000, 2_000)).toBe(status);
+      expect(getEffectiveToolApprovalStatus(status, 2_000, 1_000)).toBe(status);
+    });
+  });
+});
 
 describe('parseToolApproval', () => {
   it('parses a pending approval event', () => {
@@ -199,12 +258,7 @@ describe('parseToolApproval', () => {
 
   it('builds Matrix approval response content with thread reply metadata', () => {
     expect(
-      buildToolApprovalResponseContent(
-        'denied',
-        '$thread-root',
-        '$approval',
-        'Needs human review'
-      )
+      buildToolApprovalResponseContent('denied', '$thread-root', '$approval', 'Needs human review')
     ).toEqual({
       status: 'denied',
       reason: 'Needs human review',
