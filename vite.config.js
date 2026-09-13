@@ -110,7 +110,14 @@ const matrixCryptoWasmPath =
   appBasePath && appBasePath !== '.'
     ? `${appBasePath}/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm`
     : '/node_modules/.vite/deps/pkg/matrix_sdk_crypto_wasm_bg.wasm';
-const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? 'cinny-dev.lab.nijho.lt')
+const defaultAllowedHosts = [
+  'chat.lab.mindroom.chat',
+  'chat.mindroom.chat',
+  'cinny-dev.lab.nijho.lt',
+  'localhost',
+  '127.0.0.1',
+];
+const allowedHosts = (process.env.VITE_ALLOWED_HOSTS ?? defaultAllowedHosts.join(','))
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean);
