@@ -22,7 +22,8 @@ const SPACE_ID = process.env.E2E_PORTAL_SPACE_ID ?? '!ouDcQZnrnLBwRvjdsv:localho
 const CHILD_NAME = 'Space Child Room';
 
 const inviteInput = (page: Page) => page.locator('[name="userIdInput"]');
-const inviteMenu = (page: Page) => page.locator('#invite-autocomplete-listbox');
+// The listbox id carries a per-instance useId() suffix; match on the prefix.
+const inviteMenu = (page: Page) => page.locator('[id^="invite-autocomplete-listbox"]');
 const inviteForm = (page: Page) => page.locator('form:has([name="userIdInput"])');
 
 async function verifyPortaledInviteMenu(page: Page, surface: string) {

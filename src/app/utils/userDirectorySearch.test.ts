@@ -231,6 +231,19 @@ describe('filterInviteUserCandidates', () => {
       filterInviteUserCandidates(users, room, '@ally:example.org').map((user) => user.userId)
     ).toEqual(['@elise:example.org', '@malice:example.org']);
   });
+
+  it('only excludes the current user when no room is given (create-DM flow)', () => {
+    expect(
+      filterInviteUserCandidates(users, undefined, '@ally:example.org').map((user) => user.userId)
+    ).toEqual([
+      '@elise:example.org',
+      '@alice:example.org',
+      '@malice:example.org',
+      '@bob:example.org',
+      '@alicea:example.org',
+      '@carol:example.org',
+    ]);
+  });
 });
 
 describe('sanitizeInviteAutocompleteOptionId', () => {

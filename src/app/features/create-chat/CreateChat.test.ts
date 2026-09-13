@@ -25,6 +25,20 @@ vi.mock('../../components/setting-tile', () => ({
     React.createElement('div', null, title, description, children, after),
 }));
 
+// The autocomplete drags in vanilla-extract styles and the user directory
+// stack; CreateChat tests only exercise the form submit + room policy logic.
+vi.mock('../../components/invite-user-prompt', () => ({
+  InviteUserAutocomplete: React.forwardRef(
+    ({ inputValue, onInputChange }: any, ref: React.ForwardedRef<HTMLInputElement>) =>
+      React.createElement('input', {
+        ref,
+        name: 'userIdInput',
+        value: inputValue,
+        onChange: (evt: any) => onInputChange(evt.target.value),
+      })
+  ),
+}));
+
 vi.mock('../../components/create-room', () => ({
   createRoomEncryptionState: () => ({
     type: 'm.room.encryption',
@@ -61,15 +75,14 @@ const submitForm = async (
   renderer: ReactTestRenderer,
   userId = '@agent:mindroom.test'
 ): Promise<void> => {
-  const form = renderer.root.findByType('form');
-
+  const input = renderer.root.findByType('input');
   await act(async () => {
-    form.props.onSubmit({
-      preventDefault: vi.fn(),
-      target: {
-        userIdInput: { value: userId },
-      },
-    });
+    input.props.onChange({ target: { value: userId } });
+  });
+
+  const form = renderer.root.findByType('form');
+  await act(async () => {
+    form.props.onSubmit({ preventDefault: vi.fn() });
   });
 };
 

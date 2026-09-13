@@ -40,7 +40,7 @@ const getSelfUserId = (mx: ReturnType<typeof useMatrixClient>): string | undefin
 
 const getFilteredUsers = (
   users: readonly ServerUserDirectoryUser[],
-  room: Room,
+  room: Room | undefined,
   selfUserId?: string
 ): ServerUserDirectoryUser[] => filterInviteUserCandidates(users, room, selfUserId);
 
@@ -61,7 +61,12 @@ const shouldSearchServer = (
     countStrongInviteUserMatches(localSuggestions, localSearchTerm) <
       INVITE_SERVER_FALLBACK_MIN_LOCAL_RESULTS);
 
-export const useInviteUserSearch = (room: Room, query: string): InviteUserSearchResult => {
+// Without a room (e.g. the create-DM flow) membership filtering is skipped and
+// only the current user is excluded from suggestions.
+export const useInviteUserSearch = (
+  room: Room | undefined,
+  query: string
+): InviteUserSearchResult => {
   const mx = useMatrixClient();
   const alive = useAlive();
   const cache = useUserDirectoryCache();

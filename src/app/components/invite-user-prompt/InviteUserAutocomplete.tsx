@@ -1,10 +1,12 @@
 import React, {
   ChangeEventHandler,
+  ComponentProps,
   ForwardedRef,
   KeyboardEvent as ReactKeyboardEvent,
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -25,14 +27,17 @@ import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
 import * as css from './InviteAutocompleteMenu.css';
 
 type InviteUserAutocompleteProps = {
-  room: Room;
+  // Without a room, member filtering is skipped (create-DM flow).
+  room?: Room;
   inputValue: string;
   onInputChange: (value: string) => void;
   onSelect: (userId: string) => void;
   disabled?: boolean;
+  autoFocus?: boolean;
+  variant?: ComponentProps<typeof Input>['variant'];
+  radii?: ComponentProps<typeof Input>['radii'];
+  menuLabel?: string;
 };
-
-const LISTBOX_ID = 'invite-autocomplete-listbox';
 
 const getOptionId = (userId: string): string =>
   `invite-autocomplete-option-${sanitizeInviteAutocompleteOptionId(userId)}`;
@@ -58,9 +63,26 @@ const setForwardedRef = (
 };
 
 export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAutocompleteProps>(
-  ({ room, inputValue, onInputChange, onSelect, disabled }, ref) => {
+  (
+    {
+      room,
+      inputValue,
+      onInputChange,
+      onSelect,
+      disabled,
+      autoFocus,
+      variant = 'Background',
+      radii,
+      menuLabel = 'Invite user suggestions',
+    },
+    ref
+  ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    // Per-instance listbox id: the invite dialog and the create-DM page can
+    // both be mounted, and duplicate ids would corrupt the ARIA graph. The
+    // stable prefix is what e2e specs match on.
+    const listboxId = `invite-autocomplete-listbox-${useId()}`;
     const disabledRef = useRef(Boolean(disabled));
     const [inputFocused, setInputFocused] = useState(false);
     const [closedForValue, setClosedForValue] = useState<string>();
@@ -173,20 +195,22 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               onBlur={() => setInputFocused(false)}
               placeholder="@username:server"
               name="userIdInput"
-              variant="Background"
+              variant={variant}
+              radii={radii}
               disabled={disabled}
+              autoFocus={autoFocus}
               autoComplete="off"
               required
               role="combobox"
               aria-autocomplete="list"
               aria-expanded={menuOpen}
-              aria-controls={LISTBOX_ID}
+              aria-controls={listboxId}
               aria-activedescendant={activeOptionId}
             />
           }
           headerContent={<Text size="L400">{resultCountLabel}</Text>}
-          menuId={LISTBOX_ID}
-          menuLabel="Invite user suggestions"
+          menuId={listboxId}
+          menuLabel={menuLabel}
         >
           {menuOpen && (
             <>
