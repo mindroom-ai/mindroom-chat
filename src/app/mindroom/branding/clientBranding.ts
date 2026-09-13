@@ -15,7 +15,7 @@ export const MINDROOM_CLIENT_BRANDING = {
   logoSrc: MINDROOM_LOGO_SRC,
   poweredBy: MINDROOM_DEFAULT_POWERED_BY,
   sourceUrl: MINDROOM_SOURCE_URL,
-  subtitle: 'Your AI is trapped in apps. We set it free.',
+  subtitle: 'AI agents that live in your chat rooms.',
 } as const;
 
 export const getMindroomWelcomePageContent = (welcome: ClientConfig['welcome'] | undefined) => ({

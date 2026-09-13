@@ -97,7 +97,7 @@
 
   "welcome": {
     "title": "Welcome to MindRoom",
-    "subtitle": "Your AI is trapped in apps. We set it free.",
+    "subtitle": "AI agents that live in your chat rooms.",
     "sourceLabel": "Source Code",
     "sourceUrl": "https://github.com/mindroom-ai/mindroom",
     "docsLabel": "Docs",

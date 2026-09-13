@@ -1,1 +1,1 @@
-matrix,chat,ai agents,threads,encryption,collaboration
+agents,multi agent,matrix,assistant,automation,memory,tools,chat,voice,self hosted,teams
