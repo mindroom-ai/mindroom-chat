@@ -49,8 +49,14 @@ type MockWindow = MockEventTarget;
 const createTouchList = (touches: Array<{ clientX: number; clientY: number }>) =>
   touches as unknown as TouchList;
 
-function HookHarness({ onBack }: { onBack: () => void }) {
-  useEdgeSwipeBack(onBack);
+function HookHarness({
+  onBack,
+  options,
+}: {
+  onBack: () => void;
+  options?: { blockStandaloneWebApp?: boolean };
+}) {
+  useEdgeSwipeBack(onBack, true, options);
   return null;
 }
 
@@ -129,7 +135,7 @@ describe('useEdgeSwipeBack', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it('does not call onBack for standalone iOS web apps', () => {
+  it('keeps edge-swipe back enabled for standalone iOS web apps by default', () => {
     vi.mocked(isIOSStandaloneWebApp).mockReturnValue(true);
 
     const onBack = vi.fn();
@@ -142,6 +148,55 @@ describe('useEdgeSwipeBack', () => {
           { store },
           React.createElement(HookHarness, {
             onBack,
+          })
+        )
+      );
+    });
+
+    const preventDefault = swipeFromLeftEdge();
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it('keeps edge-swipe back enabled for native iOS wrappers', () => {
+    vi.mocked(isNativeIOS).mockReturnValue(true);
+
+    const onBack = vi.fn();
+    const store = createStore();
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(HookHarness, {
+            onBack,
+          })
+        )
+      );
+    });
+
+    const preventDefault = swipeFromLeftEdge();
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it('does not call onBack for standalone iOS web apps when standalone blocking is enabled', () => {
+    vi.mocked(isIOSStandaloneWebApp).mockReturnValue(true);
+
+    const onBack = vi.fn();
+    const store = createStore();
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(HookHarness, {
+            onBack,
+            options: { blockStandaloneWebApp: true },
           })
         )
       );

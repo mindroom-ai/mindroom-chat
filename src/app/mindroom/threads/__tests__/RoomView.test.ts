@@ -16,6 +16,7 @@ type MockPageProps = React.ComponentProps<'div'>;
 const {
   bumpRecentThreadMock,
   historyBackMock,
+  isIOSStandaloneWebAppMock,
   isNativeIOSMock,
   navigatePathMock,
   pageState,
@@ -28,6 +29,7 @@ const {
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
   historyBackMock: vi.fn(),
+  isIOSStandaloneWebAppMock: vi.fn(() => false),
   isNativeIOSMock: vi.fn(() => false),
   navigatePathMock: vi.fn(),
   pageState: {
@@ -250,6 +252,7 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
 }));
 
 vi.mock('../../native/nativeSso', () => ({
+  isIOSStandaloneWebApp: isIOSStandaloneWebAppMock,
   isNativeIOS: isNativeIOSMock,
 }));
 
@@ -320,6 +323,8 @@ describe('RoomView', () => {
     storageState.clear();
     bumpRecentThreadMock.mockReset();
     historyBackMock.mockReset();
+    isIOSStandaloneWebAppMock.mockReset();
+    isIOSStandaloneWebAppMock.mockReturnValue(false);
     isNativeIOSMock.mockReset();
     isNativeIOSMock.mockReturnValue(false);
     navigatePathMock.mockReset();
@@ -570,6 +575,38 @@ describe('RoomView', () => {
     });
 
     expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
+  it('exits a thread with replace navigation instead of history back in standalone iOS web apps', async () => {
+    isIOSStandaloneWebAppMock.mockReturnValue(true);
+    const room = makeRoom(nextRoomId('room-a'));
+    window.history.state = {
+      key: `thread-entry-key:${room.roomId}`,
+    };
+    setRoomThreadExitTargetForHistoryState(window.history.state, {
+      exitPath: `/home/${encodeURIComponent(room.roomId)}`,
+      roomId: room.roomId,
+      threadId: '$thread',
+      useHistoryBack: true,
+    });
+
+    const { RoomView } = await import('../../../features/room/RoomView');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(threadContextBannerState.props?.onExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigatePathMock).toHaveBeenCalledWith(`/home/${encodeURIComponent(room.roomId)}`, {
+      replace: true,
+    });
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 

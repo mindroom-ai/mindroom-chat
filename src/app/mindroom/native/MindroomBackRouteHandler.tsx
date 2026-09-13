@@ -13,7 +13,7 @@ export function MindroomBackRouteHandler({
 }: MindroomBackRouteHandlerProps) {
   const goBack = useBackRoute();
 
-  useEdgeSwipeBack(goBack, enableEdgeSwipe);
+  useEdgeSwipeBack(goBack, enableEdgeSwipe, { blockStandaloneWebApp: true });
 
   return children(goBack);
 }
