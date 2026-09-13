@@ -24,16 +24,17 @@ import { stopPropagation } from '../../utils/keyboard';
 import { assignElementRef } from '../../utils/react';
 import { MindroomAiRunInfo, getMindroomAiRunInfo } from './aiRun';
 import {
+  MindroomAiRunContextBarSegment,
   formatMindroomAiRunNumber,
   formatMindroomAiRunTimeToFirstToken,
+  getMindroomAiRunContextBarSegments,
+  getMindroomAiRunContextCacheLabel,
   getMindroomAiRunContextLabel,
   getMindroomAiRunModelLabel,
+  getMindroomAiRunUsageCacheLabel,
   getMindroomAiRunUsageLabel,
 } from './aiRunDisplay';
-import {
-  MindroomLongTextSource,
-  getMindroomLongTextSource,
-} from './longText';
+import { MindroomLongTextSource, getMindroomLongTextSource } from './longText';
 import { getMindroomLongTextDownloadName } from './longTextDownload';
 import {
   downloadMindroomLongTextSidecarBlob,
@@ -41,10 +42,7 @@ import {
 } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
 
-export function useMindroomMessageControls(
-  content: Record<string, unknown>,
-  menuOpen: boolean
-) {
+export function useMindroomMessageControls(content: Record<string, unknown>, menuOpen: boolean) {
   const longTextSource = useMemo(() => getMindroomLongTextSource(content), [content]);
   const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
   const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
@@ -67,6 +65,37 @@ function MindroomAiRunDetail({ label, value }: { label: string; value?: string }
   );
 }
 
+const getMindroomAiRunContextBarSegmentClassName = (
+  key: MindroomAiRunContextBarSegment['key']
+): string => {
+  if (key === 'cacheRead') {
+    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentCacheRead}`;
+  }
+  if (key === 'newInput') {
+    return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentNewInput}`;
+  }
+  return `${css.AiRunContextBarSegment} ${css.AiRunContextBarSegmentReserve}`;
+};
+
+function MindroomAiRunContextBar({ info }: { info: MindroomAiRunInfo }) {
+  const segments = getMindroomAiRunContextBarSegments(info);
+  if (!segments) return null;
+
+  return (
+    <div className={css.AiRunContextBar} aria-label="Request context window">
+      {segments.map((segment) => (
+        <div
+          key={segment.key}
+          className={getMindroomAiRunContextBarSegmentClassName(segment.key)}
+          style={{ width: `${segment.percentage}%` }}
+          title={segment.title}
+          aria-label={`${segment.label}: ${formatMindroomAiRunNumber(segment.tokens)} tokens`}
+        />
+      ))}
+    </div>
+  );
+}
+
 function MindroomAiRunInfoDialog({
   info,
   open,
@@ -80,7 +109,9 @@ function MindroomAiRunInfoDialog({
 }) {
   const modelLabel = getMindroomAiRunModelLabel(info);
   const usageLabel = getMindroomAiRunUsageLabel(info);
+  const usageCacheLabel = getMindroomAiRunUsageCacheLabel(info);
   const contextLabel = getMindroomAiRunContextLabel(info);
+  const contextCacheLabel = getMindroomAiRunContextCacheLabel(info);
   const toolsLabel = formatMindroomAiRunNumber(info.toolCount);
   const ttftLabel = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
 
@@ -120,7 +151,10 @@ function MindroomAiRunInfoDialog({
               <MindroomAiRunDetail label="Status" value={info.status} />
               <MindroomAiRunDetail label="Model" value={modelLabel} />
               <MindroomAiRunDetail label="Tokens" value={usageLabel} />
+              <MindroomAiRunDetail label="Run Cache" value={usageCacheLabel} />
               <MindroomAiRunDetail label="Request Context" value={contextLabel} />
+              <MindroomAiRunContextBar info={info} />
+              <MindroomAiRunDetail label="Request Cache" value={contextCacheLabel} />
               <MindroomAiRunDetail label="Tools" value={toolsLabel} />
               <MindroomAiRunDetail label="TTFT" value={ttftLabel} />
               <MindroomAiRunDetail label="Run" value={info.runId} />
@@ -133,13 +167,7 @@ function MindroomAiRunInfoDialog({
   );
 }
 
-export function MindroomAiRunInfoButton({
-  open,
-  onOpen,
-}: {
-  open: boolean;
-  onOpen: () => void;
-}) {
+export function MindroomAiRunInfoButton({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"

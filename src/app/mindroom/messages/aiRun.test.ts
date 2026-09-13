@@ -22,9 +22,17 @@ describe('getMindroomAiRunInfo', () => {
           input_tokens: 100,
           output_tokens: 25,
           total_tokens: 125,
+          cache_read_tokens: 20,
+          cache_write_tokens: 5,
           time_to_first_token: 0.42,
         },
-        context: { input_tokens: 100, window_tokens: 4000 },
+        context: {
+          input_tokens: 125,
+          window_tokens: 4000,
+          cache_read_input_tokens: 20,
+          cache_write_input_tokens: 5,
+          uncached_input_tokens: 105,
+        },
         tools: { count: 2 },
       },
     });
@@ -39,9 +47,14 @@ describe('getMindroomAiRunInfo', () => {
       inputTokens: 100,
       outputTokens: 25,
       totalTokens: 125,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 5,
       timeToFirstToken: 0.42,
-      contextInputTokens: 100,
+      contextInputTokens: 125,
       contextWindowTokens: 4000,
+      contextCacheReadInputTokens: 20,
+      contextCacheWriteInputTokens: 5,
+      contextUncachedInputTokens: 105,
       toolCount: 2,
     });
   });
@@ -80,25 +93,21 @@ describe('isMindroomAiRunStreaming', () => {
   it('returns false for terminal statuses', () => {
     const terminalStatuses = ['completed', 'cached', 'error', 'cancelled'];
     for (const status of terminalStatuses) {
-      expect(
-        isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })
-      ).toBe(false);
+      expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(
+        false
+      );
     }
   });
 
   it('returns true for non-terminal statuses', () => {
     const activeStatuses = ['streaming', 'running', 'active', 'thinking'];
     for (const status of activeStatuses) {
-      expect(
-        isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })
-      ).toBe(true);
+      expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(true);
     }
   });
 
   it('returns true when metadata exists but status is absent', () => {
-    expect(
-      isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1 } })
-    ).toBe(true);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1 } })).toBe(true);
   });
 
   it('reads metadata from m.new_content wrapper', () => {
@@ -124,28 +133,28 @@ describe('isMindroomAiRunStreaming', () => {
   it('returns true when io.mindroom.stream_status is active (no ai_run metadata)', () => {
     const activeStatuses = ['streaming', 'running', 'active'];
     for (const status of activeStatuses) {
-      expect(
-        isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })
-      ).toBe(true);
+      expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(true);
     }
   });
 
   it('returns false when io.mindroom.stream_status is terminal (no ai_run metadata)', () => {
-    const terminalStatuses = ['completed', 'complete', 'done', 'error', 'failed', 'stopped', 'cancelled'];
+    const terminalStatuses = [
+      'completed',
+      'complete',
+      'done',
+      'error',
+      'failed',
+      'stopped',
+      'cancelled',
+    ];
     for (const status of terminalStatuses) {
-      expect(
-        isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })
-      ).toBe(false);
+      expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(false);
     }
   });
 
   it('returns false when io.mindroom.stream_status is unrecognized (no ai_run metadata)', () => {
-    expect(
-      isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'pending' })
-    ).toBe(false);
-    expect(
-      isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'unknown' })
-    ).toBe(false);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'pending' })).toBe(false);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'unknown' })).toBe(false);
   });
 
   it('reads stream_status from m.new_content wrapper', () => {
@@ -169,12 +178,8 @@ describe('isMindroomAiRunStreaming', () => {
   });
 
   it('is case-insensitive for stream_status', () => {
-    expect(
-      isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'STREAMING' })
-    ).toBe(true);
-    expect(
-      isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'Completed' })
-    ).toBe(false);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'STREAMING' })).toBe(true);
+    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'Completed' })).toBe(false);
   });
 
   it('prefers ai_run metadata over stream_status when both present', () => {
