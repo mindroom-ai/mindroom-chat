@@ -19,6 +19,10 @@ const precacheManifest = self.__WB_MANIFEST;
 precacheAndRoute(precacheManifest);
 cleanupOutdatedCaches();
 
+const UPDATE_MARKER_CACHE = 'mindroom-service-worker-update';
+const getUpdateMarkerUrl = () =>
+  new URL('__mindroom_service_worker_update__', self.registration.scope).href;
+
 const navigationFallbackDenylist = [
   /^\/api(?:\/|$)/,
   /^\/(?:[^/]+\/)?_matrix(?:\/|$)/,
@@ -139,15 +143,65 @@ const requestSession = async (
   return session;
 };
 
-self.addEventListener('install', () => {
-  self.skipWaiting();
+self.addEventListener('install', (event: ExtendableEvent) => {
+  // The page running during the first deployment of the version monitor is
+  // necessarily an older bundle and cannot reload itself on controllerchange.
+  // Persist whether this is an upgrade so activation can refresh that page
+  // from the new worker's already-precached shell. First installs intentionally
+  // skip the marker and therefore do not cause a gratuitous second page load.
+  const isUpgrade = precachesAppShell && Boolean(self.registration.active);
+  event.waitUntil(
+    (async () => {
+      try {
+        if (isUpgrade) {
+          const cache = await caches.open(UPDATE_MARKER_CACHE);
+          await cache.put(getUpdateMarkerUrl(), new Response('pending'));
+        } else {
+          await caches.delete(UPDATE_MARKER_CACHE);
+        }
+      } catch {
+        // Cache metadata is an enhancement. Never strand a worker install if
+        // storage is unavailable or full.
+      }
+      await self.skipWaiting();
+    })()
+  );
 });
 
 self.addEventListener('activate', (event: ExtendableEvent) => {
   event.waitUntil(
     (async () => {
+      const existingClients = (await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })) as WindowClient[];
+      let shouldReloadExistingClients = false;
+      try {
+        const cache = await caches.open(UPDATE_MARKER_CACHE);
+        shouldReloadExistingClients = Boolean(await cache.match(getUpdateMarkerUrl()));
+        await caches.delete(UPDATE_MARKER_CACHE);
+      } catch {
+        // Activation and normal offline use must not depend on metadata I/O.
+      }
+
       await self.clients.claim();
       await cleanupDeadClients();
+
+      if (!shouldReloadExistingClients || !precachesAppShell) return;
+      await Promise.allSettled(
+        existingClients.map(async (client) => {
+          if (client.frameType !== 'top-level') return;
+          try {
+            if (new URL(client.url).origin !== self.location.origin) return;
+            // clients.claim() makes this navigation use the newly activated
+            // worker, whose app shell was precached during install. It remains
+            // safe if connectivity disappears between install and activation.
+            await client.navigate(client.url);
+          } catch {
+            // A closed or mid-navigation tab is harmless.
+          }
+        })
+      );
     })()
   );
 });

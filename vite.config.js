@@ -9,8 +9,39 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import buildConfig from './build.config';
+import { resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
+
+const getBuildVersion = () => {
+  let localCommit;
+  try {
+    localCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: path.resolve(),
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    // Manual uploads may not include a Git checkout; DEPLOY_ID remains usable.
+  }
+
+  return resolveBuildVersion(process.env, localCommit) ?? 'unknown';
+};
+
+const buildVersion = getBuildVersion();
+
+function appVersionManifest() {
+  return {
+    name: 'mindroom-app-version-manifest',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: `${JSON.stringify({ version: buildVersion })}\n`,
+      });
+    },
+  };
+}
 
 export const copyFiles = {
   targets: [
@@ -194,6 +225,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    appVersionManifest(),
     serverRuntimeConfig('/runtime-config.js'),
     serverStaleServiceWorkerCleanup(`${appBasePath}/sw.js`),
     serverMatrixSdkCryptoWasm(matrixCryptoWasmPath),
@@ -216,7 +248,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        globIgnores: ['public/element-call/**', 'runtime-config.js'],
+        globIgnores: ['public/element-call/**', 'runtime-config.js', 'version.json'],
       },
       devOptions: {
         enabled: true,
@@ -224,6 +256,9 @@ export default defineConfig({
       },
     }),
   ],
+  define: {
+    __MINDROOM_BUILD_VERSION__: JSON.stringify(buildVersion),
+  },
   optimizeDeps: {
     esbuildOptions: {
       define: {
