@@ -461,7 +461,7 @@ test.describe('live cinny073 persistent thread navigation', () => {
       await waitForRecentlyOpenedEntries(page, fixtures);
 
       await page.screenshot({
-        path: `/tmp/cinny073-thread-nav-${viewport.width}.png`,
+        path: test.info().outputPath(`cinny073-thread-nav-${viewport.width}.png`),
         fullPage: true,
       });
 

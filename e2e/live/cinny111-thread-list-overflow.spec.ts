@@ -1,4 +1,3 @@
-import { mkdirSync } from 'node:fs';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
@@ -14,7 +13,6 @@ import {
 } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
-const EVIDENCE_DIR = '/tmp/CINNY-111-evidence';
 const TITLE_TEXT_LIMIT = 160;
 const TITLE_TEXT_TRUNCATION_BUFFER = 16;
 const LONG_UNBREAKABLE_TOKEN = `!cvldK8hdCINNY111${'X'.repeat(32)}$xvtGEulnL0J`;
@@ -85,8 +83,6 @@ test.describe('live cinny111 compact thread list overflow', () => {
     }) => {
       test.slow();
 
-      mkdirSync(EVIDENCE_DIR, { recursive: true });
-
       const diagnostics = attachBrowserDiagnostics(page);
       const { fixture, homeserver, password, session, username } = await prepareThreadFixture();
 
@@ -145,7 +141,7 @@ test.describe('live cinny111 compact thread list overflow', () => {
       }
 
       await page.screenshot({
-        path: `${EVIDENCE_DIR}/${viewport.width}-after.png`,
+        path: test.info().outputPath(`${viewport.width}-after.png`),
         fullPage: true,
       });
 
