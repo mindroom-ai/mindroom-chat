@@ -201,7 +201,6 @@ export function CollapsibleMessage({
         style={{
           maxHeight: isExempt || expanded ? undefined : MAX_HEIGHT,
           overflow: isExempt || expanded ? undefined : 'hidden',
-          paddingRight: showCloseButton ? '2rem' : undefined,
         }}
       >
         {children}
@@ -211,24 +210,30 @@ export function CollapsibleMessage({
             className={css.CollapsibleGradientOverlay}
             role="button"
             tabIndex={0}
-            aria-label="Expand message"
+            aria-label="Show more"
             onClick={handleGradientClick}
             onKeyDown={handleGradientKeyDown}
           >
-            <span className={css.CollapsibleShowMore}>Show more</span>
+            <span className={css.CollapsibleShowMore}>
+              <Icon size="50" src={Icons.ChevronBottom} />
+              <span>Show more</span>
+            </span>
           </div>
         )}
         {showCloseButton && (
-          <button
-            type="button"
-            className={css.CollapsibleCloseButton}
-            aria-label="Collapse message"
-            title="Collapse message"
-            onClick={handleCollapseClick}
-            onKeyDown={handleCollapseKeyDown}
-          >
-            <Icon size="50" src={Icons.ChevronTop} />
-          </button>
+          <div className={css.CollapsibleStickyFooter}>
+            <button
+              type="button"
+              className={css.CollapsiblePill}
+              aria-label="Show less"
+              title="Show less"
+              onClick={handleCollapseClick}
+              onKeyDown={handleCollapseKeyDown}
+            >
+              <Icon size="50" src={Icons.ChevronTop} />
+              <span>Show less</span>
+            </button>
+          </div>
         )}
       </div>
     </div>

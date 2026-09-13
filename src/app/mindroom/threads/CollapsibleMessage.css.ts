@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 
 export const CollapsibleContent = recipe({
   base: {
@@ -13,13 +13,13 @@ export const CollapsibleGradientOverlay = style({
   bottom: 0,
   left: 0,
   right: 0,
-  height: '1.5em',
+  height: '2.5em',
   background: `linear-gradient(transparent, var(--collapsible-gradient-end, ${color.Surface.Container}))`,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'flex-end',
   justifyContent: 'center',
-  paddingBottom: '2px',
+  paddingBottom: config.space.S100,
   selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
@@ -28,44 +28,52 @@ export const CollapsibleGradientOverlay = style({
   },
 });
 
+const pillBase = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  padding: `${config.space.S100} ${config.space.S300}`,
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.SurfaceVariant.Container,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  color: color.SurfaceVariant.OnContainer,
+  fontSize: toRem(12),
+  fontWeight: config.fontWeight.W500,
+  lineHeight: 1,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase' as const,
+  boxShadow: `0 1px 3px rgba(0, 0, 0, 0.18)`,
+  whiteSpace: 'nowrap' as const,
+};
+
 export const CollapsibleShowMore = style({
-  fontSize: '0.7rem',
-  fontFamily: 'monospace',
-  opacity: 0.5,
+  ...pillBase,
   userSelect: 'none',
-  letterSpacing: '0.1em',
+  pointerEvents: 'none',
 });
 
-export const CollapsibleCloseButton = style({
-  position: 'absolute',
-  top: config.space.S200,
-  right: config.space.S200,
+export const CollapsibleStickyFooter = style({
+  position: 'sticky',
+  bottom: config.space.S200,
   zIndex: 1,
-  border: 'none',
-  background: color.Surface.ContainerActive,
-  borderRadius: config.radii.Pill,
-  width: '1.5rem',
-  height: '1.5rem',
-  minWidth: '24px',
-  minHeight: '24px',
   display: 'flex',
-  alignItems: 'center',
   justifyContent: 'center',
+  width: '100%',
+  marginTop: config.space.S200,
+  pointerEvents: 'none',
+});
+
+export const CollapsiblePill = style({
+  ...pillBase,
+  pointerEvents: 'auto',
   cursor: 'pointer',
-  lineHeight: 1,
-  opacity: 0.8,
-  padding: 0,
-  color: color.Surface.OnContainer,
-  boxShadow: `0 1px 3px rgba(0, 0, 0, 0.15)`,
   selectors: {
     '&:hover': {
-      opacity: 1,
-      background: color.Secondary.Container,
+      backgroundColor: color.SurfaceVariant.ContainerHover,
     },
     '&:focus-visible': {
-      opacity: 1,
       outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
+      outlineOffset: '2px',
     },
   },
 });
