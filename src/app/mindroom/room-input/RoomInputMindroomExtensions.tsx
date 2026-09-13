@@ -1,7 +1,7 @@
 import React from 'react';
 import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { BaseRange, Descendant, Editor, Element, Transforms } from 'slate';
-import { Box, Text, config } from 'folds';
+import { Box, config } from 'folds';
 import { Membership } from '../../../types/matrix/room';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../../components/editor/slate';
@@ -55,7 +55,6 @@ type MindroomRoomInputReplyContextProps = {
   pendingSend?: boolean;
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
-  threadId?: string;
 };
 
 export const getMindroomRoomInputAutocompleteQuery = (
@@ -231,9 +230,8 @@ export function MindroomRoomInputReplyContext({
   pendingSend,
   relation,
   room,
-  threadId,
 }: MindroomRoomInputReplyContextProps) {
-  if (!leading && !children && !threadId) return null;
+  if (!leading && !children && !pendingSend) return null;
 
   return (
     <Box
@@ -244,11 +242,7 @@ export function MindroomRoomInputReplyContext({
       {leading}
       <Box direction="Row" gap="200" alignItems="Center">
         <MindroomRoomInputThreadIndicator room={room} relation={relation} />
-        {children ?? (
-          <Text size="T300" priority="300">
-            Sending to this thread
-          </Text>
-        )}
+        {children}
         {pendingSend && <PendingSendIndicator />}
       </Box>
     </Box>

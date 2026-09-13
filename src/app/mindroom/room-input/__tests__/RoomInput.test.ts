@@ -58,6 +58,7 @@ const {
           onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
         }
       | undefined,
+    replyContextRenderCount: 0,
   },
   editorOutputState: {
     plainText: '',
@@ -559,11 +560,12 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
     }: {
       children?: React.ReactNode;
       pendingSend?: boolean;
-    }) =>
-      React.createElement(
+    }) => {
+      customEditorState.replyContextRenderCount += 1;
+      return React.createElement(
         'div',
         null,
-        children ?? 'Sending to this thread',
+        children,
         pendingSend
           ? React.createElement(
               'span',
@@ -574,7 +576,8 @@ vi.mock('../RoomInputMindroomExtensions', async () => {
               'Message sending'
             )
           : null
-      ),
+      );
+    },
     MindroomVoiceRecorderComposer: ({
       onSendRecording,
       getSendContext,
@@ -765,6 +768,7 @@ afterEach(() => {
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
+  customEditorState.replyContextRenderCount = 0;
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -1185,6 +1189,7 @@ describe('RoomInput', () => {
 
     expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
     expect(JSON.stringify(renderer.toJSON())).toContain('Waiting for server');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
 
     await act(async () => {
       send.resolve({ event_id: '$sent' });
@@ -1192,6 +1197,15 @@ describe('RoomInput', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+
+    renderer.unmount();
+  });
+
+  it('does not render thread helper context for static thread composers', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+
+    expect(customEditorState.replyContextRenderCount).toBe(0);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
 
     renderer.unmount();
   });
