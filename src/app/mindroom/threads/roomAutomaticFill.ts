@@ -66,12 +66,12 @@ export const createRoomAutomaticFill = ({
       queue();
     },
     defer: (nextRetry: () => boolean) => {
-      if (!active) {
-        nextRetry();
-        return;
-      }
+      // Return whether this phase owns the callback now, without executing
+      // inactive work whose original direction belongs to the caller.
+      if (!active) return false;
       retry = nextRetry;
       queue();
+      return true;
     },
     cancel: (resumePagination = false) => {
       active = false;

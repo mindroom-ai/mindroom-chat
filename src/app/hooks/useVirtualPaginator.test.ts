@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useVirtualPaginator } from './useVirtualPaginator';
+import { createRoomAutomaticFill } from '../mindroom/threads/roomAutomaticFill';
 
 const intersectionState = vi.hoisted(() => ({
   callback: undefined as ((entries: IntersectionObserverEntry[]) => void) | undefined,
@@ -32,7 +33,7 @@ type PaginatorHarnessProps = {
   onApi: (paginator: ReturnType<typeof useVirtualPaginator>) => void;
   onRangeChange?: (range: { start: number; end: number }) => void;
   shouldSuppressPagination?: () => boolean;
-  deferAutomaticPagination?: (retry: () => boolean) => void;
+  deferAutomaticPagination?: (retry: () => boolean) => boolean;
   onEnd?: (back: boolean) => void;
 };
 
@@ -78,6 +79,64 @@ const makeRect = (top: number, height: number) => ({
 });
 
 describe('useVirtualPaginator', () => {
+  it.each(['disabled', 'cancelled', 'completed', 'absent', 'active'])(
+    'dispatches a forward-only intersection with both sentinels visible (%s owner)',
+    (state) => {
+      const checks: (() => void)[] = [];
+      const owner = createRoomAutomaticFill({
+        readGeometry: () => 'settled',
+        schedule: (check) => checks.push(check),
+      });
+      if (state === 'disabled') owner.cancel();
+      const onEnd = vi.fn();
+      const anchor = (direction: string) => ({
+        getAttribute: () => direction,
+        getBoundingClientRect: () => makeRect(20, 10),
+      });
+      const back = anchor('B');
+      const forward = anchor('F');
+      const root = {
+        getBoundingClientRect: () => makeRect(0, 100),
+        querySelector: (selector: string) => (selector.includes('"B"') ? back : forward),
+      } as unknown as HTMLElement;
+      let renderer: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(PaginatorHarness, {
+            count: 2,
+            initialRange: { start: 0, end: 2 },
+            getScrollElement: () => root,
+            onApi: () => {},
+            onEnd,
+            deferAutomaticPagination: state === 'absent' ? undefined : owner.defer,
+          })
+        );
+      });
+      const callback = intersectionState.callback;
+      if (state === 'cancelled') owner.cancel();
+      if (state === 'completed') {
+        owner.defer(() => false);
+        checks.shift()?.();
+        checks.shift()?.();
+        expect(owner.isActive()).toBe(false);
+      }
+      act(() => {
+        callback?.([
+          { target: forward, isIntersecting: true } as unknown as IntersectionObserverEntry,
+        ]);
+      });
+      if (state === 'active') {
+        expect(onEnd).not.toHaveBeenCalled();
+        act(() => {
+          checks.shift()?.();
+          checks.shift()?.();
+        });
+        expect(onEnd.mock.calls).toEqual([[true]]);
+      } else expect(onEnd.mock.calls).toEqual([[false]]);
+      act(() => renderer.unmount());
+    }
+  );
+
   it.each([false, true])(
     'rechecks settled backfill geometry (short history: %s)',
     (shortHistory) => {
@@ -118,6 +177,7 @@ describe('useVirtualPaginator', () => {
             },
             deferAutomaticPagination: (next) => {
               retry = next;
+              return true;
             },
           })
         );
