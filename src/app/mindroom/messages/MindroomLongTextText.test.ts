@@ -351,6 +351,42 @@ describe('downloadMindroomLongTextSidecarText', () => {
     expect(text).toContain('"body":"full response"');
   });
 
+  it('authenticates unencrypted sidecar downloads without relying on the service worker', async () => {
+    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const mediaUrl = 'https://example.org/_matrix/client/v1/media/download/server/content';
+    matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
+    Object.assign(hookMocks.mx, {
+      getAccessToken: vi.fn(() => 'access-token'),
+      getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    });
+    matrixMocks.downloadMedia.mockResolvedValue(
+      new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
+        type: 'application/json',
+      })
+    );
+
+    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
+
+    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl, {
+      headers: { Authorization: 'Bearer access-token' },
+    });
+  });
+
+  it('does not send the access token to a media URL outside the homeserver', async () => {
+    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const mediaUrl = 'https://media.example.net/_matrix/client/v1/media/download/server/content';
+    matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
+    Object.assign(hookMocks.mx, {
+      getAccessToken: vi.fn(() => 'access-token'),
+      getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    });
+    matrixMocks.downloadMedia.mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+
+    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
+
+    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl);
+  });
+
   it('downloads sidecar blob for unencrypted content', async () => {
     const downloadMindroomLongTextSidecarBlob = await getDownloadMindroomLongTextSidecarBlob();
     const blob = new Blob(['raw-content'], { type: 'application/json' });
@@ -378,9 +414,12 @@ describe('downloadMindroomLongTextSidecarText', () => {
       v: 'v2',
     };
 
-    matrixMocks.mxcUrlToHttp.mockReturnValue(
-      'https://example.org/_matrix/media/v3/download/server/encrypted'
-    );
+    const mediaUrl = 'https://example.org/_matrix/client/v1/media/download/server/encrypted';
+    matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
+    Object.assign(hookMocks.mx, {
+      getAccessToken: vi.fn(() => 'access-token'),
+      getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    });
     matrixMocks.decryptFile.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'decrypted response' })], {
         type: 'application/json',
@@ -406,8 +445,9 @@ describe('downloadMindroomLongTextSidecarText', () => {
     );
 
     expect(matrixMocks.downloadEncryptedMedia).toHaveBeenCalledWith(
-      'https://example.org/_matrix/media/v3/download/server/encrypted',
-      expect.any(Function)
+      mediaUrl,
+      expect.any(Function),
+      { headers: { Authorization: 'Bearer access-token' } }
     );
     expect(matrixMocks.decryptFile).toHaveBeenCalledWith(
       expect.any(ArrayBuffer),

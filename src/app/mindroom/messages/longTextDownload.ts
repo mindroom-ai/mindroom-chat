@@ -5,6 +5,7 @@ import {
   downloadMedia,
   mxcUrlToHttp,
 } from '../../utils/matrix';
+import { validMediaRequest } from '../../../swMediaAuth';
 import { MindroomLongTextSource } from './longText';
 
 const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
@@ -41,13 +42,34 @@ const getLongTextMimeType = (content: Record<string, unknown>): string => {
 
 const downloadSidecarBlob = async (
   source: MindroomLongTextSource,
-  textUrl: string
+  textUrl: string,
+  requestInit?: RequestInit
 ): Promise<Blob> => {
   const encryptedFile = source.encryptedFile;
-  if (!encryptedFile) return downloadMedia(textUrl);
+  if (!encryptedFile) {
+    return requestInit ? downloadMedia(textUrl, requestInit) : downloadMedia(textUrl);
+  }
 
   const mimeType = getLongTextMimeType(source.previewContent);
-  return downloadEncryptedMedia(textUrl, (encBuf) => decryptFile(encBuf, mimeType, encryptedFile));
+  const decryptContent = (encBuf: ArrayBuffer) => decryptFile(encBuf, mimeType, encryptedFile);
+  return requestInit
+    ? downloadEncryptedMedia(textUrl, decryptContent, requestInit)
+    : downloadEncryptedMedia(textUrl, decryptContent);
+};
+
+const getAuthenticatedRequestInit = (
+  mx: MatrixClient,
+  textUrl: string,
+  useAuthentication: boolean
+): RequestInit | undefined => {
+  if (!useAuthentication) return undefined;
+
+  const accessToken = mx.getAccessToken();
+  if (!accessToken || !validMediaRequest(textUrl, mx.getHomeserverUrl())) return undefined;
+
+  return {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  };
 };
 
 export const downloadMindroomLongTextSidecarBlob = async (
@@ -60,7 +82,11 @@ export const downloadMindroomLongTextSidecarBlob = async (
     throw new Error('Unable to resolve sidecar URL');
   }
 
-  return downloadSidecarBlob(source, textUrl);
+  return downloadSidecarBlob(
+    source,
+    textUrl,
+    getAuthenticatedRequestInit(mx, textUrl, useAuthentication)
+  );
 };
 
 export const downloadMindroomLongTextSidecarText = async (

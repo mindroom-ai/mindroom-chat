@@ -461,18 +461,18 @@ export const removeRoomIdFromMDirect = async (mx: MatrixClient, roomId: string):
   await mx.setAccountData(AccountDataEvent.Direct as any, userIdToRoomIds as any);
 };
 
-export const downloadMedia = async (src: string): Promise<Blob> => {
-  // this request is authenticated by service worker
-  const res = await fetch(src, { method: 'GET' });
+export const downloadMedia = async (src: string, init?: RequestInit): Promise<Blob> => {
+  const res = await fetch(src, { ...init, method: 'GET' });
   const blob = await res.blob();
   return blob;
 };
 
 export const downloadEncryptedMedia = async (
   src: string,
-  decryptContent: (buf: ArrayBuffer) => Promise<Blob>
+  decryptContent: (buf: ArrayBuffer) => Promise<Blob>,
+  init?: RequestInit
 ): Promise<Blob> => {
-  const encryptedContent = await downloadMedia(src);
+  const encryptedContent = await downloadMedia(src, init);
   const decryptedContent = await decryptContent(await encryptedContent.arrayBuffer());
 
   return decryptedContent;
