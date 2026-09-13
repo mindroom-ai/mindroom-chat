@@ -1,6 +1,6 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -186,5 +186,138 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     expect(perFileCounts).toEqual({
       'threads/threadOpenSdkBootstrap.ts': 2,
     });
+  });
+});
+
+/**
+ * Engine framework-agnostic boundary.
+ *
+ * The engine is domain logic layered over matrix-js-sdk. It must stay
+ * React-free so it can be reasoned about — and one day lifted into a
+ * standalone package — independent of Cinny's render tree. These guards
+ * pin that property so a stray `useEffect` or a sideways import into the
+ * render/adapter layer fails CI instead of silently coupling the engine
+ * to the UI.
+ *
+ * The SOLE allowed React seam is `engineContext.tsx`, the thin
+ * Provider/hook wrapper that hands the singleton engine to the tree.
+ * The engine may still reach DOWN to pure, React-free primitives/types
+ * that happen to live under `threads/` (cacheStore, cacheProbe,
+ * eventRepository, eventCacheEditUtils, timelineDebug, preloadSettings,
+ * types) — those are the cache layer, not the render layer. What it must
+ * not do is reach SIDEWAYS into `threads/*Controller*` hooks or `.tsx`
+ * components. `HydratedThreadCachePage` was moved to `threads/types.ts`
+ * exactly so the reconciler stopped importing the
+ * `threadOpenCacheController` hook module for its type.
+ */
+describe('engine framework-agnostic boundary (library-extraction guard)', () => {
+  const REACT_SEAM_ALLOWLIST = ['engineContext.tsx'];
+
+  // Strip comments first so a docstring citing a controller by name (the
+  // write-through/reconciler headers do this) never registers as an
+  // import. `[^:]` guard leaves `://` inside string URLs alone.
+  const stripComments = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // Every module specifier a file depends on, across ALL forms — not a
+  // single hand-rolled `import ... from` regex that a multiline import,
+  // a bare `import 'x'`, an `export { y } from 'x'` re-export, a dynamic
+  // `import('x')`, or a `require('x')` would slip past (greptile P2).
+  const moduleSpecifiers = (source: string): string[] => {
+    const clean = stripComments(source);
+    const specs: string[] = [];
+    const patterns = [
+      /\bfrom\s*['"]([^'"]+)['"]/g, // import ... from 'x' / export ... from 'x' (multiline-safe)
+      /\bimport\s+['"]([^'"]+)['"]/g, // bare side-effect: import 'x'
+      /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // dynamic import('x')
+      /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g, // require('x')
+    ];
+    for (const re of patterns) {
+      let m: RegExpExecArray | null;
+      // eslint-disable-next-line no-cond-assign
+      while ((m = re.exec(clean)) !== null) specs.push(m[1]);
+    }
+    return specs;
+  };
+
+  const isReactSpecifier = (spec: string): boolean =>
+    spec === 'react' ||
+    spec === 'react-dom' ||
+    spec.startsWith('react/') ||
+    spec.startsWith('react-dom/');
+
+  // Resolve a RELATIVE specifier to a real on-disk file so extensionless
+  // imports of a `.tsx` component are caught (greptile P2: the repo's
+  // extensionless style would let `../threads/SomeComponent` — a `.tsx`
+  // — pass a string-only check). Non-relative (package) specs return
+  // undefined; only React packages matter for those, handled above.
+  const resolveRelative = (fromFile: string, spec: string): string | undefined => {
+    if (!spec.startsWith('.')) return undefined;
+    const base = resolve(dirname(fromFile), spec);
+    const candidates = [
+      base,
+      `${base}.ts`,
+      `${base}.tsx`,
+      join(base, 'index.ts'),
+      join(base, 'index.tsx'),
+    ];
+    return candidates.find((c) => existsSync(c) && statSync(c).isFile());
+  };
+
+  const engineReactImporters = (): string[] => {
+    const importers: string[] = [];
+    for (const file of engineModulePaths()) {
+      const rel = relative(engineRoot, file).replace(/\\/g, '/');
+      if (moduleSpecifiers(readFileSync(file, 'utf8')).some(isReactSpecifier)) {
+        importers.push(rel);
+      }
+    }
+    return importers;
+  };
+
+  it('no engine/** module imports react except the engineContext.tsx seam', () => {
+    const offenders = engineReactImporters().filter(
+      (rel) => !REACT_SEAM_ALLOWLIST.includes(rel)
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('engineContext.tsx is the only engine react seam (allowlist stays intentional)', () => {
+    // If the engine ever legitimately needs a second React seam, add it
+    // to REACT_SEAM_ALLOWLIST deliberately — do not let one appear by
+    // accident. Equality (not subset) keeps the allowlist honest.
+    expect(engineReactImporters()).toEqual(REACT_SEAM_ALLOWLIST);
+  });
+
+  it('no engine/** module imports a React adapter (a .tsx component or a *Controller*/*View* hook)', () => {
+    // Engine may reach DOWN to pure primitives/types under threads/
+    // (cacheStore, cacheProbe, eventRepository, eventCacheEditUtils,
+    // timelineDebug, preloadSettings, types) — but never SIDEWAYS into
+    // the render/adapter layer. We resolve each relative import to its
+    // real file: a `.tsx` target is a component; a basename ending in
+    // Controller/View is an adapter hook (these are `.ts` files in this
+    // repo, so name — not extension — is the signal).
+    const adapterName = /(?:Controller|View)$/;
+    const offenders: string[] = [];
+    for (const file of engineModulePaths()) {
+      const rel = relative(engineRoot, file).replace(/\\/g, '/');
+      for (const spec of moduleSpecifiers(readFileSync(file, 'utf8'))) {
+        const resolved = resolveRelative(file, spec);
+        // The barrel (index.ts) legitimately re-exports the Provider/hook
+        // from the engineContext.tsx seam — allow importing that one
+        // allowlisted `.tsx`, forbid every other component.
+        const resolvedRel = resolved
+          ? relative(engineRoot, resolved).replace(/\\/g, '/')
+          : undefined;
+        const isSeam = resolvedRel !== undefined && REACT_SEAM_ALLOWLIST.includes(resolvedRel);
+        const specBase = basename(spec, extname(spec));
+        const isTsxComponent = (resolved?.endsWith('.tsx') ?? false) && !isSeam;
+        const isAdapterHook = adapterName.test(specBase);
+        if (isTsxComponent || isAdapterHook) {
+          offenders.push(`${rel}: imports ${spec}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

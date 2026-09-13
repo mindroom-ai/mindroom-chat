@@ -9,10 +9,8 @@ import {
   isCompleteThreadCacheCoverage,
   shouldBackfillThreadRelationsFromCoverage,
 } from './threadCacheCoverage';
-import type {
-  HydratedThreadCachePage,
-  ThreadOpenCacheController,
-} from './threadOpenCacheController';
+import type { HydratedThreadCachePage } from './types';
+import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
 
 type ThreadOpenSeedSession = {
