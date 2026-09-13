@@ -294,6 +294,77 @@ describe('useInviteUserSearch', () => {
     expect(mx.searchUserDirectory).not.toHaveBeenCalled();
   });
 
+  it('searches the server when local results only collide on the shared agent prefix', async () => {
+    const mx = makeMx();
+    const bareAgents = [
+      'alpha',
+      'basil',
+      'clio',
+      'delta',
+      'echo',
+      'fable',
+      'gamma',
+      'helix',
+      'iris',
+      'juno',
+      'kilo',
+      'lyra',
+      'mind',
+      'nova',
+      'oracle',
+      'pico',
+      'quill',
+      'rho',
+      'sarro',
+      'tesla',
+    ].map((name) => ({ userId: `@mindroom_${name}:example.org` }));
+    vi.mocked(mx.searchUserDirectory).mockResolvedValue({
+      limited: false,
+      results: [{ user_id: '@mindroom_mind:example.org', display_name: 'Mind' }],
+    });
+    const view = renderSearch({
+      mx,
+      query: 'mind',
+      cacheState: readyCache(bareAgents),
+    });
+
+    expect(view.getResult().suggestions.length).toBeGreaterThanOrEqual(3);
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await Promise.resolve();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'mind',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+    expect(view.getResult().suggestions[0]?.userId).toBe('@mindroom_mind:example.org');
+    expect(view.getResult().suggestions[0]?.displayName).toBe('Mind');
+  });
+
+  it('keeps the server fallback suppressed when enough strong local matches exist', async () => {
+    const mx = makeMx();
+    const view = renderSearch({
+      mx,
+      query: 'ali',
+      cacheState: readyCache([
+        { userId: '@alice:example.org', displayName: 'Alice Adams' },
+        { userId: '@alicia:example.org', displayName: 'Alicia Keys' },
+        { userId: '@malia:example.org', displayName: 'Alina Cooper' },
+      ]),
+    });
+
+    expect(view.getResult().suggestions.length).toBeGreaterThanOrEqual(3);
+
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await Promise.resolve();
+    });
+
+    expect(mx.searchUserDirectory).not.toHaveBeenCalled();
+  });
+
   it('strips a leading @ before ranking local suggestions', () => {
     const view = renderSearch({
       query: '@a',

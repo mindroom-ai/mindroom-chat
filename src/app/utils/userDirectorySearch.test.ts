@@ -27,10 +27,10 @@ describe('rankUsers', () => {
       '@alice:example.org',
       '@alicea:example.org',
       '@ally:example.org',
-      '@bob:example.org',
       '@carol:example.org',
       '@elise:example.org',
       '@malice:example.org',
+      '@bob:example.org',
     ]);
   });
 
@@ -78,7 +78,7 @@ describe('rankUsers', () => {
     expect(resultIds).toContain('@alice:example.org');
   });
 
-  it('uses Fuse weights so display-name matches beat localpart-only matches', () => {
+  it('ranks display-name prefix matches above localpart-substring matches', () => {
     const results = rankUsers(
       [
         { userId: '@zzz-robert:example.org', displayName: 'Unrelated' },
@@ -93,6 +93,18 @@ describe('rankUsers', () => {
     ]);
   });
 
+  it('ranks a pasted MXID (with its @ stripped by the input layer) as an exact match', () => {
+    const results = rankUsers(
+      [
+        { userId: '@alice-two:example.org', displayName: 'Alice Example Org' },
+        { userId: '@alice:example.org', displayName: 'Unrelated Name' },
+      ],
+      'alice:example.org'
+    ).map((user) => user.userId);
+
+    expect(results[0]).toBe('@alice:example.org');
+  });
+
   it('falls back to a deterministic userId tiebreak', () => {
     expect(
       rankUsers(
@@ -103,6 +115,99 @@ describe('rankUsers', () => {
         'sam'
       ).map((user) => user.userId)
     ).toEqual(['@alpha:example.org', '@zeta:example.org']);
+  });
+});
+
+const AGENT_NAMES = [
+  'alpha',
+  'basil',
+  'clio',
+  'delta',
+  'echo',
+  'fable',
+  'gamma',
+  'helix',
+  'iris',
+  'juno',
+  'kilo',
+  'lyra',
+  'mind',
+  'nova',
+  'oracle',
+  'pico',
+  'quill',
+  'rho',
+  'sarro',
+  'tesla',
+];
+
+const agentUserId = (name: string): string => `@mindroom_${name}:mindroom.example.org`;
+
+const namedAgents: ServerUserDirectoryUser[] = AGENT_NAMES.map((name) => ({
+  userId: agentUserId(name),
+  displayName: name.charAt(0).toLocaleUpperCase() + name.slice(1),
+}));
+
+// Direct-user candidates and bootstrap rows can carry no profile data.
+const bareAgents: ServerUserDirectoryUser[] = AGENT_NAMES.map((name) => ({
+  userId: agentUserId(name),
+}));
+
+const humans: ServerUserDirectoryUser[] = [
+  { userId: '@bas:mindroom.example.org', displayName: 'Bas Nijholt' },
+  { userId: '@dominic:mindroom.example.org', displayName: 'Dominic Mindler' },
+  { userId: '@melinda:mindroom.example.org', displayName: 'Melinda Woods' },
+  { userId: '@mia:mindroom.example.org', displayName: 'Mia Torres' },
+  { userId: '@sara:mindroom.example.org', displayName: 'Sara Rowe' },
+];
+
+describe('rankUsers with shared-prefix agent localparts', () => {
+  it('surfaces the agent named by the query even when its cached row has no display name', () => {
+    const results = rankUsers([...bareAgents, ...humans], 'mind').map((user) => user.userId);
+
+    expect(results[0]).toBe(agentUserId('mind'));
+  });
+
+  it('ranks display-name matches above matches that only hit the shared agent prefix', () => {
+    const results = rankUsers([...namedAgents, ...humans], 'mind').map((user) => user.userId);
+    const dominicIndex = results.indexOf('@dominic:mindroom.example.org');
+    const sharedPrefixSiblingIndexes = results
+      .map((userId, index) => ({ userId, index }))
+      .filter(({ userId }) => userId.startsWith('@mindroom_') && userId !== agentUserId('mind'))
+      .map(({ index }) => index);
+
+    expect(results[0]).toBe(agentUserId('mind'));
+    expect(dominicIndex).toBeGreaterThan(-1);
+    sharedPrefixSiblingIndexes.forEach((siblingIndex) => {
+      expect(siblingIndex).toBeGreaterThan(dominicIndex);
+    });
+  });
+
+  it('keeps post-prefix and display-name prefix matches above the shared-prefix flood while typing', () => {
+    const results = rankUsers([...namedAgents, ...humans], 'mi').map((user) => user.userId);
+
+    expect(results.slice(0, 2).sort()).toEqual(['@mia:mindroom.example.org', agentUserId('mind')]);
+  });
+
+  it('ranks an exact display-name match above an exact localpart match on another user', () => {
+    const results = rankUsers(
+      [
+        { userId: '@mind:mindroom.example.org', displayName: 'Milo Human' },
+        { userId: agentUserId('mind'), displayName: 'Mind' },
+      ],
+      'mind'
+    ).map((user) => user.userId);
+
+    expect(results).toEqual([agentUserId('mind'), '@mind:mindroom.example.org']);
+  });
+
+  it('keeps weak fuzzy display-name matches below post-prefix localpart hits', () => {
+    const results = rankUsers([...bareAgents, ...humans], 'sarro').map((user) => user.userId);
+
+    expect(results[0]).toBe(agentUserId('sarro'));
+    expect(results.indexOf('@sara:mindroom.example.org')).toBeGreaterThan(
+      results.indexOf(agentUserId('sarro'))
+    );
   });
 });
 

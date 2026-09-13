@@ -1,35 +1,33 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
 
-export const InviteAutocompleteMenuRoot = style([
-  DefaultReset,
-  {
-    position: 'relative',
-  },
-]);
+export const InviteAutocompleteMenuRoot = style([DefaultReset]);
 
-export const InviteAutocompleteMenuAnchor = style([
+/**
+ * The folds PopOut wrapper is a full-viewport fixed layer; a combobox must
+ * keep the input and the rest of the page clickable while suggestions are
+ * open, so pointer events pass through everywhere except the menu itself.
+ */
+export const InviteAutocompletePopOut = style([
   DefaultReset,
   {
-    position: 'relative',
+    pointerEvents: 'none',
   },
 ]);
 
 export const InviteAutocompleteMenuContainer = style([
   DefaultReset,
   {
-    position: 'absolute',
-    top: config.space.S200,
-    left: 0,
-    right: 0,
-    zIndex: config.zIndex.Max,
+    pointerEvents: 'auto',
   },
 ]);
 
+// Height is clamped by the inline maxHeight computed alongside the anchor in
+// InviteAutocompleteMenu.tsx (side-space aware); no CSS clamp so there is a
+// single source of truth.
 export const InviteAutocompleteMenu = style([
   DefaultReset,
   {
-    maxHeight: `min(52vh, ${toRem(448)})`,
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
