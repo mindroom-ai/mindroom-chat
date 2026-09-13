@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getLocalMindroomConnections,
   getLocalMindroomErrorMessage,
@@ -7,12 +7,31 @@ import {
   revokeLocalMindroomConnection,
 } from './api';
 
+const capacitorMocks = vi.hoisted(() => ({
+  isNativePlatform: vi.fn(() => false),
+  nativeRequest: vi.fn(),
+}));
+
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: capacitorMocks.isNativePlatform,
+  },
+  CapacitorHttp: {
+    request: capacitorMocks.nativeRequest,
+  },
+}));
+
 type MockResponse = Pick<Response, 'ok' | 'status' | 'json'>;
 
 const createResponse = (status: number, body?: unknown): MockResponse => ({
   ok: status >= 200 && status < 300,
   status,
   json: vi.fn().mockResolvedValue(body),
+});
+
+afterEach(() => {
+  capacitorMocks.isNativePlatform.mockReturnValue(false);
+  capacitorMocks.nativeRequest.mockReset();
 });
 
 describe('local mindroom api', () => {
@@ -25,7 +44,7 @@ describe('local mindroom api', () => {
       })
     );
 
-    const data = await issueLocalMindroomPairCode(request as unknown as typeof fetch);
+    const data = await issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch);
 
     expect(data.pair_code).toBe('ABC123');
     expect(request).toHaveBeenCalledWith('/v1/local-mindroom/pair/start', {
@@ -46,7 +65,11 @@ describe('local mindroom api', () => {
       })
     );
 
-    await issueLocalMindroomPairCode(request as unknown as typeof fetch, 'matrix-token-123');
+    await issueLocalMindroomPairCode(
+      'matrix-token-123',
+      undefined,
+      request as unknown as typeof fetch
+    );
 
     expect(request).toHaveBeenCalledWith('/v1/local-mindroom/pair/start', {
       credentials: 'omit',
@@ -69,8 +92,18 @@ describe('local mindroom api', () => {
         })
       );
 
-    const pending = await getLocalMindroomPairStatus('ABC123', request as unknown as typeof fetch);
-    const connected = await getLocalMindroomPairStatus('ABC123', request as unknown as typeof fetch);
+    const pending = await getLocalMindroomPairStatus(
+      'ABC123',
+      undefined,
+      undefined,
+      request as unknown as typeof fetch
+    );
+    const connected = await getLocalMindroomPairStatus(
+      'ABC123',
+      undefined,
+      undefined,
+      request as unknown as typeof fetch
+    );
 
     expect(pending.status).toBe('pending');
     expect(connected.status).toBe('connected');
@@ -79,7 +112,12 @@ describe('local mindroom api', () => {
   it('revokes a linked connection', async () => {
     const request = vi.fn().mockResolvedValue(createResponse(204));
 
-    await revokeLocalMindroomConnection('conn-1', request as unknown as typeof fetch);
+    await revokeLocalMindroomConnection(
+      'conn-1',
+      undefined,
+      undefined,
+      request as unknown as typeof fetch
+    );
 
     expect(request).toHaveBeenCalledWith('/v1/local-mindroom/connections/conn-1', {
       credentials: 'omit',
@@ -98,7 +136,7 @@ describe('local mindroom api', () => {
     );
 
     await expect(
-      getLocalMindroomConnections(request as unknown as typeof fetch)
+      getLocalMindroomConnections(undefined, undefined, request as unknown as typeof fetch)
     ).rejects.toThrow('Invalid or expired pair code');
   });
 
@@ -116,9 +154,9 @@ describe('local mindroom api', () => {
     );
 
     await issueLocalMindroomPairCode(
-      request as unknown as typeof fetch,
       'matrix-token-123',
-      'https://provisioning.example'
+      'https://provisioning.example',
+      request as unknown as typeof fetch
     );
 
     expect(request).toHaveBeenCalledWith('https://provisioning.example/v1/local-mindroom/pair/start', {
@@ -138,8 +176,48 @@ describe('local mindroom api', () => {
       json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token <')),
     } as unknown as Response);
 
-    await expect(issueLocalMindroomPairCode(request as unknown as typeof fetch)).rejects.toThrow(
-      'Provisioning API returned invalid JSON. Verify provisioning URL/proxy configuration.'
+    await expect(
+      issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch)
+    ).rejects.toThrow('Provisioning API returned invalid JSON. Verify provisioning URL/proxy configuration.');
+  });
+
+  it('uses native http transport on native platforms when no custom request is provided', async () => {
+    capacitorMocks.isNativePlatform.mockReturnValue(true);
+    capacitorMocks.nativeRequest.mockResolvedValue({
+      status: 200,
+      data: {
+        pair_code: 'ABCD-EFGH',
+        expires_at: '2026-02-27T13:00:00.000Z',
+        poll_interval_seconds: 3,
+      },
+      headers: {},
+      url: 'https://mindroom.chat/v1/local-mindroom/pair/start',
+    });
+
+    const data = await issueLocalMindroomPairCode(
+      'matrix-token-123',
+      'https://mindroom.chat'
+    );
+
+    expect(data.pair_code).toBe('ABCD-EFGH');
+    expect(capacitorMocks.nativeRequest).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/v1/local-mindroom/pair/start',
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'X-Matrix-Access-Token': 'matrix-token-123',
+      },
+      responseType: 'json',
+    });
+  });
+
+  it('replaces browser transport errors with a user-facing provisioning error', async () => {
+    const request = vi.fn().mockRejectedValue(new TypeError('Load failed'));
+
+    await expect(
+      issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch)
+    ).rejects.toThrow(
+      'Unable to reach the provisioning API. Verify the server/proxy is reachable from this app.'
     );
   });
 });
