@@ -1,15 +1,9 @@
 import { useParams } from 'react-router-dom';
-import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
-import { useMatrixClient } from '../useMatrixClient';
+import { useResolvedRoomIdOrAlias } from './useResolvedRoomIdOrAlias';
 
-export const useSelectedRoom = (): string | undefined => {
-  const mx = useMatrixClient();
-
+export const useSelectedRoomResolution = () => {
   const { roomIdOrAlias } = useParams();
-  const roomId =
-    roomIdOrAlias && isRoomAlias(roomIdOrAlias)
-      ? getCanonicalAliasRoomId(mx, roomIdOrAlias)
-      : roomIdOrAlias;
-
-  return roomId;
+  return useResolvedRoomIdOrAlias(roomIdOrAlias);
 };
+
+export const useSelectedRoom = (): string | undefined => useSelectedRoomResolution().roomId;
