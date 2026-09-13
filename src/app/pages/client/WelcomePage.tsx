@@ -2,25 +2,17 @@ import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { Page, PageHero, PageHeroSection } from '../../components/page';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
+import {
+  getMindroomWelcomePageContent,
+  MINDROOM_CLIENT_BRANDING,
+} from '../../mindroom/branding/clientBranding';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
 
 export function WelcomePage() {
   const { welcome } = useClientConfig();
-  const title = welcome?.title ?? 'Welcome to MindRoom';
-  const subtitle = welcome?.subtitle ?? 'Yet another matrix client.';
-  const sourceLabel = welcome?.sourceLabel ?? 'Source Code';
-  const sourceUrl = welcome?.sourceUrl ?? 'https://github.com/mindroom-ai/mindroom';
-  const docsLabel = welcome?.docsLabel ?? 'Docs';
-  const docsUrl = welcome?.docsUrl ?? 'https://docs.mindroom.chat/';
-  const poweredBy =
-    welcome?.poweredBy ?? [
-      { label: 'MindRoom', url: 'https://github.com/mindroom-ai/mindroom' },
-      { label: 'Matrix', url: 'https://matrix.org' },
-      { label: 'Cinny', url: 'https://github.com/cinnyapp/cinny' },
-      { label: 'MindRoom Cinny Fork', url: 'https://github.com/mindroom-ai/mindroom-cinny' },
-    ];
+  const { docsLabel, docsUrl, poweredBy, sourceLabel, sourceUrl, subtitle, title } =
+    getMindroomWelcomePageContent(welcome);
 
   return (
     <Page>
@@ -32,7 +24,14 @@ export function WelcomePage() {
       >
         <PageHeroSection>
           <PageHero
-            icon={<img width="70" height="70" src={MindRoomLogo} alt="MindRoom Logo" />}
+            icon={
+              <img
+                width="70"
+                height="70"
+                src={MINDROOM_CLIENT_BRANDING.logoSrc}
+                alt={MINDROOM_CLIENT_BRANDING.logoAlt}
+              />
+            }
             title={title}
             subTitle={<span>{subtitle}</span>}
           >

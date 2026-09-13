@@ -26,12 +26,12 @@ function updateThemeMeta(themeId: string, kind: ThemeKind): void {
   document.documentElement.style.backgroundColor = bgColor;
   document.body.style.backgroundColor = bgColor;
 
-  let metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  const metaThemeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (metaThemeColor) {
     metaThemeColor.content = bgColor;
   }
 
-  let metaColorScheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+  const metaColorScheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
   if (metaColorScheme) {
     metaColorScheme.content = colorScheme;
   }

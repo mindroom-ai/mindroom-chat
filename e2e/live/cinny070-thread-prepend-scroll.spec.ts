@@ -179,14 +179,22 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     await expect(loadOlderButton).toHaveCount(0, { timeout: 30_000 });
 
     await expect
-      .poll(async () => getAnchorDisplacement(page, anchor), {
-        timeout: 30_000,
-        message: 'Expected the previously visible thread message to stay anchored after prepending older replies',
-      })
-      .toMatchObject({
-        found: true,
-        text: expect.stringContaining(anchor.text.trim().slice(0, 16)),
-      });
+      .poll(
+        async () => {
+          const displacement = await getAnchorDisplacement(page, anchor);
+          if (!displacement.found) return Number.POSITIVE_INFINITY;
+          if (!displacement.text.includes(anchor.text.trim().slice(0, 16))) {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Math.abs((displacement.top ?? 0) - anchor.top);
+        },
+        {
+          timeout: 30_000,
+          message:
+            'Expected the previously visible thread message to stay anchored after prepending older replies',
+        }
+      )
+      .toBeLessThanOrEqual(64);
 
     const displacement = await getAnchorDisplacement(page, anchor);
     expect(displacement.found).toBe(true);

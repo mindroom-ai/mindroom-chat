@@ -1,14 +1,18 @@
 import { Icons, IconSrc } from 'folds';
 import { ScreenSize } from '../../hooks/useScreenSize';
-import { SettingsPages } from './settingsPages';
+import { type SettingsPage, SettingsPages } from './settingsPages';
+import {
+  getMindroomSettingsMenuItems,
+  resolveMindroomSettingsInitialPage,
+} from '../../mindroom/settings/settingsMenuExtensions';
 
 export type SettingsMenuItem = {
-  page: SettingsPages;
+  page: SettingsPage;
   name: string;
   icon: IconSrc;
 };
 
-const baseSettingsMenuItems: SettingsMenuItem[] = [
+const getBaseSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] => [
   {
     page: SettingsPages.GeneralPage,
     name: 'General',
@@ -34,11 +38,7 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
     name: 'Emojis & Stickers',
     icon: Icons.Smile,
   },
-  {
-    page: SettingsPages.LocalMindroomPage,
-    name: 'Local MindRoom',
-    icon: Icons.Link,
-  },
+  ...getMindroomSettingsMenuItems(showLocalMindRoom),
   {
     page: SettingsPages.DeveloperToolsPage,
     name: 'Developer Tools',
@@ -52,22 +52,11 @@ const baseSettingsMenuItems: SettingsMenuItem[] = [
 ];
 
 export const getSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
-  baseSettingsMenuItems.filter(
-    (item) => showLocalMindRoom || item.page !== SettingsPages.LocalMindroomPage
-  );
+  getBaseSettingsMenuItems(showLocalMindRoom);
 
 export const resolveSettingsInitialPage = (
-  initialPage: SettingsPages | undefined,
+  initialPage: SettingsPage | undefined,
   screenSize: ScreenSize,
   showLocalMindRoom: boolean
-): SettingsPages | undefined => {
-  if (initialPage !== undefined) {
-    if (!showLocalMindRoom && initialPage === SettingsPages.LocalMindroomPage) {
-      return SettingsPages.GeneralPage;
-    }
-
-    return initialPage;
-  }
-
-  return screenSize === ScreenSize.Mobile ? undefined : SettingsPages.GeneralPage;
-};
+): SettingsPage | undefined =>
+  resolveMindroomSettingsInitialPage(initialPage, screenSize, showLocalMindRoom);

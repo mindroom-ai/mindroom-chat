@@ -57,14 +57,17 @@ vi.mock('../styles/CustomHtml.css', () => ({
   MarginSpaced: 'MarginSpaced',
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
-  MindroomBlock: 'MindroomBlock',
-  MindroomBlockHeader: 'MindroomBlockHeader',
-  MindroomBlockHeaderMeta: 'MindroomBlockHeaderMeta',
-  MindroomBlockInlineResult: 'MindroomBlockInlineResult',
-  MindroomBlockBody: 'MindroomBlockBody',
-  MindroomBlockResult: 'MindroomBlockResult',
-  MindroomToolGroupList: 'MindroomToolGroupList',
-  MindroomToolGroupItem: 'MindroomToolGroupItem',
+}));
+
+vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({
+  Block: 'MindroomBlock',
+  BlockBody: 'MindroomBlockBody',
+  BlockHeader: 'MindroomBlockHeader',
+  BlockHeaderMeta: 'MindroomBlockHeaderMeta',
+  BlockInlineResult: 'MindroomBlockInlineResult',
+  BlockResult: 'MindroomBlockResult',
+  ToolGroupItem: 'MindroomToolGroupItem',
+  ToolGroupList: 'MindroomToolGroupList',
 }));
 
 const createBaseOpts = (): HTMLReactParserOptions => {

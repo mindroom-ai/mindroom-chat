@@ -22,7 +22,6 @@ import React, {
   useState,
 } from 'react';
 import { Navigate } from 'react-router-dom';
-import { SyncState } from 'matrix-js-sdk';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import {
@@ -50,6 +49,10 @@ import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { useSyncState } from '../../hooks/useSyncState';
 import { AutoDiscovery } from './AutoDiscovery';
+import {
+  isInitialClientCatchupInProgress,
+  type ClientSyncStateData,
+} from '../../hooks/useInitialClientCatchup';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -76,21 +79,6 @@ export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
   const syncToken = (mx as ClientMatrixClientWithCacheState).store?.getSyncToken?.();
   return typeof syncToken === 'string' && syncToken.length > 0;
 };
-
-type ClientSyncStateData = {
-  current: SyncState | null;
-  previous: SyncState | null | undefined;
-};
-
-const isInitialClientCatchupInProgress = ({
-  current,
-  previous,
-}: ClientSyncStateData): boolean =>
-  current === null ||
-  ((current === SyncState.Prepared ||
-    current === SyncState.Syncing ||
-    current === SyncState.Catchup) &&
-    previous !== SyncState.Syncing);
 
 function ClientRootLoading() {
   return (

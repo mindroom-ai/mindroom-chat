@@ -1,8 +1,8 @@
 import { atom } from 'jotai';
-import { SettingsPages } from '../features/settings/settingsPages';
+import { SettingsPage } from '../features/settings/settingsPages';
 
 export type SettingsModalState = {
-  initialPage?: SettingsPages;
+  initialPage?: SettingsPage;
 };
 
 export const settingsModalAtom = atom<SettingsModalState | undefined>(undefined);

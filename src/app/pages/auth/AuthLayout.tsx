@@ -12,7 +12,6 @@ import {
   useClientConfig,
 } from '../../hooks/useClientConfig';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { ServerPicker } from './ServerPicker';
 import { AutoDiscoveryAction, autoDiscovery } from '../../cs-api';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
@@ -25,6 +24,7 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
 import { resolveAddAccountReturnPath } from './addAccount';
+import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -135,8 +135,12 @@ export function AuthLayout() {
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">
-              <img className={css.AuthLogo} src={MindRoomLogo} alt="MindRoom Logo" />
-              <Text size="H3">MindRoom</Text>
+              <img
+                className={css.AuthLogo}
+                src={MINDROOM_AUTH_BRANDING.logoSrc}
+                alt={MINDROOM_AUTH_BRANDING.logoAlt}
+              />
+              <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column">

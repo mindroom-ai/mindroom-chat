@@ -19,7 +19,7 @@ import {
   RegisterRequest,
   UIAFlow,
 } from 'matrix-js-sdk';
-import { createMatrixClient } from '../../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { PasswordInput } from '../../../components/password-input';
 import {
   getLoginTermUrl,
@@ -32,6 +32,7 @@ import { AsyncState, AsyncStatus, useAsyncCallback } from '../../../hooks/useAsy
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { RegisterError, RegisterResult, register, useRegisterComplete } from './registerUtil';
 import { FieldError } from '../FiledError';
+import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 import {
   AutoDummyStageDialog,
   AutoTermsStageDialog,
@@ -109,7 +110,7 @@ function RegisterUIAFlow({
         auth: authDict,
         password,
         username,
-        initial_device_display_name: 'MindRoom Web',
+        initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
       });
     },
     [onRegister, formData]
@@ -252,7 +253,7 @@ export function PasswordRegisterForm({
       auth: {
         session: authData.session,
       },
-      initial_device_display_name: 'MindRoom Web',
+      initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
     });
   };
 

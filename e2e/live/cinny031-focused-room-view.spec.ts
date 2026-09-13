@@ -54,6 +54,11 @@ const getMessageOrderIndex = async (page: Page, body: string) => {
   return Number(index);
 };
 
+const waitForDistinctServerTimestamp = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 25);
+  });
+
 test.describe('live cinny-031 focused room view', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
@@ -162,6 +167,7 @@ test.describe('live cinny-031 focused room view', () => {
       },
       'cinny-031'
     );
+    await waitForDistinctServerTimestamp();
     await sendRoomMessage(
       homeserver,
       accessToken,
@@ -172,6 +178,7 @@ test.describe('live cinny-031 focused room view', () => {
       },
       'cinny-031'
     );
+    await waitForDistinctServerTimestamp();
     const secondRootId = await sendRoomMessage(
       homeserver,
       accessToken,

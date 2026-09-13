@@ -15,7 +15,7 @@ import {
   PageHero,
   PageHeroSection,
 } from '../../../components/page';
-import { BackRouteHandler } from '../../../components/BackRouteHandler';
+import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/native/MindroomBackRouteHandler';
 import { CreateChat } from '../../../features/create-chat';
 
 export function DirectCreate() {

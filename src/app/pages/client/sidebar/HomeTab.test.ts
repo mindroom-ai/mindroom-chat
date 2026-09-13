@@ -143,7 +143,7 @@ vi.mock('../home/useHomeRooms', () => ({
   useHomeRooms: () => [],
 }));
 
-vi.mock('../../../utils/notifications', () => ({
+vi.mock('../../../mindroom/notifications/readReceipts', () => ({
   markRoomAndThreadsAsRead: vi.fn(),
 }));
 

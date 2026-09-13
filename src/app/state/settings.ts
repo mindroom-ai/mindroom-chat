@@ -1,18 +1,20 @@
 import { atom } from 'jotai';
+import {
+  DEFAULT_PAGINATION_LIMIT,
+  sanitizePaginationLimit,
+} from '../mindroom/threads/preloadSettings';
 
 const STORAGE_KEY = 'settings';
 
-export const DEFAULT_PAGINATION_LIMIT = 10000;
-export const MIN_PAGINATION_LIMIT = 50;
-export const THREAD_BATCH_SIZE = 200;
+export {
+  DEFAULT_PAGINATION_LIMIT,
+  MIN_PAGINATION_LIMIT,
+  THREAD_BATCH_SIZE,
+  sanitizePaginationLimit,
+} from '../mindroom/threads/preloadSettings';
 export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
-
-export const sanitizePaginationLimit = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_PAGINATION_LIMIT;
-  return Math.max(Math.trunc(value), MIN_PAGINATION_LIMIT);
-};
 
 const sanitizeStoredPageZoom = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return PAGE_ZOOM_DEFAULT;

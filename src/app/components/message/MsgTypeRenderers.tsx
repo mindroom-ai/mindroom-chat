@@ -3,8 +3,6 @@ import { Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { IContent } from 'matrix-js-sdk';
 import { JUMBO_EMOJI_REG, URL_REG } from '../../utils/regex';
 import { trimReplyFromBody } from '../../utils/room';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
 import { MessageTextBody } from './layout';
 import {
   MessageBadEncryptedContent,
@@ -13,7 +11,6 @@ import {
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './content';
-import { StreamingIndicator } from '../streaming-indicator/StreamingIndicator';
 import {
   IAudioContent,
   IAudioInfo,
@@ -33,12 +30,6 @@ import { parseGeoUri, scaleYDimension } from '../../utils/common';
 import { getVoiceMessageAudioDetails, isVoiceMessageContent } from '../../utils/voiceMessage';
 import { Attachment, AttachmentBox, AttachmentContent, AttachmentHeader } from './attachment';
 import { FileHeader, FileDownloadButton } from './FileHeader';
-import { Time } from './Time';
-import {
-  MindroomThreadSummaryInfo,
-  formatMindroomThreadSummaryMessageCount,
-} from './mindroomThreadSummary';
-import * as summaryCss from './mindroomThreadSummaryCard.css';
 
 export function MBadEncrypted() {
   return (
@@ -79,15 +70,29 @@ type RenderBodyProps = {
   body: string;
   customBody?: string;
 };
+type RenderMessageStateProps = {
+  edited?: boolean;
+  renderStateSuffix?: () => ReactNode;
+};
+const renderMessageStateSuffix = ({ edited, renderStateSuffix }: RenderMessageStateProps) =>
+  renderStateSuffix ? renderStateSuffix() : edited && <MessageEditedContent />;
+
 type MTextProps = {
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   style?: CSSProperties;
 };
-export function MText({ edited, isStreaming, content, renderBody, renderUrlsPreview, style }: MTextProps) {
+export function MText({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderUrlsPreview,
+  style,
+}: MTextProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -106,7 +111,7 @@ export function MText({ edited, isStreaming, content, renderBody, renderUrlsPrev
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
@@ -116,7 +121,7 @@ export function MText({ edited, isStreaming, content, renderBody, renderUrlsPrev
 type MEmoteProps = {
   displayName: string;
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
@@ -124,7 +129,7 @@ type MEmoteProps = {
 export function MEmote({
   displayName,
   edited,
-  isStreaming,
+  renderStateSuffix,
   content,
   renderBody,
   renderUrlsPreview,
@@ -148,7 +153,7 @@ export function MEmote({
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
@@ -157,12 +162,18 @@ export function MEmote({
 
 type MNoticeProps = {
   edited?: boolean;
-  isStreaming?: boolean;
+  renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   renderBody: (props: RenderBodyProps) => ReactNode;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
 };
-export function MNotice({ edited, isStreaming, content, renderBody, renderUrlsPreview }: MNoticeProps) {
+export function MNotice({
+  edited,
+  renderStateSuffix,
+  content,
+  renderBody,
+  renderUrlsPreview,
+}: MNoticeProps) {
   const { body, formatted_body: customBody } = content;
 
   if (typeof body !== 'string') return <BrokenContent />;
@@ -181,69 +192,10 @@ export function MNotice({ edited, isStreaming, content, renderBody, renderUrlsPr
           body: trimmedBody,
           customBody: typeof customBody === 'string' ? customBody : undefined,
         })}
-        {isStreaming ? <StreamingIndicator /> : edited && <MessageEditedContent />}
+        {renderMessageStateSuffix({ edited, renderStateSuffix })}
       </MessageTextBody>
       {renderUrlsPreview && urls && urls.length > 0 && renderUrlsPreview(urls)}
     </>
-  );
-}
-
-type MindroomThreadSummaryCardProps = {
-  edited?: boolean;
-  compact?: boolean;
-  summaryInfo: MindroomThreadSummaryInfo;
-  renderBody: (props: RenderBodyProps) => ReactNode;
-};
-export function MindroomThreadSummaryCard({
-  edited,
-  compact,
-  summaryInfo,
-  renderBody,
-}: MindroomThreadSummaryCardProps) {
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-  const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
-  const summaryText = summaryInfo.summaryText ?? 'Thread summary';
-  const messageCountLabel =
-    typeof summaryInfo.messageCount === 'number'
-      ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
-      : undefined;
-
-  return (
-    <Box
-      className={summaryCss.ThreadSummaryCard}
-      direction="Column"
-      gap="200"
-      aria-label="AI thread summary"
-    >
-      <Box className={summaryCss.ThreadSummaryMeta}>
-        <Box as="span" className={summaryCss.ThreadSummaryLabel}>
-          <Icon size="50" src={Icons.Bulb} />
-          <Text size="T200">AI summary</Text>
-        </Box>
-        {messageCountLabel && !compact && (
-          <Chip variant="SurfaceVariant" radii="Pill" outlined>
-            <Text size="T200">{messageCountLabel}</Text>
-          </Chip>
-        )}
-        {summaryInfo.generatedTs && (
-          <Time
-            ts={summaryInfo.generatedTs}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          />
-        )}
-      </Box>
-
-      <MessageTextBody
-        preWrap
-        className={
-          compact ? summaryCss.ThreadSummaryBodyCompact : summaryCss.ThreadSummaryBody
-        }
-      >
-        {renderBody({ body: summaryText })}
-        {edited && <MessageEditedContent />}
-      </MessageTextBody>
-    </Box>
   );
 }
 

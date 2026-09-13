@@ -14,8 +14,11 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
-import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../utils/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
+import {
+  getMindroomAuthSsoRedirectUrl,
+  shouldUseSsoOnlyRegistration,
+} from '../../../mindroom/auth/authUi';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
   useMemo(
@@ -38,8 +41,7 @@ export function Register() {
   const registrationAllowed = auth?.allowRegistration !== false;
   const requireAppleProvider = auth?.requireAppleProvider === true;
   const appleProviderAvailable = hasAppleIdentityProvider(sso?.identity_providers);
-  const serverWithoutScheme = server.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-  const ssoOnlyRegistration = serverWithoutScheme.toLowerCase() === 'mindroom.chat';
+  const ssoOnlyRegistration = shouldUseSsoOnlyRegistration(server);
   const showPasswordRegistration =
     registerFlows.status === RegisterFlowStatus.FlowRequired && !ssoOnlyRegistration;
 
@@ -47,11 +49,7 @@ export function Register() {
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
     const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
-    if (isNativeIOS()) {
-      return buildNativeSsoRedirectUrl(redirectPath);
-    }
-
-    return redirectPath;
+    return getMindroomAuthSsoRedirectUrl(redirectPath);
   }, [addAccount, webSsoRedirectUrl]);
 
   if (!registrationAllowed) {

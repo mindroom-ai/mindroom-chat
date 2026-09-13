@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import { AuthDict, AuthType, MatrixError } from 'matrix-js-sdk';
-import { createMatrixClient } from '../../../../client/matrixClientFactory';
+import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useAuthServer } from '../../../hooks/useAuthServer';

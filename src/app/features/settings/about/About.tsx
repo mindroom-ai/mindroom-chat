@@ -4,9 +4,9 @@ import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
-import MindRoomLogo from '../../../../../public/res/branding/mindroom-logo.png';
 import { clearAllCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { MINDROOM_CLIENT_BRANDING } from '../../../mindroom/branding/clientBranding';
 
 type AboutProps = {
   requestClose: () => void;
@@ -51,14 +51,14 @@ export function About({ requestClose }: AboutProps) {
                 <Box shrink="No">
                   <img
                     style={{ width: toRem(60), height: toRem(60) }}
-                    src={MindRoomLogo}
-                    alt="MindRoom logo"
+                    src={MINDROOM_CLIENT_BRANDING.logoSrc}
+                    alt={MINDROOM_CLIENT_BRANDING.logoAlt}
                   />
                 </Box>
                 <Box direction="Column" gap="300">
                   <Box direction="Column" gap="100">
                     <Box gap="100" alignItems="End">
-                      <Text size="H3">MindRoom</Text>
+                      <Text size="H3">{MINDROOM_CLIENT_BRANDING.appName}</Text>
                       <Text size="T200">v4.12.6</Text>
                     </Box>
                     <Text>Yet another matrix client.</Text>

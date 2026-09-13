@@ -1,0 +1,146 @@
+import { Direction, MatrixEvent, RelationType, ReceiptType } from 'matrix-js-sdk';
+import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  markMainTimelineAsRead,
+  markRoomAndThreadsAsRead,
+  markThreadAsRead,
+} from './readReceipts';
+
+const ROOM_ID = '!room:example.org';
+const USER_ID = '@alice:example.org';
+const THREAD_ID = '$thread-root';
+
+const makeMessageEvent = (eventId: string, ts = 1) =>
+  new MatrixEvent({
+    content: {
+      body: eventId,
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: ROOM_ID,
+    sender: '@bob:example.org',
+    type: 'm.room.message',
+  });
+
+const makeThreadReplyEvent = (eventId: string, ts = 1) =>
+  new MatrixEvent({
+    content: {
+      'm.relates_to': {
+        event_id: THREAD_ID,
+        'm.in_reply_to': {
+          event_id: THREAD_ID,
+        },
+        is_falling_back: true,
+        rel_type: RelationType.Thread,
+      },
+      body: eventId,
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: ROOM_ID,
+    sender: '@bob:example.org',
+    type: 'm.room.message',
+  });
+
+const makeRoom = (events: MatrixEvent[]) =>
+  ({
+    roomId: ROOM_ID,
+    findEventById: vi.fn(),
+    getEventReadUpTo: vi.fn(() => null),
+    getLiveTimeline: vi.fn(() => ({
+      getEvents: () => events,
+    })),
+    getThread: vi.fn(() => null),
+  });
+
+const makeClient = (room: ReturnType<typeof makeRoom>) =>
+  ({
+    fetchRelations: vi.fn(),
+    getEventMapper: vi.fn(() => (rawEvent: ConstructorParameters<typeof MatrixEvent>[0]) =>
+      new MatrixEvent(rawEvent)
+    ),
+    getRoom: vi.fn(() => room),
+    getUserId: vi.fn(() => USER_ID),
+    sendReadReceipt: vi.fn(),
+    sendReceipt: vi.fn(),
+  });
+
+describe('markMainTimelineAsRead', () => {
+  it('filters hidden thread replies and sends a main-timeline receipt', async () => {
+    const visibleMainEvent = makeMessageEvent('$main', 1);
+    const hiddenThreadReply = makeThreadReplyEvent('$thread-reply', 2);
+    const room = makeRoom([visibleMainEvent, hiddenThreadReply]);
+    const mx = makeClient(room);
+
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(visibleMainEvent, ReceiptType.Read, {
+      thread_id: MAIN_ROOM_TIMELINE,
+    });
+    expect(mx.sendReadReceipt).not.toHaveBeenCalled();
+  });
+});
+
+describe('markThreadAsRead', () => {
+  it('sends a thread-scoped receipt for the latest loaded thread reply', async () => {
+    const latestReply = makeThreadReplyEvent('$reply-2', 2);
+    const room = {
+      ...makeRoom([]),
+      getThread: vi.fn(() => ({
+        events: [makeThreadReplyEvent('$reply-1', 1), latestReply],
+        getEventReadUpTo: vi.fn(() => null),
+      })),
+    };
+    const mx = makeClient(room);
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).toHaveBeenCalledWith(latestReply, ReceiptType.Read, {
+      thread_id: THREAD_ID,
+    });
+  });
+
+  it('fetches the authoritative thread tail when the SDK thread model is unavailable', async () => {
+    const staleLoadedReply = makeThreadReplyEvent('$reply-1', 1);
+    const latestRemoteReply = makeThreadReplyEvent('$reply-2', 2);
+    const room = makeRoom([staleLoadedReply]);
+    const mx = makeClient(room);
+    mx.fetchRelations.mockResolvedValue({
+      chunk: [latestRemoteReply.event],
+    });
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.fetchRelations).toHaveBeenCalledWith(
+      ROOM_ID,
+      THREAD_ID,
+      RelationType.Thread,
+      null,
+      expect.objectContaining({ dir: Direction.Backward, limit: 1 })
+    );
+    expect((mx.sendReceipt.mock.calls[0]?.[0] as MatrixEvent | undefined)?.getId()).toBe(
+      latestRemoteReply.getId()
+    );
+    expect(mx.sendReceipt.mock.calls[0]?.[2]).toEqual({
+      thread_id: THREAD_ID,
+    });
+  });
+});
+
+describe('markRoomAndThreadsAsRead', () => {
+  it('still sends an explicit unthreaded receipt when only older thread unread remains', async () => {
+    const olderThreadReply = makeThreadReplyEvent('$thread-reply', 1);
+    const newestMainEvent = makeMessageEvent('$main', 2);
+    const room = makeRoom([olderThreadReply, newestMainEvent]);
+    room.getEventReadUpTo.mockReturnValue(newestMainEvent.getId());
+    const mx = makeClient(room);
+
+    await markRoomAndThreadsAsRead(mx as never, ROOM_ID, true);
+
+    expect(mx.sendReadReceipt).toHaveBeenCalledWith(newestMainEvent, ReceiptType.ReadPrivate, true);
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+  });
+});

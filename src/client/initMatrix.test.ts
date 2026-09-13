@@ -14,9 +14,10 @@ import {
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
 } from './initMatrix';
-import { createMatrixClient } from './matrixClientFactory';
+import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
 import { clearSecretStorageKeys } from './secretStorageKeys';
-import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
+import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
+import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/longText';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
@@ -32,14 +33,17 @@ import {
 import {
   deleteThreadEventCache,
   getThreadEventCacheDbName,
-} from '../app/features/room/threadEventCache';
-import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/features/room/roomEventCache';
-import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
-import { clearIOSPushState } from '../app/utils/iosPush';
-import { clearRecentThreadsStore } from '../app/state/recentThreads';
-import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
-import { clearRecentThreadsPanelMobileExpandedStore } from '../app/state/recentThreadsPanelMobileExpanded';
-import { clearRecentThreadSummarySharedState } from '../app/features/recent-threads/useRecentThreadSummary';
+} from '../app/mindroom/threads/threadEventCache';
+import {
+  deleteRoomEventCache,
+  getRoomEventCacheDbName,
+} from '../app/mindroom/threads/roomEventCache';
+import { deleteThreadSummaryCache } from '../app/mindroom/threads/threadSummaryStore';
+import { clearIOSPushState } from '../app/mindroom/native/iosPush';
+import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
+import { clearRecentThreadsPanelHeightStore } from '../app/mindroom/recent-threads/recentThreadsPanelHeight';
+import { clearRecentThreadsPanelMobileExpandedStore } from '../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded';
+import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -54,11 +58,11 @@ vi.mock('./secretStorageKeys', () => ({
   cryptoCallbacks: {},
 }));
 
-vi.mock('../app/components/message/mindroomLongText', () => ({
+vi.mock('../app/mindroom/messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
 }));
 
-vi.mock('./matrixClientFactory', () => ({
+vi.mock('../app/mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
 }));
 
@@ -66,39 +70,46 @@ vi.mock('../app/state/navToActivePath', () => ({
   clearNavToActivePathStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreads', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreads', () => ({
   clearRecentThreadsStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreadsPanelHeight', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreadsPanelHeight', () => ({
   clearRecentThreadsPanelHeightStore: vi.fn(),
 }));
 
-vi.mock('../app/state/recentThreadsPanelMobileExpanded', () => ({
+vi.mock('../app/mindroom/recent-threads/recentThreadsPanelMobileExpanded', () => ({
   clearRecentThreadsPanelMobileExpandedStore: vi.fn(),
 }));
 
-vi.mock('../app/features/recent-threads/useRecentThreadSummary', () => ({
-  clearRecentThreadSummarySharedState: vi.fn(),
+vi.mock('../app/mindroom/threads/recentThreadViewModel', () => ({
+  clearRecentThreadViewModelSharedState: vi.fn(),
 }));
 
-vi.mock('../app/features/room/threadEventCache', () => ({
+vi.mock('../app/mindroom/threads/roomThreadFilterState', () => ({
+  clearRoomThreadFiltersStore: vi.fn(),
+}));
+
+vi.mock('../app/mindroom/threads/threadEventCache', () => ({
+  MINDROOM_THREAD_EVENT_CACHE_DB_NAME: 'mindroom-thread-event-cache',
   deleteThreadEventCache: vi.fn().mockResolvedValue(undefined),
   getThreadEventCacheDbName: vi.fn(
     (sessionId: string) => `mindroom-thread-event-cache::${sessionId}`
   ),
 }));
 
-vi.mock('../app/features/room/roomEventCache', () => ({
+vi.mock('../app/mindroom/threads/roomEventCache', () => ({
+  MINDROOM_ROOM_EVENT_CACHE_DB_NAME: 'mindroom-room-event-cache',
   deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
   getRoomEventCacheDbName: vi.fn((sessionId: string) => `mindroom-room-event-cache::${sessionId}`),
 }));
 
-vi.mock('../app/features/room/threadSummaryCache', () => ({
+vi.mock('../app/mindroom/threads/threadSummaryStore', () => ({
   deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../app/utils/iosPush', () => ({
+vi.mock('../app/mindroom/native/iosPush', () => ({
+  IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
 }));
 
@@ -433,7 +444,7 @@ describe('clearAllCacheAndReload', () => {
 
     localStorageMock.setItem('settings', 'settings');
     localStorageMock.setItem('after_login_redirect_url', '/room');
-    localStorageMock.setItem('mindroom.debug.edits', '1');
+    localStorageMock.setItem(MINDROOM_EDIT_DEBUG_STORAGE_KEY, '1');
     localStorageMock.setItem('i18nextLng', 'en');
     localStorageMock.setItem('kb-color-mode', 'dark');
     localStorageMock.setItem('cinny_access_token', 'legacy-token');
@@ -543,7 +554,7 @@ describe('clearAllCacheAndReload', () => {
     expect(localStorageState.has('third_party_key')).toBe(false);
     expect(localStorageState.has('settings')).toBe(false);
     expect(localStorageState.has('after_login_redirect_url')).toBe(false);
-    expect(localStorageState.has('mindroom.debug.edits')).toBe(false);
+    expect(localStorageState.has(MINDROOM_EDIT_DEBUG_STORAGE_KEY)).toBe(false);
     expect(localStorageState.has('i18nextLng')).toBe(false);
     expect(localStorageState.has('kb-color-mode')).toBe(false);
     expect(localStorageState.has('cinny_access_token')).toBe(false);
@@ -966,7 +977,7 @@ describe('clearCacheAndReload', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       session.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -1146,7 +1157,7 @@ describe('logoutClient', () => {
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(userId);
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1297,7 +1308,7 @@ describe('clearLoginData', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       session.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1618,7 +1629,7 @@ describe('removeStoredSession', () => {
     expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
       inactiveSession.userId
     );
-    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
+    expect(vi.mocked(clearRecentThreadViewModelSharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
       activeSession.sessionId,

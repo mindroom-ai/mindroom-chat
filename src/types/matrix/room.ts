@@ -34,8 +34,6 @@ export enum StateEvent {
   RoomTombstone = 'm.room.tombstone',
   GroupCallPrefix = 'org.matrix.msc3401.call',
   GroupCallMemberPrefix = 'org.matrix.msc3401.call.member',
-  ThreadTags = 'com.mindroom.thread.tags',
-  MindRoomScheduledTask = 'com.mindroom.scheduled.task',
 
   SpaceChild = 'm.space.child',
   SpaceParent = 'm.space.parent',

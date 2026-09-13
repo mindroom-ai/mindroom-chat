@@ -10,7 +10,7 @@ import {
   RegisterFlowsResponse,
   parseRegisterErrResp,
 } from '../hooks/useAuthFlows';
-import { createMatrixClient } from '../../client/matrixClientFactory';
+import { createMatrixClient } from '../mindroom/matrix/matrixClientFactory';
 
 type AuthFlowsLoaderProps = {
   fallback?: () => ReactNode;

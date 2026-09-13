@@ -1,38 +1,17 @@
 import { useMemo } from 'react';
-import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { StateEvent } from '../../../types/matrix/room';
-import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { useStateEvents } from '../../hooks/useStateEvents';
-import {
-  getNextThreadScheduledTs,
-  getThreadHeaderScheduledDisplayText,
-} from '../../hooks/useThreadHeaderInfo';
-import { getThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
-import { getThreadStreamingState } from '../../hooks/useThreadStreamingState';
+import { getThreadHeaderScheduledDisplayText } from './useThreadHeaderInfo';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
-import { resolveRecentThreadSummaryText } from '../../features/recent-threads/recentThreadSummaryUtils';
-import { formatScheduledTime } from '../../features/room/compactThreadCardUtils';
-import { getThreadUnread } from '../../features/room/roomThreadList';
-import {
-  getRoomScheduledTaskCounts,
-  type ThreadOverviewMetadata,
-} from '../../features/room/roomThreadOverviewModel';
-import {
-  getThreadPrimarySummaryText,
-  resolveThreadPresentationSnapshot,
-} from '../../features/room/threadPresentation';
-import { getVisibleThreadParticipantIds } from '../../features/room/threadUtils';
-import {
-  useRoomThreadResolutionMap,
-  type ThreadResolutionState,
-} from '../../features/room/useRoomThreadTags';
+import { formatScheduledTime } from './compactThreadCardUtils';
+import { getThreadPrimarySummaryText } from './threadPresentation';
 import type {
   CompactThreadAttentionState,
   CompactThreadCardViewModel,
+  ThreadRecord,
   ThreadParticipantViewModel,
 } from './types';
 
@@ -88,47 +67,18 @@ export const getCompactThreadAttentionStatusText = (
   }
 };
 
-type BuildCompactThreadCardViewModelOptions = {
-  room: Room;
-  threadRootId: string;
-  threadRootEvent?: MatrixEvent;
-  metadata?: ThreadOverviewMetadata;
-  summaryInfo?: MindroomThreadSummaryInfo;
-  currentUserId?: string;
-  mx: MatrixClient;
-  useAuthentication: boolean;
-  scheduledTaskEvents: MatrixEvent[];
-  scheduledTaskCounts: Map<string, number>;
-  threadResolutionMap: Map<string, ThreadResolutionState>;
-};
-
-const getMetadataSummaryInfo = (
-  metadata: ThreadOverviewMetadata | undefined
-): MindroomThreadSummaryInfo | undefined =>
-  metadata?.summaryText || metadata?.messageCount
-    ? {
-        summaryText: metadata?.summaryText,
-        messageCount:
-          typeof metadata?.messageCount === 'number' && metadata.messageCount > 0
-            ? metadata.messageCount
-            : undefined,
-      }
-    : undefined;
-
 const getCompactThreadParticipants = ({
   room,
   mx,
   useAuthentication,
-  thread,
-  threadRootEvent,
+  participantIds,
 }: {
   room: Room;
   mx: MatrixClient;
   useAuthentication: boolean;
-  thread: ReturnType<Room['getThread']>;
-  threadRootEvent?: MatrixEvent;
+  participantIds: string[];
 }): ThreadParticipantViewModel[] =>
-  getVisibleThreadParticipantIds(thread, threadRootEvent).map((userId) => {
+  participantIds.map((userId) => {
     const displayName = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
     const avatarMxc = getMemberAvatarMxc(room, userId);
 
@@ -141,50 +91,22 @@ const getCompactThreadParticipants = ({
     };
   });
 
-export const buildCompactThreadCardViewModel = ({
+type BuildCompactThreadCardViewModelFromRecordOptions = {
+  record: ThreadRecord;
+  room: Room;
+  currentUserId?: string;
+  mx: MatrixClient;
+  useAuthentication: boolean;
+};
+
+export const buildCompactThreadCardViewModelFromRecord = ({
+  record,
   room,
-  threadRootId,
-  threadRootEvent,
-  metadata,
-  summaryInfo,
   currentUserId,
   mx,
   useAuthentication,
-  scheduledTaskEvents,
-  scheduledTaskCounts,
-  threadResolutionMap,
-}: BuildCompactThreadCardViewModelOptions): CompactThreadCardViewModel => {
-  const thread = room.getThread(threadRootId);
-  const resolvedThreadRootEvent =
-    threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
-  const metadataSummaryInfo = getMetadataSummaryInfo(metadata);
-  const resolvedSummaryInfo = summaryInfo ?? metadataSummaryInfo;
-  const resolutionState = threadResolutionMap.get(threadRootId);
-  const isResolved = metadata?.isResolved ?? resolutionState?.isResolved ?? false;
-  const tags =
-    metadata?.tags?.filter((tagName) => tagName !== 'resolved') ??
-    (resolutionState?.tags
-      ? Object.keys(resolutionState.tags).filter((tagName) => tagName !== 'resolved')
-      : []);
-  const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
-  const lastActivityTs = Math.max(liveLastActivityTs, metadata?.lastActivityTs ?? 0) || undefined;
-  const isStreaming = metadata?.isStreaming ?? getThreadStreamingState(room, threadRootId);
-  const scheduledTaskCount = Math.max(
-    scheduledTaskCounts.get(threadRootId) ?? 0,
-    metadata?.scheduledTaskCount ?? 0
-  );
-  const presentation = resolveThreadPresentationSnapshot({
-    room,
-    threadRootId,
-    thread,
-    rootEvent: resolvedThreadRootEvent,
-    preferredSummaryInfo: resolvedSummaryInfo,
-    preferredRootPreviewText: metadata?.rootPreviewText,
-    fallbackLatestReplyPreviewText: metadata?.latestReplyPreviewText,
-    fallbackLastSenderId: metadata?.lastSenderId,
-    fallbackLastSenderDisplayName: metadata?.lastSenderDisplayName,
-    fallbackMessageCount: metadata?.messageCount,
-  });
+}: BuildCompactThreadCardViewModelFromRecordOptions): CompactThreadCardViewModel => {
+  const { presentation, status } = record;
   const titleText = getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK;
   const latestPreviewText =
     presentation.latestReplyPreviewText ??
@@ -197,49 +119,37 @@ export const buildCompactThreadCardViewModel = ({
   const previewText = lastSenderName
     ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
     : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
-  const fallbackIsUnread =
-    thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false;
-  const isUnread = metadata?.isUnread ?? fallbackIsUnread;
   const attentionState = getCompactThreadAttentionState({
-    isResolved,
-    isStreaming,
+    isResolved: status.isResolved,
+    isStreaming: status.isStreaming,
     lastSenderId,
     currentUserId,
   });
-  const nextScheduledTs =
-    scheduledTaskCount > 0
-      ? getNextThreadScheduledTs(scheduledTaskEvents, threadRootId)
-      : undefined;
   const scheduledTaskLabel =
-    scheduledTaskCount > 0
-      ? `${scheduledTaskCount} pending scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}${
-          nextScheduledTs === undefined ? '' : `, ${formatScheduledTime(nextScheduledTs)}`
+    status.scheduledTaskCount > 0
+      ? `${status.scheduledTaskCount} pending scheduled ${
+          status.scheduledTaskCount === 1 ? 'task' : 'tasks'
+        }${
+          status.nextScheduledTs === undefined
+            ? ''
+            : `, ${formatScheduledTime(status.nextScheduledTs)}`
         }`
       : undefined;
   const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
-    scheduledTaskCount,
-    nextScheduledTs
+    status.scheduledTaskCount,
+    status.nextScheduledTs
   );
-  const recentThreadSummaryText =
-    resolvedSummaryInfo?.summaryText ??
-    metadata?.rootPreviewText ??
-    resolveRecentThreadSummaryText({
-      room,
-      threadRootId,
-      rootEvent: resolvedThreadRootEvent,
-      summaryInfo: resolvedSummaryInfo,
-    });
 
   return {
     id: {
-      roomId: room.roomId,
-      threadRootId,
+      roomId: record.roomId,
+      threadRootId: record.threadRootId,
     },
     titleText,
     displayTitleText: truncateText(titleText, TITLE_TEXT_LIMIT),
     previewText,
     primarySummaryText: getThreadPrimarySummaryText(presentation),
-    recentThreadSummaryText,
+    recentThreadSummaryText: presentation.recentThreadSummaryText,
     messageCount: presentation.messageCount,
     messageCountLabel: getCompactThreadMessageCountLabel(presentation.messageCount),
     attentionState,
@@ -248,73 +158,55 @@ export const buildCompactThreadCardViewModel = ({
       room,
       mx,
       useAuthentication,
-      thread,
-      threadRootEvent: resolvedThreadRootEvent,
+      participantIds: presentation.participantIds,
     }),
-    tags,
-    isResolved,
-    isUnread,
-    isStreaming,
+    tags: status.tags,
+    isResolved: status.isResolved,
+    isUnread: status.isUnread,
+    isStreaming: status.isStreaming,
     scheduledDisplayText,
     scheduledTaskLabel,
-    lastActivityTs,
+    lastActivityTs: status.lastActivityTs,
     lastActivityTitle:
-      lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined,
+      status.lastActivityTs !== undefined
+        ? new Date(status.lastActivityTs).toLocaleString()
+        : undefined,
   };
 };
 
 type UseCompactThreadCardViewModelsOptions = {
   room: Room;
   threadRootIds: string[];
-  metadataMap: Map<string, ThreadOverviewMetadata>;
-  summaryMap?: Map<string, MindroomThreadSummaryInfo>;
+  threadRecordMap: ReadonlyMap<string, ThreadRecord>;
 };
 
 export const useCompactThreadCardViewModels = ({
   room,
   threadRootIds,
-  metadataMap,
-  summaryMap,
+  threadRecordMap,
 }: UseCompactThreadCardViewModelsOptions): CompactThreadCardViewModel[] => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const scheduledTaskEvents = useStateEvents(room, StateEvent.MindRoomScheduledTask);
-  const scheduledTaskCounts = useMemo(
-    () => getRoomScheduledTaskCounts(scheduledTaskEvents),
-    [scheduledTaskEvents]
-  );
-  const threadResolutionMap = useRoomThreadResolutionMap(room);
   const currentUserId = mx.getUserId() ?? undefined;
 
-  return useMemo(
-    () =>
-      threadRootIds.map((threadRootId) =>
-        buildCompactThreadCardViewModel({
+  return useMemo(() => {
+    const viewModels: CompactThreadCardViewModel[] = [];
+
+    threadRootIds.forEach((threadRootId) => {
+      const record = threadRecordMap.get(threadRootId);
+      if (!record) return;
+
+      viewModels.push(
+        buildCompactThreadCardViewModelFromRecord({
+          record,
           room,
-          threadRootId,
-          threadRootEvent:
-            room.findEventById(threadRootId) ?? room.getThread(threadRootId)?.rootEvent,
-          metadata: metadataMap.get(threadRootId),
-          summaryInfo: summaryMap?.get(threadRootId),
           currentUserId,
           mx,
           useAuthentication,
-          scheduledTaskEvents,
-          scheduledTaskCounts,
-          threadResolutionMap,
         })
-      ),
-    [
-      currentUserId,
-      metadataMap,
-      mx,
-      room,
-      scheduledTaskCounts,
-      scheduledTaskEvents,
-      summaryMap,
-      threadResolutionMap,
-      threadRootIds,
-      useAuthentication,
-    ]
-  );
+      );
+    });
+
+    return viewModels;
+  }, [currentUserId, mx, room, threadRecordMap, threadRootIds, useAuthentication]);
 };
