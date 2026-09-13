@@ -1899,14 +1899,19 @@ describe('RoomTimeline architecture', () => {
     expect(welcomePageSource).toContain("from '../../mindroom/branding/clientBranding'");
     expect(welcomePageSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(splashScreenSource).toContain("from '../../mindroom/branding/clientBranding'");
+    expect(splashScreenSource).toContain("from '../particle-background'");
     expect(splashScreenSource).toContain('background?: ReactNode');
-    expect(splashScreenSource).toContain('background ? css.SplashScreenParticle');
-    expect(splashScreenSource).toContain('patternsCSS.BackgroundDotPattern');
+    expect(splashScreenSource).toContain('const resolvedBackground =');
+    expect(splashScreenSource).toContain('MindRoomParticleBackground');
+    expect(splashScreenSource).toContain('position="fixed"');
+    expect(splashScreenSource).not.toContain('patternsCSS.BackgroundDotPattern');
+    expect(splashScreenSource).not.toContain("'../../styles/Patterns.css'");
+    expect(splashScreenSource).not.toContain('"../../styles/Patterns.css"');
     expect(splashScreenSource).not.toContain("from '../../pages/auth/AuthParticleBackground'");
-    expect(mindRoomSplashScreenSource).toContain("from '../particle-background'");
-    expect(mindRoomSplashScreenSource).toContain(
-      '<SplashScreen background={<MindRoomParticleBackground position="fixed" />}>'
-    );
+    expect(mindRoomSplashScreenSource).not.toContain("from '../particle-background'");
+    expect(mindRoomSplashScreenSource).not.toContain('MindRoomParticleBackground');
+    expect(mindRoomSplashScreenSource).not.toContain('background={<');
+    expect(mindRoomSplashScreenSource).toContain('<SplashScreen>');
     expect(clientRootSource).toContain('MindRoomSplashScreen');
     expect(configConfigSource).toContain('MindRoomSplashScreen');
     expect(specVersionsSource).toContain('MindRoomSplashScreen');

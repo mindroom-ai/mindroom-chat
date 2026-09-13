@@ -1,9 +1,9 @@
 import { Box, Text } from 'folds';
 import React, { ReactNode } from 'react';
 import classNames from 'classnames';
-import * as patternsCSS from '../../styles/Patterns.css';
 import * as css from './SplashScreen.css';
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
+import { MindRoomParticleBackground } from '../particle-background';
 
 type SplashScreenProps = {
   children: ReactNode;
@@ -11,16 +11,15 @@ type SplashScreenProps = {
 };
 
 export function SplashScreen({ children, background }: SplashScreenProps) {
+  const resolvedBackground = background || <MindRoomParticleBackground position="fixed" />;
+
   return (
     <Box
-      className={classNames(
-        css.SplashScreen,
-        background ? css.SplashScreenParticle : patternsCSS.BackgroundDotPattern
-      )}
+      className={classNames(css.SplashScreen, resolvedBackground && css.SplashScreenParticle)}
       direction="Column"
     >
-      {background}
-      {background ? (
+      {resolvedBackground}
+      {resolvedBackground ? (
         <Box className={css.SplashScreenContent} direction="Column" grow="Yes">
           {children}
         </Box>
