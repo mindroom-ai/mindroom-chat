@@ -100,6 +100,13 @@ vi.mock('../html/MatrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
 }));
+
+vi.mock('../html/ScrollableTable.css', () => ({
+  Container: 'TableContainer',
+  ScrollArea: 'TableScrollArea',
+  Table: 'Table',
+  Hint: 'TableHint',
+}));
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',

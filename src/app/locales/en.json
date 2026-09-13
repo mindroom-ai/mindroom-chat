@@ -1,4 +1,8 @@
 {
+  "messageTable": {
+    "label": "Scrollable table",
+    "scrollHint": "Scroll horizontally"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " changed room name"
