@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NavigateOptions } from 'react-router-dom';
 import { getHomeRoomPath, withSearchParam } from '../pages/pathUtils';
 import { useRoomNavigate } from './useRoomNavigate';
-import type { ClientConfig } from './useClientConfig';
+import { ROOM_THREAD_EXIT_TARGET_STATE_KEY } from './roomNavigateState';
 
 const mocks = vi.hoisted(() => ({
+  isNativeIOS: vi.fn(() => false),
   navigate: vi.fn(),
   roomToParentsAtom: Symbol('roomToParentsAtom'),
   mDirectAtom: Symbol('mDirectAtom'),
@@ -16,16 +17,13 @@ const mocks = vi.hoisted(() => ({
   developerTools: false,
   selectedSpace: undefined as string | undefined,
   mx: {},
-  historyState: { idx: 1 },
-  replaceState: vi.fn(),
-  clientConfig: {} as ClientConfig,
-  location: { search: '', hash: '' },
+  historyState: { idx: 1, key: 'room-entry' },
+  location: { pathname: '/home/!room:example.org', search: '', hash: '' },
 }));
 
 vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
-    replaceState: mocks.replaceState,
   },
   location: mocks.location,
 } as unknown as Window & typeof globalThis);
@@ -84,8 +82,8 @@ vi.mock('../utils/room', () => ({
   guessPerfectParent: () => undefined,
 }));
 
-vi.mock('./useClientConfig', () => ({
-  useClientConfig: () => mocks.clientConfig,
+vi.mock('../utils/nativeSso', () => ({
+  isNativeIOS: mocks.isNativeIOS,
 }));
 
 type HarnessProps = {
@@ -128,40 +126,45 @@ const renderHookHarness = (): {
 
 describe('useRoomNavigate', () => {
   afterEach(() => {
+    mocks.isNativeIOS.mockReset();
+    mocks.isNativeIOS.mockReturnValue(false);
     mocks.navigate.mockReset();
-    mocks.replaceState.mockReset();
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.developerTools = false;
     mocks.selectedSpace = undefined;
-    mocks.clientConfig = {};
+    mocks.historyState = { idx: 1, key: 'room-entry' };
+    window.history.state = mocks.historyState;
+    mocks.location.pathname = '/home/!room:example.org';
     mocks.location.search = '';
     mocks.location.hash = '';
-    delete (globalThis as any).__APP_BASE_PATH__;
   });
 
-  it('pre-seeds the current history entry with the thread root before pushing the thread route', () => {
+  it('marks pushed thread opens for history back without rewriting the current entry', () => {
     const roomId = '!room:example.org';
     const threadId = '$thread';
     const eventId = '$reply';
-    const currentHistoryState = window.history.state;
     const { getSnapshot, renderer } = renderHookHarness();
 
     act(() => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
-      focusEvent: '1',
-    });
     const threadEventRoomPath = getHomeRoomPath(roomId, eventId);
 
-    expect(mocks.replaceState).toHaveBeenCalledTimes(1);
-    expect(mocks.replaceState).toHaveBeenCalledWith(currentHistoryState, '', threadRootRoomPath);
     expect(mocks.navigate).toHaveBeenNthCalledWith(
       1,
       withSearchParam(threadEventRoomPath, { threadId }),
-      undefined
+      {
+        state: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: '/home/!room:example.org',
+            roomId,
+            threadId,
+            useHistoryBack: true,
+          },
+        },
+      }
     );
 
     renderer.unmount();
@@ -177,11 +180,43 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, undefined, opts);
     });
 
-    expect(mocks.replaceState).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
     expect(mocks.navigate).toHaveBeenCalledWith(
       withSearchParam(getHomeRoomPath(roomId), { threadId }),
       opts
+    );
+
+    renderer.unmount();
+  });
+
+  it('preserves existing navigate state when marking a thread exit target', () => {
+    const roomId = '!room:example.org';
+    const threadId = '$thread';
+    const eventId = '$reply';
+    const opts: NavigateOptions = {
+      state: {
+        source: 'test-suite',
+      },
+    };
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomThread(roomId, threadId, eventId, opts);
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
+      {
+        state: {
+          source: 'test-suite',
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: '/home/!room:example.org',
+            roomId,
+            threadId,
+            useHistoryBack: true,
+          },
+        },
+      }
     );
 
     renderer.unmount();
@@ -197,7 +232,6 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThreadDirect(roomId, threadId, eventId);
     });
 
-    expect(mocks.replaceState).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
     expect(mocks.navigate).toHaveBeenCalledWith(
       withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
@@ -207,31 +241,7 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
-  it('prepends hash fragment for replaceState URL in hash router mode', () => {
-    mocks.clientConfig = { hashRouter: { enabled: true } };
-    const roomId = '!room:example.org';
-    const threadId = '$thread';
-    const eventId = '$reply';
-    const currentHistoryState = window.history.state;
-    const { getSnapshot, renderer } = renderHookHarness();
-
-    act(() => {
-      getSnapshot().navigateRoomThread(roomId, threadId, eventId);
-    });
-
-    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
-      focusEvent: '1',
-    });
-    expect(mocks.replaceState).toHaveBeenCalledWith(
-      currentHistoryState,
-      '',
-      `#${threadRootRoomPath}`
-    );
-
-    renderer.unmount();
-  });
-
-  it('skips pre-seeding on thread-to-thread navigation', () => {
+  it('still marks thread-to-thread navigation for history back', () => {
     mocks.location.search = '?threadId=$threadA';
     const roomId = '!room:example.org';
     const threadId = '$threadB';
@@ -242,76 +252,47 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    expect(mocks.replaceState).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
     expect(mocks.navigate).toHaveBeenCalledWith(
       withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
-      undefined
+      {
+        state: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: '/home/!room:example.org?threadId=$threadA',
+            roomId,
+            threadId,
+            useHistoryBack: true,
+          },
+        },
+      }
     );
 
     renderer.unmount();
   });
 
-  it('skips pre-seeding on thread-to-thread navigation in hash router mode', () => {
-    mocks.clientConfig = { hashRouter: { enabled: true } };
-    mocks.location.hash = '#/home/!room:example.org/$eventId?threadId=$threadA';
-    const roomId = '!room:example.org';
-    const threadId = '$threadB';
-    const { getSnapshot, renderer } = renderHookHarness();
-
-    act(() => {
-      getSnapshot().navigateRoomThread(roomId, threadId);
-    });
-
-    expect(mocks.replaceState).not.toHaveBeenCalled();
-    expect(mocks.navigate).toHaveBeenCalledTimes(1);
-
-    renderer.unmount();
-  });
-
-  it('prepends app base path for replaceState URL in browser router mode', () => {
-    (globalThis as any).__APP_BASE_PATH__ = '/mindroom';
+  it('marks native iOS thread exits with the exact previous path instead of history back', () => {
+    mocks.isNativeIOS.mockReturnValue(true);
     const roomId = '!room:example.org';
     const threadId = '$thread';
     const eventId = '$reply';
-    const currentHistoryState = window.history.state;
     const { getSnapshot, renderer } = renderHookHarness();
 
     act(() => {
       getSnapshot().navigateRoomThread(roomId, threadId, eventId);
     });
 
-    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
-      focusEvent: '1',
-    });
-    expect(mocks.replaceState).toHaveBeenCalledWith(
-      currentHistoryState,
-      '',
-      `/mindroom${threadRootRoomPath}`
-    );
-
-    renderer.unmount();
-  });
-
-  it('includes hash router basename in replaceState URL', () => {
-    mocks.clientConfig = { hashRouter: { enabled: true, basename: '/app' } };
-    const roomId = '!room:example.org';
-    const threadId = '$thread';
-    const eventId = '$reply';
-    const currentHistoryState = window.history.state;
-    const { getSnapshot, renderer } = renderHookHarness();
-
-    act(() => {
-      getSnapshot().navigateRoomThread(roomId, threadId, eventId);
-    });
-
-    const threadRootRoomPath = withSearchParam(getHomeRoomPath(roomId, threadId), {
-      focusEvent: '1',
-    });
-    expect(mocks.replaceState).toHaveBeenCalledWith(
-      currentHistoryState,
-      '',
-      `#/app${threadRootRoomPath}`
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
+      {
+        state: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: '/home/!room:example.org',
+            roomId,
+            threadId,
+            useHistoryBack: false,
+          },
+        },
+      }
     );
 
     renderer.unmount();
@@ -327,7 +308,6 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomFocusEvent(roomId, eventId, opts);
     });
 
-    expect(mocks.replaceState).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledWith(
       withSearchParam(getHomeRoomPath(roomId, eventId), { focusEvent: '1' }),
       opts
