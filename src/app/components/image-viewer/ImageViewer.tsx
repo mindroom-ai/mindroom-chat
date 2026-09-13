@@ -16,7 +16,7 @@ export type ImageViewerProps = {
 
 export const ImageViewer = as<'div', ImageViewerProps>(
   ({ className, alt, src, requestClose, ...props }, ref) => {
-    const { zoom, zoomIn, zoomOut, setZoom } = useZoom(0.2);
+    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(0.2);
     const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
 
     const handleDownload = async () => {
@@ -28,6 +28,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       <Box
         className={classNames(css.ImageViewer, className)}
         direction="Column"
+        data-image-viewer="true"
         {...props}
         ref={ref}
       >
@@ -79,12 +80,14 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           className={css.ImageViewerContent}
           justifyContent="Center"
           alignItems="Center"
+          ref={zoomTargetRef}
         >
           <img
             className={css.ImageViewerImg}
             style={{
               cursor,
               transform: `scale(${zoom}) translate(${pan.translateX}px, ${pan.translateY}px)`,
+              transition: isZooming ? 'none' : undefined,
             }}
             src={src}
             alt={alt}

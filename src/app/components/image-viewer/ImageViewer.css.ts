@@ -25,6 +25,7 @@ export const ImageViewerContent = style([
     backgroundColor: color.Background.Container,
     color: color.Background.OnContainer,
     overflow: 'hidden',
+    touchAction: 'none',
   },
 ]);
 
