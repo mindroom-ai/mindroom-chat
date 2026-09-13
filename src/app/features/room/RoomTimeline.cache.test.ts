@@ -650,7 +650,7 @@ describe('RoomTimeline', () => {
     }
   });
 
-  it('shows pending local-echo zero-reply roots immediately in compact view', async () => {
+  it('shows pending encrypted local-echo zero-reply roots immediately in compact view', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     const firstThread = makeEvent('$thread-1', {
@@ -689,6 +689,7 @@ describe('RoomTimeline', () => {
         content: { body: 'Pending compact root' },
         isSending: true,
         ts: 0,
+        type: 'm.room.encrypted',
       });
       liveEvents.push(pendingRoot);
 
@@ -1823,6 +1824,64 @@ describe('RoomTimeline', () => {
         events: [],
         hasMoreBefore: false,
       });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      renderer?.unmount();
+    }
+  });
+
+  it('opens confirmed zero-reply roots without warning when no sdk thread model exists yet', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('./threadEventCache');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const threadId = '$zero-reply-root';
+    const rootEvent = makeEvent(threadId, {
+      content: { body: 'Fresh compact root' },
+      ts: 999_000,
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([rootEvent]),
+      findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    vi.mocked(loadLatestCachedThreadEvents).mockResolvedValue({
+      events: [],
+      hasMoreBefore: false,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          })
+        );
+        await flushAsyncWork(5);
+      });
+
+      await waitForCondition(
+        () =>
+          threadRenderStateMock.setSupplementalThreadEvents.mock.calls.some(
+            ([expectedThreadId, events]) =>
+              expectedThreadId === threadId &&
+              Array.isArray(events) &&
+              events.length === 1 &&
+              events[0] === rootEvent
+          ),
+        50
+      );
+      expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+        'Could not create thread object for',
+        threadId
+      );
+    } finally {
+      nowSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
       await act(async () => {
         await Promise.resolve();
       });

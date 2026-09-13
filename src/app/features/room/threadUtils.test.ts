@@ -11,6 +11,7 @@ import {
   getVisibleThreadMessageCount,
   getVisibleThreadParticipantIds,
   hasLoadedThreadReplyEvents,
+  isVisibleThreadTextMessageEventType,
   isVisibleThreadReplyEvent,
   isVisibleThreadReplyEventType,
   isThreadReplyEvent,
@@ -93,8 +94,15 @@ describe('buildThreadReplyCountMap', () => {
 });
 
 describe('isVisibleThreadReplyEventType', () => {
+  it('accepts renderable threaded text message event types', () => {
+    expect(isVisibleThreadTextMessageEventType('m.room.message')).toBe(true);
+    expect(isVisibleThreadTextMessageEventType('m.room.encrypted')).toBe(true);
+    expect(isVisibleThreadTextMessageEventType('com.mindroom.thread.tag')).toBe(false);
+  });
+
   it('accepts supported visible threaded event types', () => {
     expect(isVisibleThreadReplyEventType('m.room.message')).toBe(true);
+    expect(isVisibleThreadReplyEventType('m.room.encrypted')).toBe(true);
     expect(isVisibleThreadReplyEventType('m.sticker')).toBe(true);
     expect(isVisibleThreadReplyEventType('m.room.topic')).toBe(true);
   });

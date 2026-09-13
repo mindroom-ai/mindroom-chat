@@ -9,6 +9,7 @@ type LoginOptions = {
 };
 
 export const activeAccountButtonNamePattern = /Open (account switcher|settings) for /;
+const failedStartAccountPattern = /Failed to start account/i;
 
 export const accountRailButtonSelector = [
   'button[aria-label^="Open account switcher for "]',
@@ -18,9 +19,37 @@ export const accountRailButtonSelector = [
 ].join(', ');
 
 export const waitForLoggedInShell = async (page: Page) => {
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add account' })).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const failedStartAccount = page.getByText(failedStartAccountPattern);
+        if ((await failedStartAccount.count()) > 0) {
+          const retryButton = page.getByRole('button', { name: 'Retry' }).first();
+          if (await retryButton.isVisible().catch(() => false)) {
+            await retryButton.click();
+            await page.waitForTimeout(500);
+          }
+          return false;
+        }
+
+        if ((await page.getByText('Unexpected Application Error!').count()) > 0) {
+          return false;
+        }
+
+        const activeAccountButtons = await page
+          .getByRole('button', { name: activeAccountButtonNamePattern })
+          .count();
+        const addAccountButtons = await page.getByRole('button', { name: 'Add account' }).count();
+        return activeAccountButtons > 0 && addAccountButtons > 0;
+      },
+      {
+        timeout: 30_000,
+      }
+    )
+    .toBe(true);
+
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
+  await expect(page.getByText(failedStartAccountPattern)).toHaveCount(0);
 };
 
 export const expectLoggedInShellStable = async (

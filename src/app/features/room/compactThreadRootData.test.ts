@@ -321,6 +321,16 @@ describe('buildCompactThreadRootData', () => {
         now
       )
     ).toBe(true);
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent('~pending-encrypted', 'Pending encrypted local echo root', undefined, undefined, {
+          ts: 0,
+          type: 'm.room.encrypted',
+          isSending: true,
+        }),
+        now
+      )
+    ).toBe(true);
   });
 
   it('merges zero-reply compact roots back into absolute timeline order', () => {

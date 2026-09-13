@@ -23,9 +23,13 @@ export type VisibleThreadEventCollectionLike = {
   timeline?: MatrixEvent[];
 };
 
-const VISIBLE_THREAD_REPLY_EVENT_TYPES = new Set<string>([
+const VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES = new Set<string>([
   MessageEvent.RoomMessage,
   MessageEvent.RoomMessageEncrypted,
+]);
+
+const VISIBLE_THREAD_REPLY_EVENT_TYPES = new Set<string>([
+  ...VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES,
   MessageEvent.Sticker,
   StateEvent.RoomMember,
   StateEvent.RoomName,
@@ -43,6 +47,9 @@ export const eventBelongsToThread = (event: ThreadEventLike, threadId: string): 
 
 export const isThreadReplyEvent = (eventId: string, threadRootId?: string): boolean =>
   !!threadRootId && threadRootId !== eventId;
+
+export const isVisibleThreadTextMessageEventType = (eventType: string | undefined): boolean =>
+  !!eventType && VISIBLE_THREAD_TEXT_MESSAGE_EVENT_TYPES.has(eventType);
 
 export const isVisibleThreadReplyEventType = (eventType: string | undefined): boolean =>
   !!eventType && VISIBLE_THREAD_REPLY_EVENT_TYPES.has(eventType);

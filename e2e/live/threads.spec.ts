@@ -7,6 +7,7 @@ import {
 } from '../helpers/browserDiagnostics';
 import {
   createDefaultThreadFilterState,
+  createPrivateRoom,
   joinRoom,
   loginToMatrix,
   seedRoomOverviewState,
@@ -36,6 +37,9 @@ async function navigateToFixtureRoom(
 
 const getOverviewThreadButtons = (page: import('@playwright/test').Page) =>
   page.locator('button[aria-label^="Open thread:"]');
+
+const getMessageComposer = (page: import('@playwright/test').Page) =>
+  page.getByRole('textbox').first();
 
 test.describe('live threads', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -256,6 +260,50 @@ test.describe('live threads', () => {
     await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-navigation');
+  });
+
+  test('sending a new root message in compact view shows a zero-reply thread card immediately', async ({
+    page,
+  }) => {
+    const diagnostics = attachBrowserDiagnostics(page);
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    const stamp = Date.now();
+    const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+      name: `CINNY-068 ${stamp}`,
+      topic: 'Regression fixture for compact zero-reply root creation',
+    });
+    const rootBody = `CINNY-068 compact zero-reply root ${stamp}`;
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await seedRoomOverviewState({
+      page,
+      roomId,
+      userId: session.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    await waitForLoggedInShell(page);
+
+    const composer = getMessageComposer(page);
+    await composer.click();
+    await composer.fill(rootBody);
+    await composer.press('Enter');
+
+    const compactThreadButton = page.getByRole('button', {
+      name: new RegExp(`${escapeRegex(rootBody)}[\\s\\S]*0 replies`, 'i'),
+    });
+    await expect(compactThreadButton).toBeVisible({ timeout: 30_000 });
+
+    await compactThreadButton.click();
+    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
+
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'compact-zero-reply-root');
   });
 
   test('hidden threaded metadata relations do not inflate visible reply counts', async ({

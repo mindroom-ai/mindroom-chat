@@ -12,6 +12,7 @@ import {
   getEffectiveThreadRootActivityTs,
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
+import { isVisibleThreadTextMessageEventType } from './threadUtils';
 
 export type CompactThreadRootData = {
   ids: string[];
@@ -77,7 +78,7 @@ export const isZeroReplyStandaloneThreadRootEvent = (
 ): boolean => {
   const eventId = event?.getId();
   if (!event || !eventId) return false;
-  if (event.getType() !== 'm.room.message') return false;
+  if (!isVisibleThreadTextMessageEventType(event.getType())) return false;
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;
@@ -192,7 +193,7 @@ export const getCompactCachedThreadActivityTs = ({
     const isEdit = relationType === 'm.replace';
 
     if (!isRootEvent && !isThreadReply && !isEdit) return latestTs;
-    if (event.getType() !== 'm.room.message') return latestTs;
+    if (!isVisibleThreadTextMessageEventType(event.getType())) return latestTs;
 
     const activityTs = getEventActivityTs(event);
     if (latestTs === undefined) return activityTs;
