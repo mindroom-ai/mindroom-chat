@@ -143,8 +143,8 @@ export const useRoomViewThreadState = ({
     if (!lastExitedThread || lastExitedThread.roomId !== room.roomId) return;
 
     const targetThreadId = lastExitedThread.threadId;
-    setLastExitedThread(null);
     navigateRoomThread(room.roomId, targetThreadId);
+    setLastExitedThread(null);
   }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId]);
 
   useEdgeSwipeBack(handleExitThread, !!threadId);
