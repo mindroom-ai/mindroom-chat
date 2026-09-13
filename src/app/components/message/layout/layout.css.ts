@@ -145,6 +145,9 @@ export const BubbleContent = style({
   color: color.SurfaceVariant.OnContainer,
   borderRadius: config.radii.R500,
   position: 'relative',
+  vars: {
+    '--collapsible-gradient-end': color.SurfaceVariant.Container,
+  },
 });
 
 export const BubbleContentArrowLeft = style({
