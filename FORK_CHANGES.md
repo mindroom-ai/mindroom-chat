@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Composer and timeline feature ownership (2026-09-13)
+
+- Composer feature owners now include editor controls, reply presentation, attachment staging and enrollment, and voice recording and sending.
+  Each owner holds its feature state, effects, UI, and cleanup.
+  The parent retains draft persistence, serialization, commands, and submit routing, shrinking from 1,415 to 365 lines.
+- Attachment consumers use synchronous snapshots and explicit operations instead of shared mutable refs.
+  Staged attachments remain distinct from enrolled send items, and temporary paste reservations prevent automatic orphan cleanup without blocking explicit cancellation.
+  Voice sending retains originating-room cleanup, global claims, companion ordering, retries, and accepted-voice/caption-failure handling.
+- Timeline message rendering owns presentation policy, editing, dispatch, the common message frame, content bodies, and manual and live expansion state.
+  The timeline parent retains cache, pagination, grouping, and viewport coordination, shrinking from 3,239 to 2,402 lines.
+  Message state initializes before viewport consumers, while concrete rendering data binds later without reordering viewport effects.
+  Synchronous hidden-row dispatch and each event kind's reply, editing, and thread-badge policy remain intact.
+- A separate fix resolves message body content inside the decryption callback.
+  A real Matrix event decryption regression test reproduces the former stale body snapshot before the fix and passes afterward, including subscription replacement and unmount cleanup.
+- All eighteen public facade exports remain available, with no dependency changes.
+  The upstream rebase guide maps the complete feature owners and the interfaces that future upstream changes must preserve.
+  Feature refactors, the decryption fix, and the integration test fixture migration have separate focused commits and independent reviews.
+- Verification: all 483 Vitest files and 3,769 tests pass under pinned Node 24.13.1.
+  Typecheck, production/PWA builds with Element Call verification, and full lint pass with zero errors and the existing seventeen warnings.
+  The room lifecycle integration fixture now uses the attachment operation contract and subscription wake-up; its test body and assertions are unchanged.
+
 ### UI component responsibility extraction (2026-09-13)
 
 - Extend the Matrix lifecycle cleanup across three existing UI files with eleven focused modules.

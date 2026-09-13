@@ -62,14 +62,36 @@ Message, composer, and timeline responsibilities also have focused owners:
 | Attachment preparation and encryption                                    | `room-input/roomInputUploadPreparation.ts`    |
 | Upload transport and voice upload content                                | `room-input/useRoomInputUploadTransport.ts`   |
 | Synchronous paste fallback and large pasted-text attachments             | `room-input/useRoomInputPaste.ts`             |
+| Editor keyboard, autocomplete, toolbar, emoji and sticker controls       | `room-input/RoomInputEditor.tsx`              |
+| Reply identity, colors and pending-send context                          | `room-input/RoomInputReplyPreview.tsx`        |
+| Attachment staging, enrollment, reservations and upload-board UI         | `room-input/useRoomInputAttachments.tsx`      |
+| Recorder controls, failed voice drafts and voice bundle sending          | `room-input/useRoomInputVoice.tsx`            |
 | Membership, room changes, call membership and generic event presentation | `threads/roomTimelineStateEventRenderers.tsx` |
 | Profile, mention, reply, reaction and edit interactions                  | `threads/useRoomTimelineMessageActions.ts`    |
 | Pointer eligibility, item derivation and minimap selection               | `threads/useRoomTimelineMinimap.ts`           |
 
 Keep the public exports of `MindroomMessage.tsx`, `MindroomRoomInput.tsx`, and `MindroomRoomTimeline.tsx` compatible.
 Their extracted modules must import their dependencies directly, without importing the parent facade.
-Keep send-session and voice-bundle coordination in the composer, and keep cache, pagination, and scroll coordination in the timeline.
-These components remain substantial because those state transitions are coupled.
+The composer parent owns draft persistence, serialization, commands and submission routing.
+Editor controls, attachment staging and voice sending each own their state, lifecycle and UI.
+Attachment consumers use synchronous snapshots and explicit append, removal, enrollment and reservation operations; they do not share the owner's mutable refs.
+Paste reservations prevent automatic orphan cleanup while a voice bundle claims its companions, but explicit removal remains authoritative.
+Keep claimed sends usable after unmount and preserve the originating room when reading or clearing drafts and uploads.
+Timeline message rendering has its own owners under `threads/message-rendering/`:
+
+| Responsibility                                                      | Module                            |
+| ------------------------------------------------------------------- | --------------------------------- |
+| Presentation settings, permissions, editing and event dispatch      | `useTimelineMessageFeature.tsx`   |
+| Shared row layout, reactions, reply previews and thread badges      | `TimelineMessageFrame.tsx`        |
+| Text, approvals, stickers and encrypted message content             | `TimelineMessageBody.tsx`         |
+| Manual and live expansion state, bulk controls and scroll anchoring | `useTimelineMessageExpansion.tsx` |
+
+Message state initializes before viewport controllers consume editing and expansion commands.
+Concrete thread data and navigation bind later when rendering rows; viewport effects do not need to move to satisfy that dependency.
+Capture each row's previous event ID before advancing the grouping cursor.
+Keep dispatch synchronous because hidden-row results determine grouping and divider behavior.
+Share the message frame while preserving each event kind's editing, reply and thread-badge policy.
+Keep cache, pagination, and scroll coordination in the timeline.
 Future extractions should establish a useful interface before moving another block of code.
 Keep the paste handler synchronous: an unhandled paste must return `undefined` so Slate can run its default behavior.
 Inspect corresponding upstream renderer and composer changes even when the compatibility wrappers merge cleanly.
