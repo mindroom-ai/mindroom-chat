@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
-import { PARTICLE_BACKGROUND_COLOR } from '../particle-background/particleBackgroundTheme';
+import { particleBackgroundColorVar } from '../particle-background/particleBackgroundTheme.css';
 
 export const SplashScreen = style({
   minHeight: '100%',
@@ -12,7 +12,7 @@ export const SplashScreen = style({
 });
 
 export const SplashScreenParticle = style({
-  backgroundColor: PARTICLE_BACKGROUND_COLOR,
+  backgroundColor: particleBackgroundColorVar,
 });
 
 export const SplashScreenContent = style({

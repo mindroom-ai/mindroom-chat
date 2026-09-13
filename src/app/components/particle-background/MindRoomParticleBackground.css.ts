@@ -1,13 +1,13 @@
 import { style } from '@vanilla-extract/css';
 
-import { PARTICLE_BACKGROUND_RADIAL_GRADIENT } from './particleBackgroundTheme';
+import { particleBackgroundGradientVar } from './particleBackgroundTheme.css';
 
 export const ParticleBackground = style({
   position: 'absolute',
   inset: 0,
   zIndex: 0,
   pointerEvents: 'none',
-  background: PARTICLE_BACKGROUND_RADIAL_GRADIENT,
+  background: particleBackgroundGradientVar,
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       opacity: 0.75,
