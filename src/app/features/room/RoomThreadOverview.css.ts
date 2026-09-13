@@ -46,6 +46,25 @@ export const ToggleSortSeparator = style({
 
 const TOGGLE_SIZE = toRem(32);
 
+export const ToggleButtonWrap = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(2),
+});
+
+export const ToggleCount = style({
+  fontSize: toRem(11),
+  lineHeight: '1',
+  color: color.SurfaceVariant.OnContainer,
+  opacity: config.opacity.P300,
+  userSelect: 'none',
+  minWidth: toRem(8),
+});
+
+export const ToggleCountActive = style({
+  opacity: '1',
+});
+
 export const ToggleButton = style({
   display: 'inline-flex',
   alignItems: 'center',

@@ -638,6 +638,43 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 
+  // ═══ computeStatusCounts ═══════════════════════════════════════════════
+
+  describe('computeStatusCounts', () => {
+    it('counts threads matching each dimension', async () => {
+      const { computeStatusCounts } = await import('./roomThreadOverviewModel');
+      const metadataMap = new Map<string, ThreadOverviewMetadata>([
+        ['$a', mkMeta({ isResolved: true, isStreaming: false, scheduledTaskCount: 0, isUnread: false })],
+        ['$b', mkMeta({ isResolved: false, isStreaming: true, scheduledTaskCount: 0, isUnread: true })],
+        ['$c', mkMeta({ isResolved: true, isStreaming: false, scheduledTaskCount: 2, isUnread: true })],
+        ['$d', mkMeta({ isResolved: true, isStreaming: false, scheduledTaskCount: 0, isUnread: false })],
+      ]);
+      const counts = computeStatusCounts(['$a', '$b', '$c', '$d'], metadataMap);
+      expect(counts.resolved).toBe(3);
+      expect(counts.streaming).toBe(1);
+      expect(counts.scheduled).toBe(1);
+      expect(counts.unread).toBe(2);
+      // idle = resolved && !streaming && scheduledTaskCount===0: $a, $d
+      expect(counts.idle).toBe(2);
+    });
+
+    it('returns zeros for empty list', async () => {
+      const { computeStatusCounts } = await import('./roomThreadOverviewModel');
+      const counts = computeStatusCounts([], new Map());
+      expect(counts).toEqual({ resolved: 0, streaming: 0, scheduled: 0, unread: 0, idle: 0 });
+    });
+
+    it('skips IDs with no metadata', async () => {
+      const { computeStatusCounts } = await import('./roomThreadOverviewModel');
+      const metadataMap = new Map<string, ThreadOverviewMetadata>([
+        ['$a', mkMeta({ isStreaming: true })],
+      ]);
+      const counts = computeStatusCounts(['$a', '$missing'], metadataMap);
+      expect(counts.streaming).toBe(1);
+      expect(counts.resolved).toBe(0);
+    });
+  });
+
   // ═══ Legacy tests preserved (getRoomScheduledTaskCounts, isThreadUnread, etc.) ═══
 
   describe('getRoomScheduledTaskCounts', () => {

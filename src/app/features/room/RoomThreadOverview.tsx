@@ -8,6 +8,7 @@ import type {
   ThreadFilterState,
   ThreadFilterKey,
   TriState,
+  StatusCounts,
 } from './roomThreadOverviewModel';
 import { hasActiveThreadFilters } from './roomThreadOverviewModel';
 
@@ -66,46 +67,61 @@ const getTagTooltipText = (tag: string, state: TriState): string => {
 function TriStateIconToggle({
   filterKey,
   state,
+  count,
   onToggle,
   children,
 }: {
   filterKey: ThreadFilterKey;
   state: TriState;
+  count?: number;
   onToggle: (key: ThreadFilterKey) => void;
   children: React.ReactNode;
 }) {
   const tooltipText = getTooltipText(filterKey, state);
 
   return (
-    <TooltipProvider
-      position="Bottom"
-      align="Center"
-      tooltip={
-        <Tooltip style={{ maxWidth: toRem(280) }}>
-          <Text size="T200">{tooltipText}</Text>
-        </Tooltip>
-      }
-    >
-      {(triggerRef) => (
-        <button
-          ref={triggerRef}
-          type="button"
+    <span className={css.ToggleButtonWrap}>
+      <TooltipProvider
+        position="Bottom"
+        align="Center"
+        tooltip={
+          <Tooltip style={{ maxWidth: toRem(280) }}>
+            <Text size="T200">{tooltipText}</Text>
+          </Tooltip>
+        }
+      >
+        {(triggerRef) => (
+          <button
+            ref={triggerRef}
+            type="button"
+            className={classNames(
+              css.ToggleButton,
+              state === 'include' && css.ToggleInclude,
+              state === 'exclude' && css.ToggleExclude
+            )}
+            onClick={() => onToggle(filterKey)}
+            aria-roledescription="tri-state toggle"
+            aria-valuetext={getAriaValueText(state)}
+            aria-label={tooltipText}
+            data-filter-key={filterKey}
+            data-filter-state={state}
+          >
+            {children}
+          </button>
+        )}
+      </TooltipProvider>
+      {count !== undefined && (
+        <span
           className={classNames(
-            css.ToggleButton,
-            state === 'include' && css.ToggleInclude,
-            state === 'exclude' && css.ToggleExclude
+            css.ToggleCount,
+            state !== 'any' && css.ToggleCountActive
           )}
-          onClick={() => onToggle(filterKey)}
-          aria-roledescription="tri-state toggle"
-          aria-valuetext={getAriaValueText(state)}
-          aria-label={tooltipText}
-          data-filter-key={filterKey}
-          data-filter-state={state}
+          data-status-count={filterKey}
         >
-          {children}
-        </button>
+          {count}
+        </span>
       )}
-    </TooltipProvider>
+    </span>
   );
 }
 
@@ -294,6 +310,7 @@ function AddTagDropdown({
 
 export type RoomThreadOverviewProps = {
   threadCount: number;
+  statusCounts?: StatusCounts;
   state: ThreadFilterState;
   availableTags: string[];
   onToggle: (key: ThreadFilterKey) => void;
@@ -306,6 +323,7 @@ export type RoomThreadOverviewProps = {
 
 export function RoomThreadOverview({
   threadCount,
+  statusCounts,
   state,
   availableTags,
   onToggle,
@@ -343,6 +361,7 @@ export function RoomThreadOverview({
             <TriStateIconToggle
               filterKey="resolved"
               state={state.resolved}
+              count={statusCounts?.resolved}
               onToggle={onToggle}
             >
               <Icon size="50" src={Icons.CheckTwice} />
@@ -351,6 +370,7 @@ export function RoomThreadOverview({
             <TriStateIconToggle
               filterKey="streaming"
               state={state.streaming}
+              count={statusCounts?.streaming}
               onToggle={onToggle}
             >
               <span className={replyCss.ThreadStreamingDot} aria-hidden="true" />
@@ -359,6 +379,7 @@ export function RoomThreadOverview({
             <TriStateIconToggle
               filterKey="scheduled"
               state={state.scheduled}
+              count={statusCounts?.scheduled}
               onToggle={onToggle}
             >
               <IconCalendarEvent
@@ -372,6 +393,7 @@ export function RoomThreadOverview({
             <TriStateIconToggle
               filterKey="unread"
               state={state.unread}
+              count={statusCounts?.unread}
               onToggle={onToggle}
             >
               <Icon size="50" src={Icons.MessageUnread} />
@@ -380,6 +402,7 @@ export function RoomThreadOverview({
             <TriStateIconToggle
               filterKey="idle"
               state={state.idle}
+              count={statusCounts?.idle}
               onToggle={onToggle}
             >
               <IconZzz size={14} stroke={1.8} aria-hidden="true" />

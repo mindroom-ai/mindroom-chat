@@ -28,9 +28,12 @@ vi.mock('./RoomThreadOverview.css', () => ({
   ToolbarHeader: 'ToolbarHeader',
   ToolbarControls: 'ToolbarControls',
   ToggleGroup: 'ToggleGroup',
+  ToggleButtonWrap: 'ToggleButtonWrap',
   ToggleButton: 'ToggleButton',
   ToggleInclude: 'ToggleInclude',
   ToggleExclude: 'ToggleExclude',
+  ToggleCount: 'ToggleCount',
+  ToggleCountActive: 'ToggleCountActive',
   ToggleSortSeparator: 'ToggleSortSeparator',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
@@ -306,6 +309,70 @@ describe('RoomThreadOverview', () => {
       (node) => node.props['aria-label'] === 'Reset all thread filters'
     );
     expect(resetBtns).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  // ═══ Status counts ═════════════════════════════════════════════════════
+
+  it('renders status counts next to each toggle when provided', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        statusCounts: { resolved: 42, streaming: 3, scheduled: 5, unread: 12, idle: 28 },
+      })
+    );
+
+    const countNodes = renderer.root.findAll(
+      (node) => node.props['data-status-count'] !== undefined
+    );
+    expect(countNodes).toHaveLength(5);
+
+    const countMap = Object.fromEntries(
+      countNodes.map((n) => [n.props['data-status-count'], n.children[0]])
+    );
+    expect(countMap).toEqual({
+      resolved: '42',
+      streaming: '3',
+      scheduled: '5',
+      unread: '12',
+      idle: '28',
+    });
+
+    renderer.unmount();
+  });
+
+  it('does not render count badges when statusCounts is not provided', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, defaultProps)
+    );
+
+    const countNodes = renderer.root.findAll(
+      (node) => node.props['data-status-count'] !== undefined
+    );
+    expect(countNodes).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('uses active count style when filter is not any', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        statusCounts: { resolved: 10, streaming: 0, scheduled: 0, unread: 0, idle: 0 },
+        state: makeDefaultState({ resolved: 'include' }),
+      })
+    );
+
+    const resolvedCount = renderer.root.find(
+      (node) => node.props['data-status-count'] === 'resolved'
+    );
+    expect(resolvedCount.props.className).toContain('ToggleCountActive');
+
+    const streamingCount = renderer.root.find(
+      (node) => node.props['data-status-count'] === 'streaming'
+    );
+    expect(streamingCount.props.className).not.toContain('ToggleCountActive');
 
     renderer.unmount();
   });
