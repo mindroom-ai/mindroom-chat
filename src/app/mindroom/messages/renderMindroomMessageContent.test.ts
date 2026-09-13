@@ -93,6 +93,39 @@ vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Markdown: 'Markdown',
 }));
 
+vi.mock('./MindroomMessageExtras', () => {
+  const extrasKey = 'com.mindroom.message_extras';
+
+  return {
+    MINDROOM_MESSAGE_EXTRAS_KEY: extrasKey,
+    parseMindroomMessageExtras: (content: Record<string, any>) => {
+      const rawExtras = content[extrasKey];
+      if (rawExtras?.version !== 1 || !Array.isArray(rawExtras.sections)) return null;
+      return {
+        sections: rawExtras.sections.map((section: any) => ({
+          title: section.title,
+          contentType: section.content_type,
+          content: section.content,
+          collapsed: section.collapsed,
+        })),
+      };
+    },
+    MindroomMessageExtras: ({ extras }: any) =>
+      React.createElement(
+        'div',
+        { 'data-renderer': 'extras' },
+        extras.sections.map((section: any) =>
+          React.createElement(
+            'section',
+            { key: `${section.title}:${section.contentType}` },
+            section.title,
+            section.content
+          )
+        )
+      ),
+  };
+});
+
 const messageExtras = {
   version: 1,
   sections: [
@@ -165,6 +198,31 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).toContain('Normal body');
     expect(rendered).toContain('Evidence');
     expect(rendered).toContain('extra payload');
+
+    renderer.unmount();
+  });
+
+  it('synthesizes safe formatted body for plain text tool markers', async () => {
+    toolTraceParserOptionsMock.mockClear();
+
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: ['Before <unsafe>', '', '🔧 `run_shell_command` [1]', '', 'After'].join('\n'),
+      },
+    });
+
+    expect(toolTraceParserOptionsMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        formatted_body: [
+          '<p>Before &lt;unsafe&gt;</p>',
+          '<p>🔧 <code>run_shell_command</code> [1]</p>',
+          '<p>After</p>',
+        ].join(''),
+      })
+    );
 
     renderer.unmount();
   });

@@ -1,16 +1,8 @@
 import React, { ReactNode, useState } from 'react';
-import {
-  Element,
-  HTMLReactParserOptions,
-  Text as DOMText,
-  domToReact,
-} from 'html-react-parser';
+import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
-import {
-  MindroomToolRefParseResult,
-  parseMindroomToolRefHtml,
-} from './blocks';
+import { MindroomToolRefParseResult, parseMindroomToolRefHtml } from './blocks';
 import {
   MindroomToolTraceEvent,
   getMindroomToolTraceEvents,
@@ -100,11 +92,7 @@ function MindroomCollapsibleBlock({
 
   return (
     <Text as="div" size="T300" className={css.Block}>
-      <button
-        type="button"
-        className={css.BlockHeader}
-        onClick={() => setExpanded((v) => !v)}
-      >
+      <button type="button" className={css.BlockHeader} onClick={() => setExpanded((v) => !v)}>
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
           {pending !== undefined && <ToolStatusBadge pending={pending} />}
@@ -393,10 +381,9 @@ export const withMindroomToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>
 ): HTMLReactParserOptions => {
-  if (!isMindroomToolTraceV2(content)) return baseOpts;
-
-  const traceEvents = getMindroomToolTraceEvents(content);
-  if (!traceEvents || traceEvents.length === 0) return baseOpts;
+  const traceEvents = isMindroomToolTraceV2(content)
+    ? getMindroomToolTraceEvents(content)
+    : undefined;
 
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -430,7 +417,7 @@ export const withMindroomToolTraceMarkerParserOptions = (
           const toolRef = parseMindroomToolRefHtml(toolRefPrefix.html);
           if (!toolRef) return undefined;
 
-          const data = buildToolRefRenderData(toolRef, traceEvents[toolRef.index - 1]);
+          const data = buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1]);
           const clonedTrailingChildren = toolRefPrefix.trailingChildren.map((child) =>
             cloneDomChildNode(child)
           );

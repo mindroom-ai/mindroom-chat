@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
+  formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
 } from './blocks';
@@ -51,5 +52,34 @@ describe('parseMindroomToolRefText', () => {
 
   it('returns undefined for non-marker text', () => {
     expect(parseMindroomToolRefText('normal response text')).toBeUndefined();
+  });
+});
+
+describe('formatMindroomToolRefTextBodyAsHtml', () => {
+  it('converts plain text tool marker lines to the formatted marker contract', () => {
+    expect(
+      formatMindroomToolRefTextBodyAsHtml(
+        [
+          'Before <unsafe>',
+          '',
+          '🔧 `run_shell_command` [1]',
+          '',
+          'After & done',
+          'same paragraph',
+          '🔧 `edit_file` [2] ⏳',
+        ].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>Before &lt;unsafe&gt;</p>',
+        '<p>🔧 <code>run_shell_command</code> [1]</p>',
+        '<p>After &amp; done<br/>same paragraph</p>',
+        '<p>🔧 <code>edit_file</code> [2] ⏳</p>',
+      ].join('')
+    );
+  });
+
+  it('returns undefined when the plain body has no tool refs', () => {
+    expect(formatMindroomToolRefTextBodyAsHtml('plain response')).toBeUndefined();
   });
 });

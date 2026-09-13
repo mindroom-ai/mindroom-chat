@@ -178,14 +178,15 @@ const collectStructuralTableWhitespace = (
 };
 
 describe('withMindroomToolTraceMarkerParserOptions', () => {
-  it('renders tool blocks only when hydrated content carries tool-trace metadata', () => {
+  it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {
     const html = '<p>🔧 <code>search_web</code> [1]</p>';
 
     const previewMarkup = renderWithToolTrace(html, {
       body: 'preview',
       formatted_body: html,
     });
-    expect(previewMarkup).not.toContain('>Tool<');
+    expect(previewMarkup).toContain('1 tool call');
+    expect(previewMarkup).not.toContain('🔧');
 
     const hydratedMarkup = renderWithToolTrace(html, {
       body: 'full response',
@@ -196,6 +197,22 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
       },
     });
     expect(hydratedMarkup).toContain('1 tool call');
+  });
+
+  it('expands marker-only tool refs with the marker tool name', () => {
+    const renderer = renderTreeWithToolTrace('<p>🔧 <code>run_shell_command</code> [1]</p>', {});
+
+    expect(collectTextContent(renderer.toJSON())).toContain('1 tool call');
+
+    const toggle = renderer.root.findByType('button');
+    act(() => {
+      toggle.props.onClick();
+    });
+
+    const expanded = collectTextContent(renderer.toJSON());
+    expect(expanded).toContain('Tool #1: run_shell_command');
+    expect(expanded).toContain('✓');
+    expect(expanded).not.toContain('🔧');
   });
 
   it('groups consecutive markers into one tool-calls block', () => {
