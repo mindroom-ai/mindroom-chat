@@ -3,6 +3,11 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
   @just --list
 
+# Reinstall dependencies and rebuild the web app
+rebuild:
+  npm ci
+  npm run build
+
 # Full refresh after pulling commits (safe if dependencies changed)
 ios-rebuild:
   npm install
