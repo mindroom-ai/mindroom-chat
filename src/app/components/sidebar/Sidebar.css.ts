@@ -63,6 +63,26 @@ export const DropTarget = style({
   },
 });
 
+const webkitUserDrag = {
+  WebkitUserDrag: 'none',
+} as Record<string, string>;
+
+export const SidebarDragSource = style({
+  touchAction: 'none',
+  WebkitTouchCallout: 'none',
+  WebkitUserSelect: 'none',
+  userSelect: 'none',
+  ...webkitUserDrag,
+});
+
+export const SidebarRowDragSource = style({
+  touchAction: 'pan-y',
+  WebkitTouchCallout: 'none',
+  WebkitUserSelect: 'none',
+  userSelect: 'none',
+  ...webkitUserDrag,
+});
+
 const PUSH_X = 2;
 export const SidebarItem = recipe({
   base: [
