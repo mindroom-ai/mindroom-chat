@@ -862,6 +862,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           !isComposing(evt)
         ) {
           evt.preventDefault();
+          if (autocompleteQuery) return;
           submit();
         }
         if (isKeyHotkey('escape', evt)) {

@@ -12,7 +12,7 @@ export interface KeyboardEventLike {
 }
 
 export const onTabPress = (evt: KeyboardEventLike, callback: () => void) => {
-  if (isKeyHotkey('tab', evt)) {
+  if (isKeyHotkey('tab', evt) || isKeyHotkey('enter', evt)) {
     evt.preventDefault();
     callback();
   }
