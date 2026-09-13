@@ -139,6 +139,61 @@ describe('useThreadBackPaginationController', () => {
     renderer.unmount();
   });
 
+  it('exposes the pending anchor event id until restore or reset clears it', () => {
+    const { getController, renderer } = renderController();
+    const anchor = makeMessageElement('$anchor', 140, 180);
+    const scrollRoot = makeScrollRoot([anchor]);
+
+    expect(getController().getPendingAnchorEventId()).toBeUndefined();
+
+    act(() => {
+      getController().begin('$thread', scrollRoot, 200);
+    });
+
+    expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+
+    act(() => {
+      getController().reset();
+    });
+
+    expect(getController().getPendingAnchorEventId()).toBeUndefined();
+
+    act(() => {
+      getController().begin('$thread', scrollRoot, 200);
+    });
+
+    expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+
+    const shiftedScrollRoot = makeScrollRoot([makeMessageElement('$anchor', 420, 460)]);
+    act(() => {
+      expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(true);
+    });
+
+    expect(getController().getPendingAnchorEventId()).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('clears the pending anchor on demand without touching pagination state', () => {
+    const { getController, renderer } = renderController();
+    const anchor = makeMessageElement('$anchor', 140, 180);
+    const scrollRoot = makeScrollRoot([anchor]);
+
+    act(() => {
+      getController().begin('$thread', scrollRoot, 200);
+    });
+    expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+
+    act(() => {
+      getController().clearPendingAnchor();
+    });
+
+    expect(getController().getPendingAnchorEventId()).toBeUndefined();
+    expect(getController().isPaginatingBackRef.current).toBe(true);
+
+    renderer.unmount();
+  });
+
   it('finishes failed pagination by clearing the paginating flag and pending anchor', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);

@@ -32,6 +32,8 @@ const {
   directRoomState,
   aliveFn,
   reactionOrEditEventMock,
+  inSameDayMock,
+  timeDayMonthYearMock,
   isMembershipChangedMock,
   matrixClientMock,
   navigateRoomMock,
@@ -68,6 +70,8 @@ const {
   directRoomState: { value: false },
   aliveFn: () => true,
   reactionOrEditEventMock: vi.fn(() => false),
+  inSameDayMock: vi.fn(() => true),
+  timeDayMonthYearMock: vi.fn(() => 'time'),
   isMembershipChangedMock: vi.fn(() => false),
   matrixClientMock: {
     fetchRelations: vi.fn(),
@@ -367,37 +371,70 @@ vi.mock('../../../components/virtualizer', () => ({
   ),
 }));
 
-vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: (options: {
-    count: number;
-    estimateSize?: () => number;
-    getItemKey?: (index: number) => unknown;
-  }) => {
-    roomTimelineVirtualizerState.lastOptions = options;
-    const estimatedSize = options.estimateSize?.() ?? 100;
-    const virtualIndexes =
-      roomTimelineVirtualizerState.virtualIndexes ??
-      Array.from({ length: options.count }, (_value, index) => index);
-
-    return {
-      getTotalSize: () => roomTimelineVirtualizerState.totalSize ?? options.count * estimatedSize,
-      getVirtualItems: () =>
-        virtualIndexes
-          .filter((index) => index >= 0 && index < options.count)
-          .map((index) => ({
-            end: (index + 1) * estimatedSize,
-            index,
-            key: options.getItemKey?.(index) ?? index,
-            lane: 0,
-            size: estimatedSize,
-            start: index * estimatedSize,
-          })),
-      measureElement: roomTimelineVirtualizerState.measureElementMock,
-      scrollToIndex: roomTimelineVirtualizerState.scrollToIndexMock,
-      scrollToOffset: roomTimelineVirtualizerState.scrollToOffsetMock,
-    };
-  },
-}));
+vi.mock('@tanstack/react-virtual', () => {
+  // The real useVirtualizer returns ONE stable instance for the component's
+  // lifetime (useState-backed). The mock must match, otherwise effects that
+  // list the virtualizer in their deps re-run on every render in tests but
+  // not in production — which has already masked two real production bugs in
+  // dep-gated timeline effects.
+  // Keyed on the single shared harness state, so ALL useVirtualizer callers in
+  // a test tree share one instance and one options ref. Safe while RoomTimeline
+  // is the only consumer in these trees; a second consumer would silently
+  // clobber __optionsRef each render — key per-consumer if that ever happens.
+  const instances = new WeakMap<object, Record<string, unknown>>();
+  return {
+    useVirtualizer: (options: {
+      count: number;
+      estimateSize?: () => number;
+      getItemKey?: (index: number) => unknown;
+    }) => {
+      roomTimelineVirtualizerState.lastOptions = options;
+      const latestOptionsRef = { current: options };
+      const key = roomTimelineVirtualizerState as unknown as object;
+      let instance = instances.get(key) as
+        | (Record<string, unknown> & { __optionsRef: { current: typeof options } })
+        | undefined;
+      if (instance) {
+        instance.__optionsRef.current = options;
+        return instance;
+      }
+      const optionsRef = latestOptionsRef;
+      instance = {
+        __optionsRef: optionsRef,
+        getTotalSize: () => {
+          const opts = optionsRef.current;
+          const estimatedSize = opts.estimateSize?.() ?? 100;
+          return roomTimelineVirtualizerState.totalSize ?? opts.count * estimatedSize;
+        },
+        getVirtualItems: () => {
+          const opts = optionsRef.current;
+          const estimatedSize = opts.estimateSize?.() ?? 100;
+          const virtualIndexes =
+            roomTimelineVirtualizerState.virtualIndexes ??
+            Array.from({ length: opts.count }, (_value, index) => index);
+          return virtualIndexes
+            .filter((index) => index >= 0 && index < opts.count)
+            .map((index) => ({
+              end: (index + 1) * estimatedSize,
+              index,
+              key: opts.getItemKey?.(index) ?? index,
+              lane: 0,
+              size: estimatedSize,
+              start: index * estimatedSize,
+            }));
+        },
+        measureElement: (node: Element | null) =>
+          roomTimelineVirtualizerState.measureElementMock(node),
+        scrollToIndex: (...args: unknown[]) =>
+          roomTimelineVirtualizerState.scrollToIndexMock(...args),
+        scrollToOffset: (...args: unknown[]) =>
+          roomTimelineVirtualizerState.scrollToOffsetMock(...args),
+      };
+      instances.set(key, instance);
+      return instance;
+    },
+  };
+});
 
 vi.mock('../../../hooks/useMatrixEventRenderer', () => ({
   useMatrixEventRenderer:
@@ -612,6 +649,7 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
+    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     expandAllMessages: vi.fn(),
     collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({
@@ -651,11 +689,11 @@ vi.mock('../../../utils/dom', () => ({
 }));
 
 vi.mock('../../../utils/time', () => ({
-  inSameDay: () => true,
+  inSameDay: inSameDayMock,
   minuteDifference: () => 0,
-  timeDayMonthYear: () => 'time',
-  today: 'today',
-  yesterday: 'yesterday',
+  timeDayMonthYear: timeDayMonthYearMock,
+  today: () => false,
+  yesterday: () => false,
 }));
 
 vi.mock('../../../components/editor', () => ({
@@ -1669,6 +1707,8 @@ export {
   navigateRoomMock,
   navigateRoomThreadMock,
   reactionOrEditEventMock,
+  inSameDayMock,
+  timeDayMonthYearMock,
   roomIntroType,
   roomThreadListThreadsMock,
   roomThreadOverviewType,

@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
-import type { ThreadRecord } from './types';
+import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactThreadCard } from './CompactThreadCard';
 import * as css from './CompactRoomView.css';
 
@@ -25,6 +25,24 @@ export function CompactRoomView({
     threadRecordMap,
   });
 
+  // A fully stable click handler keeps the memoized cards from re-rendering
+  // when unrelated threads update; the per-thread summary text and the latest
+  // onThreadClick are resolved through refs at click time.
+  const viewModelByRootRef = useRef<ReadonlyMap<string, CompactThreadCardViewModel>>(new Map());
+  const onThreadClickRef = useRef(onThreadClick);
+  // Synced after commit (not during render) so a discarded concurrent render
+  // cannot leave uncommitted view models behind the stable click handler.
+  useLayoutEffect(() => {
+    viewModelByRootRef.current = new Map(
+      cardViewModels.map((viewModel) => [viewModel.id.threadRootId, viewModel])
+    );
+    onThreadClickRef.current = onThreadClick;
+  });
+  const handleCardClick = useCallback((clickedThreadRootId: string) => {
+    const viewModel = viewModelByRootRef.current.get(clickedThreadRootId);
+    onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
+  }, []);
+
   if (threadRootIds.length === 0) {
     return (
       <Box className={css.View} data-compact-room-view="true">
@@ -43,9 +61,7 @@ export function CompactRoomView({
         <CompactThreadCard
           key={viewModel.id.threadRootId}
           viewModel={viewModel}
-          onClick={(clickedThreadRootId) =>
-            onThreadClick(clickedThreadRootId, viewModel.recentThreadSummaryText)
-          }
+          onClick={handleCardClick}
         />
       ))}
     </Box>

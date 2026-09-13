@@ -1,12 +1,27 @@
-import React, { ReactNode, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  ReactNode,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
 import { Icon, Icons } from 'folds';
 import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '4.5em';
 
-// Global expand/collapse event bus
+// Global expand/collapse event bus that toggles already-mounted rows.
 type ExpandAllListener = (expand: boolean) => void;
 const listeners = new Set<ExpandAllListener>();
+
+// Virtualized timelines mount rows lazily, so an active expand/collapse-all must
+// also apply to rows mounted after the broadcast. The owning timeline provides
+// the current override through this context (scoped to that timeline instance,
+// read render-purely as the initial expanded state of newly-mounted rows).
+// `undefined` means "no override — use the per-message default".
+export const ExpandAllInitContext = React.createContext<boolean | undefined>(undefined);
 
 export function expandAllMessages() {
   listeners.forEach((fn) => fn(true));
@@ -86,8 +101,20 @@ export function CollapsibleMessage({
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const needsFocusOnCollapseRef = useRef(false);
+  const expandAllInit = useContext(ExpandAllInitContext);
   const [overflowing, setOverflowing] = useState(true);
-  const [expanded, setExpanded] = useState(() => collapseMode !== 'default');
+  const [expanded, setExpanded] = useState(() => {
+    // Live-expand-once rows must mount expanded even under an active
+    // collapse-all override; the mount effect would correct this anyway, but
+    // only after paint (a visible collapsed flash on virtualized mounts).
+    if (collapseMode === 'initially-expanded') {
+      return true;
+    }
+    if (!isExempt && expandAllInit !== undefined) {
+      return expandAllInit;
+    }
+    return collapseMode !== 'default';
+  });
 
   initialExpandConsumedRef.current = onInitialExpandConsumed;
 

@@ -96,7 +96,12 @@ import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/mat
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
 import { VirtualTile } from '../../components/virtualizer';
-import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from './CollapsibleMessage';
+import {
+  CollapsibleMessage,
+  ExpandAllInitContext,
+  expandAllMessages,
+  collapseAllMessages,
+} from './CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -129,7 +134,11 @@ import {
   getHydratedLongTextExtrasCollapseKey,
   shouldForceCollapsibleMessageOverflow,
 } from './threadCollapsibleMessages';
-import { buildResolveConfirmedEventId, dedupeThreadRenderEventEntries } from './threadRenderUtils';
+import {
+  buildResolveConfirmedEventId,
+  dedupeThreadRenderEventEntries,
+  primeTimelineRenderContextBefore,
+} from './threadRenderUtils';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -166,7 +175,12 @@ import {
   type FilterPreset,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
-import { isTimelineAtLiveEnd, shouldRenderUnreadDividerAt } from './timelineScrollUtils';
+import {
+  getEventElementById,
+  isScrollNearBottom,
+  isTimelineAtLiveEnd,
+  shouldRenderUnreadDividerAt,
+} from './timelineScrollUtils';
 import {
   resolveRoomTimelineViewState,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
@@ -366,7 +380,10 @@ export function RoomTimeline({
 
   const atBottomAnchorRef = useRef<HTMLElement>(null);
   const [atBottom, setAtBottom] = useState<boolean>(true);
-  const [allExpanded, setAllExpanded] = useState(false);
+  // `undefined` = no expand/collapse-all override; the timeline is keyed by
+  // room:thread, so this state (and the context derived from it) resets on
+  // navigation via remount.
+  const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
   const [hydratedLongTextExtrasCollapseKeys, setHydratedLongTextExtrasCollapseKeys] = useState<
@@ -392,14 +409,23 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
+  // Mirrored for callbacks that must keep a stable identity (measureThreadTile
+  // is every VirtualTile's ref; an identity change re-attaches all mounted
+  // rows and double-counts their heights in the row-size stats).
+  const threadLatestOpenPendingRef = useRef(threadLatestOpenPending);
+  threadLatestOpenPendingRef.current = threadLatestOpenPending;
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
     isPaginatingBack: threadPaginatingBack,
+    isPaginatingBackRef: threadPaginatingBackRef,
     suppressOpenBottomPinRef: suppressThreadOpenBottomPinRef,
     reset: resetThreadBackPagination,
     begin: beginThreadBackPagination,
     finish: finishThreadBackPagination,
+    clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
+    getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
+    getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
   const roomIdRef = useRef(room.roomId);
@@ -979,20 +1005,85 @@ export function RoomTimeline({
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
   const timelineItems = getItems();
+  // Learned mean of measured row heights for the open thread. A static
+  // estimate is far off for expanded rows (96/144 vs several hundred px), and
+  // every mount-above then corrects offsets by that error — visible as
+  // flicker/jumps during fast upward scrolling. Mechanics on virtual-core
+  // 3.2.0: estimateSize is NOT a virtualizer memo dependency; new estimates
+  // reach unmeasured rows because (i) state guarantees a render (a ref write
+  // from the measure callback might never trigger one) and (ii) the inline
+  // getItemKey arrow below invalidates memoOptions -> getMeasurements every
+  // render — a full rebuild that consults estimateSize for unmeasured items
+  // while measured heights persist in itemSizeCache. Do NOT memoize
+  // getItemKey without keying it on the learned size: a stable identity would
+  // stop new estimates from ever reaching the unvisited region above the
+  // viewport (getMeasurements then only recomputes from the min measured
+  // index up) and silently regress this fix. The rebuild's per-render cost is
+  // one O(count) pass of key/Map lookups — microseconds at current sizes.
+  const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
+  const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
+  const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
+  useEffect(() => {
+    threadRowSizeStatsRef.current = { total: 0, count: 0 };
+    setLearnedThreadRowSize(undefined);
+  }, [room.roomId, threadId, defaultRowEstimate]);
+  useEffect(() => {
+    // Expand/collapse-all changes the height regime; re-learn from fresh
+    // measurements (keeping the previous learned value until enough arrive).
+    threadRowSizeStatsRef.current = { total: 0, count: 0 };
+  }, [expandAllOverride]);
   const estimateRoomTimelineItemSize = useCallback(
-    () => (messageLayout === MessageLayout.Compact ? 96 : 144),
-    [messageLayout]
+    () => (threadId ? learnedThreadRowSize ?? defaultRowEstimate : defaultRowEstimate),
+    [defaultRowEstimate, learnedThreadRowSize, threadId]
   );
+  const maybeAdoptLearnedThreadRowSize = useCallback(() => {
+    const stats = threadRowSizeStatsRef.current;
+    if (stats.count < 8) return;
+    // Adopting a new estimate shifts every unmeasured row's offset with no
+    // scroll compensation. That is invisible while pinned at the bottom (the
+    // settle loop re-pins) but teleports a mid-thread reader, so defer
+    // adoption until the view is bottom-anchored again.
+    if (!atBottomRef.current && !threadLatestOpenPendingRef.current) return;
+    const mean = Math.round(stats.total / stats.count);
+    setLearnedThreadRowSize((current) => {
+      const reference = current ?? defaultRowEstimate;
+      // Hysteresis: only adopt when the learned mean is materially different,
+      // so the virtualizer is not recomputed on every measurement.
+      if (Math.abs(mean - reference) / reference < 0.25) return current;
+      return mean;
+    });
+  }, [defaultRowEstimate, threadLatestOpenPendingRef]);
   const roomTimelineVirtualizer = useVirtualizer({
-    count: threadId ? 0 : timelineItems.length,
+    count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
     getItemKey: (index) => {
+      if (threadId) {
+        return threadEvents[index]?.getId() ?? index;
+      }
       const item = timelineItems[index];
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
+  const measureThreadTile = useCallback(
+    (element: Element | null) => {
+      if (!element) return;
+      roomTimelineVirtualizer.measureElement(element);
+      const height = (element as HTMLElement).offsetHeight;
+      // Null-rendering edit/reaction rows measure 0 and are deliberately
+      // excluded so the mean tracks visible-row height; unmounted zero rows
+      // are therefore overestimated until they mount (accepted — see the
+      // declined renderable-only re-indexing follow-up in FORK_CHANGES.md).
+      if (height > 0) {
+        const stats = threadRowSizeStatsRef.current;
+        stats.total += height;
+        stats.count += 1;
+        maybeAdoptLearnedThreadRowSize();
+      }
+    },
+    [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
+  );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
     if (!anchor || threadId) return;
@@ -1049,9 +1140,15 @@ export function RoomTimeline({
   useLayoutEffect(() => {
     if (threadId || roomScrollToBottomCount <= 0 || roomTimelineLatestVirtualIndex < 0) return;
 
+    // Smooth scrolling to an unmounted target is unsupported with dynamic row
+    // measurement (it can stop short of the target); keep smooth only for the
+    // near-bottom case where the target row is already mounted.
+    const targetMounted = roomTimelineVirtualizer
+      .getVirtualItems()
+      .some((virtualItem) => virtualItem.index === roomTimelineLatestVirtualIndex);
     roomTimelineVirtualizer.scrollToIndex(roomTimelineLatestVirtualIndex, {
       align: roomOverviewOrderActive ? 'start' : 'end',
-      behavior: scrollToBottomRef.current.smooth ? 'smooth' : 'auto',
+      behavior: scrollToBottomRef.current.smooth && targetMounted ? 'smooth' : 'auto',
     });
     setAtBottom(true);
   }, [
@@ -1063,6 +1160,286 @@ export function RoomTimeline({
     setAtBottom,
     threadId,
   ]);
+  // Active settle loop's stop function; programmatic in-thread jumps cancel
+  // it so a streaming re-pin cannot yank a just-initiated jump back to the
+  // bottom (jumps emit no user scroll-intent events).
+  const threadSettleStopRef = useRef<(() => void) | undefined>(undefined);
+  // Thread bottom-pin settling: under virtualization the scroll height is an
+  // estimate until rows mount and measure, so a pin can land far off-bottom
+  // while measurements keep growing the total size (opening a large thread can
+  // need dozens of correction frames). Re-pin until the position is stably at
+  // the bottom, and stop immediately on user scroll intent so streaming
+  // re-pins cannot trap the user at the bottom.
+  useLayoutEffect(() => {
+    if (!threadId || roomScrollToBottomCount <= 0) {
+      return undefined;
+    }
+
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+
+    const userScrollIntentEvents = [
+      'wheel',
+      'touchstart',
+      'touchmove',
+      'pointerdown',
+      'keydown',
+    ] as const;
+    let rafId: number | undefined;
+    let remainingTicks = 150;
+    let stableTicks = 0;
+    let lastScrollTop = Number.NaN;
+    const removeListeners = () => {
+      userScrollIntentEvents.forEach((eventType) => {
+        scrollEl.removeEventListener(eventType, cancelOnUserScrollIntent);
+      });
+    };
+    const stop = () => {
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      rafId = undefined;
+      removeListeners();
+      if (threadSettleStopRef.current === stop) {
+        threadSettleStopRef.current = undefined;
+      }
+    };
+    threadSettleStopRef.current = stop;
+    function cancelOnUserScrollIntent() {
+      stop();
+    }
+    const settle = () => {
+      rafId = undefined;
+      // While a smooth pin animation is still moving, observe without
+      // correcting; once motion stops, instant-correct any leftover gap from
+      // rows that measured during the ride (a far Jump to Latest can land
+      // hundreds of px short of the true bottom otherwise).
+      const scrollInMotion = scrollEl.scrollTop !== lastScrollTop;
+      lastScrollTop = scrollEl.scrollTop;
+      if (!scrollInMotion) {
+        if (
+          isScrollNearBottom({
+            scrollHeight: scrollEl.scrollHeight,
+            scrollTop: scrollEl.scrollTop,
+            clientHeight: scrollEl.clientHeight,
+          })
+        ) {
+          stableTicks += 1;
+          if (stableTicks >= 2) {
+            stop();
+            return;
+          }
+        } else {
+          stableTicks = 0;
+          scrollToBottom(scrollEl, 'instant');
+        }
+      } else {
+        stableTicks = 0;
+      }
+      remainingTicks -= 1;
+      if (remainingTicks > 0) {
+        rafId = requestAnimationFrame(settle);
+      } else {
+        stop();
+      }
+    };
+    userScrollIntentEvents.forEach((eventType) => {
+      scrollEl.addEventListener(eventType, cancelOnUserScrollIntent, { passive: true });
+    });
+    rafId = requestAnimationFrame(settle);
+    return stop;
+  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadId]);
+  // Thread prepend compensation: after back-pagination prepends rows, virtual
+  // item indexes shift while the scroll offset still points at the old offset,
+  // which can unmount the captured anchor row. Scroll the anchor's new index
+  // into view first so the DOM-based restore (which runs after this effect, in
+  // useRoomFocusScrollController) can fine-correct against a mounted element.
+  // A prepend is detected by the pending anchor's index shifting upward
+  // versus its index captured at begin() (click) time: the thread root
+  // permanently occupies index 0, so watching the first event id would never
+  // fire, and observing renders/effects for the pre-prepend state is unsafe —
+  // the begin() render does not change threadEvents, so a dep-gated effect
+  // first sees the anchor only in the prepend render itself.
+  const threadVirtualPrependCaptureRef = useRef<
+    | {
+        threadId: string;
+        anchorEventId: string;
+        anchorIndex: number;
+        anchorSeq: number;
+      }
+    | undefined
+  >(undefined);
+  const beginThreadBackPaginationWithCapture = useCallback(
+    (
+      beginThreadId: string | undefined,
+      scrollRoot: HTMLElement | null | undefined,
+      eventCount?: number
+    ) => {
+      const began = beginThreadBackPagination(beginThreadId, scrollRoot, eventCount);
+      // begin() refuses while a pagination is in flight (the chip stays
+      // clickable showing "Loading..."); a refused call must not wipe the
+      // in-flight pagination's armed capture.
+      if (!began) return began;
+      threadVirtualPrependCaptureRef.current = undefined;
+      if (beginThreadId) {
+        const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+        const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
+        const anchorIndex =
+          anchorEventId === undefined
+            ? undefined
+            : threadEventIndexMapRef.current.get(anchorEventId);
+        if (
+          anchorEventId !== undefined &&
+          anchorSeq !== undefined &&
+          typeof anchorIndex === 'number'
+        ) {
+          threadVirtualPrependCaptureRef.current = {
+            threadId: beginThreadId,
+            anchorEventId,
+            anchorIndex,
+            anchorSeq,
+          };
+        }
+      }
+      return began;
+    },
+    [
+      beginThreadBackPagination,
+      getPendingThreadBackPaginationAnchorEventId,
+      getPendingThreadBackPaginationAnchorSeq,
+      threadEventIndexMapRef,
+    ]
+  );
+  // The fine-correction retry chain lives in a ref so unrelated threadEvents
+  // updates (e.g. streaming edits) cannot cancel it or expire the anchor; it
+  // ends on restore success, anchor expiry, a newer prepend, or unmount.
+  const threadPrependRetryRef = useRef<{ rafId?: number }>({});
+  const cancelThreadPrependRetry = useCallback(() => {
+    if (threadPrependRetryRef.current.rafId !== undefined) {
+      cancelAnimationFrame(threadPrependRetryRef.current.rafId);
+      threadPrependRetryRef.current.rafId = undefined;
+    }
+  }, []);
+  useEffect(() => cancelThreadPrependRetry, [cancelThreadPrependRetry]);
+  useLayoutEffect(() => {
+    const capture = threadVirtualPrependCaptureRef.current;
+    if (!capture || !threadId || capture.threadId !== threadId) return;
+    const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
+    if (
+      anchorEventId !== capture.anchorEventId ||
+      getPendingThreadBackPaginationAnchorSeq() !== capture.anchorSeq
+    ) {
+      // Anchor restored, cleared, or re-captured elsewhere; nothing left to
+      // compensate for THIS pagination.
+      threadVirtualPrependCaptureRef.current = undefined;
+      return;
+    }
+    const anchorIndex = threadEventIndexMapRef.current.get(anchorEventId);
+    if (typeof anchorIndex !== 'number' || anchorIndex <= capture.anchorIndex) return;
+    threadVirtualPrependCaptureRef.current = undefined;
+
+    // scrollToIndex exists only to mount an unmounted anchor row so the
+    // DOM-based restore has an element to align; when the row is already
+    // mounted, the coarse move just adds displacement for the restore to undo.
+    if (!getEventElementById(scrollRef.current, anchorEventId)) {
+      roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+    }
+
+    // The anchor row mounts on the virtualizer's next render, so the
+    // same-commit DOM restore in useRoomFocusScrollController can miss it.
+    // Retry the fine-correction over the next frames, then expire the anchor —
+    // a lingering anchor would fire a visible scroll jump on a later unrelated
+    // thread update.
+    cancelThreadPrependRetry();
+    const eventCountAtDetection = threadEvents.length;
+    const chainAnchorSeq = capture.anchorSeq;
+    let attempts = 0;
+    const retryRestore = () => {
+      threadPrependRetryRef.current.rafId = undefined;
+      // A rapid second Load Older replaces the pending anchor; this chain owns
+      // only the anchor it detected (by capture seq, since a re-capture can
+      // anchor the same event id) and must not restore or expire the newer
+      // one (its own compensation effect takes over).
+      if (getPendingThreadBackPaginationAnchorSeq() !== chainAnchorSeq) return;
+      const restored = restorePendingThreadBackPaginationAnchor(
+        scrollRef.current,
+        threadId,
+        eventCountAtDetection
+      );
+      attempts += 1;
+      if (restored) return;
+      if (attempts < 5) {
+        threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
+        return;
+      }
+      clearPendingThreadBackPaginationAnchor();
+    };
+    threadPrependRetryRef.current.rafId = requestAnimationFrame(retryRestore);
+  }, [
+    cancelThreadPrependRetry,
+    clearPendingThreadBackPaginationAnchor,
+    getPendingThreadBackPaginationAnchorEventId,
+    getPendingThreadBackPaginationAnchorSeq,
+    restorePendingThreadBackPaginationAnchor,
+    roomTimelineVirtualizer,
+    scrollRef,
+    threadEventIndexMapRef,
+    threadEvents,
+    threadId,
+  ]);
+  // Same-commit DOM restore gate: while this pagination's capture is still
+  // armed (no index shift detected), a threadEvents change is an append —
+  // restoring would teleport the viewport back to the click-time position.
+  // Mid-flight appends just skip the restore; once the pagination has
+  // finished without ever prepending (empty or fully-duplicate page), the
+  // armed anchor would otherwise fire that yank on the next append, so it is
+  // expired instead.
+  const restoreThreadPrependAnchorIfPrepended = useCallback(
+    (
+      scrollRoot: HTMLElement | null | undefined,
+      restoreThreadId: string | undefined,
+      eventCount?: number
+    ) => {
+      const capture = threadVirtualPrependCaptureRef.current;
+      if (
+        capture &&
+        restoreThreadId &&
+        capture.threadId === restoreThreadId &&
+        getPendingThreadBackPaginationAnchorSeq() === capture.anchorSeq
+      ) {
+        const anchorIndex = threadEventIndexMapRef.current.get(capture.anchorEventId);
+        const shifted = typeof anchorIndex === 'number' && anchorIndex > capture.anchorIndex;
+        if (!shifted) {
+          if (!threadPaginatingBackRef.current) {
+            threadVirtualPrependCaptureRef.current = undefined;
+            clearPendingThreadBackPaginationAnchor();
+          }
+          return false;
+        }
+      }
+      return restorePendingThreadBackPaginationAnchor(scrollRoot, restoreThreadId, eventCount);
+    },
+    [
+      clearPendingThreadBackPaginationAnchor,
+      getPendingThreadBackPaginationAnchorSeq,
+      restorePendingThreadBackPaginationAnchor,
+      threadEventIndexMapRef,
+      threadPaginatingBackRef,
+    ]
+  );
+  const roomTimelineVirtualizerRef = useRef(roomTimelineVirtualizer);
+  roomTimelineVirtualizerRef.current = roomTimelineVirtualizer;
+  const scrollThreadEventIntoView = useCallback(
+    (eventId: string) => {
+      const eventIndex = threadEventIndexMapRef.current.get(eventId);
+      if (typeof eventIndex !== 'number') return false;
+      threadSettleStopRef.current?.();
+      roomTimelineVirtualizerRef.current.scrollToIndex(eventIndex, { align: 'center' });
+      return true;
+    },
+    [threadEventIndexMapRef]
+  );
+  const cancelThreadBottomSettle = useCallback(() => {
+    threadSettleStopRef.current?.();
+  }, []);
   const scrollToTimelineItem = useCallback(
     (index: number, opts?: Parameters<typeof scrollToItem>[1]) => {
       if (threadId || index < activeTimelineRange.start || index >= activeTimelineRange.end) {
@@ -1108,8 +1485,10 @@ export function RoomTimeline({
     roomThreadListThreads,
     safePaginationLimit,
     safePaginationLimitRef,
+    cancelThreadBottomSettle,
     scheduledStatusMap,
     scrollRef,
+    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem: scrollToTimelineItem,
@@ -1347,15 +1726,17 @@ export function RoomTimeline({
   useRoomFocusScrollController({
     alive,
     atBottomAnchorRef,
+    cancelThreadBottomSettle,
     editId,
     focusItem,
     focusScrollResetToken: effectiveThreadFilterState,
     pendingThreadOpenRef,
     pendingThreadOpenTick,
-    restorePendingThreadBackPaginationAnchor,
+    restorePendingThreadBackPaginationAnchor: restoreThreadPrependAnchorIfPrepended,
     retryPagination,
     roomId: room.roomId,
     scrollRef,
+    scrollThreadEventIntoView,
     scrollToBottomRef,
     scrollToElement,
     scrollToItem: scrollToTimelineItem,
@@ -2453,7 +2834,7 @@ export function RoomTimeline({
 
   const { handleThreadPaginateBack, handleThreadPaginateFront } =
     useThreadPaginationCommandController({
-      beginThreadBackPagination,
+      beginThreadBackPagination: beginThreadBackPaginationWithCapture,
       finishThreadBackPagination,
       forceTimelineUpdate,
       mx,
@@ -2600,24 +2981,38 @@ export function RoomTimeline({
     return renderResolvedEvent(mEvent, item, timelineSet, eventEntry.absoluteIndex);
   };
 
+  const isRoomTimelinePrimeSkipped = (mEvent: MatrixEvent) => {
+    const mEventId = mEvent.getId();
+    const eventSender = mEvent.getSender();
+    if (eventSender && ignoredUsersSet.has(eventSender)) return true;
+    if (!showThreadRepliesInRoom && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
+      return true;
+    }
+    return mEvent.isRedacted() && !showHiddenEvents;
+  };
+
   const primeRoomTimelineRenderContextBefore = (item: number) => {
+    const primed = primeTimelineRenderContextBefore(
+      (index) => threadFilteredEventEntries[index]?.event,
+      item,
+      isRoomTimelinePrimeSkipped
+    );
+    if (!primed) return;
+    prevEvent = primed.prevEvent;
+    isPrevRendered = primed.isPrevRendered;
+    if (!roomThreadFilterActive) {
+      dayDivider = primed.pendingDayDivider;
+    }
+    // The sequential path advances prevRenderedEventAbsoluteIndex only on
+    // rendered rows, so it comes from the nearest surviving non-edit entry —
+    // possibly further back than prevEvent.
     for (let previousItem = item - 1; previousItem >= 0; previousItem -= 1) {
       const eventEntry = threadFilteredEventEntries[previousItem];
       const mEvent = eventEntry?.event;
-      const mEventId = mEvent?.getId();
-      if (!mEvent || !mEventId) continue;
-
-      const eventSender = mEvent.getSender();
-      if (eventSender && ignoredUsersSet.has(eventSender)) continue;
-      if (!showThreadRepliesInRoom && mEvent.threadRootId && mEvent.threadRootId !== mEventId) {
-        continue;
-      }
-      if (mEvent.isRedacted() && !showHiddenEvents) continue;
+      if (!mEvent || !mEvent.getId()) continue;
+      if (isRoomTimelinePrimeSkipped(mEvent)) continue;
       if (reactionOrEditEvent(mEvent)) continue;
-
-      prevEvent = mEvent;
       prevRenderedEventAbsoluteIndex = eventEntry.absoluteIndex;
-      isPrevRendered = true;
       return;
     }
   };
@@ -2657,297 +3052,348 @@ export function RoomTimeline({
     );
   };
 
-  return (
-    <Box grow="Yes" direction="Column">
-      {shouldShowRoomThreadOverviewControls && (
-        <RoomThreadOverview
-          threadCount={
-            showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length
-          }
-          totalThreadCount={
-            showCompactRoomView
-              ? compactThreadRootData.ids.length
-              : visibleThreadRootData.ids.length
-          }
-          statusCounts={statusCounts}
-          tagCounts={tagCounts}
-          state={liveThreadFilterState}
-          availableTags={availableRoomTags}
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          isThreadSortFrozen={threadSortFreezeState !== null}
-          onToggle={onToggle}
-          onSortDirectionChange={onSortDirectionChange}
-          onToggleThreadSortFreeze={onToggleThreadSortFreeze}
-          onReset={onReset}
-          onCycleTag={onCycleTag}
-          onAddTag={onAddTag}
-          onRemoveTag={onRemoveTag}
-          onApplyPreset={onApplyPreset}
-          onSearchQueryChange={onSearchQueryChange}
-        />
-      )}
-      <Box grow="Yes" style={{ position: 'relative' }}>
-        {showCompactRoomView ? (
-          <CompactRoomView
-            room={room}
-            threadRootIds={overviewThreadRootIds}
-            threadRecordMap={threadRecordMap}
-            onThreadClick={handleOpenCompactThread}
-          />
-        ) : (
-          <>
-            {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
-              <TimelineFloat position="Top">
-                <Chip
-                  variant="Primary"
-                  radii="Pill"
-                  outlined
-                  before={<Icon size="50" src={Icons.MessageUnread} />}
-                  onClick={handleJumpToUnread}
-                >
-                  <Text size="L400">Jump to Unread</Text>
-                </Chip>
+  const primeThreadTimelineRenderContextBefore = (index: number) => {
+    const primed = primeTimelineRenderContextBefore(
+      (previousIndex) => threadEvents[previousIndex],
+      index,
+      (mEvent) => {
+        const eventSender = mEvent.getSender();
+        if (eventSender && ignoredUsersSet.has(eventSender)) return true;
+        return mEvent.isRedacted() && !showHiddenEvents;
+      }
+    );
+    if (!primed) return;
+    prevEvent = primed.prevEvent;
+    isPrevRendered = primed.isPrevRendered;
+    if (!roomThreadFilterActive) {
+      dayDivider = primed.pendingDayDivider;
+    }
+  };
 
-                <Chip
-                  variant="SurfaceVariant"
-                  radii="Pill"
-                  outlined
-                  before={<Icon size="50" src={Icons.CheckTwice} />}
-                  onClick={handleMarkAsRead}
-                >
-                  <Text size="L400">Mark as Read</Text>
-                </Chip>
-              </TimelineFloat>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                if (allExpanded) {
-                  collapseAllMessages();
-                  setAllExpanded(false);
-                } else {
-                  expandAllMessages();
-                  setAllExpanded(true);
-                }
-              }}
-              style={{
-                position: 'absolute',
-                top: config.space.S200,
-                right: config.space.S400,
-                zIndex: 2,
-                color: color.Primary.Main,
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontFamily: 'monospace',
-                opacity: 0.7,
-                background: 'none',
-                border: 'none',
-                padding: 0,
-              }}
-            >
-              {allExpanded ? '[-all]' : '[+all]'}
-            </button>
-            <Scroll
-              ref={scrollRef}
-              visibility="Hover"
-              style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
-            >
-              <Box
-                direction="Column"
-                justifyContent={threadId ? 'Start' : 'End'}
+  const threadEventRenderer = (index: number) => {
+    const mEvent = threadEvents[index];
+    if (!mEvent) return null;
+    const mEventId = mEvent.getId();
+    if (!mEventId) return null;
+    const threadTimeline = threadTimelineSet?.getTimelineForEvent(mEventId);
+    const roomTimeline = roomTimelineSet.getTimelineForEvent(mEventId);
+    const timelineSet =
+      threadTimeline?.getTimelineSet() ??
+      roomTimeline?.getTimelineSet() ??
+      threadTimelineSet ??
+      roomTimelineSet;
+
+    return renderResolvedEvent(mEvent, index, timelineSet);
+  };
+
+  const renderVirtualThreadTimelineItems = () => {
+    const virtualItems = roomTimelineVirtualizer.getVirtualItems();
+    const firstVirtualItem = virtualItems[0];
+    if (firstVirtualItem !== undefined) {
+      primeThreadTimelineRenderContextBefore(firstVirtualItem.index);
+    }
+
+    return (
+      <div
+        style={{
+          height: roomTimelineVirtualizer.getTotalSize(),
+          position: 'relative',
+          width: '100%',
+        }}
+      >
+        {virtualItems.map((virtualItem) => (
+          <VirtualTile key={virtualItem.key} ref={measureThreadTile} virtualItem={virtualItem}>
+            {threadEventRenderer(virtualItem.index)}
+          </VirtualTile>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <ExpandAllInitContext.Provider value={expandAllOverride}>
+      <Box grow="Yes" direction="Column">
+        {shouldShowRoomThreadOverviewControls && (
+          <RoomThreadOverview
+            threadCount={
+              showCompactRoomView
+                ? compactFilteredThreadRootIds.length
+                : filteredThreadRootIds.length
+            }
+            totalThreadCount={
+              showCompactRoomView
+                ? compactThreadRootData.ids.length
+                : visibleThreadRootData.ids.length
+            }
+            statusCounts={statusCounts}
+            tagCounts={tagCounts}
+            state={liveThreadFilterState}
+            availableTags={availableRoomTags}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            isThreadSortFrozen={threadSortFreezeState !== null}
+            onToggle={onToggle}
+            onSortDirectionChange={onSortDirectionChange}
+            onToggleThreadSortFreeze={onToggleThreadSortFreeze}
+            onReset={onReset}
+            onCycleTag={onCycleTag}
+            onAddTag={onAddTag}
+            onRemoveTag={onRemoveTag}
+            onApplyPreset={onApplyPreset}
+            onSearchQueryChange={onSearchQueryChange}
+          />
+        )}
+        <Box grow="Yes" style={{ position: 'relative' }}>
+          {showCompactRoomView ? (
+            <CompactRoomView
+              room={room}
+              threadRootIds={overviewThreadRootIds}
+              threadRecordMap={threadRecordMap}
+              onThreadClick={handleOpenCompactThread}
+            />
+          ) : (
+            <>
+              {!threadId && unreadInfo?.readUptoEventId && !unreadInfo?.inLiveTimeline && (
+                <TimelineFloat position="Top">
+                  <Chip
+                    variant="Primary"
+                    radii="Pill"
+                    outlined
+                    before={<Icon size="50" src={Icons.MessageUnread} />}
+                    onClick={handleJumpToUnread}
+                  >
+                    <Text size="L400">Jump to Unread</Text>
+                  </Chip>
+
+                  <Chip
+                    variant="SurfaceVariant"
+                    radii="Pill"
+                    outlined
+                    before={<Icon size="50" src={Icons.CheckTwice} />}
+                    onClick={handleMarkAsRead}
+                  >
+                    <Text size="L400">Mark as Read</Text>
+                  </Chip>
+                </TimelineFloat>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (expandAllOverride === true) {
+                    collapseAllMessages();
+                    setExpandAllOverride(false);
+                  } else {
+                    expandAllMessages();
+                    setExpandAllOverride(true);
+                  }
+                }}
                 style={{
-                  minHeight: '100%',
-                  padding: `${config.space.S600} 0`,
-                  position: 'relative',
+                  position: 'absolute',
+                  top: config.space.S200,
+                  right: config.space.S400,
+                  zIndex: 2,
+                  color: color.Primary.Main,
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontFamily: 'monospace',
+                  opacity: 0.7,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
                 }}
               >
-                {!threadId &&
-                  !roomHasMoreCachedBack &&
-                  !canPaginateBack &&
-                  rangeAtStart &&
-                  timelineItems.length > 0 && (
-                    <div
-                      style={{
-                        padding: `${config.space.S700} ${config.space.S400} ${config.space.S600} ${
-                          messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
-                        }`,
-                      }}
-                    >
-                      <RoomIntro room={room} />
-                    </div>
-                  )}
-                {threadId && threadLoadError && (
-                  <MessageBase space={messageSpacing}>
-                    <TimelineDivider variant="Surface">
-                      <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                        <Text size="L400">Failed to load this thread.</Text>
-                      </Badge>
-                    </TimelineDivider>
-                  </MessageBase>
-                )}
-                {threadId && showThreadLoadOlderMessages && (
-                  <MessageBase space={messageSpacing}>
-                    <TimelineDivider variant="Surface">
-                      <Chip
-                        variant="SurfaceVariant"
-                        radii="Pill"
-                        outlined
-                        before={<Icon size="50" src={Icons.ArrowTop} />}
-                        onClick={handleThreadPaginateBack}
-                      >
-                        <Text size="L400">
-                          {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
-                        </Text>
-                      </Chip>
-                    </TimelineDivider>
-                  </MessageBase>
-                )}
-                {threadId &&
-                  threadInitialRenderMode === 'loading' &&
-                  !threadLoadError &&
-                  (messageLayout === MessageLayout.Compact ? (
-                    <>
-                      <MessageBase>
-                        <CompactPlaceholder />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder />
-                      </MessageBase>
-                    </>
-                  ) : (
-                    <>
-                      <MessageBase>
-                        <DefaultPlaceholder />
-                      </MessageBase>
-                      <MessageBase>
-                        <DefaultPlaceholder />
-                      </MessageBase>
-                    </>
-                  ))}
-                {!threadId &&
-                  !eagerPreloading &&
-                  (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
-                  (messageLayout === MessageLayout.Compact ? (
-                    <>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase ref={observeBackAnchor}>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                    </>
-                  ) : (
-                    <>
-                      <MessageBase>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase ref={observeBackAnchor}>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                    </>
-                  ))}
-
-                {threadId
-                  ? threadEvents.map((mEvent, index) => {
-                      const eventId = mEvent.getId();
-                      if (!eventId) return null;
-                      const threadTimeline = threadTimelineSet?.getTimelineForEvent(eventId);
-                      const roomTimeline = roomTimelineSet.getTimelineForEvent(eventId);
-                      const timelineSet =
-                        threadTimeline?.getTimelineSet() ??
-                        roomTimeline?.getTimelineSet() ??
-                        threadTimelineSet ??
-                        roomTimelineSet;
-                      return renderResolvedEvent(mEvent, index, timelineSet);
-                    })
-                  : renderVirtualRoomTimelineItems()}
-                {threadId && canPaginateThreadFront && (
-                  <MessageBase space={messageSpacing}>
-                    <TimelineDivider variant="Surface">
-                      <Chip
-                        variant="SurfaceVariant"
-                        radii="Pill"
-                        outlined
-                        before={<Icon size="50" src={Icons.ArrowBottom} />}
-                        onClick={handleThreadPaginateFront}
-                      >
-                        <Text size="L400">
-                          {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
-                        </Text>
-                      </Chip>
-                    </TimelineDivider>
-                  </MessageBase>
-                )}
-
-                {!threadId &&
-                  (!liveTimelineLinked || !rangeAtEnd) &&
-                  (messageLayout === MessageLayout.Compact ? (
-                    <>
-                      <MessageBase ref={observeFrontAnchor}>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <CompactPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                    </>
-                  ) : (
-                    <>
-                      <MessageBase ref={observeFrontAnchor}>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                      <MessageBase>
-                        <DefaultPlaceholder key={timelineItems.length} />
-                      </MessageBase>
-                    </>
-                  ))}
-                <span ref={atBottomAnchorRef} />
-              </Box>
-            </Scroll>
-            {!atBottom && (
-              <TimelineFloat position="Bottom">
-                <Chip
-                  variant="SurfaceVariant"
-                  radii="Pill"
-                  outlined
-                  before={<Icon size="50" src={Icons.ArrowBottom} />}
-                  onClick={handleJumpToLatest}
+                {expandAllOverride === true ? '[-all]' : '[+all]'}
+              </button>
+              <Scroll
+                ref={scrollRef}
+                visibility="Hover"
+                style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
+              >
+                <Box
+                  direction="Column"
+                  justifyContent={threadId ? 'Start' : 'End'}
+                  style={{
+                    minHeight: '100%',
+                    padding: `${config.space.S600} 0`,
+                    position: 'relative',
+                  }}
                 >
-                  <Text size="L400">Jump to Latest</Text>
-                </Chip>
-              </TimelineFloat>
-            )}
-          </>
-        )}
+                  {!threadId &&
+                    !roomHasMoreCachedBack &&
+                    !canPaginateBack &&
+                    rangeAtStart &&
+                    timelineItems.length > 0 && (
+                      <div
+                        style={{
+                          padding: `${config.space.S700} ${config.space.S400} ${
+                            config.space.S600
+                          } ${
+                            messageLayout === MessageLayout.Compact ? config.space.S400 : toRem(64)
+                          }`,
+                        }}
+                      >
+                        <RoomIntro room={room} />
+                      </div>
+                    )}
+                  {threadId && threadLoadError && (
+                    <MessageBase space={messageSpacing}>
+                      <TimelineDivider variant="Surface">
+                        <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
+                          <Text size="L400">Failed to load this thread.</Text>
+                        </Badge>
+                      </TimelineDivider>
+                    </MessageBase>
+                  )}
+                  {threadId && showThreadLoadOlderMessages && (
+                    <MessageBase space={messageSpacing}>
+                      <TimelineDivider variant="Surface">
+                        <Chip
+                          variant="SurfaceVariant"
+                          radii="Pill"
+                          outlined
+                          before={<Icon size="50" src={Icons.ArrowTop} />}
+                          onClick={handleThreadPaginateBack}
+                        >
+                          <Text size="L400">
+                            {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                          </Text>
+                        </Chip>
+                      </TimelineDivider>
+                    </MessageBase>
+                  )}
+                  {threadId &&
+                    threadInitialRenderMode === 'loading' &&
+                    !threadLoadError &&
+                    (messageLayout === MessageLayout.Compact ? (
+                      <>
+                        <MessageBase>
+                          <CompactPlaceholder />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder />
+                        </MessageBase>
+                      </>
+                    ) : (
+                      <>
+                        <MessageBase>
+                          <DefaultPlaceholder />
+                        </MessageBase>
+                        <MessageBase>
+                          <DefaultPlaceholder />
+                        </MessageBase>
+                      </>
+                    ))}
+                  {!threadId &&
+                    !eagerPreloading &&
+                    (roomHasMoreCachedBack || canPaginateBack || !rangeAtStart) &&
+                    (messageLayout === MessageLayout.Compact ? (
+                      <>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase ref={observeBackAnchor}>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                      </>
+                    ) : (
+                      <>
+                        <MessageBase>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase ref={observeBackAnchor}>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                      </>
+                    ))}
+
+                  {threadId ? renderVirtualThreadTimelineItems() : renderVirtualRoomTimelineItems()}
+                  {threadId && canPaginateThreadFront && (
+                    <MessageBase space={messageSpacing}>
+                      <TimelineDivider variant="Surface">
+                        <Chip
+                          variant="SurfaceVariant"
+                          radii="Pill"
+                          outlined
+                          before={<Icon size="50" src={Icons.ArrowBottom} />}
+                          onClick={handleThreadPaginateFront}
+                        >
+                          <Text size="L400">
+                            {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                          </Text>
+                        </Chip>
+                      </TimelineDivider>
+                    </MessageBase>
+                  )}
+
+                  {!threadId &&
+                    (!liveTimelineLinked || !rangeAtEnd) &&
+                    (messageLayout === MessageLayout.Compact ? (
+                      <>
+                        <MessageBase ref={observeFrontAnchor}>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <CompactPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                      </>
+                    ) : (
+                      <>
+                        <MessageBase ref={observeFrontAnchor}>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                        <MessageBase>
+                          <DefaultPlaceholder key={timelineItems.length} />
+                        </MessageBase>
+                      </>
+                    ))}
+                  <span ref={atBottomAnchorRef} />
+                </Box>
+              </Scroll>
+              {!atBottom && (
+                <TimelineFloat position="Bottom">
+                  <Chip
+                    variant="SurfaceVariant"
+                    radii="Pill"
+                    outlined
+                    before={<Icon size="50" src={Icons.ArrowBottom} />}
+                    onClick={handleJumpToLatest}
+                  >
+                    <Text size="L400">Jump to Latest</Text>
+                  </Chip>
+                </TimelineFloat>
+              )}
+            </>
+          )}
+        </Box>
       </Box>
-    </Box>
+    </ExpandAllInitContext.Provider>
   );
 }

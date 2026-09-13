@@ -203,7 +203,8 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
   });
 
   it('expands marker-only tool refs with the marker tool name', () => {
-    const renderer = renderTreeWithToolTrace('<p>🔧 <code>run_shell_command</code> [1]</p>', {});
+    const markerHtml = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const renderer = renderTreeWithToolTrace(markerHtml, { formatted_body: markerHtml });
 
     expect(collectTextContent(renderer.toJSON())).toContain('1 tool call');
 

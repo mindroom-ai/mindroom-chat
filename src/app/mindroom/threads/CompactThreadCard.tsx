@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Avatar, Badge, Box, Chip, Icon, Icons, Text } from 'folds';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import * as threadIndicatorCss from './ThreadIndicator.css';
@@ -23,7 +23,7 @@ export type CompactThreadCardProps = {
   onClick: (threadRootId: string, summaryText?: string) => void;
 };
 
-export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps) {
+function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
   const {
     id,
     titleText,
@@ -208,3 +208,8 @@ export function CompactThreadCard({ viewModel, onClick }: CompactThreadCardProps
     </button>
   );
 }
+
+// Memoized: the compact overview re-renders on every thread-index refresh
+// (each streaming edit anywhere in the room); with content-stable view models
+// only the cards whose content changed re-render.
+export const CompactThreadCard = memo(CompactThreadCardBase);

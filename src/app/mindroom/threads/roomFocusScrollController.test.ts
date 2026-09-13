@@ -10,6 +10,7 @@ type Listener = () => void;
 
 const makeScrollElement = (): HTMLDivElement & {
   dispatchScroll: () => void;
+  dispatch: (type: string) => void;
   listeners: Map<string, Set<Listener>>;
   scrollTo: ReturnType<typeof vi.fn>;
 } => {
@@ -26,6 +27,9 @@ const makeScrollElement = (): HTMLDivElement & {
     dispatchScroll: () => {
       listeners.get('scroll')?.forEach((listener) => listener());
     },
+    dispatch: (type: string) => {
+      listeners.get(type)?.forEach((listener) => listener());
+    },
     getBoundingClientRect: () => ({ top: 0, bottom: 400 }),
     querySelectorAll: () => [],
     scrollHeight: 1000,
@@ -35,6 +39,7 @@ const makeScrollElement = (): HTMLDivElement & {
     scrollTo: vi.fn(),
   } as unknown as HTMLDivElement & {
     dispatchScroll: () => void;
+    dispatch: (type: string) => void;
     listeners: Map<string, Set<Listener>>;
     scrollTo: ReturnType<typeof vi.fn>;
   };
@@ -105,6 +110,7 @@ describe('useRoomFocusScrollController', () => {
 
     scrollEl.scrollTo.mockClear();
     act(() => {
+      scrollEl.dispatch('wheel');
       scrollEl.dispatchScroll();
     });
 
@@ -123,5 +129,111 @@ describe('useRoomFocusScrollController', () => {
     });
 
     expect(scrollEl.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('does not cancel the open bottom pin on programmatic scrolls without user intent', () => {
+    // Virtualized timelines adjust the scroll offset programmatically when
+    // rows above the viewport re-measure; those scroll events must not be
+    // mistaken for the user scrolling away during a pending open.
+    const scrollEl = makeScrollElement();
+    let suppressRef: React.MutableRefObject<boolean> | undefined;
+
+    act(() => {
+      create(
+        React.createElement(Harness, {
+          scrollEl,
+          onSuppressRef: (ref) => {
+            suppressRef = ref;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      scrollEl.dispatchScroll();
+      scrollEl.dispatchScroll();
+    });
+
+    expect(suppressRef?.current).toBe(false);
+  });
+
+  it('falls back to virtualizer index scrolling when a pending thread-open target row is unmounted', () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    try {
+      const scrollEl = makeScrollElement();
+      const pendingThreadOpenRef = {
+        current: {
+          threadId: '$thread',
+          eventId: '$target',
+          highlight: false,
+          attempts: 2,
+        },
+      };
+      const scrollThreadEventIntoView = vi.fn(() => true);
+      const setPendingThreadOpenTick = vi.fn();
+
+      act(() => {
+        create(
+          React.createElement(Harness, {
+            scrollEl,
+            onSuppressRef: () => undefined,
+            pendingThreadOpenRef,
+            scrollThreadEventIntoView,
+            setPendingThreadOpenTick,
+            threadEventIndexMapRef: { current: new Map([['$target', 42]]) },
+            threadLatestOpenPending: false,
+          })
+        );
+      });
+
+      expect(scrollThreadEventIntoView).toHaveBeenCalledWith('$target');
+      expect(pendingThreadOpenRef.current?.attempts).toBe(3);
+      expect(setPendingThreadOpenTick).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('gives up a pending thread open after three attempts without invoking the fallback', () => {
+    const scrollEl = makeScrollElement();
+    const onScroll = vi.fn();
+    const pendingThreadOpenRef = {
+      current: {
+        threadId: '$thread',
+        eventId: '$target',
+        highlight: false,
+        attempts: 3,
+        onScroll,
+      } as
+        | {
+            threadId: string;
+            eventId: string;
+            highlight: boolean;
+            attempts: number;
+            onScroll?: (success: boolean) => void;
+          }
+        | undefined,
+    };
+    const scrollThreadEventIntoView = vi.fn(() => true);
+
+    act(() => {
+      create(
+        React.createElement(Harness, {
+          scrollEl,
+          onSuppressRef: () => undefined,
+          pendingThreadOpenRef,
+          scrollThreadEventIntoView,
+          threadLatestOpenPending: false,
+        })
+      );
+    });
+
+    expect(scrollThreadEventIntoView).not.toHaveBeenCalled();
+    expect(onScroll).toHaveBeenCalledWith(false);
+    expect(pendingThreadOpenRef.current).toBeUndefined();
   });
 });

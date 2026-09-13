@@ -35,20 +35,26 @@ test('survives a homeserver outage without crashing and recovers after reconnect
   await context.route(`${homeserver}/**`, abortHomeserverTraffic);
   await page.reload();
 
-  const offlineStateHandle = await page.waitForFunction(() => {
-    const bodyText = document.body?.innerText ?? '';
-    if (bodyText.includes('Unexpected Application Error!')) return 'crash';
-    if (document.querySelector('input[name="serverInput"]')) return 'auth';
-    if (bodyText.includes('Failed to connect to homeserver')) return 'connectivity-dialog';
-    if (
-      Array.from(document.querySelectorAll('button')).some((button) =>
-        /Open (account switcher|settings) for /.test(button.getAttribute('aria-label') ?? '')
-      )
-    ) {
-      return 'shell';
-    }
-    return null;
-  }, undefined, { timeout: 20_000 });
+  const offlineStateHandle = await page.waitForFunction(
+    () => {
+      const bodyText = document.body?.innerText ?? '';
+      if (bodyText.includes('Unexpected Application Error!')) return 'crash';
+      if (document.querySelector('input[name="serverInput"]')) return 'auth';
+      if (bodyText.includes('Unable to connect to the homeserver')) {
+        return 'connectivity-dialog';
+      }
+      if (
+        Array.from(document.querySelectorAll('button')).some((button) =>
+          /Open (account switcher|settings) for /.test(button.getAttribute('aria-label') ?? '')
+        )
+      ) {
+        return 'shell';
+      }
+      return null;
+    },
+    undefined,
+    { timeout: 20_000 }
+  );
 
   const offlineState = await offlineStateHandle.jsonValue();
   expect(offlineState).toMatch(/^(auth|shell|connectivity-dialog)$/);

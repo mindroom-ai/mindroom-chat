@@ -12,6 +12,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 const REPLY_COUNT = 450;
@@ -53,6 +54,11 @@ const scrollThreadTimelineToTop = async (page: import('@playwright/test').Page):
     }
     if (!scrollContainer) return false;
 
+    // Real users scroll with wheel/touch gestures, which cancel the timeline's
+    // bottom-pin settle loop; a bare scrollTop write emits no intent event and
+    // gets yanked back to the bottom if the open-at-latest pin is still
+    // settling. Announce the intent the way a user gesture would.
+    scrollContainer.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
     scrollContainer.scrollTop = 0;
     return true;
   });
@@ -203,7 +209,13 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     if (!anchor) return;
     expect(anchor.clicked).toBe(true);
 
-    await expect(loadOlderButton).toHaveCount(0, { timeout: 30_000 });
+    // Drain the remaining history with the shared loop instead of a strict
+    // button-vanish wait: when the thread-open bootstrap already preloaded
+    // everything, the homeserver's pagination token can linger through empty
+    // pages and the chip never disappears (pre-existing tail behavior). Any
+    // extra clicks only strengthen the guard — the anchor must hold through
+    // every prepend.
+    await loadAllOlderThreadMessages(page);
 
     await expect
       .poll(

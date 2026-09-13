@@ -21,6 +21,27 @@ vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Html: 'Html',
 }));
 
+const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn());
+const sanitizeExtraHtmlSpy = vi.hoisted(() => vi.fn());
+
+vi.mock('../../utils/sanitize', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../utils/sanitize')>();
+  sanitizeCustomHtmlSpy.mockImplementation(original.sanitizeCustomHtml);
+  return {
+    ...original,
+    sanitizeCustomHtml: sanitizeCustomHtmlSpy,
+  };
+});
+
+vi.mock('./messageExtrasHtml', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./messageExtrasHtml')>();
+  sanitizeExtraHtmlSpy.mockImplementation(original.sanitizeMindroomMessageExtraHtml);
+  return {
+    ...original,
+    sanitizeMindroomMessageExtraHtml: sanitizeExtraHtmlSpy,
+  };
+});
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const createExtras = (
@@ -469,5 +490,88 @@ describe('MindroomMessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('https://example.test');
 
     renderer.unmount();
+  });
+
+  it('does not re-parse unchanged sections when re-rendered with equal extras', () => {
+    const container = document.createElement('div');
+    let root: Root | undefined;
+    const htmlReactParserOptions = {};
+
+    const render = () =>
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras(
+          [
+            section({
+              title: 'Markdown',
+              contentType: 'text/markdown',
+              content: '**bold** body',
+            }),
+            section({
+              title: 'HTML',
+              contentType: 'text/html',
+              content: '<p>safe</p>',
+            }),
+          ],
+          2
+        ),
+        htmlReactParserOptions,
+      });
+
+    sanitizeCustomHtmlSpy.mockClear();
+    sanitizeExtraHtmlSpy.mockClear();
+
+    act(() => {
+      root = createRoot(container);
+      root.render(render());
+    });
+
+    const markdownCallsAfterMount = sanitizeCustomHtmlSpy.mock.calls.length;
+    const htmlCallsAfterMount = sanitizeExtraHtmlSpy.mock.calls.length;
+    expect(markdownCallsAfterMount).toBeGreaterThan(0);
+    expect(htmlCallsAfterMount).toBeGreaterThan(0);
+
+    act(() => {
+      root?.render(render());
+    });
+    act(() => {
+      root?.render(render());
+    });
+
+    expect(sanitizeCustomHtmlSpy.mock.calls.length).toBe(markdownCallsAfterMount);
+    expect(sanitizeExtraHtmlSpy.mock.calls.length).toBe(htmlCallsAfterMount);
+
+    act(() => {
+      root?.unmount();
+    });
+  });
+
+  it('re-parses a section when its content changes', () => {
+    const container = document.createElement('div');
+    let root: Root | undefined;
+    const htmlReactParserOptions = {};
+
+    const render = (content: string) =>
+      React.createElement(MindroomMessageExtras, {
+        extras: createExtras([section({ title: 'HTML', contentType: 'text/html', content })], 2),
+        htmlReactParserOptions,
+      });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(render('<p>first</p>'));
+    });
+
+    sanitizeExtraHtmlSpy.mockClear();
+
+    act(() => {
+      root?.render(render('<p>second</p>'));
+    });
+
+    expect(sanitizeExtraHtmlSpy.mock.calls.length).toBeGreaterThan(0);
+    expect(container.textContent).toContain('second');
+
+    act(() => {
+      root?.unmount();
+    });
   });
 });

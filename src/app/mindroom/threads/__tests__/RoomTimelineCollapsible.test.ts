@@ -513,6 +513,7 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
+    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     expandAllMessages: vi.fn(),
     collapseAllMessages: vi.fn(),
     CollapsibleMessage: ({

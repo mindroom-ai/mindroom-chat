@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import parse, { HTMLReactParserOptions } from 'html-react-parser';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 import { sanitizeCustomHtml, sanitizeText } from '../../utils/sanitize';
@@ -24,29 +24,27 @@ type MindroomMessageExtrasProps = {
   htmlReactParserOptions: HTMLReactParserOptions;
 };
 
-const renderMarkdown = (
-  section: MindroomMessageExtrasSection,
-  htmlReactParserOptions: HTMLReactParserOptions
-) => {
-  const markdownHtml = parseBlockMD(sanitizeText(section.content), parseInlineMD);
+const renderMarkdown = (content: string, htmlReactParserOptions: HTMLReactParserOptions) => {
+  const markdownHtml = parseBlockMD(sanitizeText(content), parseInlineMD);
   return parse(sanitizeCustomHtml(markdownHtml), htmlReactParserOptions);
 };
 
 const renderSectionContent = (
-  section: MindroomMessageExtrasSection,
+  content: string,
+  contentType: MindroomMessageExtrasSection['contentType'],
   htmlReactParserOptions: HTMLReactParserOptions
 ) => {
   try {
-    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN) {
-      return <pre className={css.PlainText}>{section.content}</pre>;
+    if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN) {
+      return <pre className={css.PlainText}>{content}</pre>;
     }
 
-    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN) {
-      return <div className={css.Markdown}>{renderMarkdown(section, htmlReactParserOptions)}</div>;
+    if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN) {
+      return <div className={css.Markdown}>{renderMarkdown(content, htmlReactParserOptions)}</div>;
     }
 
-    if (section.contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
-      const sanitizedHtml = sanitizeMindroomMessageExtraHtml(section.content);
+    if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
+      const sanitizedHtml = sanitizeMindroomMessageExtraHtml(content);
       return <div className={css.Html}>{parse(sanitizedHtml)}</div>;
     }
   } catch {
@@ -55,6 +53,25 @@ const renderSectionContent = (
 
   return null;
 };
+
+type MindroomMessageExtraSectionContentProps = {
+  content: string;
+  contentType: MindroomMessageExtrasSection['contentType'];
+  htmlReactParserOptions: HTMLReactParserOptions;
+};
+
+// Sanitizing + parsing section markdown/HTML is expensive; timeline re-renders
+// (e.g. streaming m.replace bursts) must not re-parse unchanged sections.
+function MindroomMessageExtraSectionContent({
+  content,
+  contentType,
+  htmlReactParserOptions,
+}: MindroomMessageExtraSectionContentProps) {
+  return useMemo(
+    () => renderSectionContent(content, contentType, htmlReactParserOptions),
+    [content, contentType, htmlReactParserOptions]
+  );
+}
 
 const getSectionKey = (section: MindroomMessageExtrasSection, index: number): string =>
   `${index}:${section.title}:${section.contentType}`;
@@ -90,7 +107,11 @@ export function MindroomMessageExtras({
           <MindroomMessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
             <summary className={css.Summary}>{section.title}</summary>
             <div className={css.Content}>
-              {renderSectionContent(section, htmlReactParserOptions)}
+              <MindroomMessageExtraSectionContent
+                content={section.content}
+                contentType={section.contentType}
+                htmlReactParserOptions={htmlReactParserOptions}
+              />
             </div>
           </MindroomMessageExtraDetails>
         );

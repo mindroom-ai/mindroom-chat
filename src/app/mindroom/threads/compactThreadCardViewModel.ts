@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -189,25 +189,42 @@ export const useCompactThreadCardViewModels = ({
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const currentUserId = mx.getUserId() ?? undefined;
+  // The thread index rebuilds records wholesale on every refresh (e.g. each
+  // streaming edit anywhere in the room), so freshly built view models get new
+  // identities even when their content is unchanged. Reusing the previous
+  // instance for content-identical view models lets memoized cards skip
+  // re-rendering.
+  const viewModelCacheRef = useRef(
+    new Map<string, { signature: string; viewModel: CompactThreadCardViewModel }>()
+  );
 
   return useMemo(() => {
+    const previousCache = viewModelCacheRef.current;
+    const nextCache = new Map<
+      string,
+      { signature: string; viewModel: CompactThreadCardViewModel }
+    >();
     const viewModels: CompactThreadCardViewModel[] = [];
 
     threadRootIds.forEach((threadRootId) => {
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
 
-      viewModels.push(
-        buildCompactThreadCardViewModelFromRecord({
-          record,
-          room,
-          currentUserId,
-          mx,
-          useAuthentication,
-        })
-      );
+      const freshViewModel = buildCompactThreadCardViewModelFromRecord({
+        record,
+        room,
+        currentUserId,
+        mx,
+        useAuthentication,
+      });
+      const signature = JSON.stringify(freshViewModel);
+      const cached = previousCache.get(threadRootId);
+      const viewModel = cached?.signature === signature ? cached.viewModel : freshViewModel;
+      nextCache.set(threadRootId, { signature, viewModel });
+      viewModels.push(viewModel);
     });
 
+    viewModelCacheRef.current = nextCache;
     return viewModels;
   }, [currentUserId, mx, room, threadRecordMap, threadRootIds, useAuthentication]);
 };
