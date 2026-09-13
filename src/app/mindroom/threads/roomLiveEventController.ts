@@ -15,6 +15,7 @@ import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
 import { getThreadCacheTargetId } from './eventRepository';
 import { useLiveEventArrive, type TimelineArriveMeta } from './roomLiveEventArrive';
+import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { isRenderableEvent } from './roomTimelineEvents';
 import type { ThreadFilterState } from './roomThreadOverviewModel';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
@@ -145,6 +146,21 @@ export const useRoomLiveEventController = ({
               threadId: threadCacheTargetId,
               toStartOfTimeline: timelineMeta.toStartOfTimeline,
             });
+          }
+
+          // CINNY-088: pending local echoes (e.g. a freshly-sent voice message)
+          // arrive with `liveEvent: false` before the server confirmation re-fires
+          // with `liveEvent: true`. Without driving a re-render here, the compact
+          // view's useMindroomThreadIndex memo chain doesn't recompute and the
+          // "0 replies" card never appears until the second arrival. Scoped
+          // narrowly to sent-but-not-yet-confirmed standalone roots in the room
+          // view, so paginated history and thread-only arrivals are unaffected.
+          if (
+            !threadId &&
+            mEvt.isSending() &&
+            isZeroReplyStandaloneThreadRootEvent(mEvt)
+          ) {
+            setTimeline((ct) => ({ ...ct }));
           }
           return;
         }
