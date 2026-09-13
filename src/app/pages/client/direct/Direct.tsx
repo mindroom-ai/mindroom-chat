@@ -42,7 +42,7 @@ import { useDirectRooms } from './useDirectRooms';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { useRoomsUnread } from '../../../state/hooks/unread';
-import { markAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
@@ -63,7 +63,7 @@ const DirectMenu = forwardRef<HTMLDivElement, DirectMenuProps>(({ requestClose }
 
   const handleMarkAsRead = () => {
     if (!unread) return;
-    orphanRooms.forEach((rId) => markAsRead(mx, rId, hideActivity));
+    orphanRooms.forEach((rId) => markRoomAndThreadsAsRead(mx, rId, hideActivity));
     requestClose();
   };
 

@@ -305,6 +305,10 @@ vi.mock('../../hooks/useDocumentFocusChange', () => ({
   useDocumentFocusChange: vi.fn(),
 }));
 
+vi.mock('../../hooks/useStateEvents', () => ({
+  useStateEvents: () => [],
+}));
+
 vi.mock('../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
@@ -391,7 +395,9 @@ vi.mock('../../components/image-viewer', () => ({
 }));
 
 vi.mock('../../utils/notifications', () => ({
-  markAsRead: vi.fn(),
+  markMainTimelineAsRead: vi.fn(),
+  markRoomAndThreadsAsRead: vi.fn(),
+  markThreadAsRead: vi.fn(),
 }));
 
 vi.mock('../../utils/dom', () => ({
@@ -497,6 +503,20 @@ vi.mock('./threadEditBackfillUtils', () => ({
 
 vi.mock('./RoomThreadOverview', () => ({
   RoomThreadOverview: roomThreadOverviewType,
+}));
+
+vi.mock('../../hooks/useThreadLastActivityTs', () => ({
+  getThreadLastActivityTs: () => 0,
+  useThreadLastActivityTs: () => 0,
+}));
+
+vi.mock('../../hooks/useThreadStreamingState', () => ({
+  getThreadStreamingState: () => false,
+  useThreadStreamingState: () => false,
+}));
+
+vi.mock('../../utils/scheduledTaskContract', () => ({
+  parseScheduledTaskStateEvent: () => null,
 }));
 
 vi.mock('./useRoomThreadResolution', () => ({
@@ -790,15 +810,20 @@ const createControlledRoomTimelineHarness = (
     eventId,
     threadId,
     initialThreadFilter,
+    initialThreadSort,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
     threadId?: string;
-    initialThreadFilter?: 'all' | 'resolved' | 'unresolved';
+    initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
+    initialThreadSort?: 'default' | 'last-reply' | 'streaming' | 'scheduled';
   }) {
-    const [threadFilter, setThreadFilter] = React.useState<'all' | 'resolved' | 'unresolved'>(
-      initialThreadFilter ?? 'all'
-    );
+    const [threadFilter, setThreadFilter] = React.useState<
+      'all' | 'resolved' | 'unresolved' | 'unread'
+    >(initialThreadFilter ?? 'all');
+    const [threadSort, setThreadSort] = React.useState<
+      'default' | 'last-reply' | 'streaming' | 'scheduled'
+    >(initialThreadSort ?? 'default');
 
     return React.createElement(RoomTimelineComponent, {
       room,
@@ -806,6 +831,8 @@ const createControlledRoomTimelineHarness = (
       threadId,
       threadFilter,
       onThreadFilterChange: setThreadFilter,
+      threadSort,
+      onThreadSortChange: setThreadSort,
       roomInputRef,
       editor,
     });
@@ -1237,7 +1264,7 @@ describe('RoomTimeline', () => {
       0
     );
     expect(overview.props.filter).toBe('all');
-    expect(overview.props.counts).toEqual({ unresolved: 0, resolved: 0, all: 0 });
+    expect(overview.props.counts).toEqual({ unresolved: 0, resolved: 0, unread: 0, all: 0 });
     expect(overview.props.onFilterChange).toBeTypeOf('function');
   });
 
@@ -1261,6 +1288,7 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
       unresolved: 1,
       resolved: 1,
+      unread: 0,
       all: 2,
     });
   });
@@ -1285,6 +1313,7 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
       unresolved: 1,
       resolved: 0,
+      unread: 0,
       all: 1,
     });
   });

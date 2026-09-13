@@ -240,23 +240,42 @@ export const roomHaveNotification = (room: Room): boolean => {
   return total > 0 || highlight > 0;
 };
 
+const isThreadOnlyRoomActivity = (room: Room, mEvent: MatrixEvent): boolean => {
+  const mEventId = mEvent.getId();
+  const relationTargetId = mEvent.getRelation()?.event_id;
+  const relatedEvent = relationTargetId ? room.findEventById(relationTargetId) : undefined;
+  const relatedEventId = relatedEvent?.getId();
+  const isThreadReplyMessage = !!mEventId && !!mEvent.threadRootId && mEvent.threadRootId !== mEventId;
+  const isThreadReplyRelatedEvent =
+    !!relatedEventId &&
+    !!relatedEvent?.threadRootId &&
+    relatedEvent.threadRootId !== relatedEventId;
+  return isThreadReplyMessage || isThreadReplyRelatedEvent;
+};
+
 export const roomHaveUnread = (mx: MatrixClient, room: Room) => {
   const userId = mx.getUserId();
   if (!userId) return false;
   const readUpToId = room.getEventReadUpTo(userId);
   const liveEvents = room.getLiveTimeline().getEvents();
+  const latestVisibleMainEvent = [...liveEvents]
+    .reverse()
+    .find((event) => !isThreadOnlyRoomActivity(room, event));
 
-  if (liveEvents[liveEvents.length - 1]?.getSender() === userId) {
+  if (latestVisibleMainEvent?.getSender() === userId) {
     return false;
   }
 
+  let sawVisibleMainEvent = false;
   for (let i = liveEvents.length - 1; i >= 0; i -= 1) {
     const event = liveEvents[i];
     if (!event) return false;
     if (event.getId() === readUpToId) return false;
+    if (isThreadOnlyRoomActivity(room, event)) continue;
+    sawVisibleMainEvent = true;
     if (isNotificationEvent(event)) return true;
   }
-  return true;
+  return sawVisibleMainEvent;
 };
 
 export const getUnreadInfo = (room: Room): UnreadInfo => {

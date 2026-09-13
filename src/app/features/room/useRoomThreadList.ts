@@ -1,8 +1,10 @@
 import { Room, ThreadEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadRoomThreads, roomThreadListIsComplete, sortThreadsByActivity } from './roomThreadList';
+import { loadRoomThreads, roomThreadListIsComplete, sortThreadsByActivity, getRoomThreadsUnread } from './roomThreadList';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 export const useRoomThreadList = (room: Room) => {
+  const mx = useMatrixClient();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
@@ -69,11 +71,21 @@ export const useRoomThreadList = (room: Room) => {
     };
   }, [room]);
 
-  const threads = useMemo(() => sortThreadsByActivity(room.getThreads()), [room, version]);
+  const rawThreads = useMemo(() => room.getThreads(), [room, version]);
+  const userId = mx.getUserId() ?? '';
+  const threadUnreads = useMemo(
+    () => getRoomThreadsUnread(room, rawThreads, userId),
+    [room, rawThreads, userId]
+  );
+  const threads = useMemo(
+    () => sortThreadsByActivity(rawThreads, threadUnreads),
+    [rawThreads, threadUnreads]
+  );
   const fullyLoaded = useMemo(() => roomThreadListIsComplete(room), [room, version]);
 
   return {
     threads,
+    threadUnreads,
     loading,
     fullyLoaded,
     error,

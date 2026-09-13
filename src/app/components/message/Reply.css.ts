@@ -91,6 +91,14 @@ export const ThreadStreamingDot = style({
   },
 });
 
+export const ThreadUnreadDot = style({
+  width: toRem(8),
+  height: toRem(8),
+  flexShrink: 0,
+  borderRadius: '50%',
+  backgroundColor: color.Primary.Main,
+});
+
 export const ThreadScheduledIndicator = style({
   flexShrink: 0,
   whiteSpace: 'nowrap',

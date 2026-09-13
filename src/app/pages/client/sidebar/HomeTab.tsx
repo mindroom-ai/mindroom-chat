@@ -22,7 +22,7 @@ import { UnreadBadge } from '../../../components/unread-badge';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useHomeRooms } from '../home/useHomeRooms';
-import { markAsRead } from '../../../utils/notifications';
+import { markRoomAndThreadsAsRead } from '../../../utils/notifications';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
@@ -38,7 +38,7 @@ const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, re
 
   const handleMarkAsRead = () => {
     if (!unread) return;
-    orphanRooms.forEach((rId) => markAsRead(mx, rId, hideActivity));
+    orphanRooms.forEach((rId) => markRoomAndThreadsAsRead(mx, rId, hideActivity));
     requestClose();
   };
 
