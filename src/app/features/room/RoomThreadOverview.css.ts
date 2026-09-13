@@ -95,6 +95,19 @@ export const ToggleInclude = style({
   },
 });
 
+export const ToggleIncludeOr = style({
+  backgroundColor: color.Warning.Container,
+  borderColor: color.Warning.ContainerLine,
+  color: color.Warning.OnContainer,
+  opacity: '1',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Warning.ContainerHover,
+    },
+  },
+});
+
 export const ToggleExclude = style({
   backgroundColor: color.Critical.Container,
   borderColor: color.Critical.ContainerLine,

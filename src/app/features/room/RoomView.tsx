@@ -40,6 +40,11 @@ import {
   applyPreset,
   resetThreadFilterState,
 } from './roomThreadOverviewModel';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+  serializeThreadFilterQuery,
+} from './threadFilterDsl';
 import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
 import { createSessionId } from '../../state/sessions';
@@ -148,11 +153,27 @@ export function RoomView({
     navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
   }, [effectiveThreadId, navigateRoomFocusEvent, room.roomId]);
 
-  const handleToggle = useCallback(
-    (key: ThreadFilterKey) => {
-      setThreadFilterState(updateThreadFilterKey(threadFilterState, key));
+  const updateFromEffectiveQueryState = useCallback(
+    (updater: (state: typeof threadFilterState) => typeof threadFilterState) => {
+      const next = updater(
+        applyParsedThreadFilterQuery(
+          threadFilterState,
+          parseThreadFilterQuery(threadFilterState.searchQuery ?? '')
+        )
+      );
+      const searchQuery = serializeThreadFilterQuery(next);
+      setThreadFilterState(
+        searchQuery === threadFilterState.searchQuery ? next : { ...next, searchQuery }
+      );
     },
     [setThreadFilterState, threadFilterState]
+  );
+
+  const handleToggle = useCallback(
+    (key: ThreadFilterKey) => {
+      updateFromEffectiveQueryState((state) => updateThreadFilterKey(state, key));
+    },
+    [updateFromEffectiveQueryState]
   );
 
   const handleSortDirectionChange = useCallback(() => {
@@ -179,30 +200,30 @@ export function RoomView({
 
   const handleCycleTag = useCallback(
     (tag: string) => {
-      setThreadFilterState(cycleTagFilter(threadFilterState, tag));
+      updateFromEffectiveQueryState((state) => cycleTagFilter(state, tag));
     },
-    [setThreadFilterState, threadFilterState]
+    [updateFromEffectiveQueryState]
   );
 
   const handleAddTag = useCallback(
     (tag: string) => {
-      setThreadFilterState(addTagFilter(threadFilterState, tag));
+      updateFromEffectiveQueryState((state) => addTagFilter(state, tag));
     },
-    [setThreadFilterState, threadFilterState]
+    [updateFromEffectiveQueryState]
   );
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      setThreadFilterState(removeTagFilter(threadFilterState, tag));
+      updateFromEffectiveQueryState((state) => removeTagFilter(state, tag));
     },
-    [setThreadFilterState, threadFilterState]
+    [updateFromEffectiveQueryState]
   );
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      setThreadFilterState(applyPreset(threadFilterState, preset));
+      updateFromEffectiveQueryState((state) => applyPreset(state, preset));
     },
-    [setThreadFilterState, threadFilterState]
+    [updateFromEffectiveQueryState]
   );
 
   const handleSearchQueryChange = useCallback(

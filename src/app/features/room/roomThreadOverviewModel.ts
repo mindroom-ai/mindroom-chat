@@ -23,6 +23,7 @@ import {
   resolveThreadRootPreviewText,
   resolveThreadSummaryInfo,
 } from './threadPresentation';
+import { serializeThreadFilterQuery } from './threadFilterDsl';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -258,6 +259,11 @@ export const matchesThreadFilterState = (
 
   return matchesTagFilters(meta.tags, state.tags);
 };
+
+export const isOrModeStatusChip = (
+  state: ThreadFilterState,
+  key: ThreadFilterKey
+): boolean => state.statusMode === 'or' && state[key] === 'include';
 
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (Object.keys(dimensionMatchers) as ThreadFilterKey[]).some((key) => state[key] !== 'any') ||
@@ -738,9 +744,9 @@ export const FILTER_PRESETS: FilterPreset[] = [
     apply: { resolved: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
   },
   {
-    id: 'active-work',
-    label: 'Active work',
-    description: 'Streaming or scheduled threads',
+    id: 'working',
+    label: 'Working',
+    description: "Streaming or scheduled — what you're working on right now",
     apply: { streaming: 'include', scheduled: 'include', statusMode: 'or' },
   },
   {
@@ -768,7 +774,7 @@ export const applyPreset = (
   preset: FilterPreset
 ): ThreadFilterState => {
   const { statusMode, ...statusOverrides } = preset.apply;
-  return {
+  const nextState: ThreadFilterState = {
     ...state,
     resolved: 'any',
     streaming: 'any',
@@ -777,6 +783,13 @@ export const applyPreset = (
     idle: 'any',
     statusMode: statusMode ?? 'and',
     ...statusOverrides,
+  };
+  if (preset.id === 'all') {
+    return { ...nextState, tags: new Map(), searchQuery: '' };
+  }
+  return {
+    ...nextState,
+    searchQuery: serializeThreadFilterQuery(nextState),
   };
 };
 

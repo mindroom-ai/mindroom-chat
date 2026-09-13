@@ -1,6 +1,6 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -14,59 +14,74 @@ import {
   roomThreadOverviewType,
   roomUnreadState,
   scrollToItemMock,
+  settingsState,
   threadResolutionMapMock,
   virtualPaginatorState,
-  waitForCondition,
 } from './RoomTimeline.test.shared';
 
 describe('RoomTimeline', () => {
   describe('navigation and focus', () => {
     describe('navigation and hidden-event recovery', () => {
       describe('filter navigation', () => {
-        it('resets the room timeline to the latest live range when returning to all threads', async () => {
-    const { RoomTimeline } = await import('./RoomTimeline');
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
-    const liveEvents = Array.from({ length: 304 }, (_, index) => makeEvent(`$message-${index}`));
-    liveEvents.push(unresolvedThread);
-    const room = makeRoom({ liveEvents });
-    let renderer: ReturnType<typeof create> | undefined;
+        it('keeps the default overview range when reset restores default sorting', async () => {
+          vi.useFakeTimers();
+          const previousPaginationLimit = settingsState.paginationLimit;
+          const paginationLimit = 50;
+          settingsState.paginationLimit = paginationLimit;
+          try {
+            const { RoomTimeline } = await import('./RoomTimeline');
+            const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+            const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
+            const liveEvents = Array.from({ length: paginationLimit - 1 }, (_, index) =>
+              makeEvent(`$message-${index}`)
+            );
+            liveEvents.push(unresolvedThread);
+            const room = makeRoom({ liveEvents });
+            let renderer: ReturnType<typeof create> | undefined;
 
-    await act(async () => {
-      renderer = create(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-        })
-      );
-      await flushAsyncWork(1);
-    });
+            await act(async () => {
+              renderer = create(
+                React.createElement(ControlledRoomTimeline, {
+                  room,
+                })
+              );
+              await flushAsyncWork(1);
+            });
 
-    await act(async () => {
-      virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 10 });
-      await flushAsyncWork(1);
-    });
+            await act(async () => {
+              virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 10 });
+              await flushAsyncWork(1);
+            });
 
-    await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
-      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
-      await flushAsyncWork(1);
-    });
+            await act(async () => {
+              renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+              renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+              await flushAsyncWork(1);
+            });
 
-    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
+            await act(async () => {
+              vi.advanceTimersByTime(350);
+              await flushAsyncWork(2);
+            });
 
-    await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onReset();
-      await flushAsyncWork(1);
-    });
+            expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
 
-    await waitForCondition(
-      () =>
-        virtualPaginatorState.lastOptions?.range?.start === 5 &&
-        virtualPaginatorState.lastOptions?.range?.end === 305,
-      50
-    );
-    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
-  });
+            await act(async () => {
+              renderer?.root.findByType(roomThreadOverviewType).props.onReset();
+              await flushAsyncWork(1);
+            });
+
+            await act(async () => {
+              vi.advanceTimersByTime(350);
+              await flushAsyncWork(2);
+            });
+
+            expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 1 });
+          } finally {
+            settingsState.paginationLimit = previousPaginationLimit;
+            vi.useRealTimers();
+          }
+        });
 
   it('keeps the active filter when jumping to an unread event hidden by the overview', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');

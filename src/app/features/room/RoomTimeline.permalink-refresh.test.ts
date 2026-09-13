@@ -27,7 +27,7 @@ describe('RoomTimeline', () => {
 
     describe('permalink focus and timeline refresh', () => {
       describe('permalink targeting', () => {
-        it('computes room-event focus against the active thread-filtered room list', async () => {
+  it('computes room-event focus against the active thread-filtered room list', async () => {
     const { getRoomEventFocusTarget } = await import('./RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const messageEvent = makeEvent('$message-1');
@@ -56,6 +56,43 @@ describe('RoomTimeline', () => {
     ).toEqual({
       index: 1,
       count: 2,
+      canFocus: true,
+    });
+  });
+
+  it('derives free-text search from the DSL query when no searchQuery override is passed', async () => {
+    const { getRoomEventFocusTarget } = await import('./RoomTimeline');
+    const matchingThread = makeEvent('$thread-1', {
+      isThreadRoot: true,
+      content: { body: 'hello world' },
+    });
+    const otherThread = makeEvent('$thread-2', {
+      isThreadRoot: true,
+      content: { body: 'other body' },
+    });
+
+    expect(
+      getRoomEventFocusTarget({
+        eventId: matchingThread.getId(),
+        renderableEvents: [matchingThread, otherThread] as never,
+        room: makeRoom() as never,
+        threadResolutionMap: threadResolutionMapMock as never,
+        threadId: undefined,
+        threadFilterState: {
+          ...DEFAULT_THREAD_FILTER_STATE,
+          tags: new Map(),
+          searchQuery: 'is:streaming hello',
+        },
+        scheduledTaskCounts: new Map(),
+        threadReplyCountMapForMeta: new Map(),
+        threadParticipantMap: new Map(),
+        summaryMap: new Map(),
+        currentUserId: '@alice:example.org',
+        readUpToTs: undefined,
+      })
+    ).toEqual({
+      index: 0,
+      count: 1,
       canFocus: true,
     });
   });

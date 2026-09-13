@@ -1589,12 +1589,13 @@ describe('roomThreadOverviewModel', () => {
       expect(result.statusMode).toBe('and');
     });
 
-    it('active-work preset sets statusMode to or', async () => {
+    it('working preset sets statusMode to or', async () => {
       const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
-      const activeWork = FILTER_PRESETS.find((p) => p.id === 'active-work')!;
-      const result = applyPreset(makeDefaultState(), activeWork);
+      const working = FILTER_PRESETS.find((p) => p.id === 'working')!;
+      const result = applyPreset(makeDefaultState(), working);
       expect(result.streaming).toBe('include');
       expect(result.scheduled).toBe('include');
+      expect(result.searchQuery).toBe('is:streaming OR is:scheduled');
       expect(result.statusMode).toBe('or');
     });
 
@@ -1606,10 +1607,19 @@ describe('roomThreadOverviewModel', () => {
       expect(result.resolved).toBe('any');
       expect(result.streaming).toBe('any');
       expect(result.scheduled).toBe('any');
+      expect(result.searchQuery).toBe('');
       expect(result.statusMode).toBe('and');
     });
 
-    it('preserves tags, sort, and searchQuery', async () => {
+    it('all preset clears free-text searchQuery instead of preserving stale bar text', async () => {
+      const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
+      const all = FILTER_PRESETS.find((p) => p.id === 'all')!;
+      const base = makeDefaultState({ searchQuery: 'hello' });
+      const result = applyPreset(base, all);
+      expect(result.searchQuery).toBe('');
+    });
+
+    it('preserves tags and sort while canonicalizing searchQuery', async () => {
       const { applyPreset, FILTER_PRESETS } = await import('./roomThreadOverviewModel');
       const base = makeDefaultState({
         tags: new Map([['priority', 'include']]),
@@ -1620,7 +1630,7 @@ describe('roomThreadOverviewModel', () => {
       const result = applyPreset(base, archived);
       expect(result.tags.get('priority')).toBe('include');
       expect(result.sortBy).toBe('lastReply');
-      expect(result.searchQuery).toBe('hello');
+      expect(result.searchQuery).toBe('is:resolved tag:priority hello');
     });
   });
 
