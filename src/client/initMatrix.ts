@@ -1,7 +1,7 @@
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
-import type { MatrixClient } from 'matrix-js-sdk/lib/client';
-import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
+import type { IServerVersions, MatrixClient } from 'matrix-js-sdk/lib/client';
+import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { Filter } from 'matrix-js-sdk/lib/filter';
 import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
@@ -43,11 +43,12 @@ import {
 import { clearAppOwnedCacheLocalStorage } from '../app/utils/appOwnedStorage';
 import { stopMindroomSyncEngineForClient } from '../app/mindroom/engine/mindroomSyncEngine';
 import { createSessionTokenRefresh } from './sessionTokenRefresh';
+import { readCachedSpecVersions, removeCachedSpecVersions } from '../app/state/cachedSpecVersions';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
 
-type SessionCleanupContext = Pick<StoredSession, 'sessionId' | 'userId' | 'deviceId'>;
+type SessionCleanupContext = Pick<StoredSession, 'sessionId' | 'baseUrl' | 'userId' | 'deviceId'>;
 
 type IndexedDBStoreWithSyncAccumulator = IndexedDBStore & {
   backend?: {
@@ -297,6 +298,17 @@ const createStartupSyncFilter = (mx: MatrixClient): Filter => {
 };
 
 export const startClient = async (mx: MatrixClient) => {
+  const userId = mx.getUserId();
+  const cached = userId ? readCachedSpecVersions(mx.baseUrl, userId) : undefined;
+  if (cached) {
+    const cachedServerVersions = cached as IServerVersions;
+    // SDK getVersions() returns serverVersionsPromise without rebuilding canSupport;
+    // the real-SDK startClient regression test pins both sides of this contract.
+    (mx as unknown as { serverVersionsPromise?: Promise<IServerVersions> }).serverVersionsPromise =
+      Promise.resolve(cachedServerVersions);
+    mx.canSupport = await buildFeatureSupportMap(cachedServerVersions);
+  }
+
   await mx.startClient({
     filter: createStartupSyncFilter(mx),
     lazyLoadMembers: true,
@@ -342,6 +354,7 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 const getStoredSessionCleanupContexts = (): SessionCleanupContext[] =>
   listSessions().map((session) => ({
     sessionId: session.sessionId,
+    baseUrl: session.baseUrl,
     userId: session.userId,
     deviceId: session.deviceId,
   }));
@@ -546,10 +559,12 @@ const clearAppScopedCacheStorage = async (appBasePath: string): Promise<void> =>
 
 const getMatrixClientSessionIdentity = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getSafeUserId'>
-): Pick<SessionCleanupContext, 'sessionId' | 'userId'> => {
+): Pick<SessionCleanupContext, 'sessionId' | 'baseUrl' | 'userId'> => {
+  const baseUrl = mx.getHomeserverUrl();
   const userId = mx.getSafeUserId();
   return {
-    sessionId: createSessionId(mx.getHomeserverUrl(), userId),
+    sessionId: createSessionId(baseUrl, userId),
+    baseUrl,
     userId,
   };
 };
@@ -578,10 +593,11 @@ const stopClientRuntime = (mx: MatrixClient): void => {
 };
 
 const clearSessionScopedUiState = (
-  session: Pick<SessionCleanupContext, 'sessionId' | 'userId'>,
+  session: Pick<SessionCleanupContext, 'sessionId' | 'baseUrl' | 'userId'>,
   clearUserScopedState = true
 ): void => {
-  const { sessionId, userId } = session;
+  const { sessionId, baseUrl, userId } = session;
+  removeCachedSpecVersions(baseUrl, userId);
   if (clearUserScopedState) {
     try {
       clearNavToActivePathStore(userId);

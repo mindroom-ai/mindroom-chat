@@ -4,18 +4,20 @@ import { SpecVersions, specVersions } from '../cs-api';
 
 type SpecVersionsLoaderProps = {
   baseUrl: string;
+  request?: typeof fetch;
   fallback?: () => JSX.Element | null;
   error?: (err: unknown, retry: () => void, ignore: () => void) => JSX.Element | null;
   children: (versions: SpecVersions) => JSX.Element | null;
 };
 export function SpecVersionsLoader({
   baseUrl,
+  request = fetch,
   fallback,
   error,
   children,
 }: SpecVersionsLoaderProps): JSX.Element | null {
   const [state, load] = useAsyncCallback(
-    useCallback(() => specVersions(fetch, baseUrl), [baseUrl])
+    useCallback(() => specVersions(request, baseUrl), [baseUrl, request])
   );
   const [ignoreError, setIgnoreError] = useState(false);
 
