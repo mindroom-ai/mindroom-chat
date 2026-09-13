@@ -1,9 +1,14 @@
 import React from 'react';
 import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { withMindroomToolTraceMarkerParserOptions } from './react-custom-html-parser';
+import {
+  LINKIFY_OPTS,
+  getReactCustomHtmlParser,
+  withMindroomToolTraceMarkerParserOptions,
+} from './react-custom-html-parser';
 
 vi.mock('folds', async () => {
   const ReactModule = await import('react');
@@ -104,6 +109,43 @@ const collectTextContent = (
 
   const self = typeof node.children === 'object' ? collectTextContent(node.children) : '';
   return self;
+};
+
+const renderCustomHtmlTree = (html: string): ReactTestRenderer => {
+  const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+    linkifyOpts: LINKIFY_OPTS,
+  });
+  const parsed = parse(html, opts);
+  let renderer: ReactTestRenderer | undefined;
+  act(() => {
+    renderer = create(React.createElement(React.Fragment, null, parsed));
+  });
+
+  if (!renderer) {
+    throw new Error('Failed to create HTML renderer');
+  }
+
+  return renderer;
+};
+
+const collectStructuralTableWhitespace = (
+  node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,
+  tags = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup'])
+): string[] => {
+  if (!node || typeof node === 'string') return [];
+  if (Array.isArray(node)) {
+    return node.flatMap((child) => collectStructuralTableWhitespace(child, tags));
+  }
+
+  const current =
+    tags.has(node.type) && node.children
+      ? node.children.flatMap((child) =>
+          typeof child === 'string' && child.trim().length === 0 ? [node.type] : []
+        )
+      : [];
+
+  const nested = node.children ? collectStructuralTableWhitespace(node.children, tags) : [];
+  return current.concat(nested);
 };
 
 describe('withMindroomToolTraceMarkerParserOptions', () => {
@@ -339,5 +381,29 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
 
     const resultBody = renderer.root.findByType('pre');
     expect(resultBody.children.join('')).toContain('Single-line output');
+  });
+});
+
+describe('getReactCustomHtmlParser', () => {
+  it('drops whitespace-only text nodes in table structure while preserving cell content', () => {
+    const renderer = renderCustomHtmlTree(`
+      <table>
+        <thead>
+          <tr>
+            <th>Heading</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>https://example.com</td>
+          </tr>
+        </tbody>
+      </table>
+    `);
+
+    expect(collectStructuralTableWhitespace(renderer.toJSON())).toEqual([]);
+    expect(
+      renderer.root.findAllByType('a').some((node) => node.props.href === 'https://example.com')
+    ).toBe(true);
   });
 });
