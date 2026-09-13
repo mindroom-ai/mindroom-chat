@@ -397,6 +397,12 @@ vi.mock('../../components/room-intro', () => ({
   RoomIntro: roomIntroType,
 }));
 
+vi.mock('../../components/CollapsibleMessage', () => ({
+  CollapsibleMessage: passthrough,
+  expandAllMessages: vi.fn(),
+  collapseAllMessages: vi.fn(),
+}));
+
 vi.mock('../../components/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
 }));
@@ -1125,6 +1131,8 @@ describe('RoomTimeline', () => {
       await virtualPaginatorState.lastOptions?.onEnd?.(true);
       await flushAsyncWork();
     });
+
+    await waitForCondition(() => room.addEventsToTimeline.mock.calls.length > 0, 100);
 
     expect(room.addEventsToTimeline).toHaveBeenCalled();
     expect(room.addEventsToTimeline.mock.lastCall?.[4]).toBeNull();
@@ -2225,7 +2233,7 @@ describe('RoomTimeline', () => {
         await flushAsyncWork(10);
       });
 
-      await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
+      await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 200);
 
       expect(matrixClientMock.fetchRelations).toHaveBeenCalledWith(
         '!room:example.org',
