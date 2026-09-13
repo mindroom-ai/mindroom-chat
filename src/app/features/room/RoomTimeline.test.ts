@@ -670,7 +670,35 @@ describe('RoomTimeline', () => {
       0
     );
     expect(overview.props.filter).toBe('all');
+    expect(overview.props.counts).toEqual({
+      unresolved: 0,
+      resolved: 0,
+      all: 0,
+    });
     expect(overview.props.onFilterChange).toBeTypeOf('function');
+  });
+
+  it('passes visible thread-root counts to the room thread overview', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const unresolvedEvent = makeEvent('$thread-unresolved', { isThreadRoot: true });
+    const resolvedEvent = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [makeEvent('$message'), unresolvedEvent, resolvedEvent],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    threadResolutionMapMock.set(resolvedEvent.getId(), { isResolved: true });
+
+    const renderer = create(
+      React.createElement(ControlledRoomTimeline, {
+        room,
+      })
+    );
+
+    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
+      unresolved: 1,
+      resolved: 1,
+      all: 2,
+    });
   });
 
   it('filters room events by thread resolution state', async () => {
@@ -795,6 +823,51 @@ describe('RoomTimeline', () => {
       room.getUnfilteredTimelineSet(),
       unreadMessage.getId()
     );
+  });
+
+  it('resets the room timeline to the live range when switching back to all', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const liveEvents = [
+      ...Array.from({ length: 302 }, (_, index) => makeEvent(`$message-${index}`)),
+      makeEvent('$thread-1', { isThreadRoot: true }),
+      makeEvent('$thread-2', { isThreadRoot: true }),
+      makeEvent('$thread-3', { isThreadRoot: true }),
+    ];
+    const room = makeRoom({ liveEvents });
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
+
+    await act(async () => {
+      virtualPaginatorState.lastOptions?.onRangeChange({ start: 0, end: 100 });
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 100 });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('unresolved');
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('all');
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 5, end: 305 });
   });
 
   it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {

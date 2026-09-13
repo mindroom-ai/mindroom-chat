@@ -151,7 +151,11 @@ import {
 } from '../../components/message/mindroomThreadSummary';
 import { shouldPinThreadToBottomOnOpen } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';
-import { RoomThreadOverview, type ThreadFilter } from './RoomThreadOverview';
+import {
+  RoomThreadOverview,
+  type RoomThreadOverviewCounts,
+  type ThreadFilter,
+} from './RoomThreadOverview';
 import {
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
@@ -1070,6 +1074,7 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
+  const prevThreadFilterRef = useRef(threadFilter);
   const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
     new WeakMap<MatrixEvent, number>()
   );
@@ -1151,6 +1156,32 @@ export function RoomTimeline({
       getThreadFilteredEvents(renderableEvents, room, threadResolutionMap, threadId, threadFilter),
     [renderableEvents, room, threadResolutionMap, threadId, threadFilter]
   );
+  const visibleThreadCounts = useMemo<RoomThreadOverviewCounts>(() => {
+    let unresolved = 0;
+    let resolved = 0;
+
+    for (const event of renderableEvents) {
+      const eventId = event.getId();
+      if (!eventId) continue;
+
+      const isRoot =
+        event.isThreadRoot || !!room.getThread(eventId) || threadResolutionMap.has(eventId);
+      if (!isRoot) continue;
+
+      const resolution = threadResolutionMap.get(eventId);
+      if (resolution?.isResolved) {
+        resolved += 1;
+      } else {
+        unresolved += 1;
+      }
+    }
+
+    return {
+      unresolved,
+      resolved,
+      all: unresolved + resolved,
+    };
+  }, [renderableEvents, room, threadResolutionMap]);
   const filteredLength = threadFilteredEvents.length;
   const activeTimelineRange = useMemo(
     () => getActiveTimelineRange(threadId, threadFilter, timeline.range, filteredLength),
@@ -1953,6 +1984,31 @@ export function RoomTimeline({
       loadEventTimeline(eventId);
     }
   }, [eventId, loadEventTimeline]);
+
+  useEffect(() => {
+    const prevThreadFilter = prevThreadFilterRef.current;
+    prevThreadFilterRef.current = threadFilter;
+
+    if (prevThreadFilter !== 'all' && threadFilter === 'all' && !threadId) {
+      setTimeline(
+        getInitialTimeline(room, {
+          threadId,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+        })
+      );
+    }
+  }, [
+    room,
+    threadFilter,
+    threadId,
+    ignoredUsersSet,
+    showHiddenEvents,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+  ]);
 
   useEffect(() => {
     if (!threadId) return;
@@ -3655,7 +3711,7 @@ export function RoomTimeline({
     <Box grow="Yes" direction="Column">
       {!threadId && (
         <RoomThreadOverview
-          room={room}
+          counts={visibleThreadCounts}
           filter={threadFilter}
           onFilterChange={onThreadFilterChange}
         />
