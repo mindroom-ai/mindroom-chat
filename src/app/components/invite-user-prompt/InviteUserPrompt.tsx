@@ -1,10 +1,4 @@
-import React, {
-  FormEventHandler,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { FormEventHandler, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Overlay,
   OverlayBackdrop,
@@ -21,6 +15,7 @@ import {
   color,
   TextArea,
   Dialog,
+  toRem,
 } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
@@ -95,7 +90,12 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserProps) {
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Dialog>
+          <Dialog
+            style={{
+              width: '100%',
+              maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
+            }}
+          >
             <Box grow="Yes" direction="Column">
               <Header
                 size="500"
