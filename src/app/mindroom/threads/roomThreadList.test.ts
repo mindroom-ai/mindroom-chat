@@ -404,6 +404,8 @@ describe('thread visibility helpers', () => {
     const thread = {
       events: [visibleReply],
       getEventReadUpTo: vi.fn(() => '$reply-visible'),
+      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
+      getReadReceiptForUserId: vi.fn(() => null),
       replyToEvent: undefined,
       rootEvent: { getTs: () => 50 },
     } as never;

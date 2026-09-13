@@ -195,6 +195,8 @@ describe('buildThreadRecord', () => {
         length: 1,
         lastReply: () => latestReply,
         getEventReadUpTo: vi.fn(() => latestReply.getId()),
+        getLastUnthreadedReceiptFor: vi.fn(() => undefined),
+        getReadReceiptForUserId: vi.fn(() => null),
         getUnfilteredTimelineSet: () => ({
           getLiveTimeline: () => ({
             getEvents: () => [rootEvent, latestReply],
