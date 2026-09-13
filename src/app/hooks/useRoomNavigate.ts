@@ -76,6 +76,14 @@ export const useRoomNavigate = () => {
     [navigate, getRoomPath]
   );
 
+  const navigateRoomFocusEvent = useCallback(
+    (roomId: string, eventId: string, opts?: NavigateOptions) => {
+      const roomPath = getRoomPath(roomId, eventId);
+      navigate(withSearchParam<_RoomSearchParams>(roomPath, { focusEvent: '1' }), opts);
+    },
+    [navigate, getRoomPath]
+  );
+
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
       if (!opts?.replace) {
@@ -88,7 +96,9 @@ export const useRoomNavigate = () => {
         if (!alreadyInThread) {
           // Rewrite the current room entry synchronously before pushing the thread URL.
           // Build a full browser URL that respects hash-router mode and base path.
-          const focusedRoomPath = getRoomPath(roomId, threadId);
+          const focusedRoomPath = withSearchParam<_RoomSearchParams>(getRoomPath(roomId, threadId), {
+            focusEvent: '1',
+          });
           const replaceUrl = hashRouter?.enabled
             ? `#${appUrl(focusedRoomPath, hashRouter.basename ?? '/')}`
             : appUrl(focusedRoomPath);
@@ -105,6 +115,7 @@ export const useRoomNavigate = () => {
   return {
     navigateSpace,
     navigateRoom,
+    navigateRoomFocusEvent,
     navigateRoomThread,
   };
 };

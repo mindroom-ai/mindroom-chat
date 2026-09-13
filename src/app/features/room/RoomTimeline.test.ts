@@ -21,6 +21,8 @@ const {
   reactionOrEditEventMock,
   isMembershipChangedMock,
   matrixClientMock,
+  navigateRoomMock,
+  navigateRoomThreadMock,
   threadRenderStateMock,
   threadLastActivityTsMapMock,
   threadResolutionMapMock,
@@ -63,6 +65,8 @@ const {
     processAggregatedTimelineEvents: vi.fn(),
     relations: vi.fn(),
   },
+  navigateRoomMock: vi.fn(),
+  navigateRoomThreadMock: vi.fn(),
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [],
@@ -250,8 +254,8 @@ vi.mock('../../state/hooks/unread', () => ({
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
-    navigateRoom: vi.fn(),
-    navigateRoomThread: vi.fn(),
+    navigateRoom: navigateRoomMock,
+    navigateRoomThread: navigateRoomThreadMock,
   }),
 }));
 
@@ -858,6 +862,8 @@ beforeEach(() => {
     chunk: [],
     next_batch: null,
   });
+  navigateRoomMock.mockReset();
+  navigateRoomThreadMock.mockReset();
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
   matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
   matrixClientMock.paginateEventTimeline.mockResolvedValue(false);
@@ -950,6 +956,7 @@ const createControlledRoomTimelineHarness = (
   return function ControlledRoomTimelineHarness({
     room,
     eventId,
+    focusEventInRoom,
     threadId,
     initialThreadFilter,
     initialViewMode = 'normal',
@@ -957,6 +964,7 @@ const createControlledRoomTimelineHarness = (
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
+    focusEventInRoom?: boolean;
     threadId?: string;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
     initialViewMode?: 'normal' | 'compact';
@@ -1013,6 +1021,7 @@ const createControlledRoomTimelineHarness = (
     return React.createElement(RoomTimelineComponent, {
       room,
       eventId,
+      focusEventInRoom,
       threadId,
       threadFilterState,
       threadSortFreezeState,
@@ -1827,7 +1836,7 @@ describe('RoomTimeline', () => {
     ]);
   });
 
-  it('uses the frozen compact order for room focus scroll indexes', async () => {
+  it('redirects frozen compact-order permalinks into thread view', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
     const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
@@ -1883,6 +1892,7 @@ describe('RoomTimeline', () => {
     ]);
 
     scrollToItemMock.mockClear();
+    navigateRoomThreadMock.mockClear();
 
     await act(async () => {
       renderer?.update(
@@ -1895,11 +1905,13 @@ describe('RoomTimeline', () => {
       await flushAsyncWork(2);
     });
 
-    expect(scrollToItemMock).toHaveBeenCalledWith(2, {
-      align: 'center',
-      behavior: 'smooth',
-      stopInView: true,
-    });
+    expect(scrollToItemMock).not.toHaveBeenCalled();
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+      room.roomId,
+      firstThread.getId(),
+      undefined,
+      { replace: true }
+    );
   });
 
   it('preloads cached overview metadata in the frozen display order', async () => {
@@ -5863,6 +5875,93 @@ describe('RoomTimeline', () => {
       count: 3,
       canFocus: true,
     });
+  });
+
+  it('derives a thread redirect target for room-overview thread permalinks', async () => {
+    const { getRoomEventThreadOpenTarget } = await import('./RoomTimeline');
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const threadReply = makeEvent('$thread-reply', {
+      threadRootId: threadRoot.getId(),
+    });
+    const room = makeRoom({
+      liveEvents: [threadRoot, threadReply],
+      threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+    });
+
+    expect(
+      getRoomEventThreadOpenTarget({
+        eventId: threadRoot.getId(),
+        room: room as never,
+        roomThreads: room.getThreads() as never,
+      })
+    ).toEqual({
+      threadId: threadRoot.getId(),
+      eventId: undefined,
+    });
+
+    expect(
+      getRoomEventThreadOpenTarget({
+        eventId: threadReply.getId(),
+        room: room as never,
+        roomThreads: room.getThreads() as never,
+      })
+    ).toEqual({
+      threadId: threadRoot.getId(),
+      eventId: threadReply.getId(),
+    });
+  });
+
+  it('redirects compact-room permalinks into thread view', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [threadRoot],
+      threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+    });
+
+    await act(async () => {
+      create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: threadRoot.getId(),
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
+      room.roomId,
+      threadRoot.getId(),
+      undefined,
+      { replace: true }
+    );
+  });
+
+  it('keeps synthetic room-focus permalinks in compact room view', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [threadRoot],
+      threads: [{ id: threadRoot.getId(), rootEvent: threadRoot }] as never,
+    });
+
+    await act(async () => {
+      create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: threadRoot.getId(),
+          focusEventInRoom: true,
+          initialViewMode: 'compact',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    expect(scrollToItemMock).toHaveBeenCalled();
   });
 
   it('uses stopInView=false for the explicit room focus scroll', async () => {

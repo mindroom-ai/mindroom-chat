@@ -2,10 +2,18 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { passthrough, roomTimelineType, navigateRoomMock } = vi.hoisted(() => ({
+type MockThreadContextBannerProps = {
+  onExitThread?: () => void;
+};
+
+const { passthrough, roomTimelineType, navigateRoomFocusEventMock, threadContextBannerState } =
+  vi.hoisted(() => ({
   passthrough: 'div',
   roomTimelineType: 'room-timeline',
-  navigateRoomMock: vi.fn(),
+  navigateRoomFocusEventMock: vi.fn(),
+  threadContextBannerState: {
+    props: undefined as MockThreadContextBannerProps | undefined,
+  },
 }));
 
 const storageState = new Map<string, string>();
@@ -144,7 +152,10 @@ vi.mock('./RoomViewHeader', () => ({
 }));
 
 vi.mock('./ThreadContextBanner', () => ({
-  ThreadContextBanner: passthrough,
+  ThreadContextBanner: (props: MockThreadContextBannerProps) => {
+    threadContextBannerState.props = props;
+    return React.createElement('div');
+  },
 }));
 
 vi.mock('../../hooks/useKeyDown', () => ({
@@ -175,7 +186,7 @@ vi.mock('../../hooks/useRoomCreators', () => ({
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
-    navigateRoom: navigateRoomMock,
+    navigateRoomFocusEvent: navigateRoomFocusEventMock,
   }),
 }));
 
@@ -224,7 +235,8 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
 describe('RoomView', () => {
   beforeEach(() => {
     storageState.clear();
-    navigateRoomMock.mockReset();
+    navigateRoomFocusEventMock.mockReset();
+    threadContextBannerState.props = undefined;
     vi.resetModules();
   });
 
@@ -409,5 +421,26 @@ describe('RoomView', () => {
     expect(state.resolved).toBe('any');
     expect(state.streaming).toBe('any');
     expect(state.sortDirection).toBe('desc');
+  });
+
+  it('exits a thread into the focused room event route', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(threadContextBannerState.props?.onExitThread).toBeTypeOf('function');
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(
+      '!room-a:example.org',
+      '$thread',
+      { replace: true }
+    );
   });
 });

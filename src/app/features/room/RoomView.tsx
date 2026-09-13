@@ -78,11 +78,13 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
 export function RoomView({
   room,
   eventId,
+  focusEventInRoom,
   threadId,
   onThreadLoadError,
 }: {
   room: Room;
   eventId?: string;
+  focusEventInRoom?: boolean;
   threadId?: string;
   onThreadLoadError?: (threadId: string) => void;
 }) {
@@ -111,12 +113,12 @@ export function RoomView({
 
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoomFocusEvent } = useRoomNavigate();
 
   const handleExitThread = useCallback(() => {
     if (!threadId) return;
-    navigateRoom(room.roomId, threadId, { replace: true });
-  }, [navigateRoom, room.roomId, threadId]);
+    navigateRoomFocusEvent(room.roomId, threadId, { replace: true });
+  }, [navigateRoomFocusEvent, room.roomId, threadId]);
 
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
@@ -237,8 +239,9 @@ export function RoomView({
           key={`${roomId}:${threadId ?? ''}`}
           room={room}
           eventId={eventId}
+          focusEventInRoom={focusEventInRoom}
           threadId={threadId}
-threadFilterState={threadFilterState}
+          threadFilterState={threadFilterState}
           threadSortFreezeState={threadSortFreezeState}
           onToggle={handleToggle}
           onSortDirectionChange={handleSortDirectionChange}

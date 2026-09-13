@@ -34,7 +34,7 @@ export function Room() {
   const room = useRoom();
   const mx = useMatrixClient();
   const roomSearchParams = useMemo(() => getRoomSearchParams(searchParams), [searchParams]);
-  const { threadId } = roomSearchParams;
+  const { focusEvent, threadId } = roomSearchParams;
 
   const callSession = useCallSession(room);
   const callMembers = useCallMembers(callSession);
@@ -135,6 +135,7 @@ export function Room() {
               <RoomView
                 room={room}
                 eventId={eventId}
+                focusEventInRoom={focusEvent === '1'}
                 threadId={threadId}
                 onThreadLoadError={handleThreadLoadError}
               />
