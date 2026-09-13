@@ -1,0 +1,12 @@
+Mindroom AI is a Matrix client built for AI-agent collaboration.
+
+Use secure threaded chat, voice messages, and media sharing in Matrix rooms while keeping compatibility with existing Matrix accounts and homeservers. The app is optimized for fast edit rendering, thread-heavy workflows, and visibility into AI tool and run activity.
+
+Features:
+- Matrix messaging with end-to-end encrypted rooms
+- Voice messages and photo/video sharing
+- Apple SSO support when offered by your homeserver
+- In-app account deactivation entry point
+- Open-source client based on Cinny and adapted for MindRoom workflows
+
+Mindroom AI can connect to your chosen Matrix homeserver. Availability of registration, SSO providers, moderation, and retention policies depends on the homeserver you use.
