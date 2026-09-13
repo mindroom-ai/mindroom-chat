@@ -53,7 +53,7 @@ const tagColor = (tagName: string): string => {
 };
 
 const truncateText = (value: string, limit: number): string =>
-  value.length <= limit ? value : `${value.slice(0, limit - 1).trimEnd()}...`;
+  value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
 
 const getMessageCountLabel = (messageCount: number): string => {
   if (messageCount === 0) return '0 replies';
@@ -161,6 +161,7 @@ export function CompactThreadCard({
     ]
   );
   const titleText = getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK;
+  const displayTitleText = truncateText(titleText, TITLE_TEXT_LIMIT);
   const lastMessagePreview = truncateText(
     presentation.latestReplyPreviewText ??
       presentation.rootPreviewText ??
@@ -265,8 +266,8 @@ export function CompactThreadCard({
             aria-hidden="true"
           />
           <span className={css.ScreenReaderText}>{`Thread status: ${attentionStatusText}.`}</span>
-          <Text className={css.TitleText} size="B300">
-            {titleText}
+          <Text className={css.TitleText} size="B300" title={titleText}>
+            {displayTitleText}
           </Text>
         </Box>
         {relativeTime && (
