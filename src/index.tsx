@@ -86,6 +86,8 @@ const bootstrap = async () => {
       });
   }
 
+  mountApp();
+
   if ('serviceWorker' in navigator && isServiceWorkerEnabled()) {
     const postCurrentSessionToSW = () => {
       const session = getActiveSession();
@@ -160,8 +162,6 @@ const bootstrap = async () => {
 
     postCurrentSessionToSW();
   }
-
-  mountApp();
 };
 
 bootstrap().catch(() => undefined);
