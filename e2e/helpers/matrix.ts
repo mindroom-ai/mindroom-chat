@@ -60,6 +60,60 @@ type SeedRoomOverviewStateOptions = {
   filterState?: SerializedThreadFilterState;
 };
 
+type SeedRoomOverviewStorageInput = {
+  nextRoomId: string;
+  nextUserId: string;
+  nextViewMode: 'normal' | 'compact';
+  nextFilterState: SerializedThreadFilterState;
+};
+
+const seedRoomOverviewStateInStorage = ({
+  nextRoomId,
+  nextUserId,
+  nextViewMode,
+  nextFilterState,
+}: SeedRoomOverviewStorageInput) => {
+  const setStoredValue = (key: string, nextValue: string) => {
+    const oldValue = localStorage.getItem(key);
+    localStorage.setItem(key, nextValue);
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key,
+        oldValue,
+        newValue: nextValue,
+        storageArea: localStorage,
+      })
+    );
+  };
+  const getActiveSessionUserId = (): string | undefined => {
+    const rawStore = localStorage.getItem('mindroom_multi_account_store');
+    if (!rawStore) return undefined;
+
+    try {
+      const store = JSON.parse(rawStore) as {
+        activeSessionId?: unknown;
+        sessions?: Array<{ sessionId?: unknown; userId?: unknown }>;
+      };
+      const sessions = Array.isArray(store.sessions) ? store.sessions : [];
+      const activeSession = sessions.find(
+        (session) =>
+          typeof session.sessionId === 'string' && session.sessionId === store.activeSessionId
+      );
+
+      return typeof activeSession?.userId === 'string' ? activeSession.userId : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  setStoredValue(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
+
+  const userIds = new Set([nextUserId, getActiveSessionUserId()].filter(Boolean));
+  userIds.forEach((userId) => {
+    setStoredValue(`roomThreadFilter:${userId}:${nextRoomId}`, JSON.stringify(nextFilterState));
+  });
+};
+
 export const matrixFetch = async <T>(
   homeserver: string,
   path: string,
@@ -251,9 +305,9 @@ export const sendStateEvent = async (
 ) => {
   await matrixFetch<unknown>(
     homeserver,
-    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(eventType)}/${encodeURIComponent(
-      stateKey
-    )}`,
+    `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      eventType
+    )}/${encodeURIComponent(stateKey)}`,
     {
       method: 'PUT',
       accessToken,
@@ -331,19 +385,13 @@ export const seedRoomOverviewState = async ({
   viewMode = 'normal',
   filterState = createHiddenOverviewFilterState(),
 }: SeedRoomOverviewStateOptions) => {
-  await page.evaluate(
-    ({ nextRoomId, nextUserId, nextViewMode, nextFilterState }) => {
-      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
-      localStorage.setItem(
-        `roomThreadFilter:${nextUserId}:${nextRoomId}`,
-        JSON.stringify(nextFilterState)
-      );
-    },
-    {
-      nextRoomId: roomId,
-      nextUserId: userId,
-      nextViewMode: viewMode,
-      nextFilterState: filterState,
-    }
-  );
+  const storageInput: SeedRoomOverviewStorageInput = {
+    nextRoomId: roomId,
+    nextUserId: userId,
+    nextViewMode: viewMode,
+    nextFilterState: filterState,
+  };
+
+  await page.addInitScript(seedRoomOverviewStateInStorage, storageInput);
+  await page.evaluate(seedRoomOverviewStateInStorage, storageInput);
 };

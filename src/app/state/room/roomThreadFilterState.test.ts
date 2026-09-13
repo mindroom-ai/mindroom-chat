@@ -235,6 +235,37 @@ describe('roomThreadFilterState', () => {
     unmountB();
   });
 
+  it('loads a localStorage update that happens after atom creation but before mount', async () => {
+    const { createDefaultThreadFilterState, serializeThreadFilterState } = await import(
+      '../../features/room/roomThreadOverviewModel'
+    );
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
+      './roomThreadFilterState'
+    );
+
+    const userId = '@alice:example.org';
+    const roomId = '!room-a:example.org';
+    const storageKey = getRoomThreadFilterStorageKey(userId, roomId);
+    const atom = roomThreadFilterAtomFamily(userId, roomId);
+
+    localStorageMock.setItem(
+      storageKey,
+      JSON.stringify(
+        serializeThreadFilterState({
+          ...createDefaultThreadFilterState(),
+          resolved: 'include',
+        })
+      )
+    );
+
+    const store = createStore();
+    const unmount = store.sub(atom, () => undefined);
+
+    expect(store.get(atom).resolved).toBe('include');
+
+    unmount();
+  });
+
   it('migrates older stored payloads by defaulting missing searchQuery and statusMode', async () => {
     const { createDefaultThreadFilterState } = await import(
       '../../features/room/roomThreadOverviewModel'

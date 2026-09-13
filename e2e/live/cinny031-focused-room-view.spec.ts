@@ -116,7 +116,7 @@ test.describe('live cinny-031 focused room view', () => {
       page,
       roomId: fixture.roomId,
       userId,
-      filterState: createHiddenOverviewFilterState(),
+      filterState: createNaturalFocusedOverviewState(),
     });
 
     await page.goto(getFocusedRoomPath(fixture.roomId, fixture.rootId));
@@ -124,8 +124,9 @@ test.describe('live cinny-031 focused room view', () => {
 
     await page.getByRole('button', { name: 'Expanded view' }).click();
     await expect(page.getByRole('button', { name: 'Compact view' })).toBeVisible();
-    await expect(page.getByText('No threads match current filters.')).toBeVisible();
-    await expect(page.getByText(fixture.rootBody)).toHaveCount(0);
+    await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible();
+    await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toBeVisible();
+    await expect(page.locator('[data-message-item]', { hasText: fixture.rootBody })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Compact view' }).click();
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
