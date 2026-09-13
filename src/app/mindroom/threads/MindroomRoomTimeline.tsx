@@ -2422,20 +2422,6 @@ export function RoomTimeline({
                   position: 'relative',
                 }}
               >
-                {threadId && (
-                  <Box
-                    style={{
-                      position: 'absolute',
-                      top: config.space.S600,
-                      bottom: config.space.S600,
-                      left: messageLayout === MessageLayout.Compact ? toRem(5) : toRem(7),
-                      width: config.borderWidth.B300,
-                      backgroundColor: color.Warning.ContainerLine,
-                      opacity: 0.7,
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
                 {!threadId &&
                   !roomHasMoreCachedBack &&
                   !canPaginateBack &&
