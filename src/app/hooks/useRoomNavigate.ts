@@ -17,6 +17,8 @@ import { useSelectedSpace } from './router/useSelectedSpace';
 import { settingsAtom } from '../state/settings';
 import { useSetting } from '../state/hooks/settings';
 import { _RoomSearchParams } from '../pages/paths';
+import { useClientConfig } from './useClientConfig';
+import { appUrl } from '../utils/basePath';
 
 export const useRoomNavigate = () => {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ export const useRoomNavigate = () => {
   const mDirects = useAtomValue(mDirectAtom);
   const spaceSelectedId = useSelectedSpace();
   const [developerTools] = useSetting(settingsAtom, 'developerTools');
+  const { hashRouter } = useClientConfig();
 
   const navigateSpace = useCallback(
     (roomId: string) => {
@@ -50,7 +53,11 @@ export const useRoomNavigate = () => {
 
         const pSpaceIdOrAlias = getCanonicalAliasOrRoomId(mx, parentSpace);
 
-        return getSpaceRoomPath(pSpaceIdOrAlias, openSpaceTimeline ? roomId : roomIdOrAlias, eventId);
+        return getSpaceRoomPath(
+          pSpaceIdOrAlias,
+          openSpaceTimeline ? roomId : roomIdOrAlias,
+          eventId
+        );
       }
 
       if (mDirects.has(roomId)) {
@@ -71,10 +78,28 @@ export const useRoomNavigate = () => {
 
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
+      if (!opts?.replace) {
+        // Only pre-seed when navigating from a room timeline, not from another thread.
+        // Thread views have threadId in the URL — check both search and hash to cover
+        // browser-router and hash-router modes respectively.
+        const alreadyInThread =
+          window.location.search.includes('threadId=') ||
+          window.location.hash.includes('threadId=');
+        if (!alreadyInThread) {
+          // Rewrite the current room entry synchronously before pushing the thread URL.
+          // Build a full browser URL that respects hash-router mode and base path.
+          const focusedRoomPath = getRoomPath(roomId, threadId);
+          const replaceUrl = hashRouter?.enabled
+            ? `#${appUrl(focusedRoomPath, hashRouter.basename ?? '/')}`
+            : appUrl(focusedRoomPath);
+          window.history.replaceState(window.history.state, '', replaceUrl);
+        }
+      }
+
       const roomPath = getRoomPath(roomId, eventId);
       navigate(withSearchParam<_RoomSearchParams>(roomPath, { threadId }), opts);
     },
-    [navigate, getRoomPath]
+    [navigate, getRoomPath, hashRouter]
   );
 
   return {
