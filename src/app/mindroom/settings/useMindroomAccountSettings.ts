@@ -13,7 +13,7 @@ import {
 /**
  * In-memory mirror of the `io.mindroom.settings` account-data dictionary,
  * bound once at the client root (see `useBindAtoms`). Readers stay
- * client-free: components (and their tests) see the default full interface
+ * client-free: components (and their tests) see the default simple interface
  * until the binder seeds the atom from account data.
  */
 export const mindroomAccountSettingsAtom = atom<MindroomAccountSettings>(

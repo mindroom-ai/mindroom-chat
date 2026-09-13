@@ -4,6 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import { MindroomCommandPaletteSidebarTab } from './MindroomCommandPaletteSidebarTab';
+import { mindroomAccountSettingsAtom } from '../settings/useMindroomAccountSettings';
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test-utils/i18n');
@@ -23,13 +24,8 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../../components/sidebar', () => ({
-  SidebarItem: ({
-    active,
-    children,
-  }: {
-    active?: boolean;
-    children: React.ReactNode;
-  }) => React.createElement('div', { 'data-active': active }, children),
+  SidebarItem: ({ active, children }: { active?: boolean; children: React.ReactNode }) =>
+    React.createElement('div', { 'data-active': active }, children),
   SidebarItemTooltip: ({
     tooltip,
     children,
@@ -57,13 +53,13 @@ vi.mock('../../components/sidebar', () => ({
 const renderSearchTab = (open = false) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
+  store.set(mindroomAccountSettingsAtom, {
+    simpleMode: false,
+    expandLongMessagesByDefault: true,
+  });
 
   const renderer = create(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(MindroomCommandPaletteSidebarTab)
-    )
+    React.createElement(Provider, { store }, React.createElement(MindroomCommandPaletteSidebarTab))
   );
 
   return { renderer, store };

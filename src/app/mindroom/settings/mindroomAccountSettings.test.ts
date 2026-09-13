@@ -13,14 +13,18 @@ describe('sanitizeMindroomAccountSettings', () => {
     expect(sanitizeMindroomAccountSettings([true])).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
   });
 
-  it('defaults to the full interface', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode).toBe(false);
-    expect(sanitizeMindroomAccountSettings({}).simpleMode).toBe(false);
+  it('defaults to Simple Mode while preserving explicit booleans', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({}).simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: true }).simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: false }).simpleMode).toBe(false);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: 0 }).simpleMode).toBe(true);
+    expect(sanitizeMindroomAccountSettings({ simpleMode: '' }).simpleMode).toBe(true);
   });
 
-  it('defaults long messages to folded and accepts only a strict boolean true', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(false);
-    expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(false);
+  it('defaults long messages to expanded while preserving explicit booleans', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.expandLongMessagesByDefault).toBe(true);
+    expect(sanitizeMindroomAccountSettings({}).expandLongMessagesByDefault).toBe(true);
     expect(
       sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: true })
         .expandLongMessagesByDefault
@@ -30,23 +34,15 @@ describe('sanitizeMindroomAccountSettings', () => {
         .expandLongMessagesByDefault
     ).toBe(false);
     expect(
-      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 1 })
+      sanitizeMindroomAccountSettings({ expandLongMessagesByDefault: 0 })
         .expandLongMessagesByDefault
-    ).toBe(false);
-  });
-
-  it('enables simple mode only for a strict boolean true', () => {
-    expect(sanitizeMindroomAccountSettings({ simpleMode: true }).simpleMode).toBe(true);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: false }).simpleMode).toBe(false);
-    // Truthy garbage from another client must not strip the UI.
-    expect(sanitizeMindroomAccountSettings({ simpleMode: 1 }).simpleMode).toBe(false);
-    expect(sanitizeMindroomAccountSettings({ simpleMode: 'true' }).simpleMode).toBe(false);
+    ).toBe(true);
   });
 
   it('ignores unknown keys when reading', () => {
     expect(sanitizeMindroomAccountSettings({ simpleMode: true, futureKey: 'x' })).toEqual({
       simpleMode: true,
-      expandLongMessagesByDefault: false,
+      expandLongMessagesByDefault: true,
     });
   });
 });
