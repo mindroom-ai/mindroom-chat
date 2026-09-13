@@ -119,6 +119,37 @@ describe('resolveThreadPresentationSnapshot', () => {
     expect(getThreadPrimarySummaryText(presentation)).toBe('Shared summary');
   });
 
+  it('does not let stale summary metadata hide newer loaded replies', () => {
+    const rootEvent = makeRootEvent('$root', 'Root question');
+    const replies = Array.from({ length: 5 }, (_, index) =>
+      makeThreadReplyEvent(
+        `$reply-${index}`,
+        '$root',
+        `Reply ${index}`,
+        '@alice:example.org',
+        index + 2
+      )
+    );
+
+    const presentation = resolveThreadPresentationSnapshot({
+      room,
+      threadRootId: '$root',
+      thread: {
+        events: replies,
+        timeline: replies,
+      },
+      rootEvent,
+      preferredSummaryInfo: {
+        summaryText: 'Stale summary',
+        generatedTs: 5,
+        messageCount: 3,
+      },
+    });
+
+    expect(presentation.summaryText).toBe('Stale summary');
+    expect(presentation.messageCount).toBe(5);
+  });
+
   it('falls back to the root preview for zero-reply threads', () => {
     const rootEvent = makeRootEvent('$root', 'Standalone thread root');
 
