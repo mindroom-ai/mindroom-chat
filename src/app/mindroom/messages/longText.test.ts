@@ -83,6 +83,28 @@ describe('getMindroomLongTextSource', () => {
     expect(source?.previewContent.body).toBeUndefined();
     expect(source?.previewContent.msgtype).toBe('m.file');
   });
+
+  it('copies wrapper tool trace fallback into m.new_content long-text previews', () => {
+    const toolTrace = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
+    };
+    const source = getMindroomLongTextSource({
+      'io.mindroom.tool_trace': toolTrace,
+      'm.new_content': {
+        body: 'Preview\n\n🔧 `run_shell_command` [1]',
+        formatted_body: '<p>Preview</p><p>🔧 <code>run_shell_command</code> [1]</p>',
+        msgtype: 'm.text',
+        url: 'mxc://server/streaming-sidecar',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+    });
+
+    expect(source?.previewContent['io.mindroom.tool_trace']).toBe(toolTrace);
+  });
 });
 
 describe('hasMindroomLongTextMetadata', () => {

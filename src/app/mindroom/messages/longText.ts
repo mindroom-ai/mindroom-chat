@@ -2,6 +2,7 @@ import { IEncryptedFile } from '../../../types/matrix/common';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
+const TOOL_TRACE_TAG = 'io.mindroom.tool_trace';
 const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
@@ -131,6 +132,21 @@ const getLongTextSourceFromCandidate = (
   };
 };
 
+export const withMindroomToolTraceFallback = (
+  content: Record<string, unknown>,
+  ...fallbackSources: Array<Record<string, unknown> | undefined>
+): Record<string, unknown> => {
+  if (content[TOOL_TRACE_TAG] !== undefined) return content;
+
+  const fallbackSource = fallbackSources.find((source) => source?.[TOOL_TRACE_TAG] !== undefined);
+  if (!fallbackSource) return content;
+
+  return {
+    ...content,
+    [TOOL_TRACE_TAG]: fallbackSource[TOOL_TRACE_TAG],
+  };
+};
+
 export const clearMindroomLongTextHydrationCache = () => {
   mindroomLongTextHydrationCache.clear();
 };
@@ -192,8 +208,19 @@ export const getMindroomLongTextSource = (
   content: Record<string, unknown>
 ): MindroomLongTextSource | undefined => {
   const candidates = getLongTextCandidates(content);
-  const sources = candidates.map(getLongTextSourceFromCandidate);
-  return sources.find((source): source is MindroomLongTextSource => source !== undefined);
+  for (const candidate of candidates) {
+    const source = getLongTextSourceFromCandidate(candidate);
+    if (!source) continue;
+
+    return {
+      ...source,
+      previewContent:
+        candidate === content
+          ? source.previewContent
+          : withMindroomToolTraceFallback(source.previewContent, content),
+    };
+  }
+  return undefined;
 };
 
 export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): string | undefined =>

@@ -545,6 +545,96 @@ describe('MindroomLongTextText hydration identity', () => {
       renderer.unmount();
     });
   });
+
+  it('keeps the previous hydrated tool trace while the next rich preview hydrates', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const toolTrace = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
+    };
+    const firstPreviewContent = {
+      ...createPreviewContent(),
+      body: 'Preview A\n\n🔧 `run_shell_command` [1]',
+      formatted_body: '<p>Preview A</p><p>🔧 <code>run_shell_command</code> [1]</p>',
+      url: 'mxc://server/stream-a',
+    };
+    const secondPreviewContent = {
+      ...createPreviewContent(),
+      body: 'Preview B\n\n🔧 `run_shell_command` [1]',
+      formatted_body: '<p>Preview B</p><p>🔧 <code>run_shell_command</code> [1]</p>',
+      url: 'mxc://server/stream-b',
+    };
+    const secondDeferred = createDeferred<Record<string, unknown>>();
+    let renderer!: ReactTestRenderer;
+
+    const render = (nextContent: Record<string, unknown>) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content: nextContent,
+        longTextSource: createLongTextSource({
+          previewContent: nextContent,
+          mxcUri: nextContent.url as string,
+        }),
+        renderBody: (resolvedContent, props) =>
+          React.createElement(
+            'span',
+            { 'data-testid': 'tool-trace-probe' },
+            `${props.body}|${
+              resolvedContent['io.mindroom.tool_trace'] ? 'trace-present' : 'trace-missing'
+            }`
+          ),
+      });
+
+    longTextMocks.hydrateMindroomLongTextSource.mockReset();
+    longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
+      (source: MindroomLongTextSource) => {
+        if (source.mxcUri === 'mxc://server/stream-a') {
+          return Promise.resolve({
+            body: 'Hydrated A',
+            formatted_body: '<p>Hydrated A</p>',
+            msgtype: 'm.text',
+            'io.mindroom.tool_trace': toolTrace,
+          });
+        }
+        return secondDeferred.promise;
+      }
+    );
+
+    await act(async () => {
+      renderer = create(render(firstPreviewContent));
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'tool-trace-probe' }).children).toEqual([
+      'Hydrated A|trace-present',
+    ]);
+
+    await act(async () => {
+      renderer.update(render(secondPreviewContent));
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'tool-trace-probe' }).children).toEqual([
+      'Preview B\n\n🔧 `run_shell_command` [1]|trace-present',
+    ]);
+
+    await act(async () => {
+      secondDeferred.resolve({
+        body: 'Hydrated B',
+        formatted_body: '<p>Hydrated B</p>',
+        msgtype: 'm.text',
+        'io.mindroom.tool_trace': toolTrace,
+      });
+      await secondDeferred.promise;
+    });
+
+    expect(renderer.root.findByProps({ 'data-testid': 'tool-trace-probe' }).children).toEqual([
+      'Hydrated B|trace-present',
+    ]);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
 });
 
 describe('useMindroomLongTextResolvedContent', () => {
