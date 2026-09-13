@@ -174,16 +174,15 @@ export function CompactThreadCard({
   const messageCount = presentation.messageCount;
   const messageCountLabel = getMessageCountLabel(messageCount);
   const currentUserId = mx.getUserId() ?? undefined;
-  const isUnread =
-    metadata?.isUnread ??
-    useMemo(() => {
-      if (!threadRootId) return false;
-      const currentThread = room.getThread(threadRootId);
-      if (!currentThread) return false;
-      const userId = mx.getUserId();
-      if (!userId) return false;
-      return getThreadUnread(room, currentThread, userId);
-    }, [room, threadRootId, mx]);
+  const liveIsUnread = useMemo(() => {
+    if (!threadRootId) return false;
+    const currentThread = room.getThread(threadRootId);
+    if (!currentThread) return false;
+    const userId = mx.getUserId();
+    if (!userId) return false;
+    return getThreadUnread(room, currentThread, userId);
+  }, [room, threadRootId, mx]);
+  const isUnread = metadata?.isUnread ?? liveIsUnread;
   const attentionState = getAttentionState({
     isResolved,
     isStreaming,
