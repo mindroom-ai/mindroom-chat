@@ -9,7 +9,8 @@ import {
 } from './thinkingPlaceholder';
 
 vi.mock('./MindroomThinkingPlaceholder.css', () => ({
-  Ellipsis: 'Ellipsis',
+  Dot: 'Dot',
+  Indicator: 'Indicator',
   Placeholder: 'Placeholder',
   Text: 'Text',
 }));
@@ -47,6 +48,20 @@ describe('resolveMindroomThinkingPlaceholderMessages', () => {
 });
 
 describe('MindroomThinkingPlaceholder', () => {
+  it('renders a compact decorative thought orbit inside the responding status', () => {
+    const renderer = renderPlaceholder(['Working']);
+
+    const status = renderer.root.findByProps({ role: 'status' });
+    const indicator = status.findByProps({ className: 'Indicator' });
+
+    expect(status.props['aria-label']).toBe('AI is responding');
+    expect(indicator.props['aria-hidden']).toBe('true');
+    expect(indicator.findAllByProps({ className: 'Dot' })).toHaveLength(4);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Working');
+
+    renderer.unmount();
+  });
+
   it('renders configured placeholder messages and rotates through them', () => {
     vi.useFakeTimers();
 
