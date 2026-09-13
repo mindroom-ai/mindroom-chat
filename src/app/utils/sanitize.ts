@@ -16,6 +16,11 @@ export type CustomHtmlSanitizerPolicy = {
   nonTextTags?: string[];
 };
 
+export type CustomHtmlSanitizerOptions = {
+  policy?: CustomHtmlSanitizerPolicy;
+  additionalAllowedUriSchemes?: unknown;
+};
+
 const mergeList = <T>(base: T[], extension: T[] | undefined): T[] =>
   extension ? [...base, ...extension] : base;
 
@@ -88,7 +93,41 @@ const basePermittedHtmlTags = [
   'summary',
 ];
 
-const urlSchemes = ['https', 'http', 'ftp', 'mailto', 'magnet'];
+const BASE_ALLOWED_URI_SCHEMES = ['https', 'http', 'ftp', 'mailto', 'magnet'];
+const UNSAFE_URI_SCHEMES = new Set([
+  'about',
+  'blob',
+  'chrome',
+  'chrome-extension',
+  'data',
+  'file',
+  'filesystem',
+  'javascript',
+  'resource',
+  'vbscript',
+  'view-source',
+]);
+const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*$/;
+
+const resolveAllowedUriSchemes = (additionalAllowedUriSchemes: unknown): string[] => {
+  const allowedSchemes = new Set(BASE_ALLOWED_URI_SCHEMES);
+
+  if (!Array.isArray(additionalAllowedUriSchemes)) return [...allowedSchemes];
+
+  additionalAllowedUriSchemes.forEach((candidate) => {
+    if (typeof candidate !== 'string') return;
+
+    const normalized = candidate
+      .trim()
+      .toLowerCase()
+      .replace(/:\/\/$|:$/, '');
+    if (URI_SCHEME_PATTERN.test(normalized) && !UNSAFE_URI_SCHEMES.has(normalized)) {
+      allowedSchemes.add(normalized);
+    }
+  });
+
+  return [...allowedSchemes];
+};
 
 const basePermittedTagToAttributes: AttributePolicy = {
   font: ['style', 'data-mx-bg-color', 'data-mx-color', 'color'],
@@ -181,15 +220,20 @@ const transformImgTag: Transformer = (tagName, attribs) => {
 
 export const sanitizeCustomHtml = (
   customHtml: string,
-  policy: CustomHtmlSanitizerPolicy = mindroomCustomHtmlSanitizerPolicy
-): string =>
-  sanitizeHtml(customHtml, {
+  {
+    policy = mindroomCustomHtmlSanitizerPolicy,
+    additionalAllowedUriSchemes,
+  }: CustomHtmlSanitizerOptions = {}
+): string => {
+  const allowedUriSchemes = resolveAllowedUriSchemes(additionalAllowedUriSchemes);
+
+  return sanitizeHtml(customHtml, {
     allowedTags: mergeList(basePermittedHtmlTags, policy.allowedTags),
     allowedAttributes: mergeRecordOfLists(basePermittedTagToAttributes, policy.allowedAttributes),
     disallowedTagsMode: 'discard',
-    allowedSchemes: urlSchemes,
+    allowedSchemes: allowedUriSchemes,
     allowedSchemesByTag: {
-      a: urlSchemes,
+      a: allowedUriSchemes,
     },
     allowedSchemesAppliedToAttributes: ['href'],
     allowProtocolRelative: false,
@@ -208,6 +252,7 @@ export const sanitizeCustomHtml = (
     ),
     nestingLimit: MAX_TAG_NESTING,
   });
+};
 
 export const sanitizeText = (body: string) => {
   const tagsToReplace: Record<string, string> = {

@@ -3,6 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
+import { ClientConfigProvider } from '../../hooks/useClientConfig';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
@@ -699,17 +700,21 @@ describe('MindroomLongTextText hydration identity', () => {
       await act(async () => {
         renderer = create(
           React.createElement(
-            CollapsibleMessage,
-            { collapseMode: 'default', forceOverflowing: true },
-            ({ loadFullContent }) =>
-              renderMindroomMessageContent({
-                displayName: 'MindRoom',
-                msgType: 'm.text',
-                content,
-                hydrateLongText: loadFullContent,
-                htmlReactParserOptions: {},
-                linkifyOpts: {},
-              })
+            ClientConfigProvider,
+            { value: {} },
+            React.createElement(
+              CollapsibleMessage,
+              { collapseMode: 'default', forceOverflowing: true },
+              ({ loadFullContent }) =>
+                renderMindroomMessageContent({
+                  displayName: 'MindRoom',
+                  msgType: 'm.text',
+                  content,
+                  hydrateLongText: loadFullContent,
+                  htmlReactParserOptions: {},
+                  linkifyOpts: {},
+                })
+            )
           ),
           {
             createNodeMock: (element) => {
