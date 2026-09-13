@@ -181,11 +181,48 @@ export type SpecVersions = {
   versions: string[];
   unstable_features?: Record<string, boolean>;
 };
+
+const SPEC_VERSIONS_REQUEST_TIMEOUT_MS = 12000;
+
+const requestWithTimeout = async (
+  request: typeof fetch,
+  url: string,
+  timeoutMs: number
+): Promise<Response> => {
+  const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`);
+  const abortController = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      abortController?.abort();
+      reject(timeoutError);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      request(url, abortController ? { signal: abortController.signal } : undefined),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+};
+
 export const specVersions = async (
   request: typeof fetch,
-  baseUrl: string
+  baseUrl: string,
+  timeoutMs = SPEC_VERSIONS_REQUEST_TIMEOUT_MS
 ): Promise<SpecVersions> => {
-  const res = await request(`${trimTrailingSlash(baseUrl)}/_matrix/client/versions`);
+  const res = await requestWithTimeout(
+    request,
+    `${trimTrailingSlash(baseUrl)}/_matrix/client/versions`,
+    timeoutMs
+  );
+
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`Failed to connect to homeserver (HTTP ${res.status})`);
+  }
 
   const data = (await res.json()) as unknown;
 

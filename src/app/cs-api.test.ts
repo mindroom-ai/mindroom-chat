@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AutoDiscoveryAction, autoDiscovery, isAllowedHomeserverBaseUrl } from './cs-api';
+import {
+  AutoDiscoveryAction,
+  autoDiscovery,
+  isAllowedHomeserverBaseUrl,
+  specVersions,
+} from './cs-api';
 
 type MockResponse = Pick<Response, 'status' | 'json'>;
 
@@ -90,5 +95,41 @@ describe('autoDiscovery', () => {
 
     expect(error).toBeUndefined();
     expect(discovery?.['m.homeserver'].base_url).toBe('https://matrix.example.com');
+  });
+});
+
+describe('specVersions', () => {
+  it('returns versions for successful homeserver response', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(createResponse(200, { versions: ['r0.6.1'], unstable_features: {} }));
+
+    await expect(
+      specVersions(request as unknown as typeof fetch, 'https://matrix.example.com')
+    ).resolves.toEqual({
+      versions: ['r0.6.1'],
+      unstable_features: {},
+    });
+  });
+
+  it('fails on non-2xx homeserver response', async () => {
+    const request = vi.fn().mockResolvedValue(createResponse(502));
+
+    await expect(
+      specVersions(request as unknown as typeof fetch, 'https://matrix.example.com')
+    ).rejects.toThrow('HTTP 502');
+  });
+
+  it('times out when homeserver does not respond', async () => {
+    const request = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>(() => {
+          // Intentionally unresolved.
+        })
+    );
+
+    await expect(
+      specVersions(request as unknown as typeof fetch, 'https://matrix.example.com', 1)
+    ).rejects.toThrow('Request timed out');
   });
 });

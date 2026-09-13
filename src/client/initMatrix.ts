@@ -3,6 +3,7 @@ import { MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sd
 import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
+import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 
 type Session = {
   baseUrl: string;
@@ -50,6 +51,73 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
   await mx.store.deleteAllData();
+  window.location.reload();
+};
+
+export const clearBrowserCacheAndReload = async () => {
+  const appScopeUrl = new URL(
+    ensureBasePathTrailingSlash(getAppBasePath()),
+    window.location.origin
+  ).href;
+  const normalizeUrl = (url: string): string => {
+    const parsed = new URL(url, window.location.origin);
+    parsed.hash = '';
+    parsed.search = '';
+    return parsed.href;
+  };
+  const appServiceWorkerScriptUrls = new Set([
+    normalizeUrl(appUrl('sw.js')),
+    normalizeUrl(appUrl('dev-sw.js')),
+  ]);
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(
+        registrations
+          .filter((registration) => {
+            const workerScriptUrls = [registration.active, registration.installing, registration.waiting]
+              .filter((worker): worker is ServiceWorker => Boolean(worker))
+              .map((worker) => normalizeUrl(worker.scriptURL));
+
+            if (workerScriptUrls.some((workerScriptUrl) => appServiceWorkerScriptUrls.has(workerScriptUrl))) {
+              return true;
+            }
+
+            return normalizeUrl(registration.scope) === normalizeUrl(appScopeUrl);
+          })
+          .map((registration) => registration.unregister())
+      );
+    }
+  } catch {
+    // ignore browser service worker cleanup errors
+  }
+
+  try {
+    if ('caches' in window) {
+      const cacheNames = await window.caches.keys();
+      await Promise.all(
+        cacheNames.map(async (cacheName) => {
+          const cache = await window.caches.open(cacheName);
+          const requests = await cache.keys();
+
+          await Promise.all(
+            requests
+              .filter((request) => normalizeUrl(request.url).startsWith(appScopeUrl))
+              .map((request) => cache.delete(request))
+          );
+
+          const remainingRequests = await cache.keys();
+          if (remainingRequests.length === 0 && requests.length > 0) {
+            await window.caches.delete(cacheName);
+          }
+        })
+      );
+    }
+  } catch {
+    // ignore browser cache storage cleanup errors
+  }
+
   window.location.reload();
 };
 
