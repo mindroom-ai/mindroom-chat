@@ -51,6 +51,13 @@ export type ClientConfig = {
     termsUrl?: string;
   };
 
+  createRoom?: {
+    showEncryptionOption?: boolean;
+    defaultEncryption?: boolean;
+    showFederationOption?: boolean;
+    defaultFederation?: boolean;
+  };
+
   welcome?: {
     title?: string;
     subtitle?: string;

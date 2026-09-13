@@ -28,6 +28,7 @@ import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useCapabilities } from '../../hooks/useCapabilities';
 import { useAlive } from '../../hooks/useAlive';
 import { ErrorCode } from '../../cs-errorcode';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import {
   AdditionalCreatorInput,
   createRoom,
@@ -72,6 +73,11 @@ export function CreateRoomForm({
 }: CreateRoomFormProps) {
   const mx = useMatrixClient();
   const alive = useAlive();
+  const { createRoom: createRoomConfig } = useClientConfig();
+  const showEncryptionOption = createRoomConfig?.showEncryptionOption ?? true;
+  const showFederationOption = createRoomConfig?.showFederationOption ?? true;
+  const defaultEncryption = createRoomConfig?.defaultEncryption ?? false;
+  const defaultFederation = createRoomConfig?.defaultFederation ?? true;
 
   const capabilities = useCapabilities();
   const roomVersions = capabilities['m.room_versions'];
@@ -90,8 +96,8 @@ export function CreateRoomForm({
   const allowAdditionalCreators = creatorsSupported(selectedRoomVersion);
   const { additionalCreators, addAdditionalCreator, removeAdditionalCreator } =
     useAdditionalCreators();
-  const [federation, setFederation] = useState(true);
-  const [encryption, setEncryption] = useState(false);
+  const [federation, setFederation] = useState(defaultFederation);
+  const [encryption, setEncryption] = useState(defaultEncryption);
   const [knock, setKnock] = useState(false);
   const [advance, setAdvance] = useState(false);
 
@@ -238,25 +244,27 @@ export function CreateRoomForm({
         )}
         {access !== CreateRoomAccess.Public && (
           <>
-            <SequenceCard
-              style={{ padding: config.space.S300 }}
-              variant="SurfaceVariant"
-              direction="Column"
-              gap="500"
-            >
-              <SettingTile
-                title="End-to-End Encryption"
-                description="Once this feature is enabled, it can't be disabled after the room is created."
-                after={
-                  <Switch
-                    variant="Primary"
-                    value={encryption}
-                    onChange={setEncryption}
-                    disabled={disabled}
-                  />
-                }
-              />
-            </SequenceCard>
+            {showEncryptionOption && (
+              <SequenceCard
+                style={{ padding: config.space.S300 }}
+                variant="SurfaceVariant"
+                direction="Column"
+                gap="500"
+              >
+                <SettingTile
+                  title="End-to-End Encryption"
+                  description="Once this feature is enabled, it can't be disabled after the room is created."
+                  after={
+                    <Switch
+                      variant="Primary"
+                      value={encryption}
+                      onChange={setEncryption}
+                      disabled={disabled}
+                    />
+                  }
+                />
+              </SequenceCard>
+            )}
             {advance && (allowKnock || allowKnockRestricted) && (
               <SequenceCard
                 style={{ padding: config.space.S300 }}
@@ -281,25 +289,27 @@ export function CreateRoomForm({
           </>
         )}
 
-        <SequenceCard
-          style={{ padding: config.space.S300 }}
-          variant="SurfaceVariant"
-          direction="Column"
-          gap="500"
-        >
-          <SettingTile
-            title="Allow Federation"
-            description="Users from other servers can join."
-            after={
-              <Switch
-                variant="Primary"
-                value={federation}
-                onChange={setFederation}
-                disabled={disabled}
-              />
-            }
-          />
-        </SequenceCard>
+        {showFederationOption && (
+          <SequenceCard
+            style={{ padding: config.space.S300 }}
+            variant="SurfaceVariant"
+            direction="Column"
+            gap="500"
+          >
+            <SettingTile
+              title="Allow Federation"
+              description="Users from other servers can join."
+              after={
+                <Switch
+                  variant="Primary"
+                  value={federation}
+                  onChange={setFederation}
+                  disabled={disabled}
+                />
+              }
+            />
+          </SequenceCard>
+        )}
         {advance && (
           <RoomVersionSelector
             versions={roomVersions?.available ? Object.keys(roomVersions.available) : ['1']}
