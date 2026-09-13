@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Avatar, Box, Icon, Icons, Text, as, toRem } from 'folds';
+import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
@@ -46,6 +47,7 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
@@ -136,15 +138,17 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
         )}
         {isResolved && <Icon size="100" src={Icons.CheckTwice} />}
         <Icon size="100" src={Icons.Thread} />
-        <Text size="T200">Thread</Text>
-        {isResolved && <Text size="T200">Resolved</Text>}
+        <Text size="T200">{t('thread.chip')}</Text>
+        {isResolved && <Text size="T200">{t('thread.resolved')}</Text>}
         {isUnread && (
-          <span className={css.ThreadUnreadDot} role="img" aria-label="Unread messages" />
+          <span
+            className={css.ThreadUnreadDot}
+            role="img"
+            aria-label={t('thread.aria.unreadMessages')}
+          />
         )}
         {typeof resolvedThreadReplyCount === 'number' && (
-          <Text size="T200">
-            {resolvedThreadReplyCount} {resolvedThreadReplyCount === 1 ? 'reply' : 'replies'}
-          </Text>
+          <Text size="T200">{t('thread.replyCount', { count: resolvedThreadReplyCount })}</Text>
         )}
         {(relativeTime || isStreaming || resolvedScheduledCount > 0) && (
           <Box as="span" className={css.ThreadActivity} alignItems="Center" gap="100">
@@ -156,14 +160,22 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
                 as="span"
                 size="T200"
                 className={css.ThreadTimestamp}
-                aria-label={lastActivityTitle ? `Last activity ${lastActivityTitle}` : undefined}
+                aria-label={
+                  lastActivityTitle
+                    ? t('thread.aria.lastActivity', { time: lastActivityTitle })
+                    : undefined
+                }
                 title={lastActivityTitle}
               >
                 {relativeTime}
               </Text>
             )}
             {isStreaming && (
-              <span className={css.ThreadStreamingDot} role="img" aria-label="Agent streaming" />
+              <span
+                className={css.ThreadStreamingDot}
+                role="img"
+                aria-label={t('thread.aria.agentStreaming')}
+              />
             )}
             {resolvedScheduledCount > 0 && scheduledTaskLabel && (
               <Box

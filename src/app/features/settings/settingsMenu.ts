@@ -1,4 +1,5 @@
 import { Icons, IconSrc } from 'folds';
+import { type TFunction } from 'i18next';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { type SettingsPage, SettingsPages } from './settingsPages';
 import {
@@ -12,47 +13,52 @@ export type SettingsMenuItem = {
   icon: IconSrc;
 };
 
-const getBaseSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] => [
+const getBaseSettingsMenuItems = (
+  showLocalMindRoom: boolean,
+  t: TFunction
+): SettingsMenuItem[] => [
   {
     page: SettingsPages.GeneralPage,
-    name: 'General',
+    name: t('settings.nav.general'),
     icon: Icons.Setting,
   },
   {
     page: SettingsPages.AccountPage,
-    name: 'Account',
+    name: t('settings.nav.account'),
     icon: Icons.User,
   },
   {
     page: SettingsPages.NotificationPage,
-    name: 'Notifications',
+    name: t('settings.nav.notifications'),
     icon: Icons.Bell,
   },
   {
     page: SettingsPages.DevicesPage,
-    name: 'Devices',
+    name: t('settings.nav.devices'),
     icon: Icons.Monitor,
   },
   {
     page: SettingsPages.EmojisStickersPage,
-    name: 'Emojis & Stickers',
+    name: t('settings.nav.emojisStickers'),
     icon: Icons.Smile,
   },
   ...getMindroomSettingsMenuItems(showLocalMindRoom),
   {
     page: SettingsPages.DeveloperToolsPage,
-    name: 'Developer Tools',
+    name: t('settings.nav.developerTools'),
     icon: Icons.Terminal,
   },
   {
     page: SettingsPages.AboutPage,
-    name: 'About',
+    name: t('settings.nav.about'),
     icon: Icons.Info,
   },
 ];
 
-export const getSettingsMenuItems = (showLocalMindRoom: boolean): SettingsMenuItem[] =>
-  getBaseSettingsMenuItems(showLocalMindRoom);
+export const getSettingsMenuItems = (
+  showLocalMindRoom: boolean,
+  t: TFunction
+): SettingsMenuItem[] => getBaseSettingsMenuItems(showLocalMindRoom, t);
 
 export const resolveSettingsInitialPage = (
   initialPage: SettingsPage | undefined,

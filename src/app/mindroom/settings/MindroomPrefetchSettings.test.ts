@@ -106,6 +106,13 @@ vi.mock('../../utils/keyboard', () => ({
   stopPropagation: () => true,
 }));
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 afterEach(() => {
   state.prefetchScope = 'my-server';
   state.setPrefetchScope.mockReset();

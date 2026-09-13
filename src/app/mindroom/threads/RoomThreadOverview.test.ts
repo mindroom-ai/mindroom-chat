@@ -91,6 +91,15 @@ vi.mock('classnames', () => ({
     args.filter(Boolean).join(' '),
 }));
 
+// Resolve t() keys against the real en.json so the aria/tooltip assertions
+// below keep checking user-visible English copy.
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterState => ({
   resolved: 'any',
   streaming: 'any',

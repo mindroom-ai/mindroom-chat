@@ -58,6 +58,15 @@ vi.mock('../FilterBarMobileSheet.css', () => ({
   SheetContainer: 'sheet-container',
 }));
 
+// Resolve t() keys against the real en.json so the label/aria selectors
+// below keep matching user-visible English copy.
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 const resolveFilterUpdate = (
   update: CrossRoomThreadFiltersUpdate,
   current: CrossRoomThreadFilters = DEFAULT_CROSS_ROOM_THREAD_FILTERS

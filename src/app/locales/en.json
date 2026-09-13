@@ -1,0 +1,192 @@
+{
+  "Organisms": {
+    "RoomCommon": {
+      "changed_room_name": " changed room name"
+    }
+  },
+  "options": {
+    "messageLayout": {
+      "modern": "Modern",
+      "compact": "Compact",
+      "bubble": "Bubble"
+    },
+    "messageSpacing": {
+      "none": "None",
+      "ultraSmall": "Ultra Small",
+      "extraSmall": "Extra Small",
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large"
+    },
+    "dateFormat": {
+      "custom": "Custom"
+    },
+    "themeName": {
+      "light": "Light",
+      "silver": "Silver",
+      "dark": "Dark",
+      "midnight": "Midnight",
+      "butter": "Butter"
+    },
+    "prefetchScope": {
+      "myHomeserver": "My homeserver",
+      "allRooms": "All rooms",
+      "currentRoomOnly": "Current room only"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "logout": "Logout",
+    "nav": {
+      "general": "General",
+      "account": "Account",
+      "notifications": "Notifications",
+      "devices": "Devices",
+      "emojisStickers": "Emojis & Stickers",
+      "developerTools": "Developer Tools",
+      "about": "About"
+    },
+    "general": {
+      "title": "General",
+      "language": {
+        "sectionTitle": "Language",
+        "appLanguage": "App Language",
+        "appLanguageDescription": "Applies to menus and interface text. Message content is never translated."
+      },
+      "appearance": {
+        "sectionTitle": "Appearance",
+        "systemTheme": "System Theme",
+        "systemThemeDescription": "Choose between light and dark theme based on system preference.",
+        "lightTheme": "Light Theme:",
+        "darkTheme": "Dark Theme:",
+        "theme": "Theme",
+        "themeDescription": "Theme to use when system theme is not enabled.",
+        "monochromeMode": "Monochrome Mode",
+        "twitterEmoji": "Twitter Emoji",
+        "pageZoom": "Page Zoom"
+      },
+      "dateTime": {
+        "sectionTitle": "Date & Time",
+        "hour24Clock": "24-Hour Time Format",
+        "dateFormat": "Date Format",
+        "save": "Save",
+        "formatHints": {
+          "title": "Formatting",
+          "year": "Year",
+          "twoDigitYear": "Two-digit year",
+          "fourDigitYear": "Four-digit year",
+          "month": "Month",
+          "theMonth": "The month",
+          "twoDigitMonth": "Two-digit month",
+          "shortMonthName": "Short month name",
+          "fullMonthName": "Full month name",
+          "dayOfMonth": "Day of the Month",
+          "theDayOfMonth": "Day of the month",
+          "twoDigitDayOfMonth": "Two-digit day of the month",
+          "dayOfWeek": "Day of the Week",
+          "theDayOfWeek": "Day of the week (Sunday = 0)",
+          "twoLetterDayName": "Two-letter day name",
+          "shortDayName": "Short day name",
+          "fullDayName": "Full day name"
+        }
+      },
+      "editor": {
+        "sectionTitle": "Editor",
+        "enterForNewline": "ENTER for Newline",
+        "enterForNewlineDescription": "Use {{sendKey}} + ENTER to send message and ENTER for newline.",
+        "markdownFormatting": "Markdown Formatting",
+        "hideActivity": "Hide Typing & Read Receipts",
+        "hideActivityDescription": "Turn off both typing status and read receipts to keep your activity private."
+      },
+      "messages": {
+        "sectionTitle": "Messages",
+        "messageLayout": "Message Layout",
+        "messageSpacing": "Message Spacing",
+        "prefetchScope": "Prefetch scope",
+        "prefetchScopeDescription": "Which rooms are kept ready in the background",
+        "historyDepth": "Current room history depth",
+        "historyDepthDescription": "Target number of events preloaded for the room you are viewing. Minimum {{min}}, maximum {{max}}.",
+        "legacyUsernameColor": "Legacy Username Color",
+        "hideMembershipChange": "Hide Membership Change",
+        "hideProfileChange": "Hide Profile Change",
+        "disableMediaAutoLoad": "Disable Media Auto Load",
+        "urlPreview": "Url Preview",
+        "urlPreviewEncrypted": "Url Preview in Encrypted Room",
+        "showHiddenEvents": "Show Hidden Events"
+      }
+    }
+  },
+  "thread": {
+    "chip": "Thread",
+    "view": "Thread View",
+    "resolve": "Resolve",
+    "resolved": "Resolved",
+    "replyCount_one": "{{count}} reply",
+    "replyCount_other": "{{count}} replies",
+    "aria": {
+      "openThread": "Open thread: {{title}}",
+      "resolvedThread": "Resolved thread",
+      "unresolvedThread": "Unresolved thread",
+      "unreadMessages": "Unread messages",
+      "agentStreaming": "Agent streaming",
+      "messageSending": "Message sending",
+      "lastActivity": "Last activity {{time}}",
+      "removeTagFilter": "Remove {{tag}} filter"
+    },
+    "status": {
+      "resolved": "Resolved",
+      "streaming": "Streaming",
+      "scheduled": "Scheduled",
+      "unread": "Unread",
+      "idle": "Idle",
+      "idleFilter": "Idle (resolved, not streaming, no tasks)"
+    },
+    "stats": {
+      "aria": "Thread statistics",
+      "showing": "Showing {{shown}} of {{total}}",
+      "threadCount_one": "{{count}} thread",
+      "threadCount_other": "{{count}} threads",
+      "tags": "Tags"
+    },
+    "filterTooltip": {
+      "any": "{{label}}: showing all. Click to show only.",
+      "include": "{{label}}: show only. Click to hide.",
+      "exclude": "{{label}}: hiding. Click to clear filter.",
+      "tagAny": "Tag \"{{tag}}\"",
+      "tagInclude": "Tag \"{{tag}}\": show only. Click to hide.",
+      "tagExclude": "Tag \"{{tag}}\": hiding. Click to clear filter.",
+      "stateAny": "showing all",
+      "stateInclude": "show only",
+      "stateExclude": "hiding"
+    },
+    "filters": {
+      "scope": "Scope",
+      "scopeInvolved": "Involved",
+      "scopeAllRooms": "All rooms",
+      "status": "Status",
+      "statusAll": "All",
+      "statusUnresolved": "Unresolved",
+      "statusResolved": "Resolved",
+      "activity": "Activity",
+      "activityToday": "Today",
+      "activity7d": "7d",
+      "activity30d": "30d",
+      "activityAll": "All",
+      "unread": "Unread",
+      "attention": "Attention",
+      "roomIdsPlaceholder": "Room IDs",
+      "roomIdsAria": "Room id filters",
+      "spaceIdsPlaceholder": "Space IDs",
+      "spaceIdsAria": "Space id filters",
+      "tagsPlaceholder": "Tags",
+      "tagsIncludeAria": "Included tag filters",
+      "excludeTagsPlaceholder": "Exclude tags",
+      "tagsExcludeAria": "Excluded tag filters",
+      "clear": "Clear",
+      "open": "Filters",
+      "search": "Search threads",
+      "sheetAria": "Thread filters",
+      "closeAria": "Close thread filters"
+    }
+  }
+}

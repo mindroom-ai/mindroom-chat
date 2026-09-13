@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Avatar, Badge, Box, Chip, Icon, Icons, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import * as threadIndicatorCss from './ThreadIndicator.css';
 import { UserAvatar } from '../../components/user-avatar';
@@ -24,6 +25,7 @@ export type CompactThreadCardProps = {
 };
 
 function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
+  const { t } = useTranslation();
   const {
     id,
     titleText,
@@ -46,16 +48,16 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
   } = viewModel;
   const relativeTime = useRelativeTime(lastActivityTs);
   const ariaLabel = [
-    `Open thread: ${titleText}`,
+    t('thread.aria.openThread', { title: titleText }),
     attentionStatusText,
     previewText,
     messageCountLabel,
-    isResolved ? 'Resolved thread' : 'Unresolved thread',
-    isUnread ? 'Unread messages' : undefined,
-    isStreaming ? 'Agent streaming' : undefined,
-    hasPendingSend ? 'Message sending' : undefined,
+    isResolved ? t('thread.aria.resolvedThread') : t('thread.aria.unresolvedThread'),
+    isUnread ? t('thread.aria.unreadMessages') : undefined,
+    isStreaming ? t('thread.aria.agentStreaming') : undefined,
+    hasPendingSend ? t('thread.aria.messageSending') : undefined,
     scheduledTaskLabel,
-    relativeTime ? `Last activity ${relativeTime}` : undefined,
+    relativeTime ? t('thread.aria.lastActivity', { time: relativeTime }) : undefined,
   ]
     .filter(Boolean)
     .join('. ');

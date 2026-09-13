@@ -1,5 +1,6 @@
 import React, { ReactNode, useRef } from 'react';
 import { Box, Header, Icon, IconButton, Icons, Modal, Overlay, OverlayBackdrop, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import * as css from './FilterBarMobileSheet.css';
 
@@ -19,6 +20,7 @@ const MOBILE_SHEET_STYLE: React.CSSProperties = {
 };
 
 export function FilterBarMobileSheet({ open, requestClose, children }: FilterBarMobileSheetProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const { overlayProps } = useOverlay(
     {
@@ -28,7 +30,7 @@ export function FilterBarMobileSheet({ open, requestClose, children }: FilterBar
     },
     dialogRef
   );
-  const { dialogProps } = useDialog({ 'aria-label': 'Thread filters' }, dialogRef);
+  const { dialogProps } = useDialog({ 'aria-label': t('thread.filters.sheetAria') }, dialogRef);
 
   usePreventScroll({ isDisabled: !open });
 
@@ -46,10 +48,10 @@ export function FilterBarMobileSheet({ open, requestClose, children }: FilterBar
             >
               <Header size="500">
                 <Box grow="Yes">
-                  <Text size="H4">Filters</Text>
+                  <Text size="H4">{t('thread.filters.open')}</Text>
                 </Box>
                 <IconButton
-                  aria-label="Close thread filters"
+                  aria-label={t('thread.filters.closeAria')}
                   size="300"
                   radii="300"
                   onClick={requestClose}

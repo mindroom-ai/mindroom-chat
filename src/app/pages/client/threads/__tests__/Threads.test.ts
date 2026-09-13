@@ -117,6 +117,15 @@ vi.mock('../ThreadsView.css', () => ({
   Empty: 'empty',
 }));
 
+// Resolve t() keys against the real en.json so the label/aria selectors
+// below keep matching user-visible English copy.
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+  };
+});
+
 const userId = '@threads-clear-query:example.org';
 
 const makeSnapshot = (): CrossRoomThreadIndexSnapshot =>
