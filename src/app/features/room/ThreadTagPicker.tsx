@@ -3,6 +3,7 @@ import { Box, Menu, MenuItem, PopOut, RectCords, Text, config, color } from 'fol
 import FocusTrap from 'focus-trap-react';
 import { stopPropagation } from '../../utils/keyboard';
 import { isValidTagName, normalizeTagName } from './threadTags';
+import * as css from './ThreadContextBanner.css';
 
 export interface ThreadTagPickerProps {
   availableTags: string[];
@@ -25,15 +26,6 @@ const triggerStyle: React.CSSProperties = {
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: `${config.space.S200} ${config.space.S300}`,
-  border: 'none',
-  outline: 'none',
-  fontSize: '0.8rem',
-  background: 'transparent',
 };
 
 export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTagPickerProps) {
@@ -122,19 +114,17 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
             <Menu style={{ minWidth: '12rem', maxWidth: '16rem' }}>
               <Box direction="Column" gap="0">
                 <div
-                  style={{
-                    borderBottom: `1px solid ${color.SurfaceVariant.ContainerLine}`,
-                    padding: `0 ${config.space.S100}`,
-                  }}
+                  className={css.TagPickerInputContainer}
                 >
                   <input
                     ref={inputRef}
                     type="text"
                     placeholder="Filter / new..."
-                    style={inputStyle}
+                    className={css.TagPickerInput}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    aria-label="Filter or create tag"
                   />
                 </div>
                 <Box

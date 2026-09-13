@@ -81,3 +81,31 @@ export const BannerDisabled = style({
   opacity: 0.6,
   pointerEvents: 'none',
 });
+
+export const TagPickerInputContainer = style({
+  borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  padding: `0 ${config.space.S100}`,
+});
+
+export const TagPickerInput = style({
+  width: '100%',
+  display: 'block',
+  padding: `${config.space.S200} ${config.space.S300}`,
+  border: 'none',
+  outline: 'none',
+  font: 'inherit',
+  fontSize: '0.8rem',
+  lineHeight: 1.4,
+  background: 'transparent',
+  color: color.SurfaceVariant.OnContainer,
+  caretColor: color.SurfaceVariant.OnContainer,
+  selectors: {
+    '&::placeholder': {
+      color: color.SurfaceVariant.OnContainer,
+      opacity: '0.5',
+    },
+    '&:focus::placeholder': {
+      opacity: '0',
+    },
+  },
+});
