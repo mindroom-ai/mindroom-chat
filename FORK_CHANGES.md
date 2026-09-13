@@ -8,7 +8,9 @@
 - Readers who allow motion receive the animated SVG; reduced-motion preferences and clients without picture support receive the matching static SVG.
 - Both variants reference the shared logo assets in the MindRoom repository.
 - GitHub Markdown validation, changed-file formatting, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
-- Full Vitest passes 3,747 tests; four failures reproduce in unchanged native-install and caption-restore tests whose source and dependency inputs match the base commit.
+- Hosted CI passes all 3,751 tests on the pinned Node version, plus the web, Android, and container builds.
+- Local test failures come from a different Node version and missing Bash in the native-install tests' restricted executable search path; the affected source and dependency inputs match the base commit.
+- Next steps: no further branding changes; address local test environment setup separately.
 
 ### Hide edited labels on MindRoom agent messages (2026-09-13)
 
