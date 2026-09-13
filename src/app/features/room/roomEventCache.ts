@@ -2,6 +2,7 @@ import { IEvent } from 'matrix-js-sdk';
 import { getSessionScopedStorageKey } from '../../state/sessions';
 import {
   CachedPaginationTokenMap,
+  compareCachedPaginationAnchors,
   getCachedPaginationToken,
   mergeCachedPaginationTokens,
 } from './eventCacheTokenUtils';
@@ -63,9 +64,7 @@ const toCachedRoomEvent = (rawEvent: Partial<IEvent>): CachedRoomEvent | undefin
 };
 
 const sortRoomEvents = (a: CachedRoomEvent, b: CachedRoomEvent): number => {
-  const tsDiff = a.origin_server_ts - b.origin_server_ts;
-  if (tsDiff !== 0) return tsDiff;
-  return a.event_id.localeCompare(b.event_id);
+  return compareCachedPaginationAnchors(getRoomCursorAnchor(a), getRoomCursorAnchor(b));
 };
 
 export const normalizeCachedRoomEvents = (rawEvents: Partial<IEvent>[]): CachedRoomEvent[] => {
@@ -217,6 +216,31 @@ export const loadCachedRoomEventsBefore = async (
 ): Promise<CachedRoomEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
   return runCursorQuery(sessionId, roomId, limit, before);
+};
+
+export const loadCachedRoomPaginationToken = async (
+  sessionId: string,
+  roomId: string,
+  eventId: string | undefined
+): Promise<string | null | undefined> => {
+  if (!eventId) return undefined;
+
+  const db = await openRoomEventCache(sessionId);
+  if (!db) return undefined;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(META_STORE, 'readonly');
+    const metaStore = transaction.objectStore(META_STORE);
+    const metaRequest = metaStore.get(roomId);
+
+    transaction.oncomplete = () => {
+      const meta = metaRequest.result as CachedRoomMetaRecord | undefined;
+      resolve(getCachedPaginationToken(meta?.beforeTokens, eventId));
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+    metaRequest.onerror = () => reject(metaRequest.error);
+  });
 };
 
 export const saveRoomEventsToCache = async (

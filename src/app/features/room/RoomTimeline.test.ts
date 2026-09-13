@@ -1,5 +1,5 @@
 import React, { createRef } from 'react';
-import { RoomEvent } from 'matrix-js-sdk';
+import { Direction, RoomEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,17 +8,26 @@ const {
   passthrough,
   scrollType,
   roomThreadOverviewType,
+  roomIntroType,
+  defaultPlaceholderType,
+  compactPlaceholderType,
   matrixClientMock,
   threadRenderStateMock,
   threadResolutionMapMock,
   roomUnreadState,
   scrollToItemMock,
   scrollToElementMock,
+  loadCachedRoomEventsBeforeMock,
+  loadCachedRoomPaginationTokenMock,
+  saveRoomEventsToCacheMock,
   virtualPaginatorState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
   roomThreadOverviewType: 'room-thread-overview',
+  roomIntroType: 'room-intro',
+  defaultPlaceholderType: 'default-placeholder',
+  compactPlaceholderType: 'compact-placeholder',
   matrixClientMock: {
     fetchRelations: vi.fn(),
     getEventMapper: vi.fn(() => (rawEvent: unknown) => rawEvent),
@@ -43,12 +52,16 @@ const {
   roomUnreadState: { value: false },
   scrollToItemMock: vi.fn(),
   scrollToElementMock: vi.fn(),
+  loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+  loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
+  saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   virtualPaginatorState: {
     lastOptions: undefined as
       | {
           count: number;
           range: { start: number; end: number };
           onRangeChange: (range: { start: number; end: number }) => void;
+          onEnd?: (backwards: boolean) => Promise<void> | void;
         }
       | undefined,
   },
@@ -226,7 +239,11 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
   }) => {
     virtualPaginatorState.lastOptions = options;
     return {
-      getItems: () => [],
+      getItems: () =>
+        Array.from(
+          { length: Math.max(options.range.end - options.range.start, 0) },
+          (_, index) => options.range.start + index
+        ),
       scrollToItem: scrollToItemMock,
       scrollToElement: scrollToElementMock,
       observeBackAnchor: vi.fn(),
@@ -305,8 +322,8 @@ vi.mock('../../utils/room', () => ({
 }));
 
 vi.mock('../../components/message', () => ({
-  DefaultPlaceholder: passthrough,
-  CompactPlaceholder: passthrough,
+  DefaultPlaceholder: defaultPlaceholderType,
+  CompactPlaceholder: compactPlaceholderType,
   Reply: passthrough,
   ThreadIndicator: passthrough,
   MessageBase: passthrough,
@@ -327,7 +344,7 @@ vi.mock('./message', () => ({
 }));
 
 vi.mock('../../components/room-intro', () => ({
-  RoomIntro: passthrough,
+  RoomIntro: roomIntroType,
 }));
 
 vi.mock('../../components/RenderMessageContent', () => ({
@@ -402,16 +419,19 @@ vi.mock('./threadEventCache', () => ({
   saveThreadEventsToCache: vi.fn(async () => undefined),
 }));
 
-vi.mock('./eventCacheTokenUtils', () => ({
-  compareCachedPaginationAnchors: () => 0,
-}));
+vi.mock('./eventCacheTokenUtils', async (importOriginal) =>
+  importOriginal<typeof import('./eventCacheTokenUtils')>()
+);
 
-vi.mock('./roomEventCache', () => ({
-  getRoomCursorAnchor: () => undefined,
-  loadCachedRoomEventsBefore: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  normalizeCachedRoomEvents: (events: unknown[]) => events,
-  saveRoomEventsToCache: vi.fn(async () => undefined),
-}));
+vi.mock('./roomEventCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./roomEventCache')>();
+  return {
+    ...actual,
+    loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
+    loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
+    saveRoomEventsToCache: saveRoomEventsToCacheMock,
+  };
+});
 
 vi.mock('./eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
@@ -469,13 +489,14 @@ const makeEvent = (
   eventId: string,
   opts: {
     sender?: string;
+    ts?: number;
     type?: string;
     content?: Record<string, unknown>;
     isThreadRoot?: boolean;
     threadRootId?: string;
   } = {}
 ) => ({
-  event: { event_id: eventId },
+  event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
   isThreadRoot: opts.isThreadRoot ?? false,
   threadRootId: opts.threadRootId,
   getContent: () => opts.content ?? { body: eventId },
@@ -483,54 +504,98 @@ const makeEvent = (
   getRelation: () => undefined,
   getRoomId: () => '!room:example.org',
   getSender: () => opts.sender ?? '@alice:example.org',
+  getServerAggregatedRelation: () => undefined,
   getStateKey: () => undefined,
+  getTs: () => opts.ts ?? 0,
   getType: () => opts.type ?? 'm.room.message',
+  getUnsigned: () => ({}),
   isRedacted: () => false,
   isRedaction: () => false,
+  makeReplaced: vi.fn(),
+  replacingEvent: () => undefined,
 });
 
-const makeTimeline = (events: ReturnType<typeof makeEvent>[] = []) => ({
-  getEvents: () => events,
-  getNeighbouringTimeline: () => null,
-  getPaginationToken: () => null,
-  getRoomId: () => '!room:example.org',
-  setPaginationToken: vi.fn(),
+const makeCachedRoomEvent = (eventId: string, ts = 0) => ({
+  event_id: eventId,
+  origin_server_ts: ts,
 });
+
+const makeTimeline = (
+  events: ReturnType<typeof makeEvent>[] = [],
+  opts: {
+    backwardToken?: string | null;
+    forwardToken?: string | null;
+  } = {}
+) => {
+  const paginationTokens = {
+    backward: opts.backwardToken ?? null,
+    forward: opts.forwardToken ?? null,
+  };
+
+  return {
+    __paginationTokens: paginationTokens,
+    getEvents: () => events,
+    getNeighbouringTimeline: () => null,
+    getPaginationToken: (direction: Direction) =>
+      direction === Direction.Backward ? paginationTokens.backward : paginationTokens.forward,
+    getRoomId: () => '!room:example.org',
+    setPaginationToken: vi.fn((token: string | null, direction: Direction) => {
+      if (direction === Direction.Backward) {
+        paginationTokens.backward = token;
+        return;
+      }
+      paginationTokens.forward = token;
+    }),
+  };
+};
 
 const makeRoom = ({
   liveEvents = [],
+  liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
 }: {
   liveEvents?: ReturnType<typeof makeEvent>[];
+  liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
 } = {}) => {
-  const liveTimeline = makeTimeline(liveEvents);
+  const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
+  const currentLiveEvents = roomLiveTimeline.getEvents();
   const getEventFromTimelines = (eventId: string) =>
-    liveEvents.find((event) => event.getId() === eventId) ??
+    currentLiveEvents.find((event) => event.getId() === eventId) ??
     Array.from(timelinesByEventId.values())
       .flatMap((timeline) => timeline.getEvents())
       .find((event) => event.getId() === eventId);
   const timelineSet = {
-    getLiveTimeline: () => liveTimeline,
+    getLiveTimeline: () => roomLiveTimeline,
     getTimelineForEvent: (eventId: string) =>
-      liveEvents.some((event) => event.getId() === eventId)
-        ? liveTimeline
+      currentLiveEvents.some((event) => event.getId() === eventId)
+        ? roomLiveTimeline
         : timelinesByEventId.get(eventId),
   };
+  (roomLiveTimeline as { getTimelineSet?: () => typeof timelineSet }).getTimelineSet = () => timelineSet;
+  timelinesByEventId.forEach((timeline) => {
+    (timeline as { getTimelineSet?: () => typeof timelineSet }).getTimelineSet = () => timelineSet;
+  });
   const listeners = new Map<string | symbol, (...args: unknown[]) => void>();
 
   return {
     __listeners: listeners,
+    addEventsToTimeline: vi.fn(),
     roomId: '!room:example.org',
     client: {
       getUserId: () => '@alice:example.org',
     },
     findEventById: (eventId: string) => getEventFromTimelines(eventId),
     getEventReadUpTo: () => undefined,
-    getLiveTimeline: () => liveTimeline,
+    getLiveTimeline: () => roomLiveTimeline,
     getThread: () => null,
     getUnfilteredTimelineSet: () => timelineSet,
     hasEncryptionStateEvent: () => false,
+    partitionThreadedEvents: (events: ReturnType<typeof makeEvent>[]) => [events, [], []],
+    processThreadRoots: vi.fn(),
+    relations: {
+      aggregateChildEvent: vi.fn(),
+    },
     on: vi.fn((event, handler) => {
       listeners.set(event, handler);
     }),
@@ -552,6 +617,25 @@ beforeEach(() => {
   roomUnreadState.value = false;
   scrollToItemMock.mockReturnValue(false);
   scrollToElementMock.mockReturnValue(false);
+  matrixClientMock.getEventMapper.mockImplementation(
+    () =>
+      (
+        rawEvent: {
+          content?: Record<string, unknown>;
+          event_id?: string;
+          origin_server_ts?: number;
+        }
+      ) =>
+        typeof rawEvent?.event_id === 'string'
+          ? makeEvent(rawEvent.event_id, {
+              content: rawEvent.content,
+              ts: rawEvent.origin_server_ts ?? 0,
+            })
+          : rawEvent
+  );
+  loadCachedRoomEventsBeforeMock.mockResolvedValue({ events: [], hasMoreBefore: false });
+  loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
+  saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   virtualPaginatorState.lastOptions = undefined;
   matrixClientMock.fetchRelations.mockResolvedValue({
     chunk: [],
@@ -652,6 +736,206 @@ describe('RoomTimeline', () => {
         })
       )
     ).not.toThrow();
+  });
+
+  it('preserves an explicit null backward token when hydrating cached room history', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const liveEvent = makeEvent('$live-event', { ts: 10 });
+    const cachedEvent = makeCachedRoomEvent('$cached-event', 5);
+    const liveTimeline = makeTimeline([liveEvent], {
+      backwardToken: 'stale-back-token',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    loadCachedRoomEventsBeforeMock.mockResolvedValueOnce({
+      events: [cachedEvent],
+      hasMoreBefore: false,
+      beforeToken: null,
+    });
+
+    await act(async () => {
+      await virtualPaginatorState.lastOptions?.onEnd?.(true);
+      await flushAsyncWork();
+    });
+
+    expect(room.addEventsToTimeline).toHaveBeenCalled();
+    expect(room.addEventsToTimeline.mock.lastCall?.[4]).toBeNull();
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
+  it('shows RoomIntro on room re-entry for a reused room object that already reached the top', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const liveEvent = makeEvent('$live-event', { ts: 10 });
+    const liveTimeline = makeTimeline([liveEvent], {
+      backwardToken: 'stale-back-token',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    loadCachedRoomPaginationTokenMock.mockResolvedValue(null);
+
+    let firstRenderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      firstRenderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    await act(async () => {
+      firstRenderer?.unmount();
+      await flushAsyncWork(1);
+    });
+
+    let secondRenderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      secondRenderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(secondRenderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
+    expect(secondRenderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+
+    await act(async () => {
+      secondRenderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
+  it('falls back to the existing SDK backward token when cached room history has no beforeToken metadata', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const liveEvent = makeEvent('$live-event', { ts: 10 });
+    const cachedEvent = makeCachedRoomEvent('$cached-event', 5);
+    const liveTimeline = makeTimeline([liveEvent], {
+      backwardToken: 'server-back-token',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    loadCachedRoomEventsBeforeMock.mockResolvedValueOnce({
+      events: [cachedEvent],
+      hasMoreBefore: false,
+    });
+
+    await act(async () => {
+      await virtualPaginatorState.lastOptions?.onEnd?.(true);
+      await flushAsyncWork();
+    });
+
+    expect(room.addEventsToTimeline).toHaveBeenCalled();
+    expect(room.addEventsToTimeline.mock.lastCall?.[4]).toBe('server-back-token');
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
+  it('recovers a stale room backward token only when cache metadata proves the room start', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const liveEvent = makeEvent('$live-event', { ts: 10 });
+    const liveTimeline = makeTimeline([liveEvent], {
+      backwardToken: 'stale-back-token',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    loadCachedRoomPaginationTokenMock.mockResolvedValue(null);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
+    expect(liveTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
+    expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
+    expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
+  });
+
+  it('uses cache ordering for same-timestamp earliest room events when resolving room-start state', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const sdkFirstEvent = makeEvent('$b-event', { ts: 10 });
+    const cacheFirstEvent = makeEvent('$a-event', { ts: 10 });
+    const liveTimeline = makeTimeline([sdkFirstEvent, cacheFirstEvent], {
+      backwardToken: 'stale-back-token',
+    });
+    const room = makeRoom({ liveTimeline });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    loadCachedRoomPaginationTokenMock.mockImplementation(
+      async (_sessionId: string, _roomId: string, eventId?: string) =>
+        eventId === '$a-event' ? null : undefined
+    );
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(loadCachedRoomPaginationTokenMock.mock.calls).not.toHaveLength(0);
+    expect(loadCachedRoomPaginationTokenMock.mock.calls.every(([, , eventId]) => eventId === '$a-event')).toBe(
+      true
+    );
+    expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
+    expect(renderer?.root.findAllByType(roomIntroType)).toHaveLength(1);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+    expect(saveRoomEventsToCacheMock).toHaveBeenCalled();
+    expect(saveRoomEventsToCacheMock.mock.lastCall?.[3]).toBeNull();
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
   });
 
   it('renders the room thread overview outside thread view', async () => {
