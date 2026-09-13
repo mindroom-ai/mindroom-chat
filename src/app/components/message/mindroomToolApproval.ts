@@ -24,7 +24,6 @@ export interface ToolApprovalData {
 type ToolApprovalResponseStatus = 'approved' | 'denied';
 
 type ToolApprovalResponseContent = {
-  approval_id: string;
   status: ToolApprovalResponseStatus;
   reason?: string | null;
   'm.relates_to': {
@@ -157,13 +156,11 @@ export const getToolApprovalRenderContent = (
 };
 
 export const buildToolApprovalResponseContent = (
-  approvalId: string,
   status: ToolApprovalResponseStatus,
   threadId: string,
   eventId: string,
   reason?: string
 ): ToolApprovalResponseContent => ({
-  approval_id: approvalId,
   status,
   ...(status === 'denied' ? { reason: reason?.trim() ? reason.trim() : null } : {}),
   'm.relates_to': {

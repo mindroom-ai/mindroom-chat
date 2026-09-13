@@ -177,7 +177,6 @@ describe('MindroomToolApprovalCard', () => {
       '!room:example.org',
       MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
       {
-        approval_id: 'approval-1',
         status: 'approved',
         'm.relates_to': {
           rel_type: 'm.thread',
@@ -244,7 +243,6 @@ describe('MindroomToolApprovalCard', () => {
       '!room:example.org',
       MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
       {
-        approval_id: 'approval-1',
         status: 'denied',
         reason: 'Needs approval from ops',
         'm.relates_to': {

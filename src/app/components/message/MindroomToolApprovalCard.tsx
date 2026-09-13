@@ -100,7 +100,6 @@ export function MindroomToolApprovalCard({
         roomId,
         MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any,
         buildToolApprovalResponseContent(
-          approval.approvalId,
           action === 'approve' ? 'approved' : 'denied',
           responseThreadId,
           eventId,
