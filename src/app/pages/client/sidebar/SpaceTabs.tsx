@@ -598,8 +598,9 @@ function ClosedSpaceFolder({
 
 type SpaceTabsProps = {
   scrollRef: RefObject<HTMLDivElement>;
+  onSelect?: () => void;
 };
-export function SpaceTabs({ scrollRef }: SpaceTabsProps) {
+export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const screenSize = useScreenSizeContext();
@@ -697,10 +698,12 @@ export function SpaceTabs({ scrollRef }: SpaceTabsProps) {
   const selectedSpaceId = useSelectedSpace();
 
   const handleSpaceClick: MouseEventHandler<HTMLButtonElement> = (evt) => {
+    if (evt.defaultPrevented) return;
     const target = evt.currentTarget;
     const targetSpaceId = target.getAttribute('data-id');
     if (!targetSpaceId) return;
 
+    onSelect?.();
     const spacePath = getSpacePath(getCanonicalAliasOrRoomId(mx, targetSpaceId));
     if (screenSize === ScreenSize.Mobile) {
       navigate(spacePath);

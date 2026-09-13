@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Reopen contextual navigation on sidebar section selection (2026-09-13)
+
+- Home, Direct Messages, Threads, individual spaces, and Explore reopen a collapsed contextual panel when selected, including when the selected section is already active.
+- Expansion uses the existing per-user collapse preference on desktop and tablet layouts; selecting a section on mobile preserves that preference.
+- Invite/Inbox, Settings, Search, Local MindRoom, creation actions, space-folder toggles, and context menus do not automatically expand the panel.
+- The sidebar passes an optional selection callback only to the section controls, so route changes and bottom actions do not implicitly reset collapse state.
+- Focused coverage verifies expansion, persistence, and mobile preference preservation; sidebar order coverage now inspects rendered tabs instead of exact JSX text.
+- Live Chromium coverage passes desktop and tablet icon clicks, keyboard selection, active-section reselection, visible Explore navigation, and the Settings/Inbox exclusions against local Matrix.
+- Validation: typecheck, production/PWA build, formatting, and ESLint pass with the existing 17-warning baseline; full Vitest passes 3,739 tests with the same four baseline failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
+- Independent review found no correctness, accessibility, or scope issues.
+- Automated-review follow-up ignores cancelled space clicks before expansion or routing, and the live fixture now distinguishes absent settings from failed reads and attempts space cleanup even if settings restoration fails.
+
 ### Match the approval bar to the message composer (2026-09-13)
 
 - The approval bar now uses the composer's shared side-spacing and corner-radius tokens, matching its width and rounding at every viewport size.

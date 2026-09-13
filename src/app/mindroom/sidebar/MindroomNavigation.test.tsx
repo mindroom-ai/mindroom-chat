@@ -59,8 +59,19 @@ vi.mock('../../pages/MobileFriendly', () => ({
 }));
 
 vi.mock('../../pages/client/SidebarNav', () => ({
-  SidebarNav: ({ footer }: { footer?: React.ReactNode }) =>
-    React.createElement('nav', { 'data-testid': 'sidebar-rail' }, footer),
+  SidebarNav: ({
+    footer,
+    onPageNavSelect,
+  }: {
+    footer?: React.ReactNode;
+    onPageNavSelect?: () => void;
+  }) =>
+    React.createElement(
+      'nav',
+      { 'data-testid': 'sidebar-rail' },
+      React.createElement('button', { 'aria-label': 'Select section', onClick: onPageNavSelect }),
+      footer
+    ),
 }));
 
 type Renderer = ReturnType<typeof create>;
@@ -162,6 +173,31 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, false);
 
+    act(() => renderer.unmount());
+  });
+
+  it.each([751, 1280])('reopens and persists navigation on section selection at %i px', (width) => {
+    let renderer = renderNavigation(width);
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+
+    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+
+    expectNavigationState(renderer, false);
+    expect(localStorage.getItem(storageKey)).toBe('false');
+    act(() => renderer.unmount());
+    renderer = renderNavigation(width);
+    expectNavigationState(renderer, false);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the saved split-layout collapse choice when selecting a section on mobile', () => {
+    localStorage.setItem(storageKey, 'true');
+    const renderer = renderNavigation(750);
+
+    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+
+    expectNavigationWithoutToggle(renderer);
+    expect(localStorage.getItem(storageKey)).toBe('true');
     act(() => renderer.unmount());
   });
 
