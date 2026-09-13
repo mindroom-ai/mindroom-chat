@@ -1,10 +1,10 @@
-import React, { MutableRefObject, ReactNode, useImperativeHandle, useRef } from 'react';
+import React, { ReactNode, useRef } from 'react';
 import { Badge, Box, Chip, Header, Icon, Icons, Spinner, Text, as, percent } from 'folds';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 
 import * as css from './UploadBoard.css';
-import { TUploadFamilyObserverAtom, Upload, UploadStatus, UploadSuccess } from '../../state/upload';
+import { TUploadFamilyObserverAtom, Upload, UploadStatus } from '../../state/upload';
 
 type UploadBoardProps = {
   header: ReactNode;
@@ -24,15 +24,12 @@ export const UploadBoard = as<'div', UploadBoardProps>(({ header, children, ...p
   </Box>
 ));
 
-export type UploadBoardImperativeHandlers = { handleSend: () => Promise<void> };
-
 type UploadBoardHeaderProps = {
   open: boolean;
   onToggle: () => void;
   uploadFamilyObserverAtom: TUploadFamilyObserverAtom;
   onCancel: (uploads: Upload[]) => void;
-  onSend: (uploads: UploadSuccess[]) => Promise<void>;
-  imperativeHandlerRef: MutableRefObject<UploadBoardImperativeHandlers | undefined>;
+  onSend: () => Promise<void>;
 };
 
 export function UploadBoardHeader({
@@ -41,7 +38,6 @@ export function UploadBoardHeader({
   uploadFamilyObserverAtom,
   onCancel,
   onSend,
-  imperativeHandlerRef,
 }: UploadBoardHeaderProps) {
   const sendingRef = useRef(false);
   const uploads = useAtomValue(uploadFamilyObserverAtom);
@@ -65,15 +61,12 @@ export function UploadBoardHeader({
   const handleSend = async () => {
     if (sendingRef.current) return;
     sendingRef.current = true;
-    await onSend(
-      uploads.filter((upload) => upload.status === UploadStatus.Success) as UploadSuccess[]
-    );
-    sendingRef.current = false;
+    try {
+      await onSend();
+    } finally {
+      sendingRef.current = false;
+    }
   };
-
-  useImperativeHandle(imperativeHandlerRef, () => ({
-    handleSend,
-  }));
   const handleCancel = () => onCancel(uploads);
 
   return (
