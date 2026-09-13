@@ -233,11 +233,19 @@
     "close": "Schließen",
     "actionError": "Das Konto konnte nicht aktualisiert werden. Bitte versuche es erneut."
   },
-  "recentThreads": {
-    "title": "Letzte Threads",
-    "empty": "Keine kürzlich geöffneten Threads",
-    "resizeAria": "Bereich \"Letzte Threads\" in der Größe anpassen",
-    "openedAt": "Geöffnet {{time}}"
+  "threadNav": {
+    "title": "Threads",
+    "empty": "Noch keine Threads",
+    "loading": "Threads werden geladen...",
+    "pin": "Thread anheften",
+    "unpin": "Thread lösen",
+    "pinned": "Angeheftet",
+    "room": "Raum",
+    "agents": "Agenten",
+    "agentsUnknown": "Kein Agent erkannt",
+    "messages": "Nachrichten",
+    "lastActivity": "Letzte Aktivität",
+    "unknownActivity": "Unbekannt"
   },
   "composer": {
     "placeholder": "Nachricht senden...",

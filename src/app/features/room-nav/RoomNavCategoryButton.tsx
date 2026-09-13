@@ -16,6 +16,7 @@ export const RoomNavCategoryButton = as<'button', { closed?: boolean }>(
           src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
         />
       }
+      aria-expanded={!closed}
       {...props}
       ref={ref}
     >

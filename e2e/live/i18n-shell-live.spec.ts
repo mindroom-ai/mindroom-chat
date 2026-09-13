@@ -7,7 +7,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 test.describe('live shell i18n', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('sidebar, recent threads, and command palette follow the app language', async ({
+  test('sidebar, thread navigation, and command palette follow the app language', async ({
     page,
   }) => {
     test.slow();
@@ -17,13 +17,13 @@ test.describe('live shell i18n', () => {
     await loginWithPassword(page, { homeserver, username, password });
 
     // English defaults
-    await expect(page.getByText('Recent Threads').first()).toBeVisible();
+    await expect(page.getByText('Threads').first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open command palette' })).toBeVisible();
 
     // German
     await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
     await page.reload();
-    await expect(page.getByText('Letzte Threads').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Threads').first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Startseite').first()).toBeVisible();
     await expect(page.getByText('Nachrichtensuche')).toBeVisible();
     const dePaletteButton = page.getByRole('button', { name: 'Befehlspalette öffnen' }).first();
@@ -40,7 +40,7 @@ test.describe('live shell i18n', () => {
     // Dutch
     await page.evaluate(() => localStorage.setItem('i18nextLng', 'nl'));
     await page.reload();
-    await expect(page.getByText('Recente threads').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Threads').first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('Berichten zoeken')).toBeVisible();
     const nlPaletteButton = page.getByRole('button', { name: 'Commandopalet openen' }).first();
     await expect(nlPaletteButton).toBeVisible();

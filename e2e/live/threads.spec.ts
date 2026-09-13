@@ -20,22 +20,8 @@ const FIXTURE_ROOM_ID = process.env.E2E_FIXTURE_ROOM_ID;
 const FIXTURE_ROOM_REF = FIXTURE_ROOM_ID || FIXTURE_ROOM_ALIAS;
 const HIDDEN_THREAD_RELATION_ROOT_MARKER = '[cinny-e2e] Hidden relation thread root';
 const SUMMARY_TEXT = 'Test summary: thread rendering and navigation verified.';
-const FIXTURE_ROOM_NAME = 'Cinny E2E Fixture Room';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const getRecentThreadButton = (
-  page: import('@playwright/test').Page,
-  summaryOrPreviewText: string
-) =>
-  page.getByRole('button', {
-    name: new RegExp(
-      `^Open thread:(?=[\\s\\S]*${escapeRegex(FIXTURE_ROOM_NAME)})(?=[\\s\\S]*${escapeRegex(
-        summaryOrPreviewText
-      )})`,
-      'i'
-    ),
-  });
 
 /**
  * Navigate directly to the seeded fixture room.
@@ -60,89 +46,6 @@ const getMessageComposer = (page: import('@playwright/test').Page) =>
 
 test.describe('live threads', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
-
-  test('opening a thread adds it to Recent Threads immediately with its summary', async ({
-    page,
-  }) => {
-    const diagnostics = attachBrowserDiagnostics(page);
-    const homeserver = getHomeserver();
-    const { username, password } = getPrimaryCredentials();
-    const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
-
-    await loginWithPassword(page, { homeserver, username, password });
-    await seedRoomOverviewState({
-      page,
-      roomId: fixtureRoomId,
-      userId: session.userId,
-      viewMode: 'compact',
-      filterState: createDefaultThreadFilterState(),
-    });
-
-    const found = await navigateToFixtureRoom(page, fixtureRoomId);
-    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
-
-    await expect(page.getByText('No recent threads')).toBeVisible({ timeout: 30_000 });
-
-    const threadEntry = getNewestMatchingThreadButton(
-      page,
-      new RegExp(`${escapeRegex(SUMMARY_TEXT)}[\\s\\S]*4 msgs`, 'i')
-    );
-    await expect(threadEntry).toBeVisible({ timeout: 30_000 });
-    await threadEntry.click();
-
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-
-    const recentThreadEntry = getRecentThreadButton(page, SUMMARY_TEXT);
-    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText('No recent threads')).toHaveCount(0);
-
-    await page.reload();
-    await waitForLoggedInShell(page);
-    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
-
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'recent-thread-summary');
-  });
-
-  test('Recent Threads falls back to the root preview when no AI summary exists', async ({
-    page,
-  }) => {
-    const diagnostics = attachBrowserDiagnostics(page);
-    const homeserver = getHomeserver();
-    const { username, password } = getPrimaryCredentials();
-    const session = await loginToMatrix(homeserver, username, password);
-    const fixtureRoomId = await joinRoom(homeserver, session.accessToken, FIXTURE_ROOM_REF);
-
-    await loginWithPassword(page, { homeserver, username, password });
-    await seedRoomOverviewState({
-      page,
-      roomId: fixtureRoomId,
-      userId: session.userId,
-      viewMode: 'compact',
-      filterState: createDefaultThreadFilterState(),
-    });
-
-    const found = await navigateToFixtureRoom(page, fixtureRoomId);
-    test.skip(!found, `Fixture room "${FIXTURE_ROOM_ALIAS}" not found — run seed-fixture-room.mjs`);
-
-    const hiddenRelationThreadButton = getNewestMatchingThreadButton(
-      page,
-      new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i')
-    );
-    await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
-    await hiddenRelationThreadButton.click();
-
-    await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-
-    const recentThreadEntry = getRecentThreadButton(page, HIDDEN_THREAD_RELATION_ROOT_MARKER);
-    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
-
-    await page.reload();
-    await waitForLoggedInShell(page);
-    await expect(recentThreadEntry).toBeVisible({ timeout: 30_000 });
-
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'recent-thread-root-preview');
-  });
 
   test('thread overview panel visible in fixture room', async ({ page }) => {
     const diagnostics = attachBrowserDiagnostics(page);

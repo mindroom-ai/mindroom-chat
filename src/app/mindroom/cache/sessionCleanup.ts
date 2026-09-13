@@ -1,8 +1,7 @@
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
 import { clearIOSPushState } from '../native/iosPush';
-import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
-import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearThreadSidebarPreferencesStore } from '../recent-threads/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../threads/roomViewMode';
@@ -79,8 +78,7 @@ export const clearMindroomUserUiState = (userId: string): void => {
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
-  clearRecentThreadsPanelHeightStore(userId);
-  clearRecentThreadsPanelMobileExpandedStore(userId);
+  clearThreadSidebarPreferencesStore(userId);
 };
 
 export const clearMindroomSessionUiState = (sessionId: string): void => {

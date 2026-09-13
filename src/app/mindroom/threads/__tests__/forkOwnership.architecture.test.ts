@@ -30,9 +30,9 @@ const OWNERSHIP_EDGES = [
     consumer: appFile('features/settings/general/General.tsx'),
     owner: mindroomFile('settings/settingsExtensions.tsx'),
   },
-  ...['home/Home.tsx', 'direct/Direct.tsx', 'space/Space.tsx'].map((page) => ({
+  ...['home/Home.tsx', 'space/Space.tsx'].map((page) => ({
     consumer: appFile(`pages/client/${page}`),
-    owner: mindroomFile('recent-threads/RecentThreadsPanel.tsx'),
+    owner: mindroomFile('recent-threads/ThreadNavCategory.tsx'),
   })),
   {
     consumer: appFile('pages/client/SidebarNav.tsx'),
@@ -84,6 +84,22 @@ const OWNERSHIP_EDGES = [
 describe('fork feature ownership edges', () => {
   it.each(OWNERSHIP_EDGES)('$consumer imports its fork-owned extension', ({ consumer, owner }) => {
     expect(resolvedDependencies(consumer)).toContain(owner);
+  });
+
+  it('owns cross-room thread indexing at persistent client scope', () => {
+    const controller = mindroomFile('cross-room-threads/useCrossRoomThreadIndex.ts');
+    const index = mindroomFile('cross-room-threads/crossRoomThreadIndex.ts');
+
+    expect(resolvedDependencies(mindroomFile('client/MindroomClientNonUIFeatures.tsx'))).toContain(
+      controller
+    );
+    [
+      mindroomFile('recent-threads/ThreadNavCategory.tsx'),
+      appFile('pages/client/threads/Threads.tsx'),
+    ].forEach((consumer) => {
+      expect(resolvedDependencies(consumer)).toContain(index);
+      expect(resolvedDependencies(consumer)).not.toContain(controller);
+    });
   });
 
   it('keeps mark-read behavior behind MindRoom notification components', () => {

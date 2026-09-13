@@ -2,7 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useEffect, useMemo } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
+import { usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useStateEvents } from './useStateEvents';
@@ -12,10 +12,7 @@ import {
   MINDROOM_THREAD_TAGS_EVENT,
   type ThreadTagsContent,
 } from './threadTags';
-import {
-  buildThreadTagSnapshotMap,
-  type ThreadTagSnapshot,
-} from './threadTagSnapshots';
+import { buildThreadTagSnapshotMap, type ThreadTagSnapshot } from './threadTagSnapshots';
 import {
   clearPendingThreadTagsContent,
   getPendingThreadTagsContentMap,
@@ -138,7 +135,7 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
 export const useToggleThreadResolution = (room: Room) => {
   const { setResolved, updating, error } = useMutateThreadTags(room);
   const mx = useMatrixClient();
-  const powerLevels = usePowerLevelsContext();
+  const powerLevels = usePowerLevels(room);
   const creators = useRoomCreators(room);
   const permissions = useRoomPermissions(creators, powerLevels);
   const canToggle = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId());

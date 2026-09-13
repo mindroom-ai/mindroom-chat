@@ -116,7 +116,6 @@ vi.mock('../../../features/room-nav', () => ({
 vi.mock('../../../state/closedNavCategories', () => ({
   makeNavCategoryId: () => 'home-room',
 }));
-vi.mock('../../../state/room/roomToUnread', () => ({ roomToUnreadAtom: {} }));
 vi.mock('../../../hooks/useCategoryHandler', () => ({ useCategoryHandler: () => vi.fn() }));
 vi.mock('../../../hooks/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: vi.fn(),
@@ -149,12 +148,8 @@ vi.mock('../../../components/join-address-prompt', async () => {
       }),
   };
 });
-vi.mock('../../../mindroom/recent-threads/RecentThreadsPanel', async () => {
-  const reactModule = await import('react');
-  return {
-    RecentThreadsPageNav: ({ children }: { children?: React.ReactNode }) =>
-      reactModule.createElement('div', null, children),
-  };
+vi.mock('../../../mindroom/recent-threads/ThreadNavCategory', () => {
+  return { ThreadNavCategory: () => React.createElement('div', { 'data-thread-nav': true }) };
 });
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
@@ -196,6 +191,7 @@ describe('Home', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
+    expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
 
     renderer.unmount();
   });

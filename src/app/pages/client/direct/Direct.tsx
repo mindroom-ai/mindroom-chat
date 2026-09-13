@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, forwardRef, useMemo, useRef, useState } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import {
   Avatar,
@@ -35,7 +35,6 @@ import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
 import { VirtualTile } from '../../../components/virtualizer';
 import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
-import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { useDirectRooms } from './useDirectRooms';
@@ -47,7 +46,6 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { useDirectCreateSelected } from '../../../hooks/router/useDirectSelected';
-import { RecentThreadsPageNav } from '../../../mindroom/recent-threads/RecentThreadsPanel';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
 type DirectMenuProps = {
@@ -156,7 +154,6 @@ export function Direct() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const directs = useDirectRooms();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
-  const roomToUnread = useAtomValue(roomToUnreadAtom);
   const navigate = useNavigate();
 
   const createDirectSelected = useDirectCreateSelected();
@@ -166,12 +163,9 @@ export function Direct() {
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
 
   const sortedDirects = useMemo(() => {
-    const items = Array.from(directs).sort(factoryRoomIdByActivity(mx));
-    if (closedCategories.has(DEFAULT_CATEGORY_ID)) {
-      return items.filter((rId) => roomToUnread.has(rId) || rId === selectedRoomId);
-    }
-    return items;
-  }, [mx, directs, closedCategories, roomToUnread, selectedRoomId]);
+    if (closedCategories.has(DEFAULT_CATEGORY_ID)) return [];
+    return Array.from(directs).sort(factoryRoomIdByActivity(mx));
+  }, [mx, directs, closedCategories]);
 
   const virtualizer = useVirtualizer({
     count: sortedDirects.length,
@@ -187,78 +181,76 @@ export function Direct() {
   return (
     <PageNav>
       <DirectHeader />
-      <RecentThreadsPageNav>
-        {noRoomToDisplay ? (
-          <DirectEmpty />
-        ) : (
-          <PageNavContent scrollRef={scrollRef}>
-            <Box direction="Column" gap="300">
-              <NavCategory>
-                <NavItem variant="Background" radii="400" aria-selected={createDirectSelected}>
-                  <NavButton onClick={() => navigate(getDirectCreatePath())}>
-                    <NavItemContent>
-                      <Box as="span" grow="Yes" alignItems="Center" gap="200">
-                        <Avatar size="200" radii="400">
-                          <Icon src={Icons.Plus} size="100" />
-                        </Avatar>
-                        <Box as="span" grow="Yes">
-                          <Text as="span" size="Inherit" truncate>
-                            {t('nav.createChat')}
-                          </Text>
-                        </Box>
+      {noRoomToDisplay ? (
+        <DirectEmpty />
+      ) : (
+        <PageNavContent scrollRef={scrollRef}>
+          <Box direction="Column" gap="300">
+            <NavCategory>
+              <NavItem variant="Background" radii="400" aria-selected={createDirectSelected}>
+                <NavButton onClick={() => navigate(getDirectCreatePath())}>
+                  <NavItemContent>
+                    <Box as="span" grow="Yes" alignItems="Center" gap="200">
+                      <Avatar size="200" radii="400">
+                        <Icon src={Icons.Plus} size="100" />
+                      </Avatar>
+                      <Box as="span" grow="Yes">
+                        <Text as="span" size="Inherit" truncate>
+                          {t('nav.createChat')}
+                        </Text>
                       </Box>
-                    </NavItemContent>
-                  </NavButton>
-                </NavItem>
-              </NavCategory>
-              <NavCategory>
-                <NavCategoryHeader>
-                  <RoomNavCategoryButton
-                    closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
-                    data-category-id={DEFAULT_CATEGORY_ID}
-                    onClick={handleCategoryClick}
-                  >
-                    {t('nav.chats')}
-                  </RoomNavCategoryButton>
-                </NavCategoryHeader>
-                <div
-                  style={{
-                    position: 'relative',
-                    height: virtualizer.getTotalSize(),
-                  }}
+                    </Box>
+                  </NavItemContent>
+                </NavButton>
+              </NavItem>
+            </NavCategory>
+            <NavCategory>
+              <NavCategoryHeader>
+                <RoomNavCategoryButton
+                  closed={closedCategories.has(DEFAULT_CATEGORY_ID)}
+                  data-category-id={DEFAULT_CATEGORY_ID}
+                  onClick={handleCategoryClick}
                 >
-                  {virtualizer.getVirtualItems().map((vItem) => {
-                    const roomId = sortedDirects[vItem.index];
-                    const room = mx.getRoom(roomId);
-                    if (!room) return null;
-                    const selected = selectedRoomId === roomId;
+                  {t('nav.chats')}
+                </RoomNavCategoryButton>
+              </NavCategoryHeader>
+              <div
+                style={{
+                  position: 'relative',
+                  height: virtualizer.getTotalSize(),
+                }}
+              >
+                {virtualizer.getVirtualItems().map((vItem) => {
+                  const roomId = sortedDirects[vItem.index];
+                  const room = mx.getRoom(roomId);
+                  if (!room) return null;
+                  const selected = selectedRoomId === roomId;
 
-                    return (
-                      <VirtualTile
-                        virtualItem={vItem}
-                        key={vItem.index}
-                        ref={virtualizer.measureElement}
-                      >
-                        <RoomNavItem
-                          room={room}
-                          selected={selected}
-                          showAvatar
-                          direct
-                          linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
-                      </VirtualTile>
-                    );
-                  })}
-                </div>
-              </NavCategory>
-            </Box>
-          </PageNavContent>
-        )}
-      </RecentThreadsPageNav>
+                  return (
+                    <VirtualTile
+                      virtualItem={vItem}
+                      key={vItem.index}
+                      ref={virtualizer.measureElement}
+                    >
+                      <RoomNavItem
+                        room={room}
+                        selected={selected}
+                        showAvatar
+                        direct
+                        linkPath={getDirectRoomPath(getCanonicalAliasOrRoomId(mx, roomId))}
+                        notificationMode={getRoomNotificationMode(
+                          notificationPreferences,
+                          room.roomId
+                        )}
+                      />
+                    </VirtualTile>
+                  );
+                })}
+              </div>
+            </NavCategory>
+          </Box>
+        </PageNavContent>
+      )}
     </PageNav>
   );
 }

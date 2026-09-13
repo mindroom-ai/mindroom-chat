@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
 import { clearIOSPushState } from '../native/iosPush';
-import { clearRecentThreadsPanelHeightStore } from '../recent-threads/recentThreadsPanelHeight';
-import { clearRecentThreadsPanelMobileExpandedStore } from '../recent-threads/recentThreadsPanelMobileExpanded';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
+import { clearThreadSidebarPreferencesStore } from '../recent-threads/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../threads/roomViewMode';
@@ -39,16 +38,12 @@ vi.mock('../recent-threads/recentThreads', () => ({
   clearRecentThreadsStore: vi.fn(),
 }));
 
+vi.mock('../recent-threads/threadSidebarPreferences', () => ({
+  clearThreadSidebarPreferencesStore: vi.fn(),
+}));
+
 vi.mock('../cross-room-threads/crossRoomThreadFilters', () => ({
   clearCrossRoomThreadFiltersStore: vi.fn(),
-}));
-
-vi.mock('../recent-threads/recentThreadsPanelHeight', () => ({
-  clearRecentThreadsPanelHeightStore: vi.fn(),
-}));
-
-vi.mock('../recent-threads/recentThreadsPanelMobileExpanded', () => ({
-  clearRecentThreadsPanelMobileExpandedStore: vi.fn(),
 }));
 
 vi.mock('../threads/roomThreadFilterState', () => ({
@@ -187,10 +182,7 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearCrossRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
-    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(
-      '@alice:example.com'
-    );
-    expect(vi.mocked(clearRecentThreadsPanelMobileExpandedStore)).toHaveBeenCalledWith(
+    expect(vi.mocked(clearThreadSidebarPreferencesStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );
     expect(vi.mocked(clearRoomViewModeStore)).toHaveBeenCalledWith('session-a');

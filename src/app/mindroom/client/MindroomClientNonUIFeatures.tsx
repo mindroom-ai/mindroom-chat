@@ -28,6 +28,7 @@ import {
   upsertIOSPushPusher,
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
+import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
 
 const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
 const LogoHighlightSVG = MINDROOM_FAVICON_SRC;
@@ -54,6 +55,11 @@ function MindroomFaviconUpdater() {
     }
   }, [roomToUnread]);
 
+  return null;
+}
+
+function CrossRoomThreadIndexFeature() {
+  useCrossRoomThreadIndex();
   return null;
 }
 
@@ -255,6 +261,7 @@ function MindroomNativeIOSPushFeature() {
 export function MindroomClientNonUIFeatures() {
   return (
     <>
+      <CrossRoomThreadIndexFeature />
       <MindroomFaviconUpdater />
       <MindroomInviteNotifications />
       <MindroomNativeIOSPushFeature />
