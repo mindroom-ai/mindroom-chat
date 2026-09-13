@@ -60,8 +60,8 @@ const bootstrap = async () => {
     };
     subscribeToSessionStore(postCurrentSessionToSW);
 
-    const swUrl =
-      import.meta.env.MODE === 'production' ? appUrl('sw.js') : appUrl('dev-sw.js?dev-sw');
+    const isProductionSW = import.meta.env.MODE === 'production';
+    const swUrl = isProductionSW ? appUrl('sw.js') : appUrl('dev-sw.js?dev-sw');
 
     navigator.serviceWorker.ready.then(postCurrentSessionToSW).catch(() => undefined);
     navigator.serviceWorker.addEventListener('controllerchange', postCurrentSessionToSW);
@@ -79,6 +79,12 @@ const bootstrap = async () => {
     try {
       await navigator.serviceWorker.register(swUrl, {
         scope: ensureBasePathTrailingSlash(getAppBasePath()),
+        // vite-plugin-pwa's devOptions serve dev-sw.js as an ES module
+        // (type: 'module' in vite.config.js); registering it as a classic
+        // script throws "Cannot use import statement outside a module" and
+        // dev runs silently without a service worker. The production sw.js
+        // is bundled as a classic script.
+        type: isProductionSW ? 'classic' : 'module',
       });
     } catch {
       // Keep booting even if service worker registration fails.
