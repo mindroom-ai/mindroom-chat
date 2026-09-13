@@ -6,9 +6,31 @@ const NATIVE_SSO_HOST = 'auth';
 type StandaloneNavigator = Navigator & { standalone?: boolean };
 type MindRoomAuthPlugin = {
   authenticate(options: { url: string; callbackScheme: string }): Promise<{ url?: string }>;
+  signInWithApple(options?: Record<string, never>): Promise<NativeAppleCredential>;
 };
 
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
+
+type NativeAppleCredential = {
+  authorizationCode?: string;
+  email?: string;
+  familyName?: string;
+  givenName?: string;
+  identityToken?: string;
+  nonce?: string;
+  user?: string;
+};
+
+type NativeAppleLoginResponse = {
+  expiresInMs?: number;
+  loginToken?: string;
+};
+
+type NativeAppleLoginOptions = {
+  baseUrl: string;
+  providerId?: string;
+  redirectUrl: string;
+};
 
 const normalizePath = (path: string): string => path.replace(/\/{2,}/g, '/');
 
@@ -78,6 +100,22 @@ export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
   return true;
 };
 
+const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
+
+const buildLoginTokenRedirectUrl = (redirectUrl: string, loginToken: string): string => {
+  const target = new URL(redirectUrl);
+  target.searchParams.set('loginToken', loginToken);
+  return target.toString();
+};
+
+const routeLoginTokenRedirect = (redirectUrl: string, loginToken: string): void => {
+  const targetUrl = buildLoginTokenRedirectUrl(redirectUrl, loginToken);
+
+  if (routeNativeSsoCallback(targetUrl)) return;
+
+  window.location.replace(targetUrl);
+};
+
 export const openNativeSsoBrowser = async (url: string): Promise<void> => {
   if (isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth')) {
     const result = await getMindRoomAuthPlugin().authenticate({
@@ -93,6 +131,47 @@ export const openNativeSsoBrowser = async (url: string): Promise<void> => {
   }
 
   await Browser.open({ url, presentationStyle: 'fullscreen' });
+};
+
+export const signInWithNativeApple = async ({
+  baseUrl,
+  providerId,
+  redirectUrl,
+}: NativeAppleLoginOptions): Promise<void> => {
+  if (!isNativeIOS() || !Capacitor.isPluginAvailable('MindRoomAuth')) {
+    throw new Error('Native Apple sign-in is unavailable');
+  }
+
+  const credential = await getMindRoomAuthPlugin().signInWithApple({});
+
+  if (!credential.identityToken) {
+    throw new Error('Native Apple sign-in did not return an identity token');
+  }
+
+  const response = await fetch(
+    `${trimTrailingSlash(baseUrl)}/_matrix/client/unstable/org.mindroom.login/apple`,
+    {
+      body: JSON.stringify({
+        authorizationCode: credential.authorizationCode,
+        identityToken: credential.identityToken,
+        nonce: credential.nonce,
+        providerId,
+      }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Native Apple sign-in exchange failed with HTTP ${response.status}`);
+  }
+
+  const body = (await response.json()) as NativeAppleLoginResponse;
+  if (!body.loginToken) {
+    throw new Error('Native Apple sign-in exchange did not return a Matrix login token');
+  }
+
+  routeLoginTokenRedirect(redirectUrl, body.loginToken);
 };
 
 export const getAppPathFromNativeSsoUrl = (incomingUrl: string): string | undefined => {

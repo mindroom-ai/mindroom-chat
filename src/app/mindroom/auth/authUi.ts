@@ -9,6 +9,7 @@ import {
   buildNativeSsoRedirectUrl,
   isNativeIOS,
   openNativeSsoBrowser,
+  signInWithNativeApple,
 } from '../native/nativeSso';
 import {
   isMindroomHomeserver,
@@ -32,6 +33,7 @@ export {
   isMindroomHomeserver,
   isNativeIOS,
   openNativeSsoBrowser,
+  signInWithNativeApple,
   shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,

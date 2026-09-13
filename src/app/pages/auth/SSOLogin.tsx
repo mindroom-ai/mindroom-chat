@@ -15,7 +15,12 @@ import AppleLogo from '../../../../public/res/svg/sso-apple-white.svg';
 import GoogleLogo from '../../../../public/res/svg/sso-google.svg';
 import GitHubLogo from '../../../../public/res/svg/sso-github.svg';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
-import { isNativeIOS, openNativeSsoBrowser } from '../../mindroom/auth/authUi';
+import {
+  isMindroomHomeserver,
+  isNativeIOS,
+  openNativeSsoBrowser,
+  signInWithNativeApple,
+} from '../../mindroom/auth/authUi';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -33,7 +38,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const openingNativeSSORef = useRef(false);
 
   const handleSSONavigate =
-    (url: string) =>
+    (url: string, provider?: IIdentityProvider) =>
     async (evt: React.MouseEvent<HTMLElement>): Promise<void> => {
       if (!nativeIOS) return;
 
@@ -41,7 +46,15 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       if (openingNativeSSORef.current) return;
       openingNativeSSORef.current = true;
       try {
-        await openNativeSsoBrowser(url);
+        if (provider && isAppleIdentityProvider(provider) && isMindroomHomeserver(baseUrl)) {
+          await signInWithNativeApple({
+            baseUrl,
+            providerId: provider.id,
+            redirectUrl,
+          });
+        } else {
+          await openNativeSsoBrowser(url);
+        }
       } catch (error) {
         console.error('[SSO] Failed to open native iOS in-app browser', error);
       } finally {
@@ -56,7 +69,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
     if (isAppleIdentityProvider(provider)) return AppleLogo;
     if (isGoogleIdentityProvider(provider)) return GoogleLogo;
     if (isGitHubIdentityProvider(provider)) return GitHubLogo;
-    const homeserverIcon = provider.icon && mxcUrlToHttp(mx, provider.icon, false, 96, 96, 'crop', false);
+    const homeserverIcon =
+      provider.icon && mxcUrlToHttp(mx, provider.icon, false, 96, 96, 'crop', false);
     if (homeserverIcon) return homeserverIcon;
 
     return undefined;
@@ -90,7 +104,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
                 style={{ cursor: 'pointer' }}
                 key={id}
                 {...navigationProps}
-                onClick={handleSSONavigate(ssoUrl)}
+                onClick={handleSSONavigate(ssoUrl, provider)}
                 aria-label={buttonTitle}
                 size="300"
                 radii="300"
@@ -109,7 +123,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
               }
               key={id}
               {...navigationProps}
-              onClick={handleSSONavigate(ssoUrl)}
+              onClick={handleSSONavigate(ssoUrl, provider)}
               size="500"
               variant={appleProvider ? 'Primary' : 'Secondary'}
               fill={appleProvider ? 'Solid' : 'Soft'}

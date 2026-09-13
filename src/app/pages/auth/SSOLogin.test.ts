@@ -8,6 +8,9 @@ import { createMatrixClient } from '../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { SSOLogin } from './SSOLogin';
 
+const authenticate = vi.fn();
+const signInWithApple = vi.fn();
+
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
@@ -30,7 +33,10 @@ vi.mock('@capacitor/core', () => ({
     isNativePlatform: vi.fn(),
     getPlatform: vi.fn(),
   },
-  registerPlugin: vi.fn(),
+  registerPlugin: vi.fn(() => ({
+    authenticate,
+    signInWithApple,
+  })),
 }));
 
 vi.mock('@capacitor/browser', () => ({
@@ -60,6 +66,8 @@ describe('SSOLogin', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    authenticate.mockReset();
+    signInWithApple.mockReset();
     Object.defineProperty(globalThis, 'window', {
       value: {
         setTimeout: vi.fn(),
@@ -170,5 +178,64 @@ describe('SSOLogin', () => {
     expect(continueButton?.props.as).toBe('a');
     expect(preventDefault).not.toHaveBeenCalled();
     expect(vi.mocked(Browser.open)).not.toHaveBeenCalled();
+  });
+
+  it('uses native Sign in with Apple for Apple providers on native iOS', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    signInWithApple.mockResolvedValue({
+      authorizationCode: 'apple-code',
+      identityToken: 'apple-id-token',
+      nonce: 'native-nonce',
+    });
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ loginToken: 'matrix-login-token' }),
+      }),
+    });
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+        setTimeout: vi.fn(),
+      },
+      configurable: true,
+    });
+
+    const renderer = create(
+      React.createElement(SSOLogin, {
+        action: SSOAction.LOGIN,
+        providers: [
+          {
+            brand: 'apple',
+            id: 'chat.mindroom.matrix.apple',
+            name: 'Apple',
+          },
+        ],
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+      })
+    );
+
+    const appleButton = findButtonByText(renderer, 'Sign in with Apple');
+    const preventDefault = vi.fn();
+
+    await act(async () => {
+      await appleButton?.props.onClick({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(signInWithApple).toHaveBeenCalledWith({});
+    expect(vi.mocked(Browser.open)).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      '',
+      '/login/mindroom.chat?loginToken=matrix-login-token'
+    );
   });
 });
