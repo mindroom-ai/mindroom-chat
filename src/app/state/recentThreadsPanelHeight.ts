@@ -1,4 +1,4 @@
-import { WritableAtom, atom, getDefaultStore } from 'jotai';
+import { WritableAtom, atom } from 'jotai';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
@@ -6,6 +6,7 @@ import {
 } from './utils/atomWithLocalStorage';
 import { getActiveSession } from './sessions';
 import { isRecord } from '../utils/isRecord';
+import { getImperativeJotaiStore } from './jotaiStore';
 
 const RECENT_THREADS_PANEL_HEIGHT = 'recentThreadsPanelHeight';
 const RECENT_THREADS_PANEL_HEIGHT_STORE_VERSION = 1;
@@ -93,7 +94,7 @@ export const setRecentThreadsPanelHeight = (height: number) => {
   const recentThreadsPanelHeightAtom = getResolvedRecentThreadsPanelHeightAtom();
   if (!recentThreadsPanelHeightAtom) return;
 
-  getDefaultStore().set(recentThreadsPanelHeightAtom, height);
+  getImperativeJotaiStore().set(recentThreadsPanelHeightAtom, height);
 };
 
 export const clearRecentThreadsPanelHeightStore = (userId: string) => {

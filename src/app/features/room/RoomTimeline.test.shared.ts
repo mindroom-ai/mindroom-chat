@@ -213,10 +213,15 @@ vi.mock('../../hooks/useIgnoredUsers', () => ({
   useIgnoredUsers: () => ignoredUsersMock,
 }));
 
-vi.mock('jotai', () => ({
-  useAtomValue: () => [],
-  useSetAtom: () => vi.fn(),
-}));
+vi.mock('jotai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('jotai')>();
+
+  return {
+    ...actual,
+    useAtomValue: () => [],
+    useSetAtom: () => vi.fn(),
+  };
+});
 
 vi.mock('../../hooks/usePowerLevels', () => ({
   usePowerLevelsContext: () => ({}),

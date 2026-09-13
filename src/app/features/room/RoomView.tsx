@@ -47,6 +47,7 @@ import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { bumpRecentThread } from '../../state/recentThreads';
+import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -125,7 +126,22 @@ export function RoomView({
   });
   const threadRootId = useThreadRootEvent(room, threadId);
   const effectiveThreadId = threadRootId ?? threadId;
-  const threadSummaryText = threadRootId ? summaryMap.get(threadRootId)?.summaryText : undefined;
+  const resolvedThreadRootEvent = effectiveThreadId
+    ? room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId)
+    : undefined;
+  const threadSummaryText = effectiveThreadId ? summaryMap.get(effectiveThreadId)?.summaryText : undefined;
+  const recentThreadSummaryText = useMemo(
+    () =>
+      effectiveThreadId
+        ? resolveRecentThreadSummaryText({
+            room,
+            threadRootId: effectiveThreadId,
+            rootEvent: resolvedThreadRootEvent,
+            summaryInfo: summaryMap.get(effectiveThreadId),
+          })
+        : undefined,
+    [effectiveThreadId, resolvedThreadRootEvent, room, summaryMap]
+  );
 
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
@@ -223,8 +239,8 @@ export function RoomView({
   useEffect(() => {
     if (!effectiveThreadId) return;
 
-    bumpRecentThread(room.roomId, effectiveThreadId);
-  }, [effectiveThreadId, room.roomId]);
+    bumpRecentThread(room.roomId, effectiveThreadId, undefined, recentThreadSummaryText);
+  }, [effectiveThreadId, recentThreadSummaryText, room.roomId]);
 
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.

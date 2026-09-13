@@ -4,31 +4,41 @@ import type { Room } from 'matrix-js-sdk';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useRoomName } from '../../hooks/useRoomMeta';
-import { rekeyRecentThread } from '../../state/recentThreads';
+import { bumpRecentThread, rekeyRecentThread } from '../../state/recentThreads';
 import { useRecentThreadSummary } from './useRecentThreadSummary';
+import { shouldPersistRecentThreadSummaryText } from './recentThreadSummaryUtils';
 import * as css from './recentThreads.css';
 
 type RecentThreadEntryProps = {
   room: Room;
   threadId: string;
   openedAt: number;
+  summaryText?: string;
 };
 
 export const RecentThreadEntry = memo(({
   room,
   threadId,
   openedAt,
+  summaryText,
 }: RecentThreadEntryProps) => {
   const roomName = useRoomName(room);
   const relativeTime = useRelativeTime(openedAt);
   const { navigateRoomThreadDirect } = useRoomNavigate();
-  const { summary, resolvedThreadId } = useRecentThreadSummary(room, threadId);
+  const { summary, resolvedThreadId } = useRecentThreadSummary(room, threadId, summaryText);
 
   useEffect(() => {
     if (resolvedThreadId === threadId) return;
 
     rekeyRecentThread(room.roomId, threadId, resolvedThreadId);
   }, [resolvedThreadId, room.roomId, threadId]);
+
+  useEffect(() => {
+    if (!shouldPersistRecentThreadSummaryText(room, roomName, summary)) return;
+    if (summary === summaryText) return;
+
+    bumpRecentThread(room.roomId, threadId, openedAt, summary);
+  }, [openedAt, room, room.roomId, roomName, summary, summaryText, threadId]);
 
   return (
     <button

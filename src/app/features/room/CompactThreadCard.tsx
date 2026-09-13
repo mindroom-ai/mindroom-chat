@@ -149,7 +149,7 @@ export type CompactThreadCardProps = {
   rootPreviewText?: string;
   summaryInfo?: MindroomThreadSummaryInfo;
   lastActivityTs?: number;
-  onClick: (threadRootId: string) => void;
+  onClick: (threadRootId: string, summaryText?: string) => void;
 };
 
 export function CompactThreadCard({
@@ -281,7 +281,7 @@ export function CompactThreadCard({
     <button
       className={isResolved ? `${css.Card} ${css.CardResolved}` : css.Card}
       type="button"
-      onClick={() => onClick(threadRootId)}
+      onClick={() => onClick(threadRootId, effectiveSummaryInfo?.summaryText ?? resolvedRootPreviewText)}
       data-thread-root-id={threadRootId}
       aria-label={ariaLabel}
     >

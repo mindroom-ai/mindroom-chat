@@ -1,6 +1,12 @@
-import { getDefaultStore } from 'jotai';
+import { createStore, getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRecentThreadsStore, makeRecentThreadsAtom } from './recentThreads';
+import {
+  bumpRecentThread,
+  clearRecentThreadsStore,
+  makeRecentThreadsAtom,
+  registerRecentThreadsAtom,
+} from './recentThreads';
+import { setImperativeJotaiStore } from './jotaiStore';
 
 const USER_ID = '@alice:example.org';
 
@@ -141,5 +147,66 @@ describe('recentThreads', () => {
         openedAt: 125,
       },
     ]);
+  });
+
+  it('writes imperative recent-thread bumps into the registered provider store', () => {
+    const providerStore = createStore();
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+    const unregisterStore = setImperativeJotaiStore(providerStore);
+    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+
+    bumpRecentThread('!room:example.org', '$thread', 200, 'Preview text');
+
+    expect(providerStore.get(recentThreadsAtom)).toEqual([
+      {
+        roomId: '!room:example.org',
+        threadId: '$thread',
+        openedAt: 200,
+        summaryText: 'Preview text',
+      },
+    ]);
+    expect(getDefaultStore().get(recentThreadsAtom)).toEqual([]);
+
+    unregisterAtom();
+    unregisterStore();
+  });
+
+  it('updates a stored summary without changing recency order', () => {
+    const providerStore = createStore();
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+    const unregisterStore = setImperativeJotaiStore(providerStore);
+    const unregisterAtom = registerRecentThreadsAtom(recentThreadsAtom);
+
+    providerStore.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$older',
+      openedAt: 100,
+    });
+    providerStore.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$newer',
+      openedAt: 200,
+    });
+
+    bumpRecentThread('!room:example.org', '$older', 100, 'Stored preview');
+
+    expect(providerStore.get(recentThreadsAtom)).toEqual([
+      {
+        roomId: '!room:example.org',
+        threadId: '$newer',
+        openedAt: 200,
+      },
+      {
+        roomId: '!room:example.org',
+        threadId: '$older',
+        openedAt: 100,
+        summaryText: 'Stored preview',
+      },
+    ]);
+
+    unregisterAtom();
+    unregisterStore();
   });
 });

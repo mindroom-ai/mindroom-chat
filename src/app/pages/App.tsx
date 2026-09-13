@@ -12,12 +12,15 @@ import { FeatureCheck } from './FeatureCheck';
 import { createRouter } from './Router';
 import { ScreenSizeProvider, useScreenSize } from '../hooks/useScreenSize';
 import { useCompositionEndTracking } from '../hooks/useComposingCheck';
+import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 
 const queryClient = new QueryClient();
 
 function App() {
   const screenSize = useScreenSize();
   useCompositionEndTracking();
+
+  React.useEffect(() => setImperativeJotaiStore(appJotaiStore), []);
 
   const portalContainer = document.getElementById('portalContainer') ?? undefined;
 
@@ -36,7 +39,7 @@ function App() {
                 {(clientConfig) => (
                   <ClientConfigProvider value={clientConfig}>
                     <QueryClientProvider client={queryClient}>
-                      <JotaiProvider>
+                      <JotaiProvider store={appJotaiStore}>
                         <RouterProvider router={createRouter(clientConfig, screenSize)} />
                       </JotaiProvider>
                       <ReactQueryDevtools initialIsOpen={false} />

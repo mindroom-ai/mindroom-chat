@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { MindroomThreadSummaryInfo } from '../../components/message/mindroomThreadSummary';
+import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { ThreadOverviewMetadata } from './roomThreadOverviewModel';
 import { CompactThreadCard } from './CompactThreadCard';
 import * as css from './CompactRoomView.css';
@@ -11,7 +12,7 @@ export type CompactRoomViewProps = {
   threadRootIds: string[];
   metadataMap: Map<string, ThreadOverviewMetadata>;
   summaryMap?: Map<string, MindroomThreadSummaryInfo>;
-  onThreadClick: (threadRootId: string) => void;
+  onThreadClick: (threadRootId: string, summaryText?: string) => void;
 };
 
 export function CompactRoomView({
@@ -50,6 +51,15 @@ export function CompactRoomView({
               }
             : undefined;
         const resolvedSummaryInfo = summaryMap?.get(threadRootId) ?? fallbackSummaryInfo;
+        const recentThreadSummaryText =
+          resolvedSummaryInfo?.summaryText ??
+          metadata?.rootPreviewText ??
+          resolveRecentThreadSummaryText({
+            room,
+            threadRootId,
+            rootEvent: threadRootEvent,
+            summaryInfo: resolvedSummaryInfo,
+          });
 
         return (
           <CompactThreadCard
@@ -60,7 +70,7 @@ export function CompactRoomView({
             rootPreviewText={metadata?.rootPreviewText}
             summaryInfo={resolvedSummaryInfo}
             lastActivityTs={metadata?.lastActivityTs}
-            onClick={onThreadClick}
+            onClick={(clickedThreadRootId) => onThreadClick(clickedThreadRootId, recentThreadSummaryText)}
           />
         );
       })}
