@@ -53,6 +53,16 @@ export const MINDROOM_COMMANDS: MindroomCommandItem[] = [
     description: 'Show or switch the thread mode used in the current room (room admin only).',
   },
   {
+    name: 'encrypt',
+    syntax: '!encrypt [confirm]',
+    description: 'Review or enable end-to-end encryption for the current room.',
+  },
+  {
+    name: 'e2ee',
+    syntax: '!e2ee',
+    description: 'Show encryption diagnostics for the current room.',
+  },
+  {
     name: 'hi',
     syntax: '!hi',
     description: 'Show welcome information.',

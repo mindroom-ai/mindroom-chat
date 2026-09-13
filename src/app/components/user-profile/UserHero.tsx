@@ -18,6 +18,7 @@ import colorMXID from '../../../util/colorMXID';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { BreakWord, LineClamp3 } from '../../styles/Text.css';
 import { UserPresence } from '../../hooks/useUserPresence';
+import { AgentVerifiedBadge } from '../../mindroom/matrix/AgentVerifiedBadge';
 import { AvatarPresence, PresenceBadge } from '../presence';
 import { ImageViewer } from '../image-viewer';
 import { stopPropagation } from '../../utils/keyboard';
@@ -101,7 +102,7 @@ export function UserHeroName({ displayName, userId }: UserHeroNameProps) {
 
   return (
     <Box grow="Yes" direction="Column" gap="0">
-      <Box alignItems="Baseline" gap="200" wrap="Wrap">
+      <Box alignItems="Center" gap="200" wrap="Wrap">
         <Text
           size="H4"
           className={classNames(BreakWord, LineClamp3)}
@@ -109,6 +110,7 @@ export function UserHeroName({ displayName, userId }: UserHeroNameProps) {
         >
           {displayName ?? username ?? userId}
         </Text>
+        <AgentVerifiedBadge userId={userId} size="200" />
       </Box>
       <Box alignItems="Center" gap="100" wrap="Wrap">
         <Text size="T200" className={classNames(BreakWord, LineClamp3)} title={username}>

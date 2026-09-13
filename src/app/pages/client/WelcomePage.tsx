@@ -16,7 +16,10 @@ import {
   shouldShowWelcomeSetupPrompt,
 } from '../../mindroom/local-mindroom/mindroom';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
+import { KeyBackupNudge } from '../../mindroom/onboarding/KeyBackupNudge';
+import { WelcomeCardStyle } from '../../mindroom/onboarding/welcomeCard';
 import { settingsModalAtom } from '../../state/settingsModal';
+import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
 
@@ -30,17 +33,8 @@ const WELCOME_SETUP_FINAL_STEPS = [
   '5. Start it with uvx mindroom run',
 ];
 
-const getWelcomeSetupStorage = (): Storage | undefined => {
-  try {
-    if (typeof globalThis.localStorage === 'undefined') return undefined;
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
-};
-
 const readFirstSeenAtMs = (storageKey: string): number | undefined => {
-  const storage = getWelcomeSetupStorage();
+  const storage = getSafeLocalStorage();
   if (typeof storage?.getItem !== 'function') return undefined;
 
   let stored: string | null;
@@ -58,7 +52,7 @@ const readFirstSeenAtMs = (storageKey: string): number | undefined => {
 const getOrCreateFirstSeenAtMs = (storageKey: string, nowMs: number): number | undefined => {
   const firstSeenAtMs = readFirstSeenAtMs(storageKey);
   if (firstSeenAtMs !== undefined) return firstSeenAtMs;
-  const storage = getWelcomeSetupStorage();
+  const storage = getSafeLocalStorage();
   if (typeof storage?.setItem !== 'function') return undefined;
 
   try {
@@ -70,7 +64,7 @@ const getOrCreateFirstSeenAtMs = (storageKey: string, nowMs: number): number | u
 };
 
 const clearFirstSeenAtMs = (storageKey: string) => {
-  const storage = getWelcomeSetupStorage();
+  const storage = getSafeLocalStorage();
   if (typeof storage?.removeItem !== 'function') return;
 
   try {
@@ -86,16 +80,7 @@ type WelcomeSetupInstructionsProps = {
 
 function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupInstructionsProps) {
   return (
-    <Box
-      direction="Column"
-      gap="200"
-      style={{
-        border: '1px solid rgba(125, 125, 125, 0.28)',
-        borderRadius: '8px',
-        padding: '12px',
-        textAlign: 'left',
-      }}
-    >
+    <Box direction="Column" gap="200" style={WelcomeCardStyle}>
       <Text as="span" size="L400">
         Set up Local MindRoom
       </Text>
@@ -240,6 +225,7 @@ export function WelcomePage() {
                     onOpenLocalMindroomSettings={openLocalMindroomSettings}
                   />
                 )}
+                <KeyBackupNudge />
                 {poweredBy.length > 0 && (
                   <Text size="T300" align="Center">
                     Powered by{' '}

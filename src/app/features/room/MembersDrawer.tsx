@@ -58,6 +58,7 @@ import { useOpenUserRoomProfile, useUserRoomProfileState } from '../../state/hoo
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { useFlattenPowerTagMembers, useGetMemberPowerTag } from '../../hooks/useMemberPowerTag';
+import { AgentVerifiedBadge } from '../../mindroom/matrix/AgentVerifiedBadge';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
@@ -180,10 +181,11 @@ function MemberItem({
         )
       }
     >
-      <Box grow="Yes">
+      <Box grow="Yes" alignItems="Center" gap="100">
         <Text size="T400" truncate>
           {name}
         </Text>
+        <AgentVerifiedBadge userId={member.userId} />
       </Box>
     </MenuItem>
   );
