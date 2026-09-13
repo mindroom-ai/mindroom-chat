@@ -163,6 +163,8 @@
     "vitest": "2.1.8",
     "patch-package": "8.0.1",
     "@playwright/test": "1.58.2",
-    "jsdom": "22.1.0"
+    "jsdom": "22.1.0",
+    "workbox-precaching": "7.3.0",
+    "workbox-routing": "7.3.0"
   }
 }
