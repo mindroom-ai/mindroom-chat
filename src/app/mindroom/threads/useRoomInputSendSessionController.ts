@@ -1,5 +1,4 @@
-import { MutableRefObject, useCallback, useRef } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import { MutableRefObject, useCallback, useEffect, useRef } from 'react';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
 import {
@@ -9,6 +8,7 @@ import {
 } from '../../components/editor/utils';
 import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload } from '../../state/upload';
+import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { TUploadContent } from '../../utils/matrix';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
@@ -72,18 +72,13 @@ type UseRoomInputSendSessionControllerOptions = {
   clearReplyDraft: (context: RoomInputReplyDraftContext) => void;
   editor: Editor;
   sendTypingStatus: (typing: boolean) => void;
-  selectedFilesRef: MutableRefObject<TUploadItem[]>;
-  sendSessionFilesRef?: MutableRefObject<TUploadContent[]>;
-  sendSessionUploadItemsRef?: MutableRefObject<TUploadItem[]>;
-  setSendSessionFiles?: Dispatch<SetStateAction<TUploadContent[]>>;
+  attachments: RoomInputAttachmentAccess;
   mountedRef?: MutableRefObject<boolean>;
-  uploadsRef: MutableRefObject<Upload[]>;
   buildUploadMessageContent: (
     fileItem: TUploadItem,
     mxc: string,
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
-  removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[], ownerRoomId?: string) => void;
   restoreComposerFallbackForRoom?: (roomId: string, fragment: Descendant[]) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
@@ -133,14 +128,9 @@ export const useRoomInputSendSessionController = ({
   clearReplyDraft,
   editor,
   sendTypingStatus,
-  selectedFilesRef,
-  sendSessionFilesRef,
-  sendSessionUploadItemsRef,
-  setSendSessionFiles,
+  attachments,
   mountedRef,
-  uploadsRef,
   buildUploadMessageContent,
-  removeUploadsFromBoard,
   restoreComposerFallbackForRoom,
   onRoomMessageSent,
 }: UseRoomInputSendSessionControllerOptions): {
@@ -210,9 +200,9 @@ export const useRoomInputSendSessionController = ({
 
   const sendSessionUpload = useCallback(
     async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
+      const { staged, enrolled } = attachments.snapshot(session.roomId);
       const fileItem =
-        selectedFilesRef.current.find((item) => item.file === file) ??
-        sendSessionUploadItemsRef?.current.find((item) => item.file === file);
+        staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
       if (!fileItem) {
         throw new Error('Missing upload item for send session.');
       }
@@ -240,20 +230,12 @@ export const useRoomInputSendSessionController = ({
       }
       session.onUploadSent?.(file);
       clearReplyDraftForSession(session);
-      removeUploadsFromBoard(file, session.roomId);
+      attachments.remove(session.roomId, [file]);
       if (sentEventIdToNotify) {
         onRoomMessageSent?.(sentEventIdToNotify);
       }
     },
-    [
-      mx,
-      selectedFilesRef,
-      sendSessionUploadItemsRef,
-      buildUploadMessageContent,
-      clearReplyDraftForSession,
-      onRoomMessageSent,
-      removeUploadsFromBoard,
-    ]
+    [mx, attachments, buildUploadMessageContent, clearReplyDraftForSession, onRoomMessageSent]
   );
 
   const restoreComposerFallback = useCallback(
@@ -275,16 +257,8 @@ export const useRoomInputSendSessionController = ({
 
   const clearSendSession = useCallback(() => {
     sendSessionRef.current = undefined;
-    if (sendSessionFilesRef) {
-      sendSessionFilesRef.current = [];
-    }
-    if (sendSessionUploadItemsRef) {
-      sendSessionUploadItemsRef.current = [];
-    }
-    if (mountedRef?.current ?? true) {
-      setSendSessionFiles?.([]);
-    }
-  }, [mountedRef, sendSessionFilesRef, sendSessionUploadItemsRef, setSendSessionFiles]);
+    attachments.clearEnrollment();
+  }, [attachments]);
 
   const processSendSession = useCallback(async () => {
     if (processingSendSessionRef.current) return;
@@ -294,13 +268,14 @@ export const useRoomInputSendSessionController = ({
       while (sendSessionRef.current) {
         const session = sendSessionRef.current;
 
+        const { staged, enrolled, uploads } = attachments.snapshot(session.roomId);
         const step = resolveRoomInputSendStep(
           session,
-          session.uploads ?? uploadsRef.current,
+          session.uploads ?? uploads,
           Array.from(
             new Set([
-              ...selectedFilesRef.current.map((fileItem) => fileItem.file),
-              ...(sendSessionFilesRef?.current ?? []),
+              ...staged.map((fileItem) => fileItem.file),
+              ...enrolled.map((fileItem) => fileItem.file),
             ])
           )
         );
@@ -346,15 +321,7 @@ export const useRoomInputSendSessionController = ({
     } finally {
       processingSendSessionRef.current = false;
     }
-  }, [
-    uploadsRef,
-    selectedFilesRef,
-    sendSessionFilesRef,
-    sendSessionText,
-    sendSessionUpload,
-    restoreComposerFallback,
-    clearSendSession,
-  ]);
+  }, [attachments, sendSessionText, sendSessionUpload, restoreComposerFallback, clearSendSession]);
 
   const startSendSession = useCallback(
     async ({
@@ -384,21 +351,12 @@ export const useRoomInputSendSessionController = ({
         return;
       }
 
-      const sendItems = (batch?.fileItems ?? selectedFilesRef.current).filter(
-        (fileItem) => !fileItem.prepError
-      );
+      const { staged } = attachments.snapshot(context?.roomId);
+      const sendItems = (batch?.fileItems ?? staged).filter((fileItem) => !fileItem.prepError);
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) return;
-      if (hasFailedPasteMarkerInText(textContent, selectedFilesRef.current)) return;
-      if (sendSessionUploadItemsRef) {
-        sendSessionUploadItemsRef.current = sendItems;
-      }
-      if (sendSessionFilesRef) {
-        sendSessionFilesRef.current = sendFiles;
-      }
-      if (mountedRef?.current ?? true) {
-        setSendSessionFiles?.(sendFiles);
-      }
+      if (hasFailedPasteMarkerInText(textContent, staged)) return;
+      attachments.enroll(sendItems);
 
       const sessionRoomId = context ? context.roomId : roomId;
       const sessionRoom = context ? context.room : room;
@@ -465,16 +423,33 @@ export const useRoomInputSendSessionController = ({
       room,
       editor,
       sendTypingStatus,
-      selectedFilesRef,
-      sendSessionFilesRef,
-      sendSessionUploadItemsRef,
-      setSendSessionFiles,
-      mountedRef,
+      attachments,
       processSendSession,
       restoreComposerFallback,
       clearSendSession,
     ]
   );
+
+  useEffect(() => {
+    let disposed = false;
+    let queued = false;
+    const wake = () => {
+      if (queued) return;
+      queued = true;
+      // Attachment updates can render synchronously inside enrollment/removal. Defer
+      // processing until the initiating operation finishes updating the send session.
+      queueMicrotask(() => {
+        queued = false;
+        if (!disposed) void processSendSession();
+      });
+    };
+    const unsubscribe = attachments.subscribe(wake);
+    wake();
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [attachments, processSendSession]);
 
   const hasActiveSendSession = useCallback(() => sendSessionRef.current !== undefined, []);
 

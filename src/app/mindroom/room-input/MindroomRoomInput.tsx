@@ -1,29 +1,9 @@
-import React, {
-  RefObject,
-  forwardRef,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { RefObject, forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MsgType, Room } from 'matrix-js-sdk';
 import { Descendant, Editor, Transforms } from 'slate';
-import {
-  Box,
-  Dialog,
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Scroll,
-  Text,
-  toRem,
-} from 'folds';
+import { Icon, IconButton, Icons } from 'folds';
 
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
@@ -39,28 +19,20 @@ import {
   getMentions,
 } from '../../components/editor';
 import {
-  TUploadContent,
   MatrixUploadErrorStage,
   getMatrixUploadOriginalName,
-  getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../utils/matrix';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
-import { useFilePicker } from '../../hooks/useFilePicker';
-import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
   TUploadItem,
-  TUploadMetadata,
   pendingVoiceSendDraftAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
-  roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../state/room/roomInputDrafts';
-import { UploadCardRenderer } from '../../components/upload-card';
-import { UploadBoard, UploadBoardContent, UploadBoardHeader } from '../../components/upload-board';
-import { Upload, UploadStatus, createUploadFamilyObserverAtom } from '../../state/upload';
+import { UploadStatus } from '../../state/upload';
 import { pauseAllMediaElements } from '../../utils/dom';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
@@ -69,9 +41,7 @@ import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useC
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 import { Membership } from '../../../types/matrix/room';
 import {
-  getMindroomRoomInputPasteMarkerFileNames,
   MindroomVoiceRecorderComposer,
-  removeMindroomRoomInputPasteMarkerElements,
   getMindroomRoomInputVoiceSendContext,
   refreshMindroomRoomInputVoiceSendContext,
   useRoomInputSendSessionController,
@@ -79,10 +49,9 @@ import {
   type MindroomVoiceSendContext,
 } from './RoomInputMindroomExtensions';
 import { restoreEditorContent } from '../../components/editor/utils';
-import { isMindroomPasteFileName } from '../messages/pasteAttachmentMarker';
 import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { hasFailedPasteMarkerInText } from '../threads/useRoomInputSendSessionController';
-import { useRoomInputPaste } from './useRoomInputPaste';
+import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { RoomInputEditor } from './RoomInputEditor';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
@@ -107,6 +76,7 @@ type PendingVoiceComposerBundle = {
   companionItems: TUploadItem[];
   composerReset: boolean;
   handedOff: boolean;
+  releasePasteProtection: () => void;
 };
 
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
@@ -141,29 +111,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     threadIdRef.current = threadId;
     const replyDraftRef = useRef(replyDraft);
     replyDraftRef.current = replyDraft;
-
-    const [uploadBoard, setUploadBoard] = useState(true);
-    const selectedFiles = useAtomValue(roomIdToUploadItemsAtomFamily(roomId));
-    const selectedFilesRef = useRef(selectedFiles);
-    selectedFilesRef.current = selectedFiles;
-    const [sendSessionFiles, setSendSessionFiles] = useState<TUploadContent[]>([]);
-    const sendSessionFilesRef = useRef(sendSessionFiles);
-    sendSessionFilesRef.current = sendSessionFiles;
-    const sendSessionUploadItemsRef = useRef<TUploadItem[]>([]);
-    const uploadFiles = useMemo(() => selectedFiles.map((f) => f.file), [selectedFiles]);
-    const observedUploadFiles = useMemo(
-      () => Array.from(new Set([...uploadFiles, ...sendSessionFiles])),
-      [sendSessionFiles, uploadFiles]
-    );
-    // Keep the observer atom stable across ordinary rerenders; recreating it each render
-    // causes RoomInput to resubscribe and can disrupt editor focus/selection.
-    const uploadFamilyObserverAtom = useMemo(
-      () => createUploadFamilyObserverAtom(roomUploadAtomFamily, observedUploadFiles),
-      [observedUploadFiles]
-    );
-    const uploads = useAtomValue(uploadFamilyObserverAtom);
-    const uploadsRef = useRef(uploads);
-    uploadsRef.current = uploads;
 
     const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
     const [submitPending, setSubmitPending] = useState(false);
@@ -265,52 +212,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sendVoiceItem,
     } = useRoomInputUploadTransport(mx, store, room);
 
-    const appendUploadItemsToRoomBoard = useCallback(
-      (ownerRoomId: string, fileItems: TUploadItem[]) => {
-        if (fileItems.length === 0) return;
-
-        // startSendSession/processSendSession can run before React applies the atom update,
-        // so keep the ref in sync for same-tick voice sends.
-        if (mountedRef.current && ownerRoomId === roomIdRef.current) {
-          selectedFilesRef.current = [...selectedFilesRef.current, ...fileItems];
-          setUploadBoard(true);
-        }
-        store.set(roomIdToUploadItemsAtomFamily(ownerRoomId), {
-          type: 'PUT',
-          item: fileItems,
-        });
-        fileItems.forEach((fileItem) => {
-          if (fileItem.prepError) {
-            store.set(roomUploadAtomFamily(fileItem.file), { error: fileItem.prepError });
-          }
-        });
-      },
-      [store]
-    );
-
-    const appendUploadItems = useCallback(
-      (fileItems: TUploadItem[]) => {
-        appendUploadItemsToRoomBoard(roomIdRef.current, fileItems);
-      },
-      [appendUploadItemsToRoomBoard]
-    );
-
-    const handleFiles = useCallback(
-      async (files: File[]) => {
-        appendUploadItems(await createUploadItems(files));
-      },
-      [appendUploadItems, createUploadItems]
-    );
-
-    const pickFile = useFilePicker(handleFiles, true);
-    const handlePaste = useRoomInputPaste({
+    const attachments = useRoomInputAttachments({
+      mx,
+      room,
+      roomId,
       editor,
+      fileDropContainerRef,
       isMarkdown,
-      handleFiles,
       createUploadItems,
-      appendUploadItems,
     });
-    const dropZoneVisible = useFileDropZone(fileDropContainerRef, handleFiles);
+    const attachmentAccess = attachments.access;
 
     useEffect(() => {
       Transforms.insertFragment(editor, msgDraft);
@@ -329,146 +240,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [roomId, editor, setMsgDraft]
     );
-
-    const handleFileMetadata = useCallback(
-      (fileItem: TUploadItem, metadata: TUploadMetadata) => {
-        const replacement = { ...fileItem, metadata };
-        selectedFilesRef.current = selectedFilesRef.current.map((item) =>
-          item === fileItem ? replacement : item
-        );
-        store.set(roomIdToUploadItemsAtomFamily(roomIdRef.current), {
-          type: 'REPLACE',
-          item: fileItem,
-          replacement,
-        });
-      },
-      [store]
-    );
-
-    const removeUploadsFromBoard = useCallback(
-      (upload: TUploadContent | TUploadContent[], ownerRoomId = roomIdRef.current) => {
-        const uploadList = Array.isArray(upload) ? upload : [upload];
-        sendSessionFilesRef.current = sendSessionFilesRef.current.filter(
-          (file) => !uploadList.includes(file)
-        );
-        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
-          (item) => !uploadList.includes(item.file)
-        );
-        if (mountedRef.current) {
-          setSendSessionFiles(sendSessionFilesRef.current);
-        }
-        const ownerUploadItemsAtom = roomIdToUploadItemsAtomFamily(ownerRoomId);
-        const useMountedSelectedFiles = mountedRef.current && ownerRoomId === roomIdRef.current;
-        const ownerUploadItems = useMountedSelectedFiles
-          ? selectedFilesRef.current
-          : store.get(ownerUploadItemsAtom);
-        const removableItems = ownerUploadItems.filter((f) =>
-          uploadList.some((candidate) => candidate === f.file)
-        );
-
-        if (removableItems.length > 0) {
-          if (useMountedSelectedFiles) {
-            selectedFilesRef.current = selectedFilesRef.current.filter(
-              (item) => !removableItems.includes(item)
-            );
-          }
-          store.set(ownerUploadItemsAtom, {
-            type: 'DELETE',
-            item: removableItems,
-          });
-        }
-
-        uploadList.forEach((candidate) => roomUploadAtomFamily.remove(candidate));
-      },
-      [store]
-    );
-
-    const getUploadContentName = useCallback((content: TUploadContent): string | undefined => {
-      if ('name' in content && typeof content.name === 'string') return content.name;
-      return undefined;
-    }, []);
-
-    const getPasteUploadFileName = useCallback(
-      (fileItem: TUploadItem): string | undefined => {
-        const fileName =
-          getUploadContentName(fileItem.originalFile) ?? getUploadContentName(fileItem.file);
-        return fileName && isMindroomPasteFileName(fileName) ? fileName : undefined;
-      },
-      [getUploadContentName]
-    );
-
-    const getPasteUploadFileNames = useCallback(
-      (upload: TUploadContent | TUploadContent[]): Set<string> => {
-        const uploadList = Array.isArray(upload) ? upload : [upload];
-        const fileNames = new Set<string>();
-
-        selectedFilesRef.current.forEach((fileItem) => {
-          if (
-            !uploadList.some(
-              (candidate) => candidate === fileItem.file || candidate === fileItem.originalFile
-            )
-          ) {
-            return;
-          }
-
-          const fileName = getPasteUploadFileName(fileItem);
-          if (fileName) fileNames.add(fileName);
-        });
-
-        return fileNames;
-      },
-      [getPasteUploadFileName]
-    );
-
-    const handleRemoveUpload = useCallback(
-      (upload: TUploadContent | TUploadContent[]) => {
-        const pasteFileNames = getPasteUploadFileNames(upload);
-        removeUploadsFromBoard(upload);
-        removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
-      },
-      [editor, getPasteUploadFileNames, removeUploadsFromBoard]
-    );
-
-    const handleCancelUpload = useCallback(
-      (uploadsToCancel: Upload[]) => {
-        const boardFiles = new Set(selectedFilesRef.current.map((item) => item.file));
-        const boardUploadsToCancel = uploadsToCancel.filter((upload) =>
-          boardFiles.has(upload.file)
-        );
-        boardUploadsToCancel.forEach((upload) => {
-          if (upload.status === UploadStatus.Loading) {
-            mx.cancelUpload(upload.promise);
-          }
-        });
-        const uploadFilesToCancel = boardUploadsToCancel.map((upload) => upload.file);
-        const pasteFileNames = getPasteUploadFileNames(uploadFilesToCancel);
-        removeUploadsFromBoard(uploadFilesToCancel);
-        removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
-      },
-      [editor, getPasteUploadFileNames, mx, removeUploadsFromBoard]
-    );
-
-    const handleEditorChange = useCallback(() => {
-      const markerFileNames = getMindroomRoomInputPasteMarkerFileNames(editor.children);
-      const orphanPasteUploads = selectedFilesRef.current.filter((fileItem) => {
-        const fileName = getPasteUploadFileName(fileItem);
-        if (fileName === undefined || markerFileNames.has(fileName)) return false;
-        if (fileItem.prepError && getMatrixUploadErrorStage(fileItem.prepError) === 'create') {
-          return false;
-        }
-        return (
-          !sendSessionFilesRef.current.includes(fileItem.file) &&
-          !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file) &&
-          !pendingVoiceComposerBundleRef.current?.companionItems.some(
-            (sendItem) => sendItem.file === fileItem.file
-          )
-        );
-      });
-
-      if (orphanPasteUploads.length > 0) {
-        removeUploadsFromBoard(orphanPasteUploads.map((fileItem) => fileItem.file));
-      }
-    }, [editor, getPasteUploadFileName, removeUploadsFromBoard]);
 
     const clearReplyDraftForSendContext = useCallback(
       (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => {
@@ -489,28 +260,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store]
     );
 
-    const { hasActiveSendSession, processSendSession, startSendSession } =
-      useRoomInputSendSessionController({
-        mx,
-        room,
-        roomId,
-        threadId,
-        replyDraft,
-        threadingEnabled,
-        clearReplyDraft: clearReplyDraftForSendContext,
-        editor,
-        sendTypingStatus,
-        selectedFilesRef,
-        sendSessionFilesRef,
-        sendSessionUploadItemsRef,
-        setSendSessionFiles,
-        mountedRef,
-        uploadsRef,
-        buildUploadMessageContent,
-        removeUploadsFromBoard,
-        restoreComposerFallbackForRoom,
-        onRoomMessageSent,
-      });
+    const { hasActiveSendSession, startSendSession } = useRoomInputSendSessionController({
+      mx,
+      room,
+      roomId,
+      threadId,
+      replyDraft,
+      threadingEnabled,
+      clearReplyDraft: clearReplyDraftForSendContext,
+      editor,
+      sendTypingStatus,
+      attachments: attachmentAccess,
+      mountedRef,
+      buildUploadMessageContent,
+      restoreComposerFallbackForRoom,
+      onRoomMessageSent,
+    });
 
     // Provide the recording room at start and the latest relation again when Send is claimed.
     // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
@@ -564,6 +329,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           restoreComposerFallbackForRoom(bundle.roomId, bundle.composerFallback);
         }
       }
+      bundle?.releasePasteProtection();
       pendingVoiceComposerBundleRef.current = undefined;
       voiceAutoSendInFlightRef.current = false;
       voiceAutoSendClaimedRef.current = false;
@@ -653,7 +419,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
           const getEligibleCompanionItems = (): TUploadItem[] => {
             const liveFiles = new Set(
-              store.get(roomIdToUploadItemsAtomFamily(ownerRoomId)).map((item) => item.file)
+              attachmentAccess.snapshot(ownerRoomId).staged.map((item) => item.file)
             );
             return (composerBundle?.companionItems ?? []).filter(
               (item) =>
@@ -700,7 +466,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             }
             const companionUploadResults = await companionUploadResultsPromise;
 
-            const liveItems = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
+            const liveItems = attachmentAccess.snapshot(ownerRoomId).staged;
             const liveFiles = new Set(liveItems.map((item) => item.file));
             const readyItems = [
               ...companionUploadResults
@@ -742,7 +508,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             }
           }
 
-          appendUploadItemsToRoomBoard(liveContext.roomId, fileItems);
+          attachmentAccess.append(liveContext.roomId, fileItems);
           let mxc: string;
           try {
             mxc = await uploadItem(fileItem);
@@ -757,9 +523,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           clearReplyDraftForSendContext(liveContext);
         } finally {
           if (liveContext && fileItems.length > 0) {
-            removeUploadsFromBoard(
-              fileItems.map((fileItem) => fileItem.file),
-              liveContext.roomId
+            attachmentAccess.remove(
+              liveContext.roomId,
+              fileItems.map((fileItem) => fileItem.file)
             );
           }
           releaseVoiceAutoSend();
@@ -769,13 +535,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
       },
       [
-        appendUploadItemsToRoomBoard,
+        attachmentAccess,
         allowUploadSize,
         clearReplyDraftForSendContext,
         createVoiceUploadItems,
         hasActiveSendSession,
         mx,
-        removeUploadsFromBoard,
         releaseVoiceAutoSend,
         sendVoiceItem,
         store,
@@ -831,14 +596,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           resetEditor(editor);
           resetEditorHistory(editor);
           sendTypingStatus(false);
-          if (selectedFilesRef.current.length > 0) {
+          if (attachmentAccess.snapshot().staged.length > 0) {
             await startSendSession();
           }
           return;
         }
 
         const hasText = plainText !== '';
-        const hasUploads = selectedFilesRef.current.length > 0;
+        const hasUploads = attachmentAccess.snapshot().staged.length > 0;
 
         let content: IContent | undefined;
         if (hasText) {
@@ -865,11 +630,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
 
         if (voiceRecorderOpen || ownsPendingVoiceDraft) {
-          if (hasFailedPasteMarkerInText(content, selectedFilesRef.current)) return;
+          if (hasFailedPasteMarkerInText(content, attachmentAccess.snapshot().staged)) return;
 
           const recorder = voiceRecorderRef.current;
           if (!recorder) return;
 
+          const companionItems = attachmentAccess.snapshot().staged;
           pendingVoiceComposerBundleRef.current = {
             roomId,
             // A live recording follows the reply/thread visible when primary Send is pressed.
@@ -883,7 +649,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 },
             textContent: content,
             composerFallback: content ? structuredClone(editor.children) : undefined,
-            companionItems: [...selectedFilesRef.current],
+            companionItems,
+            releasePasteProtection: attachmentAccess.protectPasteItems(companionItems),
             composerReset: false,
             handedOff: false,
           };
@@ -894,6 +661,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             // Drop only that untouched snapshot; claimed requests clear through
             // releaseVoiceAutoSend after send, failure, or retry settlement.
             if (!voiceAutoSendClaimedRef.current) {
+              pendingVoiceComposerBundleRef.current?.releasePasteProtection();
               pendingVoiceComposerBundleRef.current = undefined;
             }
           }
@@ -928,16 +696,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sendTypingStatus,
       isMarkdown,
       commands,
+      attachmentAccess,
       startSendSession,
       store,
       voiceRecorderOpen,
       ownsPendingVoiceDraft,
       threadingEnabled,
     ]);
-
-    useEffect(() => {
-      processSendSession();
-    }, [processSendSession, uploads, selectedFiles]);
 
     const composerContext = (replyDraft ||
       (!!threadId && submitPending) ||
@@ -969,9 +734,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const composerFeatureButtons = (
       <>
-        <IconButton onClick={() => pickFile('*')} variant="SurfaceVariant" size="300" radii="300">
-          <Icon src={Icons.PlusCircle} />
-        </IconButton>
+        {attachments.attachButton}
         <IconButton
           onClick={() => {
             if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft) return;
@@ -997,70 +760,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     return (
       <div ref={ref}>
-        {selectedFiles.length > 0 && (
-          <UploadBoard
-            header={
-              <UploadBoardHeader
-                open={uploadBoard}
-                onToggle={() => setUploadBoard(!uploadBoard)}
-                uploadFamilyObserverAtom={uploadFamilyObserverAtom}
-                onCancel={handleCancelUpload}
-              />
-            }
-          >
-            {uploadBoard && (
-              <Scroll size="300" hideTrack visibility="Hover">
-                <UploadBoardContent>
-                  {Array.from(selectedFiles)
-                    .reverse()
-                    .map((fileItem, index) => (
-                      <UploadCardRenderer
-                        // eslint-disable-next-line react/no-array-index-key
-                        key={index}
-                        isEncrypted={room.hasEncryptionStateEvent()}
-                        fileItem={fileItem}
-                        setMetadata={handleFileMetadata}
-                        onRemove={handleRemoveUpload}
-                      />
-                    ))}
-                </UploadBoardContent>
-              </Scroll>
-            )}
-          </UploadBoard>
-        )}
-        <Overlay
-          open={dropZoneVisible}
-          backdrop={<OverlayBackdrop />}
-          style={{ pointerEvents: 'none' }}
-        >
-          <OverlayCenter>
-            <Dialog variant="Primary">
-              <Box
-                direction="Column"
-                justifyContent="Center"
-                alignItems="Center"
-                gap="500"
-                style={{ padding: toRem(60) }}
-              >
-                <Icon size="600" src={Icons.File} />
-                <Text size="H4" align="Center">
-                  {t('composer.dropFiles', {
-                    roomName: room.name || t('composer.roomFallback'),
-                  })}
-                </Text>
-                <Text align="Center">{t('composer.dropFilesHint')}</Text>
-              </Box>
-            </Dialog>
-          </OverlayCenter>
-        </Overlay>
+        {attachments.board}
+        {attachments.dropOverlay}
         <RoomInputEditor
           editor={editor}
           room={room}
           fileDropContainerRef={fileDropContainerRef}
           onSubmit={submit}
           onCancelReply={() => setReplyDraft(undefined)}
-          onPaste={handlePaste}
-          onChange={handleEditorChange}
+          onPaste={attachments.onPaste}
+          onChange={attachments.onEditorChange}
           sendTypingStatus={sendTypingStatus}
           top={composerContext}
           before={composerFeatureButtons}

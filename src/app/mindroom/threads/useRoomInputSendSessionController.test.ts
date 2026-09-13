@@ -1,10 +1,11 @@
-import React, { MutableRefObject, useEffect, useRef } from 'react';
+import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
+import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
 import {
   StartRoomInputSendSessionOptions,
@@ -123,6 +124,42 @@ const TestHarness = ({
   const uploadsRef = useRef<Upload[]>([]);
   const mountedRef = useRef(true);
 
+  const attachments = useMemo<RoomInputAttachmentAccess>(
+    () => ({
+      snapshot: () => ({
+        staged: selectedFilesRef.current,
+        enrolled: sendSessionUploadItemsRef.current,
+        uploads: uploadsRef.current,
+      }),
+      append: (_roomId, items) => {
+        selectedFilesRef.current = [...selectedFilesRef.current, ...items];
+      },
+      enroll: (items) => {
+        sendSessionUploadItemsRef.current = items;
+        sendSessionFilesRef.current = items.map((item) => item.file);
+      },
+      clearEnrollment: () => {
+        sendSessionUploadItemsRef.current = [];
+        sendSessionFilesRef.current = [];
+      },
+      protectPasteItems: () => () => {},
+      subscribe: () => () => {},
+      remove: (_roomId, uploadList) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (item) => !uploadList.includes(item.file)
+        );
+        sendSessionFilesRef.current = sendSessionFilesRef.current.filter(
+          (file) => !uploadList.includes(file)
+        );
+        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
+          (item) => !uploadList.includes(item.file)
+        );
+        uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
+      },
+    }),
+    []
+  );
+
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
     room: {
@@ -137,29 +174,13 @@ const TestHarness = ({
     clearReplyDraft,
     editor: editor as never,
     sendTypingStatus,
-    selectedFilesRef,
-    sendSessionFilesRef,
-    sendSessionUploadItemsRef,
+    attachments,
     mountedRef,
-    uploadsRef,
     buildUploadMessageContent: async (fileItem, mxc) => ({
       msgtype: 'm.file',
       body: fileItem.file.name,
       url: mxc,
     }),
-    removeUploadsFromBoard: (upload) => {
-      const uploadList = Array.isArray(upload) ? upload : [upload];
-      selectedFilesRef.current = selectedFilesRef.current.filter(
-        (item) => !uploadList.includes(item.file)
-      );
-      sendSessionFilesRef.current = sendSessionFilesRef.current.filter(
-        (file) => !uploadList.includes(file)
-      );
-      sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
-        (item) => !uploadList.includes(item.file)
-      );
-      uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
-    },
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
