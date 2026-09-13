@@ -2,6 +2,8 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+const toolApprovalCardMock = vi.fn();
+
 vi.mock('folds', () => ({
   config: {
     space: {
@@ -76,8 +78,20 @@ vi.mock('./message/MindroomLongTextText', () => ({
 }));
 
 vi.mock('./message/MindroomToolApprovalCard', () => ({
-  MindroomToolApprovalCard: ({ approval }: { approval: { toolName: string } }) =>
-    React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName),
+  MindroomToolApprovalCard: ({
+    approval,
+    eventId,
+    roomId,
+    threadId,
+  }: {
+    approval: { toolName: string };
+    eventId?: string;
+    roomId?: string;
+    threadId?: string;
+  }) => {
+    toolApprovalCardMock({ approval, eventId, roomId, threadId });
+    return React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName);
+  },
 }));
 
 vi.mock('../plugins/react-custom-html-parser', () => ({
@@ -152,11 +166,15 @@ describe('RenderMessageContent', () => {
 
   it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
     const { RenderMessageContent } = await import('./RenderMessageContent');
+    toolApprovalCardMock.mockReset();
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
         displayName: 'MindRoom',
         eventType: 'io.mindroom.tool_approval',
+        roomId: '!room:example.org',
+        eventId: '$approval',
+        threadId: '$thread-root',
         msgType: '',
         ts: 0,
         getContent: (() => ({
@@ -165,7 +183,7 @@ describe('RenderMessageContent', () => {
           arguments: { query: 'release date' },
           agent_name: 'research',
           status: 'pending',
-          created_at: '2026-04-10T12:00:00Z',
+          requested_at: '2026-04-10T12:00:00Z',
           expires_at: '2026-04-17T12:00:00Z',
           resolved_at: null,
           resolved_by: null,
@@ -181,6 +199,14 @@ describe('RenderMessageContent', () => {
     expect(rendered).toContain('tool-approval');
     expect(rendered).toContain('web_search');
     expect(rendered).not.toContain('unsupported');
+    expect(toolApprovalCardMock).toHaveBeenCalledWith({
+      approval: expect.objectContaining({
+        toolName: 'web_search',
+      }),
+      roomId: '!room:example.org',
+      eventId: '$approval',
+      threadId: '$thread-root',
+    });
 
     renderer.unmount();
   });

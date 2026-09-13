@@ -37,6 +37,29 @@ export const CardExpired = style({
   boxShadow: `inset ${leftAccentWidth} 0 0 ${color.Warning.Main}`,
 });
 
+export const ResolvedInline = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
+  minWidth: 0,
+  maxWidth: '100%',
+  padding: 0,
+  color: color.SurfaceVariant.OnContainer,
+});
+
+export const ResolvedInlineApproved = style({
+  color: color.Success.Main,
+});
+
+export const ResolvedInlineDenied = style({
+  color: color.Critical.Main,
+});
+
+export const ResolvedInlineExpired = style({
+  color: color.Warning.Main,
+});
+
 export const Header = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -46,6 +69,10 @@ export const Header = style({
 
 export const ToolName = style({
   fontWeight: 700,
+});
+
+export const ResolvedToolName = style({
+  fontWeight: 600,
 });
 
 export const StatusLabel = style({

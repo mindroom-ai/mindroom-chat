@@ -4052,7 +4052,7 @@ describe('RoomTimeline', () => {
         arguments: { query: 'release date' },
         agent_name: 'research',
         status: 'pending',
-        created_at: '2026-04-10T12:00:00Z',
+        requested_at: '2026-04-10T12:00:00Z',
         expires_at: '2026-04-17T12:00:00Z',
       },
     });

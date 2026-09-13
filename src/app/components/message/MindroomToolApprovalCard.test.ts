@@ -3,10 +3,12 @@ import React from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
-import { ToolApprovalData } from './mindroomToolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+  ToolApprovalData,
+} from './mindroomToolApproval';
 
-const approveRequestMock = vi.fn();
-const denyRequestMock = vi.fn();
+const sendEventMock = vi.fn();
 
 vi.mock('folds', () => ({
   Box: ({
@@ -53,8 +55,13 @@ vi.mock('./MindroomToolApprovalCard.css.ts', () => ({
   CardApproved: 'CardApproved',
   CardDenied: 'CardDenied',
   CardExpired: 'CardExpired',
+  ResolvedInline: 'ResolvedInline',
+  ResolvedInlineApproved: 'ResolvedInlineApproved',
+  ResolvedInlineDenied: 'ResolvedInlineDenied',
+  ResolvedInlineExpired: 'ResolvedInlineExpired',
   Header: 'Header',
   ToolName: 'ToolName',
+  ResolvedToolName: 'ResolvedToolName',
   StatusLabel: 'StatusLabel',
   Meta: 'Meta',
   MetaDot: 'MetaDot',
@@ -64,7 +71,6 @@ vi.mock('./MindroomToolApprovalCard.css.ts', () => ({
   JsonBlock: 'JsonBlock',
   Actions: 'Actions',
   DenyForm: 'DenyForm',
-  ReasonText: 'ReasonText',
 }));
 
 vi.mock('../../hooks/useRelativeTime', () => ({
@@ -73,29 +79,43 @@ vi.mock('../../hooks/useRelativeTime', () => ({
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
-    getAccessToken: () => 'matrix-token-123',
+    sendEvent: (...args: unknown[]) => sendEventMock(...args),
   }),
-}));
-
-vi.mock('../../features/approvals/api', () => ({
-  approveRequest: (approvalId: string, accessToken?: string) =>
-    approveRequestMock(approvalId, accessToken),
-  denyRequest: (approvalId: string, reason?: string, accessToken?: string) =>
-    denyRequestMock(approvalId, reason, accessToken),
 }));
 
 const pendingApproval: ToolApprovalData = {
   approvalId: 'approval-1',
   toolName: 'web_search',
+  toolCallId: 'approval-1',
   arguments: { query: 'release date' },
   agentName: 'research',
+  requesterId: '@alice:example.org',
   status: 'pending',
-  createdAt: '2026-04-10T12:00:00Z',
+  requestedAt: '2026-04-10T12:00:00Z',
   expiresAt: '2026-04-17T12:00:00Z',
+  threadId: '$thread-root',
   resolvedAt: null,
   resolvedBy: null,
   resolutionReason: null,
 };
+
+const approvalContext = {
+  roomId: '!room:example.org',
+  eventId: '$approval',
+  threadId: '$thread-root',
+};
+
+const renderCard = (
+  approval: ToolApprovalData = pendingApproval,
+  props: Partial<typeof approvalContext> = {}
+) =>
+  create(
+    React.createElement(MindroomToolApprovalCard, {
+      approval,
+      ...approvalContext,
+      ...props,
+    })
+  );
 
 const getNodeText = (value: ReactTestInstance | string): string => {
   if (typeof value === 'string') return value;
@@ -127,12 +147,11 @@ const createDeferred = () => {
 
 describe('MindroomToolApprovalCard', () => {
   beforeEach(() => {
-    approveRequestMock.mockReset();
-    denyRequestMock.mockReset();
+    sendEventMock.mockReset();
   });
 
   it('renders pending approvals with action buttons', () => {
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+    const renderer = renderCard();
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('web_search');
@@ -144,9 +163,9 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('submits approval requests directly from the card', async () => {
-    approveRequestMock.mockResolvedValue(undefined);
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+  it('sends approval responses as Matrix events in the source thread', async () => {
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard();
 
     await act(async () => {
       findButtonByText(renderer.root, 'Approve').props.onClick();
@@ -154,15 +173,30 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(approveRequestMock).toHaveBeenCalledWith('approval-1', 'matrix-token-123');
+    expect(sendEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+      {
+        approval_id: 'approval-1',
+        status: 'approved',
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: '$thread-root',
+          is_falling_back: true,
+          'm.in_reply_to': {
+            event_id: '$approval',
+          },
+        },
+      }
+    );
 
     renderer.unmount();
   });
 
   it('ignores rapid duplicate approve clicks before loading state re-renders', async () => {
     const deferred = createDeferred();
-    approveRequestMock.mockImplementation(() => deferred.promise);
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+    sendEventMock.mockImplementation(() => deferred.promise);
+    const renderer = renderCard();
 
     await act(async () => {
       const approveButton = findButtonByText(renderer.root, 'Approve');
@@ -171,7 +205,7 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(approveRequestMock).toHaveBeenCalledTimes(1);
+    expect(sendEventMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       deferred.resolve();
@@ -184,8 +218,8 @@ describe('MindroomToolApprovalCard', () => {
   });
 
   it('collects an optional deny reason before submitting', async () => {
-    denyRequestMock.mockResolvedValue(undefined);
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard();
 
     act(() => {
       findButtonByText(renderer.root, 'Deny').props.onClick();
@@ -206,10 +240,50 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(denyRequestMock).toHaveBeenCalledWith(
-      'approval-1',
-      'Needs approval from ops',
-      'matrix-token-123'
+    expect(sendEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+      {
+        approval_id: 'approval-1',
+        status: 'denied',
+        reason: 'Needs approval from ops',
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: '$thread-root',
+          is_falling_back: true,
+          'm.in_reply_to': {
+            event_id: '$approval',
+          },
+        },
+      }
+    );
+
+    renderer.unmount();
+  });
+
+  it('sends null as the deny reason when the input is blank', async () => {
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard();
+
+    act(() => {
+      findButtonByText(renderer.root, 'Deny').props.onClick();
+    });
+
+    await act(async () => {
+      renderer.root.findByProps({ className: 'DenyForm' }).props.onSubmit({
+        preventDefault: vi.fn(),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sendEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+      expect.objectContaining({
+        status: 'denied',
+        reason: null,
+      })
     );
 
     renderer.unmount();
@@ -217,8 +291,8 @@ describe('MindroomToolApprovalCard', () => {
 
   it('ignores rapid duplicate deny submissions before loading state disables the form', async () => {
     const deferred = createDeferred();
-    denyRequestMock.mockImplementation(() => deferred.promise);
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+    sendEventMock.mockImplementation(() => deferred.promise);
+    const renderer = renderCard();
 
     act(() => {
       findButtonByText(renderer.root, 'Deny').props.onClick();
@@ -237,12 +311,7 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(denyRequestMock).toHaveBeenCalledTimes(1);
-    expect(denyRequestMock).toHaveBeenCalledWith(
-      'approval-1',
-      'Needs approval from ops',
-      'matrix-token-123'
-    );
+    expect(sendEventMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       deferred.resolve();
@@ -254,9 +323,61 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
+  it('falls back to the parsed approval thread id when no thread id prop is provided', async () => {
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard(pendingApproval, { threadId: undefined });
+
+    await act(async () => {
+      findButtonByText(renderer.root, 'Approve').props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sendEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+      expect.objectContaining({
+        'm.relates_to': expect.objectContaining({
+          event_id: '$thread-root',
+        }),
+      })
+    );
+
+    renderer.unmount();
+  });
+
+  it('falls back to the approval event id when no thread root is available anywhere', async () => {
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard(
+      {
+        ...pendingApproval,
+        threadId: null,
+      },
+      { threadId: undefined }
+    );
+
+    await act(async () => {
+      findButtonByText(renderer.root, 'Approve').props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(sendEventMock).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+      expect.objectContaining({
+        'm.relates_to': expect.objectContaining({
+          event_id: '$approval',
+        }),
+      })
+    );
+
+    renderer.unmount();
+  });
+
   it('keeps pending approvals submitted until the event edit arrives', async () => {
-    approveRequestMock.mockResolvedValue(undefined);
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+    sendEventMock.mockResolvedValue(undefined);
+    const renderer = renderCard();
 
     await act(async () => {
       findButtonByText(renderer.root, 'Approve').props.onClick();
@@ -276,26 +397,23 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('renders resolved denied approvals without action buttons', () => {
-    const renderer = create(
-      React.createElement(MindroomToolApprovalCard, {
-        approval: {
-          ...pendingApproval,
-          status: 'denied',
-          resolvedAt: '2026-04-10T12:05:00Z',
-          resolvedBy: '@ops:example.org',
-          resolutionReason: 'Missing justification',
-        },
-      })
-    );
+  it('renders resolved denied approvals as compact inline summaries', () => {
+    const renderer = renderCard({
+      ...pendingApproval,
+      status: 'denied',
+      resolvedAt: '2026-04-10T12:05:00Z',
+      resolvedBy: '@ops:example.org',
+      resolutionReason: 'Missing justification',
+    });
 
     const text = getNodeText(renderer.root);
 
-    expect(text).toContain('Denied');
+    expect(text).toContain('web_search');
     expect(text).toContain('Denied by @ops:example.org');
-    expect(text).toContain('Missing justification');
+    expect(text).not.toContain('Arguments');
     expect(text).not.toContain('Approve');
     expect(text).not.toContain('Confirm Deny');
+    expect(renderer.root.findByProps({ title: 'Reason: Missing justification' })).toBeDefined();
 
     renderer.unmount();
   });
@@ -340,7 +458,10 @@ describe('MindroomToolApprovalCard', () => {
     };
 
     const renderer = create(
-      React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }),
+      React.createElement(MindroomToolApprovalCard, {
+        approval: pendingApproval,
+        ...approvalContext,
+      }),
       { createNodeMock }
     );
 
@@ -360,9 +481,9 @@ describe('MindroomToolApprovalCard', () => {
     renderer.unmount();
   });
 
-  it('clears stale local API errors after the approval resolves via props', async () => {
-    approveRequestMock.mockRejectedValueOnce(new Error('Approval API unavailable'));
-    const renderer = create(React.createElement(MindroomToolApprovalCard, { approval: pendingApproval }));
+  it('clears stale local errors after the approval resolves via props', async () => {
+    sendEventMock.mockRejectedValueOnce(new Error('Matrix send failed'));
+    const renderer = renderCard();
 
     await act(async () => {
       findButtonByText(renderer.root, 'Approve').props.onClick();
@@ -370,7 +491,7 @@ describe('MindroomToolApprovalCard', () => {
       await Promise.resolve();
     });
 
-    expect(getNodeText(renderer.root)).toContain('Approval API unavailable');
+    expect(getNodeText(renderer.root)).toContain('Matrix send failed');
 
     await act(async () => {
       renderer.update(
@@ -381,6 +502,7 @@ describe('MindroomToolApprovalCard', () => {
             resolvedAt: '2026-04-10T12:05:00Z',
             resolvedBy: '@ops:example.org',
           },
+          ...approvalContext,
         })
       );
       await Promise.resolve();
@@ -389,7 +511,7 @@ describe('MindroomToolApprovalCard', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('Approved');
-    expect(text).not.toContain('Approval API unavailable');
+    expect(text).not.toContain('Matrix send failed');
 
     renderer.unmount();
   });
