@@ -40,9 +40,12 @@ const snapshotReplyChips = async (
       chipText: string;
     }[] = [];
     rows.forEach((row) => {
-      // Reply chips are buttons with a Reply.css class and the target event id;
-      // hover-menu buttons also carry data-event-id but no Reply class.
-      const chip = row.querySelector<HTMLElement>('button[class*="Reply"][data-event-id]');
+      // Reply chips target another event; hover actions target this row itself.
+      // Avoid development CSS class names, which production builds shorten.
+      const rowEventId = row.getAttribute('data-message-id');
+      const chip = Array.from(row.querySelectorAll<HTMLElement>('button[data-event-id]')).find(
+        (button) => button.getAttribute('data-event-id') !== rowEventId
+      );
       if (!chip) return;
       result.push({
         rowText: (row.textContent ?? '').slice(0, 200),
