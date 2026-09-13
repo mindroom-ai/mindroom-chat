@@ -1,8 +1,8 @@
 diff --git a/node_modules/folds/dist/style.css b/node_modules/folds/dist/style.css
-index c914e96..5f4f056 100644
+index ada7854..297623c 100644
 --- a/node_modules/folds/dist/style.css
 +++ b/node_modules/folds/dist/style.css
-@@ -1652,13 +1652,13 @@
+@@ -1672,13 +1672,13 @@
    --_4yxtfd1: var(--oq6d071r);
  }
  ._4yxtfdb::-webkit-scrollbar-thumb {
@@ -18,7 +18,7 @@ index c914e96..5f4f056 100644
  }
  ._4yxtfdc:hover::-webkit-scrollbar-track {
    background-color: var(--_4yxtfd0);
-@@ -1723,10 +1723,10 @@
+@@ -1743,10 +1743,10 @@
      scrollbar-color: transparent transparent;
    }
    ._4yxtfdb {
@@ -31,7 +31,7 @@ index c914e96..5f4f056 100644
    }
    ._4yxtfde {
      scrollbar-width: none;
-@@ -2001,7 +2001,7 @@
+@@ -2021,7 +2021,7 @@
    font-size: var(--ay20pp5);
    line-height: var(--ay20pp6);
    letter-spacing: var(--ay20pp7);
@@ -40,7 +40,7 @@ index c914e96..5f4f056 100644
    scrollbar-width: thin;
  }
  .ay20pp9:focus {
-@@ -2024,7 +2024,7 @@
+@@ -2044,7 +2044,7 @@
    background-clip: padding-box;
  }
  .ay20pp9::-webkit-scrollbar-thumb {
