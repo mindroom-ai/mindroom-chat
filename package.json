@@ -24,7 +24,11 @@
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
     "release:next-tag": "python3 scripts/fork_release_tag.py",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:mindroom": "./scripts/test-e2e-mindroom.sh",
+    "test:e2e:mindroom:headed": "./scripts/test-e2e-mindroom.sh --headed"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint",
@@ -144,6 +148,7 @@
     "vite-plugin-static-copy": "1.0.4",
     "vite-plugin-top-level-await": "1.4.4",
     "vitest": "2.1.8",
-    "patch-package": "8.0.1"
+    "patch-package": "8.0.1",
+    "@playwright/test": "1.58.2"
   }
 }

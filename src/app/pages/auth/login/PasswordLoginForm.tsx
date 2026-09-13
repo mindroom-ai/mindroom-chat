@@ -37,6 +37,7 @@ import { PasswordInput } from '../../../components/password-input';
 import { FieldError } from '../FiledError';
 import { getResetPasswordPath } from '../../pathUtils';
 import { stopPropagation } from '../../../utils/keyboard';
+import { withAddAccountSearchIf } from '../addAccount';
 
 function UsernameHint({ server }: { server: string }) {
   const [anchor, setAnchor] = useState<RectCords>();
@@ -109,8 +110,13 @@ function UsernameHint({ server }: { server: string }) {
 type PasswordLoginFormProps = {
   defaultUsername?: string;
   defaultEmail?: string;
+  addAccount?: boolean;
 };
-export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLoginFormProps) {
+export function PasswordLoginForm({
+  defaultUsername,
+  defaultEmail,
+  addAccount = false,
+}: PasswordLoginFormProps) {
   const server = useAuthServer();
   const clientConfig = useClientConfig();
 
@@ -123,7 +129,7 @@ export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLog
     Parameters<typeof login>
   >(useCallback(login, []));
 
-  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined);
+  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined, addAccount);
 
   const handleUsernameLogin = (username: string, password: string) => {
     startLogin(baseUrl, {
@@ -203,6 +209,7 @@ export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLog
           Username
         </Text>
         <Input
+          aria-label="Username"
           defaultValue={defaultUsername ?? defaultEmail}
           style={{ paddingRight: config.space.S300 }}
           name="usernameInput"
@@ -227,7 +234,14 @@ export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLog
         <Text as="label" size="L400" priority="300">
           Password
         </Text>
-        <PasswordInput name="passwordInput" variant="Background" size="500" outlined required />
+        <PasswordInput
+          aria-label="Password"
+          name="passwordInput"
+          variant="Background"
+          size="500"
+          outlined
+          required
+        />
         <Box alignItems="Start" justifyContent="SpaceBetween" gap="200">
           {loginState.status === AsyncStatus.Error && (
             <>
@@ -250,7 +264,9 @@ export function PasswordLoginForm({ defaultUsername, defaultEmail }: PasswordLog
           )}
           <Box grow="Yes" shrink="No" justifyContent="End">
             <Text as="span" size="T200" priority="400" align="Right">
-              <Link to={getResetPasswordPath(server)}>Forget Password?</Link>
+              <Link to={withAddAccountSearchIf(getResetPasswordPath(server), addAccount)}>
+                Forget Password?
+              </Link>
             </Text>
           </Box>
         </Box>

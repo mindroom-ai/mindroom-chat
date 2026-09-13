@@ -10,7 +10,7 @@ import {
   getAfterLoginRedirectPath,
 } from '../../afterLoginRedirectPath';
 import { getHomePath } from '../../pathUtils';
-import { setFallbackSession } from '../../../state/sessions';
+import { putSession } from '../../../state/sessions';
 import { createMatrixClient } from '../../../../client/matrixClientFactory';
 
 export enum GetBaseUrlError {
@@ -109,16 +109,29 @@ export const login = async (
   };
 };
 
-export const useLoginComplete = (data?: CustomLoginResponse) => {
+export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false) => {
   const navigate = useNavigate();
 
   useEffect(() => {
     if (data) {
       const { response: loginRes, baseUrl: loginBaseUrl } = data;
-      setFallbackSession(loginRes.access_token, loginRes.device_id, loginRes.user_id, loginBaseUrl);
+      putSession({
+        accessToken: loginRes.access_token,
+        deviceId: loginRes.device_id,
+        userId: loginRes.user_id,
+        baseUrl: loginBaseUrl,
+        expiresInMs: loginRes.expires_in_ms,
+        refreshToken: loginRes.refresh_token,
+      });
+
+      if (addAccount) {
+        navigate(getHomePath(), { replace: true });
+        return;
+      }
+
       const afterLoginRedirectUrl = getAfterLoginRedirectPath();
       deleteAfterLoginRedirectPath();
       navigate(afterLoginRedirectUrl ?? getHomePath(), { replace: true });
     }
-  }, [data, navigate]);
+  }, [addAccount, data, navigate]);
 };

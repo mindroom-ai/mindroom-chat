@@ -1,4 +1,5 @@
 import { IEvent } from 'matrix-js-sdk';
+import { getSessionScopedStorageKey } from '../../state/sessions';
 import {
   CachedPaginationTokenMap,
   getCachedPaginationToken,
@@ -48,7 +49,7 @@ type ThreadCursorAnchor = {
   ts: number;
 };
 
-let dbPromise: Promise<IDBDatabase | undefined> | undefined;
+const dbPromiseByName = new Map<string, Promise<IDBDatabase | undefined>>();
 
 const getThreadKey = (roomId: string, threadId: string): string => `${roomId}|${threadId}`;
 const getEventCacheKey = (roomId: string, threadId: string, eventId: string): string =>
@@ -112,15 +113,21 @@ export const getThreadCursorAnchor = (
   };
 };
 
-const openThreadEventCache = (): Promise<IDBDatabase | undefined> => {
-  if (dbPromise) return dbPromise;
+export const getThreadEventCacheDbName = (sessionId: string): string =>
+  getSessionScopedStorageKey(sessionId, DB_NAME);
+
+const openThreadEventCache = (sessionId: string): Promise<IDBDatabase | undefined> => {
+  const dbName = getThreadEventCacheDbName(sessionId);
+  const currentPromise = dbPromiseByName.get(dbName);
+  if (currentPromise) return currentPromise;
   if (typeof indexedDB === 'undefined') {
-    dbPromise = Promise.resolve(undefined);
-    return dbPromise;
+    const missingDbPromise = Promise.resolve(undefined);
+    dbPromiseByName.set(dbName, missingDbPromise);
+    return missingDbPromise;
   }
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  const dbPromise = new Promise<IDBDatabase | undefined>((resolve, reject) => {
+    const request = indexedDB.open(dbName, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -144,23 +151,25 @@ const openThreadEventCache = (): Promise<IDBDatabase | undefined> => {
       const db = request.result;
       db.onversionchange = () => {
         db.close();
-        dbPromise = undefined;
+        dbPromiseByName.delete(dbName);
       };
       resolve(db);
     };
     request.onerror = () => reject(request.error);
   });
 
+  dbPromiseByName.set(dbName, dbPromise);
   return dbPromise;
 };
 
 const runCursorQuery = async (
+  sessionId: string,
   roomId: string,
   threadId: string,
   limit: number,
   upperBound?: ThreadCursorAnchor
 ): Promise<CachedThreadEventPage> => {
-  const db = await openThreadEventCache();
+  const db = await openThreadEventCache(sessionId);
   if (!db || limit <= 0) return { events: [], hasMoreBefore: false };
 
   const threadKey = getThreadKey(roomId, threadId);
@@ -222,29 +231,32 @@ const runCursorQuery = async (
 };
 
 export const loadLatestCachedThreadEvents = async (
+  sessionId: string,
   roomId: string,
   threadId: string,
   limit: number
-): Promise<CachedThreadEventPage> => runCursorQuery(roomId, threadId, limit);
+): Promise<CachedThreadEventPage> => runCursorQuery(sessionId, roomId, threadId, limit);
 
 export const loadCachedThreadEventsBefore = async (
+  sessionId: string,
   roomId: string,
   threadId: string,
   before: ThreadCursorAnchor | undefined,
   limit: number
 ): Promise<CachedThreadEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
-  return runCursorQuery(roomId, threadId, limit, before);
+  return runCursorQuery(sessionId, roomId, threadId, limit, before);
 };
 
 export const saveThreadEventsToCache = async (
+  sessionId: string,
   roomId: string,
   threadId: string,
   rawEvents: Partial<IEvent>[],
   rootEvent?: Partial<IEvent>,
   beforeTokenForEarliest?: string | null
 ): Promise<void> => {
-  const db = await openThreadEventCache();
+  const db = await openThreadEventCache(sessionId);
   if (!db) return;
 
   const normalizedEvents = filterPageableCachedThreadEvents(
@@ -297,15 +309,16 @@ export const saveThreadEventsToCache = async (
   });
 };
 
-export const deleteThreadEventCache = async (): Promise<void> => {
+export const deleteThreadEventCache = async (sessionId: string): Promise<void> => {
   if (typeof indexedDB === 'undefined') return;
 
-  const currentDb = await dbPromise;
+  const dbName = getThreadEventCacheDbName(sessionId);
+  const currentDb = await dbPromiseByName.get(dbName);
   currentDb?.close();
-  dbPromise = undefined;
+  dbPromiseByName.delete(dbName);
 
   await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(DB_NAME);
+    const request = indexedDB.deleteDatabase(dbName);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
     request.onblocked = () => resolve();

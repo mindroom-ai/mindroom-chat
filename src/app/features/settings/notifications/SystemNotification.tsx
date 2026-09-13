@@ -6,9 +6,11 @@ import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { useActiveSession } from '../../../hooks/useSessionStore';
 import { getNotificationState, usePermissionState } from '../../../hooks/usePermission';
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
+import { useIOSPushEnabled } from '../../../hooks/useIOSPushEnabled';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import {
@@ -18,6 +20,7 @@ import {
   isNativeIOSPlatform,
   requestIOSPushPermission,
   resolveIOSPushConfig,
+  setIOSPushEnabled,
   unregisterIOSPush,
 } from '../../../utils/iosPush';
 
@@ -97,11 +100,13 @@ function EmailNotification() {
 function IOSPushNotification() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
-  const [nativePushNotifications, setNativePushNotifications] = useSetting(
-    settingsAtom,
-    'nativePushNotifications'
+  const activeSession = useActiveSession();
+  const sessionId = activeSession?.sessionId;
+  const nativePushNotifications = useIOSPushEnabled(sessionId);
+  const iosPushConfig = useMemo(
+    () => resolveIOSPushConfig(clientConfig, sessionId),
+    [clientConfig, sessionId]
   );
-  const iosPushConfig = useMemo(() => resolveIOSPushConfig(clientConfig), [clientConfig]);
   const [permission, setPermission] = useState<NativePushPermission>('prompt');
 
   const refreshPermission = useCallback(async () => {
@@ -127,8 +132,8 @@ function IOSPushNotification() {
         }
 
         if (!enabled) {
-          setNativePushNotifications(false);
-          await disableIOSPushPusher(mx, iosPushConfig);
+          setIOSPushEnabled(false, sessionId);
+          await disableIOSPushPusher(mx, iosPushConfig, sessionId);
           await unregisterIOSPush().catch(() => undefined);
           return;
         }
@@ -140,13 +145,13 @@ function IOSPushNotification() {
 
         setPermission(nextPermission);
         if (nextPermission !== 'granted') {
-          setNativePushNotifications(false);
+          setIOSPushEnabled(false, sessionId);
           return;
         }
 
-        setNativePushNotifications(true);
+        setIOSPushEnabled(true, sessionId);
       },
-      [iosPushConfig, mx, setNativePushNotifications]
+      [iosPushConfig, mx, sessionId]
     )
   );
 

@@ -1,7 +1,6 @@
 import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { ClientConfig } from '../hooks/useClientConfig';
-import { reconcileFallbackSessionHomeserver } from '../state/sessions';
 import { appUrl, getAppBasePath } from '../utils/basePath';
 
 export const getClientConfigUrl = (basePath: string = getAppBasePath()): string =>
@@ -28,12 +27,6 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (!config) return;
-
-    reconcileFallbackSessionHomeserver(config);
-  }, [config]);
 
   if (state.status === AsyncStatus.Idle || state.status === AsyncStatus.Loading) {
     return fallback?.();

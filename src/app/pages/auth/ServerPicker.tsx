@@ -81,6 +81,8 @@ export function ServerPicker({
     <Input
       ref={serverInputRef}
       style={{ paddingRight: config.space.S200 }}
+      aria-label="Server"
+      name="serverInput"
       variant={allowCustomServer ? 'Background' : 'Surface'}
       outlined
       defaultValue={server}

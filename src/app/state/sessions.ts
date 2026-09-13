@@ -1,33 +1,73 @@
-// import { atom } from 'jotai';
-// import {
-//   atomWithLocalStorage,
-//   getLocalStorageItem,
-//   setLocalStorageItem,
-// } from './utils/atomWithLocalStorage';
-import type { ClientConfig } from '../hooks/useClientConfig';
-
-export type Session = {
+export type StoredSession = {
+  sessionId: string;
   baseUrl: string;
   userId: string;
   deviceId: string;
   accessToken: string;
   expiresInMs?: number;
   refreshToken?: string;
-  fallbackSdkStores?: boolean;
+  lastUsedAt: number;
+  lastKnownPath?: string;
+  lastKnownDisplayName?: string;
+  lastKnownAvatarUrl?: string;
+  lastKnownAvatarDataUrl?: string;
 };
 
-export type Sessions = Session[];
+export type SessionStore = {
+  version: 1;
+  activeSessionId?: string;
+  sessions: StoredSession[];
+};
+
 export type SessionStoreName = {
   sync: string;
   crypto: string;
 };
 
-const FALLBACK_ACCESS_TOKEN_KEY = 'cinny_access_token';
-const FALLBACK_DEVICE_ID_KEY = 'cinny_device_id';
-const FALLBACK_USER_ID_KEY = 'cinny_user_id';
-export const FALLBACK_BASE_URL_KEY = 'cinny_hs_base_url';
+type PutSessionInput = {
+  baseUrl: string;
+  userId: string;
+  deviceId: string;
+  accessToken: string;
+  expiresInMs?: number;
+  refreshToken?: string;
+  lastKnownPath?: string;
+  lastKnownDisplayName?: string;
+  lastKnownAvatarUrl?: string;
+  lastKnownAvatarDataUrl?: string;
+};
 
-type LocalStorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+type LocalStorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type SessionStoreListener = () => void;
+type SessionStoreSnapshot = {
+  raw: string | null;
+  store: SessionStore;
+  activeSession?: StoredSession;
+  sessions: StoredSession[];
+};
+
+export const SESSION_STORE_KEY = 'mindroom_multi_account_store';
+export const SESSION_STORE_EVENT = 'mindroom-session-store-changed';
+export const SESSION_STORE_VERSION = 1 as const;
+export const LEGACY_SESSION_STORAGE_KEYS = [
+  'cinny_access_token',
+  'cinny_device_id',
+  'cinny_user_id',
+  'cinny_hs_base_url',
+] as const;
+
+const SESSION_DB_PREFIX = '::';
+const EMPTY_SESSIONS: StoredSession[] = [];
+const EMPTY_SESSION_STORE: SessionStore = {
+  version: SESSION_STORE_VERSION,
+  sessions: EMPTY_SESSIONS,
+};
+const EMPTY_SESSION_SNAPSHOT: SessionStoreSnapshot = {
+  raw: null,
+  store: EMPTY_SESSION_STORE,
+  sessions: EMPTY_SESSIONS,
+};
+const sessionStoreSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
 
 const getLocalStorageSafe = (): LocalStorageLike | undefined => {
   try {
@@ -38,151 +78,428 @@ const getLocalStorageSafe = (): LocalStorageLike | undefined => {
   }
 };
 
-export const getSingleConfiguredHomeserver = (clientConfig: ClientConfig): string | undefined => {
-  if (clientConfig.allowCustomHomeservers) return undefined;
-
-  const { homeserverList } = clientConfig;
-  if (!homeserverList || homeserverList.length !== 1) return undefined;
-
-  const [homeserver] = homeserverList;
-  if (typeof homeserver !== 'string' || homeserver.length === 0) return undefined;
-
-  return homeserver;
+const dispatchSessionStoreEvent = () => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(SESSION_STORE_EVENT));
 };
 
-export const reconcileFallbackSessionHomeserver = (
-  clientConfig: ClientConfig,
+export const clearLegacySessionStorage = (
   storage: LocalStorageLike | undefined = getLocalStorageSafe()
-): boolean => {
-  const configuredHomeserver = getSingleConfiguredHomeserver(clientConfig);
-  if (!configuredHomeserver || !storage) return false;
+): void => {
+  if (!storage) return;
 
+  LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
+    storage.removeItem(key);
+  });
+};
+
+export const normalizeSessionBaseUrl = (baseUrl: string): string => {
+  const trimmed = baseUrl.trim();
   try {
-    if (storage.getItem(FALLBACK_BASE_URL_KEY) === configuredHomeserver) {
-      return false;
-    }
-
-    storage.setItem(FALLBACK_BASE_URL_KEY, configuredHomeserver);
-    return true;
+    const parsed = new URL(trimmed);
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
+    return parsed.toString().replace(/\/$/, '');
   } catch {
-    return false;
+    return trimmed.replace(/\/+$/, '');
   }
 };
 
-/**
- * Migration code for old session
- */
-// const FALLBACK_STORE_NAME: SessionStoreName = {
-//   sync: 'web-sync-store',
-//   crypto: 'crypto-store',
-// } as const;
+const normalizeUserId = (userId: string): string => userId.trim();
 
-export function setFallbackSession(
-  accessToken: string,
-  deviceId: string,
-  userId: string,
-  baseUrl: string
-) {
-  localStorage.setItem(FALLBACK_ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(FALLBACK_DEVICE_ID_KEY, deviceId);
-  localStorage.setItem(FALLBACK_USER_ID_KEY, userId);
-  localStorage.setItem(FALLBACK_BASE_URL_KEY, baseUrl);
-}
-export const removeFallbackSession = () => {
-  localStorage.removeItem(FALLBACK_BASE_URL_KEY);
-  localStorage.removeItem(FALLBACK_USER_ID_KEY);
-  localStorage.removeItem(FALLBACK_DEVICE_ID_KEY);
-  localStorage.removeItem(FALLBACK_ACCESS_TOKEN_KEY);
+export const createSessionId = (baseUrl: string, userId: string): string =>
+  `${encodeURIComponent(normalizeSessionBaseUrl(baseUrl))}${SESSION_DB_PREFIX}${encodeURIComponent(
+    normalizeUserId(userId)
+  )}`;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toStoredSession = (value: unknown): StoredSession | undefined => {
+  if (!isRecord(value)) return undefined;
+
+  const baseUrl = typeof value.baseUrl === 'string' ? normalizeSessionBaseUrl(value.baseUrl) : undefined;
+  const userId = typeof value.userId === 'string' ? normalizeUserId(value.userId) : undefined;
+  const deviceId = typeof value.deviceId === 'string' ? value.deviceId : undefined;
+  const accessToken = typeof value.accessToken === 'string' ? value.accessToken : undefined;
+  if (!baseUrl || !userId || !deviceId || !accessToken) return undefined;
+
+  const sessionId =
+    typeof value.sessionId === 'string' && value.sessionId.length > 0
+      ? value.sessionId
+      : createSessionId(baseUrl, userId);
+
+  return {
+    sessionId,
+    baseUrl,
+    userId,
+    deviceId,
+    accessToken,
+    expiresInMs: typeof value.expiresInMs === 'number' ? value.expiresInMs : undefined,
+    refreshToken: typeof value.refreshToken === 'string' ? value.refreshToken : undefined,
+    lastUsedAt: typeof value.lastUsedAt === 'number' ? value.lastUsedAt : 0,
+    lastKnownPath: typeof value.lastKnownPath === 'string' ? value.lastKnownPath : undefined,
+    lastKnownDisplayName:
+      typeof value.lastKnownDisplayName === 'string' ? value.lastKnownDisplayName : undefined,
+    lastKnownAvatarUrl:
+      typeof value.lastKnownAvatarUrl === 'string' ? value.lastKnownAvatarUrl : undefined,
+    lastKnownAvatarDataUrl:
+      typeof value.lastKnownAvatarDataUrl === 'string' ? value.lastKnownAvatarDataUrl : undefined,
+  };
 };
-export const getFallbackSession = (): Session | undefined => {
-  const baseUrl = localStorage.getItem(FALLBACK_BASE_URL_KEY);
-  const userId = localStorage.getItem(FALLBACK_USER_ID_KEY);
-  const deviceId = localStorage.getItem(FALLBACK_DEVICE_ID_KEY);
-  const accessToken = localStorage.getItem(FALLBACK_ACCESS_TOKEN_KEY);
 
-  if (baseUrl && userId && deviceId && accessToken) {
-    const session: Session = {
-      baseUrl,
-      userId,
-      deviceId,
-      accessToken,
-      fallbackSdkStores: true,
+const sanitizeSessionStore = (value: unknown): SessionStore => {
+  if (!isRecord(value) || value.version !== SESSION_STORE_VERSION || !Array.isArray(value.sessions)) {
+    return {
+      version: SESSION_STORE_VERSION,
+      sessions: [],
     };
+  }
 
+  const sessionMap = new Map<string, StoredSession>();
+  value.sessions.forEach((item) => {
+    const session = toStoredSession(item);
+    if (!session) return;
+    sessionMap.set(session.sessionId, session);
+  });
+
+  const sessions = Array.from(sessionMap.values());
+  const activeSessionId =
+    typeof value.activeSessionId === 'string' &&
+    sessions.some((session) => session.sessionId === value.activeSessionId)
+      ? value.activeSessionId
+      : undefined;
+
+  return {
+    version: SESSION_STORE_VERSION,
+    activeSessionId,
+    sessions,
+  };
+};
+
+const writeSessionStore = (
+  store: SessionStore,
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): void => {
+  if (!storage) return;
+
+  clearLegacySessionStorage(storage);
+  storage.setItem(SESSION_STORE_KEY, JSON.stringify(store));
+  dispatchSessionStoreEvent();
+};
+
+const createSessionStoreSnapshot = (
+  raw: string | null,
+  store: SessionStore
+): SessionStoreSnapshot => {
+  const activeSession = store.activeSessionId
+    ? store.sessions.find((session) => session.sessionId === store.activeSessionId)
+    : undefined;
+  const sessions =
+    store.sessions.length > 0
+      ? [...store.sessions].sort((a, b) => {
+          const usedDiff = b.lastUsedAt - a.lastUsedAt;
+          if (usedDiff !== 0) return usedDiff;
+          return a.userId.localeCompare(b.userId);
+        })
+      : EMPTY_SESSIONS;
+
+  return {
+    raw,
+    store,
+    activeSession,
+    sessions,
+  };
+};
+
+const getSessionStoreSnapshot = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): SessionStoreSnapshot => {
+  if (!storage) {
+    return EMPTY_SESSION_SNAPSHOT;
+  }
+
+  try {
+    const raw = storage.getItem(SESSION_STORE_KEY);
+    const cachedSnapshot = sessionStoreSnapshotCache.get(storage);
+    if (cachedSnapshot && cachedSnapshot.raw === raw) {
+      return cachedSnapshot;
+    }
+
+    const store = raw ? sanitizeSessionStore(JSON.parse(raw)) : EMPTY_SESSION_STORE;
+    const snapshot = createSessionStoreSnapshot(raw, store);
+    sessionStoreSnapshotCache.set(storage, snapshot);
+    return snapshot;
+  } catch {
+    const snapshot = createSessionStoreSnapshot(null, EMPTY_SESSION_STORE);
+    sessionStoreSnapshotCache.set(storage, snapshot);
+    return snapshot;
+  }
+};
+
+export const getSessionStore = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+) => getSessionStoreSnapshot(storage).store;
+
+export const listSessions = (storage: LocalStorageLike | undefined = getLocalStorageSafe()): StoredSession[] =>
+  getSessionStoreSnapshot(storage).sessions;
+
+export const hasStoredSessions = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): boolean => getSessionStore(storage).sessions.length > 0;
+
+export const getActiveSession = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession | undefined => getSessionStoreSnapshot(storage).activeSession;
+
+const upsertSession = (sessions: StoredSession[], nextSession: StoredSession): StoredSession[] => {
+  const nextSessions = [...sessions];
+  const existingIndex = nextSessions.findIndex((session) => session.sessionId === nextSession.sessionId);
+
+  if (existingIndex >= 0) {
+    nextSessions.splice(existingIndex, 1, nextSession);
+    return nextSessions;
+  }
+
+  nextSessions.push(nextSession);
+  return nextSessions;
+};
+
+const selectNextActiveSessionId = (sessions: StoredSession[]): string | undefined =>
+  [...sessions]
+    .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+    .find(() => true)
+    ?.sessionId;
+
+export const putSession = (
+  input: PutSessionInput,
+  options: {
+    setActive?: boolean;
+  } = {},
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession => {
+  const baseUrl = normalizeSessionBaseUrl(input.baseUrl);
+  const userId = normalizeUserId(input.userId);
+  const sessionId = createSessionId(baseUrl, userId);
+
+  const store = getSessionStore(storage);
+  const existing = store.sessions.find((session) => session.sessionId === sessionId);
+  const timestamp = Date.now();
+  const nextSession: StoredSession = {
+    sessionId,
+    baseUrl,
+    userId,
+    deviceId: input.deviceId,
+    accessToken: input.accessToken,
+    expiresInMs: input.expiresInMs,
+    refreshToken: input.refreshToken,
+    lastUsedAt: timestamp,
+    lastKnownPath: input.lastKnownPath ?? existing?.lastKnownPath,
+    lastKnownDisplayName: input.lastKnownDisplayName ?? existing?.lastKnownDisplayName,
+    lastKnownAvatarUrl: input.lastKnownAvatarUrl ?? existing?.lastKnownAvatarUrl,
+    lastKnownAvatarDataUrl: input.lastKnownAvatarDataUrl ?? existing?.lastKnownAvatarDataUrl,
+  };
+
+  writeSessionStore(
+    {
+      version: SESSION_STORE_VERSION,
+      sessions: upsertSession(store.sessions, nextSession),
+      activeSessionId: options.setActive === false ? store.activeSessionId : sessionId,
+    },
+    storage
+  );
+
+  return nextSession;
+};
+
+export const setActiveSession = (
+  sessionId: string,
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession | undefined => {
+  const store = getSessionStore(storage);
+  const session = store.sessions.find((item) => item.sessionId === sessionId);
+  if (!session) return undefined;
+
+  const nextSession = {
+    ...session,
+    lastUsedAt: Date.now(),
+  };
+
+  writeSessionStore(
+    {
+      version: SESSION_STORE_VERSION,
+      sessions: upsertSession(store.sessions, nextSession),
+      activeSessionId: sessionId,
+    },
+    storage
+  );
+
+  return nextSession;
+};
+
+export const updateSessionProfile = (
+  sessionId: string,
+  profile: {
+    lastKnownDisplayName?: string;
+    lastKnownAvatarUrl?: string;
+    lastKnownAvatarDataUrl?: string;
+  },
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession | undefined => {
+  const store = getSessionStore(storage);
+  const session = store.sessions.find((item) => item.sessionId === sessionId);
+  if (!session) return undefined;
+
+  const hasOwnProfileValue = <K extends keyof typeof profile>(key: K): boolean =>
+    Object.prototype.hasOwnProperty.call(profile, key);
+
+  const nextSession: StoredSession = {
+    ...session,
+    lastKnownDisplayName: hasOwnProfileValue('lastKnownDisplayName')
+      ? profile.lastKnownDisplayName
+      : session.lastKnownDisplayName,
+    lastKnownAvatarUrl: hasOwnProfileValue('lastKnownAvatarUrl')
+      ? profile.lastKnownAvatarUrl
+      : session.lastKnownAvatarUrl,
+    lastKnownAvatarDataUrl: hasOwnProfileValue('lastKnownAvatarDataUrl')
+      ? profile.lastKnownAvatarDataUrl
+      : session.lastKnownAvatarDataUrl,
+  };
+  if (
+    nextSession.lastKnownDisplayName === session.lastKnownDisplayName &&
+    nextSession.lastKnownAvatarUrl === session.lastKnownAvatarUrl &&
+    nextSession.lastKnownAvatarDataUrl === session.lastKnownAvatarDataUrl
+  ) {
     return session;
   }
 
-  return undefined;
+  writeSessionStore(
+    {
+      ...store,
+      sessions: upsertSession(store.sessions, nextSession),
+    },
+    storage
+  );
+
+  return nextSession;
 };
-/**
- * End of migration code for old session
- */
 
-// export const getSessionStoreName = (session: Session): SessionStoreName => {
-//   if (session.fallbackSdkStores) {
-//     return FALLBACK_STORE_NAME;
-//   }
+export const updateSessionLastPath = (
+  sessionId: string,
+  lastKnownPath: string,
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): StoredSession | undefined => {
+  const store = getSessionStore(storage);
+  const session = store.sessions.find((item) => item.sessionId === sessionId);
+  if (!session) return undefined;
+  if (session.lastKnownPath === lastKnownPath) return session;
 
-//   return {
-//     sync: `sync${session.userId}`,
-//     crypto: `crypto${session.userId}`,
-//   };
-// };
+  const nextSession: StoredSession = {
+    ...session,
+    lastKnownPath,
+  };
 
-// export const MATRIX_SESSIONS_KEY = 'matrixSessions';
-// const baseSessionsAtom = atomWithLocalStorage<Sessions>(
-//   MATRIX_SESSIONS_KEY,
-//   (key) => {
-//     const defaultSessions: Sessions = [];
-//     const sessions = getLocalStorageItem(key, defaultSessions);
+  writeSessionStore(
+    {
+      ...store,
+      sessions: upsertSession(store.sessions, nextSession),
+    },
+    storage
+  );
 
-//     // Before multi account support session was stored
-//     // as multiple item in local storage.
-//     // So we need these migration code.
-//     const fallbackSession = getFallbackSession();
-//     if (fallbackSession) {
-//       removeFallbackSession();
-//       sessions.push(fallbackSession);
-//       setLocalStorageItem(key, sessions);
-//     }
-//     return sessions;
-//   },
-//   (key, value) => {
-//     setLocalStorageItem(key, value);
-//   }
-// );
+  return nextSession;
+};
 
-// export type SessionsAction =
-//   | {
-//       type: 'PUT';
-//       session: Session;
-//     }
-//   | {
-//       type: 'DELETE';
-//       session: Session;
-//     };
+export const removeSession = (
+  sessionId: string,
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): SessionStore => {
+  const store = getSessionStore(storage);
+  const sessions = store.sessions.filter((session) => session.sessionId !== sessionId);
+  const activeSessionId =
+    store.activeSessionId === sessionId ? selectNextActiveSessionId(sessions) : store.activeSessionId;
+  const nextStore = {
+    version: SESSION_STORE_VERSION,
+    sessions,
+    activeSessionId,
+  };
 
-// export const sessionsAtom = atom<Sessions, [SessionsAction], undefined>(
-//   (get) => get(baseSessionsAtom),
-//   (get, set, action) => {
-//     if (action.type === 'PUT') {
-//       const sessions = [...get(baseSessionsAtom)];
-//       const sessionIndex = sessions.findIndex(
-//         (session) => session.userId === action.session.userId
-//       );
-//       if (sessionIndex === -1) {
-//         sessions.push(action.session);
-//       } else {
-//         sessions.splice(sessionIndex, 1, action.session);
-//       }
-//       set(baseSessionsAtom, sessions);
-//       return;
-//     }
-//     if (action.type === 'DELETE') {
-//       const sessions = get(baseSessionsAtom).filter(
-//         (session) => session.userId !== action.session.userId
-//       );
-//       set(baseSessionsAtom, sessions);
-//     }
-//   }
-// );
+  writeSessionStore(nextStore, storage);
+  return nextStore;
+};
+
+export const removeActiveSession = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): SessionStore => {
+  const activeSession = getActiveSession(storage);
+  if (!activeSession) return getSessionStore(storage);
+  return removeSession(activeSession.sessionId, storage);
+};
+
+export const clearSessionStore = (
+  storage: LocalStorageLike | undefined = getLocalStorageSafe()
+): void => {
+  if (!storage) return;
+  clearLegacySessionStorage(storage);
+  storage.removeItem(SESSION_STORE_KEY);
+  dispatchSessionStoreEvent();
+};
+
+export const subscribeToSessionStore = (listener: SessionStoreListener): (() => void) => {
+  if (typeof window === 'undefined') return () => undefined;
+
+  const handleWindowEvent = () => listener();
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== SESSION_STORE_KEY) return;
+    listener();
+  };
+
+  window.addEventListener(SESSION_STORE_EVENT, handleWindowEvent);
+  window.addEventListener('storage', handleStorage);
+
+  return () => {
+    window.removeEventListener(SESSION_STORE_EVENT, handleWindowEvent);
+    window.removeEventListener('storage', handleStorage);
+  };
+};
+
+export const getSessionStoreName = (session: Pick<StoredSession, 'sessionId'>): SessionStoreName => ({
+  sync: `web-sync-store${SESSION_DB_PREFIX}${session.sessionId}`,
+  crypto: `crypto-store${SESSION_DB_PREFIX}${session.sessionId}`,
+});
+
+export const getSessionIndexedDbStoreName = (
+  session: Pick<StoredSession, 'sessionId'>
+): SessionStoreName => {
+  const storeNames = getSessionStoreName(session);
+  return {
+    sync: `matrix-js-sdk:${storeNames.sync}`,
+    crypto: storeNames.crypto,
+  };
+};
+
+const getRustCryptoStoreNamesForPrefix = (prefix: string): [string, string] => [
+  `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto`,
+  `${prefix}${SESSION_DB_PREFIX}matrix-sdk-crypto-meta`,
+];
+
+export const getLegacySessionRustCryptoStorePrefix = (
+  session: Pick<StoredSession, 'sessionId'>
+): string => `matrix-js-sdk${SESSION_DB_PREFIX}${session.sessionId}`;
+
+export const getSessionRustCryptoStorePrefix = (
+  session: Pick<StoredSession, 'sessionId' | 'deviceId'>
+): string =>
+  `matrix-js-sdk${SESSION_DB_PREFIX}${session.sessionId}${SESSION_DB_PREFIX}${encodeURIComponent(
+    session.deviceId
+  )}`;
+
+export const getLegacySessionRustCryptoStoreNames = (
+  session: Pick<StoredSession, 'sessionId'>
+): [string, string] => getRustCryptoStoreNamesForPrefix(getLegacySessionRustCryptoStorePrefix(session));
+
+export const getSessionRustCryptoStoreNames = (
+  session: Pick<StoredSession, 'sessionId' | 'deviceId'>
+): [string, string] => getRustCryptoStoreNamesForPrefix(getSessionRustCryptoStorePrefix(session));
+
+export const getSessionScopedStorageKey = (sessionId: string, key: string): string =>
+  `${key}${SESSION_DB_PREFIX}${sessionId}`;

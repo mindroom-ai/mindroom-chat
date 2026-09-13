@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { SESSION_STORE_KEY, createSessionId } from '../state/sessions';
 import { mxcUrlToHttp } from './mediaUrl';
 
 describe('mxcUrlToHttp', () => {
@@ -55,6 +56,7 @@ describe('mxcUrlToHttp', () => {
   });
 
   it('adds an access token for authenticated media on capacitor without service workers', () => {
+    const sessionId = createSessionId('https://mindroom.chat', '@user:mindroom.chat');
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
@@ -65,7 +67,23 @@ describe('mxcUrlToHttp', () => {
     });
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
-        getItem: (key: string) => (key === 'cinny_access_token' ? 'secret-token' : null),
+        getItem: (key: string) =>
+          key === SESSION_STORE_KEY
+            ? JSON.stringify({
+                version: 1,
+                activeSessionId: sessionId,
+                sessions: [
+                  {
+                    sessionId,
+                    baseUrl: 'https://mindroom.chat',
+                    userId: '@user:mindroom.chat',
+                    deviceId: 'DEVICE',
+                    accessToken: 'secret-token',
+                    lastUsedAt: 1,
+                  },
+                ],
+              })
+            : null,
       },
       configurable: true,
     });

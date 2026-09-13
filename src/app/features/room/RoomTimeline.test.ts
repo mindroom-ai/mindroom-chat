@@ -55,6 +55,7 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getHomeserverUrl: () => 'https://example.org',
     getSafeUserId: () => '@alice:example.org',
     getUserId: () => '@alice:example.org',
     getEventMapper: () => (rawEvent: unknown) => rawEvent,

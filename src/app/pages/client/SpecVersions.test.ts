@@ -1,9 +1,9 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearBrowserCacheAndReload } from '../../../client/initMatrix';
-import { removeFallbackSession } from '../../state/sessions';
+import { clearBrowserCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
 import { SpecVersions } from './SpecVersions';
+import { useActiveSession } from '../../hooks/useSessionStore';
 
 let specVersionsLoaderMode: 'fallback' | 'error' | 'success' = 'success';
 
@@ -52,12 +52,13 @@ vi.mock('../../components/SpecVersionsLoader', () => ({
   },
 }));
 
-vi.mock('../../state/sessions', () => ({
-  removeFallbackSession: vi.fn(),
-}));
-
 vi.mock('../../../client/initMatrix', () => ({
   clearBrowserCacheAndReload: vi.fn(),
+  removeSessionAndReload: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../../hooks/useSessionStore', () => ({
+  useActiveSession: vi.fn(),
 }));
 
 describe('SpecVersions', () => {
@@ -79,14 +80,13 @@ describe('SpecVersions', () => {
 
   it('supports canceling from connecting state', async () => {
     specVersionsLoaderMode = 'fallback';
-    const reload = vi.fn();
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        location: {
-          reload,
-        },
-      },
-      configurable: true,
+    vi.mocked(useActiveSession).mockReturnValue({
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+      lastUsedAt: 1,
     });
 
     const renderer = create(
@@ -109,12 +109,12 @@ describe('SpecVersions', () => {
       cancelButton?.props.onClick();
     });
 
-    expect(vi.mocked(removeFallbackSession)).toHaveBeenCalledTimes(1);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(removeSessionAndReload)).toHaveBeenCalledTimes(1);
   });
 
   it('shows clear-cache recovery on connection error', async () => {
     specVersionsLoaderMode = 'error';
+    vi.mocked(useActiveSession).mockReturnValue(undefined);
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {

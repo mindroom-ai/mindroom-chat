@@ -1,4 +1,7 @@
-import { MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sdk';
+import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
+import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
+import type { MatrixClient } from 'matrix-js-sdk/lib/client';
+import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
 import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
@@ -6,15 +9,27 @@ import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
-
-type Session = {
-  baseUrl: string;
-  accessToken: string;
-  userId: string;
-  deviceId: string;
-};
+import { clearIOSPushState } from '../app/utils/iosPush';
+import {
+  LEGACY_SESSION_STORAGE_KEYS,
+  StoredSession,
+  clearLegacySessionStorage,
+  clearSessionStore,
+  createSessionId,
+  getActiveSession,
+  getSessionIndexedDbStoreName,
+  getLegacySessionRustCryptoStoreNames,
+  getSessionRustCryptoStoreNames,
+  getSessionRustCryptoStorePrefix,
+  getSessionStoreName,
+  listSessions,
+  removeSession,
+  removeActiveSession,
+} from '../app/state/sessions';
 
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 5000;
+
+type SessionCleanupContext = Pick<StoredSession, 'sessionId' | 'userId' | 'deviceId'>;
 
 type IndexedDBStoreWithSyncAccumulator = IndexedDBStore & {
   backend?: {
@@ -37,15 +52,23 @@ export const configureLargeSyncArchive = (indexedDBStore: IndexedDBStore): void 
   );
 };
 
-export const initClient = async (session: Session): Promise<MatrixClient> => {
-  const indexedDBStore = new IndexedDBStore({
-    indexedDB: global.indexedDB,
-    localStorage: global.localStorage,
-    dbName: 'web-sync-store',
-  });
+export type ClientBootstrapSession = Pick<
+  StoredSession,
+  'sessionId' | 'baseUrl' | 'userId' | 'deviceId' | 'accessToken'
+>;
+
+export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
+  const storeNames = getSessionStoreName(session);
+  const indexedDBStore = new IndexedDBStore(
+    {
+      indexedDB: global.indexedDB,
+      localStorage: global.localStorage as Storage,
+      dbName: storeNames.sync,
+    } as ConstructorParameters<typeof IndexedDBStore>[0]
+  );
   configureLargeSyncArchive(indexedDBStore);
 
-  const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, 'crypto-store');
+  const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, storeNames.crypto);
 
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,
@@ -55,12 +78,14 @@ export const initClient = async (session: Session): Promise<MatrixClient> => {
     cryptoStore: legacyCryptoStore,
     deviceId: session.deviceId,
     timelineSupport: true,
-    cryptoCallbacks: cryptoCallbacks as any,
+    cryptoCallbacks: cryptoCallbacks as unknown as CryptoCallbacks,
     verificationMethods: ['m.sas.v1'],
   });
 
   await indexedDBStore.startup();
-  await mx.initRustCrypto();
+  await mx.initRustCrypto({
+    cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+  });
 
   mx.setMaxListeners(50);
 
@@ -73,10 +98,172 @@ export const startClient = async (mx: MatrixClient) => {
   });
 };
 
+const deleteNamedDatabase = async (name: string): Promise<void> => {
+  if (typeof indexedDB === 'undefined') return;
+
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => resolve();
+  });
+};
+
+const deleteNamedDatabases = async (names: string[]): Promise<void> => {
+  const uniqueNames = Array.from(new Set(names));
+  if (uniqueNames.length === 0) return;
+
+  await Promise.all(uniqueNames.map((name) => deleteNamedDatabase(name)));
+};
+
+const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
+  'matrix-js-sdk:web-sync-store',
+  'crypto-store',
+  'matrix-js-sdk::matrix-sdk-crypto',
+  'matrix-js-sdk::matrix-sdk-crypto-meta',
+];
+const APP_SINGLETON_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isSessionRustCryptoDbName = (name: string, sessionId: string): boolean => {
+  const escapedSessionId = escapeRegExp(sessionId);
+  const pattern = new RegExp(
+    `^matrix-js-sdk::${escapedSessionId}(?:::.*)?::matrix-sdk-crypto(?:-meta)?$`
+  );
+  return pattern.test(name);
+};
+
+const hasLegacySessionStorage = (): boolean => {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return LEGACY_SESSION_STORAGE_KEYS.some((key) => Boolean(localStorage.getItem(key)));
+  } catch {
+    return false;
+  }
+};
+
+const isAppOwnedIndexedDbName = (
+  name: string,
+  sessions: StoredSession[],
+  legacySessionStoragePresent: boolean
+): boolean => {
+  if (APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
+  if (legacySessionStoragePresent && LEGACY_APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
+
+  return sessions.some((session) => {
+    const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
+    return (
+      name === indexedDbStoreNames.sync ||
+      name === indexedDbStoreNames.crypto ||
+      isSessionRustCryptoDbName(name, session.sessionId)
+    );
+  });
+};
+
+const getMatrixClientSessionCleanupContext = (
+  mx: Pick<MatrixClient, 'getDeviceId' | 'getHomeserverUrl' | 'getSafeUserId'>
+): SessionCleanupContext | undefined => {
+  const deviceId = mx.getDeviceId();
+  if (!deviceId) return undefined;
+
+  const userId = mx.getSafeUserId();
+  return {
+    sessionId: createSessionId(mx.getHomeserverUrl(), userId),
+    userId,
+    deviceId,
+  };
+};
+
+const clearMatrixClientStores = async (
+  mx: MatrixClient,
+  session: SessionCleanupContext | undefined = getMatrixClientSessionCleanupContext(mx)
+): Promise<SessionCleanupContext | undefined> => {
+  await Promise.all([
+    session
+      ? mx.clearStores({
+          cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+        })
+      : mx.clearStores(),
+    session ? deleteNamedDatabases(getLegacySessionRustCryptoStoreNames(session)) : Promise.resolve(),
+  ]);
+
+  return session;
+};
+
+export const deleteSessionLocalData = async (
+  session: SessionCleanupContext,
+  mx?: MatrixClient
+): Promise<void> => {
+  clearNavToActivePathStore(session.userId);
+
+  const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
+  const rustCryptoStoreNames = Array.from(
+    new Set([
+      ...getSessionRustCryptoStoreNames(session),
+      ...getLegacySessionRustCryptoStoreNames(session),
+    ])
+  );
+
+  await Promise.all([
+    mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
+    mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
+    mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
+    deleteThreadEventCache(session.sessionId),
+    deleteRoomEventCache(session.sessionId),
+  ]);
+  clearIOSPushState(session.sessionId);
+};
+
+export const removeSessionAndReload = async (
+  session: SessionCleanupContext,
+  mx?: MatrixClient
+): Promise<void> => {
+  mx?.stopClient();
+  await deleteSessionLocalData(session, mx);
+  removeSession(session.sessionId);
+  clearLegacySessionStorage();
+  window.location.reload();
+};
+
+export const removeCurrentClientSessionAndReload = async (
+  mx: MatrixClient,
+  session: SessionCleanupContext | undefined = getMatrixClientSessionCleanupContext(mx)
+): Promise<void> => {
+  mx.stopClient();
+
+  if (session) {
+    await deleteSessionLocalData(session, mx);
+    removeSession(session.sessionId);
+  } else {
+    await clearMatrixClientStores(mx);
+    removeActiveSession();
+  }
+
+  clearLegacySessionStorage();
+  window.location.reload();
+};
+
+export const removeStoredSession = async (session: StoredSession): Promise<void> => {
+  const activeSession = getActiveSession();
+  if (activeSession?.sessionId === session.sessionId) {
+    await removeSessionAndReload(session);
+    return;
+  }
+
+  await deleteSessionLocalData(session);
+  removeSession(session.sessionId);
+};
+
 export const clearCacheAndReload = async (mx: MatrixClient) => {
   mx.stopClient();
   clearNavToActivePathStore(mx.getSafeUserId());
-  await Promise.all([mx.store.deleteAllData(), deleteThreadEventCache(), deleteRoomEventCache()]);
+  const activeSession = getActiveSession() ?? getMatrixClientSessionCleanupContext(mx);
+  await Promise.all([
+    clearMatrixClientStores(mx, activeSession),
+    activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
+    activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
+  ]);
   window.location.reload();
 };
 
@@ -148,30 +335,41 @@ export const clearBrowserCacheAndReload = async () => {
 };
 
 export const logoutClient = async (mx: MatrixClient) => {
+  const activeSession = getActiveSession();
   mx.stopClient();
   try {
     await mx.logout();
   } catch {
     // ignore if failed to logout
   }
-  await Promise.all([mx.clearStores(), deleteThreadEventCache(), deleteRoomEventCache()]);
-  window.localStorage.clear();
-  window.location.reload();
+  await removeCurrentClientSessionAndReload(mx, activeSession);
 };
 
 export const clearLoginData = async () => {
+  const sessions = listSessions();
+  const legacySessionStoragePresent = hasLegacySessionStorage();
   const dbs = await window.indexedDB.databases();
+  const appOwnedDbNames = dbs
+    .map((idbInfo) => idbInfo.name)
+    .filter((name): name is string => Boolean(name))
+    .filter((name) => isAppOwnedIndexedDbName(name, sessions, legacySessionStoragePresent));
 
-  dbs.forEach((idbInfo) => {
-    const { name } = idbInfo;
-    if (name) {
-      window.indexedDB.deleteDatabase(name);
-    }
+  await deleteNamedDatabases(appOwnedDbNames);
+
+  await Promise.all(
+    sessions.map((session) =>
+      Promise.all([
+        deleteThreadEventCache(session.sessionId),
+        deleteRoomEventCache(session.sessionId),
+      ]).catch(() => undefined)
+    )
+  );
+  sessions.forEach((session) => {
+    clearNavToActivePathStore(session.userId);
+    clearIOSPushState(session.sessionId);
   });
 
-  await deleteThreadEventCache();
-  await deleteRoomEventCache();
-
-  window.localStorage.clear();
+  clearLegacySessionStorage();
+  clearSessionStore();
   window.location.reload();
 };

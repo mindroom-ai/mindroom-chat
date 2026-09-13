@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { SESSION_STORE_KEY, createSessionId } from '../state/sessions';
 import { getDirectRoomAvatarUrl, getRoomAvatarUrl } from './room';
 
 describe('room avatar urls', () => {
@@ -36,6 +37,7 @@ describe('room avatar urls', () => {
   });
 
   it('uses the capacitor-safe media helper for room avatars', () => {
+    const sessionId = createSessionId('https://mindroom.chat', '@user:mindroom.chat');
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
@@ -46,7 +48,23 @@ describe('room avatar urls', () => {
     });
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
-        getItem: (key: string) => (key === 'cinny_access_token' ? 'secret-token' : null),
+        getItem: (key: string) =>
+          key === SESSION_STORE_KEY
+            ? JSON.stringify({
+                version: 1,
+                activeSessionId: sessionId,
+                sessions: [
+                  {
+                    sessionId,
+                    baseUrl: 'https://mindroom.chat',
+                    userId: '@user:mindroom.chat',
+                    deviceId: 'DEVICE',
+                    accessToken: 'secret-token',
+                    lastUsedAt: 1,
+                  },
+                ],
+              })
+            : null,
       },
       configurable: true,
     });
@@ -69,6 +87,7 @@ describe('room avatar urls', () => {
   });
 
   it('uses the fallback member avatar through the same helper', () => {
+    const sessionId = createSessionId('https://mindroom.chat', '@user:mindroom.chat');
     Object.defineProperty(globalThis, 'window', {
       value: {
         location: {
@@ -79,7 +98,23 @@ describe('room avatar urls', () => {
     });
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
-        getItem: (key: string) => (key === 'cinny_access_token' ? 'secret-token' : null),
+        getItem: (key: string) =>
+          key === SESSION_STORE_KEY
+            ? JSON.stringify({
+                version: 1,
+                activeSessionId: sessionId,
+                sessions: [
+                  {
+                    sessionId,
+                    baseUrl: 'https://mindroom.chat',
+                    userId: '@user:mindroom.chat',
+                    deviceId: 'DEVICE',
+                    accessToken: 'secret-token',
+                    lastUsedAt: 1,
+                  },
+                ],
+              })
+            : null,
       },
       configurable: true,
     });
