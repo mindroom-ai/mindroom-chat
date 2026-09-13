@@ -8,7 +8,7 @@ import { isIOS } from '../utils/user-agent';
  * visible area. It also resets scroll offset drift caused by iOS keyboard
  * animations.
  *
- * The CSS in index.css consumes `--app-height` on `#root` as a JS-driven
+ * The room layout consumes `--app-height` on the RoomView `<Page>` as a JS-driven
  * fallback alongside `100dvh` on `html` (Safari 15.4+).
  */
 export function useIOSKeyboardFix(): void {

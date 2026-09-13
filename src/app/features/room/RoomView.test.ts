@@ -11,11 +11,14 @@ type MockThreadContextBannerProps = {
   summaryText?: string;
 };
 
+type MockPageProps = React.ComponentProps<'div'>;
+
 const {
   bumpRecentThreadMock,
   historyBackMock,
   isNativeIOSMock,
   navigatePathMock,
+  pageState,
   passthrough,
   roomTimelineType,
   navigateRoomFocusEventMock,
@@ -27,6 +30,9 @@ const {
   historyBackMock: vi.fn(),
   isNativeIOSMock: vi.fn(() => false),
   navigatePathMock: vi.fn(),
+  pageState: {
+    props: undefined as MockPageProps | undefined,
+  },
   passthrough: 'div',
   roomTimelineType: 'room-timeline',
   navigateRoomFocusEventMock: vi.fn(),
@@ -188,7 +194,10 @@ vi.mock('./RoomViewFollowing', () => ({
 }));
 
 vi.mock('../../components/page', () => ({
-  Page: passthrough,
+  Page: React.forwardRef<HTMLDivElement, MockPageProps>((props, ref) => {
+    pageState.props = props;
+    return React.createElement('div', { ...props, ref });
+  }),
 }));
 
 vi.mock('./RoomViewHeader', () => ({
@@ -312,6 +321,7 @@ describe('RoomView', () => {
     navigatePathMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
     navigateRoomThreadMock.mockReset();
+    pageState.props = undefined;
     threadContextBannerState.props = undefined;
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
@@ -611,6 +621,17 @@ describe('RoomView', () => {
       '$thread',
       { replace: true }
     );
+  });
+
+  it('renders the room page with the app-height lock style', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never }));
+    });
+
+    expect(pageState.props?.style).toMatchObject({ height: 'var(--app-height, 100%)' });
   });
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
