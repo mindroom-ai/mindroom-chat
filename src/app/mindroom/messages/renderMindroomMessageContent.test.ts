@@ -102,6 +102,13 @@ vi.mock('./MindroomThinkingPlaceholder', () => ({
     React.createElement('span', { 'data-renderer': 'thinking-placeholder' }, 'Making progress'),
 }));
 
+vi.mock('./MindroomTranscribingPlaceholder.css', () => ({
+  Placeholder: 'TranscribingPlaceholder',
+  Text: 'TranscribingText',
+  Wave: 'TranscribingWave',
+  WaveBar: 'TranscribingWaveBar',
+}));
+
 vi.mock('./MindroomMessageExtras.css.ts', () => ({
   Extras: 'Extras',
   Section: 'Section',
@@ -149,6 +156,43 @@ const renderNode = async (
 };
 
 describe('renderMindroomMessageContent', () => {
+  it('renders only the marked router transcription placeholder as an animated status', async () => {
+    const placeholder = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Router agent is transcribing…',
+        'com.mindroom.visible_router_voice_echo': true,
+      },
+    });
+    const ordinaryMessage = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Router agent is transcribing…',
+      },
+    });
+    const settledTranscript = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Voice transcript is ready',
+        'com.mindroom.visible_router_voice_echo': true,
+      },
+    });
+
+    const status = placeholder.root.findByProps({ role: 'status' });
+
+    expect(status.props['aria-label']).toBe('Router agent is transcribing');
+    expect(JSON.stringify(placeholder.toJSON())).toContain('Router agent is transcribing…');
+    expect(ordinaryMessage.root.findAllByProps({ role: 'status' })).toHaveLength(0);
+    expect(settledTranscript.root.findAllByProps({ role: 'status' })).toHaveLength(0);
+
+    placeholder.unmount();
+    ordinaryMessage.unmount();
+    settledTranscript.unmount();
+  });
+
   it('renders the animated MindRoom thinking placeholder for exact active Thinking... messages', async () => {
     const renderer = await renderNode({
       msgType: 'm.text',

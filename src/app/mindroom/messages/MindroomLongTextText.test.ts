@@ -126,6 +126,9 @@ vi.mock('./MindroomPasteAttachmentContent', () => ({
 vi.mock('./MindroomThinkingPlaceholder', () => ({
   MindroomThinkingPlaceholder: () => null,
 }));
+vi.mock('./MindroomTranscribingPlaceholder', () => ({
+  MindroomTranscribingPlaceholder: () => null,
+}));
 vi.mock('./MindroomThreadSummaryCard', () => ({
   MindroomThreadSummaryCard: () => null,
 }));
