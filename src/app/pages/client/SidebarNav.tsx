@@ -18,9 +18,14 @@ import {
   SearchTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
+import { useClientConfig } from '../../hooks/useClientConfig';
 
 export function SidebarNav() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { sidebar } = useClientConfig();
+  // Allow deployments to hide community/explore or add-space entry points.
+  const showExploreCommunity = sidebar?.showExploreCommunity ?? true;
+  const showAddSpace = sidebar?.showAddSpace ?? true;
 
   return (
     <Sidebar>
@@ -34,8 +39,8 @@ export function SidebarNav() {
             <SpaceTabs scrollRef={scrollRef} />
             <SidebarStackSeparator />
             <SidebarStack>
-              <ExploreTab />
-              <CreateTab />
+              {showExploreCommunity && <ExploreTab />}
+              {showAddSpace && <CreateTab />}
             </SidebarStack>
           </Scroll>
         }
