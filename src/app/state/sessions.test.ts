@@ -11,8 +11,10 @@ import {
   getSessionStore,
   getSessionStoreName,
   getSessionScopedStorageKey,
+  hasInitializedCryptoStore,
   hasStoredSessions,
   listSessions,
+  markCryptoStoreInitialized,
   putSession,
   removeSession,
   setActiveSession,
@@ -128,6 +130,48 @@ describe('sessions', () => {
     expect(getLegacySessionRustCryptoStorePrefix(updated)).toBe(
       getLegacySessionRustCryptoStorePrefix(initial)
     );
+  });
+
+  it('marks crypto continuity and resets it when a new Matrix device replaces the login', () => {
+    const storage = createStorage();
+    const initial = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+      },
+      undefined,
+      storage
+    );
+
+    expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(false);
+    markCryptoStoreInitialized(initial.sessionId, storage);
+    expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(true);
+
+    putSession(
+      {
+        baseUrl: initial.baseUrl,
+        userId: initial.userId,
+        deviceId: initial.deviceId,
+        accessToken: 'token-b',
+      },
+      undefined,
+      storage
+    );
+    expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(true);
+
+    putSession(
+      {
+        baseUrl: initial.baseUrl,
+        userId: initial.userId,
+        deviceId: 'DEVICE_B',
+        accessToken: 'token-c',
+      },
+      undefined,
+      storage
+    );
+    expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(false);
   });
 
   it('can set a different session active and keeps the session list sorted by lastUsedAt', () => {

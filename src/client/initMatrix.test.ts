@@ -1,12 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
   clearAllCacheAndReload,
+  DeviceIdentityVerificationError,
   initClient,
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
+  MissingCryptoStoreError,
   removeStoredSession,
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
@@ -25,6 +28,7 @@ import {
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
   getSessionStore,
+  markCryptoStoreInitialized,
   putSession,
 } from '../app/state/sessions';
 // CINNY-207 P2.3: cache module APIs now come directly from `./cacheStore`.
@@ -178,9 +182,40 @@ const createDeleteDatabaseMock = ({
     return request;
   });
 
+const createExistingDatabaseOpenMock = () =>
+  vi.fn(() => {
+    const request = {} as IDBOpenDBRequest;
+    queueMicrotask(() => {
+      Object.defineProperty(request, 'result', {
+        configurable: true,
+        value: { close: vi.fn() },
+      });
+      request.onsuccess?.call(request, new Event('success'));
+    });
+    return request;
+  });
+
+const createDatabase = async (factory: IDBFactory, name: string): Promise<void> => {
+  await new Promise<void>((resolve, reject) => {
+    const request = factory.open(name);
+    request.onsuccess = () => {
+      request.result.close();
+      resolve();
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
 describe('initClient', () => {
+  beforeEach(() => {
+    // Most initClient tests exercise behavior after an existing crypto store
+    // is opened. Tests for first-login and missing-store paths override this.
+    vi.stubGlobal('indexedDB', { open: createExistingDatabaseOpenMock() });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
@@ -208,6 +243,7 @@ describe('initClient', () => {
     const setMaxListeners = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto,
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners,
     } as never);
 
@@ -246,6 +282,316 @@ describe('initClient', () => {
     expect(setMaxListeners).toHaveBeenCalledWith(50);
   });
 
+  it('refuses to recreate a missing main Rust store even if optional metadata remains', async () => {
+    const originalLocalStorage = globalThis.localStorage;
+    const originalIndexedDB = globalThis.indexedDB;
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    markCryptoStoreInitialized(session.sessionId, storage);
+    const [, optionalMetaStoreName] = getSessionRustCryptoStoreNames(session);
+    const databases = vi.fn().mockResolvedValue([{ name: optionalMetaStoreName }]);
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: { databases },
+    });
+
+    try {
+      await expect(initClient(session)).rejects.toBeInstanceOf(MissingCryptoStoreError);
+      expect(databases).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(createMatrixClient)).not.toHaveBeenCalled();
+      expect(vi.mocked(IndexedDBStore)).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: originalIndexedDB,
+      });
+    }
+  });
+
+  it('opens the passwordless Rust store without a homeserver request while offline', async () => {
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    markCryptoStoreInitialized(session.sessionId, storage);
+    const [cryptoStoreName] = getSessionRustCryptoStoreNames(session);
+    const databases = vi.fn().mockResolvedValue([{ name: cryptoStoreName }]);
+    vi.stubGlobal('localStorage', storage);
+    vi.stubGlobal('indexedDB', { databases });
+    vi.stubGlobal('navigator', { onLine: false });
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const setMaxListeners = vi.fn();
+    const authedRequest = vi.fn().mockRejectedValue(new Error('network unavailable'));
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      http: { authedRequest },
+      setMaxListeners,
+    } as never);
+
+    await initClient(session);
+
+    expect(databases).toHaveBeenCalledTimes(1);
+    expect(authedRequest).not.toHaveBeenCalled();
+    expect(setMaxListeners).toHaveBeenCalledWith(50);
+  });
+
+  it('falls back to opening the main database when enumeration is unavailable', async () => {
+    const factory = new IDBFactory();
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const session = {
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    };
+    const [cryptoStoreName] = getSessionRustCryptoStoreNames(session);
+    await createDatabase(factory, cryptoStoreName);
+    Object.defineProperty(factory, 'databases', { configurable: true, value: undefined });
+    vi.stubGlobal('indexedDB', factory);
+    vi.mocked(IndexedDBStore).mockImplementation(
+      () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
+    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      http: { authedRequest },
+      setMaxListeners: vi.fn(),
+    } as never);
+
+    await initClient(session);
+
+    expect(authedRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not leave a database behind when the fallback probe finds it absent', async () => {
+    const factory = new IDBFactory();
+    const listDatabases = factory.databases.bind(factory);
+    Object.defineProperty(factory, 'databases', { configurable: true, value: undefined });
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    markCryptoStoreInitialized(session.sessionId, storage);
+    vi.stubGlobal('localStorage', storage);
+    vi.stubGlobal('indexedDB', factory);
+
+    await expect(initClient(session)).rejects.toBeInstanceOf(MissingCryptoStoreError);
+
+    expect(vi.mocked(createMatrixClient)).not.toHaveBeenCalled();
+    await expect(listDatabases()).resolves.toEqual([]);
+  });
+
+  it('initializes a new device only after confirming the homeserver has no identity', async () => {
+    const { storage } = createStorageMock();
+    const session = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    vi.stubGlobal('localStorage', storage);
+    vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
+    const startup = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockResolvedValue({ device_keys: {} });
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    const setMaxListeners = vi.fn();
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      http: { authedRequest },
+      setMaxListeners,
+    } as never);
+
+    await initClient(session);
+
+    expect(authedRequest).toHaveBeenCalledWith('POST', '/keys/query', undefined, {
+      device_keys: { '@user:example.com': ['DEVICE'] },
+    });
+    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    expect(startup).toHaveBeenCalledTimes(1);
+    expect(setMaxListeners).toHaveBeenCalledWith(50);
+    expect(getSessionStore(storage).sessions[0].cryptoStoreInitialized).toBe(true);
+  });
+
+  it('rejects a missing local store before Rust initialization when server keys already exist', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const session = {
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    };
+    vi.stubGlobal('indexedDB', {
+      databases: vi.fn().mockResolvedValue([]),
+    });
+    const startup = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockResolvedValue({
+      device_keys: {
+        '@user:example.com': {
+          DEVICE: {
+            keys: {
+              'ed25519:DEVICE': 'server-ed-key',
+              'curve25519:DEVICE': 'server-curve-key',
+            },
+          },
+        },
+      },
+    });
+
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      http: { authedRequest },
+    } as never);
+
+    await expect(initClient(session)).rejects.toThrow('Remove this account, then sign in again');
+
+    expect(initRustCrypto).not.toHaveBeenCalled();
+    expect(startup).not.toHaveBeenCalled();
+  });
+
+  it('treats incomplete homeserver device keys as a retryable verification failure', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    const session = {
+      sessionId,
+      baseUrl: 'https://example.com',
+      accessToken: 'token',
+      userId: '@user:example.com',
+      deviceId: 'DEVICE',
+    };
+    vi.stubGlobal('indexedDB', {
+      databases: vi.fn().mockResolvedValue([]),
+    });
+    const startup = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      http: {
+        authedRequest: vi.fn().mockResolvedValue({
+          device_keys: {
+            '@user:example.com': {
+              DEVICE: {
+                keys: {
+                  'ed25519:DEVICE': 'server-ed-key',
+                },
+              },
+            },
+          },
+        }),
+      },
+    } as never);
+
+    await expect(initClient(session)).rejects.toBeInstanceOf(DeviceIdentityVerificationError);
+    expect(initRustCrypto).not.toHaveBeenCalled();
+    expect(startup).not.toHaveBeenCalled();
+  });
+
+  it('fails before creating keys when the homeserver identity check is unavailable', async () => {
+    const sessionId = createSessionId('https://example.com', '@user:example.com');
+    vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
+    const startup = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(
+      () => ({} as unknown as IndexedDBCryptoStore)
+    );
+    const authedRequest = vi.fn().mockRejectedValue(new Error('offline'));
+
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(createMatrixClient).mockReturnValue({
+      initRustCrypto,
+      http: { authedRequest },
+    } as never);
+
+    await expect(
+      initClient({
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      })
+    ).rejects.toThrow('could not safely verify the encryption storage and device identity');
+
+    expect(initRustCrypto).not.toHaveBeenCalled();
+    expect(startup).not.toHaveBeenCalled();
+  });
+
+  it('fails before creating a client when local crypto-store inspection is indeterminate', async () => {
+    const databases = vi.fn().mockRejectedValue(new Error('enumeration denied'));
+    const open = vi.fn(() => {
+      throw new Error('storage denied');
+    });
+    vi.stubGlobal('indexedDB', { databases, open });
+
+    await expect(
+      initClient({
+        sessionId: createSessionId('https://example.com', '@user:example.com'),
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      })
+    ).rejects.toBeInstanceOf(DeviceIdentityVerificationError);
+
+    expect(databases).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createMatrixClient)).not.toHaveBeenCalled();
+    expect(vi.mocked(IndexedDBStore)).not.toHaveBeenCalled();
+  });
+
   it('starts IndexedDB store startup and Rust crypto initialization in parallel', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     let resolveStartup: (() => void) | undefined;
@@ -274,6 +620,7 @@ describe('initClient', () => {
     );
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto,
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
     } as never);
 
@@ -288,10 +635,10 @@ describe('initClient', () => {
       settled = true;
     });
 
-    await Promise.resolve();
-
-    expect(startup).toHaveBeenCalledTimes(1);
-    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(startup).toHaveBeenCalledTimes(1);
+      expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    });
     expect(settled).toBe(false);
 
     resolveStartup?.();
@@ -362,8 +709,10 @@ describe('initClient', () => {
       throw error;
     });
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(startup).toHaveBeenCalledTimes(1);
+      expect(initRustCrypto).toHaveBeenCalledTimes(1);
+    });
     expect(rejected).toBe(false);
     expect(stopClient).not.toHaveBeenCalled();
     expect(destroy).not.toHaveBeenCalled();
@@ -397,6 +746,7 @@ describe('initClient', () => {
     );
     vi.mocked(createMatrixClient).mockReturnValue({
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
+      http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
     } as never);
 
@@ -446,6 +796,7 @@ describe('initClient', () => {
       const refreshClient = { refreshToken };
       const matrixClient = {
         initRustCrypto: vi.fn().mockResolvedValue(undefined),
+        http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
         setMaxListeners: vi.fn(),
       };
       vi.mocked(createMatrixClient)
