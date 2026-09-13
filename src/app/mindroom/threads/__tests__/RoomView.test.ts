@@ -335,6 +335,8 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByType(roomTimelineType as never) as unknown as {
     props: {
       onToggle: (key: string) => void;
+      onAddTag: (tag: string) => void;
+      onSearchQueryChange: (query: string) => void;
       onSortDirectionChange: () => void;
       onToggleThreadSortFreeze: () => void;
       onReset: () => void;
@@ -347,6 +349,8 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
         idle: string;
         sortBy: string;
         sortDirection: string;
+        freeText: string;
+        tags: Map<string, string>;
       };
       threadSortFreezeState: {
         controlSignature: string | null;
@@ -491,6 +495,94 @@ describe('RoomView', () => {
     });
 
     expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+  });
+
+  it('ignores agent filters and sort freeze as soon as the room becomes agentless', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
+      );
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onToggleThreadSortFreeze();
+    });
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
+      );
+    });
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
+    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
+      );
+    });
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
+  });
+
+  it('preserves hidden agent filters when searching in an agentless room', async () => {
+    vi.useFakeTimers();
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('room-a'));
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
+      );
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+    await act(async () => {
+      getTimeline(renderer!).props.onAddTag('saved');
+    });
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: false })
+      );
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onSearchQueryChange('hello is:streaming tag:priority');
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.freeText).toBe(
+      'hello is:streaming tag:priority'
+    );
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
+    expect(getTimeline(renderer!).props.threadFilterState.tags).toEqual(new Map());
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(RoomView, { room: room as never, hasMindroomAgents: true })
+      );
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.freeText).toBe(
+      'hello is:streaming tag:priority'
+    );
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.streaming).toBe('any');
+    expect(getTimeline(renderer!).props.threadFilterState.tags).toEqual(
+      new Map([['saved', 'include']])
+    );
   });
 
   it('resets the freeze state when switching rooms', async () => {

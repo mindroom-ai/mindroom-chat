@@ -19,6 +19,7 @@ import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomViewMode } from './useRoomViewMode';
+import { hasActiveMindroomAgent } from '../matrix/agentIdentity';
 
 export function Room() {
   const { eventId } = useParams();
@@ -33,6 +34,7 @@ export function Room() {
   const screenSize = useScreenSizeContext();
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
+  const hasMindroomAgents = hasActiveMindroomAgent(members);
   const chat = useAtomValue(callChatAtom);
   const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
@@ -62,6 +64,7 @@ export function Room() {
             <Box grow="Yes">
               <RoomView
                 room={room}
+                hasMindroomAgents={hasMindroomAgents}
                 eventId={eventId}
                 focusEventInRoom={focusEvent === '1'}
                 threadId={routedThreadId}
@@ -78,6 +81,7 @@ export function Room() {
             )}
             <MindroomCallChatView
               room={room}
+              hasMindroomAgents={hasMindroomAgents}
               eventId={eventId}
               focusEventInRoom={focusEvent === '1'}
               threadId={routedThreadId}

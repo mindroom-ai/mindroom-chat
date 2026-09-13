@@ -9,6 +9,7 @@ type MockThreadContextBannerProps = {
 };
 
 type MockRoomTimelineProps = {
+  hasMindroomAgents?: boolean;
   summaryMap: Map<string, { summaryText?: string; generatedTs?: number; messageCount?: number }>;
   onStoreThreadSummary: (
     threadRootId: string,
@@ -244,6 +245,7 @@ describe('RoomView thread summary sharing', () => {
       renderer = create(
         React.createElement(RoomView, {
           room: room as never,
+          hasMindroomAgents: false,
           threadId: '$thread-root',
         })
       );
@@ -254,6 +256,7 @@ describe('RoomView thread summary sharing', () => {
       'https%3A%2F%2Fmindroom.chat::%40alice%3Aexample.org',
       '!room:example.org'
     );
+    expect(roomTimelineState.props?.hasMindroomAgents).toBe(false);
     expect(threadContextBannerState.props?.summaryInfo?.summaryText).toBe('Cached summary');
     expect(roomTimelineState.props?.summaryMap.get('$thread-root')?.summaryText).toBe(
       'Cached summary'

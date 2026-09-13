@@ -1,3 +1,4 @@
+import { KnownMembership, type RoomMember } from 'matrix-js-sdk';
 import { getMxIdLocalPart, getMxIdServer } from '../../utils/matrix';
 import { AI_RUN_METADATA_KEY } from '../messages/aiRun';
 
@@ -20,6 +21,15 @@ export const isMindroomAgentUserId = (userId: string | undefined): boolean => {
   const localpart = getMxIdLocalPart(userId) ?? userId;
   return localpart.toLowerCase().startsWith(AGENT_USERNAME_PREFIX);
 };
+
+export const hasActiveMindroomAgent = (
+  members: readonly Pick<RoomMember, 'membership' | 'userId'>[]
+): boolean =>
+  members.some(
+    ({ membership, userId }) =>
+      (membership === KnownMembership.Join || membership === KnownMembership.Invite) &&
+      isMindroomAgentUserId(userId)
+  );
 
 /**
  * Whether a user id is a MindRoom agent AND belongs to the same homeserver as

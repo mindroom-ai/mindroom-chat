@@ -259,6 +259,7 @@ const TimelineDivider = as<'div', { variant?: ContainerColor | 'Inherit' }>(
 
 export type RoomTimelineProps = {
   room: Room;
+  hasMindroomAgents?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -286,6 +287,7 @@ export type RoomTimelineProps = {
 
 export function RoomTimeline({
   room,
+  hasMindroomAgents = true,
   eventId,
   focusEventInRoom,
   threadId,
@@ -3287,6 +3289,7 @@ export function RoomTimeline({
       <Box grow="Yes" direction="Column">
         {shouldShowRoomThreadOverviewControls && (
           <RoomThreadOverview
+            hasMindroomAgents={hasMindroomAgents}
             threadCount={
               showCompactRoomView
                 ? compactFilteredThreadRootIds.length

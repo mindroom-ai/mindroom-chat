@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 type MockRoomViewProps = {
+  hasMindroomAgents?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -67,6 +68,7 @@ describe('MindroomCallChatView', () => {
       create(
         React.createElement(MindroomCallChatView, {
           room,
+          hasMindroomAgents: false,
           eventId: '$reply',
           focusEventInRoom: true,
           threadId: '$root',
@@ -76,6 +78,7 @@ describe('MindroomCallChatView', () => {
     });
 
     expect(roomViewProps.current).toMatchObject({
+      hasMindroomAgents: false,
       eventId: '$reply',
       focusEventInRoom: true,
       room,

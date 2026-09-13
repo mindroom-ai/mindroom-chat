@@ -29,6 +29,7 @@ import {
   hasActiveThreadFilters,
   FILTER_PRESETS,
   isOrModeStatusChip,
+  normalizeThreadSearchText,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
@@ -633,6 +634,7 @@ function ThreadSearchBar({
 // ─── RoomThreadOverview ──────────────────────────────────────────────────────
 
 export type RoomThreadOverviewProps = {
+  hasMindroomAgents: boolean;
   threadCount: number;
   totalThreadCount: number;
   statusCounts?: StatusCounts;
@@ -702,6 +704,7 @@ function RoomViewModeButton({
 }
 
 export function RoomThreadOverview({
+  hasMindroomAgents,
   threadCount,
   totalThreadCount,
   statusCounts,
@@ -770,12 +773,14 @@ export function RoomThreadOverview({
     (query: string) => {
       setLastAppliedPreset(null);
       setSearchQueryDraft(query);
-      pendingSearchCanonicalRef.current = serializeThreadFilterQuery(
-        applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
-      );
+      pendingSearchCanonicalRef.current = hasMindroomAgents
+        ? serializeThreadFilterQuery(
+            applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
+          )
+        : normalizeThreadSearchText(query);
       onSearchQueryChange(query);
     },
-    [onSearchQueryChange, state]
+    [hasMindroomAgents, onSearchQueryChange, state]
   );
 
   const handleCycleTagWithPresetClear = useCallback(
@@ -865,6 +870,8 @@ export function RoomThreadOverview({
   // show everything. The upstream filter state is already projected onto this
   // subspace, so state.resolved is the only dimension that can be active here.
   if (simpleMode) {
+    if (!hasMindroomAgents) return null;
+
     const unresolvedOnly = state.resolved === 'exclude';
     return (
       <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
@@ -909,74 +916,80 @@ export function RoomThreadOverview({
       {/* Single-line toolbar */}
       <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
         {/* Count */}
-        {countBadge}
+        {hasMindroomAgents && countBadge}
 
         {/* Status toggles */}
-        <div className={css.ToggleGroup} role="group" aria-label="Status filters">
-          <TriStateIconToggle
-            filterKey="resolved"
-            state={state.resolved}
-            isOrMode={isOrModeStatusChip(state, 'resolved')}
-            onToggle={handleToggleWithPresetClear}
-          >
-            <Icon size="50" src={Icons.CheckTwice} />
-          </TriStateIconToggle>
+        {hasMindroomAgents && (
+          <div className={css.ToggleGroup} role="group" aria-label="Status filters">
+            <TriStateIconToggle
+              filterKey="resolved"
+              state={state.resolved}
+              isOrMode={isOrModeStatusChip(state, 'resolved')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <Icon size="50" src={Icons.CheckTwice} />
+            </TriStateIconToggle>
 
-          <TriStateIconToggle
-            filterKey="streaming"
-            state={state.streaming}
-            isOrMode={isOrModeStatusChip(state, 'streaming')}
-            onToggle={handleToggleWithPresetClear}
-          >
-            <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
-          </TriStateIconToggle>
+            <TriStateIconToggle
+              filterKey="streaming"
+              state={state.streaming}
+              isOrMode={isOrModeStatusChip(state, 'streaming')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
+            </TriStateIconToggle>
 
-          <TriStateIconToggle
-            filterKey="scheduled"
-            state={state.scheduled}
-            isOrMode={isOrModeStatusChip(state, 'scheduled')}
-            onToggle={handleToggleWithPresetClear}
-          >
-            <IconCalendarEvent
-              size={14}
-              stroke={1.8}
-              className={threadIndicatorCss.ThreadScheduledIcon}
-              aria-hidden="true"
-            />
-          </TriStateIconToggle>
+            <TriStateIconToggle
+              filterKey="scheduled"
+              state={state.scheduled}
+              isOrMode={isOrModeStatusChip(state, 'scheduled')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <IconCalendarEvent
+                size={14}
+                stroke={1.8}
+                className={threadIndicatorCss.ThreadScheduledIcon}
+                aria-hidden="true"
+              />
+            </TriStateIconToggle>
 
-          <TriStateIconToggle
-            filterKey="unread"
-            state={state.unread}
-            isOrMode={isOrModeStatusChip(state, 'unread')}
-            onToggle={handleToggleWithPresetClear}
-          >
-            <Icon size="50" src={Icons.MessageUnread} />
-          </TriStateIconToggle>
+            <TriStateIconToggle
+              filterKey="unread"
+              state={state.unread}
+              isOrMode={isOrModeStatusChip(state, 'unread')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <Icon size="50" src={Icons.MessageUnread} />
+            </TriStateIconToggle>
 
-          <TriStateIconToggle
-            filterKey="idle"
-            state={state.idle}
-            isOrMode={isOrModeStatusChip(state, 'idle')}
-            onToggle={handleToggleWithPresetClear}
-          >
-            <IconZzz size={14} stroke={1.8} aria-hidden="true" />
-          </TriStateIconToggle>
-        </div>
+            <TriStateIconToggle
+              filterKey="idle"
+              state={state.idle}
+              isOrMode={isOrModeStatusChip(state, 'idle')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <IconZzz size={14} stroke={1.8} aria-hidden="true" />
+            </TriStateIconToggle>
+          </div>
+        )}
 
         {/* Preset dropdown */}
-        <ThreadPresetDropdown
-          onApplyPreset={handlePresetApply}
-          activePresetLabel={lastAppliedPreset}
-        />
+        {hasMindroomAgents && (
+          <ThreadPresetDropdown
+            onApplyPreset={handlePresetApply}
+            activePresetLabel={lastAppliedPreset}
+          />
+        )}
 
         {/* Info + Search */}
-        <ThreadInfoPopover
-          statusCounts={statusCounts}
-          tagCounts={tagCounts}
-          threadCount={threadCount}
-          totalThreadCount={totalThreadCount}
-        />
+        {hasMindroomAgents && (
+          <ThreadInfoPopover
+            statusCounts={statusCounts}
+            tagCounts={tagCounts}
+            threadCount={threadCount}
+            totalThreadCount={totalThreadCount}
+          />
+        )}
         <ThreadSearchBar
           searchQuery={searchQueryDraft}
           onSearchQueryChange={handleSearchWithPresetClear}
@@ -1040,7 +1053,7 @@ export function RoomThreadOverview({
             </button>
           )}
         </TooltipProvider>
-        {state.sortBy !== 'natural' && (
+        {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
             align="Center"
@@ -1074,7 +1087,7 @@ export function RoomThreadOverview({
         )}
 
         {/* Tag filters (right-aligned) */}
-        {(activeTagEntries.length > 0 || availableTags.length > 0) && (
+        {hasMindroomAgents && (activeTagEntries.length > 0 || availableTags.length > 0) && (
           <div
             className={css.TagRow}
             role="group"

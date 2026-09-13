@@ -90,10 +90,13 @@ export const serializeThreadFilterState = (
 ): SerializedThreadFilterState => {
   const sortBy = isSortBy(state.sortBy) ? state.sortBy : 'natural';
   const sortDirection =
-    sortBy === 'natural' ? 'desc' : isSortDirection(state.sortDirection) ? state.sortDirection : 'desc';
+    sortBy === 'natural'
+      ? 'desc'
+      : isSortDirection(state.sortDirection)
+      ? state.sortDirection
+      : 'desc';
   const freeText = typeof state.freeText === 'string' ? state.freeText : '';
-  const unsupportedQuery =
-    typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
+  const unsupportedQuery = typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
   const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';
 
   const tags = Object.fromEntries(
@@ -204,15 +207,14 @@ export const matchesTagFilters = (
   return true;
 };
 
-export const isOrModeStatusChip = (
-  state: ThreadFilterState,
-  key: ThreadFilterKey
-): boolean => state.statusMode === 'or' && state[key] === 'include';
+export const isOrModeStatusChip = (state: ThreadFilterState, key: ThreadFilterKey): boolean =>
+  state.statusMode === 'or' && state[key] === 'include';
 
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
-  (state.freeText ?? '').length > 0 || (state.unsupportedQuery ?? '').length > 0;
+  (state.freeText ?? '').length > 0 ||
+  (state.unsupportedQuery ?? '').length > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
   JSON.stringify(serializeThreadFilterState(state)) === DEFAULT_SERIALIZED_THREAD_FILTER_STATE;
@@ -279,8 +281,10 @@ export const applyFrozenThreadOrder = (
   return resolvedOrderedIds;
 };
 
-export const resetThreadFilterState = (): ThreadFilterState =>
-  createDefaultThreadFilterState();
+export const resetThreadFilterState = (): ThreadFilterState => createDefaultThreadFilterState();
+
+export const normalizeThreadSearchText = (query: string): string =>
+  query.trim().split(/\s+/).filter(Boolean).join(' ');
 
 // ─── Simple mode ─────────────────────────────────────────────────────────────
 
@@ -302,12 +306,26 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
   };
 };
 
+/**
+ * Project a persisted filter state onto the controls that remain available in
+ * an agentless room. Agent status and tag filters must not keep affecting the
+ * thread list after their controls disappear, while ordinary text search and
+ * sorting remain usable. The stored state is left untouched so adding an agent
+ * restores the room's previous agent-workflow setup.
+ */
+export const simplifyAgentlessThreadFilterState = (
+  state: ThreadFilterState
+): ThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  sortBy: state.sortBy,
+  sortDirection: state.sortDirection,
+  freeText: state.freeText,
+  unsupportedQuery: state.unsupportedQuery,
+});
+
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
 
-export const cycleTagFilter = (
-  state: ThreadFilterState,
-  tagName: string
-): ThreadFilterState => {
+export const cycleTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
   const newTags = new Map(state.tags);
   const current = newTags.get(tagName) ?? 'any';
   const next = cycleTriState(current);
@@ -319,20 +337,14 @@ export const cycleTagFilter = (
   return { ...state, tags: newTags };
 };
 
-export const addTagFilter = (
-  state: ThreadFilterState,
-  tagName: string
-): ThreadFilterState => {
+export const addTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
   if (state.tags.has(tagName)) return state;
   const newTags = new Map(state.tags);
   newTags.set(tagName, 'include');
   return { ...state, tags: newTags };
 };
 
-export const removeTagFilter = (
-  state: ThreadFilterState,
-  tagName: string
-): ThreadFilterState => {
+export const removeTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
   if (!state.tags.has(tagName)) return state;
   const newTags = new Map(state.tags);
   newTags.delete(tagName);
@@ -399,10 +411,7 @@ export const FILTER_PRESETS: FilterPreset[] = [
   },
 ];
 
-export const applyPreset = (
-  state: ThreadFilterState,
-  preset: FilterPreset
-): ThreadFilterState => {
+export const applyPreset = (state: ThreadFilterState, preset: FilterPreset): ThreadFilterState => {
   const { statusMode, ...statusOverrides } = preset.apply;
   const nextState: ThreadFilterState = {
     ...state,

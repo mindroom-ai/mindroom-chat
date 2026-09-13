@@ -63,12 +63,14 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
 
 export function RoomView({
   room,
+  hasMindroomAgents = true,
   eventId,
   focusEventInRoom,
   threadId,
   onThreadLoadError,
 }: {
   room: Room;
+  hasMindroomAgents?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
@@ -111,7 +113,7 @@ export function RoomView({
     threadSortFreezeState,
     threadSummaryInfo,
     viewMode,
-  } = useRoomViewThreadState({ eventId, room, threadId });
+  } = useRoomViewThreadState({ eventId, hasMindroomAgents, room, threadId });
 
   useMobileKeyboardViewportFix();
 
@@ -144,6 +146,7 @@ export function RoomView({
         <RoomTimeline
           key={`${roomId}:${effectiveThreadId ?? ''}`}
           room={room}
+          hasMindroomAgents={hasMindroomAgents}
           eventId={eventId}
           focusEventInRoom={focusEventInRoom}
           threadId={effectiveThreadId}
