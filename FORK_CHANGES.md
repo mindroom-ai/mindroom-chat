@@ -22,6 +22,9 @@
 - Verification: all 483 Vitest files and 3,769 tests pass under pinned Node 24.13.1.
   Typecheck, production/PWA builds with Element Call verification, and full lint pass with zero errors and the existing seventeen warnings.
   The room lifecycle integration fixture now uses the attachment operation contract and subscription wake-up; its test body and assertions are unchanged.
+- The expanded-message Chromium scenario passes against production assets and local Matrix: 31,258 pixels of real-wheel travel, 12,960 pixels of deterministic travel, zero gaps, jumps, application scroll writes, or expansion/collapse anchor drift, and preserved settings after reload.
+  The wheel proof now measures signed movement of surviving visible message anchors with complete frame continuity instead of subtracting scroll offsets that change during virtualizer ledger settlement.
+  Existing travel thresholds and deterministic ride assertions remain unchanged; a synthetic probe confirms that content-height growth and ledger settlement alone record zero visual travel.
 
 ### UI component responsibility extraction (2026-09-13)
 

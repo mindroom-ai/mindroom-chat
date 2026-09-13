@@ -18,6 +18,8 @@ import {
   FULL_RIDE_BUDGETS,
   installScrollWriteProbe,
   runFlickRide,
+  startRideSampling,
+  stopRideSampling,
 } from '../helpers/rideRecorder';
 
 const hasDeployedFixtureEnv =
@@ -97,6 +99,10 @@ const readScrollState = (page: Page) =>
       scrollHeight: scroller.scrollHeight,
       clientHeight: scroller.clientHeight,
       mountedRows: scroller.querySelectorAll('[data-message-item]').length,
+      viewportCenter: {
+        x: scroller.getBoundingClientRect().left + scroller.clientWidth / 2,
+        y: scroller.getBoundingClientRect().top + scroller.clientHeight / 2,
+      },
     };
   });
 
@@ -286,8 +292,10 @@ test.describe('live long-message expansion default', () => {
     });
     await page.waitForTimeout(800);
 
+    const { viewportCenter } = await readScrollState(page);
+    await page.mouse.move(viewportCenter.x, viewportCenter.y);
     const realWheelStart = await readScrollState(page);
-    await page.locator('[data-message-item]').first().hover();
+    await startRideSampling(page, { measureVisualTravel: true });
     for (let step = 0; step < 45; step += 1) {
       // eslint-disable-next-line no-await-in-loop
       await page.mouse.wheel(0, -700);
@@ -296,7 +304,23 @@ test.describe('live long-message expansion default', () => {
     }
     await page.waitForTimeout(300);
     const realWheelEnd = await readScrollState(page);
-    const realWheelTravelPx = realWheelStart.scrollTop - realWheelEnd.scrollTop;
+    const wheelSampling = await stopRideSampling(page);
+    const wheelIntervals = wheelSampling.frames.slice(1);
+    const trackedWheelIntervals = wheelIntervals.filter((frame) =>
+      Number.isFinite(frame.visualDeltaPx)
+    );
+    const realWheelTravelPx = trackedWheelIntervals.reduce(
+      (sum, frame) => sum + (frame.visualDeltaPx ?? 0),
+      0
+    );
+    await testInfo.attach('expanded-real-wheel-measurements.json', {
+      body: Buffer.from(
+        JSON.stringify({ realWheelStart, realWheelEnd, realWheelTravelPx, wheelSampling }, null, 2)
+      ),
+      contentType: 'application/json',
+    });
+    expect(wheelSampling.frames.length).toBeGreaterThan(FULL_RIDE_BUDGETS.minFrames);
+    expect(trackedWheelIntervals).toHaveLength(wheelIntervals.length);
     expect(realWheelTravelPx).toBeGreaterThan(MIN_RIDE_TRAVEL_PX);
     await expect(showMore).toHaveCount(0);
     await expect(showLess.first()).toBeVisible();

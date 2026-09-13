@@ -23,6 +23,8 @@ export type RideFrame = {
   // Absolute anchor displacement beyond the driven delta for this frame
   // (0 when the anchor was re-picked this frame).
   jumpPx: number;
+  // Opt-in signed movement of a surviving visible anchor; positive means upward travel.
+  visualDeltaPx?: number;
   driven: number;
   threadCount: number;
   distFromBottom: number;
@@ -73,7 +75,11 @@ export const analyzeRide = (
   const totalJumpPx = Math.round(report.frames.reduce((sum, f) => sum + f.jumpPx, 0));
   const violations: RideViolation[] = [];
   if (report.frames.length < budgets.minFrames) {
-    violations.push({ budget: 'minFrames', actual: report.frames.length, allowed: budgets.minFrames });
+    violations.push({
+      budget: 'minFrames',
+      actual: report.frames.length,
+      allowed: budgets.minFrames,
+    });
   }
   if (maxGapPx >= budgets.maxGapPx) {
     violations.push({ budget: 'maxGapPx', actual: maxGapPx, allowed: budgets.maxGapPx });
@@ -128,7 +134,7 @@ export const installScrollWriteProbe = (page: Page): Promise<void> =>
             : (args[1] as number | undefined);
         if (typeof top === 'number') record(name, this, top);
         return (original as (...a: unknown[]) => unknown).apply(this, args);
-      } as (typeof Element.prototype)[typeof name];
+      } as typeof Element.prototype[typeof name];
     });
   });
 
@@ -144,7 +150,8 @@ export const throttleRelationsContinuations = async (
   page: Page,
   delayMs: number
 ): Promise<() => Promise<void>> => {
-  const matcher = (url: URL) => url.pathname.includes('/relations/') && url.searchParams.has('from');
+  const matcher = (url: URL) =>
+    url.pathname.includes('/relations/') && url.searchParams.has('from');
   await page.route(matcher, async (route) => {
     await new Promise((resolve) => {
       setTimeout(resolve, delayMs);
@@ -156,7 +163,8 @@ export const throttleRelationsContinuations = async (
 
 /** Aborts /relations continuations — leaves an open with a partial window. */
 export const abortRelationsContinuations = async (page: Page): Promise<() => Promise<void>> => {
-  const matcher = (url: URL) => url.pathname.includes('/relations/') && url.searchParams.has('from');
+  const matcher = (url: URL) =>
+    url.pathname.includes('/relations/') && url.searchParams.has('from');
   await page.route(matcher, (route) => route.abort());
   return () => page.unroute(matcher);
 };
@@ -413,8 +421,11 @@ export const runFlickRide = (
  * per frame (|Δanchor.top + ΔscrollTop|), which needs no knowledge of
  * who is scrolling.
  */
-export const startRideSampling = (page: Page): Promise<void> =>
-  page.evaluate(() => {
+export const startRideSampling = (
+  page: Page,
+  { measureVisualTravel = false }: { measureVisualTravel?: boolean } = {}
+): Promise<void> =>
+  page.evaluate((sampleVisualTravel) => {
     const w = window as Window & {
       __rideSampling?: {
         stop: boolean;
@@ -424,6 +435,7 @@ export const startRideSampling = (page: Page): Promise<void> =>
           scrollHeight: number;
           gapPx: number;
           jumpPx: number;
+          visualDeltaPx?: number;
           threadCount: number;
           distFromBottom: number;
         }[];
@@ -467,13 +479,15 @@ export const startRideSampling = (page: Page): Promise<void> =>
       if (cursor < bottom) maxGap = Math.max(maxGap, bottom - cursor);
       return maxGap;
     };
-    const pickAnchor = (): Element | null => {
+    const pickAnchor = (visibleOnly = false): Element | null => {
       const rows = Array.from(document.querySelectorAll('[data-message-item]'));
-      const mid = window.innerHeight / 2;
+      const viewport = visibleOnly ? scroller.getBoundingClientRect() : undefined;
+      const mid = viewport ? (viewport.top + viewport.bottom) / 2 : window.innerHeight / 2;
       let best: Element | null = null;
       let bestDistance = Infinity;
       rows.forEach((r) => {
         const rect = r.getBoundingClientRect();
+        if (viewport && (rect.bottom <= viewport.top || rect.top >= viewport.bottom)) return;
         const distance = Math.abs((rect.top + rect.bottom) / 2 - mid);
         if (distance < bestDistance) {
           bestDistance = distance;
@@ -490,6 +504,7 @@ export const startRideSampling = (page: Page): Promise<void> =>
         scrollHeight: number;
         gapPx: number;
         jumpPx: number;
+        visualDeltaPx?: number;
         threadCount: number;
         distFromBottom: number;
       }[],
@@ -499,6 +514,8 @@ export const startRideSampling = (page: Page): Promise<void> =>
     let anchor: Element | null = null;
     let anchorTop = 0;
     let lastScrollTop = scroller.scrollTop;
+    let visualAnchor: Element | null = null;
+    let visualAnchorTop = 0;
     const loop = () => {
       if (state.stop) return;
       const scrollTop = scroller.scrollTop;
@@ -518,6 +535,16 @@ export const startRideSampling = (page: Page): Promise<void> =>
         anchor = pickAnchor();
         anchorTop = anchor?.getBoundingClientRect().top ?? 0;
       }
+      let visualDeltaPx: number | undefined;
+      if (sampleVisualTravel) {
+        const viewportTop = scroller.getBoundingClientRect().top;
+        if (visualAnchor?.isConnected) {
+          visualDeltaPx = visualAnchor.getBoundingClientRect().top - viewportTop - visualAnchorTop;
+        }
+        // Each handoff starts a new baseline; only motion of the SAME row counts.
+        visualAnchor = pickAnchor(true);
+        visualAnchorTop = (visualAnchor?.getBoundingClientRect().top ?? viewportTop) - viewportTop;
+      }
       lastScrollTop = scrollTop;
       state.frames.push({
         t: performance.now(),
@@ -525,13 +552,14 @@ export const startRideSampling = (page: Page): Promise<void> =>
         scrollHeight: scroller.scrollHeight,
         gapPx: Math.round(readGap()),
         jumpPx: Math.round(jumpPx),
+        ...(sampleVisualTravel ? { visualDeltaPx } : {}),
         threadCount: readThreadCount(),
         distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       });
       window.requestAnimationFrame(loop);
     };
     window.requestAnimationFrame(loop);
-  });
+  }, measureVisualTravel);
 
 export const stopRideSampling = (
   page: Page
@@ -604,9 +632,7 @@ export const startScreencast = async (page: Page): Promise<ScreencastCapture> =>
   const frames: { t: number; data: string }[] = [];
   session.on('Page.screencastFrame', (frame) => {
     frames.push({ t: Date.now(), data: frame.data });
-    session
-      .send('Page.screencastFrameAck', { sessionId: frame.sessionId })
-      .catch(() => undefined);
+    session.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => undefined);
   });
   await session.send('Page.startScreencast', {
     format: 'jpeg',
@@ -749,7 +775,9 @@ export const recordOpenSettle = (
       const rows = scroller.querySelectorAll('[data-message-item]');
       const lastRow = rows[rows.length - 1];
       const bottomGapPx = lastRow
-        ? Math.round(scroller.getBoundingClientRect().bottom - lastRow.getBoundingClientRect().bottom)
+        ? Math.round(
+            scroller.getBoundingClientRect().bottom - lastRow.getBoundingClientRect().bottom
+          )
         : -9999;
       samples.push({
         t: performance.now(),
