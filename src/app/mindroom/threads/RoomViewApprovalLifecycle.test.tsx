@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { act, create } from 'react-test-renderer';
 import { createClient, Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
@@ -8,6 +8,7 @@ import { RoomView } from './MindroomRoomView';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import { TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
+import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -98,6 +99,54 @@ function Composer(
     },
   ]);
   const [version, setVersion] = useState(0);
+  const enrolledRef = useRef<TUploadItem[]>([]);
+  const listenersRef = useRef(new Set<() => void>());
+  const attachments = useMemo<RoomInputAttachmentAccess>(
+    () => ({
+      snapshot: () => ({
+        staged: [...selectedFilesRef.current],
+        enrolled: [...enrolledRef.current],
+        uploads: [...uploadsRef.current],
+      }),
+      append: (_roomId, items) => {
+        selectedFilesRef.current = [...selectedFilesRef.current, ...items];
+        setVersion((value) => value + 1);
+      },
+      remove: (_roomId, files) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (value) => !files.includes(value.file)
+        );
+        enrolledRef.current = enrolledRef.current.filter((value) => !files.includes(value.file));
+        uploadsRef.current = uploadsRef.current.filter((value) => !files.includes(value.file));
+        setVersion((value) => value + 1);
+      },
+      enroll: (items) => {
+        enrolledRef.current = [...items];
+        setVersion((value) => value + 1);
+      },
+      clearEnrollment: () => {
+        enrolledRef.current = [];
+        setVersion((value) => value + 1);
+      },
+      protectPasteItems: () => noop,
+      subscribe: (listener) => {
+        listenersRef.current.add(listener);
+        return () => {
+          listenersRef.current.delete(listener);
+        };
+      },
+    }),
+    []
+  );
+  useEffect(() => {
+    let disposed = false;
+    queueMicrotask(() => {
+      if (!disposed) listenersRef.current.forEach((listener) => listener());
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [version]);
   const controller = useRoomInputSendSessionController({
     mx,
     room,
@@ -106,20 +155,12 @@ function Composer(
     editor,
     clearReplyDraft: noop,
     sendTypingStatus: noop,
-    selectedFilesRef,
-    uploadsRef,
+    attachments,
     buildUploadMessageContent: async (fileItem, url) => ({
       msgtype: 'm.file',
       body: fileItem.file.name,
       url,
     }),
-    removeUploadsFromBoard: (sent) => {
-      const files = Array.isArray(sent) ? sent : [sent];
-      selectedFilesRef.current = selectedFilesRef.current.filter(
-        (value) => !files.includes(value.file)
-      );
-      uploadsRef.current = uploadsRef.current.filter((value) => !files.includes(value.file));
-    },
     onRoomMessageSent,
   });
   useEffect(() => {
@@ -131,8 +172,7 @@ function Composer(
       uploadsRef.current = [ready(second)];
       setVersion((value) => value + 1);
     };
-    void controller.processSendSession();
-  }, [controller, version]);
+  }, [controller]);
   return null;
 }
 
