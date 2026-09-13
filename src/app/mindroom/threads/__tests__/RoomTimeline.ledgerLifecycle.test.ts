@@ -286,7 +286,10 @@ describe('RoomTimeline ledger lifecycle', () => {
         | ((
             item: { end: number },
             delta: number,
-            instance: { scrollOffset: number | null; isScrolling: boolean }
+            instance: {
+              scrollOffset: number | null;
+              scrollDirection: 'forward' | 'backward' | null;
+            }
           ) => boolean)
         | undefined;
       expect(typeof hook).toBe('function');
@@ -294,12 +297,24 @@ describe('RoomTimeline ledger lifecycle', () => {
       await act(async () => {
         // A row fully above the viewport grew by 64px mid-scroll on iOS:
         // the correction must be DROPPED (return false) and ledgered.
-        expect(hook!({ end: 100 }, 64, { scrollOffset: 5000, isScrolling: true })).toBe(false);
+        expect(
+          hook!({ end: 100 }, 64, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(false);
+        // Desktop backward remeasurements take the same component-level
+        // ledger path, while forward/quiet desktop corrections stay owned
+        // by virtual-core.
+        mockIsIOSWebKit = false;
+        expect(
+          hook!({ end: 100 }, 32, { scrollOffset: 5000, scrollDirection: 'backward' })
+        ).toBe(false);
+        expect(
+          hook!({ end: 100 }, 16, { scrollOffset: 5000, scrollDirection: 'forward' })
+        ).toBe(true);
         await flushAsyncWork(3);
       });
       // The tick-forced commit synced the margin — with no scroll event,
       // no prop change, and no other state update anywhere.
-      expect(innerElement.style.marginTop).toBe('-64px');
+      expect(innerElement.style.marginTop).toBe('-96px');
       expect(scrollElement.scrollTop).toBe(0);
       expect(scrollElement.scrollTo).not.toHaveBeenCalled();
     } finally {

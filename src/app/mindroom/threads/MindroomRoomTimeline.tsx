@@ -1169,9 +1169,10 @@ export function RoomTimeline({
   // them at quiescence — but repeated flicks block the flush, so the replay
   // accumulates the whole gesture's estimate error and lands as a half-page
   // lurch when momentum dies (device-tested). The hook below therefore
-  // DROPS above-viewport corrections while an iOS scroll/touch is live
-  // (bounded invisible drift instead), and applies them immediately when
-  // quiet and on every other platform, like the pre-3.17 default.
+  // ledgers every fully-above iOS correction. On desktop it also ledgers
+  // backward-scroll corrections, preserving virtual-core's safeguard when
+  // a cached collapsed row remounts expanded; forward and quiet corrections
+  // remain immediate.
   // Offset ledger for corrections dropped mid-scroll (device round 10):
   // estimate error for a fully-above row would otherwise shift the content
   // under the reader. The dropped delta is folded into the virtualizer's
