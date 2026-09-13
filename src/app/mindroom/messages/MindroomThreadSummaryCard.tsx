@@ -1,10 +1,7 @@
 import React, { ReactNode } from 'react';
-import { Box, Chip, Icon, Icons, Text } from 'folds';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
+import { Box, Icon, Icons, Text } from 'folds';
 import { MessageEditedContent } from '../../components/message/content';
 import { MessageTextBody } from '../../components/message/layout';
-import { Time } from '../../components/message/Time';
 import {
   formatMindroomThreadSummaryMessageCount,
   type MindroomThreadSummaryInfo,
@@ -29,38 +26,29 @@ export function MindroomThreadSummaryCard({
   summaryInfo,
   renderBody,
 }: MindroomThreadSummaryCardProps) {
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-  const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
   const summaryText = summaryInfo.summaryText ?? 'Thread summary';
   const messageCountLabel =
     typeof summaryInfo.messageCount === 'number'
       ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
       : undefined;
+  const provenanceLabel = messageCountLabel
+    ? `AI summary of last ${messageCountLabel}`
+    : 'AI-generated thread summary';
 
   return (
     <Box
       className={css.ThreadSummaryCard}
       direction="Column"
-      gap="200"
+      gap="100"
       aria-label="AI thread summary"
     >
-      <Box className={css.ThreadSummaryMeta}>
+      <Box className={css.ThreadSummaryHeader}>
         <Box as="span" className={css.ThreadSummaryLabel}>
           <Icon size="50" src={Icons.Bulb} />
-          <Text size="T200">AI summary</Text>
+          <Text as="span" size="T200">
+            {provenanceLabel}
+          </Text>
         </Box>
-        {messageCountLabel && !compact && (
-          <Chip variant="SurfaceVariant" radii="Pill" outlined>
-            <Text size="T200">{messageCountLabel}</Text>
-          </Chip>
-        )}
-        {summaryInfo.generatedTs && (
-          <Time
-            ts={summaryInfo.generatedTs}
-            hour24Clock={hour24Clock}
-            dateFormatString={dateFormatString}
-          />
-        )}
       </Box>
 
       <MessageTextBody

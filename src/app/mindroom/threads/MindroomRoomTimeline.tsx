@@ -2756,7 +2756,7 @@ export function RoomTimeline({
             >
               <Box
                 direction="Column"
-                justifyContent="End"
+                justifyContent={threadId ? 'Start' : 'End'}
                 style={{
                   minHeight: '100%',
                   padding: `${config.space.S600} 0`,
