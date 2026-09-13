@@ -37,7 +37,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
     stateData.previous !== SyncState.Syncing
   ) {
     return (
-      <Box direction="Column" shrink="No">
+      <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box
           className={ContainerColor({ variant: 'SurfaceVariant' })}
           style={{ padding: `${config.space.S100} 0` }}
@@ -53,7 +53,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
 
   if (stateData.current === SyncState.Reconnecting) {
     return (
-      <Box direction="Column" shrink="No">
+      <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box
           className={ContainerColor({ variant: 'Warning' })}
           style={{ padding: `${config.space.S100} 0` }}
@@ -69,7 +69,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
 
   if (stateData.current === SyncState.Error) {
     return (
-      <Box direction="Column" shrink="No">
+      <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box
           className={ContainerColor({ variant: 'Critical' })}
           style={{ padding: `${config.space.S100} 0` }}

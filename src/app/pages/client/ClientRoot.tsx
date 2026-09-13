@@ -79,6 +79,7 @@ function ClientRootLoading({ loadingMessages }: { loadingMessages?: readonly str
 function ClientRootSyncingStatus() {
   return (
     <Box
+      data-testid="client-sync-status"
       direction="Row"
       shrink="No"
       alignItems="Center"
