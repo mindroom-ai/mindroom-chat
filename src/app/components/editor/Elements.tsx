@@ -9,7 +9,13 @@ import {
 } from 'slate-react';
 
 import * as css from '../../styles/CustomHtml.css';
-import { CommandElement, EmoticonElement, LinkElement, MentionElement } from './slate';
+import {
+  CommandElement,
+  EmoticonElement,
+  LinkElement,
+  MentionElement,
+  PasteMarkerElement,
+} from './slate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getBeginCommand } from './utils';
 import { BlockType } from './types';
@@ -67,6 +73,34 @@ function RenderCommandElement({
       contentEditable={false}
     >
       {`/${element.command}`}
+      {children}
+    </span>
+  );
+}
+
+function RenderPasteMarkerElement({
+  attributes,
+  element,
+  children,
+}: { element: PasteMarkerElement } & RenderElementProps) {
+  const selected = useSelected();
+  const focused = useFocused();
+  const charLabel = `${element.chars.toLocaleString('en-US')} chars`;
+
+  return (
+    <span
+      {...attributes}
+      className={css.PasteMarker({
+        focus: selected && focused,
+      })}
+      contentEditable={false}
+      data-mindroom-paste-composer-badge
+      title={element.marker}
+    >
+      <span>Pasted text</span>
+      <span className={css.PasteMarkerMeta}>{element.id}</span>
+      <span className={css.PasteMarkerMeta}>{charLabel}</span>
+      <span className={css.PasteMarkerMeta}>{element.fileName}</span>
       {children}
     </span>
   );
@@ -215,6 +249,12 @@ export function RenderElement({ attributes, element, children }: RenderElementPr
         <RenderCommandElement attributes={attributes} element={element}>
           {children}
         </RenderCommandElement>
+      );
+    case BlockType.PasteMarker:
+      return (
+        <RenderPasteMarkerElement attributes={attributes} element={element}>
+          {children}
+        </RenderPasteMarkerElement>
       );
     default:
       return (

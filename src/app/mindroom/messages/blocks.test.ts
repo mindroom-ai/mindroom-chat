@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
+  formatMindroomMessageTextBodyAsHtml,
   formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
@@ -81,5 +82,32 @@ describe('formatMindroomToolRefTextBodyAsHtml', () => {
 
   it('returns undefined when the plain body has no tool refs', () => {
     expect(formatMindroomToolRefTextBodyAsHtml('plain response')).toBeUndefined();
+  });
+});
+
+describe('formatMindroomMessageTextBodyAsHtml', () => {
+  it('formats paste markers and keeps tool refs parseable', () => {
+    expect(
+      formatMindroomMessageTextBodyAsHtml(
+        [
+          'Before [[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]] after',
+          '',
+          '🔧 `run_shell_command` [1]',
+        ].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>Before ',
+        '<span data-mindroom-paste-marker="true" data-mindroom-paste-id="paste-a3f19c" data-mindroom-paste-chars="11" data-mindroom-paste-file="mindroom-paste-a3f19c.txt">',
+        '[[mindroom-paste:{&quot;v&quot;:1,&quot;id&quot;:&quot;paste-a3f19c&quot;,&quot;chars&quot;:11,&quot;file&quot;:&quot;mindroom-paste-a3f19c.txt&quot;}]]',
+        '</span>',
+        ' after</p>',
+        '<p>🔧 <code>run_shell_command</code> [1]</p>',
+      ].join('')
+    );
+  });
+
+  it('returns undefined without special MindRoom markers', () => {
+    expect(formatMindroomMessageTextBodyAsHtml('plain response')).toBeUndefined();
   });
 });

@@ -9,6 +9,11 @@ import { createListAtom } from '../list';
 
 export type TUploadMetadata = {
   markedAsSpoiler: boolean;
+  mindroomPasteAttachment?: {
+    id: string;
+    chars: number;
+    fileName: string;
+  };
   voiceMessage?: {
     duration: number;
     waveform?: number[];

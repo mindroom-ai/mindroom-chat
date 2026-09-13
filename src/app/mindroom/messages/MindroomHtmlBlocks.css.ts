@@ -95,3 +95,25 @@ export const ToolGroupItem = style([
     padding: `${config.space.S100} ${config.space.S200}`,
   },
 ]);
+
+export const PasteMarkerBadge = style([
+  DefaultReset,
+  BaseCode,
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    maxWidth: '100%',
+    gap: config.space.S100,
+    verticalAlign: 'middle',
+    padding: `0 ${config.space.S100}`,
+    lineHeight: 1.6,
+  },
+]);
+
+export const PasteMarkerBadgeMeta = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minWidth: 0,
+  gap: config.space.S100,
+  color: color.SurfaceVariant.OnContainer,
+});

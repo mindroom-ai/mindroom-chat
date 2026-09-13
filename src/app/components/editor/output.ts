@@ -12,6 +12,10 @@ import {
 import { findAndReplace } from '../../utils/findAndReplace';
 import { sanitizeForRegex } from '../../utils/regex';
 import { isUserId } from '../../utils/matrix';
+import {
+  formatMindroomPasteMarkerAsHtml,
+  parseMindroomPasteMarker,
+} from '../../mindroom/messages/pasteAttachmentMarker';
 
 export type OutputOptions = {
   allowTextFormatting?: boolean;
@@ -81,6 +85,10 @@ const elementToCustomHtml = (node: CustomElement, children: string): string => {
       return `<a href="${encodeURI(node.href)}">${node.children}</a>`;
     case BlockType.Command:
       return `/${sanitizeText(node.command)}`;
+    case BlockType.PasteMarker: {
+      const marker = parseMindroomPasteMarker(node.marker);
+      return marker ? formatMindroomPasteMarkerAsHtml(marker) : sanitizeText(node.marker);
+    }
     default:
       return children;
   }
@@ -159,6 +167,8 @@ const elementToPlainText = (node: CustomElement, children: string): string => {
       return `[${node.children}](${node.href})`;
     case BlockType.Command:
       return `/${node.command}`;
+    case BlockType.PasteMarker:
+      return node.marker;
     default:
       return children;
   }

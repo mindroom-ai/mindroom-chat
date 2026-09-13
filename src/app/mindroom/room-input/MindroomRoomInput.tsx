@@ -1,4 +1,5 @@
 import React, {
+  ClipboardEventHandler,
   KeyboardEventHandler,
   RefObject,
   forwardRef,
@@ -66,7 +67,6 @@ import {
 } from '../../utils/matrix';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
 import { useFilePicker } from '../../hooks/useFilePicker';
-import { useFilePasteHandler } from '../../hooks/useFilePasteHandler';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {
   TUploadItem,
@@ -80,7 +80,12 @@ import {
 import { UploadCardRenderer } from '../../components/upload-card';
 import { UploadBoard, UploadBoardContent, UploadBoardHeader } from '../../components/upload-board';
 import { Upload, UploadStatus, createUploadFamilyObserverAtom } from '../../state/upload';
-import { getImageUrlBlob, loadImageElement, pauseAllMediaElements } from '../../utils/dom';
+import {
+  getDataTransferFiles,
+  getImageUrlBlob,
+  loadImageElement,
+  pauseAllMediaElements,
+} from '../../utils/dom';
 import { safeFile } from '../../utils/mimeTypes';
 import { fulfilledPromiseSettledResult } from '../../utils/common';
 import { useSetting } from '../../state/hooks/settings';
@@ -110,12 +115,15 @@ import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import {
+  createMindroomRoomInputPasteMarkerElement,
   getMindroomRoomInputAutocompleteQuery,
+  getMindroomRoomInputPasteMarkerFileNames,
   getMindroomRoomInputMessageRelation,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
   MindroomVoiceRecorderComposer,
+  removeMindroomRoomInputPasteMarkerElements,
   getMindroomRoomInputVoiceSendContext,
   getMindroomRoomInputVoiceUploadRelation,
   hasMatchingMindroomRoomInputVoiceReplyContext,
@@ -123,6 +131,13 @@ import {
   type MindroomRoomInputAutocompletePrefix,
   type MindroomVoiceSendContext,
 } from './RoomInputMindroomExtensions';
+import {
+  createMindroomPasteAttachment,
+  isMindroomPasteFileName,
+  parseMindroomPasteMarker,
+  withMindroomPasteAttachmentMetadata,
+} from '../messages/pasteAttachmentMarker';
+import { shouldConvertPasteToAttachment } from './pasteAttachment';
 
 type RoomInputAutocompletePrefix = AutocompletePrefix | MindroomRoomInputAutocompletePrefix;
 
@@ -301,7 +316,55 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [createUploadItems, room]
     );
     const pickFile = useFilePicker(handleFiles, true);
-    const handlePaste = useFilePasteHandler(handleFiles);
+    const handlePaste: ClipboardEventHandler = useCallback(
+      async (evt) => {
+        const files = getDataTransferFiles(evt.clipboardData);
+        if (files) {
+          await handleFiles(files);
+          return;
+        }
+
+        const pastedText = evt.clipboardData.getData('text/plain');
+        if (!pastedText) return;
+
+        const plainText = toPlainText(editor.children, isMarkdown).trim();
+        const customHtml = trimCustomHtml(
+          toMatrixCustomHTML(editor.children, {
+            allowTextFormatting: true,
+            allowBlockMarkdown: isMarkdown,
+            allowInlineMarkdown: isMarkdown,
+          })
+        );
+        const hasFormattedBody = !customHtmlEqualsPlainText(customHtml, plainText);
+        const convertPaste = shouldConvertPasteToAttachment({
+          currentPlainText: plainText,
+          currentFormattedBody: hasFormattedBody ? customHtml : undefined,
+          pastedText,
+          includeFormattedPaste: isMarkdown,
+        });
+
+        if (!convertPaste) return;
+
+        evt.preventDefault();
+        const pasteAttachment = createMindroomPasteAttachment(pastedText);
+        const pasteMarker = parseMindroomPasteMarker(pasteAttachment.marker);
+        if (!pasteMarker) return;
+
+        appendUploadItems(
+          await createUploadItems([pasteAttachment.file], () => ({
+            markedAsSpoiler: false,
+            mindroomPasteAttachment: {
+              id: pasteMarker.id,
+              chars: pasteMarker.chars,
+              fileName: pasteMarker.fileName,
+            },
+          }))
+        );
+        editor.insertNode(createMindroomRoomInputPasteMarkerElement(pasteMarker));
+        moveCursor(editor);
+      },
+      [appendUploadItems, createUploadItems, editor, handleFiles, isMarkdown]
+    );
     const dropZoneVisible = useFileDropZone(fileDropContainerRef, handleFiles);
     const [hideStickerBtn, setHideStickerBtn] = useState(document.body.clientWidth < 500);
 
@@ -383,11 +446,50 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store]
     );
 
+    const getUploadContentName = useCallback((content: TUploadContent): string | undefined => {
+      if ('name' in content && typeof content.name === 'string') return content.name;
+      return undefined;
+    }, []);
+
+    const getPasteUploadFileName = useCallback(
+      (fileItem: TUploadItem): string | undefined => {
+        const fileName =
+          getUploadContentName(fileItem.originalFile) ?? getUploadContentName(fileItem.file);
+        return fileName && isMindroomPasteFileName(fileName) ? fileName : undefined;
+      },
+      [getUploadContentName]
+    );
+
+    const getPasteUploadFileNames = useCallback(
+      (upload: TUploadContent | TUploadContent[]): Set<string> => {
+        const uploadList = Array.isArray(upload) ? upload : [upload];
+        const fileNames = new Set<string>();
+
+        selectedFilesRef.current.forEach((fileItem) => {
+          if (
+            !uploadList.some(
+              (candidate) => candidate === fileItem.file || candidate === fileItem.originalFile
+            )
+          ) {
+            return;
+          }
+
+          const fileName = getPasteUploadFileName(fileItem);
+          if (fileName) fileNames.add(fileName);
+        });
+
+        return fileNames;
+      },
+      [getPasteUploadFileName]
+    );
+
     const handleRemoveUpload = useCallback(
       (upload: TUploadContent | TUploadContent[]) => {
+        const pasteFileNames = getPasteUploadFileNames(upload);
         removeUploadsFromBoard(upload);
+        removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
       },
-      [removeUploadsFromBoard]
+      [editor, getPasteUploadFileNames, removeUploadsFromBoard]
     );
 
     const handleCancelUpload = useCallback(
@@ -397,10 +499,29 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             mx.cancelUpload(upload.promise);
           }
         });
-        removeUploadsFromBoard(uploadsToCancel.map((upload) => upload.file));
+        const uploadFilesToCancel = uploadsToCancel.map((upload) => upload.file);
+        const pasteFileNames = getPasteUploadFileNames(uploadFilesToCancel);
+        removeUploadsFromBoard(uploadFilesToCancel);
+        removeMindroomRoomInputPasteMarkerElements(editor, pasteFileNames);
       },
-      [mx, removeUploadsFromBoard]
+      [editor, getPasteUploadFileNames, mx, removeUploadsFromBoard]
     );
+
+    const handleEditorChange = useCallback(() => {
+      const markerFileNames = getMindroomRoomInputPasteMarkerFileNames(editor.children);
+      const orphanPasteUploads = selectedFilesRef.current.filter((fileItem) => {
+        const fileName = getPasteUploadFileName(fileItem);
+        if (fileName === undefined || markerFileNames.has(fileName)) return false;
+        return (
+          !sendSessionFilesRef.current.includes(fileItem.file) &&
+          !sendSessionUploadItemsRef.current.some((sendItem) => sendItem.file === fileItem.file)
+        );
+      });
+
+      if (orphanPasteUploads.length > 0) {
+        removeUploadsFromBoard(orphanPasteUploads.map((fileItem) => fileItem.file));
+      }
+    }, [editor, getPasteUploadFileName, removeUploadsFromBoard]);
 
     const buildUploadMessageContent = useCallback(
       async (fileItem: TUploadItem, mxc: string, signalBridgedRoom: boolean) => {
@@ -415,7 +536,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             voiceMessageMimeTypeOverride: signalBridgedRoom ? 'audio/aac' : undefined,
           });
         }
-        return getFileMsgContent(fileItem, mxc);
+        return withMindroomPasteAttachmentMetadata(
+          getFileMsgContent(fileItem, mxc),
+          fileItem.metadata.mindroomPasteAttachment
+        );
       },
       [mx]
     );
@@ -872,6 +996,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           editor={editor}
           placeholder="Send a message..."
+          onChange={handleEditorChange}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           onPaste={handlePaste}

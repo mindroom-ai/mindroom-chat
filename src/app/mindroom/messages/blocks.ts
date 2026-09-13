@@ -1,3 +1,5 @@
+import { formatMindroomPasteMarkerTextAsHtml } from './pasteAttachmentMarker';
+
 export type MindroomToolRefParseResult = {
   toolName: string;
   index: number;
@@ -47,10 +49,23 @@ const escapeHtmlText = (text: string): string =>
     .replace(/'/g, '&#39;');
 
 export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | undefined => {
+  const hasToolRef = body
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .some((line) => parseMindroomToolRefText(line));
+  if (!hasToolRef) return undefined;
+
+  const formattedBody = formatMindroomMessageTextBodyAsHtml(body);
+  if (!formattedBody) return undefined;
+
+  return formattedBody;
+};
+
+export const formatMindroomMessageTextBodyAsHtml = (body: string): string | undefined => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const htmlParts: string[] = [];
   let paragraphLines: string[] = [];
-  let hasToolRef = false;
+  let hasMindroomMarker = false;
 
   const flushParagraph = () => {
     if (paragraphLines.length === 0) return;
@@ -62,12 +77,20 @@ export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | unde
     const toolRef = parseMindroomToolRefText(line);
     if (toolRef) {
       flushParagraph();
-      hasToolRef = true;
+      hasMindroomMarker = true;
       htmlParts.push(
         `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
           toolRef.pending ? ' ⏳' : ''
         }</p>`
       );
+      return;
+    }
+
+    const pasteMarkerHtml = formatMindroomPasteMarkerTextAsHtml(line);
+    if (pasteMarkerHtml) {
+      flushParagraph();
+      hasMindroomMarker = true;
+      htmlParts.push(pasteMarkerHtml);
       return;
     }
 
@@ -81,5 +104,5 @@ export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | unde
 
   flushParagraph();
 
-  return hasToolRef ? htmlParts.join('') : undefined;
+  return hasMindroomMarker ? htmlParts.join('') : undefined;
 };

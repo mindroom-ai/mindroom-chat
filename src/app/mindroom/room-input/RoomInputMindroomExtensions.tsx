@@ -1,8 +1,10 @@
 import React from 'react';
 import { RelationType, Room } from 'matrix-js-sdk';
-import { BaseRange, Editor } from 'slate';
+import { BaseRange, Descendant, Editor, Element, Transforms } from 'slate';
 import { Box, Text, config } from 'folds';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
+import type { PasteMarkerElement } from '../../components/editor/slate';
+import { BlockType } from '../../components/editor/types';
 import type { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
@@ -17,6 +19,7 @@ import {
   hasMatchingReplyDraftContext,
 } from '../threads/roomInputSendSession';
 import type { TUploadContent } from '../../utils/matrix';
+import type { MindroomPasteMarker } from '../messages/pasteAttachmentMarker';
 
 export { useRoomInputSendSessionController } from '../threads/useRoomInputSendSessionController';
 
@@ -110,6 +113,54 @@ export const hasMatchingMindroomRoomInputVoiceReplyContext = (
       replyDraft: currentReplyDraft,
     }
   );
+
+export const createMindroomRoomInputPasteMarkerElement = (
+  marker: MindroomPasteMarker
+): PasteMarkerElement => ({
+  type: BlockType.PasteMarker,
+  id: marker.id,
+  chars: marker.chars,
+  fileName: marker.fileName,
+  marker: marker.raw,
+  children: [{ text: '' }],
+});
+
+export const isMindroomRoomInputPasteMarkerElement = (
+  node: unknown
+): node is PasteMarkerElement =>
+  Element.isElement(node) && node.type === BlockType.PasteMarker;
+
+export const getMindroomRoomInputPasteMarkerFileNames = (
+  nodes: Descendant[]
+): Set<string> => {
+  const fileNames = new Set<string>();
+
+  const visit = (node: Descendant) => {
+    if (isMindroomRoomInputPasteMarkerElement(node)) {
+      fileNames.add(node.fileName);
+      return;
+    }
+    if (Element.isElement(node)) {
+      node.children.forEach(visit);
+    }
+  };
+
+  nodes.forEach(visit);
+  return fileNames;
+};
+
+export const removeMindroomRoomInputPasteMarkerElements = (
+  editor: Editor,
+  fileNames: Set<string>
+) => {
+  if (fileNames.size === 0) return;
+
+  Transforms.removeNodes(editor, {
+    at: [],
+    match: (node) =>
+      isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
+  });
+};
 
 export function MindroomRoomInputAutocomplete({
   editor,
