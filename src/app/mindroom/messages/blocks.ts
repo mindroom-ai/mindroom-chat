@@ -1,4 +1,20 @@
-import { formatMindroomPasteMarkerTextAsHtml } from './pasteAttachmentMarker';
+import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
+import type { DOMNode } from 'html-react-parser';
+import {
+  escapeMarkdownInlineSequences,
+  parseBlockMD,
+  parseInlineMD,
+  unescapeMarkdownInlineSequences,
+} from '../../plugins/markdown';
+import { findDisplayLatexBlockMatch, findInlineLatexMatch } from '../../plugins/math';
+import { CodeBlockRule } from '../../plugins/markdown/block/rules';
+import { CodeRule, StrikeRule } from '../../plugins/markdown/inline/rules';
+import { sanitizeText } from '../../utils/sanitize';
+import {
+  formatMindroomPasteMarkerAsHtml,
+  formatMindroomPasteMarkerTextAsHtml,
+  parseMindroomPasteMarker,
+} from './pasteAttachmentMarker';
 
 export type MindroomToolRefParseResult = {
   toolName: string;
@@ -61,6 +77,173 @@ export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | unde
   return formattedBody;
 };
 
+const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
+  const toolRef = parseMindroomToolRefText(line);
+  if (!toolRef) return undefined;
+
+  return `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
+    toolRef.pending ? ' ⏳' : ''
+  }</p>`;
+};
+
+// The in-repo parser recurses per block match, so remote preview bodies need a
+// conservative boundary below the browser stack limit.
+const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
+const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
+const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
+  /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
+const MARKDOWN_INDENTED_CONTEXT_REG = /^(?:\t| {4})/;
+const MARKDOWN_LIST_ITEM_REG = /^( *)([-*]|[\dA-Za-z]\.)( +)(.+)$/;
+
+const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
+
+const normalizeParsedMathEntities = (html: string): string =>
+  html.replace(/<(span|div) data-mx-maths="[^"]*">[\s\S]*?<\/\1>/g, (mathHtml) =>
+    mathHtml.replace(/&amp;(amp|lt|gt|quot|#39);/g, '&$1;')
+  );
+
+type MarkdownProtectedBlock = {
+  start: number;
+  end: number;
+};
+
+const findNextMarkdownProtectedBlock = (markdown: string): MarkdownProtectedBlock | undefined => {
+  const codeMatch = CodeBlockRule.match(markdown);
+  const codeBlock =
+    codeMatch && codeMatch.index !== undefined
+      ? { start: codeMatch.index, end: codeMatch.index + codeMatch[0].length }
+      : undefined;
+  const mathMatch = findDisplayLatexBlockMatch(markdown);
+  const mathBlock = mathMatch ? { start: mathMatch.start, end: mathMatch.end } : undefined;
+
+  if (!codeBlock) return mathBlock;
+  if (!mathBlock) return codeBlock;
+  return codeBlock.start <= mathBlock.start ? codeBlock : mathBlock;
+};
+
+const mapMarkdownOutsideParserBlocks = (
+  markdown: string,
+  mapUnprotected: (text: string) => string
+): string => {
+  let cursor = 0;
+  let output = '';
+
+  while (cursor < markdown.length) {
+    const remaining = markdown.slice(cursor);
+    const protectedBlock = findNextMarkdownProtectedBlock(remaining);
+    if (!protectedBlock) {
+      output += mapUnprotected(remaining);
+      break;
+    }
+
+    output += mapUnprotected(remaining.slice(0, protectedBlock.start));
+    output += remaining.slice(protectedBlock.start, protectedBlock.end);
+    cursor += protectedBlock.end;
+  }
+
+  return output;
+};
+
+const normalizeMarkdownDashLists = (markdown: string): string =>
+  mapMarkdownOutsideParserBlocks(markdown, (text) =>
+    text
+      .split('\n')
+      .map((line) => {
+        const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+        if (!listItem || listItem[2] !== '-') return line;
+
+        return `${listItem[1]}*${listItem[3]}${listItem[4]}`;
+      })
+      .join('\n')
+  );
+
+const isDomTextNode = (node: DOMNode): node is DOMText => node.type === 'text';
+
+const isDomElementNode = (node: DOMNode): node is Element => node.type === 'tag';
+
+const extractDomText = (nodes: DOMNode[]): string =>
+  nodes
+    .map((node) => {
+      if (isDomTextNode(node)) return node.data;
+      if (isDomElementNode(node)) return extractDomText(node.children as DOMNode[]);
+      return '';
+    })
+    .join('');
+
+const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
+  if (!markdown.includes('🔧')) return false;
+
+  const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
+  let flattenedInline = '';
+  for (const node of htmlToDOM(parsedInline)) {
+    if (isDomTextNode(node)) {
+      flattenedInline += node.data;
+    } else if (isDomElementNode(node) && node.name === 'code') {
+      flattenedInline += `<code>${extractDomText(node.children as DOMNode[])}</code>`;
+    } else if (isDomElementNode(node) && node.name === 'span') {
+      flattenedInline += extractDomText(node.children as DOMNode[]);
+    } else {
+      break;
+    }
+  }
+
+  MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
+  const match = MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim());
+  if (match?.index !== 0) return false;
+  return parseMindroomToolRefHtml(match[0]) !== undefined;
+};
+
+const preserveListContainedToolMarkers = (markdown: string): string =>
+  mapMarkdownOutsideParserBlocks(markdown, (text) =>
+    text
+      .split('\n')
+      .map((line) => {
+        const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
+        if (!listItem || !listItemCanFlattenToToolRefPrefix(listItem[4])) return line;
+
+        return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
+          unescapeMarkdownInlineSequences(listItem[4])
+        )}`;
+      })
+      .join('\n')
+  );
+
+const exceedsInlineMarkerBudget = (text: string): boolean => {
+  let markerCount = 0;
+  for (const character of text) {
+    if (!'*_~`|$['.includes(character)) continue;
+    markerCount += 1;
+    if (markerCount > MAX_MARKDOWN_PREVIEW_INLINE_MARKERS) return true;
+  }
+  return false;
+};
+
+const hasAmbiguousMarkdownMarkerContext = (body: string, lines: string[]): boolean => {
+  if (findDisplayLatexBlockMatch(body)) return true;
+
+  return lines.some((line) => {
+    if (line === line.trim() && parseMindroomToolRefText(line)) return false;
+    if (MARKDOWN_INDENTED_CONTEXT_REG.test(line) || findInlineLatexMatch(line)) return true;
+    if (CodeRule.match(line) || StrikeRule.match(line)) return true;
+
+    const unescapedMarkerText = line.replace(/\\([`~])/g, '');
+    return unescapedMarkerText.includes('``') || unescapedMarkerText.includes('~~~');
+  });
+};
+
+const formatStandaloneMindroomMarkerAsHtml = (
+  line: string,
+  allowRichMarkers: boolean
+): string | undefined => {
+  if (!allowRichMarkers || line !== line.trim()) return undefined;
+
+  const toolHtml = formatMindroomToolRefLineAsHtml(line);
+  if (toolHtml) return toolHtml;
+
+  const pasteMarker = parseMindroomPasteMarker(line);
+  return pasteMarker ? `<p>${formatMindroomPasteMarkerAsHtml(pasteMarker)}</p>` : undefined;
+};
+
 export const formatMindroomMessageTextBodyAsHtml = (body: string): string | undefined => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const htmlParts: string[] = [];
@@ -74,23 +257,12 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   };
 
   lines.forEach((line) => {
-    const toolRef = parseMindroomToolRefText(line);
-    if (toolRef) {
+    const markerHtml =
+      formatMindroomToolRefLineAsHtml(line) ?? formatMindroomPasteMarkerTextAsHtml(line);
+    if (markerHtml) {
       flushParagraph();
       hasMindroomMarker = true;
-      htmlParts.push(
-        `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
-          toolRef.pending ? ' ⏳' : ''
-        }</p>`
-      );
-      return;
-    }
-
-    const pasteMarkerHtml = formatMindroomPasteMarkerTextAsHtml(line);
-    if (pasteMarkerHtml) {
-      flushParagraph();
-      hasMindroomMarker = true;
-      htmlParts.push(pasteMarkerHtml);
+      htmlParts.push(markerHtml);
       return;
     }
 
@@ -105,4 +277,51 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   flushParagraph();
 
   return hasMindroomMarker ? htmlParts.join('') : undefined;
+};
+
+export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
+  const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
+  if (blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES || exceedsInlineMarkerBudget(body)) {
+    return '';
+  }
+
+  const normalizedBody = body.replace(/\r\n?/g, '\n');
+  const lines = normalizedBody.split('\n');
+  const hasAmbiguousMarkerContext = hasAmbiguousMarkdownMarkerContext(normalizedBody, lines);
+  const htmlParts: string[] = [];
+  let markdownLines: string[] = [];
+  let formattingFailed = false;
+
+  const flushMarkdown = () => {
+    if (markdownLines.length === 0) return;
+    const markdown = markdownLines.join('\n');
+    if (!markdown.trim()) {
+      markdownLines = [];
+      return;
+    }
+
+    try {
+      const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
+      const literalMarkerMarkdown = preserveListContainedToolMarkers(normalizedMarkdown);
+      const parsedHtml = parseBlockMD(sanitizeMarkdownText(literalMarkerMarkdown), parseInlineMD);
+      htmlParts.push(normalizeParsedMathEntities(parsedHtml));
+    } catch {
+      formattingFailed = true;
+    }
+    markdownLines = [];
+  };
+
+  lines.forEach((line) => {
+    const markerHtml = formatStandaloneMindroomMarkerAsHtml(line, !hasAmbiguousMarkerContext);
+    if (markerHtml) {
+      flushMarkdown();
+      htmlParts.push(markerHtml);
+      return;
+    }
+
+    markdownLines.push(line);
+  });
+
+  flushMarkdown();
+  return formattingFailed ? '' : htmlParts.join('');
 };

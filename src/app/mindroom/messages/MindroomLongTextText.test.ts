@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
+import { trimReplyFromBody } from '../../utils/room';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
@@ -65,7 +66,7 @@ vi.mock('../../components/message/MsgTypeRenderers', () => ({
       'div',
       { 'data-testid': 'long-text-body' },
       renderBody({
-        body: typeof content.body === 'string' ? content.body : '',
+        body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
         customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
       }),
       renderAfterBody
@@ -760,6 +761,279 @@ describe('MindroomLongTextText hydration identity', () => {
       }
       vi.unstubAllGlobals();
     }
+  });
+
+  it('renders preview Markdown and groups consecutive tool cards before long-text hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: [
+        'Preview **now**',
+        '',
+        '🔧 `run_shell_command` [1]',
+        '',
+        '',
+        '🔧 `run_shell_command` [2]',
+        '',
+        '',
+        '🔧 `run_shell_command` [3]',
+      ].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByType('strong').children).toContain('now');
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('3 tool calls');
+    expect(rendered).not.toContain('1 tool call');
+    expect(rendered).not.toContain('🔧');
+    expect(rendered).not.toContain('**now**');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('renders a root tool card after escaped multi-character inline syntax', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: ['Use \\~~literal~~.', '', '🔧 `run_shell_command` [1]'].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('1 tool call');
+    expect(rendered).not.toContain('🔧');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps a list-contained tool marker prefix literal before long-text hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '- 🔧 `foo\\`bar` [1] trailing text',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('foo');
+    expect(rendered).toContain('bar');
+    expect(rendered).toContain('trailing text');
+    expect(rendered).not.toContain('1 tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps span-wrapped list-contained tool markers literal before hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: [
+        '- ||🔧|| `tool` [1]',
+        '1. $🔧$ `tool` [2]',
+        '- ||$🔧$|| `tool` [3]',
+        '1. || 🔧 || `tool` [4]',
+        '- || $🔧$|| `tool` [5] **tail**',
+        '1. || ||🔧 `tool` [6]',
+      ].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('tool');
+    expect(rendered).not.toContain('tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('does not expose added escapes in a list-contained tool marker', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '- 🔧 \\`tool\\` [1]',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('🔧');
+    expect(rendered).toContain('`tool` [1]');
+    expect(rendered).not.toContain('\\\\');
+    expect(rendered).not.toContain('tool call');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('keeps a reply-only long-text preview empty before hydration', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: '> <@alice:example.org> Previous reply\n\n',
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
+    expect(renderer.root.findByProps({ 'data-testid': 'empty-content' })).toBeDefined();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Previous reply');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('trims a reply fallback only once when preview formatting falls back', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const documentBody = [
+      'Intro paragraph',
+      '',
+      '> <@alice:example.org> Quoted detail',
+      '',
+      String.raw`\*`.repeat(513),
+    ].join('\n');
+    const content = {
+      ...createPreviewContent(),
+      body: `> <@bob:example.org> Original question\n\n${documentBody}`,
+    };
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('Intro paragraph');
+    expect(rendered).toContain('Quoted detail');
+    expect(rendered).not.toContain('Original question');
+
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
