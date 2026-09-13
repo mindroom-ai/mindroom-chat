@@ -19,7 +19,7 @@ install_if_missing() {
     exit 1
   fi
 
-  brew install "$formula"
+  brew_install_with_retry "$formula"
 }
 
 init_homebrew
