@@ -73,6 +73,24 @@ export const hoursToMs = (hour: number) => hour * minutesToMs(60);
 
 export const daysToMs = (days: number) => days * hoursToMs(24);
 
+export const formatRelativeTime = (ts: number): string => {
+  const ageMs = Math.max(0, Date.now() - ts);
+
+  if (ageMs < 5000) return 'now';
+
+  const ageSeconds = Math.floor(ageMs / 1000);
+  if (ageSeconds < 60) return `${ageSeconds}s ago`;
+
+  const ageMinutes = Math.floor(ageSeconds / 60);
+  if (ageMinutes < 60) return `${ageMinutes}m ago`;
+
+  const ageHours = Math.floor(ageMinutes / 60);
+  if (ageHours < 24) return `${ageHours}h ago`;
+
+  const ageDays = Math.floor(ageHours / 24);
+  return `${ageDays}d ago`;
+};
+
 export const getToday = () => {
   const nowTs = Date.now();
   const date = dayjs(nowTs);

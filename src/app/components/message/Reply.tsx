@@ -16,6 +16,10 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { UserAvatar } from '../user-avatar';
 import { useThreadResolution } from '../../features/room/useRoomThreadResolution';
+import { useRelativeTime } from '../../hooks/useRelativeTime';
+import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
+import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
+
 
 type ReplyLayoutProps = {
   userColor?: string;
@@ -46,11 +50,19 @@ type ThreadIndicatorProps = {
   threadParticipantIds?: string[];
   room?: Room;
   isResolved?: boolean;
+  threadRootId?: string;
 };
 export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
-  ({ className, threadReplyCount, threadParticipantIds, room, isResolved, ...props }, ref) => {
+  ({ className, threadReplyCount, threadParticipantIds, room, isResolved, threadRootId, ...props }, ref) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
+    const relativeTime = useRelativeTime(lastActivityTs);
+    const isStreaming = useThreadStreamingState(room, threadRootId);
+    const lastActivityTitle = useMemo(
+      () => (lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined),
+      [lastActivityTs]
+    );
 
     const threadParticipants = useMemo(() => {
       if (!room || !threadParticipantIds?.length) return [];
@@ -117,6 +129,32 @@ export const ThreadIndicator = as<'div', ThreadIndicatorProps>(
           <Text size="T200">
             {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
           </Text>
+        )}
+        {(relativeTime || isStreaming) && (
+          <Box as="span" className={css.ThreadActivity} alignItems="Center" gap="100">
+            <Text as="span" size="T200" className={css.ThreadSeparator} aria-hidden="true">
+              |
+            </Text>
+            {relativeTime && (
+              <Text
+                as="span"
+                size="T200"
+                className={css.ThreadTimestamp}
+                aria-label={lastActivityTitle ? `Last activity ${lastActivityTitle}` : undefined}
+                title={lastActivityTitle}
+              >
+                {relativeTime}
+              </Text>
+            )}
+            {isStreaming && (
+              <span
+                className={css.ThreadStreamingDot}
+                role="img"
+                aria-label="Agent streaming"
+              />
+            )}
+            {/* TODO: Add the scheduled-indicator slot once backend thread summary data exists. */}
+          </Box>
         )}
       </Box>
     );
@@ -196,8 +234,10 @@ export const Reply = as<'div', ReplyProps>(
             as="button"
             data-thread-root-id={threadRootId}
             threadReplyCount={threadReplyCount}
+            threadRootId={threadRootId}
             data-event-id={threadRootId}
-            isResolved={threadResolved}
+              isResolved={threadResolved}
+              room={room}
             onClick={onClick}
           />
         )}
