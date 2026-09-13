@@ -34,11 +34,47 @@ export const shouldPinThreadToBottomOnOpen = ({
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
 
+const getThreadRenderEventId = (mEvent: MatrixEvent): string | undefined => {
+  const eventId = mEvent.getId();
+  return typeof eventId === 'string' && eventId.length > 0 ? eventId : undefined;
+};
+
+const getThreadRenderTransactionId = (mEvent: MatrixEvent): string | undefined => {
+  const txnId = mEvent.getTxnId() ?? mEvent.getUnsigned()?.transaction_id;
+  return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;
+};
+
+export const getThreadRenderEventKey = (mEvent: MatrixEvent): string | undefined => {
+  const txnId = getThreadRenderTransactionId(mEvent);
+  if (txnId) return `txn:${txnId}`;
+
+  const eventId = getThreadRenderEventId(mEvent);
+  if (eventId) return `event:${eventId}`;
+
+  return undefined;
+};
+
+const isLocalEchoEvent = (mEvent: MatrixEvent): boolean => {
+  const eventId = getThreadRenderEventId(mEvent);
+  if (eventId?.startsWith('~')) return true;
+  return mEvent.isSending();
+};
+
 export const pickPreferredThreadRenderEvent = (
   existingEvent: MatrixEvent,
   incomingEvent: MatrixEvent
 ): MatrixEvent => {
   if (existingEvent === incomingEvent) return existingEvent;
+
+  const existingKey = getThreadRenderEventKey(existingEvent);
+  const incomingKey = getThreadRenderEventKey(incomingEvent);
+  if (existingKey && existingKey === incomingKey) {
+    const existingLocalEcho = isLocalEchoEvent(existingEvent);
+    const incomingLocalEcho = isLocalEchoEvent(incomingEvent);
+    if (existingLocalEcho !== incomingLocalEcho) {
+      return existingLocalEcho ? incomingEvent : existingEvent;
+    }
+  }
 
   if (existingEvent.isRedacted() && !incomingEvent.isRedacted()) return existingEvent;
   if (!existingEvent.isRedacted() && incomingEvent.isRedacted()) return incomingEvent;
@@ -70,18 +106,18 @@ export const mergeThreadRenderEvents = (
   const eventMap = new Map<string, MatrixEvent>();
 
   existingEvents.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (!eventId) return;
-    eventMap.set(eventId, mEvent);
+    const eventKey = getThreadRenderEventKey(mEvent);
+    if (!eventKey) return;
+    eventMap.set(eventKey, mEvent);
   });
 
   incomingEvents.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    if (!eventId) return;
+    const eventKey = getThreadRenderEventKey(mEvent);
+    if (!eventKey) return;
 
-    const existingEvent = eventMap.get(eventId);
+    const existingEvent = eventMap.get(eventKey);
     eventMap.set(
-      eventId,
+      eventKey,
       existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
     );
   });

@@ -3,6 +3,7 @@ import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import {
   getThreadInitialRenderMode,
+  getThreadRenderEventKey,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   ThreadInitialRenderMode,
@@ -58,15 +59,17 @@ const buildThreadEvents = ({
     const eventId = mEvent?.getId();
     if (!eventId) return;
     if (requireThreadMatch && eventId !== threadId && !eventBelongsToThread(mEvent, threadId)) return;
-    if (!eventsMap.has(eventId)) {
-      eventOrderMap.set(eventId, eventOrderMap.size);
-      eventsMap.set(eventId, mEvent);
+    const eventKey = getThreadRenderEventKey(mEvent);
+    if (!eventKey) return;
+    if (!eventsMap.has(eventKey)) {
+      eventOrderMap.set(eventKey, eventOrderMap.size);
+      eventsMap.set(eventKey, mEvent);
       return;
     }
 
-    const existingEvent = eventsMap.get(eventId);
+    const existingEvent = eventsMap.get(eventKey);
     eventsMap.set(
-      eventId,
+      eventKey,
       existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
     );
   };
