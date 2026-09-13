@@ -698,6 +698,7 @@ export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
   const selectedSpaceId = useSelectedSpace();
 
   const handleSpaceClick: MouseEventHandler<HTMLButtonElement> = (evt) => {
+    if (evt.defaultPrevented) return;
     const target = evt.currentTarget;
     const targetSpaceId = target.getAttribute('data-id');
     if (!targetSpaceId) return;

@@ -14,9 +14,19 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
   const settingsPath = `/user/${encodeURIComponent(
     session.userId
   )}/account_data/io.mindroom.settings`;
-  const settings = await matrixFetch<Record<string, unknown>>(homeserver, settingsPath, {
-    accessToken: session.accessToken,
-  }).catch(() => ({}));
+  const settingsResponse = await page.request.get(
+    `${homeserver}/_matrix/client/v3${settingsPath}`,
+    {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    }
+  );
+  let settings: Record<string, unknown> = {};
+  if (settingsResponse.status() === 404) {
+    expect(await settingsResponse.json()).toMatchObject({ errcode: 'M_NOT_FOUND' });
+  } else {
+    expect(settingsResponse.ok()).toBe(true);
+    settings = await settingsResponse.json();
+  }
   const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
     name: `Sidebar selection ${Date.now()}`,
     topic: 'Navigation expansion regression',
@@ -75,7 +85,18 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       }
 
       await collapse.click();
-      await rail.locator(`button[data-id="${spaceId}"]`).click();
+      const spaceButton = rail.locator(`button[data-id="${spaceId}"]`);
+      const beforeSuppressedClick = page.url();
+      await spaceButton.evaluate((button) => {
+        button.addEventListener('click', (event) => event.preventDefault(), {
+          capture: true,
+          once: true,
+        });
+      });
+      await spaceButton.click();
+      await expect(expand).toBeVisible();
+      await expect(page).toHaveURL(beforeSuppressedClick);
+      await spaceButton.click();
       await expect(collapse).toBeVisible();
       await expect(page).toHaveURL(new RegExp(`/${encodeURIComponent(spaceId)}/lobby$`));
 
@@ -107,15 +128,18 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       await expand.click();
     }
   } finally {
-    await matrixFetch(homeserver, settingsPath, {
-      method: 'PUT',
-      accessToken: session.accessToken,
-      body: JSON.stringify(settings),
-    });
-    await matrixFetch(homeserver, `/rooms/${encodeURIComponent(spaceId)}/leave`, {
-      method: 'POST',
-      accessToken: session.accessToken,
-      body: '{}',
-    });
+    try {
+      await matrixFetch(homeserver, settingsPath, {
+        method: 'PUT',
+        accessToken: session.accessToken,
+        body: JSON.stringify(settings),
+      });
+    } finally {
+      await matrixFetch(homeserver, `/rooms/${encodeURIComponent(spaceId)}/leave`, {
+        method: 'POST',
+        accessToken: session.accessToken,
+        body: '{}',
+      });
+    }
   }
 });

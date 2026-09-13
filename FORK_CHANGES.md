@@ -12,6 +12,7 @@
 - Live Chromium coverage passes desktop and tablet icon clicks, keyboard selection, active-section reselection, visible Explore navigation, and the Settings/Inbox exclusions against local Matrix.
 - Validation: typecheck, production/PWA build, formatting, and ESLint pass with the existing 17-warning baseline; full Vitest passes 3,739 tests with the same four baseline failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
 - Independent review found no correctness, accessibility, or scope issues.
+- Automated-review follow-up ignores cancelled space clicks before expansion or routing, and the live fixture now distinguishes absent settings from failed reads and attempts space cleanup even if settings restoration fails.
 
 ### Draw attention to pending tool approvals (2026-09-13)
 
