@@ -36,8 +36,10 @@ export function mountCallBackgroundPortal(
 
   const previousAppRootPosition = appRoot.style.position;
   const previousAppRootZIndex = appRoot.style.zIndex;
+  // Contain positive participant layers without lifting the root above body-level portals.
+  // Equal stack levels follow DOM order: prepended background, app root, then Element Call portals.
   appRoot.style.position = 'relative';
-  appRoot.style.zIndex = '1';
+  appRoot.style.zIndex = '0';
   callDocument.head.append(portalStyles);
   callDocument.body.prepend(portalRoot);
 
