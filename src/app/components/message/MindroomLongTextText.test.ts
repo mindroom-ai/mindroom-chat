@@ -1,3 +1,5 @@
+import React from 'react';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
@@ -9,6 +11,12 @@ const matrixMocks = vi.hoisted(() => ({
   downloadMedia: vi.fn(),
   mxcUrlToHttp: vi.fn(),
 }));
+const longTextMocks = vi.hoisted(() => ({
+  hydrateMindroomLongTextSource: vi.fn(),
+}));
+const hookMocks = vi.hoisted(() => ({
+  mx: {},
+}));
 
 vi.mock('../../utils/matrix', () => ({
   decryptFile: matrixMocks.decryptFile,
@@ -16,6 +24,13 @@ vi.mock('../../utils/matrix', () => ({
   downloadMedia: matrixMocks.downloadMedia,
   mxcUrlToHttp: matrixMocks.mxcUrlToHttp,
 }));
+vi.mock('./mindroomLongText', async () => {
+  const actual = await vi.importActual<typeof import('./mindroomLongText')>('./mindroomLongText');
+  return {
+    ...actual,
+    hydrateMindroomLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
+  };
+});
 vi.mock('./MsgTypeRenderers', () => ({
   MEmote: () => null,
   MNotice: () => null,
@@ -32,7 +47,7 @@ vi.mock('folds', () => ({
   },
 }));
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({}),
+  useMatrixClient: () => hookMocks.mx,
 }));
 vi.mock('../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
@@ -42,9 +57,10 @@ const getDownloadMindroomLongTextSidecarText = async () =>
   (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarText;
 const getDownloadMindroomLongTextSidecarBlob = async () =>
   (await import('./MindroomLongTextText')).downloadMindroomLongTextSidecarBlob;
+const getMindroomLongTextTextModule = async () => import('./MindroomLongTextText');
 const getShouldResetResolvedContentToPreview = async () =>
   (await import('./MindroomLongTextText')).shouldResetResolvedContentToPreview;
-const mockMx = {} as unknown as MatrixClient;
+const mockMx = hookMocks.mx as MatrixClient;
 
 const createLongTextSource = (
   overrides: Partial<MindroomLongTextSource> = {}
@@ -58,12 +74,55 @@ const createLongTextSource = (
   ...overrides,
 });
 
+const createPreviewContent = () => ({
+  body: 'Preview response',
+  info: { mimetype: 'application/json' },
+  msgtype: 'm.text',
+  url: 'mxc://server/content',
+  'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+});
+
+const renderMindroomLongTextText = async (
+  content: Record<string, unknown>
+): Promise<{
+  renderer: ReactTestRenderer;
+  update: (nextContent: Record<string, unknown>) => Promise<void>;
+}> => {
+  const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+  let renderer!: ReactTestRenderer;
+
+  const render = (nextContent: Record<string, unknown>) =>
+    React.createElement(MindroomLongTextText, {
+      kind: MindroomLongTextKind.Text,
+      content: nextContent,
+      longTextSource: createLongTextSource({ previewContent: nextContent }),
+      renderBody: () => null,
+    });
+
+  await act(async () => {
+    renderer = create(render(content));
+  });
+
+  return {
+    renderer,
+    update: async (nextContent) => {
+      await act(async () => {
+        renderer.update(render(nextContent));
+      });
+    },
+  };
+};
+
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     matrixMocks.mxcUrlToHttp.mockReturnValue(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
+    longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
+      body: 'Resolved response',
+      msgtype: 'm.text',
+    });
   });
 
   it('downloads unencrypted sidecar content using downloadMedia', async () => {
@@ -204,5 +263,28 @@ describe('shouldResetResolvedContentToPreview', () => {
     );
 
     expect(shouldReset).toBe(true);
+  });
+});
+
+describe('MindroomLongTextText hydration identity', () => {
+  it('does not restart hydration for equivalent preview content with a new object reference', async () => {
+    const content = createPreviewContent();
+    const { renderer, update } = await renderMindroomLongTextText(content);
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+
+    await update({
+      ...content,
+      info: { ...(content.info as Record<string, unknown>) },
+      'io.mindroom.long_text': {
+        ...((content['io.mindroom.long_text'] as Record<string, unknown>) ?? {}),
+      },
+    });
+
+    expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 });
