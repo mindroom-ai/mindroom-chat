@@ -5,9 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from '../commandPaletteState';
 import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
-const { encryptionState, screenSizeState } = vi.hoisted(() => ({
+const { encryptionState, permissionState, screenSizeState } = vi.hoisted(() => ({
   encryptionState: {
     value: undefined as unknown,
+  },
+  permissionState: {
+    canInvite: true,
+    canKick: true,
   },
   screenSizeState: {
     value: 'Desktop',
@@ -281,16 +285,17 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
 }));
 
 vi.mock('../../../hooks/useRoomCreators', () => ({
-  useRoomCreators: () => [],
+  useRoomCreators: () => new Set<string>(),
 }));
 
 vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
-    action: () => true,
+    action: (action: string) =>
+      action === 'invite' ? permissionState.canInvite : permissionState.canKick,
   }),
 }));
 
-const renderHeader = async () => {
+const renderHeader = async (joinRequestCount = 0) => {
   const store = createStore();
   store.set(mindroomAccountSettingsAtom, {
     simpleMode: false,
@@ -298,7 +303,11 @@ const renderHeader = async () => {
   });
   const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
   const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(RoomViewHeader))
+    React.createElement(
+      Provider,
+      { store },
+      React.createElement(RoomViewHeader, { joinRequestCount })
+    )
   );
 
   return { renderer, store };
@@ -307,6 +316,8 @@ const renderHeader = async () => {
 afterEach(() => {
   encryptionState.value = undefined;
   screenSizeState.value = 'Desktop';
+  permissionState.canInvite = true;
+  permissionState.canKick = true;
 });
 
 describe('RoomViewHeader', () => {
@@ -331,5 +342,31 @@ describe('RoomViewHeader', () => {
     expect(renderer.root.findAll((node) => node.props?.['data-icon'] === 'Terminal')).toHaveLength(
       1
     );
+  });
+
+  it('shows pending join requests on the desktop Members button only to moderators', async () => {
+    const { renderer } = await renderHeader(2);
+
+    expect(
+      renderer.root.findByProps({
+        'aria-label': 'Show Members, 2 pending join requests',
+      })
+    ).toBeDefined();
+    expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
+
+    permissionState.canInvite = false;
+    permissionState.canKick = false;
+    const { renderer: unauthorizedRenderer } = await renderHeader(2);
+
+    expect(
+      unauthorizedRenderer.root.findAllByProps({
+        'aria-label': 'Show Members, 2 pending join requests',
+      })
+    ).toHaveLength(0);
+    expect(
+      unauthorizedRenderer.root.findByProps({
+        'aria-label': 'Show Members',
+      })
+    ).toBeDefined();
   });
 });

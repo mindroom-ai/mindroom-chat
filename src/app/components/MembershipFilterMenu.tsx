@@ -2,20 +2,20 @@ import FocusTrap from 'focus-trap-react';
 import React from 'react';
 import { config, Menu, MenuItem, Text } from 'folds';
 import { stopPropagation } from '../utils/keyboard';
-import { useMembershipFilterMenu } from '../hooks/useMemberFilter';
+import { MembershipFilterItem } from '../hooks/useMemberFilter';
 
 type MembershipFilterMenuProps = {
+  items: MembershipFilterItem[];
   requestClose: () => void;
   selected: number;
   onSelect: (index: number) => void;
 };
 export function MembershipFilterMenu({
+  items,
   selected,
   onSelect,
   requestClose,
 }: MembershipFilterMenuProps) {
-  const membershipFilterMenu = useMembershipFilterMenu();
-
   return (
     <FocusTrap
       focusTrapOptions={{
@@ -28,7 +28,7 @@ export function MembershipFilterMenu({
       }}
     >
       <Menu style={{ padding: config.space.S100 }}>
-        {membershipFilterMenu.map((menuItem, index) => (
+        {items.map((menuItem, index) => (
           <MenuItem
             key={menuItem.name}
             variant="Surface"

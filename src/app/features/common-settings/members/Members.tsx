@@ -91,7 +91,8 @@ export function Members({ requestClose }: MembersProps) {
 
   const [membershipFilterIndex, setMembershipFilterIndex] = useState(0);
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
-  const membershipFilter = useMembershipFilter(membershipFilterIndex, useMembershipFilterMenu());
+  const membershipFilterMenu = useMembershipFilterMenu();
+  const membershipFilter = useMembershipFilter(membershipFilterIndex, membershipFilterMenu);
   const memberSort = useMemberSort(sortFilterIndex, useMemberSortMenu());
   const memberPowerSort = useMemberPowerSort(creators, getPowerLevel);
 
@@ -215,6 +216,7 @@ export function Members({ requestClose }: MembersProps) {
                       offset={4}
                       content={
                         <MembershipFilterMenu
+                          items={membershipFilterMenu}
                           selected={membershipFilterIndex}
                           onSelect={setMembershipFilterIndex}
                           requestClose={() => setAnchor(undefined)}

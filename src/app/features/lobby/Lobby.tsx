@@ -51,6 +51,7 @@ import { useOrphanSpaces } from '../../state/hooks/roomList';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { AccountDataEvent } from '../../../types/matrix/accountData';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
+import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { SpaceHierarchy } from './SpaceHierarchy';
 import { useGetRoom } from '../../hooks/useGetRoom';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
@@ -158,6 +159,10 @@ export function Lobby() {
   const spacePowerLevels = usePowerLevels(space);
   const lex = useMemo(() => new ASCIILexicalTable(' '.charCodeAt(0), '~'.charCodeAt(0), 6), []);
   const members = useRoomMembers(mx, space.roomId);
+  const joinRequestCount = useMemo(
+    () => members.filter(MembershipFilter.filterKnocked).length,
+    [members]
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLDivElement>(null);
@@ -434,6 +439,7 @@ export function Lobby() {
           <LobbyHeader
             showProfile={!onTop}
             powerLevels={roomsPowerLevels.get(space.roomId) ?? {}}
+            joinRequestCount={joinRequestCount}
           />
           <Box style={{ position: 'relative' }} grow="Yes">
             <Scroll ref={scrollRef} hideTrack visibility="Hover">

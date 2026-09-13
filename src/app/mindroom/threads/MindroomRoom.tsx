@@ -20,6 +20,7 @@ import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomViewMode } from './useRoomViewMode';
 import { hasActiveMindroomAgent } from '../matrix/agentIdentity';
+import { MembershipFilter } from '../../hooks/useMemberFilter';
 
 export function Room() {
   const { eventId } = useParams();
@@ -35,6 +36,10 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const hasMindroomAgents = hasActiveMindroomAgent(members);
+  const joinRequestCount = useMemo(
+    () => members.filter(MembershipFilter.filterKnocked).length,
+    [members]
+  );
   const chat = useAtomValue(callChatAtom);
   const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
@@ -65,6 +70,7 @@ export function Room() {
               <RoomView
                 room={room}
                 hasMindroomAgents={hasMindroomAgents}
+                joinRequestCount={joinRequestCount}
                 eventId={eventId}
                 focusEventInRoom={focusEvent === '1'}
                 threadId={routedThreadId}

@@ -1,5 +1,4 @@
 import React, { ReactNode, useCallback, useRef, useState } from 'react';
-import { MatrixError, Room } from 'matrix-js-sdk';
 import {
   Avatar,
   Badge,
@@ -21,18 +20,23 @@ import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
-import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
+import { getMxIdLocalPart, isRoomId, mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
 import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
 import { RoomType, StateEvent } from '../../../types/matrix/room';
-import { useJoinedRoomId } from '../../hooks/useJoinedRoomId';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { getRoomAvatarUrl, getStateEvent } from '../../utils/room';
 import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import {
+  RoomAccessControl,
+  RoomAccessJoinRule,
+  getDiscoveredRoomAccessJoinRule,
+  isRoomAccessJoinRule,
+} from '../room-access';
 
 type GridColumnCount = '1' | '2' | '3';
 const getGridColumnCount = (gridWidth: number): GridColumnCount => {
@@ -133,12 +137,17 @@ function ErrorDialog({
 
 type RoomCardProps = {
   roomIdOrAlias: string;
+  roomId?: string;
   allRooms: string[];
   avatarUrl?: string;
   name?: string;
   topic?: string;
   memberCount?: number;
   roomType?: string;
+  joinRule?: RoomAccessJoinRule;
+  membership?: string;
+  accessStatus?: AsyncStatus;
+  onAccessRetry?: () => void;
   viaServers?: string[];
   onView?: (roomId: string) => void;
   renderTopicViewer: (name: string, topic: string, requestClose: () => void) => ReactNode;
@@ -148,12 +157,17 @@ export const RoomCard = as<'div', RoomCardProps>(
   (
     {
       roomIdOrAlias,
+      roomId,
       allRooms,
       avatarUrl,
       name,
       topic,
       memberCount,
       roomType,
+      joinRule,
+      membership,
+      accessStatus,
+      onAccessRetry,
       viaServers,
       onView,
       renderTopicViewer,
@@ -163,7 +177,8 @@ export const RoomCard = as<'div', RoomCardProps>(
   ) => {
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
-    const joinedRoomId = useJoinedRoomId(allRooms, roomIdOrAlias);
+    const targetRoomId = roomId ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : undefined);
+    const joinedRoomId = targetRoomId && allRooms.includes(targetRoomId) ? targetRoomId : undefined;
     const joinedRoom = mx.getRoom(joinedRoomId);
     const [topicEvent, setTopicEvent] = useState(() =>
       joinedRoom ? getStateEvent(joinedRoom, StateEvent.RoomTopic) : undefined
@@ -197,15 +212,32 @@ export const RoomCard = as<'div', RoomCardProps>(
       )
     );
 
-    const [joinState, join] = useAsyncCallback<Room, MatrixError, []>(
-      useCallback(() => mx.joinRoom(roomIdOrAlias, { viaServers }), [mx, roomIdOrAlias, viaServers])
-    );
-    const joining =
-      joinState.status === AsyncStatus.Loading || joinState.status === AsyncStatus.Success;
-
     const [viewTopic, setViewTopic] = useState(false);
     const closeTopic = () => setViewTopic(false);
     const openTopic = () => setViewTopic(true);
+    const accessJoinRule =
+      accessStatus === AsyncStatus.Success ? getDiscoveredRoomAccessJoinRule(joinRule) : joinRule;
+    const resolvedAccessStatus =
+      accessStatus === AsyncStatus.Loading || accessStatus === AsyncStatus.Error
+        ? accessStatus
+        : isRoomAccessJoinRule(accessJoinRule)
+        ? AsyncStatus.Success
+        : AsyncStatus.Error;
+    const accessRetry = accessStatus === AsyncStatus.Error ? onAccessRetry : undefined;
+    const accessFallback =
+      resolvedAccessStatus === AsyncStatus.Loading ? (
+        <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
+          <Text size="B300" truncate>
+            Checking access
+          </Text>
+        </Button>
+      ) : (
+        <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
+          <Text size="B300" truncate>
+            {accessRetry ? 'Retry room info' : 'Access unavailable'}
+          </Text>
+        </Button>
+      );
 
     return (
       <RoomCardBase {...props} ref={ref}>
@@ -267,52 +299,84 @@ export const RoomCard = as<'div', RoomCardProps>(
             </Text>
           </Button>
         )}
-        {typeof joinedRoomId !== 'string' && joinState.status !== AsyncStatus.Error && (
-          <Button
-            onClick={join}
-            variant="Secondary"
-            size="300"
-            disabled={joining}
-            before={joining && <Spinner size="50" variant="Secondary" fill="Soft" />}
+        {typeof joinedRoomId !== 'string' && (
+          <RoomAccessControl
+            roomIdOrAlias={roomIdOrAlias}
+            roomId={roomId}
+            roomName={roomName}
+            joinRule={resolvedAccessStatus === AsyncStatus.Success ? accessJoinRule : undefined}
+            membership={membership}
+            viaServers={viaServers}
+            fallback={accessFallback}
           >
-            <Text size="B300" truncate>
-              {joining ? 'Joining' : 'Join'}
-            </Text>
-          </Button>
-        )}
-        {typeof joinedRoomId !== 'string' && joinState.status === AsyncStatus.Error && (
-          <Box gap="200">
-            <Button
-              onClick={join}
-              className={css.ActionButton}
-              variant="Critical"
-              fill="Solid"
-              size="300"
-            >
-              <Text size="B300" truncate>
-                Retry
-              </Text>
-            </Button>
-            <ErrorDialog
-              title="Join Error"
-              message={joinState.error.message || 'Failed to join. Unknown Error.'}
-            >
-              {(openError) => (
+            {(access) => {
+              if (access.kind === 'join' && access.state.status === AsyncStatus.Error) {
+                return (
+                  <Box gap="200">
+                    <Button
+                      onClick={access.activate}
+                      className={css.ActionButton}
+                      variant="Critical"
+                      fill="Solid"
+                      size="300"
+                    >
+                      <Text size="B300" truncate>
+                        Retry
+                      </Text>
+                    </Button>
+                    <ErrorDialog
+                      title="Join Error"
+                      message={access.state.error.message || 'Failed to join. Unknown Error.'}
+                    >
+                      {(openError) => (
+                        <Button
+                          onClick={openError}
+                          className={css.ActionButton}
+                          variant="Critical"
+                          fill="Soft"
+                          outlined
+                          size="300"
+                        >
+                          <Text size="B300" truncate>
+                            View Error
+                          </Text>
+                        </Button>
+                      )}
+                    </ErrorDialog>
+                  </Box>
+                );
+              }
+
+              const joining = access.kind === 'join' && (access.loading || access.succeeded);
+              return (
                 <Button
-                  onClick={openError}
-                  className={css.ActionButton}
-                  variant="Critical"
-                  fill="Soft"
-                  outlined
+                  onClick={access.activate}
+                  variant="Secondary"
                   size="300"
+                  disabled={joining || access.loading || access.requested}
+                  before={
+                    access.loading ? (
+                      <Spinner size="50" variant="Secondary" fill="Soft" />
+                    ) : access.requested ? (
+                      <Icon size="50" src={Icons.Check} />
+                    ) : undefined
+                  }
                 >
                   <Text size="B300" truncate>
-                    View Error
+                    {access.kind === 'knock'
+                      ? access.loading
+                        ? 'Sending request'
+                        : access.requested
+                        ? 'Request sent'
+                        : 'Request to join'
+                      : joining
+                      ? 'Joining'
+                      : 'Join'}
                   </Text>
                 </Button>
-              )}
-            </ErrorDialog>
-          </Box>
+              );
+            }}
+          </RoomAccessControl>
         )}
       </RoomCardBase>
     );
