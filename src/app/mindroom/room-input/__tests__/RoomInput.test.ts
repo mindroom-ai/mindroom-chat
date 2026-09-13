@@ -1281,6 +1281,43 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('clears failed voice upload state and releases pending auto-send', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$thread-a' });
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    const uploadAbort = new DOMException('The operation was aborted.', 'AbortError');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mxState.uploadContent.mockRejectedValueOnce(uploadAbort);
+
+    await act(async () => {
+      await expect(voiceRecorderState.props!.onSendRecording(file, 1100)).rejects.toMatchObject({
+        errcode: 'M_UNKNOWN',
+      });
+    });
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith('[mr-upload]', {
+      stage: 'upload',
+      originalName: 'AbortError',
+      name: 'M_UNKNOWN',
+      errcode: 'M_UNKNOWN',
+      httpStatus: undefined,
+      message: expect.stringContaining('The operation was aborted.'),
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(file, 700);
+    });
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+
+    renderer.unmount();
+  });
+
   it('does not clear a newer reply draft when a deferred voice send finishes', async () => {
     const store = createStore();
     const originalReplyDraft = createReplyDraft('$reply-a');

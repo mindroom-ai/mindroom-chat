@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MatrixError } from 'matrix-js-sdk';
 import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
 } from '../../utils/audioWaveform';
 import { pauseAllMediaElements } from '../../utils/dom';
+import { getMatrixUploadErrorMessage, getMatrixUploadErrorStage } from '../../utils/matrix';
 import {
   DEFAULT_VOICE_RECORDER_MIME_TYPE,
   getAudioFileExtension,
@@ -384,7 +386,13 @@ export function useVoiceRecorder({
         resolveStop?.(true);
       } catch (err) {
         safeSetPhase('idle');
-        safeSetErrorMessage(err instanceof Error ? err.message : 'Failed to send voice message.');
+        const friendlyMessage =
+          err instanceof MatrixError
+            ? getMatrixUploadErrorMessage(err, getMatrixUploadErrorStage(err) ?? 'send')
+            : err instanceof Error
+            ? err.message
+            : 'Failed to send voice message.';
+        safeSetErrorMessage(friendlyMessage);
         latestOnSendStopFailureRef.current?.();
         resolveStop?.(false);
       }
