@@ -49,12 +49,6 @@ type RoomUnreadInfoLike = {
   scrollTo?: boolean;
 };
 
-type RestorePendingThreadBackPaginationAnchor = (
-  scrollRoot: HTMLElement | null | undefined,
-  threadId: string | undefined,
-  eventCount?: number
-) => boolean;
-
 type RetryPagination = (opts?: RetryPaginationOptions) => void;
 
 export type RoomFocusScrollControllerOptions = {
@@ -66,7 +60,6 @@ export type RoomFocusScrollControllerOptions = {
   focusScrollResetToken: unknown;
   pendingThreadOpenRef: MutableRefObject<PendingThreadOpen | undefined>;
   pendingThreadOpenTick: number;
-  restorePendingThreadBackPaginationAnchor: RestorePendingThreadBackPaginationAnchor;
   retryPagination: RetryPagination;
   roomId: string;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
@@ -103,7 +96,6 @@ export const useRoomFocusScrollController = ({
   focusScrollResetToken,
   pendingThreadOpenRef,
   pendingThreadOpenTick,
-  restorePendingThreadBackPaginationAnchor,
   retryPagination,
   roomId,
   scrollRef,
@@ -485,16 +477,6 @@ export const useRoomFocusScrollController = ({
       }
     }
   }, [scrollRef, scrollToBottomCount, scrollToBottomRef]);
-
-  useLayoutEffect(() => {
-    restorePendingThreadBackPaginationAnchor(scrollRef.current, threadId, threadEventsLength);
-  }, [
-    restorePendingThreadBackPaginationAnchor,
-    scrollRef,
-    threadEventsLength,
-    threadId,
-    threadTimelineTick,
-  ]);
 
   useEffect(() => {
     if (!editId) return;

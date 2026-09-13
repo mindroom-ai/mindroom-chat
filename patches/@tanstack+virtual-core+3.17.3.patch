@@ -2,18 +2,7 @@ diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modul
 index 52ae6ca..bce7170 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-@@ -218,6 +218,10 @@ class Virtualizer {
-                 }
-                 return;
-               }
-+              const attributedKey = this.options.getItemKey(index);
-+              if (this.elementsCache.get(attributedKey) !== node) {
-+                return;
-+              }
-               if (this.shouldMeasureDuringScroll(index)) {
-                 this.resizeItem(
-                   index,
-@@ -378,6 +382,9 @@ class Virtualizer {
+@@ -378,6 +378,9 @@ class Virtualizer {
          this.rafId = null;
        }
        this.scrollState = null;
@@ -27,18 +16,7 @@ diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_module
 index 3032c0c..07193fa 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-@@ -216,6 +216,10 @@ class Virtualizer {
-                 }
-                 return;
-               }
-+              const attributedKey = this.options.getItemKey(index);
-+              if (this.elementsCache.get(attributedKey) !== node) {
-+                return;
-+              }
-               if (this.shouldMeasureDuringScroll(index)) {
-                 this.resizeItem(
-                   index,
-@@ -376,6 +380,9 @@ class Virtualizer {
+@@ -376,6 +376,9 @@ class Virtualizer {
          this.rafId = null;
        }
        this.scrollState = null;

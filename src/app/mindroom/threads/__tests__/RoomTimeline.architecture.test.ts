@@ -2392,7 +2392,6 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('shouldPinThreadToBottomOnOpen');
     expect(controllerSource).toContain('setupFocusObserver');
     expect(controllerSource).toContain('shouldPinThreadToBottomOnOpen');
-    expect(controllerSource).toContain('restorePendingThreadBackPaginationAnchor');
   });
 
   it('delegates room jump and thread-card navigation handlers to MindRoom threads', () => {

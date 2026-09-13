@@ -4,7 +4,6 @@ import {
   getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
-  restoreThreadPrependScrollAnchor,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from './timelineScrollUtils';
@@ -258,67 +257,5 @@ describe('thread prepend scroll anchors', () => {
     });
   });
 
-  it('restores the captured thread prepend anchor position after older messages are prepended', () => {
-    const anchor = {
-      getAttribute: () => '$anchor',
-      getBoundingClientRect: () => ({
-        top: 420,
-        bottom: 460,
-      }),
-      parentElement: null,
-    };
-    const scroll = {
-      getBoundingClientRect: () => ({
-        top: 100,
-        bottom: 500,
-      }),
-      querySelector: () => anchor,
-      querySelectorAll: () => [anchor],
-      scrollHeight: 1000,
-      clientHeight: 400,
-      scrollTop: 40,
-    } as unknown as HTMLElement;
 
-    expect(
-      restoreThreadPrependScrollAnchor(scroll, {
-        eventId: '$anchor',
-        top: 140,
-      })
-    ).toBe(true);
-    expect(scroll.scrollTop).toBe(320);
-  });
-
-  it('restores thread prepend position on the timeline scroll root when the anchor element overflows', () => {
-    const anchor = {
-      getAttribute: () => '$anchor',
-      getBoundingClientRect: () => ({
-        top: 420,
-        bottom: 460,
-      }),
-      parentElement: null,
-      scrollHeight: 100,
-      clientHeight: 40,
-      scrollTop: 0,
-    };
-    const scroll = {
-      getBoundingClientRect: () => ({
-        top: 100,
-        bottom: 500,
-      }),
-      querySelector: () => anchor,
-      querySelectorAll: () => [anchor],
-      scrollHeight: 1000,
-      clientHeight: 400,
-      scrollTop: 40,
-    } as unknown as HTMLElement;
-
-    expect(
-      restoreThreadPrependScrollAnchor(scroll, {
-        eventId: '$anchor',
-        top: 140,
-      })
-    ).toBe(true);
-    expect(scroll.scrollTop).toBe(320);
-    expect(anchor.scrollTop).toBe(0);
-  });
 });

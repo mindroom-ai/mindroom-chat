@@ -637,6 +637,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
+      // Inner virtual container: the ledger fold's visible output is its
+      // marginTop (adversarial review on PR #88 — without this pin, fold
+      // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
+      const innerElement = { style: {} as Record<string, string> };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
       // Task #125 follow-up sequencing: the paginate mock must NOT
@@ -658,7 +662,13 @@ describe('RoomTimeline', () => {
               threadId,
             }),
             {
-              createNodeMock: (element) => (element.type === scrollType ? scrollElement : null),
+              createNodeMock: (element) =>
+                element.type === scrollType
+                  ? scrollElement
+                  : (element.props as Record<string, unknown>)?.['data-thread-count'] !==
+                    undefined
+                  ? innerElement
+                  : null,
             }
           );
           await flushAsyncWork();
@@ -703,9 +713,52 @@ describe('RoomTimeline', () => {
         // never moves and NO scroll write happens at all (the coarse
         // scrollTo + rect fine-correction machinery this test previously
         // asserted raced virtual-core's own quiet-state adjustments).
-        await flushAsyncWork(5);
+        // Let the at-rest ledger settle fire (quiescence idle is 150ms,
+        // real timers in this suite section): the fold's ΔH converts into
+        // ONE exactly-cancelling scrollTop shift and the margin returns
+        // to zero.
+        await act(async () => {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
         expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
+        // ΔH pin (adversarial review on PR #88 — without it, fold
+        // deletion, pricing off-by-one and unconsumed-anchor mutants all
+        // passed green): 100 prepended one-liner replies at the
+        // calibrated COMPACT estimate (base 6 + one 20px line = 26; the
+        // harness renders compact layout) fold to EXACTLY 2600px,
+        // delivered by the settle as scrollTop += 2600 with the margin
+        // returned to zero.
+        expect(scrollElement.scrollTop).toBe(2600);
+        expect(innerElement.style.marginTop).toBe('');
+
+        // Consumption pin: the fold must consume the pagination anchor at
+        // the commit. A further prepend WITHOUT a new Load Older (no
+        // begin(), e.g. a background band) must not fold against the
+        // stale capture — an unconsumed anchor would add 5 x 26px here.
+        const bandPrependedThreadEvents = [
+          rootEvent,
+          ...Array.from({ length: 5 }, (_value, index) => makeReply(index + 90)),
+          ...prependedThreadEvents.slice(1),
+        ];
+        await act(async () => {
+          setThreadEvents(bandPrependedThreadEvents);
+          renderer!.update(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              threadId,
+            })
+          );
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+          await flushAsyncWork(5);
+        });
+        expect(scrollElement.scrollTop).toBe(2600);
+        expect(innerElement.style.marginTop).toBe('');
       } finally {
         renderer?.unmount();
       }
