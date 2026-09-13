@@ -73,14 +73,6 @@ export const isCompleteThreadCacheCoverage = ({
   coverage.tailLoaded &&
   hasThreadCacheKnownBackwardStart(coverage);
 
-export const shouldBackfillThreadRelationsFromCoverage = ({
-  coverage,
-  hasLocalSnapshot,
-}: {
-  coverage: ThreadCacheCoverage;
-  hasLocalSnapshot: boolean;
-}): boolean => hasLocalSnapshot && coverage.snapshotComplete !== true;
-
 export const shouldShowThreadLoadOlderFromCoverage = ({
   coverage,
   sdkHasBackwardToken,

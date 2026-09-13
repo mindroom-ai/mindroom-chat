@@ -150,11 +150,14 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     expect(definers).toEqual(['engine/threadRelationsFetcher.ts']);
     // CINNY-207 P5 review (greptile P1: dedup returns void):
     // `threadOverviewResumeController.ts` no longer imports
-    // `fetchAllThreadRelations` directly — it now routes through
-    // `enqueueThreadBackfillJob` (same as the thread-open path in
-    // `threadOpenCacheController.ts`) so the shared scheduler
+    // `fetchAllThreadRelations` directly — it routes through
+    // `enqueueThreadBackfillJob` (via `threadContentPrefetch.ts`,
+    // shared with the prewarm band) so the scheduler
     // `(roomId, threadId, 'thread-backfill')` key resolves to a
-    // consistent `Promise<ThreadBackfillResult>` for both callers.
+    // consistent `Promise<ThreadBackfillResult>` for every producer.
+    // The thread-OPEN path no longer enqueues this kind at all — the
+    // 2026-07-06 consolidation deleted its backfill leg (see the
+    // tripwire in RoomTimeline.architecture.test.ts).
     // No non-engine importers should remain.
     //
     // NOTE: `notifications/readReceipts.ts` uses `mx.fetchRelations`

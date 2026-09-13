@@ -45,7 +45,6 @@ export type ThreadOpenSeedSession = {
   initialRoomThreadEvents: MatrixEvent[];
   initialRoomThreadSeedEvents: MatrixEvent[];
   initialThreadMemorySeedEvents: MatrixEvent[];
-  mergeWithInitialRoomThreadSeedEvents: (events: MatrixEvent[]) => MatrixEvent[];
   startUntargetedSeedPrewarmWait: (isCurrentThreadOpen: () => boolean) => void;
 };
 
@@ -221,10 +220,6 @@ export const createThreadOpenSeedSession = ({
     initialRoomThreadEvents,
     initialRoomThreadSeedEvents,
     initialThreadMemorySeedEvents,
-    mergeWithInitialRoomThreadSeedEvents: (events) =>
-      initialRoomThreadSeedEvents.length > 0
-        ? mergeThreadBackfillEvents(events, initialRoomThreadSeedEvents)
-        : events,
     startUntargetedSeedPrewarmWait,
   };
 };

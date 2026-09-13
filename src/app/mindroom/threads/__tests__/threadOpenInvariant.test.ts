@@ -72,26 +72,14 @@ const makeRunOptions = () => {
     }),
   };
   const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
-  const mx = {
-    getEventMapper: vi.fn(
-      () => (rawEvent: { event_id?: string; origin_server_ts?: number }) => {
-        if (rawEvent.event_id === '$root') return root;
-        if (rawEvent.event_id === '$reply') return reply;
-        return makeEvent(rawEvent.event_id ?? '$unknown');
-      }
-    ),
-  };
   const threadOpenSeedSession = {
     applyInitialUntargetedThreadSeed: vi.fn(),
-    mergeWithInitialRoomThreadSeedEvents: vi.fn((events: ReturnType<typeof makeEvent>[]) => events),
   };
   return {
-    backfillThreadRelationsIntoCache: vi.fn(),
     debugTraceId: 'test',
     forceTimelineUpdate: vi.fn(),
     hydrateThreadFromCache: vi.fn(),
     isCurrentThreadOpen: vi.fn(() => true),
-    mx,
     pinThreadToBottomOnOpen: vi.fn(),
     scheduleReconcile: vi.fn(async () => ({
       reason: 'open-thread-choke-point' as const,

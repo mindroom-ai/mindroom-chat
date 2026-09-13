@@ -702,14 +702,18 @@ describe('RoomTimeline architecture', () => {
       new URL('../threadPaginationCommandController.ts', import.meta.url),
       'utf8'
     );
-    const cacheFirstSource = readFileSync(
-      new URL('../threadOpenCacheFirst.ts', import.meta.url),
+    // 2026-07-06 consolidation: `threadOpenCacheFirst.ts` no longer
+    // maps cached page events itself (the open-time relations-backfill
+    // leg that needed a mapped baseline was deleted). The mapper stays
+    // defined + consumed inside the event repository.
+    const eventRepositorySource = readFileSync(
+      new URL('../eventRepository.ts', import.meta.url),
       'utf8'
     );
 
     expect(source).not.toContain('loadThreadCachedPaginationSnapshot');
     expect(paginationControllerSource).toContain('loadThreadCachedPaginationSnapshot');
-    expect(cacheFirstSource).toContain('mapCachedThreadPageEvents');
+    expect(eventRepositorySource).toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('mapCachedThreadPageEvents');
     expect(source).not.toContain('loadCachedThreadEventsBefore');
     expect(source).not.toContain('normalizeCachedThreadEvents');
@@ -758,11 +762,14 @@ describe('RoomTimeline architecture', () => {
 
   it('delegates thread-open cache/network commands to MindRoom threads', () => {
     const source = readRoomTimelineSource();
+    const cacheControllerSource = readFileSync(
+      new URL('../threadOpenCacheController.ts', import.meta.url),
+      'utf8'
+    );
 
     expect(source).toContain('useThreadOpenCacheController');
     expect(source).toContain("from '../../mindroom/threads/threadOpenCacheController'");
     expect(source).not.toContain('const refreshLatestThreadSlice = useCallback');
-    expect(source).not.toContain('const backfillThreadRelationsIntoCache = useCallback');
     // CINNY-207 P5.1: `refreshLatestThreadRelationsTail` was deleted
     // from `threadOpenCacheController` — the reconciler owns the
     // post-open server verify now. The assertion stays so a future
@@ -770,6 +777,18 @@ describe('RoomTimeline architecture', () => {
     // component tripwires immediately.
     expect(source).not.toContain('const refreshLatestThreadRelationsTail = useCallback');
     expect(source).not.toContain('const hydrateThreadFromCache = useCallback');
+    // 2026-07-06 consolidation: the open-time relations-backfill leg
+    // is gone — the open-path controller must not enqueue
+    // 'thread-backfill' jobs anymore. Full /relations drains are
+    // background-only producers (prewarm band + overview resume); a
+    // thread open converges via the choke-point reconcile plus the
+    // SDK bootstrap + refreshLatestThreadSlice drain.
+    expect(cacheControllerSource).not.toContain('enqueueThreadBackfillJob');
+    // Bare name, not the call form (self-review fix): the paren form
+    // missed the exact regression shape this consolidation deleted —
+    // an import + prop-plumb of the job producer with no direct call
+    // expression in the component source.
+    expect(source).not.toContain('enqueueThreadBackfillJob');
   });
 
   it('delegates thread-open SDK bootstrap to MindRoom threads', () => {
@@ -807,7 +826,6 @@ describe('RoomTimeline architecture', () => {
     expect(lifecycleSource).toContain('runThreadOpenCacheFirst');
     expect(cacheFirstSource).toContain('thread-open-complete-cache-hit');
     expect(source).not.toContain('thread-open-complete-cache-hit');
-    expect(source).not.toContain('shouldBackfillThreadRelationsFromCoverage');
     expect(source).not.toContain('hasUsableThreadCacheSnapshot');
   });
 

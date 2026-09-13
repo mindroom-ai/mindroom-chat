@@ -21,27 +21,15 @@ const makeDefaultOptions = () => {
     }),
   };
   const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
-  const mx = {
-    getEventMapper: vi.fn(
-      () => (rawEvent: { event_id?: string; origin_server_ts?: number }) => {
-        if (rawEvent.event_id === '$root') return root;
-        if (rawEvent.event_id === '$reply') return reply;
-        return makeEvent(rawEvent.event_id ?? '$unknown');
-      }
-    ),
-  };
   const threadOpenSeedSession = {
     applyInitialUntargetedThreadSeed: vi.fn(),
-    mergeWithInitialRoomThreadSeedEvents: vi.fn((events: ReturnType<typeof makeEvent>[]) => events),
   };
 
   return {
-    backfillThreadRelationsIntoCache: vi.fn(),
     debugTraceId: 'test',
     forceTimelineUpdate: vi.fn(),
     hydrateThreadFromCache: vi.fn(),
     isCurrentThreadOpen: vi.fn(() => true),
-    mx,
     pinThreadToBottomOnOpen: vi.fn(),
     // CINNY-207 AC2 revision (2026-07-04): single choke-point schedule
     // at the top of `runThreadOpenCacheFirst`. Every open that survives
@@ -121,10 +109,15 @@ describe('runThreadOpenCacheFirst', () => {
       })
     );
     expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
-    expect(opts.backfillThreadRelationsIntoCache).not.toHaveBeenCalled();
   });
 
-  it('backfills incomplete cached thread relations before falling through to SDK bootstrap', async () => {
+  it('paints a partial cached snapshot and falls through to the SDK bootstrap drain', async () => {
+    // 2026-07-06 consolidation: the open-time relations-backfill leg
+    // is gone. A genuinely partial snapshot no longer fires a second
+    // full /relations drain from the open — it paints what the cache
+    // has, schedules the one choke-point reconcile, and returns
+    // shouldContinue=true so the lifecycle controller runs SDK
+    // bootstrap + refreshLatestThreadSlice (the single drain channel).
     const opts = makeDefaultOptions();
     const cachedPage = {
       cacheCoverage: buildThreadCacheCoverage({
@@ -144,41 +137,23 @@ describe('runThreadOpenCacheFirst', () => {
       tailLoaded: true,
     };
     opts.hydrateThreadFromCache.mockResolvedValue(cachedPage);
-    opts.backfillThreadRelationsIntoCache.mockResolvedValue({ completed: true, fetchedCount: 0 });
 
     const result = await runThreadOpenCacheFirst(opts as never);
 
-    expect(result).toEqual({ hydratedCachedPage: cachedPage, shouldContinue: false });
-    expect(opts.threadOpenSeedSession.mergeWithInitialRoomThreadSeedEvents).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          getId: expect.any(Function),
-        }),
-      ])
-    );
-    expect(opts.backfillThreadRelationsIntoCache).toHaveBeenCalledWith(
-      '$root',
-      cachedPage.rootEvent,
-      expect.arrayContaining([
-        expect.objectContaining({
-          getId: expect.any(Function),
-        }),
-      ]),
-      1
-    );
-    expect(opts.pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
-    // CINNY-207 AC2 revision (2026-07-04): the backfill-completed
-    // branch used to carry its own scheduleReconcile call site (iter 2
-    // STEP d's D7 fix). The revision moved the schedule to the SINGLE
-    // choke-point call above the coverage branching, so every open
-    // schedules exactly one reconcile with reason
-    // `open-thread-choke-point` regardless of which coverage branch
-    // paints. This assertion proves the choke-point fires even when
-    // the flow reaches the backfill-completed branch.
+    expect(result).toEqual({ hydratedCachedPage: cachedPage, shouldContinue: true });
+    // The partial path does not pin to bottom here — that happens in
+    // the lifecycle controller after the SDK drain completes.
+    expect(opts.pinThreadToBottomOnOpen).not.toHaveBeenCalled();
+    // No usable-cache seed replay either: the snapshot is usable, so
+    // the untargeted seed is skipped and paint comes from hydration.
+    expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).not.toHaveBeenCalled();
+    // The choke-point reconcile is the ONLY network-side work the
+    // cache-first path triggers for a partial snapshot.
     expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
     const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0];
     expect(reconcileArgs.reason).toBe('open-thread-choke-point');
     expect(reconcileArgs.threadId).toBe('$root');
+    expect(reconcileArgs.cachedPage).toBe(cachedPage);
   });
 
   it('routes the reconciler onRepaired batch through setSupplementalThreadEvents + tick (CINNY-207 P5-GATE-FIX v3 AC2 dual-injection)', async () => {
@@ -329,7 +304,6 @@ describe('runThreadOpenCacheFirst', () => {
     expect(result).toEqual({ hydratedCachedPage: undefined, shouldContinue: true });
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).toHaveBeenCalledTimes(1);
     expect(opts.setThreadInitialCacheHydrated).toHaveBeenCalledWith(true);
-    expect(opts.backfillThreadRelationsIntoCache).not.toHaveBeenCalled();
     // CINNY-207 AC2 revision (2026-07-04): STRONGER invariant. The
     // pre-revision code let the no-cache path fall through to the
     // lifecycle controller's partial-coverage schedule site. The
