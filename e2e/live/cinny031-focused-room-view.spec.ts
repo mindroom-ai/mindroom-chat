@@ -28,7 +28,7 @@ const waitForOverviewToolbar = async (page: Page) => {
 
 const expectExpandedFocusedTimeline = async (page: Page, rootBody: string) => {
   await waitForOverviewToolbar(page);
-  await expect(page.getByRole('button', { name: 'Expanded view' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Threaded view' })).toBeVisible();
   await expect(page.getByText(rootBody)).toBeVisible({ timeout: 30_000 });
 };
 
@@ -127,13 +127,13 @@ test.describe('live cinny-031 focused room view', () => {
     await page.goto(getFocusedRoomPath(fixture.roomId, fixture.rootId));
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
-    await page.getByRole('button', { name: 'Expanded view' }).click();
+    await page.getByRole('button', { name: 'Compact view' }).click();
     await expect(page.getByRole('button', { name: 'Compact view' })).toBeVisible();
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible();
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toBeVisible();
     await expect(page.locator('[data-message-item]', { hasText: fixture.rootBody })).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Compact view' }).click();
+    await page.getByRole('button', { name: 'Threaded view' }).click();
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-031-focused-toggle');
@@ -201,7 +201,7 @@ test.describe('live cinny-031 focused room view', () => {
 
     await page.goto(getFocusedRoomPath(roomId, secondRootId));
     await waitForOverviewToolbar(page);
-    await expect(page.getByRole('button', { name: 'Expanded view' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Threaded view' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Threads in timeline order' })).toBeVisible();
     await expect(page.getByText('Showing all 3 threads.')).toBeVisible();
     await expect(page.getByText(fillerBody)).toBeVisible({ timeout: 30_000 });

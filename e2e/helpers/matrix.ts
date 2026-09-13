@@ -56,14 +56,14 @@ type SeedRoomOverviewStateOptions = {
   page: Page;
   roomId: string;
   userId: string;
-  viewMode?: 'normal' | 'compact';
+  viewMode?: 'threaded' | 'compact' | 'classic' | 'normal';
   filterState?: SerializedThreadFilterState;
 };
 
 type SeedRoomOverviewStorageInput = {
   nextRoomId: string;
   nextUserId: string;
-  nextViewMode: 'normal' | 'compact';
+  nextViewMode: 'threaded' | 'compact' | 'classic' | 'normal';
   nextFilterState: SerializedThreadFilterState;
 };
 
@@ -410,7 +410,7 @@ export const seedRoomOverviewState = async ({
   page,
   roomId,
   userId,
-  viewMode = 'normal',
+  viewMode = 'threaded',
   filterState = createHiddenOverviewFilterState(),
 }: SeedRoomOverviewStateOptions) => {
   const storageInput: SeedRoomOverviewStorageInput = {

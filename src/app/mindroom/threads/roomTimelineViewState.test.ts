@@ -7,12 +7,11 @@ import {
 } from './roomTimelineViewState';
 
 describe('resolveRoomTimelineViewState', () => {
-  it('disables MindRoom overview controls and compact mode for direct rooms', () => {
+  it('preserves compact mode and overview controls for direct rooms', () => {
     const requested = createDefaultThreadFilterState();
 
     expect(
       resolveRoomTimelineViewState({
-        direct: true,
         eventId: '$event',
         focusEventInRoom: true,
         threadFilterState: requested,
@@ -20,10 +19,10 @@ describe('resolveRoomTimelineViewState', () => {
         viewMode: 'compact',
       })
     ).toEqual({
-      effectiveViewMode: 'normal',
+      effectiveViewMode: 'compact',
       focusedRoomOverviewRequested: false,
-      requestedThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
-      showRoomThreadOverviewControls: false,
+      requestedThreadFilterState: requested,
+      showRoomThreadOverviewControls: true,
     });
   });
 
@@ -32,15 +31,14 @@ describe('resolveRoomTimelineViewState', () => {
 
     expect(
       resolveRoomTimelineViewState({
-        direct: false,
         eventId: '$event',
         focusEventInRoom: true,
         threadFilterState: requested,
         threadId: undefined,
-        viewMode: 'normal',
+        viewMode: 'threaded',
       })
     ).toEqual({
-      effectiveViewMode: 'normal',
+      effectiveViewMode: 'threaded',
       focusedRoomOverviewRequested: true,
       requestedThreadFilterState: requested,
       showRoomThreadOverviewControls: true,
@@ -52,15 +50,36 @@ describe('resolveRoomTimelineViewState', () => {
 
     expect(
       resolveRoomTimelineViewState({
-        direct: false,
         eventId: '$event',
         focusEventInRoom: true,
         threadFilterState: requested,
         threadId: '$thread',
-        viewMode: 'normal',
+        viewMode: 'threaded',
       })
     ).toMatchObject({
       focusedRoomOverviewRequested: false,
+      showRoomThreadOverviewControls: false,
+    });
+  });
+
+  it('uses neutral filters and hides overview controls in classic mode', () => {
+    const requested = {
+      ...createDefaultThreadFilterState(),
+      searchQuery: 'status:unread',
+    };
+
+    expect(
+      resolveRoomTimelineViewState({
+        eventId: undefined,
+        focusEventInRoom: false,
+        threadFilterState: requested,
+        threadId: undefined,
+        viewMode: 'classic',
+      })
+    ).toEqual({
+      effectiveViewMode: 'classic',
+      focusedRoomOverviewRequested: false,
+      requestedThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
       showRoomThreadOverviewControls: false,
     });
   });

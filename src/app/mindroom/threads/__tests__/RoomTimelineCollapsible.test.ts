@@ -907,7 +907,7 @@ const createControlledRoomTimelineHarness = (
       onReset: vi.fn(),
       onApplyPreset: vi.fn(),
       onSearchQueryChange: vi.fn(),
-      viewMode: 'normal',
+      viewMode: 'threaded',
       onViewModeChange: vi.fn(),
       roomInputRef,
       editor,

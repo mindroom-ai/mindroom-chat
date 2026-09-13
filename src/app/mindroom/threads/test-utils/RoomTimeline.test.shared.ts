@@ -1461,7 +1461,7 @@ const createControlledRoomTimelineHarness = (
     onStoreThreadSummary = defaultOnStoreThreadSummary,
     initialThreadFilter,
     initialThreadFilterState,
-    initialViewMode = 'normal',
+    initialViewMode = 'threaded',
     initialThreadSortFrozen = false,
   }: {
     room: ReturnType<typeof makeRoom>;
@@ -1472,7 +1472,7 @@ const createControlledRoomTimelineHarness = (
     onStoreThreadSummary?: (threadRootId: string, info?: unknown) => void;
     initialThreadFilter?: 'all' | 'resolved' | 'unresolved' | 'unread';
     initialThreadFilterState?: import('../roomThreadOverviewModel').ThreadFilterState;
-    initialViewMode?: 'normal' | 'compact';
+    initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
   }) {
     const [threadFilterState, setThreadFilterState] =
@@ -1481,7 +1481,7 @@ const createControlledRoomTimelineHarness = (
           initialThreadFilterState ?? threadFilterStateFromLegacy(initialThreadFilter)
         )
       );
-    const [viewMode, setViewMode] = React.useState<'normal' | 'compact'>(initialViewMode);
+    const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(initialViewMode);
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
       import('../roomThreadOverviewModel').ThreadSortFreezeState | null
     >(

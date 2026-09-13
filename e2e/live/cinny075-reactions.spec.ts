@@ -49,7 +49,7 @@ test.describe('live message reactions', () => {
       page,
       roomId,
       userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
 
@@ -111,7 +111,7 @@ test.describe('live message reactions', () => {
       page,
       roomId,
       userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
 

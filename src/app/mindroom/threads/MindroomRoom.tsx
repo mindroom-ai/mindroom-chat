@@ -18,6 +18,7 @@ import { CallChatView } from '../../features/room/CallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteRestore } from './useRoomThreadRouteRestore';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import { roomViewModeAtomFamily } from './roomViewMode';
 
 export function Room() {
   const { eventId } = useParams();
@@ -33,12 +34,15 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const chat = useAtomValue(callChatAtom);
+  const viewMode = useAtomValue(roomViewModeAtomFamily(room.roomId));
+  const routedThreadId = viewMode === 'classic' ? undefined : threadId;
   const handleThreadLoadError = useRoomThreadRouteRestore({
     eventId,
     roomId: room.roomId,
     threadId,
+    viewMode,
   });
-  useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId });
+  useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId: routedThreadId });
 
   const callView = room.isCallRoom();
 
@@ -60,7 +64,7 @@ export function Room() {
                 room={room}
                 eventId={eventId}
                 focusEventInRoom={focusEvent === '1'}
-                threadId={threadId}
+                threadId={routedThreadId}
                 onThreadLoadError={handleThreadLoadError}
               />
             </Box>

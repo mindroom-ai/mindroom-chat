@@ -195,7 +195,7 @@ test.describe('live cinny073 recent threads mobile shell', () => {
           page,
           roomId: fixture.roomId,
           userId: session.userId,
-          viewMode: 'normal',
+          viewMode: 'threaded',
           filterState: createDefaultThreadFilterState(),
         });
       }

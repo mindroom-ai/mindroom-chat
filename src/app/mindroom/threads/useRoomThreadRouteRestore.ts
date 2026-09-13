@@ -3,17 +3,20 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { removeRecentThread } from '../recent-threads/recentThreads';
 import { clearLastOpenThread, getLastOpenThread, setLastOpenThread } from './lastOpenThread';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import type { RoomViewMode } from './roomViewMode';
 
 type UseRoomThreadRouteRestoreOptions = {
   eventId?: string;
   roomId: string;
   threadId?: string;
+  viewMode: RoomViewMode;
 };
 
 export const useRoomThreadRouteRestore = ({
   eventId,
   roomId,
   threadId,
+  viewMode,
 }: UseRoomThreadRouteRestoreOptions): ((failedThreadId: string) => void) => {
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const previousRoomIdRef = useRef(roomId);
@@ -22,9 +25,17 @@ export const useRoomThreadRouteRestore = ({
   const autoRestoredThreadIdRef = useRef<string>();
 
   useEffect(() => {
+    if (viewMode === 'classic') return;
     if (!isConfirmedMatrixEventId(threadId)) return;
     setLastOpenThread(roomId, threadId);
-  }, [roomId, threadId]);
+  }, [roomId, threadId, viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== 'classic' || !threadId) return;
+
+    clearLastOpenThread(roomId);
+    navigateRoom(roomId, eventId ?? threadId, { replace: true });
+  }, [eventId, navigateRoom, roomId, threadId, viewMode]);
 
   useEffect(() => {
     const previousRoomId = previousRoomIdRef.current;
@@ -42,6 +53,7 @@ export const useRoomThreadRouteRestore = ({
   }, [roomId, threadId]);
 
   useEffect(() => {
+    if (viewMode === 'classic') return;
     if (threadId || eventId) return;
 
     const savedThreadId = getLastOpenThread(roomId);
@@ -53,7 +65,7 @@ export const useRoomThreadRouteRestore = ({
     attemptedRestoreRef.current = restoreKey;
     autoRestoredThreadIdRef.current = savedThreadId;
     navigateRoomThread(roomId, savedThreadId, undefined, { replace: true });
-  }, [eventId, navigateRoomThread, roomId, threadId]);
+  }, [eventId, navigateRoomThread, roomId, threadId, viewMode]);
 
   return useCallback(
     (failedThreadId: string) => {

@@ -22,6 +22,7 @@ type SendSession = RoomInputSendSessionState & {
   roomId: string;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
+  threadingEnabled: boolean;
   textContent?: IContent;
   replyCleared: boolean;
   signalBridgedRoom: boolean;
@@ -32,6 +33,7 @@ export type RoomInputSendContext = {
   room: Room;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
+  threadingEnabled: boolean;
   signalBridgedRoom: boolean;
 };
 
@@ -47,6 +49,7 @@ type UseRoomInputSendSessionControllerOptions = {
   roomId: string;
   threadId?: string;
   replyDraft?: IReplyDraft;
+  threadingEnabled?: boolean;
   setReplyDraft: (replyDraft: IReplyDraft | undefined) => void;
   editor: Editor;
   sendTypingStatus: (typing: boolean) => void;
@@ -106,6 +109,7 @@ export const useRoomInputSendSessionController = ({
   roomId,
   threadId,
   replyDraft,
+  threadingEnabled = true,
   setReplyDraft,
   editor,
   sendTypingStatus,
@@ -333,12 +337,14 @@ export const useRoomInputSendSessionController = ({
       const sessionRoomId = context ? context.roomId : roomId;
       const sessionThreadId = context ? context.threadId : threadId;
       const sessionReplyDraft = context ? context.replyDraft : replyDraft;
+      const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
       const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
 
       sendSessionRef.current = {
         roomId: sessionRoomId,
         threadId: sessionThreadId,
         replyDraft: sessionReplyDraft,
+        threadingEnabled: sessionThreadingEnabled,
         textContent,
         replyCleared: false,
         signalBridgedRoom,
@@ -347,6 +353,7 @@ export const useRoomInputSendSessionController = ({
           hasText: Boolean(textContent),
           threadId: sessionThreadId,
           replyDraft: sessionReplyDraft,
+          threadingEnabled: sessionThreadingEnabled,
         }),
       };
       await processSendSession();
@@ -355,6 +362,7 @@ export const useRoomInputSendSessionController = ({
       roomId,
       threadId,
       replyDraft,
+      threadingEnabled,
       room,
       selectedFilesRef,
       sendSessionFilesRef,

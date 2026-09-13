@@ -1279,7 +1279,7 @@ describe('RoomTimeline', () => {
     ]);
   });
 
-  it('keeps direct rooms on the message timeline even with compact overview state', async () => {
+  it('does not force direct rooms back to the message timeline in compact mode', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const directMessage = makeEvent('$dm-message');
     const room = makeRoom({
@@ -1301,7 +1301,7 @@ describe('RoomTimeline', () => {
       await flushAsyncWork(2);
     });
 
-    expect(getRenderedEventIds(renderer!)).toEqual([directMessage.getId()]);
+    expect(getRenderedEventIds(renderer!)).toEqual([]);
     expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(0);
     expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
   });
@@ -4230,6 +4230,7 @@ describe('RoomTimeline', () => {
 
     const threadReply = makeEvent('$thread-reply', { threadRootId: '$thread-root' });
     expect(isRenderableEvent(threadReply as never, ...baseArgs)).toBe(false);
+    expect(isRenderableEvent(threadReply as never, ...baseArgs, true)).toBe(true);
 
     const relationEvent = makeEvent('$edit', {
       associatedId: '$message',

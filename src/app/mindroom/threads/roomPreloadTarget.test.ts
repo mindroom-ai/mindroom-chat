@@ -17,7 +17,7 @@ describe('shouldUseSurfacePreloadTarget', () => {
       shouldUseSurfacePreloadTarget({
         threadId: undefined,
         roomThreadFilterActive: true,
-        viewMode: 'normal',
+        viewMode: 'threaded',
       })
     ).toBe(true);
   });

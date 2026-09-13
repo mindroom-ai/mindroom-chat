@@ -58,24 +58,31 @@ export const isMindroomRoomInputAutocompleteQuery = (
 
 export const getMindroomRoomInputMessageRelation = (
   replyDraft: Pick<IReplyDraft, 'eventId' | 'relation'> | undefined,
-  threadId: string | undefined
-) => getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId);
+  threadId: string | undefined,
+  threadingEnabled = true
+) =>
+  getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId, {
+    allowThreadRelation: threadingEnabled,
+  });
 
 export const getMindroomRoomInputVoiceSendContext = ({
   roomId,
   room,
   threadId,
   replyDraft,
+  threadingEnabled = true,
 }: {
   roomId: string;
   room: Room;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
+  threadingEnabled?: boolean;
 }): MindroomVoiceSendContext => ({
   roomId,
   room,
   threadId,
   replyDraft,
+  threadingEnabled,
   signalBridgedRoom: isSignalBridgeRoom(room),
 });
 
@@ -91,6 +98,7 @@ export const getMindroomRoomInputVoiceUploadRelation = (
       hasText: false,
       threadId: context.threadId,
       replyDraft: context.replyDraft,
+      threadingEnabled: context.threadingEnabled,
     }),
   };
 

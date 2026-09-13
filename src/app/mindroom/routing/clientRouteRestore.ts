@@ -10,6 +10,7 @@ import {
 } from '../../pages/paths';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
 import { getLastOpenThread } from '../threads/lastOpenThread';
+import { getRoomViewMode } from '../threads/roomViewMode';
 
 const MINDROOM_ROUTE_PARSE_BASE_URL = 'https://mindroom.local';
 const buildStoredRoutePath = ({
@@ -121,10 +122,12 @@ export const buildThreadRestorePath = (
 export const getLastOpenThreadRestoreTarget = (
   mx: MatrixClient,
   lastKnownPath: string | undefined,
-  getThreadForRoom: (roomId: string) => string | undefined = getLastOpenThread
+  getThreadForRoom: (roomId: string) => string | undefined = getLastOpenThread,
+  getViewModeForRoom: (roomId: string) => string | undefined = getRoomViewMode
 ): LastOpenThreadRestoreTarget | undefined => {
   const roomId = getRoomIdFromLastKnownPath(mx, lastKnownPath);
   if (!roomId) return undefined;
+  if (getViewModeForRoom(roomId) === 'classic') return undefined;
 
   const threadId = getThreadForRoom(roomId);
   if (!threadId) return undefined;

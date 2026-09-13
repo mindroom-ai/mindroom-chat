@@ -139,18 +139,19 @@ export const useRoomViewThreadState = ({
   }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId, setLastExitedThread]);
 
   const handleSwipeForwardToThread = useCallback(() => {
+    if (viewMode === 'classic') return;
     if (threadId) return;
     if (!lastExitedThread || lastExitedThread.roomId !== room.roomId) return;
 
     const targetThreadId = lastExitedThread.threadId;
     navigateRoomThread(room.roomId, targetThreadId);
     setLastExitedThread(null);
-  }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId]);
+  }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId, viewMode]);
 
-  useEdgeSwipeBack(handleExitThread, !!threadId);
+  useEdgeSwipeBack(handleExitThread, viewMode !== 'classic' && !!threadId);
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    !threadId && lastExitedThread?.roomId === room.roomId
+    viewMode !== 'classic' && !threadId && lastExitedThread?.roomId === room.roomId
   );
 
   const updateFromEffectiveQueryState = useCallback(
@@ -271,10 +272,10 @@ export const useRoomViewThreadState = ({
   }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
 
   useEffect(() => {
-    if (!isConfirmedMatrixEventId(effectiveThreadId)) return;
+    if (viewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
 
     bumpRecentThread(room.roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, recentThreadSummaryText, room.roomId]);
+  }, [effectiveThreadId, recentThreadSummaryText, room.roomId, viewMode]);
 
   return {
     effectiveThreadId,

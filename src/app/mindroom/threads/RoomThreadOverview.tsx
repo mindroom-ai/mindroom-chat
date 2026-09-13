@@ -223,15 +223,12 @@ function AddTagDropdown({
     [onAddTag]
   );
 
-  const handleBlur = useCallback(
-    (e: React.FocusEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
-        setOpen(false);
-        setFocusedIndex(-1);
-      }
-    },
-    []
-  );
+  const handleBlur = useCallback((e: React.FocusEvent) => {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+      setOpen(false);
+      setFocusedIndex(-1);
+    }
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -397,7 +394,12 @@ function ThreadPresetDropdown({
         <IconChevronDown size={14} stroke={1.8} aria-hidden="true" />
       </button>
       {open && (
-        <div className={css.PresetDropdown} role="listbox" aria-label="Filter presets" data-preset-dropdown="true">
+        <div
+          className={css.PresetDropdown}
+          role="listbox"
+          aria-label="Filter presets"
+          data-preset-dropdown="true"
+        >
           {FILTER_PRESETS.map((preset, index) => (
             <TooltipProvider
               key={preset.id}
@@ -503,20 +505,30 @@ function ThreadInfoPopover({
         )}
       </TooltipProvider>
       {open && (
-        <div className={css.InfoPopover} role="dialog" aria-label="Thread statistics" data-info-popover="true">
+        <div
+          className={css.InfoPopover}
+          role="dialog"
+          aria-label="Thread statistics"
+          data-info-popover="true"
+        >
           <Text size="T200" style={{ fontWeight: 600, marginBottom: toRem(4) }}>
-            {isFiltered ? `Showing ${threadCount} of ${totalThreadCount}` : `${totalThreadCount} threads`}
+            {isFiltered
+              ? `Showing ${threadCount} of ${totalThreadCount}`
+              : `${totalThreadCount} threads`}
           </Text>
-          {statusCounts && (Object.keys(STATUS_LABELS) as ThreadFilterKey[]).map((key) => (
-            <div key={key} className={css.InfoStatRow}>
-              <Text size="T200">{STATUS_LABELS[key]}</Text>
-              <Text size="T200">{statusCounts[key]}</Text>
-            </div>
-          ))}
+          {statusCounts &&
+            (Object.keys(STATUS_LABELS) as ThreadFilterKey[]).map((key) => (
+              <div key={key} className={css.InfoStatRow}>
+                <Text size="T200">{STATUS_LABELS[key]}</Text>
+                <Text size="T200">{statusCounts[key]}</Text>
+              </div>
+            ))}
           {tagEntries.length > 0 && (
             <>
               <div className={css.InfoSectionDivider} />
-              <Text size="T200" style={{ fontWeight: 600, marginBottom: toRem(2) }}>Tags</Text>
+              <Text size="T200" style={{ fontWeight: 600, marginBottom: toRem(2) }}>
+                Tags
+              </Text>
               {tagEntries.map(([tag, count]) => (
                 <div key={tag} className={css.InfoStatRow}>
                   <Text size="T200">{tag}</Text>
@@ -628,6 +640,53 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
 };
 
+const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
+  compact: 'Compact view',
+  threaded: 'Threaded view',
+  classic: 'Classic view',
+};
+
+function RoomViewModeButton({
+  mode,
+  active,
+  onChange,
+  children,
+}: {
+  mode: RoomViewMode;
+  active: boolean;
+  onChange?: (mode: RoomViewMode) => void;
+  children: React.ReactNode;
+}) {
+  const label = ROOM_VIEW_MODE_LABELS[mode];
+
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(220) }}>
+          <Text size="T200">{label}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(css.ToggleButton, active && css.SortButtonActive)}
+          aria-label={label}
+          aria-pressed={active}
+          onClick={() => onChange?.(mode)}
+          data-view-mode-toggle="true"
+          data-view-mode={mode}
+        >
+          {children}
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
+
 export function RoomThreadOverview({
   threadCount,
   totalThreadCount,
@@ -654,8 +713,8 @@ export function RoomThreadOverview({
     state.sortBy === 'natural'
       ? 'Threads in timeline order'
       : state.sortDirection === 'desc'
-        ? 'Sort threads by last reply, newest first'
-        : 'Sort threads by last reply, oldest first';
+      ? 'Sort threads by last reply, newest first'
+      : 'Sort threads by last reply, oldest first';
 
   const handleToggleWithPresetClear = useCallback(
     (key: ThreadFilterKey) => {
@@ -711,20 +770,28 @@ export function RoomThreadOverview({
   );
 
   const activeTagEntries = [...state.tags.entries()];
-  const compactViewActive = viewMode === 'compact';
-  const viewModeLabel = compactViewActive ? 'Compact view' : 'Expanded view';
 
   const filterSummary = filtersActive
     ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
     : `Showing all ${threadCount} thread${threadCount !== 1 ? 's' : ''}.`;
-  const liveSummary = isThreadSortFrozen ? `${filterSummary} Thread sort order locked.` : filterSummary;
-  const freezeLabel = isThreadSortFrozen
-    ? 'Unlock thread sort order'
-    : 'Lock thread sort order';
+  const liveSummary = isThreadSortFrozen
+    ? `${filterSummary} Thread sort order locked.`
+    : filterSummary;
+  const freezeLabel = isThreadSortFrozen ? 'Unlock thread sort order' : 'Lock thread sort order';
 
   return (
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
-      <div aria-live="polite" aria-atomic="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          overflow: 'hidden',
+          clip: 'rect(0,0,0,0)',
+        }}
+      >
         {liveSummary}
       </div>
       {/* Single-line toolbar */}
@@ -826,35 +893,30 @@ export function RoomThreadOverview({
 
         <div className={css.SectionSeparator} aria-hidden="true" />
 
-        {/* Sort */}
-        <TooltipProvider
-          position="Bottom"
-          align="Center"
-          tooltip={
-            <Tooltip style={{ maxWidth: toRem(220) }}>
-              <Text size="T200">{viewModeLabel}</Text>
-            </Tooltip>
-          }
-        >
-          {(triggerRef) => (
-            <button
-              ref={triggerRef}
-              type="button"
-              className={css.ToggleButton}
-              aria-label={viewModeLabel}
-              aria-pressed={compactViewActive}
-              onClick={() => onViewModeChange?.(compactViewActive ? 'normal' : 'compact')}
-              data-view-mode-toggle="true"
-              data-view-mode={compactViewActive ? 'compact' : 'normal'}
-            >
-              {compactViewActive ? (
-                <IconLayoutRows size={14} stroke={1.8} aria-hidden="true" />
-              ) : (
-                <IconLayoutList size={14} stroke={1.8} aria-hidden="true" />
-              )}
-            </button>
-          )}
-        </TooltipProvider>
+        {/* View mode */}
+        <div className={css.ToggleGroup} role="group" aria-label="Room view mode">
+          <RoomViewModeButton
+            mode="compact"
+            active={viewMode === 'compact'}
+            onChange={onViewModeChange}
+          >
+            <IconLayoutRows size={14} stroke={1.8} aria-hidden="true" />
+          </RoomViewModeButton>
+          <RoomViewModeButton
+            mode="threaded"
+            active={viewMode === 'threaded'}
+            onChange={onViewModeChange}
+          >
+            <Icon size="50" src={Icons.Thread} />
+          </RoomViewModeButton>
+          <RoomViewModeButton
+            mode="classic"
+            active={viewMode === 'classic'}
+            onChange={onViewModeChange}
+          >
+            <IconLayoutList size={14} stroke={1.8} aria-hidden="true" />
+          </RoomViewModeButton>
+        </div>
         <TooltipProvider
           position="Bottom"
           align="Center"
@@ -868,10 +930,7 @@ export function RoomThreadOverview({
             <button
               ref={triggerRef}
               type="button"
-              className={classNames(
-                css.SortButton,
-                filtersActive && css.SortButtonActive
-              )}
+              className={classNames(css.SortButton, filtersActive && css.SortButtonActive)}
               onClick={handleSortWithPresetClear}
               aria-label={sortLabel}
               data-sort-by={state.sortBy}
@@ -928,7 +987,12 @@ export function RoomThreadOverview({
 
       {/* Row 2: Tag filters */}
       {(activeTagEntries.length > 0 || availableTags.length > 0) && (
-        <div className={css.TagRow} role="group" aria-label="Tag filters" data-tag-filter-row="true">
+        <div
+          className={css.TagRow}
+          role="group"
+          aria-label="Tag filters"
+          data-tag-filter-row="true"
+        >
           <div className={css.TagList}>
             {activeTagEntries.map(([tag, tagState]) => (
               <TagPill

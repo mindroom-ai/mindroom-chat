@@ -170,6 +170,40 @@ describe('roomInputSendSession', () => {
     expect(session.rootEventId).toBeUndefined();
   });
 
+  it('keeps classic-mode sends at room level and suppresses thread reply relations', () => {
+    const session = createRoomInputSendSessionState({
+      files: [createFile('first.png'), createFile('second.png')],
+      hasText: true,
+      replyDraft: {
+        ...plainReplyDraft(),
+        relation: {
+          rel_type: RelationType.Thread,
+          event_id: '$thread',
+        },
+      },
+      threadingEnabled: false,
+    });
+
+    expect(session.mode).toBe('room');
+    expect(
+      getTextRelationForSendSession({
+        ...session,
+        replyDraft: {
+          ...plainReplyDraft(),
+          relation: {
+            rel_type: RelationType.Thread,
+            event_id: '$thread',
+          },
+        },
+        threadingEnabled: false,
+      })
+    ).toEqual({
+      'm.in_reply_to': {
+        event_id: '$reply',
+      },
+    });
+  });
+
   it('keeps plain reply metadata on the root and threads later attachments under the new root', () => {
     const first = createFile('first.png');
     const textSession = createRoomInputSendSessionState({

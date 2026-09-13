@@ -68,10 +68,10 @@ describe('roomViewMode', () => {
     const unmountRoomA = store.sub(roomAAtom, () => undefined);
     const unmountRoomB = store.sub(roomBAtom, () => undefined);
 
-    store.set(roomAAtom, 'normal');
+    store.set(roomAAtom, 'threaded');
 
-    expect(storageState.get('roomViewMode:!room-a:example.org')).toBe('"normal"');
-    expect(store.get(roomAAtom)).toBe('normal');
+    expect(storageState.get('roomViewMode:!room-a:example.org')).toBe('"threaded"');
+    expect(store.get(roomAAtom)).toBe('threaded');
     expect(store.get(roomBAtom)).toBe('compact');
 
     unmountRoomA();
@@ -86,14 +86,26 @@ describe('roomViewMode', () => {
     const unmountA = storeA.sub(atom, () => undefined);
     const unmountB = storeB.sub(atom, () => undefined);
 
-    storeA.set(atom, 'normal');
+    storeA.set(atom, 'threaded');
     expect(storeB.get(atom)).toBe('compact');
 
     emitStorageEvent('roomViewMode:!room-a:example.org');
 
-    expect(storeB.get(atom)).toBe('normal');
+    expect(storeB.get(atom)).toBe('threaded');
 
     unmountA();
     unmountB();
+  });
+
+  it('migrates legacy normal mode to threaded mode', async () => {
+    storageState.set('roomViewMode:!room-a:example.org', '"normal"');
+    const { roomViewModeAtomFamily } = await import('./roomViewMode');
+    const atom = roomViewModeAtomFamily('!room-a:example.org');
+    const store = createStore();
+    const unmount = store.sub(atom, () => undefined);
+
+    expect(store.get(atom)).toBe('threaded');
+
+    unmount();
   });
 });

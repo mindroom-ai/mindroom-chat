@@ -57,13 +57,13 @@ test.describe('live CINNY-001 last open thread restore', () => {
       page,
       roomId: roomWithThread.roomId,
       userId: session.userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
     });
     await seedRoomOverviewState({
       page,
       roomId: fallbackRoomId,
       userId: session.userId,
-      viewMode: 'normal',
+      viewMode: 'threaded',
     });
 
     await page.goto(

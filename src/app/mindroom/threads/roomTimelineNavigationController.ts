@@ -30,6 +30,7 @@ type RefreshLatestThreadSlice = (threadId: string) => Promise<boolean>;
 
 export type RoomTimelineNavigationControllerOptions = {
   eventId?: string;
+  classicRoomTimeline?: boolean;
   handleOpenEvent: OpenRoomEventHandler;
   hideMembershipEvents: boolean;
   hideNickAvatarEvents: boolean;
@@ -44,6 +45,7 @@ export type RoomTimelineNavigationControllerOptions = {
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   showHiddenEvents: boolean;
+  showThreadRepliesInRoom?: boolean;
   threadId?: string;
   threadIdRef: MutableRefObject<string | undefined>;
   unreadInfo?: RoomUnreadInfoLike;
@@ -51,6 +53,7 @@ export type RoomTimelineNavigationControllerOptions = {
 
 export const useRoomTimelineNavigationController = ({
   eventId,
+  classicRoomTimeline,
   handleOpenEvent,
   hideMembershipEvents,
   hideNickAvatarEvents,
@@ -65,6 +68,7 @@ export const useRoomTimelineNavigationController = ({
   setAtBottom,
   setTimeline,
   showHiddenEvents,
+  showThreadRepliesInRoom,
   threadId,
   threadIdRef,
   unreadInfo,
@@ -102,6 +106,7 @@ export const useRoomTimelineNavigationController = ({
         showHiddenEvents,
         hideMembershipEvents,
         hideNickAvatarEvents,
+        showThreadRepliesInRoom,
       })
     );
     scrollToBottomRef.current.count += 1;
@@ -121,6 +126,7 @@ export const useRoomTimelineNavigationController = ({
     setAtBottom,
     setTimeline,
     showHiddenEvents,
+    showThreadRepliesInRoom,
     threadId,
     threadIdRef,
   ]);
@@ -137,6 +143,10 @@ export const useRoomTimelineNavigationController = ({
       const recentThreadSummaryText =
         evt.currentTarget.getAttribute('data-thread-summary')?.trim() || undefined;
       if (threadRootId) {
+        if (classicRoomTimeline) {
+          void handleOpenEvent(threadRootId);
+          return;
+        }
         bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
         navigateRoomThread(room.roomId, threadRootId);
         return;
@@ -145,15 +155,19 @@ export const useRoomTimelineNavigationController = ({
       if (!targetId) return;
       void handleOpenEvent(targetId);
     },
-    [handleOpenEvent, navigateRoomThread, room.roomId]
+    [classicRoomTimeline, handleOpenEvent, navigateRoomThread, room.roomId]
   );
 
   const handleOpenCompactThread = useCallback(
     (threadRootId: string, recentThreadSummaryText?: string) => {
+      if (classicRoomTimeline) {
+        void handleOpenEvent(threadRootId);
+        return;
+      }
       bumpRecentThread(room.roomId, threadRootId, undefined, recentThreadSummaryText);
       navigateRoomThread(room.roomId, threadRootId);
     },
-    [navigateRoomThread, room.roomId]
+    [classicRoomTimeline, handleOpenEvent, navigateRoomThread, room.roomId]
   );
 
   return {

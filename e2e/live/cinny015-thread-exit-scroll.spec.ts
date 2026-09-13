@@ -182,7 +182,7 @@ test.describe('live cinny-015 thread exit scroll', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await page.evaluate((nextRoomId) => {
-      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('threaded'));
     }, roomId);
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
@@ -228,7 +228,7 @@ test.describe('live cinny-015 thread exit scroll', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await page.evaluate((nextRoomId) => {
-      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('threaded'));
     }, roomId);
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
 
@@ -250,7 +250,8 @@ test.describe('live cinny-015 thread exit scroll', () => {
     await expect
       .poll(() => readHistoryBackProbe(page), {
         timeout: 5_000,
-        message: 'Thread exit should use window.history.back() when returning to an in-room thread root',
+        message:
+          'Thread exit should use window.history.back() when returning to an in-room thread root',
       })
       .toBe(1);
 

@@ -56,4 +56,22 @@ describe('getMessageRelation', () => {
       is_falling_back: false,
     });
   });
+
+  it('can suppress thread relation while preserving a normal reply', () => {
+    expect(
+      getMessageRelation(
+        '$reply',
+        {
+          rel_type: RelationType.Thread,
+          event_id: '$thread-from-reply',
+        },
+        '$thread-from-context',
+        { allowThreadRelation: false }
+      )
+    ).toEqual({
+      'm.in_reply_to': {
+        event_id: '$reply',
+      },
+    });
+  });
 });

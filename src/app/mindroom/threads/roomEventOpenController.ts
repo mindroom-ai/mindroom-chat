@@ -152,6 +152,10 @@ export const useRoomEventOpenController = ({
 } => {
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
+      if (effectiveViewMode === 'classic') {
+        return false;
+      }
+
       const threadTarget = resolveRoomEventThreadRedirect({
         eventId: targetEventId,
         room,
@@ -172,6 +176,7 @@ export const useRoomEventOpenController = ({
     },
     [
       focusEventInRoom,
+      effectiveViewMode,
       navigateRoomThread,
       room,
       roomOverviewOrderActive,
@@ -197,7 +202,8 @@ export const useRoomEventOpenController = ({
           filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
           filterOpts?.showHiddenEvents ?? showHiddenEvents,
           filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
-          filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents
+          filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
+          filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic'
         );
         const loadedRenderableEvents = renderableEntries.map(({ event }) => event);
         const loadedThreadReplyCountMap = buildVisibleThreadReplyCountMap(
@@ -309,12 +315,15 @@ export const useRoomEventOpenController = ({
           showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
           hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
           hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
+          showThreadRepliesInRoom:
+            filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
         })
       );
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
     }, [
       alive,
+      effectiveViewMode,
       hideMembershipEvents,
       hideNickAvatarEvents,
       ignoredUsersSet,

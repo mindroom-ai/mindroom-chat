@@ -73,7 +73,7 @@ const setup = async () => {
       onApplyPreset: (preset: (typeof FILTER_PRESETS)[number]) =>
         setThreadFilterState((prev) => syncQueryState(prev, (state) => applyPreset(state, preset))),
       onSearchQueryChange: (searchQuery: string) => setThreadFilterState((prev) => ({ ...prev, searchQuery })),
-      viewMode: 'normal',
+      viewMode: 'threaded',
       onViewModeChange: vi.fn(),
       roomInputRef: React.createRef<HTMLElement>(),
       editor: {} as never,

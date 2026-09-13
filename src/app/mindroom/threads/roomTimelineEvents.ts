@@ -2,10 +2,7 @@ import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { isMembershipChanged, reactionOrEditEvent } from '../../utils/room';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
-import {
-  buildVisibleThreadReplyCountMap,
-  isThreadReplyEvent,
-} from './threadUtils';
+import { buildVisibleThreadReplyCountMap, isThreadReplyEvent } from './threadUtils';
 import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
@@ -41,13 +38,16 @@ export const isRenderableEvent = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): boolean => {
   const mEventId = mEvent.getId();
   if (!mEvent || !mEventId) return false;
   const eventSender = mEvent.getSender();
   if (eventSender && ignoredUsersSet.has(eventSender)) return false;
-  if (!threadId && isThreadReplyEvent(mEventId, mEvent.threadRootId)) return false;
+  if (!threadId && !showThreadRepliesInRoom && isThreadReplyEvent(mEventId, mEvent.threadRootId)) {
+    return false;
+  }
   if (mEvent.isRedacted() && !showHiddenEvents) return false;
   if (reactionOrEditEvent(mEvent)) return false;
   if (mEvent.isRedaction()) return false;
@@ -75,7 +75,8 @@ export const getRenderableEventEntries = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): TimelineEventEntry[] => {
   const entries: TimelineEventEntry[] = [];
   let absoluteIndex = 0;
@@ -90,7 +91,8 @@ export const getRenderableEventEntries = (
           ignoredUsersSet,
           showHiddenEvents,
           hideMembershipEvents,
-          hideNickAvatarEvents
+          hideNickAvatarEvents,
+          showThreadRepliesInRoom
         )
       ) {
         entries.push({ event: mEvent, absoluteIndex });
@@ -110,7 +112,8 @@ export const getRenderableEvents = (
   ignoredUsersSet: Set<string>,
   showHiddenEvents: boolean,
   hideMembershipEvents: boolean,
-  hideNickAvatarEvents: boolean
+  hideNickAvatarEvents: boolean,
+  showThreadRepliesInRoom = false
 ): MatrixEvent[] =>
   getRenderableEventEntries(
     linkedTimelines,
@@ -119,8 +122,73 @@ export const getRenderableEvents = (
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
-    hideNickAvatarEvents
+    hideNickAvatarEvents,
+    showThreadRepliesInRoom
   ).map(({ event }) => event);
+
+export const mergeClassicRoomThreadReplyEntries = ({
+  renderableEventEntries,
+  room,
+  ignoredUsersSet,
+  showHiddenEvents,
+  hideMembershipEvents,
+  hideNickAvatarEvents,
+}: {
+  renderableEventEntries: TimelineEventEntry[];
+  room: Room;
+  ignoredUsersSet: Set<string>;
+  showHiddenEvents: boolean;
+  hideMembershipEvents: boolean;
+  hideNickAvatarEvents: boolean;
+}): TimelineEventEntry[] => {
+  const seenEventIds = new Set(
+    renderableEventEntries
+      .map(({ event }) => event.getId())
+      .filter((eventId): eventId is string => typeof eventId === 'string')
+  );
+  const threadReplyEntries: TimelineEventEntry[] = [];
+
+  room.getThreads().forEach((thread) => {
+    thread.events.forEach((mEvent) => {
+      const eventId = mEvent.getId();
+      if (!eventId || seenEventIds.has(eventId)) return;
+      if (!isThreadReplyEvent(eventId, mEvent.threadRootId)) return;
+      if (
+        !isRenderableEvent(
+          mEvent,
+          room,
+          undefined,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents,
+          true
+        )
+      ) {
+        return;
+      }
+
+      seenEventIds.add(eventId);
+      threadReplyEntries.push({
+        event: mEvent,
+        absoluteIndex: renderableEventEntries.length + threadReplyEntries.length,
+      });
+    });
+  });
+
+  if (threadReplyEntries.length === 0) return renderableEventEntries;
+
+  return [...renderableEventEntries, ...threadReplyEntries]
+    .sort((entryA, entryB) => {
+      const tsDiff = entryA.event.getTs() - entryB.event.getTs();
+      if (tsDiff !== 0) return tsDiff;
+      return (entryA.event.getId() ?? '').localeCompare(entryB.event.getId() ?? '');
+    })
+    .map((entry, absoluteIndex) => ({
+      ...entry,
+      absoluteIndex,
+    }));
+};
 
 export const getLinkedTimelineEvents = (linkedTimelines: EventTimeline[]): MatrixEvent[] =>
   linkedTimelines.flatMap((timeline) => timeline.getEvents());

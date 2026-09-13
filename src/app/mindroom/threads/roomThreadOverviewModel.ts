@@ -240,7 +240,7 @@ export const createThreadSortControlSignature = ({
     statusMode: state.statusMode,
     tags: [...state.tags.entries()].sort(([tagA], [tagB]) => tagA.localeCompare(tagB)),
     searchQuery: searchQuery ?? state.searchQuery ?? '',
-    viewMode: viewMode ?? 'normal',
+    viewMode: viewMode ?? 'threaded',
   });
 
 export const applyFrozenThreadOrder = (

@@ -5,11 +5,7 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
-import {
-  createPrivateRoom,
-  loginToMatrix,
-  sendRoomMessage,
-} from '../helpers/matrix';
+import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 const ROOM_MESSAGE_COUNT = 140;
@@ -78,7 +74,7 @@ test.describe('live CINNY-033 jump to latest', () => {
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
     await page.evaluate((nextRoomId) => {
-      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('threaded'));
     }, roomId);
 
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
