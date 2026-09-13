@@ -256,7 +256,7 @@ describe('RoomTimeline', () => {
     expect(scrollToItemMock).toHaveBeenCalled();
   });
 
-  it('bypasses room overview filters for synthetic room-focus routes', async () => {
+  it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
@@ -276,8 +276,7 @@ describe('RoomTimeline', () => {
           initialViewMode: 'normal',
           initialThreadFilterState: {
             ...DEFAULT_THREAD_FILTER_STATE,
-            resolved: 'exclude',
-            scheduled: 'exclude',
+            searchQuery: 'does-not-match-hidden-root',
             tags: new Map(),
           },
         })
@@ -287,6 +286,47 @@ describe('RoomTimeline', () => {
 
     expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
     expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
+    expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+  });
+
+  it('keeps synthetic room-focus permalinks in room-overview order for visible roots in natural mode', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const filler = makeEvent('$filler');
+    const firstThreadRoot = makeEvent('$thread-root-1', { isThreadRoot: true });
+    const secondThreadRoot = makeEvent('$thread-root-2', { isThreadRoot: true });
+    const room = makeRoom({
+      liveEvents: [filler, firstThreadRoot, secondThreadRoot],
+      threads: [
+        { id: firstThreadRoot.getId(), rootEvent: firstThreadRoot },
+        { id: secondThreadRoot.getId(), rootEvent: secondThreadRoot },
+      ] as never,
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: secondThreadRoot.getId(),
+          focusEventInRoom: true,
+          initialViewMode: 'normal',
+          initialThreadFilterState: {
+            ...DEFAULT_THREAD_FILTER_STATE,
+            sortBy: 'natural',
+            sortDirection: 'desc',
+            tags: new Map(),
+          },
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    expect(getRenderedEventIds(renderer!)).toEqual([
+      firstThreadRoot.getId(),
+      secondThreadRoot.getId(),
+    ]);
     expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
   });
 

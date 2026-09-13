@@ -543,6 +543,48 @@ describe('RoomTimeline', () => {
     expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
   });
 
+  it('counts recent standalone zero-reply roots in the room thread overview', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const standaloneRoot = makeEvent('$thread-root', {
+      ts: 999_000,
+      content: { body: 'Recent standalone root' },
+    });
+    const room = makeRoom({
+      liveEvents: [standaloneRoot],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    try {
+      const renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+
+      expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
+    const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import('./RoomTimeline');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const standaloneRoot = makeEvent('$thread-root', {
+      ts: 999_000,
+      content: { body: 'Recent standalone root' },
+    });
+    const room = makeRoom();
+
+    try {
+      expect(shouldRenderZeroReplyThreadBadge(room as never, standaloneRoot as never)).toBe(true);
+      expect(getThreadReplyCount(room as never, standaloneRoot as never, undefined, true)).toBe(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
     const { getRoomPreloadCounts } = await import('./RoomTimeline');
     const fallbackRoot = makeEvent('$thread-root');

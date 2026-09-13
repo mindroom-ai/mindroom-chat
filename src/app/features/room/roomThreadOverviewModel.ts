@@ -10,6 +10,7 @@ import { trimReplyFromBody } from '../../utils/room';
 import {
   getCompactThreadRootBodyPreviewText,
   isNestedThreadReplyEvent,
+  isZeroReplyStandaloneThreadRootEvent,
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 import { parseScheduledTaskStateEvent } from '../../utils/scheduledTaskContract';
@@ -413,7 +414,8 @@ const isVisibleThreadRootEvent = (
     event.isThreadRoot ||
     !!room.getThread(eventId) ||
     threadResolutionMap.has(eventId) ||
-    (threadReplyCountMap?.get(eventId) ?? 0) > 0
+    (threadReplyCountMap?.get(eventId) ?? 0) > 0 ||
+    isZeroReplyStandaloneThreadRootEvent(event)
   );
 };
 
@@ -627,6 +629,7 @@ export const buildThreadMetadataMap = (
 
   threadRootIds.forEach((threadRootId) => {
     const thread = room.getThread(threadRootId);
+    const rootEvent = getThreadRootEvent(room, threadRootId);
     const resolutionState = threadResolutionMap.get(threadRootId);
     const isResolved = resolutionState?.isResolved ?? false;
     const tags = resolutionState?.tags ? Object.keys(resolutionState.tags) : [];
@@ -634,7 +637,8 @@ export const buildThreadMetadataMap = (
     const scheduledTaskCount = scheduledTaskCounts.get(threadRootId) ?? 0;
     const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
     const cachedLastActivityTs = cachedLastActivityTsMap?.get(threadRootId) ?? 0;
-    const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs);
+    const rootEventTs = rootEvent?.getTs?.() ?? 0;
+    const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs, rootEventTs);
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);
     const replyEvents = getPreferredThreadReplyEvents(thread);
@@ -669,7 +673,10 @@ export const buildThreadMetadataMap = (
       summaryText: summaryInfo?.summaryText,
       rootPreviewText: pickPreferredThreadRootPreviewText({
         preferredPreviewText: eventBodyFallbackMap?.get(threadRootId),
-        fallbackPreviewText: getThreadRootPreviewText(room, threadRootId),
+        fallbackPreviewText: getCompactThreadRootBodyPreviewText(rootEvent, {
+          eventId: threadRootId,
+          room,
+        }) ?? getEventBodyPreviewText(rootEvent),
       }),
       messageCount,
       tags,

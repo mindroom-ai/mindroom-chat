@@ -20,6 +20,13 @@ export type CompactThreadRootPreviewInfo = {
   sourceTs: number;
 };
 
+export type CompactThreadRootEntry = {
+  event: MatrixEvent;
+  absoluteIndex: number;
+};
+
+export const COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS = 30 * 60 * 1000;
+
 const getEventActivityTs = (event: MatrixEvent): number => {
   const replacingEvent = event.replacingEvent();
   const replacingTs =
@@ -55,6 +62,23 @@ export const isNestedThreadReplyEvent = (event: MatrixEvent | undefined): boolea
 
   const targetId = getThreadRelationTargetId(event);
   return !!targetId && targetId !== eventId;
+};
+
+const isEditRelationEvent = (event: MatrixEvent | undefined): boolean =>
+  event?.getRelation?.()?.rel_type === 'm.replace';
+
+export const isZeroReplyStandaloneThreadRootEvent = (
+  event: MatrixEvent | undefined,
+  now = Date.now()
+): boolean => {
+  const eventId = event?.getId();
+  if (!event || !eventId) return false;
+  if (event.getType() !== 'm.room.message') return false;
+  if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
+  if (event.threadRootId && event.threadRootId !== eventId) return false;
+  if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;
+  if (now - event.getTs() > COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS) return false;
+  return true;
 };
 
 const hasCompactThreadActivity = (thread: Thread): boolean =>
@@ -225,6 +249,86 @@ export const buildCompactThreadRootData = ({
     if (bodyPreview) {
       bodyMap.set(thread.id, bodyPreview);
     }
+  });
+
+  return {
+    ids,
+    indexMap,
+    bodyMap,
+  };
+};
+
+export const buildCompactZeroReplyRootData = ({
+  room,
+  roomSurfaceEntries,
+  knownThreadRootIds,
+  now = Date.now(),
+}: {
+  room: Pick<Room, 'getUnfilteredTimelineSet'>;
+  roomSurfaceEntries: CompactThreadRootEntry[];
+  knownThreadRootIds: Iterable<string>;
+  now?: number;
+}): CompactThreadRootData => {
+  const ids: string[] = [];
+  const indexMap = new Map<string, number>();
+  const bodyMap = new Map<string, string>();
+  const seenKnownIds = new Set(knownThreadRootIds);
+
+  roomSurfaceEntries.forEach(({ event, absoluteIndex }) => {
+    const eventId = event.getId();
+    if (!eventId || seenKnownIds.has(eventId)) return;
+    if (!isZeroReplyStandaloneThreadRootEvent(event, now)) return;
+
+    seenKnownIds.add(eventId);
+    ids.push(eventId);
+    indexMap.set(eventId, absoluteIndex);
+
+    const bodyPreview = getCompactThreadRootBodyPreviewText(event, {
+      eventId,
+      room,
+    });
+    if (bodyPreview) {
+      bodyMap.set(eventId, bodyPreview);
+    }
+  });
+
+  return {
+    ids,
+    indexMap,
+    bodyMap,
+  };
+};
+
+export const mergeCompactThreadRootData = (
+  primary: CompactThreadRootData,
+  secondary: CompactThreadRootData
+): CompactThreadRootData => {
+  if (secondary.ids.length === 0) {
+    return primary;
+  }
+
+  const ids = Array.from(new Set([...primary.ids, ...secondary.ids]));
+  const indexMap = new Map(primary.indexMap);
+  secondary.indexMap.forEach((value, key) => {
+    indexMap.set(key, value);
+  });
+  const bodyMap = new Map(primary.bodyMap);
+  secondary.bodyMap.forEach((value, key) => {
+    bodyMap.set(key, value);
+  });
+  const originalOrder = new Map<string, number>();
+
+  [...primary.ids, ...secondary.ids].forEach((id) => {
+    if (!originalOrder.has(id)) {
+      originalOrder.set(id, originalOrder.size);
+    }
+  });
+
+  ids.sort((leftId, rightId) => {
+    const leftIndex = indexMap.get(leftId) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = indexMap.get(rightId) ?? Number.MAX_SAFE_INTEGER;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return (originalOrder.get(leftId) ?? 0) - (originalOrder.get(rightId) ?? 0);
   });
 
   return {

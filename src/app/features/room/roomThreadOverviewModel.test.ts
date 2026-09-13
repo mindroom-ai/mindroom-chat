@@ -68,7 +68,7 @@ const mkMeta = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverview
   ...overrides,
 });
 
-const makeRootPreviewEvent = (body: string, editedBody?: string) =>
+const makeRootPreviewEvent = (body: string, editedBody?: string, ts = 0) =>
   ({
     getContent: () =>
       editedBody
@@ -82,6 +82,7 @@ const makeRootPreviewEvent = (body: string, editedBody?: string) =>
     replacingEvent: () => undefined,
     getSender: () => '@agent:x',
     getId: () => '$thread-1',
+    getTs: () => ts,
     getType: () => 'm.room.message',
     getUnsigned: () => undefined,
   }) as never;
@@ -1247,6 +1248,40 @@ describe('roomThreadOverviewModel', () => {
       expect(result.get('$thread-1')?.lastActivityTs).toBe(1800);
     });
 
+    it('falls back to the root event timestamp for zero-reply compact cards', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const rootEvent = makeRootPreviewEvent('Standalone message root', undefined, 1700);
+      const room = {
+        getThread: () => null,
+        findEventById: () => rootEvent,
+        getUnfilteredTimelineSet: () => ({
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]])
+      );
+
+      expect(result.get('$thread-1')).toMatchObject({
+        lastActivityTs: 1700,
+        rootPreviewText: 'Standalone message root',
+        messageCount: 0,
+      });
+    });
+
     it('prefers the room event over a stale thread root event for root preview text', async () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
       const staleThreadRoot = makeRootPreviewEvent('Thinking...  ⋯');
@@ -1362,6 +1397,37 @@ describe('roomThreadOverviewModel', () => {
     );
 
     expect(result.ids).toEqual(['$actual-root']);
+  });
+
+  it('buildVisibleThreadRootData includes recent standalone zero-reply roots', async () => {
+    const { buildVisibleThreadRootData } = await import('./roomThreadOverviewModel');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const recentStandaloneRoot = {
+      getId: () => '$recent-root',
+      getContent: () => ({ body: 'Recent standalone root' }),
+      getRelation: () => undefined,
+      getTs: () => 999_000,
+      getType: () => 'm.room.message',
+      isRedacted: () => false,
+      threadRootId: '$recent-root',
+      isThreadRoot: false,
+    };
+
+    try {
+      const result = buildVisibleThreadRootData(
+        [{ event: recentStandaloneRoot as never, absoluteIndex: 0 }],
+        {
+          getThread: () => undefined,
+        } as never,
+        new Map(),
+        new Map()
+      );
+
+      expect(result.ids).toEqual(['$recent-root']);
+      expect(result.indexMap.get('$recent-root')).toBe(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   // ═══ statusMode OR semantics ═════════════════════════════════════════════
