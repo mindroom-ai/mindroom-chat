@@ -37,7 +37,8 @@
     "ios:phone:bg": "node scripts/ios-phone.mjs --background",
     "ios:phone:stop": "node scripts/ios-phone.mjs --stop",
     "appstore:fixture": "bash scripts/appstore-fixture-up.sh",
-    "appstore:screenshots": "bash scripts/appstore-screenshots.sh"
+    "appstore:screenshots": "bash scripts/appstore-screenshots.sh",
+    "appstore:release:preflight": "node scripts/appstore-release-preflight.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint",
