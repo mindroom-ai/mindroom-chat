@@ -1,12 +1,13 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
-import React from 'react';
-import FileSaver from 'file-saver';
+import React, { useCallback, useRef } from 'react';
 import classNames from 'classnames';
-import { Box, Chip, Header, Icon, IconButton, Icons, Text, as } from 'folds';
+import { Box, Chip, Header, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
 import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { usePan } from '../../hooks/usePan';
 import { downloadMedia } from '../../utils/matrix';
+import { saveFile } from '../../mindroom/native/nativeFileSave';
+import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 
 export type ImageViewerProps = {
   alt: string;
@@ -18,10 +19,22 @@ export const ImageViewer = as<'div', ImageViewerProps>(
   ({ className, alt, src, requestClose, ...props }, ref) => {
     const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(0.2);
     const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
+    const downloadedFileRef = useRef<{ src: string; blob: Blob }>();
 
-    const handleDownload = async () => {
-      const fileContent = await downloadMedia(src);
-      FileSaver.saveAs(fileContent, alt);
+    const [downloadState, download] = useAsyncCallback(
+      useCallback(async () => {
+        let fileContent = downloadedFileRef.current?.src === src && downloadedFileRef.current.blob;
+        if (!fileContent) {
+          fileContent = await downloadMedia(src);
+          downloadedFileRef.current = { src, blob: fileContent };
+        }
+        await saveFile(fileContent, alt);
+      }, [src, alt])
+    );
+    const downloadLoading = downloadState.status === AsyncStatus.Loading;
+    const downloadError = downloadState.status === AsyncStatus.Error;
+    const handleDownload = () => {
+      void download().catch(() => undefined);
     };
 
     return (
@@ -66,12 +79,21 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               <Icon size="50" src={Icons.Plus} />
             </IconButton>
             <Chip
-              variant="Primary"
+              variant={downloadError ? 'Critical' : 'Primary'}
               onClick={handleDownload}
+              disabled={downloadLoading}
               radii="300"
-              before={<Icon size="50" src={Icons.Download} />}
+              before={
+                downloadLoading ? (
+                  <Spinner size="100" variant="Primary" />
+                ) : (
+                  <Icon size="50" src={downloadError ? Icons.Warning : Icons.Download} />
+                )
+              }
             >
-              <Text size="B300">Download</Text>
+              <Text size="B300">
+                {downloadLoading ? 'Saving...' : downloadError ? 'Retry Download' : 'Download'}
+              </Text>
             </Chip>
           </Box>
         </Header>

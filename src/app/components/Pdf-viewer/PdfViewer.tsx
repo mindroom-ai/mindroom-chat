@@ -1,6 +1,13 @@
 /* eslint-disable no-param-reassign */
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
-import React, { FormEventHandler, MouseEventHandler, useEffect, useRef, useState } from 'react';
+import React, {
+  FormEventHandler,
+  MouseEventHandler,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import classNames from 'classnames';
 import {
   Box,
@@ -21,12 +28,12 @@ import {
   config,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import FileSaver from 'file-saver';
 import * as css from './PdfViewer.css';
-import { AsyncStatus } from '../../hooks/useAsyncCallback';
+import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useZoom } from '../../hooks/useZoom';
 import { createPage, usePdfDocumentLoader, usePdfJSLoader } from '../../plugins/pdfjs-dist';
 import { stopPropagation } from '../../utils/keyboard';
+import { saveFile } from '../../mindroom/native/nativeFileSave';
 
 export type PdfViewerProps = {
   name: string;
@@ -77,8 +84,13 @@ export const PdfViewer = as<'div', PdfViewerProps>(
       }
     }, [docState, pageNo, zoom]);
 
+    const [downloadState, download] = useAsyncCallback(
+      useCallback(() => saveFile(src, name), [src, name])
+    );
+    const downloadLoading = downloadState.status === AsyncStatus.Loading;
+    const downloadError = downloadState.status === AsyncStatus.Error;
     const handleDownload = () => {
-      FileSaver.saveAs(src, name);
+      void download().catch(() => undefined);
     };
 
     const handleJumpSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -140,12 +152,21 @@ export const PdfViewer = as<'div', PdfViewerProps>(
               <Icon size="50" src={Icons.Plus} />
             </IconButton>
             <Chip
-              variant="Primary"
+              variant={downloadError ? 'Critical' : 'Primary'}
               onClick={handleDownload}
+              disabled={downloadLoading}
               radii="300"
-              before={<Icon size="50" src={Icons.Download} />}
+              before={
+                downloadLoading ? (
+                  <Spinner size="100" variant="Primary" />
+                ) : (
+                  <Icon size="50" src={downloadError ? Icons.Warning : Icons.Download} />
+                )
+              }
             >
-              <Text size="B300">Download</Text>
+              <Text size="B300">
+                {downloadLoading ? 'Saving...' : downloadError ? 'Retry Download' : 'Download'}
+              </Text>
             </Chip>
           </Box>
         </Header>

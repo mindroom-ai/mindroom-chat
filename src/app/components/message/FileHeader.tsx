@@ -1,12 +1,11 @@
 import { Badge, Box, Icon, IconButton, Icons, Spinner, Text, as, toRem } from 'folds';
-import React, { ReactNode, useCallback } from 'react';
+import React, { ReactNode, useCallback, useRef } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import FileSaver from 'file-saver';
 import { mimeTypeToExt } from '../../utils/mimeTypes';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { useBlobUrlCleanup } from '../../hooks/useBlobUrlCleanup';
+import { saveFile } from '../../mindroom/native/nativeFileSave';
 import {
   decryptFile,
   downloadEncryptedMedia,
@@ -25,28 +24,45 @@ type FileDownloadButtonProps = {
 export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDownloadButtonProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const downloadedFileRef = useRef<{
+    url: string;
+    mimeType: string;
+    encInfo?: EncryptedAttachmentInfo;
+    blob: Blob;
+  }>();
 
   const [downloadState, download] = useAsyncCallback(
     useCallback(async () => {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
+      const cachedFile = downloadedFileRef.current;
+      let fileContent =
+        cachedFile?.url === url &&
+        cachedFile.mimeType === mimeType &&
+        cachedFile.encInfo === encInfo
+          ? cachedFile.blob
+          : undefined;
+      if (!fileContent) {
+        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
+        if (!mediaUrl) throw new Error('Invalid media URL');
+        fileContent = encInfo
+          ? await downloadEncryptedMedia(mediaUrl, (encBuf) =>
+              decryptFile(encBuf, mimeType, encInfo)
+            )
+          : await downloadMedia(mediaUrl);
+        downloadedFileRef.current = { url, mimeType, encInfo, blob: fileContent };
+      }
 
-      const fileURL = URL.createObjectURL(fileContent);
-      FileSaver.saveAs(fileURL, filename);
-      return fileURL;
+      await saveFile(fileContent, filename);
     }, [mx, url, useAuthentication, mimeType, encInfo, filename])
   );
-  useBlobUrlCleanup(downloadState);
-
   const downloading = downloadState.status === AsyncStatus.Loading;
   const hasError = downloadState.status === AsyncStatus.Error;
+  const handleDownload = () => {
+    void download().catch(() => undefined);
+  };
   return (
     <IconButton
       disabled={downloading}
-      onClick={download}
+      onClick={handleDownload}
       variant={hasError ? 'Critical' : 'SurfaceVariant'}
       size="300"
       radii="300"
