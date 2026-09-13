@@ -13,7 +13,6 @@ import {
   IWidget,
   Widget,
   WidgetApiToWidgetAction,
-  WidgetDriver,
 } from 'matrix-widget-api';
 import { CallWidgetDriver } from './CallWidgetDriver';
 import { trimTrailingSlash } from '../../utils/common';
@@ -40,6 +39,8 @@ export class CallEmbed {
   public readonly control: CallControl;
 
   private readonly container: HTMLElement;
+
+  private readonly callWidgetDriver: CallWidgetDriver;
 
   private readUpToMap: { [roomId: string]: string } = {}; // room ID to event ID
 
@@ -147,6 +148,9 @@ export class CallEmbed {
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';
+    iframe.style.position = 'relative';
+    iframe.style.zIndex = '1';
+    iframe.style.backgroundColor = 'transparent';
 
     return iframe;
   }
@@ -163,7 +167,7 @@ export class CallEmbed {
     );
     container.append(iframe);
 
-    const callWidgetDriver: WidgetDriver = new CallWidgetDriver(mx, room.roomId);
+    const callWidgetDriver = new CallWidgetDriver(mx, room.roomId);
     const call: ClientWidgetApi = new ClientWidgetApi(widget, iframe, callWidgetDriver);
 
     this.mx = mx;
@@ -171,6 +175,7 @@ export class CallEmbed {
     this.room = room;
     this.iframe = iframe;
     this.container = container;
+    this.callWidgetDriver = callWidgetDriver;
 
     const controlState = initialControlState ?? new CallControlState(true, false, true);
     this.control = new CallControl(controlState, call, iframe);
@@ -262,6 +267,7 @@ export class CallEmbed {
     this.disposables.forEach((disposable) => {
       disposable();
     });
+    this.callWidgetDriver.dispose();
     this.call.stop();
     this.container.removeChild(this.iframe);
     this.control.dispose();

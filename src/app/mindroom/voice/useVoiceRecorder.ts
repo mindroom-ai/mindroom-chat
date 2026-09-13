@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MatrixError } from 'matrix-js-sdk';
-import { Capacitor } from '@capacitor/core';
 import { useAtom, useStore } from 'jotai';
 import { isNativeApp } from '../native/nativeSso';
 import {
@@ -21,6 +20,7 @@ import {
   type PendingVoiceSendDraft,
   type PendingVoiceSendInFlight,
 } from '../../state/room/roomInputDrafts';
+import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
@@ -81,51 +81,14 @@ const getAudioContextConstructor = (): typeof AudioContext | undefined => {
   );
 };
 
-const getNativePlatform = (): string | undefined =>
-  isNativeApp() ? Capacitor.getPlatform() : undefined;
-
 const getInsecureContextVoiceRecorderMessage = (): string =>
   'Voice recording requires HTTPS (or localhost). Open MindRoom over HTTPS.';
-
-const getBlockedMicrophoneMessage = (): string => {
-  const nativePlatform = getNativePlatform();
-
-  if (nativePlatform === 'android') {
-    return 'Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.';
-  }
-
-  if (nativePlatform === 'ios') {
-    return 'Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.';
-  }
-
-  return 'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.';
-};
 
 export const getVoiceRecorderErrorMessage = (err: unknown): string => {
   if (typeof window !== 'undefined' && !window.isSecureContext && !isNativeApp()) {
     return getInsecureContextVoiceRecorderMessage();
   }
-
-  if (err instanceof DOMException) {
-    if (err.name === 'NotAllowedError') {
-      return getBlockedMicrophoneMessage();
-    }
-    if (err.name === 'NotFoundError') {
-      return 'No microphone was found on this device.';
-    }
-    if (err.name === 'NotReadableError') {
-      return 'Microphone is unavailable right now (it may be in use by another app).';
-    }
-  }
-
-  if (err instanceof Error) {
-    if (/not allowed by the user agent|current context/i.test(err.message)) {
-      return getBlockedMicrophoneMessage();
-    }
-    return err.message;
-  }
-
-  return 'Failed to access microphone.';
+  return getMicrophoneAccessErrorMessage(err);
 };
 
 export function useVoiceRecorder({

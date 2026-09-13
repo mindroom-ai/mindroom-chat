@@ -76,7 +76,13 @@ export function Room() {
             {screenSize === ScreenSize.Desktop && (
               <Line variant="Background" direction="Vertical" size="300" />
             )}
-            <MindroomCallChatView room={room} />
+            <MindroomCallChatView
+              room={room}
+              eventId={eventId}
+              focusEventInRoom={focusEvent === '1'}
+              threadId={routedThreadId}
+              onThreadLoadError={handleThreadLoadError}
+            />
           </>
         )}
         {!callView && screenSize === ScreenSize.Desktop && isDrawer && (

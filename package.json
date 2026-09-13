@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/verify-element-call-background.mjs",
     "preview": "vite preview",
     "lint": "npm run check:eslint",
     "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
@@ -129,7 +129,7 @@
     "patch-package": "8.0.1"
   },
   "devDependencies": {
-    "@element-hq/element-call-embedded": "0.20.1",
+    "@element-hq/element-call-embedded": "0.20.3",
     "@capacitor/cli": "8.1.0",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
     "@rollup/plugin-inject": "5.0.3",

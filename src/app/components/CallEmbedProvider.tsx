@@ -56,6 +56,9 @@ import { getRoomPermissionsAPI } from '../hooks/useRoomPermissions';
 import { useLivekitSupport } from '../hooks/useLivekitSupport';
 import { CallAvatarAnimation } from '../styles/Animations.css';
 import { webRTCSupported } from '../utils/rtc';
+import { cleanupMindroomAgentCall } from '../mindroom/calls/agentCall';
+import { particleBackgroundColorVar } from './particle-background/particleBackgroundTheme.css';
+import { CallBackground } from './CallBackground';
 
 type IncomingCallInfo = {
   room: Room;
@@ -351,15 +354,20 @@ function IncomingCallListener({ callEmbed, joined }: IncomingCallListenerProps) 
 }
 
 function CallUtils({ embed }: { embed: CallEmbed }) {
+  const mx = useMatrixClient();
   const setCallEmbed = useSetAtom(callEmbedAtom);
+  const cleanupStartedRef = useRef(false);
 
   useCallMemberSoundSync(embed);
   useCallThemeSync(embed);
   useCallHangupEvent(
     embed,
     useCallback(() => {
+      if (cleanupStartedRef.current) return;
+      cleanupStartedRef.current = true;
       setCallEmbed(undefined);
-    }, [setCallEmbed])
+      cleanupMindroomAgentCall(mx, embed.room).catch(() => undefined);
+    }, [embed.room, mx, setCallEmbed])
   );
 
   return null;
@@ -397,9 +405,14 @@ export function CallEmbedProvider({ children }: CallEmbedProviderProps) {
           left: 0,
           width: '100%',
           height: '50%',
+          isolation: 'isolate',
+          overflow: 'hidden',
+          backgroundColor: particleBackgroundColorVar,
         }}
         ref={callEmbedRef}
-      />
+      >
+        <CallBackground visible={Boolean(callVisible)} />
+      </div>
     </CallEmbedContextProvider>
   );
 }
