@@ -3,6 +3,7 @@ import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageEvent } from '../../../types/matrix/room';
+import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 
 const RELATION_ANNOTATION = 'm.annotation';
 const RELATION_REPLACE = 'm.replace';
@@ -777,20 +778,18 @@ const createControlledRoomTimelineHarness = (
     room: ReturnType<typeof makeRoom>;
     threadId?: string;
   }) {
-    const [threadFilter, setThreadFilter] = React.useState<
-      'all' | 'resolved' | 'unresolved' | 'unread'
-    >('all');
-    const [threadSort, setThreadSort] = React.useState<
-      'default' | 'last-reply' | 'streaming' | 'scheduled'
-    >('default');
-
     return React.createElement(RoomTimelineComponent, {
       room,
       threadId,
-      threadFilter,
-      onThreadFilterChange: setThreadFilter,
-      threadSort,
-      onThreadSortChange: setThreadSort,
+      threadFilterState: createDefaultThreadFilterState(),
+      onToggle: vi.fn(),
+      onSortDirectionChange: vi.fn(),
+      onCycleTag: vi.fn(),
+      onAddTag: vi.fn(),
+      onRemoveTag: vi.fn(),
+      onReset: vi.fn(),
+      viewMode: 'normal',
+      onViewModeChange: vi.fn(),
       roomInputRef,
       editor,
     });
@@ -1077,7 +1076,7 @@ describe('RoomTimeline collapsible wiring', () => {
         mEvent: liveThreadReply as never,
         room: room as never,
         threadId: '$thread-root',
-        threadFilter: 'all',
+        threadFilterState: createDefaultThreadFilterState(),
         threadResolutionMap: threadResolutionMapMock,
         ignoredUsersSet: new Set(),
         showHiddenEvents: false,

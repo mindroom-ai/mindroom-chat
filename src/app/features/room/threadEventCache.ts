@@ -357,6 +357,31 @@ export const loadLatestCachedThreadEvents = async (
   limit: number
 ): Promise<CachedThreadEventPage> => runCursorQuery(sessionId, roomId, threadId, limit);
 
+export const loadCachedThreadPaginationToken = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  eventId: string
+): Promise<string | null | undefined> => {
+  const db = await openThreadEventCache(sessionId);
+  if (!db) return undefined;
+
+  const threadKey = getThreadKey(roomId, threadId);
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([META_STORE], 'readonly');
+    const metaStore = transaction.objectStore(META_STORE);
+    const metaRequest = metaStore.get(threadKey);
+
+    transaction.oncomplete = () => {
+      const meta = metaRequest.result as CachedThreadMetaRecord | undefined;
+      resolve(getCachedPaginationToken(meta?.beforeTokens, eventId));
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
 export const loadCachedThreadEventsBefore = async (
   sessionId: string,
   roomId: string,

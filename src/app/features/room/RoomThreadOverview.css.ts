@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 
 export const Overview = style({
   margin: `0 ${config.space.S300} ${config.space.S200}`,
@@ -10,18 +10,323 @@ export const Overview = style({
   flexShrink: 0,
 });
 
-export const FilterRow = style({
+export const ToolbarHeader = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: config.space.S200,
+});
+
+export const ToolbarControls = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: config.space.S100,
 });
 
-export const SortRow = style({
+export const ToggleGroup = style({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: config.space.S100,
+});
+
+export const ToggleSortSeparator = style({
+  width: config.borderWidth.B300,
+  height: toRem(20),
+  backgroundColor: color.SurfaceVariant.ContainerLine,
+  flexShrink: 0,
+  '@media': {
+    [`screen and (max-width: ${toRem(480)})`]: {
+      display: 'none',
+    },
+  },
+});
+
+const TOGGLE_SIZE = toRem(32);
+
+export const ToggleButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: TOGGLE_SIZE,
+  height: TOGGLE_SIZE,
+  minWidth: TOGGLE_SIZE,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  padding: 0,
+  position: 'relative',
+  overflow: 'hidden',
+  opacity: config.opacity.P300,
+  transition: 'background-color 0.15s, border-color 0.15s, opacity 0.15s',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const ToggleInclude = style({
+  backgroundColor: color.Success.Container,
+  borderColor: color.Success.ContainerLine,
+  color: color.Success.OnContainer,
+  opacity: '1',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Success.ContainerHover,
+    },
+  },
+});
+
+export const ToggleExclude = style({
+  backgroundColor: color.Critical.Container,
+  borderColor: color.Critical.ContainerLine,
+  color: color.Critical.OnContainer,
+  opacity: '1',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Critical.ContainerHover,
+    },
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      width: '140%',
+      height: toRem(2),
+      backgroundColor: color.Critical.Main,
+      transform: 'translate(-50%, -50%) rotate(-45deg)',
+      pointerEvents: 'none',
+    },
+  },
+});
+
+export const SortButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: config.space.S100,
+  height: TOGGLE_SIZE,
+  paddingLeft: config.space.S200,
+  paddingRight: config.space.S200,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'background-color 0.15s, border-color 0.15s',
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const SortButtonActive = style({
+  backgroundColor: color.Primary.Container,
+  borderColor: color.Primary.ContainerLine,
+  color: color.Primary.OnContainer,
+
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Primary.ContainerHover,
+    },
+  },
+});
+
+// ─── Tag filter row (Row 2) ──────────────────────────────────────────────────
+
+export const TagRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  paddingTop: config.space.S100,
   borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  paddingTop: config.space.S200,
+  flexWrap: 'wrap',
+});
+
+export const TagList = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  flexShrink: 0,
+});
+
+const TAG_PILL_HEIGHT = toRem(26);
+
+export const TagPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  height: TAG_PILL_HEIGHT,
+  borderRadius: config.radii.Pill,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  overflow: 'hidden',
+  transition: 'background-color 0.15s, border-color 0.15s',
+});
+
+export const TagPillInclude = style({
+  backgroundColor: color.Success.Container,
+  borderColor: color.Success.ContainerLine,
+  color: color.Success.OnContainer,
+});
+
+export const TagPillExclude = style({
+  backgroundColor: color.Critical.Container,
+  borderColor: color.Critical.ContainerLine,
+  color: color.Critical.OnContainer,
+});
+
+export const TagPillLabel = style({
+  background: 'none',
+  border: 'none',
+  padding: `0 ${config.space.S200}`,
+  cursor: 'pointer',
+  color: 'inherit',
+  font: 'inherit',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      opacity: '0.8',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+  },
+});
+
+export const TagPillRemove = style({
+  background: 'none',
+  border: 'none',
+  borderLeft: `${config.borderWidth.B300} solid currentColor`,
+  padding: `0 ${config.space.S100}`,
+  cursor: 'pointer',
+  color: 'inherit',
+  font: 'inherit',
+  opacity: '0.6',
+  height: '100%',
+  display: 'inline-flex',
+  alignItems: 'center',
+  selectors: {
+    '&:hover': {
+      opacity: '1',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+  },
+});
+
+export const AddTagContainer = style({
+  position: 'relative',
+  display: 'inline-flex',
+});
+
+export const AddTagButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  height: TAG_PILL_HEIGHT,
+  paddingLeft: config.space.S200,
+  paddingRight: config.space.S200,
+  borderRadius: config.radii.Pill,
+  border: `${config.borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: 'transparent',
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  opacity: config.opacity.P300,
+  transition: 'opacity 0.15s',
+  font: 'inherit',
+  selectors: {
+    '&:hover': {
+      opacity: '1',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const AddTagDropdown = style({
+  position: 'absolute',
+  top: `calc(${TAG_PILL_HEIGHT} + ${config.space.S100})`,
+  left: 0,
+  zIndex: 100,
+  minWidth: toRem(140),
+  maxHeight: toRem(200),
+  overflowY: 'auto',
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  boxShadow: `0 ${toRem(2)} ${toRem(8)} rgba(0, 0, 0, 0.15)`,
+  padding: config.space.S100,
+});
+
+export const AddTagOption = style({
+  display: 'block',
+  width: '100%',
+  padding: `${config.space.S100} ${config.space.S200}`,
+  borderRadius: config.radii.R300,
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  textAlign: 'left',
+  font: 'inherit',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+  },
+});
+
+export const EmptyState = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: config.space.S200,
+  padding: `${config.space.S400} ${config.space.S200}`,
+  color: color.SurfaceVariant.OnContainer,
+});
+
+export const ResetLink = style({
+  color: color.Primary.Main,
+  cursor: 'pointer',
+  textDecoration: 'underline',
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  font: 'inherit',
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
 });

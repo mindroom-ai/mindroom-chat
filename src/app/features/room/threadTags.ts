@@ -41,6 +41,9 @@ export const parseThreadTagsContent = (
   return Object.keys(result).length > 0 ? result : null;
 };
 
+export const getTagNames = (tags: Record<string, TagMetadata> | null): string[] =>
+  tags ? Object.keys(tags) : [];
+
 export const isThreadResolvedFromContent = (content: unknown): boolean => {
   const tags = parseThreadTagsContent(content);
   return tags !== null && 'resolved' in tags;
