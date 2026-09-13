@@ -1,4 +1,14 @@
-import { BasePoint, BaseRange, Editor, Element, Point, Range, Text, Transforms } from 'slate';
+import {
+  BasePoint,
+  BaseRange,
+  Descendant,
+  Editor,
+  Element,
+  Point,
+  Range,
+  Text,
+  Transforms,
+} from 'slate';
 import { BlockType, MarkType } from './types';
 import {
   CommandElement,
@@ -259,6 +269,22 @@ export const isEmptyEditor = (editor: Editor): boolean => {
     return isEmpty;
   }
   return false;
+};
+
+export const restoreEditorContent = (editor: Editor, fragment: Descendant[]) => {
+  const wasEmpty = isEmptyEditor(editor);
+  Editor.withoutNormalizing(editor, () => {
+    Transforms.insertNodes(editor, fragment, { at: [0] });
+    // An empty editor holds a single empty paragraph; restoring before it would leave a
+    // trailing blank line. Anything the user typed since the snapshot stays, after the
+    // restored content.
+    if (wasEmpty) {
+      Transforms.removeNodes(editor, { at: [fragment.length] });
+    }
+  });
+  if (wasEmpty) {
+    Transforms.select(editor, Editor.end(editor, []));
+  }
 };
 
 export const getBeginCommand = (editor: Editor): string | undefined => {
