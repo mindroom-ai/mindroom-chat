@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from 'react';
+import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Direction } from 'matrix-js-sdk';
 import type { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
@@ -11,15 +6,13 @@ import { countCacheProbe } from './cacheProbe';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
-import {
-  runThreadOpenTargetEvent,
-  type PendingThreadOpen,
-} from './threadOpenTargetEvent';
+import { runThreadOpenTargetEvent, type PendingThreadOpen } from './threadOpenTargetEvent';
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 import type { Timeline } from './timelinePagination';
 import type { ThreadOpenCacheController } from './threadOpenCacheController';
 import type { ThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
+import { isLocalEchoEventId } from './threadRouteUtils';
 
 type ScrollToBottomState = {
   count: number;
@@ -117,6 +110,13 @@ export const useThreadOpenLifecycleController = ({
 }) => {
   useEffect(() => {
     if (!threadId) return undefined;
+    if (isLocalEchoEventId(threadId)) {
+      const localRoot = room.findEventById(threadId);
+      if (localRoot) {
+        setSupplementalThreadEvents(threadId, [localRoot]);
+      }
+      return undefined;
+    }
     // CINNY-207 AC2 revision (2026-07-04): every open of a thread bumps
     // exactly here. Post-choke-point invariant asserted from a docker
     // probe snapshot: threadOpens == threadOpenScheduledCacheFirst +

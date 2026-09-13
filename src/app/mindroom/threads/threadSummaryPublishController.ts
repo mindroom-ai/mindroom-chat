@@ -4,6 +4,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
+import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
 export const getActiveThreadSummaryInfo = ({
   thread,
@@ -25,10 +26,7 @@ export const useThreadSummaryPublishController = ({
   threadId,
   threadSummaryInfoMap,
 }: {
-  onStoreThreadSummary: (
-    threadRootId: string,
-    info: MindroomThreadSummaryInfo | undefined
-  ) => void;
+  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   thread: Pick<Thread, 'events' | 'timeline'> | null;
   threadEvents: MatrixEvent[];
   threadId: string | undefined;
@@ -52,7 +50,7 @@ export const useThreadSummaryPublishController = ({
   }, [onStoreThreadSummary, threadId, threadSummaryInfoMap]);
 
   useEffect(() => {
-    if (!threadId) return;
+    if (!isConfirmedMatrixEventId(threadId)) return;
     onStoreThreadSummary(threadId, activeThreadSummaryInfo);
   }, [activeThreadSummaryInfo, onStoreThreadSummary, threadId]);
 

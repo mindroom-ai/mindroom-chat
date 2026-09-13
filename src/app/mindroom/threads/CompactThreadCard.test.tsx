@@ -48,6 +48,18 @@ vi.mock('../../components/user-avatar', () => ({
     renderFallback?.() ?? null,
 }));
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return {
+    useTranslation: () => ({
+      t: (key: string, options?: Record<string, unknown>) =>
+        key === 'thread.aria.messageFailed'
+          ? 'Localized message failure'
+          : translateFromEn(key, options),
+    }),
+  };
+});
+
 const makeViewModel = (
   overrides: Partial<CompactThreadCardViewModel> = {}
 ): CompactThreadCardViewModel => ({
@@ -82,6 +94,28 @@ describe('CompactThreadCard', () => {
     expect(rendered).toContain('Message sending');
     expect(rendered).toContain('Waiting for server');
     expect(rendered).toContain('data-pending-send-icon');
+
+    renderer.unmount();
+  });
+
+  it('renders terminal failure instead of pending state beside compact preview text', () => {
+    const renderer = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({ hasPendingSend: true, hasFailedSend: true })}
+        onClick={vi.fn()}
+      />
+    );
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    const ariaLabel = renderer.root.findByType('button').props['aria-label'];
+
+    expect(rendered).toContain('Me: Pending reply body');
+    expect(rendered).toContain('Message failed to send');
+    expect(rendered).toContain('Not sent');
+    expect(rendered).toContain('data-failed-send-icon');
+    expect(rendered).not.toContain('data-pending-send-icon');
+    expect(ariaLabel).toContain('Localized message failure');
+    expect(ariaLabel).not.toContain('Message failed to send');
 
     renderer.unmount();
   });

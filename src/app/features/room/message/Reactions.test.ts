@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Reactions } from './Reactions';
 
@@ -102,16 +102,32 @@ class MockRelations {
   }
 }
 
+const renderers: ReturnType<typeof create>[] = [];
+const render = (element: React.ReactElement) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(element);
+  });
+  renderers.push(renderer);
+  return renderer;
+};
+
 describe('Reactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    act(() => {
+      renderers.splice(0).forEach((renderer) => renderer.unmount());
+    });
   });
 
   it('passes the rendered relations object back on toggle', () => {
     const relations = new MockRelations();
     const onReactionToggle = vi.fn();
 
-    const renderer = create(
+    const renderer = render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -129,6 +145,31 @@ describe('Reactions', () => {
     });
 
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🔄', undefined, relations);
+  });
+
+  it('does not toggle a reaction on an unconfirmed target', () => {
+    const relations = new MockRelations();
+    const onReactionToggle = vi.fn();
+
+    const renderer = render(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '~!room:example.org:txn-root',
+        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle,
+      })
+    );
+
+    const button = renderer.root.findByType('button');
+    expect(button.props.onClick).toBeUndefined();
+
+    act(() => {
+      button.props.onClick?.();
+    });
+
+    expect(onReactionToggle).not.toHaveBeenCalled();
   });
 
   it('ignores redacted reaction shells when rendering counts', () => {
@@ -150,7 +191,7 @@ describe('Reactions', () => {
       ],
     ]);
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -196,7 +237,7 @@ describe('Reactions', () => {
       getContent: () => ({ 'io.mindroom.stream_status': 'completed' }),
     } as MatrixEvent;
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
@@ -230,7 +271,7 @@ describe('Reactions', () => {
       getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
     } as MatrixEvent;
 
-    create(
+    render(
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',

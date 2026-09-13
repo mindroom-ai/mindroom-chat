@@ -329,6 +329,31 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).not.toContain('Next task');
   });
 
+  it('disables tag and resolve actions for a provisional thread root', () => {
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    bannerMocks.useThreadTags.mockReturnValue({
+      displayTags: [],
+      isResolved: false,
+      canEdit: true,
+      availableTags: ['bug'],
+    });
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 0,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: undefined,
+    });
+
+    const renderer = renderBanner();
+    const resolveButton = renderer.root
+      .findAllByType('button')
+      .find((button) =>
+        button.findAllByType('span').some((child) => child.children.includes('Resolve'))
+      );
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('+ tag');
+    expect(resolveButton?.props.disabled).toBe(true);
+  });
+
   it('renders a truncated summary row when summary text is available', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
       scheduledTaskCount: 0,

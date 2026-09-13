@@ -51,6 +51,7 @@ type RenderMessageContentProps = {
   outlineAttachment?: boolean;
   hydrateLongText?: boolean;
   pendingSend?: boolean;
+  failedSend?: boolean;
 };
 export function RenderMessageContent({
   displayName,
@@ -71,6 +72,7 @@ export function RenderMessageContent({
   outlineAttachment,
   hydrateLongText = true,
   pendingSend,
+  failedSend,
 }: RenderMessageContentProps) {
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -94,6 +96,7 @@ export function RenderMessageContent({
           renderStateSuffix={getMindroomMessageStateSuffixRenderer({
             edited,
             pendingSend,
+            failedSend,
           })}
           content={content}
           renderBody={(props) => (
@@ -158,6 +161,7 @@ export function RenderMessageContent({
     edited,
     content,
     pendingSend,
+    failedSend,
     renderUrlsPreview: urlPreview ? renderUrlsPreview : undefined,
     highlightRegex,
     htmlReactParserOptions,

@@ -33,6 +33,19 @@ const getExpandedZeroReplyThreadButton = (
     .getByRole('button', { name: /Thread 0 replies/i })
     .first();
 
+const clickThreadExitButton = async (page: import('@playwright/test').Page) => {
+  await page.evaluate(() => {
+    const label = Array.from(document.querySelectorAll('p')).find(
+      (element) => element.textContent?.trim() === 'Thread View'
+    );
+    const exitButton = label?.closest('div')?.parentElement?.parentElement?.querySelector('button');
+    if (!(exitButton instanceof HTMLButtonElement)) {
+      throw new Error('Thread exit button not found');
+    }
+    exitButton.click();
+  });
+};
+
 type DelayedUiSend = {
   waitForIntercept: () => Promise<void>;
   isReleased: () => boolean;
@@ -124,9 +137,9 @@ const prepareFreshRoom = async (viewMode: 'compact' | 'threaded') => {
 test.describe('live cinny-068 fresh zero-reply open', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('compact view opens a fresh zero-reply root while the send request is still pending', async ({
+  test('compact view automatically opens a fresh zero-reply root while the send request is still pending', async ({
     page,
-  }) => {
+  }, testInfo) => {
     const diagnostics = attachBrowserDiagnostics(page);
     const { homeserver, username, password, userId, roomId, rootBody } = await prepareFreshRoom(
       'compact'
@@ -153,17 +166,41 @@ test.describe('live cinny-068 fresh zero-reply open', () => {
 
       await delayedSend.waitForIntercept();
 
-      const compactThreadButton = getZeroReplyThreadButton(page, rootBody);
-      await expect(compactThreadButton).toBeVisible({ timeout: 30_000 });
-      expect(delayedSend.isReleased()).toBe(false);
-
-      await compactThreadButton.click();
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('threadId'), {
+          timeout: 30_000,
+          message: 'Compact root send should open its provisional local-echo route',
+        })
+        .toMatch(/^~/);
       await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
+      await expect(
+        page.getByText('Replies are available after this message is confirmed.')
+      ).toBeVisible();
+      await expect(page.locator('[data-editable-name="RoomInput"]')).toHaveCount(0);
+      await testInfo.attach('pending-root-replies-disabled', {
+        body: await page.screenshot(),
+        contentType: 'image/png',
+      });
       expect(delayedSend.isReleased()).toBe(false);
 
-      await expectPendingThenConfirmedThreadRoute(page);
+      await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('threadId'), {
+          timeout: 30_000,
+          message: 'Thread route should canonicalize to the confirmed root id',
+        })
+        .toMatch(/^\$/);
+      await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible();
+
+      await clickThreadExitButton(page);
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('threadId'), {
+          timeout: 10_000,
+          message: 'Confirmed route should retain the original room exit target',
+        })
+        .toBeNull();
+      await expect(getZeroReplyThreadButton(page, rootBody)).toBeVisible({ timeout: 30_000 });
       await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-068-compact');
     } finally {
       await delayedSend.dispose();

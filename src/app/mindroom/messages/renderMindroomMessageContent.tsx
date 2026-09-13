@@ -31,6 +31,7 @@ export type RenderMindroomMessageContentOptions = {
   edited?: boolean;
   content: Record<string, unknown>;
   pendingSend?: boolean;
+  failedSend?: boolean;
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   highlightRegex?: RegExp;
   htmlReactParserOptions: HTMLReactParserOptions;
@@ -65,6 +66,7 @@ export const renderMindroomMessageContent = ({
   edited,
   content,
   pendingSend,
+  failedSend,
   renderUrlsPreview,
   highlightRegex,
   htmlReactParserOptions,
@@ -165,6 +167,7 @@ export const renderMindroomMessageContent = ({
     getMindroomMessageStateSuffixRenderer({
       edited,
       pendingSend,
+      failedSend,
       renderStateSuffix,
     });
 

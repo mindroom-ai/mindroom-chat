@@ -88,6 +88,7 @@ import {
   useMindroomMessageExtensionState,
 } from './messageExtensions';
 import { MindroomModelBadge } from './MindroomModelBadge';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -805,6 +806,7 @@ export const Message = as<'div', MessageProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
+    const serverEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
     const showCopyText = isCopyTextMessageContent(menuMessageContent as Record<string, unknown>);
     const mindroomMessageExtensions = useMindroomMessageExtensionState(
@@ -863,7 +865,7 @@ export const Message = as<'div', MessageProps>(
     const msgContentJSX = (
       <Box direction="Column" alignSelf="Start" style={{ maxWidth: '100%' }}>
         {reply}
-        {edit && onEditId ? (
+        {serverEventActionsAllowed && edit && onEditId ? (
           <MessageEditor
             style={{
               maxWidth: '100%',
@@ -994,7 +996,7 @@ export const Message = as<'div', MessageProps>(
             <div className={css.MessageOptionsBase}>
               <Menu className={css.MessageOptionsBar} variant="SurfaceVariant">
                 <Box gap="100">
-                  {canSendReaction && (
+                  {canSendReaction && serverEventActionsAllowed && (
                     <PopOut
                       position="Bottom"
                       align={emojiBoardAnchor?.width === 0 ? 'Start' : 'End'}
@@ -1030,18 +1032,20 @@ export const Message = as<'div', MessageProps>(
                       </IconButton>
                     </PopOut>
                   )}
-                  <IconButton
-                    onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
-                      onReplyClick(ev, isThreadedMessage)
-                    }
-                    data-event-id={mEvent.getId()}
-                    variant="SurfaceVariant"
-                    size="300"
-                    radii="300"
-                  >
-                    <Icon src={Icons.ReplyArrow} size="100" />
-                  </IconButton>
-                  {!isThreadedMessage && (
+                  {serverEventActionsAllowed && (
+                    <IconButton
+                      onClick={(ev: React.MouseEvent<HTMLButtonElement>) =>
+                        onReplyClick(ev, isThreadedMessage)
+                      }
+                      data-event-id={mEvent.getId()}
+                      variant="SurfaceVariant"
+                      size="300"
+                      radii="300"
+                    >
+                      <Icon src={Icons.ReplyArrow} size="100" />
+                    </IconButton>
+                  )}
+                  {serverEventActionsAllowed && !isThreadedMessage && (
                     <IconButton
                       onClick={(ev: React.MouseEvent<HTMLButtonElement>) => onReplyClick(ev, true)}
                       data-event-id={mEvent.getId()}
@@ -1052,7 +1056,7 @@ export const Message = as<'div', MessageProps>(
                       <Icon src={Icons.ThreadPlus} size="100" />
                     </IconButton>
                   )}
-                  {canEditEvent(mx, mEvent) && onEditId && (
+                  {serverEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
                     <IconButton
                       onClick={() => onEditId(mEvent.getId())}
                       variant="SurfaceVariant"
@@ -1079,7 +1083,7 @@ export const Message = as<'div', MessageProps>(
                         }}
                       >
                         <Menu>
-                          {canSendReaction && (
+                          {canSendReaction && serverEventActionsAllowed && (
                             <MessageQuickReactions
                               onReaction={(key, shortcode) => {
                                 onReactionToggle(mEvent.getId()!, key, shortcode);
@@ -1088,7 +1092,7 @@ export const Message = as<'div', MessageProps>(
                             />
                           )}
                           <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                            {canSendReaction && (
+                            {canSendReaction && serverEventActionsAllowed && (
                               <MenuItem
                                 size="300"
                                 after={<Icon size="100" src={Icons.SmilePlus} />}
@@ -1112,26 +1116,28 @@ export const Message = as<'div', MessageProps>(
                                 onClose={closeMenu}
                               />
                             )}
-                            <MenuItem
-                              size="300"
-                              after={<Icon size="100" src={Icons.ReplyArrow} />}
-                              radii="300"
-                              data-event-id={mEvent.getId()}
-                              onClick={(evt: any) => {
-                                onReplyClick(evt, isThreadedMessage);
-                                closeMenu();
-                              }}
-                            >
-                              <Text
-                                className={css.MessageMenuItemText}
-                                as="span"
-                                size="T300"
-                                truncate
+                            {serverEventActionsAllowed && (
+                              <MenuItem
+                                size="300"
+                                after={<Icon size="100" src={Icons.ReplyArrow} />}
+                                radii="300"
+                                data-event-id={mEvent.getId()}
+                                onClick={(evt: any) => {
+                                  onReplyClick(evt, isThreadedMessage);
+                                  closeMenu();
+                                }}
                               >
-                                Reply
-                              </Text>
-                            </MenuItem>
-                            {!isThreadedMessage && (
+                                <Text
+                                  className={css.MessageMenuItemText}
+                                  as="span"
+                                  size="T300"
+                                  truncate
+                                >
+                                  Reply
+                                </Text>
+                              </MenuItem>
+                            )}
+                            {serverEventActionsAllowed && !isThreadedMessage && (
                               <MenuItem
                                 size="300"
                                 after={<Icon src={Icons.ThreadPlus} size="100" />}
@@ -1152,7 +1158,7 @@ export const Message = as<'div', MessageProps>(
                                 </Text>
                               </MenuItem>
                             )}
-                            {canEditEvent(mx, mEvent) && onEditId && (
+                            {serverEventActionsAllowed && canEditEvent(mx, mEvent) && onEditId && (
                               <MenuItem
                                 size="300"
                                 after={<Icon size="100" src={Icons.Pencil} />}
@@ -1202,33 +1208,40 @@ export const Message = as<'div', MessageProps>(
                                 loading={mindroomCopyText.loading}
                               />
                             )}
-                            <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
-                            {canPinEvent && (
+                            {serverEventActionsAllowed && (
+                              <MessageCopyLinkItem
+                                room={room}
+                                mEvent={mEvent}
+                                onClose={closeMenu}
+                              />
+                            )}
+                            {serverEventActionsAllowed && canPinEvent && (
                               <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
                             )}
                           </Box>
-                          {((!mEvent.isRedacted() && canDelete) ||
-                            mEvent.getSender() !== mx.getUserId()) && (
-                            <>
-                              <Line size="300" />
-                              <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                                {!mEvent.isRedacted() && canDelete && (
-                                  <MessageDeleteItem
-                                    room={room}
-                                    mEvent={mEvent}
-                                    onClose={closeMenu}
-                                  />
-                                )}
-                                {mEvent.getSender() !== mx.getUserId() && (
-                                  <MessageReportItem
-                                    room={room}
-                                    mEvent={mEvent}
-                                    onClose={closeMenu}
-                                  />
-                                )}
-                              </Box>
-                            </>
-                          )}
+                          {serverEventActionsAllowed &&
+                            ((!mEvent.isRedacted() && canDelete) ||
+                              mEvent.getSender() !== mx.getUserId()) && (
+                              <>
+                                <Line size="300" />
+                                <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                                  {!mEvent.isRedacted() && canDelete && (
+                                    <MessageDeleteItem
+                                      room={room}
+                                      mEvent={mEvent}
+                                      onClose={closeMenu}
+                                    />
+                                  )}
+                                  {mEvent.getSender() !== mx.getUserId() && (
+                                    <MessageReportItem
+                                      room={room}
+                                      mEvent={mEvent}
+                                      onClose={closeMenu}
+                                    />
+                                  )}
+                                </Box>
+                              </>
+                            )}
                         </Menu>
                       </FocusTrap>
                     }
@@ -1306,6 +1319,7 @@ export const Event = as<'div', EventProps>(
     const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setHover });
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const stateEvent = typeof mEvent.getStateKey() === 'string';
+    const serverEventActionsAllowed = isConfirmedMatrixEventId(mEvent.getId());
 
     const handleContextMenu: MouseEventHandler<HTMLDivElement> = (evt) => {
       if (evt.altKey || !window.getSelection()?.isCollapsed) return;
@@ -1378,30 +1392,33 @@ export const Event = as<'div', EventProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          {serverEventActionsAllowed && (
+                            <MessageCopyLinkItem room={room} mEvent={mEvent} onClose={closeMenu} />
+                          )}
                         </Box>
-                        {((!mEvent.isRedacted() && canDelete && !stateEvent) ||
-                          (mEvent.getSender() !== mx.getUserId() && !stateEvent)) && (
-                          <>
-                            <Line size="300" />
-                            <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-                              {!mEvent.isRedacted() && canDelete && (
-                                <MessageDeleteItem
-                                  room={room}
-                                  mEvent={mEvent}
-                                  onClose={closeMenu}
-                                />
-                              )}
-                              {mEvent.getSender() !== mx.getUserId() && (
-                                <MessageReportItem
-                                  room={room}
-                                  mEvent={mEvent}
-                                  onClose={closeMenu}
-                                />
-                              )}
-                            </Box>
-                          </>
-                        )}
+                        {serverEventActionsAllowed &&
+                          ((!mEvent.isRedacted() && canDelete && !stateEvent) ||
+                            (mEvent.getSender() !== mx.getUserId() && !stateEvent)) && (
+                            <>
+                              <Line size="300" />
+                              <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                                {!mEvent.isRedacted() && canDelete && (
+                                  <MessageDeleteItem
+                                    room={room}
+                                    mEvent={mEvent}
+                                    onClose={closeMenu}
+                                  />
+                                )}
+                                {mEvent.getSender() !== mx.getUserId() && (
+                                  <MessageReportItem
+                                    room={room}
+                                    mEvent={mEvent}
+                                    onClose={closeMenu}
+                                  />
+                                )}
+                              </Box>
+                            </>
+                          )}
                       </Menu>
                     </FocusTrap>
                   }

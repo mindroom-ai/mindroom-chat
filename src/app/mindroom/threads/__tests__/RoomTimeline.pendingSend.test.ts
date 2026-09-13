@@ -26,8 +26,14 @@ describe('RoomTimeline pending-send wiring', () => {
       content: { body: 'original' },
     }) as ReturnType<typeof makeEvent> & { __editedEvent?: typeof pendingEdit };
     editedBaseEvent.__editedEvent = pendingEdit;
+    const failedEvent = makeEvent('$failed', { content: { body: 'failed' } }) as ReturnType<
+      typeof makeEvent
+    > & { status?: EventStatus };
+    failedEvent.status = EventStatus.NOT_SENT;
     const confirmedEvent = makeEvent('$confirmed', { content: { body: 'confirmed' } });
-    const room = makeRoom({ liveEvents: [pendingEvent, editedBaseEvent, confirmedEvent] });
+    const room = makeRoom({
+      liveEvents: [pendingEvent, editedBaseEvent, failedEvent, confirmedEvent],
+    });
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
@@ -43,13 +49,15 @@ describe('RoomTimeline pending-send wiring', () => {
       .map((node) => ({
         body: node.props.getContent().body,
         pendingSend: node.props.pendingSend,
+        failedSend: node.props.failedSend,
       }));
 
     expect(messageContent).toEqual(
       expect.arrayContaining([
-        { body: 'pending', pendingSend: true },
-        { body: 'pending edit', pendingSend: true },
-        { body: 'confirmed', pendingSend: false },
+        { body: 'pending', pendingSend: true, failedSend: false },
+        { body: 'pending edit', pendingSend: true, failedSend: false },
+        { body: 'failed', pendingSend: false, failedSend: true },
+        { body: 'confirmed', pendingSend: false, failedSend: false },
       ])
     );
   });

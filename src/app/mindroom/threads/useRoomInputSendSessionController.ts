@@ -24,12 +24,14 @@ import {
 import { getRoomMessageSentNotificationEventId } from './roomMessageSent';
 
 type SendSession = RoomInputSendSessionState & {
+  room: Room;
   roomId: string;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   textContent?: IContent;
   composerFallback?: Descendant[];
+  textTimelineOwned?: boolean;
   replyCleared: boolean;
   signalBridgedRoom: boolean;
 };
@@ -71,7 +73,7 @@ type UseRoomInputSendSessionControllerOptions = {
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[]) => void;
-  onRoomMessageSent?: (eventId: string) => void;
+  onRoomMessageSent?: (eventId: string) => boolean | void;
   shouldBlockStartSendSession?: () => boolean;
 };
 
@@ -180,19 +182,35 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : session.textContent;
-      const response = await mx.sendMessage(session.roomId, content as any);
-      const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
-        eventId: response.event_id,
-        relation,
-        replyDraft: session.replyDraft,
-        threadId: session.threadId,
-      });
+      const txnId = mx.makeTxnId();
+      const sendPromise = mx.sendMessage(session.roomId, content as any, txnId);
+      const localEventId = session.room.getEventForTxnId(txnId)?.getId();
+      let roomMessageSentNotified = false;
+
+      const notifyRoomMessageSent = (eventId: string | undefined) => {
+        if (!eventId || roomMessageSentNotified || !onRoomMessageSent) return;
+
+        const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+          eventId,
+          relation,
+          replyDraft: session.replyDraft,
+          threadId: session.threadId,
+        });
+        if (!sentEventIdToNotify) return;
+
+        roomMessageSentNotified = true;
+        session.textTimelineOwned = onRoomMessageSent(sentEventIdToNotify) === true;
+      };
+
+      if (localEventId === `~${session.roomId}:${txnId}`) {
+        notifyRoomMessageSent(localEventId);
+      }
+
+      const response = await sendPromise;
+      notifyRoomMessageSent(response.event_id);
 
       session.textPending = false;
       clearReplyDraftForSession(session);
-      if (sentEventIdToNotify) {
-        onRoomMessageSent?.(sentEventIdToNotify);
-      }
     },
     [mx, clearReplyDraftForSession, onRoomMessageSent]
   );
@@ -299,7 +317,12 @@ export const useRoomInputSendSessionController = ({
           try {
             await sendSessionText(session);
           } catch (error) {
-            restoreComposerFallback(session);
+            if (session.textTimelineOwned) {
+              session.textPending = false;
+              session.composerFallback = undefined;
+            } else {
+              restoreComposerFallback(session);
+            }
           }
           continue;
         }
@@ -371,12 +394,14 @@ export const useRoomInputSendSessionController = ({
       }
 
       const sessionRoomId = context ? context.roomId : roomId;
+      const sessionRoom = context ? context.room : room;
       const sessionThreadId = context ? context.threadId : threadId;
       const sessionReplyDraft = context ? context.replyDraft : replyDraft;
       const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
       const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
 
       sendSessionRef.current = {
+        room: sessionRoom,
         roomId: sessionRoomId,
         threadId: sessionThreadId,
         replyDraft: sessionReplyDraft,

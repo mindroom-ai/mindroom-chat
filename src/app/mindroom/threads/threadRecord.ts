@@ -21,7 +21,7 @@ import {
   getVisibleThreadParticipantIds,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
-import { isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -85,6 +85,9 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
 const isPendingThreadEvent = (event: MatrixEvent | undefined): boolean =>
   isPendingLocalEchoEvent(event) || isPendingLocalEchoEvent(event?.replacingEvent?.());
 
+const isFailedThreadEvent = (event: MatrixEvent | undefined): boolean =>
+  isFailedLocalEchoEvent(event) || isFailedLocalEchoEvent(event?.replacingEvent?.());
+
 const getThreadPendingSend = (
   threadRootEvent: MatrixEvent | undefined,
   thread: ReturnType<Room['getThread']>
@@ -92,6 +95,15 @@ const getThreadPendingSend = (
   if (isPendingThreadEvent(threadRootEvent)) return true;
 
   return getPreferredVisibleThreadReplyEvents(thread).some((event) => isPendingThreadEvent(event));
+};
+
+const getThreadFailedSend = (
+  threadRootEvent: MatrixEvent | undefined,
+  thread: ReturnType<Room['getThread']>
+): boolean => {
+  if (isFailedThreadEvent(threadRootEvent)) return true;
+
+  return getPreferredVisibleThreadReplyEvents(thread).some((event) => isFailedThreadEvent(event));
 };
 
 export const getThreadReplyCount = (
@@ -309,6 +321,7 @@ export const buildThreadRecord = ({
   const isResolved = threadResolution?.isResolved ?? false;
   const isStreaming = getThreadStreamingState(room, threadRootId);
   const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, thread);
+  const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, thread);
 
   return {
     roomId: room.roomId,
@@ -339,6 +352,7 @@ export const buildThreadRecord = ({
       isUnread,
       isStreaming,
       hasPendingSend,
+      hasFailedSend,
       scheduledTaskCount: resolvedScheduledTaskCount,
       nextScheduledTs: resolvedNextScheduledTs,
       lastActivityTs,

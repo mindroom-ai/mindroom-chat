@@ -28,6 +28,7 @@ import {
 } from './threadRenderUtils';
 import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
+import { isLocalEchoEventId } from './threadRouteUtils';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -51,6 +52,23 @@ type ThreadFallbackState = {
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
+const getThreadRenderStateInitialMode = ({
+  threadId,
+  initialCacheHydrated,
+  fallbackEventCount,
+}: {
+  threadId?: string;
+  initialCacheHydrated: boolean;
+  fallbackEventCount: number;
+}): ThreadInitialRenderMode =>
+  isLocalEchoEventId(threadId)
+    ? 'live'
+    : getThreadInitialRenderMode({
+        threadId,
+        initialCacheHydrated,
+        fallbackEventCount,
+      });
+
 const buildThreadEvents = ({
   room,
   threadId,
@@ -68,7 +86,7 @@ const buildThreadEvents = ({
   indexMap: Map<string, number>;
 } => {
   const collectedEvents: MatrixEvent[] = [];
-  const initialRenderMode = getThreadInitialRenderMode({
+  const initialRenderMode = getThreadRenderStateInitialMode({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
     fallbackEventCount: fallbackEvents.length,
@@ -304,7 +322,7 @@ export const useThreadRenderState = ({
     handleThreadNewReply
   );
 
-  const threadInitialRenderMode = getThreadInitialRenderMode({
+  const threadInitialRenderMode = getThreadRenderStateInitialMode({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
     fallbackEventCount: fallbackEvents.length,

@@ -1,19 +1,21 @@
 import React, { type ReactNode } from 'react';
 import { MessageEditedContent } from '../../components/message/content/FallbackContent';
-import { renderPendingSendIndicator } from './pendingSendIndicator';
+import { renderFailedSendIndicator, renderPendingSendIndicator } from './pendingSendIndicator';
 
 export type MindroomMessageStateSuffixOptions = {
   edited?: boolean;
   pendingSend?: boolean;
+  failedSend?: boolean;
   renderStateSuffix?: () => ReactNode;
 };
 
 export const getMindroomMessageStateSuffixRenderer = ({
   edited,
   pendingSend,
+  failedSend,
   renderStateSuffix,
 }: MindroomMessageStateSuffixOptions): (() => ReactNode) | undefined => {
-  if (!renderStateSuffix && !pendingSend) {
+  if (!renderStateSuffix && !pendingSend && !failedSend) {
     return undefined;
   }
 
@@ -21,7 +23,7 @@ export const getMindroomMessageStateSuffixRenderer = ({
     <>
       {renderStateSuffix?.()}
       {edited && <MessageEditedContent />}
-      {pendingSend && renderPendingSendIndicator()}
+      {failedSend ? renderFailedSendIndicator() : pendingSend && renderPendingSendIndicator()}
     </>
   );
 };
