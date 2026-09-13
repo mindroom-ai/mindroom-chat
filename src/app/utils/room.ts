@@ -30,6 +30,31 @@ import {
   UnreadInfo,
 } from '../../types/matrix/room';
 
+const EDIT_DEBUG_FLAG_STORAGE_KEY = 'mindroom.debug.edits';
+
+const isEditDebugEnabled = (): boolean => {
+  try {
+    const g = globalThis as {
+      __MINDROOM_DEBUG_EDITS__?: boolean;
+      localStorage?: Storage;
+    };
+    return (
+      g.__MINDROOM_DEBUG_EDITS__ === true ||
+      g.localStorage?.getItem(EDIT_DEBUG_FLAG_STORAGE_KEY) === '1'
+    );
+  } catch {
+    return false;
+  }
+};
+
+export const logEditDebug = (
+  scope: string,
+  details: Record<string, unknown>
+) => {
+  if (!isEditDebugEnabled()) return;
+  console.info(`[mindroom-edits:${scope}]`, details);
+};
+
 export const getStateEvent = (
   room: Room,
   eventType: StateEvent,
@@ -418,9 +443,18 @@ export const getLatestEdit = (
   targetEvent: MatrixEvent,
   editEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
-  const eventByTargetSender = (rEvent: MatrixEvent) =>
-    rEvent.getSender() === targetEvent.getSender();
-  return editEvents.sort((m1, m2) => m2.getTs() - m1.getTs()).find(eventByTargetSender);
+  const targetSender = targetEvent.getSender();
+
+  // Prefer higher timestamp; when equal, prefer the later relation entry
+  // so we don't get stuck on the earliest edit.
+  return editEvents.reduce<MatrixEvent | undefined>((latest, editEvent) => {
+    if (editEvent.getSender() !== targetSender) return latest;
+    if (!latest) return editEvent;
+
+    if (editEvent.getTs() > latest.getTs()) return editEvent;
+    if (editEvent.getTs() === latest.getTs()) return editEvent;
+    return latest;
+  }, undefined);
 };
 
 export const getEditedEvent = (
@@ -428,8 +462,45 @@ export const getEditedEvent = (
   mEvent: MatrixEvent,
   timelineSet: EventTimelineSet
 ): MatrixEvent | undefined => {
+  const replacingEvent = mEvent.replacingEvent();
+  if (replacingEvent && replacingEvent.getSender() === mEvent.getSender()) {
+    logEditDebug('getEditedEvent:replacingEvent', {
+      eventId: mEventId,
+      replacingEventId: replacingEvent.getId(),
+      replacingTs: replacingEvent.getTs(),
+      source: 'sdk',
+    });
+    return replacingEvent;
+  }
+  if (replacingEvent && replacingEvent.getSender() !== mEvent.getSender()) {
+    logEditDebug('getEditedEvent:replacingEventRejected', {
+      eventId: mEventId,
+      replacingEventId: replacingEvent.getId(),
+      replacingSender: replacingEvent.getSender(),
+      targetSender: mEvent.getSender(),
+      reason: 'sender_mismatch',
+    });
+  }
+
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
-  return edits && getLatestEdit(mEvent, edits.getRelations());
+  if (!edits) {
+    logEditDebug('getEditedEvent:noRelationEdits', {
+      eventId: mEventId,
+      eventType: mEvent.getType(),
+    });
+    return undefined;
+  }
+
+  const relations = edits.getRelations();
+  const latestEdit = getLatestEdit(mEvent, relations);
+  logEditDebug('getEditedEvent:relationFallback', {
+    eventId: mEventId,
+    relationCount: relations.length,
+    selectedEditId: latestEdit?.getId(),
+    selectedEditTs: latestEdit?.getTs(),
+    source: 'relations',
+  });
+  return latestEdit;
 };
 
 export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent) => {

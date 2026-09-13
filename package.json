@@ -23,7 +23,8 @@
     "test:watch": "vitest",
     "ios:icons": "bash scripts/generate-ios-icons.sh",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
-    "release:next-tag": "python3 scripts/fork_release_tag.py"
+    "release:next-tag": "python3 scripts/fork_release_tag.py",
+    "postinstall": "patch-package"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint",
@@ -138,6 +139,7 @@
     "vite-plugin-pwa": "0.20.5",
     "vite-plugin-static-copy": "1.0.4",
     "vite-plugin-top-level-await": "1.4.4",
-    "vitest": "2.1.8"
+    "vitest": "2.1.8",
+    "patch-package": "8.0.1"
   }
 }

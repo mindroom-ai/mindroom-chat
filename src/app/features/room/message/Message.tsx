@@ -387,11 +387,17 @@ export const MessageSourceCodeItem = as<
   const getText = (): string => {
     const evtId = mEvent.getId()!;
     const evtTimeline = room.getTimelineForEvent(evtId);
-    const edits =
+    const relationEdits =
       evtTimeline &&
       getEventEdits(evtTimeline.getTimelineSet(), evtId, mEvent.getType())?.getRelations();
+    const replacingEvent = mEvent.replacingEvent();
+    const relationEditIds = new Set((relationEdits ?? []).map((event) => event.getId()));
+    const edits = [
+      ...(relationEdits ?? []),
+      ...(replacingEvent && !relationEditIds.has(replacingEvent.getId()) ? [replacingEvent] : []),
+    ];
 
-    if (!edits) return JSON.stringify(getContent(mEvent), null, 2);
+    if (edits.length === 0) return JSON.stringify(getContent(mEvent), null, 2);
 
     const content: Record<string, unknown> = {
       '<== MAIN_EVENT ==>': getContent(mEvent),
