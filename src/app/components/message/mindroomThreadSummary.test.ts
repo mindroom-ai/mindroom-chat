@@ -5,6 +5,7 @@ import {
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
   hasMindroomThreadSummary,
+  pickLatestThreadSummaryInfo,
 } from './mindroomThreadSummary';
 
 const makeEvent = (content: Record<string, unknown>) => ({
@@ -232,5 +233,51 @@ describe('buildThreadSummaryMap', () => {
     ];
     const map = buildThreadSummaryMap(events);
     expect(map.get('root-1')?.summaryText).toBe('Edited summary');
+  });
+});
+
+describe('pickLatestThreadSummaryInfo', () => {
+  it('prefers the summary with the newer generated timestamp', () => {
+    expect(
+      pickLatestThreadSummaryInfo(
+        { summaryText: 'Old summary', generatedTs: 100, messageCount: 4 },
+        { summaryText: 'Latest summary', generatedTs: 200, messageCount: 3 }
+      )
+    ).toEqual({ summaryText: 'Latest summary', generatedTs: 200, messageCount: 3 });
+  });
+
+  it('falls back to the larger message count when timestamps are unavailable', () => {
+    expect(
+      pickLatestThreadSummaryInfo(
+        { summaryText: 'Smaller count', messageCount: 7 },
+        { summaryText: 'Bigger count', messageCount: 12 }
+      )
+    ).toEqual({ summaryText: 'Bigger count', messageCount: 12 });
+  });
+
+  it('prefers the later summary text when recency metadata ties', () => {
+    expect(
+      pickLatestThreadSummaryInfo(
+        { summaryText: 'Keep me', generatedTs: 100, messageCount: 10 },
+        {
+          summaryText: 'Updated text',
+          generatedTs: 100,
+          messageCount: 10,
+        }
+      )
+    ).toEqual({ summaryText: 'Updated text', generatedTs: 100, messageCount: 10 });
+  });
+
+  it('does not let timestamp presence alone beat a higher message count', () => {
+    expect(
+      pickLatestThreadSummaryInfo(
+        { summaryText: 'Cached summary', messageCount: 12 },
+        {
+          summaryText: 'Older room summary',
+          generatedTs: 100,
+          messageCount: 10,
+        }
+      )
+    ).toEqual({ summaryText: 'Cached summary', messageCount: 12 });
   });
 });

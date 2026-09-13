@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadRoomThreads, roomThreadListIsComplete, sortThreadsByActivity, getRoomThreadsUnread } from './roomThreadList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
-export const useRoomThreadList = (room: Room) => {
+export const useRoomThreadList = (room: Room, enabled = true) => {
   const mx = useMatrixClient();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
 
@@ -14,6 +14,10 @@ export const useRoomThreadList = (room: Room) => {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(undefined);
 
@@ -24,9 +28,15 @@ export const useRoomThreadList = (room: Room) => {
     } finally {
       setLoading(false);
     }
-  }, [handleThreadListProgress, room]);
+  }, [enabled, handleThreadListProgress, room]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      setError(undefined);
+      return undefined;
+    }
+
     let mounted = true;
 
     setLoading(true);
@@ -51,9 +61,11 @@ export const useRoomThreadList = (room: Room) => {
     return () => {
       mounted = false;
     };
-  }, [handleThreadListProgress, room]);
+  }, [enabled, handleThreadListProgress, room]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
+
     const handleThreadUpdate = () => {
       setVersion((current) => current + 1);
     };
@@ -69,7 +81,7 @@ export const useRoomThreadList = (room: Room) => {
       room.removeListener(ThreadEvent.NewReply, handleThreadUpdate);
       room.removeListener(ThreadEvent.Delete, handleThreadUpdate);
     };
-  }, [room]);
+  }, [enabled, room]);
 
   const rawThreads = useMemo(() => room.getThreads(), [room, version]);
   const userId = mx.getUserId() ?? '';

@@ -4,7 +4,7 @@ import { MessageEvent } from '../../../types/matrix/room';
 const getThreadEditBackfillPhase = (threadTailLoaded: boolean): number =>
   threadTailLoaded ? 1 : 0;
 
-const hasLikelyIncompleteStreamingBody = (value: unknown): boolean => {
+export const hasLikelyIncompleteStreamingBody = (value: unknown): boolean => {
   if (typeof value !== 'string') return false;
   const normalized = value.trim();
   if (!normalized) return false;

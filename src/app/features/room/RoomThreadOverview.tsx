@@ -22,6 +22,7 @@ import type {
   FilterPreset,
 } from './roomThreadOverviewModel';
 import { hasActiveThreadFilters, FILTER_PRESETS } from './roomThreadOverviewModel';
+import type { RoomViewMode } from '../../state/room/roomViewMode';
 
 export type { ThreadFilterState, ThreadFilterKey };
 
@@ -605,6 +606,8 @@ export type RoomThreadOverviewProps = {
   tagCounts?: Record<string, number>;
   state: ThreadFilterState;
   availableTags: string[];
+  viewMode?: RoomViewMode;
+  onViewModeChange?: (mode: RoomViewMode) => void;
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
   onReset: () => void;
@@ -622,6 +625,8 @@ export function RoomThreadOverview({
   tagCounts,
   state,
   availableTags,
+  viewMode,
+  onViewModeChange,
   onToggle,
   onSortDirectionChange,
   onReset,

@@ -1,6 +1,7 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
+  hasLikelyIncompleteStreamingBody,
   markThreadEditBackfillAttempted,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfillUtils';
@@ -19,6 +20,14 @@ const makeMessageEvent = (eventId: string, type = 'm.room.message') =>
   });
 
 describe('shouldFetchThreadEditBackfill', () => {
+  it('detects likely incomplete streaming placeholders', () => {
+    expect(hasLikelyIncompleteStreamingBody('Thinking...')).toBe(true);
+    expect(hasLikelyIncompleteStreamingBody('Thinking...  ⋯')).toBe(true);
+    expect(hasLikelyIncompleteStreamingBody('Thinking…')).toBe(true);
+    expect(hasLikelyIncompleteStreamingBody('Let me do three things')).toBe(false);
+    expect(hasLikelyIncompleteStreamingBody(undefined)).toBe(false);
+  });
+
   it('waits for the thread tail before backfilling edits and allows retry after that', () => {
     const attemptedEvents = new WeakMap<MatrixEvent, number>();
     const firstInstance = makeMessageEvent('$target');

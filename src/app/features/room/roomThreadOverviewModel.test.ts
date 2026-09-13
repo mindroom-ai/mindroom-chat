@@ -1064,6 +1064,184 @@ describe('roomThreadOverviewModel', () => {
         tags: [],
       });
     });
+
+    it('prefers a non-placeholder fallback root preview over a stale live root preview', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const rootEvent = {
+        getContent: () => ({ body: 'Thinking...  ⋯' }),
+        replacingEvent: () => undefined,
+        getSender: () => '@agent:x',
+        getId: () => '$thread-1',
+        getType: () => 'm.room.message',
+      };
+      const room = {
+        getThread: () => ({
+          rootEvent,
+          events: [],
+        }),
+        findEventById: () => undefined,
+        getUnfilteredTimelineSet: () => ({
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]]),
+        new Map([['$thread-1', 'Let me check all the agents right now.']])
+      );
+
+      expect(result.get('$thread-1')?.rootPreviewText).toBe(
+        'Let me check all the agents right now.'
+      );
+    });
+
+    it('prefers the room event over a stale thread root event for root preview text', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const staleThreadRoot = {
+        getContent: () => ({ body: 'Thinking...  ⋯' }),
+        replacingEvent: () => undefined,
+        getSender: () => '@agent:x',
+        getId: () => '$thread-1',
+        getType: () => 'm.room.message',
+      };
+      const fresherRoomEvent = {
+        getContent: () => ({
+          body: 'Thinking...  ⋯',
+          'm.new_content': {
+            body: 'Let me check the actual colors being generated.',
+          },
+        }),
+        replacingEvent: () => undefined,
+        getSender: () => '@agent:x',
+        getId: () => '$thread-1',
+        getType: () => 'm.room.message',
+      };
+      const room = {
+        getThread: () => ({
+          rootEvent: staleThreadRoot,
+          events: [],
+        }),
+        findEventById: () => fresherRoomEvent,
+        getUnfilteredTimelineSet: () => ({
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]])
+      );
+
+      expect(result.get('$thread-1')?.rootPreviewText).toBe(
+        'Let me check the actual colors being generated.'
+      );
+    });
+
+    it('prefers cached root preview text over a stale non-placeholder live root preview', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const rootEvent = {
+        getContent: () => ({ body: '**[Response cancelled by user]**' }),
+        replacingEvent: () => undefined,
+        getSender: () => '@agent:x',
+        getId: () => '$thread-1',
+        getType: () => 'm.room.message',
+      };
+      const room = {
+        getThread: () => ({
+          rootEvent,
+          events: [],
+        }),
+        findEventById: () => undefined,
+        getUnfilteredTimelineSet: () => ({
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]]),
+        new Map([
+          [
+            '$thread-1',
+            'Let me check the current state of the code and what Bas has changed.',
+          ],
+        ])
+      );
+
+      expect(result.get('$thread-1')?.rootPreviewText).toBe(
+        'Let me check the current state of the code and what Bas has changed.'
+      );
+    });
+  });
+
+  it('buildVisibleThreadRootData excludes reply events masquerading as thread roots', async () => {
+    const { buildVisibleThreadRootData } = await import('./roomThreadOverviewModel');
+    const fakeReply = {
+      getId: () => '$reply-event',
+      getContent: () => ({ body: 'Thinking...  ⋯' }),
+      threadRootId: '$actual-root',
+      isThreadRoot: false,
+    };
+    const trueRoot = {
+      getId: () => '$actual-root',
+      getContent: () => ({ body: 'Real thread root' }),
+      threadRootId: '$actual-root',
+      isThreadRoot: true,
+    };
+
+    const result = buildVisibleThreadRootData(
+      [
+        { event: fakeReply as never, absoluteIndex: 0 },
+        { event: trueRoot as never, absoluteIndex: 1 },
+      ],
+      {
+        getThread: (id: string) => (id === '$actual-root' ? { id } : undefined),
+      } as never,
+      new Map([
+        ['$reply-event', { isResolved: false, tags: null }],
+        ['$actual-root', { isResolved: false, tags: null }],
+      ]),
+      new Map([
+        ['$reply-event', 1],
+        ['$actual-root', 1],
+      ])
+    );
+
+    expect(result.ids).toEqual(['$actual-root']);
   });
 
   // ═══ statusMode OR semantics ═════════════════════════════════════════════

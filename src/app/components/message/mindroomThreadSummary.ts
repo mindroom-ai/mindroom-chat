@@ -22,6 +22,71 @@ export type MindroomThreadSummaryInfo = {
   messageCount?: number;
 };
 
+const hasSummaryText = (
+  info: MindroomThreadSummaryInfo | undefined
+): info is MindroomThreadSummaryInfo & { summaryText: string } =>
+  typeof info?.summaryText === 'string' && info.summaryText.trim().length > 0;
+
+const compareDefinedNumbers = (left?: number, right?: number): number | undefined => {
+  const hasLeft = typeof left === 'number' && Number.isFinite(left);
+  const hasRight = typeof right === 'number' && Number.isFinite(right);
+
+  if (hasLeft && hasRight) {
+    if (left === right) return 0;
+    return left > right ? 1 : -1;
+  }
+  return undefined;
+};
+
+export const pickLatestThreadSummaryInfo = (
+  ...infos: Array<MindroomThreadSummaryInfo | undefined>
+): MindroomThreadSummaryInfo | undefined => {
+  let preferred: MindroomThreadSummaryInfo | undefined;
+
+  infos.forEach((candidate) => {
+    if (!hasSummaryText(candidate)) return;
+    if (!hasSummaryText(preferred)) {
+      preferred = candidate;
+      return;
+    }
+
+    const tsComparison = compareDefinedNumbers(candidate.generatedTs, preferred.generatedTs);
+    if (tsComparison === 1) {
+      preferred = candidate;
+      return;
+    }
+    if (tsComparison === -1) return;
+
+    const messageCountComparison = compareDefinedNumbers(
+      candidate.messageCount,
+      preferred.messageCount
+    );
+    if (messageCountComparison === 1) {
+      preferred = candidate;
+      return;
+    }
+    if (messageCountComparison === -1) {
+      return;
+    }
+
+    const candidateHasMessageCount =
+      typeof candidate.messageCount === 'number' && Number.isFinite(candidate.messageCount);
+    const preferredHasMessageCount =
+      typeof preferred.messageCount === 'number' && Number.isFinite(preferred.messageCount);
+
+    if (candidateHasMessageCount && !preferredHasMessageCount) {
+      preferred = candidate;
+      return;
+    }
+
+    if (candidate.summaryText !== preferred.summaryText) {
+      preferred = candidate;
+    }
+  });
+
+  return preferred;
+};
+
 const asNonEmptyString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
 
