@@ -25,7 +25,7 @@ import { settingsAtom } from '../../state/settings';
 import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
+import { useMobileKeyboardViewportFix } from '../../hooks/useMobileKeyboardViewportFix';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 
@@ -110,7 +110,7 @@ export function RoomView({
     viewMode,
   } = useRoomViewThreadState({ eventId, room, threadId });
 
-  useIOSKeyboardFix();
+  useMobileKeyboardViewportFix();
 
   useKeyDown(
     window,
