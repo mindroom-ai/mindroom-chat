@@ -633,7 +633,10 @@ const createTrackedRenderer = (element: React.ReactElement) => {
 };
 
 type MockEvent = {
-  __editedEvent?: { getContent: () => Record<string, unknown> };
+  __editedEvent?: {
+    getContent: () => Record<string, unknown>;
+    getId: () => string;
+  };
   __renderInsideEncryptedContentAs?: string;
   event: { event_id: string };
   getAssociatedId: () => string | undefined;
@@ -671,6 +674,7 @@ const makeEvent = (
   __editedEvent: opts.editedContent
     ? {
         getContent: () => opts.editedContent as Record<string, unknown>,
+        getId: () => `${eventId}|edit`,
       }
     : undefined,
   __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
