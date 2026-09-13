@@ -280,7 +280,7 @@ describe('roomThreadOverviewModel', () => {
   });
 
   describe('simplifyThreadFilterState', () => {
-    it('keeps only the unresolved (resolved: exclude) dimension', async () => {
+    it('keeps only unresolved and sorting dimensions', async () => {
       const { createDefaultThreadFilterState, simplifyThreadFilterState } = await import(
         './roomThreadOverviewModel'
       );
@@ -299,7 +299,17 @@ describe('roomThreadOverviewModel', () => {
       expect(simplifyThreadFilterState(advanced)).toEqual({
         ...createDefaultThreadFilterState(),
         resolved: 'exclude',
+        sortBy: 'natural',
+        sortDirection: 'desc',
       });
+    });
+
+    it('preserves last-reply sort direction', async () => {
+      const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      expect(
+        simplifyThreadFilterState(makeDefaultState({ sortBy: 'lastReply', sortDirection: 'asc' }))
+      ).toMatchObject({ sortBy: 'lastReply', sortDirection: 'asc' });
     });
 
     it('maps every non-exclude resolved value to showing all threads', async () => {
@@ -307,11 +317,16 @@ describe('roomThreadOverviewModel', () => {
         './roomThreadOverviewModel'
       );
 
+      const naturalSortState = {
+        ...createDefaultThreadFilterState(),
+        sortBy: 'natural' as const,
+        sortDirection: 'desc' as const,
+      };
       expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'include' }))).toEqual(
-        createDefaultThreadFilterState()
+        naturalSortState
       );
       expect(simplifyThreadFilterState(makeDefaultState({ resolved: 'any' }))).toEqual(
-        createDefaultThreadFilterState()
+        naturalSortState
       );
     });
 
@@ -355,6 +370,30 @@ describe('roomThreadOverviewModel', () => {
         sortDirection: 'asc',
         freeText: 'needle',
         unsupportedQuery: 'from:alice',
+      });
+    });
+  });
+
+  describe('simplifyAgentlessSimpleThreadFilterState', () => {
+    it('keeps sorting while clearing every hidden filter dimension', async () => {
+      const { simplifyAgentlessSimpleThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+
+      expect(
+        simplifyAgentlessSimpleThreadFilterState(
+          makeDefaultState({
+            resolved: 'exclude',
+            sortBy: 'lastReply',
+            sortDirection: 'asc',
+            freeText: 'hidden search',
+            tags: new Map([['priority', 'include']]),
+          })
+        )
+      ).toEqual({
+        ...makeDefaultState(),
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
       });
     });
   });
