@@ -12,17 +12,14 @@ export const Overview = style({
 
 export const ToolbarHeader = style({
   display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: config.space.S200,
-});
-
-export const ToolbarControls = style({
-  display: 'flex',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
   alignItems: 'center',
   gap: config.space.S100,
+  '@media': {
+    [`screen and (max-width: ${toRem(480)})`]: {
+      flexWrap: 'wrap',
+    },
+  },
 });
 
 export const ToggleGroup = style({
@@ -32,7 +29,7 @@ export const ToggleGroup = style({
   gap: config.space.S100,
 });
 
-export const ToggleSortSeparator = style({
+export const SectionSeparator = style({
   width: config.borderWidth.B300,
   height: toRem(20),
   backgroundColor: color.SurfaceVariant.ContainerLine,
@@ -44,26 +41,17 @@ export const ToggleSortSeparator = style({
   },
 });
 
-const TOGGLE_SIZE = toRem(32);
-
-export const ToggleButtonWrap = style({
+export const CompactCount = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: toRem(2),
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+  cursor: 'default',
 });
 
-export const ToggleCount = style({
-  fontSize: toRem(11),
-  lineHeight: '1',
-  color: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.P300,
-  userSelect: 'none',
-  minWidth: toRem(8),
-});
-
-export const ToggleCountActive = style({
-  opacity: '1',
-});
+const TOGGLE_SIZE = toRem(32);
 
 export const ToggleButton = style({
   display: 'inline-flex',
@@ -324,6 +312,170 @@ export const AddTagOption = style({
     },
   },
 });
+
+// ─── Preset dropdown ────────────────────────────────────────────────────────
+
+export const PresetContainer = style({
+  position: 'relative',
+  display: 'inline-flex',
+  flexShrink: 0,
+});
+
+export const PresetButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  height: TOGGLE_SIZE,
+  paddingLeft: config.space.S200,
+  paddingRight: config.space.S200,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  font: 'inherit',
+  transition: 'background-color 0.15s, border-color 0.15s',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const PresetDropdown = style({
+  position: 'absolute',
+  top: `calc(${TOGGLE_SIZE} + ${config.space.S100})`,
+  left: 0,
+  zIndex: 200,
+  minWidth: toRem(180),
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  boxShadow: `0 ${toRem(2)} ${toRem(8)} rgba(0, 0, 0, 0.15)`,
+  padding: config.space.S100,
+});
+
+export const PresetOption = style({
+  display: 'block',
+  width: '100%',
+  padding: `${config.space.S100} ${config.space.S200}`,
+  borderRadius: config.radii.R300,
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  textAlign: 'left',
+  font: 'inherit',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+  },
+});
+
+// ─── Info popover ───────────────────────────────────────────────────────────
+
+export const InfoContainer = style({
+  position: 'relative',
+  display: 'inline-flex',
+  flexShrink: 0,
+});
+
+export const InfoButton = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: TOGGLE_SIZE,
+  height: TOGGLE_SIZE,
+  minWidth: TOGGLE_SIZE,
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  cursor: 'pointer',
+  padding: 0,
+  font: 'inherit',
+  transition: 'background-color 0.15s',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.SurfaceVariant.ContainerHover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const InfoPopover = style({
+  position: 'absolute',
+  top: `calc(${TOGGLE_SIZE} + ${config.space.S100})`,
+  right: 0,
+  zIndex: 200,
+  minWidth: toRem(220),
+  maxWidth: toRem(300),
+  padding: config.space.S300,
+  borderRadius: config.radii.R400,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  backgroundColor: color.SurfaceVariant.Container,
+  boxShadow: `0 ${toRem(4)} ${toRem(16)} rgba(0, 0, 0, 0.2)`,
+});
+
+export const InfoStatRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: `${toRem(2)} 0`,
+});
+
+export const InfoSectionDivider = style({
+  height: config.borderWidth.B300,
+  backgroundColor: color.SurfaceVariant.ContainerLine,
+  margin: `${config.space.S200} 0`,
+});
+
+// ─── Search bar ─────────────────────────────────────────────────────────────
+
+export const SearchContainer = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexShrink: 0,
+});
+
+export const SearchInput = style({
+  border: 'none',
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  fontSize: toRem(13),
+  outline: 'none',
+  width: toRem(140),
+  maxWidth: toRem(200),
+  padding: `0 ${config.space.S200}`,
+  height: TOGGLE_SIZE,
+  borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  selectors: {
+    '&::placeholder': {
+      color: color.SurfaceVariant.OnContainer,
+      opacity: '0.5',
+    },
+    '&:focus': {
+      borderBottomColor: color.Primary.Main,
+    },
+  },
+});
+
+// ─── Empty state ────────────────────────────────────────────────────────────
 
 export const EmptyState = style({
   display: 'flex',
