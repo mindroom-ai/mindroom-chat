@@ -66,7 +66,7 @@ describe('RoomTimeline architecture', () => {
     const source = readRoomSeamSource();
 
     expect(source).toContain("from '../../mindroom/threads/MindroomRoom'");
-    expect(source).not.toContain('useRoomThreadRouteRestore');
+    expect(source).not.toContain('useRoomThreadRouteGuards');
     expect(source.split('\n').length).toBeLessThan(5);
   });
 
@@ -400,7 +400,7 @@ describe('RoomTimeline architecture', () => {
     expect(source).not.toContain('export { getRoomEventThreadOpenTarget');
   });
 
-  it('keeps last-open-thread state in MindRoom threads', () => {
+  it('keeps last-open-thread auto-restore removed', () => {
     const clientStorageSource = readFileSync(
       new URL('../../../pages/client/ClientInitStorageAtom.tsx', import.meta.url),
       'utf8'
@@ -410,8 +410,8 @@ describe('RoomTimeline architecture', () => {
       'utf8'
     );
     const roomSource = readRoomSource();
-    const roomRouteRestoreSource = readFileSync(
-      new URL('../useRoomThreadRouteRestore.ts', import.meta.url),
+    const roomThreadRouteGuardsSource = readFileSync(
+      new URL('../useRoomThreadRouteGuards.ts', import.meta.url),
       'utf8'
     );
     const roomEscapeReadReceiptsSource = readFileSync(
@@ -448,24 +448,25 @@ describe('RoomTimeline architecture', () => {
     );
 
     expect(clientStorageSource).toContain("from '../../mindroom/cache/clientStorageAtoms'");
-    expect(clientStorageSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(clientStorageSource).not.toContain('lastOpenThread');
     expect(clientStorageSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
-    expect(clientStorageImplementationSource).toContain('registerLastOpenThreadAtom');
+    expect(clientStorageImplementationSource).not.toContain('lastOpenThread');
     expect(clientStorageImplementationSource).toContain('registerRecentThreadsAtom');
-    expect(roomSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
+    expect(roomSource).not.toContain('lastOpenThread');
     expect(roomSource).not.toContain("from '../../mindroom/recent-threads/recentThreads'");
     expect(roomSource).not.toContain("from '../../mindroom/notifications/readReceipts'");
-    expect(roomSource).toContain("from '../../mindroom/threads/useRoomThreadRouteRestore'");
+    expect(roomSource).toContain("from '../../mindroom/threads/useRoomThreadRouteGuards'");
     expect(roomSource).toContain("from '../../mindroom/threads/useRoomEscapeReadReceipts'");
-    expect(roomRouteRestoreSource).toContain("from './lastOpenThread'");
-    expect(roomRouteRestoreSource).toContain('removeRecentThread');
+    expect(roomThreadRouteGuardsSource).not.toContain('lastOpenThread');
+    expect(roomThreadRouteGuardsSource).toContain('removeRecentThread');
     expect(roomEscapeReadReceiptsSource).toContain('markRoomAndThreadsAsRead');
     expect(roomEscapeReadReceiptsSource).toContain('markThreadAsRead');
-    expect(clientLayoutSource).not.toContain("from '../../mindroom/threads/lastOpenThread'");
-    expect(clientLayoutSource).toContain('getLastOpenThreadRestoreTarget');
-    expect(routeRestoreSource).toContain("from '../threads/lastOpenThread'");
-    expect(routeRestoreSource).toContain('getLastOpenThreadRestoreTarget');
-    expect(sessionCleanupSource).toContain("from '../threads/lastOpenThread'");
+    expect(clientLayoutSource).not.toContain('lastOpenThread');
+    expect(clientLayoutSource).not.toContain('getLastOpenThreadRestoreTarget');
+    expect(routeRestoreSource).not.toContain('lastOpenThread');
+    expect(routeRestoreSource).not.toContain('getLastOpenThreadRestoreTarget');
+    expect(sessionCleanupSource).not.toContain("from '../threads/lastOpenThread'");
+    expect(sessionCleanupSource).toContain('LEGACY_LAST_OPEN_THREAD_STORE_PREFIX');
     expect(sessionStoreSource).toContain("from '../mindroom/cache/sessionStoreConfig'");
     expect(sessionStoreSource).not.toContain("= 'mindroom_multi_account_store'");
     expect(sessionStoreSource).not.toContain("= 'mindroom-session-store-changed'");

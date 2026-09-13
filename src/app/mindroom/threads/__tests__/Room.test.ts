@@ -6,27 +6,18 @@ type MockRoomViewProps = {
   onThreadLoadError?: (threadId: string) => void;
 };
 
-const {
-  clearLastOpenThreadMock,
-  getLastOpenThreadMock,
-  navigateRoomMock,
-  navigateRoomThreadMock,
-  room,
-  roomState,
-  setLastOpenThreadMock,
-} = vi.hoisted(() => ({
-  clearLastOpenThreadMock: vi.fn(),
-  getLastOpenThreadMock: vi.fn(),
-  navigateRoomMock: vi.fn(),
-  navigateRoomThreadMock: vi.fn(),
-  room: { roomId: '!room:example.org', isCallRoom: () => false },
-  roomState: {
-    eventId: undefined as string | undefined,
-    search: '',
-    roomViewProps: undefined as MockRoomViewProps | undefined,
-  },
-  setLastOpenThreadMock: vi.fn(),
-}));
+const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, roomState } =
+  vi.hoisted(() => ({
+    navigateRoomMock: vi.fn(),
+    navigateRoomThreadMock: vi.fn(),
+    removeRecentThreadMock: vi.fn(),
+    room: { roomId: '!room:example.org', isCallRoom: () => false },
+    roomState: {
+      eventId: undefined as string | undefined,
+      search: '',
+      roomViewProps: undefined as MockRoomViewProps | undefined,
+    },
+  }));
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
@@ -128,10 +119,8 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../lastOpenThread', () => ({
-  clearLastOpenThread: clearLastOpenThreadMock,
-  getLastOpenThread: getLastOpenThreadMock,
-  setLastOpenThread: setLastOpenThreadMock,
+vi.mock('../../recent-threads/recentThreads', () => ({
+  removeRecentThread: removeRecentThreadMock,
 }));
 
 vi.mock('../../../features/call/CallView', () => ({
@@ -167,30 +156,22 @@ describe('Room', () => {
     roomState.roomViewProps = undefined;
     navigateRoomMock.mockReset();
     navigateRoomThreadMock.mockReset();
-    getLastOpenThreadMock.mockReset();
-    setLastOpenThreadMock.mockReset();
-    clearLastOpenThreadMock.mockReset();
+    removeRecentThreadMock.mockReset();
   });
 
-  it('auto-restores the saved thread on bare room entry', async () => {
-    getLastOpenThreadMock.mockReturnValue('$saved');
+  it('stays on the room timeline on bare room entry', async () => {
     const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
       create(React.createElement(Room));
     });
 
-    expect(navigateRoomThreadMock).toHaveBeenCalledWith(
-      '!room:example.org',
-      '$saved',
-      undefined,
-      { replace: true }
-    );
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    expect(navigateRoomMock).not.toHaveBeenCalled();
   });
 
-  it('does not override an explicit thread in the URL', async () => {
+  it('leaves an explicit thread in the URL untouched', async () => {
     roomState.search = '?threadId=%24explicit';
-    getLastOpenThreadMock.mockReturnValue('$saved');
     const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
@@ -198,51 +179,11 @@ describe('Room', () => {
     });
 
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-    expect(setLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org', '$explicit');
+    expect(navigateRoomMock).not.toHaveBeenCalled();
   });
 
-  it('does not persist explicit local-echo thread ids from the URL', async () => {
-    roomState.search = '?threadId=~pending';
-    const { Room } = await import('../../../features/room/Room');
-
-    await act(async () => {
-      create(React.createElement(Room));
-    });
-
-    expect(setLastOpenThreadMock).not.toHaveBeenCalled();
-  });
-
-  it('does not override an explicit event permalink', async () => {
-    roomState.eventId = '$event';
-    getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('../../../features/room/Room');
-
-    await act(async () => {
-      create(React.createElement(Room));
-    });
-
-    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
-  });
-
-  it('updates the saved thread when room navigation enters a thread', async () => {
-    const { Room } = await import('../../../features/room/Room');
-
-    let renderer: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(React.createElement(Room));
-    });
-
+  it('does not navigate when returning to a room after leaving a thread', async () => {
     roomState.search = '?threadId=%24opened';
-
-    await act(async () => {
-      renderer!.update(React.createElement(Room));
-    });
-
-    expect(setLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org', '$opened');
-  });
-
-  it('clears the saved thread when the same room leaves thread mode', async () => {
-    roomState.search = '?threadId=%24saved';
     const { Room } = await import('../../../features/room/Room');
 
     let renderer: ReturnType<typeof create>;
@@ -251,41 +192,17 @@ describe('Room', () => {
     });
 
     roomState.search = '';
-    getLastOpenThreadMock.mockReturnValue(undefined);
 
     await act(async () => {
       renderer!.update(React.createElement(Room));
     });
 
-    expect(clearLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org');
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    expect(navigateRoomMock).not.toHaveBeenCalled();
   });
 
-  it('falls back to the room timeline when an auto-restored thread fails', async () => {
-    getLastOpenThreadMock.mockReturnValue('$saved');
-    const { Room } = await import('../../../features/room/Room');
-
-    let renderer: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(React.createElement(Room));
-    });
-
+  it('drops a thread from recent threads when it fails to load', async () => {
     roomState.search = '?threadId=%24saved';
-
-    await act(async () => {
-      renderer!.update(React.createElement(Room));
-    });
-
-    await act(async () => {
-      roomState.roomViewProps?.onThreadLoadError?.('$saved');
-    });
-
-    expect(clearLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org');
-    expect(navigateRoomMock).toHaveBeenCalledWith('!room:example.org', undefined, { replace: true });
-  });
-
-  it('does not redirect away from an explicit thread deep link that fails', async () => {
-    roomState.search = '?threadId=%24saved';
-    getLastOpenThreadMock.mockReturnValue('$saved');
     const { Room } = await import('../../../features/room/Room');
 
     await act(async () => {
@@ -296,7 +213,7 @@ describe('Room', () => {
       roomState.roomViewProps?.onThreadLoadError?.('$saved');
     });
 
-    expect(clearLastOpenThreadMock).toHaveBeenCalledWith('!room:example.org');
+    expect(removeRecentThreadMock).toHaveBeenCalledWith('!room:example.org', '$saved');
     expect(navigateRoomMock).not.toHaveBeenCalled();
   });
 

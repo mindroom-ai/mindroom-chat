@@ -3,9 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from '../../../pages/client/ClientLayout';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
-import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { useActiveSession } from '../../../hooks/useSessionStore';
-import { getLastOpenThread } from '../../threads/lastOpenThread';
 import { updateSessionLastPath } from '../../../state/sessions';
 
 vi.mock('folds', async () => {
@@ -28,16 +26,8 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: vi.fn(),
 }));
 
-vi.mock('../../../hooks/useRoomNavigate', () => ({
-  useRoomNavigate: vi.fn(),
-}));
-
 vi.mock('../../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
-}));
-
-vi.mock('../../threads/lastOpenThread', () => ({
-  getLastOpenThread: vi.fn(),
 }));
 
 vi.mock('../../../state/sessions', () => ({
@@ -46,7 +36,6 @@ vi.mock('../../../state/sessions', () => ({
 
 describe('ClientLayout', () => {
   const navigate = vi.fn();
-  const navigateRoomThread = vi.fn();
 
   beforeEach(() => {
     vi.mocked(useMatrixClient).mockReturnValue({
@@ -54,9 +43,6 @@ describe('ClientLayout', () => {
       getSyncState: () => null,
       getRoomIdForAlias: vi.fn().mockRejectedValue(new Error('alias not found')),
     } as ReturnType<typeof useMatrixClient>);
-    vi.mocked(useRoomNavigate).mockReturnValue({
-      navigateRoomThread,
-    } as ReturnType<typeof useRoomNavigate>);
   });
 
   afterEach(() => {
@@ -99,7 +85,7 @@ describe('ClientLayout', () => {
     );
   });
 
-  it('restores the saved room thread from the exact saved route when startup lands on bare home', async () => {
+  it('does not redirect startup on bare home even when the saved route has a thread', async () => {
     const { useLocation, useNavigate } = await import('react-router-dom');
     vi.mocked(useNavigate).mockReturnValue(navigate);
 
@@ -117,7 +103,6 @@ describe('ClientLayout', () => {
       search: '',
       hash: '',
     } as ReturnType<typeof useLocation>);
-    vi.mocked(getLastOpenThread).mockReturnValue('$saved-thread');
 
     await act(async () => {
       create(
@@ -131,52 +116,7 @@ describe('ClientLayout', () => {
       );
     });
 
-    expect(vi.mocked(getLastOpenThread)).toHaveBeenCalledWith('!saved:mindroom.chat');
-    expect(navigate).toHaveBeenCalledWith(
-      '/direct/%21saved%3Amindroom.chat/?threadId=%24saved-thread',
-      { replace: true }
-    );
-    expect(navigateRoomThread).not.toHaveBeenCalled();
-  });
-
-  it('preserves the saved space route when restoring a thread from bare home', async () => {
-    const { useLocation, useNavigate } = await import('react-router-dom');
-    vi.mocked(useNavigate).mockReturnValue(navigate);
-
-    vi.mocked(useActiveSession).mockReturnValue({
-      sessionId: 'session-a',
-      baseUrl: 'https://chat.mindroom.chat',
-      userId: '@alice:mindroom.chat',
-      deviceId: 'DEVICE',
-      accessToken: 'token',
-      lastUsedAt: 1,
-      lastKnownPath: '/%21space%3Amindroom.chat/%21saved%3Amindroom.chat/?threadId=%24stale-thread',
-    });
-    vi.mocked(useLocation).mockReturnValue({
-      pathname: '/home/',
-      search: '',
-      hash: '',
-    } as ReturnType<typeof useLocation>);
-    vi.mocked(getLastOpenThread).mockReturnValue('$saved-thread');
-
-    await act(async () => {
-      create(
-        React.createElement(
-          ClientLayout,
-          {
-            nav: React.createElement('div', null, 'nav'),
-          },
-          React.createElement('div', null, 'content')
-        )
-      );
-    });
-
-    expect(vi.mocked(getLastOpenThread)).toHaveBeenCalledWith('!saved:mindroom.chat');
-    expect(navigate).toHaveBeenCalledWith(
-      '/%21space%3Amindroom.chat/%21saved%3Amindroom.chat/?threadId=%24saved-thread',
-      { replace: true }
-    );
-    expect(navigateRoomThread).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('stores room-id restore paths even when the visible route uses canonical aliases', async () => {
@@ -315,57 +255,7 @@ describe('ClientLayout', () => {
       );
     });
 
-    expect(vi.mocked(getLastOpenThread)).not.toHaveBeenCalled();
-    expect(navigateRoomThread).not.toHaveBeenCalled();
-  });
-
-  it('attempts the startup restore only once per mount', async () => {
-    const { useLocation, useNavigate } = await import('react-router-dom');
-    vi.mocked(useNavigate).mockReturnValue(navigate);
-
-    vi.mocked(useActiveSession).mockReturnValue({
-      sessionId: 'session-a',
-      baseUrl: 'https://chat.mindroom.chat',
-      userId: '@alice:mindroom.chat',
-      deviceId: 'DEVICE',
-      accessToken: 'token',
-      lastUsedAt: 1,
-      lastKnownPath: '/home/%21saved%3Amindroom.chat/',
-    });
-    vi.mocked(useLocation).mockReturnValue({
-      pathname: '/home/',
-      search: '',
-      hash: '',
-    } as ReturnType<typeof useLocation>);
-    vi.mocked(getLastOpenThread).mockReturnValue('$saved-thread');
-
-    let renderer: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(
-        React.createElement(
-          ClientLayout,
-          {
-            nav: React.createElement('div', null, 'nav'),
-          },
-          React.createElement('div', null, 'content')
-        )
-      );
-    });
-
-    await act(async () => {
-      renderer!.update(
-        React.createElement(
-          ClientLayout,
-          {
-            nav: React.createElement('div', null, 'nav'),
-          },
-          React.createElement('div', null, 'content')
-        )
-      );
-    });
-
-    expect(navigateRoomThread).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('does nothing when there is no active session', async () => {
@@ -392,7 +282,6 @@ describe('ClientLayout', () => {
     });
 
     expect(vi.mocked(updateSessionLastPath)).not.toHaveBeenCalled();
-    expect(navigateRoomThread).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
 });

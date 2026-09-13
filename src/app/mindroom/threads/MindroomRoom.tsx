@@ -16,7 +16,7 @@ import { RoomViewHeader } from './MindroomRoomViewHeader';
 import { callChatAtom } from '../../state/callEmbed';
 import { MindroomCallChatView } from './MindroomCallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
-import { useRoomThreadRouteRestore } from './useRoomThreadRouteRestore';
+import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { roomViewModeAtomFamily } from './roomViewMode';
 
@@ -36,7 +36,7 @@ export function Room() {
   const chat = useAtomValue(callChatAtom);
   const viewMode = useAtomValue(roomViewModeAtomFamily(room.roomId));
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
-  const handleThreadLoadError = useRoomThreadRouteRestore({
+  const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,
     roomId: room.roomId,
     threadId,
