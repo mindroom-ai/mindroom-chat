@@ -29,7 +29,9 @@ const waitForOverviewToolbar = async (page: Page) => {
 const expectExpandedFocusedTimeline = async (page: Page, rootBody: string) => {
   await waitForOverviewToolbar(page);
   await expect(page.getByRole('button', { name: 'Threaded view' })).toBeVisible();
-  await expect(page.getByText(rootBody)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByTestId('room-virtual-inner').getByText(rootBody, { exact: true })
+  ).toBeVisible({ timeout: 30_000 });
 };
 
 const createNaturalFocusedOverviewState = () => ({

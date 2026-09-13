@@ -1,7 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
-import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  loginToMatrix,
+  sendRoomMessage,
+  setAccountData,
+} from '../helpers/matrix';
 
 /**
  * Scroll-stability probe for the virtualized thread timeline (informational).
@@ -22,6 +27,9 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      expandLongMessagesByDefault: false,
+    });
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `Scroll stability ${Date.now()}`,
     });

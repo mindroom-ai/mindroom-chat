@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { loginToMatrix, setAccountData } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -14,6 +15,10 @@ test.describe('live shell i18n', () => {
 
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      simpleMode: false,
+    });
     await loginWithPassword(page, { homeserver, username, password });
 
     // English defaults

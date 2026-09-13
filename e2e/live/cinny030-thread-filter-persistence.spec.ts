@@ -1,11 +1,20 @@
 import { expect, test, type Page } from '@playwright/test';
-import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
+import {
+  getHomeserver,
+  getPrimaryCredentials,
+  getRequiredEnv,
+  hasPrimaryCredentials,
+} from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
-import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helpers/matrix';
+import {
+  createDefaultThreadFilterState,
+  seedRoomOverviewState,
+  setAccountData,
+} from '../helpers/matrix';
 
 type ThreadFixture = {
   roomId: string;
@@ -80,7 +89,8 @@ const sendRoomMessage = async (
 const seedThreadRoom = async (
   homeserver: string,
   accessToken: string,
-  roomLabel: string
+  roomLabel: string,
+  agentUserId: string
 ): Promise<ThreadFixture> => {
   const roomName = `CINNY-030 ${roomLabel} ${Date.now()}`;
   const rootBody = `${roomLabel} thread root`;
@@ -91,6 +101,7 @@ const seedThreadRoom = async (
       name: roomName,
       topic: `Live fixture for CINNY-030 ${roomLabel}.`,
       preset: 'private_chat',
+      invite: [agentUserId],
     }),
   });
   const roomId = roomBody.room_id as string;
@@ -137,11 +148,7 @@ const navigateToRoom = async (page: Page, roomName: string) => {
 const getFilterButton = (page: Page, key: ThreadFilterKey) =>
   page.locator(`[data-room-thread-overview="true"] [data-filter-key="${key}"]`);
 
-const expectFilterState = async (
-  page: Page,
-  key: ThreadFilterKey,
-  state: ThreadFilterState
-) => {
+const expectFilterState = async (page: Page, key: ThreadFilterKey, state: ThreadFilterState) => {
   await expect(getFilterButton(page, key)).toHaveAttribute('data-filter-state', state);
 };
 
@@ -159,14 +166,10 @@ const openThreadAndReturn = async (page: Page, rootId: string, rootBody: string)
 
   await expect(threadButton).toBeVisible({ timeout: 30_000 });
   await threadButton.click();
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get('threadId'))
-    .toBe(rootId);
+  await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
 
   await page.goBack();
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get('threadId'))
-    .toBeNull();
+  await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBeNull();
   await waitForThreadOverview(page);
 };
 
@@ -197,8 +200,12 @@ test.describe('live cinny-030 thread filter persistence', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
-    const roomA = await seedThreadRoom(homeserver, accessToken, 'Room A');
-    const roomB = await seedThreadRoom(homeserver, accessToken, 'Room B');
+    const agentUserId = getRequiredEnv('E2E_AGENT_USER_ID');
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
+      simpleMode: false,
+    });
+    const roomA = await seedThreadRoom(homeserver, accessToken, 'Room A', agentUserId);
+    const roomB = await seedThreadRoom(homeserver, accessToken, 'Room B', agentUserId);
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);

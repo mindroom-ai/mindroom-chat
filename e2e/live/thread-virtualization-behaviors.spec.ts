@@ -1,7 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
-import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  loginToMatrix,
+  sendRoomMessage,
+  setAccountData,
+} from '../helpers/matrix';
 import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
 /**
@@ -314,6 +319,9 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      expandLongMessagesByDefault: false,
+    });
     const seeded = await seedThread(homeserver, session.accessToken, { longBodies: true });
 
     await loginWithPassword(page, { homeserver, username, password });
@@ -349,6 +357,9 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      expandLongMessagesByDefault: false,
+    });
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,
       replyCount: 80,
@@ -386,6 +397,9 @@ test.describe('virtualized thread behaviors', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      expandLongMessagesByDefault: false,
+    });
     const seeded = await seedThread(homeserver, session.accessToken, {
       longBodies: true,
       longBodyLines: 100,

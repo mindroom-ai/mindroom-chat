@@ -24,7 +24,9 @@ test.describe('live CINNY-044 settings avatar behavior', () => {
     await expect(page.getByRole('button', { name: 'Manage accounts' })).toHaveCount(0);
     await page.getByRole('button', { name: /Open settings for / }).click();
 
-    await expect(page.getByText('Switch accounts, add another account, or remove an inactive one.')).toHaveCount(0);
+    await expect(
+      page.getByText('Switch accounts, add another account, or remove an inactive one.')
+    ).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'General' })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('button', { name: 'Logout' }).first()).toBeVisible();
 
@@ -47,7 +49,6 @@ test.describe('live CINNY-044 settings avatar behavior', () => {
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
 
-    await page.getByRole('button', { name: 'Add account' }).click();
     await loginWithPassword(page, {
       homeserver,
       username: secondaryCredentials!.username,

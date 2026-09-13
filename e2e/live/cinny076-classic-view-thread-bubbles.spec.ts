@@ -5,7 +5,12 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
-import { createThreadFixture, loginToMatrix, seedRoomOverviewState } from '../helpers/matrix';
+import {
+  createThreadFixture,
+  loginToMatrix,
+  seedRoomOverviewState,
+  setAccountData,
+} from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
@@ -21,6 +26,9 @@ test.describe('live cinny-076 classic room timeline', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
+      simpleMode: false,
+    });
     const stamp = Date.now();
     const fixture = await createThreadFixture(homeserver, accessToken, {
       name: `CINNY-076 Classic ${stamp}`,
@@ -40,8 +48,11 @@ test.describe('live cinny-076 classic room timeline', () => {
     });
 
     await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+    const roomTimeline = page.getByTestId('room-virtual-inner');
 
-    await expect(page.getByText(fixture.rootBody)).toBeVisible({ timeout: 30_000 });
+    await expect(roomTimeline.getByText(fixture.rootBody, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.locator('[data-room-thread-overview="true"]')).toBeVisible({
       timeout: 30_000,
     });
@@ -53,7 +64,9 @@ test.describe('live cinny-076 classic room timeline', () => {
 
     await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toHaveCount(0);
-    await expect(page.getByText(fixture.replyBody)).toBeVisible({ timeout: 30_000 });
+    await expect(roomTimeline.getByText(fixture.replyBody, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-076-classic-thread-bubbles');
   });

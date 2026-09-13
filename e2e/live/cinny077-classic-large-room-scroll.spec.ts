@@ -7,6 +7,7 @@ import {
   loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
+  setAccountData,
 } from '../helpers/matrix';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
@@ -113,6 +114,9 @@ test.describe('CINNY-077: classic large room loading scroll stability', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);
+    await setAccountData(homeserver, accessToken, userId, 'io.mindroom.settings', {
+      simpleMode: false,
+    });
     const stamp = Date.now();
     const roomId = await createPrivateRoom(homeserver, accessToken, {
       name: `CINNY-077 Classic Large ${stamp}`,
@@ -141,7 +145,12 @@ test.describe('CINNY-077: classic large room loading scroll stability', () => {
 
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await expect(
-      page.getByText(`message ${String(MESSAGE_COUNT).padStart(4, '0')}`).first()
+      page
+        .getByTestId('room-virtual-inner')
+        .locator('[data-message-id]', {
+          hasText: `message ${String(MESSAGE_COUNT).padStart(4, '0')}`,
+        })
+        .first()
     ).toBeVisible({
       timeout: 30_000,
     });
