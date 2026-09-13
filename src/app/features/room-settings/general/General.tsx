@@ -15,8 +15,12 @@ import {
 } from '../../common-settings/general';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
-import type { RoomViewMode } from '../../../mindroom/threads/roomViewMode';
+import {
+  getAvailableRoomViewModes,
+  type RoomViewMode,
+} from '../../../mindroom/threads/roomViewMode';
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
   compact: 'Compact',
@@ -26,7 +30,8 @@ const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
 
 function RoomTimelineMode() {
   const room = useRoom();
-  const { setViewMode, storedViewMode: viewMode } = useRoomViewMode(room.roomId);
+  const simpleMode = useSimpleMode();
+  const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
 
   return (
     <Box direction="Column" gap="200">
@@ -34,7 +39,7 @@ function RoomTimelineMode() {
         Timeline
       </Text>
       <Box gap="100" wrap="Wrap">
-        {(Object.keys(ROOM_VIEW_MODE_LABELS) as RoomViewMode[]).map((mode) => (
+        {getAvailableRoomViewModes(simpleMode).map((mode) => (
           <Button
             key={mode}
             size="300"
