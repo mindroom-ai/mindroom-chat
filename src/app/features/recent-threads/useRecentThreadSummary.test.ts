@@ -29,6 +29,13 @@ vi.mock('../../components/message/mindroomThreadSummary', () => ({
 
 vi.mock('../room/compactThreadRootData', () => ({
   getCompactThreadRootBodyPreviewText: getCompactThreadRootBodyPreviewTextMock,
+  pickPreferredThreadRootPreviewText: ({
+    preferredPreviewText,
+    fallbackPreviewText,
+  }: {
+    preferredPreviewText?: string;
+    fallbackPreviewText?: string;
+  }) => preferredPreviewText ?? fallbackPreviewText,
 }));
 
 vi.mock('../../hooks/useSessionStore', () => ({

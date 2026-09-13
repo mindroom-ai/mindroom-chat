@@ -67,9 +67,8 @@ export function CompactRoomView({
             room={room}
             threadRootId={threadRootId}
             threadRootEvent={threadRootEvent}
-            rootPreviewText={metadata?.rootPreviewText}
+            metadata={metadata}
             summaryInfo={resolvedSummaryInfo}
-            lastActivityTs={metadata?.lastActivityTs}
             onClick={(clickedThreadRootId) => onThreadClick(clickedThreadRootId, recentThreadSummaryText)}
           />
         );
