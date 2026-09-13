@@ -137,6 +137,20 @@ describe('resolveIOSPushConfig', () => {
     expect(config?.profileTag?.length).toBeGreaterThan(0);
   });
 
+  it('uses event-id-only as the privacy-preserving fallback when format is omitted', () => {
+    const config = resolveIOSPushConfig({
+      push: {
+        ios: {
+          enabled: true,
+          appId: 'com.mindroom-ios',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        },
+      },
+    });
+
+    expect(config?.format).toBe('event_id_only');
+  });
+
   it('keeps push tokens and enabled state separate per session', async () => {
     const storage = new Map<string, string>();
     const localStorageMock = {
@@ -222,7 +236,7 @@ describe('resolveIOSPushConfig', () => {
 });
 
 describe('buildIOSPushPusherRequest', () => {
-  it('builds a Matrix HTTP pusher payload', () => {
+  it('builds a visible fallback for event-id-only pushes', () => {
     const request = buildIOSPushPusherRequest('token-123', {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
@@ -246,6 +260,38 @@ describe('buildIOSPushPusherRequest', () => {
       data: {
         url: 'https://push.example.com/_matrix/push/v1/notify',
         format: 'event_id_only',
+        default_payload: {
+          aps: {
+            alert: {
+              title: 'MindRoom iOS',
+              body: 'New message',
+            },
+            sound: 'default',
+          },
+        },
+      },
+    });
+  });
+
+  it('leaves the full-format alert to Sygnal for sender and message previews', () => {
+    const request = buildIOSPushPusherRequest('token-123', {
+      appId: 'com.mindroom-ios',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'MindRoom iOS',
+      deviceDisplayName: 'iPhone',
+      profileTag: 'profile-1',
+      append: true,
+      format: 'full',
+      lang: 'en',
+    });
+
+    expect(request.data).toEqual({
+      url: 'https://push.example.com/_matrix/push/v1/notify',
+      format: 'full',
+      default_payload: {
+        aps: {
+          sound: 'default',
+        },
       },
     });
   });
