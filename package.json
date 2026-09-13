@@ -20,7 +20,9 @@
     "commit": "git-cz",
     "bump": "node scripts/update-version.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ios:icons": "bash scripts/generate-ios-icons.sh",
+    "appstore:preflight": "node scripts/appstore-preflight.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint",

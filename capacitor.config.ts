@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.mindroom.app',
+  appId: 'com.mindroom-ai.app',
   appName: 'MindRoom',
   webDir: 'dist',
   server: {
@@ -19,7 +19,9 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Keyboard: {
-      resize: 'body',
+      // Use native WebView resizing on iOS so the composer stays above the keyboard
+      // (including the predictive/autocorrect suggestion bar) on real devices.
+      resize: 'native',
       resizeOnFullScreen: true,
     },
     StatusBar: {

@@ -28,7 +28,7 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -45,11 +45,12 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<!-- Allow HTTP connections to local network homeservers -->
+	<!-- App uses exempt encryption only (TLS and Matrix E2EE libraries) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Restrict cleartext to local-network use only -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
@@ -59,10 +60,14 @@
 	<!-- Microphone access for voice messages -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MindRoom needs microphone access to record voice messages.</string>
-	<!-- Bonjour browsing for mDNS (.local) -->
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_matrix._tcp</string>
-	</array>
+	<!-- Camera access for capturing attachments -->
+	<key>NSCameraUsageDescription</key>
+	<string>MindRoom needs camera access to capture photos and videos to send in chats.</string>
+	<!-- Photo Library access for sending media attachments -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MindRoom needs photo library access so you can share photos and videos in chats.</string>
+	<!-- Photo Library add access for saving media generated in chat flows -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MindRoom needs permission to save images and videos from chats to your photo library.</string>
 </dict>
 </plist>

@@ -13,6 +13,7 @@ import { getLoginPath, getRegisterPath, withSearchParam } from '../../pathUtils'
 import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { LoginPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
+import { hasAppleIdentityProvider } from '../ssoProviders';
 
 const getLoginTokenSearchParam = () => {
   // when using hasRouter query params in existing route
@@ -36,7 +37,7 @@ const useLoginSearchParams = (searchParams: URLSearchParams): LoginPathSearchPar
 
 export function Login() {
   const server = useAuthServer();
-  const { hashRouter } = useClientConfig();
+  const { hashRouter, auth } = useClientConfig();
   const { loginFlows } = useAuthFlows();
   const [searchParams] = useSearchParams();
   const loginSearchParams = useLoginSearchParams(searchParams);
@@ -53,12 +54,21 @@ export function Login() {
   }
 
   const parsedFlows = useParsedLoginFlows(loginFlows.flows);
+  const registrationAllowed = auth?.allowRegistration !== false;
+  const requireAppleProvider = auth?.requireAppleProvider === true;
+  const appleProviderAvailable = hasAppleIdentityProvider(parsedFlows.sso?.identity_providers);
 
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
         Login
       </Text>
+      {requireAppleProvider && !appleProviderAvailable && (
+        <Text style={{ color: color.Critical.Main }} size="T300">
+          This client requires Sign in with Apple. Configure the homeserver SSO provider list to
+          include Apple.
+        </Text>
+      )}
       {parsedFlows.token && loginSearchParams.loginToken && (
         <TokenLogin token={loginSearchParams.loginToken} />
       )}
@@ -91,9 +101,11 @@ export function Login() {
           <span data-spacing-node />
         </>
       )}
-      <Text align="Center">
-        Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
-      </Text>
+      {registrationAllowed && (
+        <Text align="Center">
+          Do not have an account? <Link to={getRegisterPath(server)}>Register</Link>
+        </Text>
+      )}
     </Box>
   );
 }

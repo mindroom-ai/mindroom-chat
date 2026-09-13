@@ -23,6 +23,7 @@ import { useSetting } from '../../state/hooks/settings';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -90,6 +91,10 @@ export function RoomView({
     [navigateRoom, room.roomId, threadId]
   );
 
+  // Thread view has a more specific "back" action than the generic room-page back:
+  // first swipe exits the thread, then the room header/back handler can navigate out.
+  useEdgeSwipeBack(handleExitThread, !!threadId);
+
   useKeyDown(
     window,
     useCallback(
@@ -109,7 +114,7 @@ export function RoomView({
 
   return (
     <Page ref={roomViewRef}>
-      <RoomViewHeader />
+      <RoomViewHeader threadId={threadId} />
       {threadId && (
         <Box
           alignItems="Center"

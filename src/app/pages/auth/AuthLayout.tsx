@@ -31,14 +31,14 @@ import { AuthFlowsProvider } from '../../hooks/useAuthFlows';
 import { AuthServerProvider } from '../../hooks/useAuthServer';
 import { tryDecodeURIComponent } from '../../utils/dom';
 
-const currentAuthPath = (pathname: string): string => {
+const currentAuthPath = (pathname: string, registrationAllowed: boolean): string => {
   if (matchPath(LOGIN_PATH, pathname)) {
     return LOGIN_PATH;
   }
   if (matchPath(RESET_PASSWORD_PATH, pathname)) {
     return RESET_PASSWORD_PATH;
   }
-  if (matchPath(REGISTER_PATH, pathname)) {
+  if (registrationAllowed && matchPath(REGISTER_PATH, pathname)) {
     return REGISTER_PATH;
   }
   return LOGIN_PATH;
@@ -71,6 +71,7 @@ export function AuthLayout() {
   const { server: urlEncodedServer } = useParams();
 
   const clientConfig = useClientConfig();
+  const registrationAllowed = clientConfig.auth?.allowRegistration !== false;
 
   const defaultServer = clientDefaultServer(clientConfig);
   let server: string = urlEncodedServer ? tryDecodeURIComponent(urlEncodedServer) : defaultServer;
@@ -97,13 +98,13 @@ export function AuthLayout() {
   useEffect(() => {
     if (!urlEncodedServer || tryDecodeURIComponent(urlEncodedServer) !== server) {
       navigate(
-        generatePath(currentAuthPath(location.pathname), {
+        generatePath(currentAuthPath(location.pathname, registrationAllowed), {
           server: encodeURIComponent(server),
         }),
         { replace: true }
       );
     }
-  }, [urlEncodedServer, navigate, location, server]);
+  }, [urlEncodedServer, navigate, location, server, registrationAllowed]);
 
   const selectServer = useCallback(
     (newServer: string) => {
@@ -113,10 +114,12 @@ export function AuthLayout() {
         return;
       }
       navigate(
-        generatePath(currentAuthPath(location.pathname), { server: encodeURIComponent(newServer) })
+        generatePath(currentAuthPath(location.pathname, registrationAllowed), {
+          server: encodeURIComponent(newServer),
+        })
       );
     },
-    [navigate, location, discoveryState, server, discoverServer]
+    [navigate, location, discoveryState, server, discoverServer, registrationAllowed]
   );
 
   const [autoDiscoveryError, autoDiscoveryInfo] =
@@ -171,6 +174,9 @@ export function AuthLayout() {
             )}
             {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_ERROR && (
               <AuthLayoutError message="Failed to connect. Server configuration base_url appears invalid." />
+            )}
+            {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_INSECURE && (
+              <AuthLayoutError message="Only HTTPS servers are allowed. HTTP is supported for local-network servers only." />
             )}
             {discoveryState.status === AsyncStatus.Success && autoDiscoveryInfo && (
               <AuthServerProvider value={discoveryState.data.serverName}>

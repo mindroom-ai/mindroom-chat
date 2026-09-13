@@ -3,6 +3,12 @@ import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo } from 'react';
 import { createMatrixClient } from '../../../client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
+import {
+  getSSOProviderButtonTitle,
+  hasAppleIdentityProvider,
+  isAppleIdentityProvider,
+  sortIdentityProviders,
+} from './ssoProviders';
 
 type SSOLoginProps = {
   providers?: IIdentityProvider[];
@@ -14,6 +20,8 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
+  const orderedProviders = sortIdentityProviders(providers);
+  const appleProviderAvailable = hasAppleIdentityProvider(orderedProviders);
 
   const getSSOIdUrl = (ssoId?: string): string =>
     mx.getSsoLoginUrl(redirectUrl, 'sso', ssoId, action);
@@ -24,16 +32,18 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
       )
     : true;
 
-  const renderAsIcons = withoutIcon ? false : saveScreenSpace && providers && providers.length > 2;
+  const renderAsIcons = withoutIcon
+    ? false
+    : !appleProviderAvailable && saveScreenSpace && providers && providers.length > 2;
 
   return (
     <Box justifyContent="Center" gap="600" wrap="Wrap">
       {providers ? (
-        providers.map((provider) => {
+        orderedProviders.map((provider) => {
           const { id, name, icon } = provider;
           const iconUrl = icon && mx.mxcUrlToHttp(icon, 96, 96, 'crop', false);
-
-          const buttonTitle = `Continue with ${name}`;
+          const appleProvider = isAppleIdentityProvider(provider);
+          const buttonTitle = getSSOProviderButtonTitle(provider, action);
 
           if (renderAsIcons) {
             return (
@@ -53,15 +63,20 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
 
           return (
             <Button
-              style={{ width: '100%' }}
+              style={
+                appleProvider
+                  ? { width: '100%', backgroundColor: '#000', borderColor: '#000' }
+                  : { width: '100%' }
+              }
               key={id}
               as="a"
               href={getSSOIdUrl(id)}
               size="500"
-              variant="Secondary"
-              fill="Soft"
-              outlined
+              variant={appleProvider ? 'Primary' : 'Secondary'}
+              fill={appleProvider ? 'Solid' : 'Soft'}
+              outlined={!appleProvider}
               before={
+                !appleProvider &&
                 iconUrl && (
                   <Avatar size="200" radii="300">
                     <AvatarImage src={iconUrl} alt={name} />
@@ -69,7 +84,12 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
                 )
               }
             >
-              <Text align="Center" size="B500" truncate>
+              <Text
+                align="Center"
+                size="B500"
+                truncate
+                style={appleProvider ? { color: '#fff' } : undefined}
+              >
                 {buttonTitle}
               </Text>
             </Button>
