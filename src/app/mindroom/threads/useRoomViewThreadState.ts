@@ -61,6 +61,7 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  handleRoomMessageSent: (eventId: string) => void;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
@@ -119,12 +120,9 @@ export const useRoomViewThreadState = ({
 
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
-    setLastExitedThread({ roomId: room.roomId, threadId: effectiveThreadId });
+    setLastExitedThread({ roomId, threadId: effectiveThreadId });
     const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
-    if (
-      historyExitTarget?.roomId === room.roomId &&
-      historyExitTarget.threadId === effectiveThreadId
-    ) {
+    if (historyExitTarget?.roomId === roomId && historyExitTarget.threadId === effectiveThreadId) {
       const standaloneWebApp = isIOSStandaloneWebApp();
       if (historyExitTarget.exitPath && (!historyExitTarget.useHistoryBack || standaloneWebApp)) {
         navigatePath(historyExitTarget.exitPath, { replace: true });
@@ -135,23 +133,23 @@ export const useRoomViewThreadState = ({
         return;
       }
     }
-    navigateRoomFocusEvent(room.roomId, effectiveThreadId, { replace: true });
-  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, room.roomId, setLastExitedThread]);
+    navigateRoomFocusEvent(roomId, effectiveThreadId, { replace: true });
+  }, [effectiveThreadId, navigatePath, navigateRoomFocusEvent, roomId, setLastExitedThread]);
 
   const handleSwipeForwardToThread = useCallback(() => {
     if (viewMode === 'classic') return;
     if (threadId) return;
-    if (!lastExitedThread || lastExitedThread.roomId !== room.roomId) return;
+    if (!lastExitedThread || lastExitedThread.roomId !== roomId) return;
 
     const targetThreadId = lastExitedThread.threadId;
-    navigateRoomThread(room.roomId, targetThreadId);
+    navigateRoomThread(roomId, targetThreadId);
     setLastExitedThread(null);
-  }, [lastExitedThread, navigateRoomThread, room.roomId, setLastExitedThread, threadId, viewMode]);
+  }, [lastExitedThread, navigateRoomThread, roomId, setLastExitedThread, threadId, viewMode]);
 
   useEdgeSwipeBack(handleExitThread, viewMode !== 'classic' && !!threadId);
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    viewMode !== 'classic' && !threadId && lastExitedThread?.roomId === room.roomId
+    viewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
   );
 
   const updateFromEffectiveQueryState = useCallback(
@@ -242,6 +240,16 @@ export const useRoomViewThreadState = ({
     [setViewMode]
   );
 
+  const handleRoomMessageSent = useCallback(
+    (sentEventId: string) => {
+      if (viewMode !== 'compact' || threadId || effectiveThreadId) return;
+      if (!isConfirmedMatrixEventId(sentEventId)) return;
+
+      navigateRoomThread(roomId, sentEventId);
+    },
+    [effectiveThreadId, navigateRoomThread, roomId, threadId, viewMode]
+  );
+
   useEffect(() => {
     setThreadSortFreezeState(null);
   }, [roomId]);
@@ -268,14 +276,14 @@ export const useRoomViewThreadState = ({
   useEffect(() => {
     if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
 
-    navigateRoomThread(room.roomId, effectiveThreadId, eventId, { replace: true });
-  }, [effectiveThreadId, eventId, navigateRoomThread, room.roomId, threadId]);
+    navigateRoomThread(roomId, effectiveThreadId, eventId, { replace: true });
+  }, [effectiveThreadId, eventId, navigateRoomThread, roomId, threadId]);
 
   useEffect(() => {
     if (viewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
 
-    bumpRecentThread(room.roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, recentThreadSummaryText, room.roomId, viewMode]);
+    bumpRecentThread(roomId, effectiveThreadId, undefined, recentThreadSummaryText);
+  }, [effectiveThreadId, recentThreadSummaryText, roomId, viewMode]);
 
   return {
     effectiveThreadId,
@@ -289,6 +297,7 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,

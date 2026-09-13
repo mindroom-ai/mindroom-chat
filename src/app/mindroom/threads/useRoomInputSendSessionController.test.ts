@@ -73,10 +73,12 @@ const prepErrorUpload = (file: File): Upload => ({
 
 const TestHarness = ({
   onReady,
+  onRoomMessageSent,
   mx,
   editor,
 }: {
   onReady: (api: HarnessApi) => void;
+  onRoomMessageSent?: (eventId: string) => void;
   mx: {
     sendMessage: ReturnType<typeof vi.fn>;
   };
@@ -122,6 +124,7 @@ const TestHarness = ({
       );
       uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
     },
+    onRoomMessageSent,
   });
 
   useEffect(() => {
@@ -137,7 +140,7 @@ const TestHarness = ({
   return null;
 };
 
-const renderHarness = () => {
+const renderHarness = (options: { onRoomMessageSent?: (eventId: string) => void } = {}) => {
   let sentEvents = 0;
   const mx = {
     sendMessage: vi.fn(async () => {
@@ -156,6 +159,7 @@ const renderHarness = () => {
       React.createElement(TestHarness, {
         mx,
         editor,
+        onRoomMessageSent: options.onRoomMessageSent,
         onReady: (nextApi) => {
           api = nextApi;
         },
@@ -301,6 +305,44 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
         is_falling_back: true,
       },
     });
+  });
+
+  it('notifies the auto-thread upload root once and skips child uploads', async () => {
+    const notificationSnapshots: Array<{ selectedFiles: string[]; uploadFiles: string[] }> = [];
+    const onRoomMessageSent = vi.fn();
+    const apiRef: { current?: HarnessApi } = {};
+    const { api } = renderHarness({
+      onRoomMessageSent: (eventId) => {
+        onRoomMessageSent(eventId);
+        notificationSnapshots.push({
+          selectedFiles:
+            apiRef.current?.selectedFilesRef.current.map((item) => item.file.name) ?? [],
+          uploadFiles: apiRef.current?.uploadsRef.current.map((upload) => upload.file.name) ?? [],
+        });
+      },
+    });
+    apiRef.current = api;
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [
+      successUpload(root, 'mxc://mindroom/root'),
+      successUpload(child, 'mxc://mindroom/child'),
+    ];
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(onRoomMessageSent).toHaveBeenCalledTimes(1);
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$event-0');
+    expect(notificationSnapshots).toEqual([
+      {
+        selectedFiles: ['child.txt'],
+        uploadFiles: ['child.txt'],
+      },
+    ]);
   });
 });
 

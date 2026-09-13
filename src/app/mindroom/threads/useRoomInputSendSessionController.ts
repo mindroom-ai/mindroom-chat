@@ -21,6 +21,7 @@ import {
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
 } from './roomInputSendSession';
+import { getRoomMessageSentNotificationEventId } from './roomMessageSent';
 
 type SendSession = RoomInputSendSessionState & {
   roomId: string;
@@ -70,6 +71,7 @@ type UseRoomInputSendSessionControllerOptions = {
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
   removeUploadsFromBoard: (upload: TUploadContent | TUploadContent[]) => void;
+  onRoomMessageSent?: (eventId: string) => void;
   shouldBlockStartSendSession?: () => boolean;
 };
 
@@ -126,6 +128,7 @@ export const useRoomInputSendSessionController = ({
   uploadsRef,
   buildUploadMessageContent,
   removeUploadsFromBoard,
+  onRoomMessageSent,
   shouldBlockStartSendSession,
 }: UseRoomInputSendSessionControllerOptions): {
   processSendSession: () => Promise<void>;
@@ -177,12 +180,21 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : session.textContent;
-      await mx.sendMessage(session.roomId, content as any);
+      const response = await mx.sendMessage(session.roomId, content as any);
+      const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+        eventId: response.event_id,
+        relation,
+        replyDraft: session.replyDraft,
+        threadId: session.threadId,
+      });
 
       session.textPending = false;
       clearReplyDraftForSession(session);
+      if (sentEventIdToNotify) {
+        onRoomMessageSent?.(sentEventIdToNotify);
+      }
     },
-    [mx, clearReplyDraftForSession]
+    [mx, clearReplyDraftForSession, onRoomMessageSent]
   );
 
   const sendSessionUpload = useCallback(
@@ -203,6 +215,12 @@ export const useRoomInputSendSessionController = ({
           }
         : content;
       const response = await mx.sendMessage(session.roomId, contentWithRelation as any);
+      const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+        eventId: response.event_id,
+        relation,
+        replyDraft: session.replyDraft,
+        threadId: session.threadId,
+      });
 
       session.sentFiles.add(file);
       session.failedFiles.delete(file);
@@ -211,6 +229,9 @@ export const useRoomInputSendSessionController = ({
       }
       clearReplyDraftForSession(session);
       removeUploadsFromBoard(file);
+      if (sentEventIdToNotify) {
+        onRoomMessageSent?.(sentEventIdToNotify);
+      }
     },
     [
       mx,
@@ -218,6 +239,7 @@ export const useRoomInputSendSessionController = ({
       sendSessionUploadItemsRef,
       buildUploadMessageContent,
       clearReplyDraftForSession,
+      onRoomMessageSent,
       removeUploadsFromBoard,
     ]
   );
