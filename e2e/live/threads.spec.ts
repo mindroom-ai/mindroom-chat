@@ -168,7 +168,7 @@ test.describe('live threads', () => {
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-navigation');
   });
 
-  test('sending a new root message in compact view shows a zero-reply thread card immediately', async ({
+  test('sending a new root in compact view opens its thread and keeps a zero-reply card on return', async ({
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
@@ -199,10 +199,22 @@ test.describe('live threads', () => {
     await composer.fill(rootBody);
     await composer.press('Enter');
 
-    const compactThreadButton = page.getByRole('button', {
-      name: new RegExp(`${escapeRegex(rootBody)}[\\s\\S]*0 replies`, 'i'),
-    });
+    await expect(page.getByText('Thread View', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get('threadId')?.startsWith('$'), {
+        timeout: 30_000,
+      })
+      .toBe(true);
+    const canonicalRootId = new URL(page.url()).searchParams.get('threadId');
+    await page.goto('/home/' + encodeURIComponent(roomId));
+    await waitForLoggedInShell(page);
+
+    const compactThreadButton = page
+      .locator('[data-compact-room-view="true"]')
+      .locator('[data-thread-root-id="' + canonicalRootId + '"]');
     await expect(compactThreadButton).toBeVisible({ timeout: 30_000 });
+    await expect(compactThreadButton).toContainText(rootBody);
+    await expect(compactThreadButton).toContainText('0 replies');
 
     await compactThreadButton.click();
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
