@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
 import { transition } from '../../styles/transition';
@@ -26,6 +26,12 @@ export const EmptyState = style({
   color: color.SurfaceVariant.OnContainer,
 });
 
+export const CardShell = style({
+  position: 'relative',
+  width: '100%',
+  minWidth: 0,
+});
+
 export const Card = style([
   DefaultReset,
   {
@@ -51,6 +57,41 @@ export const Card = style([
     },
   },
 ]);
+
+globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
+  backgroundColor: color.SurfaceVariant.ContainerHover,
+});
+
+export const CardAction = style({
+  position: 'absolute',
+  insetInlineEnd: config.space.S300,
+  top: '50%',
+  zIndex: 1,
+  opacity: 0,
+  pointerEvents: 'none',
+  transform: 'translateY(-50%)',
+  transition: transition(['opacity']),
+  selectors: {
+    '&::before': {
+      content: "''",
+      position: 'absolute',
+      insetBlock: 0,
+      insetInlineStart: `calc(-1 * ${config.space.S500})`,
+      width: config.space.S500,
+      pointerEvents: 'none',
+      background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
+    },
+  },
+});
+
+globalStyle(`[dir='rtl'] ${CardAction}::before`, {
+  background: `linear-gradient(to left, transparent, ${color.SurfaceVariant.ContainerHover})`,
+});
+
+globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
+  opacity: 1,
+  pointerEvents: 'auto',
+});
 
 export const CardResolved = style({
   borderColor: color.Success.ContainerLine,
