@@ -1,4 +1,4 @@
-import { style, globalStyle } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 
 export const Banner = style({
@@ -44,11 +44,6 @@ export const OverflowChip = style({
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
-});
-
-/* Show remove button on pill hover */
-globalStyle('.thread-tag-pill:hover .thread-tag-pill-remove', {
-  opacity: 1,
 });
 
 /**

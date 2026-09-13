@@ -28,30 +28,6 @@ import {
   usePendingThreadTagsVersion,
 } from './threadTagPending';
 
-// ─── Legacy fallback ─────────────────────────────────────────────────────────
-
-/**
- * Legacy state event type used before the thread-tags migration.
- * Rooms that predate the migration may only have this event for some threads.
- * Content shape: `{ resolved: boolean }`.
- */
-const LEGACY_THREAD_RESOLUTION = 'com.mindroom.thread.resolution' as unknown as StateEvent;
-
-export const parseLegacyResolutionContent = (
-  content: unknown
-): { isResolved: boolean; tags: Record<string, TagMetadata> | null } | null => {
-  if (typeof content !== 'object' || content === null || Array.isArray(content)) return null;
-  const c = content as Record<string, unknown>;
-  if (typeof c.resolved !== 'boolean') return null;
-  const isResolved = c.resolved;
-  return {
-    isResolved,
-    tags: isResolved
-      ? { resolved: { set_by: 'legacy', set_at: 0 } }
-      : null,
-  };
-};
-
 // ─── Resolution state types ─────────────────────────────────────────────────
 
 export type ThreadResolutionState = {
@@ -69,27 +45,12 @@ const unresolvedState: ThreadResolutionState = {
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-const getThreadResolutionState = (
-  event?: MatrixEvent,
-  legacyEvent?: MatrixEvent
-): ThreadResolutionState => {
+const getThreadResolutionState = (event?: MatrixEvent): ThreadResolutionState => {
   if (event) {
     const content = parseThreadTagsContent(event.getContent());
     const tags = Object.keys(content.tags).length > 0 ? content.tags : null;
     const isResolved = isThreadResolved(content);
     return { event, tags, isResolved, isPending: false };
-  }
-
-  if (legacyEvent) {
-    const legacy = parseLegacyResolutionContent(legacyEvent.getContent());
-    if (legacy) {
-      return {
-        event: legacyEvent,
-        tags: legacy.tags,
-        isResolved: legacy.isResolved,
-        isPending: false,
-      };
-    }
   }
 
   return unresolvedState;
@@ -117,7 +78,6 @@ const usePendingVersion = usePendingThreadTagsVersion;
 
 export const useThreadResolution = (room: Room, threadRootId?: string): ThreadResolutionState => {
   const event = useStateEvent(room, StateEvent.ThreadTags, threadRootId ?? '');
-  const legacyEvent = useStateEvent(room, LEGACY_THREAD_RESOLUTION, threadRootId ?? '');
   const pVersion = usePendingVersion();
   const pending = useMemo(
     () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
@@ -126,8 +86,8 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
   );
 
   const resolutionState = useMemo(
-    () => (threadRootId ? getThreadResolutionState(event, legacyEvent) : unresolvedState),
-    [event, legacyEvent, threadRootId]
+    () => (threadRootId ? getThreadResolutionState(event) : unresolvedState),
+    [event, threadRootId]
   );
 
   useEffect(() => {
@@ -146,7 +106,6 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
 
 export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolutionState> => {
   const events = useStateEvents(room, StateEvent.ThreadTags);
-  const legacyEvents = useStateEvents(room, LEGACY_THREAD_RESOLUTION);
   const pVersion = usePendingVersion();
   const pendingMap = useMemo(
     () => getPendingThreadTagsContentMap(room.roomId),
@@ -161,14 +120,8 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
       if (!stateKey) return;
       map.set(stateKey, getThreadResolutionState(event));
     });
-    // Backfill from legacy events for threads without a new-format event
-    legacyEvents.forEach((legacyEvent) => {
-      const stateKey = legacyEvent.getStateKey();
-      if (!stateKey || map.has(stateKey)) return;
-      map.set(stateKey, getThreadResolutionState(undefined, legacyEvent));
-    });
     return map;
-  }, [events, legacyEvents]);
+  }, [events]);
 
   useEffect(() => {
     pendingMap.forEach((pend, threadRootId) => {
