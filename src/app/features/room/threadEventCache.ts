@@ -72,15 +72,19 @@ const getRawTransactionId = (rawEvent: Partial<IEvent>): string | undefined => {
   return txnId;
 };
 
-const getRawEventKey = (rawEvent: Partial<IEvent>): string | undefined => {
-  const txnId = getRawTransactionId(rawEvent);
-  if (txnId) return `txn:${txnId}`;
+const getRawEventKeys = (rawEvent: Partial<IEvent>): string[] => {
+  const keys: string[] = [];
 
   if (typeof rawEvent.event_id === 'string' && rawEvent.event_id.length > 0) {
-    return `event:${rawEvent.event_id}`;
+    keys.push(`event:${rawEvent.event_id}`);
   }
 
-  return undefined;
+  const txnId = getRawTransactionId(rawEvent);
+  if (txnId) {
+    keys.push(`txn:${txnId}`);
+  }
+
+  return keys;
 };
 
 const isRawLocalEchoEvent = (rawEvent: Partial<IEvent>): boolean =>
@@ -125,27 +129,40 @@ export const normalizeCachedThreadEvents = (
 ): CachedThreadEvent[] => {
   const eventMap = new Map<string, CachedThreadEvent>();
 
+  const setEventForKeys = (keys: string[], mEvent: CachedThreadEvent) => {
+    keys.forEach((key) => {
+      eventMap.set(key, mEvent);
+    });
+  };
+
+  const findExistingEvent = (keys: string[]): CachedThreadEvent | undefined =>
+    keys.map((key) => eventMap.get(key)).find((mEvent): mEvent is CachedThreadEvent => !!mEvent);
+
   rawEvents.forEach((rawEvent) => {
     const normalized = toCachedThreadEvent(rawEvent);
     if (!normalized) return;
-    const eventKey = getRawEventKey(normalized);
-    if (!eventKey) return;
-    const existingEvent = eventMap.get(eventKey);
-    eventMap.set(
-      eventKey,
-      existingEvent ? pickPreferredCachedThreadEvent(existingEvent, normalized) : normalized
-    );
+    const incomingKeys = getRawEventKeys(normalized);
+    if (incomingKeys.length === 0) return;
+    const existingEvent = findExistingEvent(incomingKeys);
+    if (!existingEvent) {
+      setEventForKeys(incomingKeys, normalized);
+      return;
+    }
+
+    const preferredEvent = pickPreferredCachedThreadEvent(existingEvent, normalized);
+    const mergedKeys = Array.from(new Set([...getRawEventKeys(existingEvent), ...incomingKeys]));
+    setEventForKeys(mergedKeys, preferredEvent);
   });
 
   const normalizedRoot = rootEvent ? toCachedThreadEvent(rootEvent) : undefined;
   if (normalizedRoot) {
-    const rootKey = getRawEventKey(normalizedRoot);
-    if (rootKey && !eventMap.has(rootKey)) {
-      eventMap.set(rootKey, normalizedRoot);
+    const rootKeys = getRawEventKeys(normalizedRoot);
+    if (rootKeys.length > 0 && !findExistingEvent(rootKeys)) {
+      setEventForKeys(rootKeys, normalizedRoot);
     }
   }
 
-  return Array.from(eventMap.values()).sort(sortThreadEvents);
+  return Array.from(new Set(eventMap.values())).sort(sortThreadEvents);
 };
 
 export const getThreadCursorAnchor = (

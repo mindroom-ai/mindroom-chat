@@ -44,15 +44,20 @@ const getThreadRenderTransactionId = (mEvent: MatrixEvent): string | undefined =
   return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;
 };
 
-export const getThreadRenderEventKey = (mEvent: MatrixEvent): string | undefined => {
-  const txnId = getThreadRenderTransactionId(mEvent);
-  if (txnId) return `txn:${txnId}`;
+const getThreadRenderEventKeys = (mEvent: MatrixEvent): string[] => {
+  const keys: string[] = [];
 
   const eventId = getThreadRenderEventId(mEvent);
-  if (eventId) return `event:${eventId}`;
+  if (eventId) keys.push(`event:${eventId}`);
 
-  return undefined;
+  const txnId = getThreadRenderTransactionId(mEvent);
+  if (txnId) keys.push(`txn:${txnId}`);
+
+  return keys;
 };
+
+export const getThreadRenderEventKey = (mEvent: MatrixEvent): string | undefined =>
+  getThreadRenderEventKeys(mEvent)[0];
 
 const isLocalEchoEvent = (mEvent: MatrixEvent): boolean => {
   const eventId = getThreadRenderEventId(mEvent);
@@ -66,9 +71,9 @@ export const pickPreferredThreadRenderEvent = (
 ): MatrixEvent => {
   if (existingEvent === incomingEvent) return existingEvent;
 
-  const existingKey = getThreadRenderEventKey(existingEvent);
-  const incomingKey = getThreadRenderEventKey(incomingEvent);
-  if (existingKey && existingKey === incomingKey) {
+  const existingKeys = new Set(getThreadRenderEventKeys(existingEvent));
+  const incomingKeys = getThreadRenderEventKeys(incomingEvent);
+  if (incomingKeys.some((key) => existingKeys.has(key))) {
     const existingLocalEcho = isLocalEchoEvent(existingEvent);
     const incomingLocalEcho = isLocalEchoEvent(incomingEvent);
     if (existingLocalEcho !== incomingLocalEcho) {
@@ -105,24 +110,39 @@ export const mergeThreadRenderEvents = (
 ): MatrixEvent[] => {
   const eventMap = new Map<string, MatrixEvent>();
 
+  const setEventForKeys = (keys: string[], mEvent: MatrixEvent) => {
+    keys.forEach((key) => {
+      eventMap.set(key, mEvent);
+    });
+  };
+
+  const findExistingEvent = (keys: string[]): MatrixEvent | undefined =>
+    keys.map((key) => eventMap.get(key)).find((mEvent): mEvent is MatrixEvent => !!mEvent);
+
   existingEvents.forEach((mEvent) => {
-    const eventKey = getThreadRenderEventKey(mEvent);
-    if (!eventKey) return;
-    eventMap.set(eventKey, mEvent);
+    const keys = getThreadRenderEventKeys(mEvent);
+    if (keys.length === 0) return;
+    setEventForKeys(keys, mEvent);
   });
 
   incomingEvents.forEach((mEvent) => {
-    const eventKey = getThreadRenderEventKey(mEvent);
-    if (!eventKey) return;
+    const incomingKeys = getThreadRenderEventKeys(mEvent);
+    if (incomingKeys.length === 0) return;
 
-    const existingEvent = eventMap.get(eventKey);
-    eventMap.set(
-      eventKey,
-      existingEvent ? pickPreferredThreadRenderEvent(existingEvent, mEvent) : mEvent
+    const existingEvent = findExistingEvent(incomingKeys);
+    if (!existingEvent) {
+      setEventForKeys(incomingKeys, mEvent);
+      return;
+    }
+
+    const preferredEvent = pickPreferredThreadRenderEvent(existingEvent, mEvent);
+    const mergedKeys = Array.from(
+      new Set([...getThreadRenderEventKeys(existingEvent), ...incomingKeys])
     );
+    setEventForKeys(mergedKeys, preferredEvent);
   });
 
-  return Array.from(eventMap.values()).sort((a, b) => {
+  return Array.from(new Set(eventMap.values())).sort((a, b) => {
     const tsDiff = a.getTs() - b.getTs();
     if (tsDiff !== 0) return tsDiff;
     return (a.getId() ?? '').localeCompare(b.getId() ?? '');

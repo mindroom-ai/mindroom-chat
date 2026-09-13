@@ -1,6 +1,7 @@
 /// <reference lib="WebWorker" />
 
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 
 export type {};
 declare const self: ServiceWorkerGlobalScope;
@@ -127,36 +128,9 @@ async function askForAccessToken(client: Client): Promise<string | undefined> {
   });
 }
 
-const normalizeRequestCache = (request: Request): RequestCache =>
-  request.cache === 'only-if-cached' ? 'default' : request.cache;
-
-const authHeaders = (request: Request, token: string): Headers => {
-  const headers = new Headers(request.headers);
-  headers.set('Authorization', `Bearer ${token}`);
-  return headers;
-};
-
 const fetchAuthenticatedMedia = async (request: Request, token: string): Promise<Response> => {
-  const headers = authHeaders(request, token);
-  const cache = normalizeRequestCache(request);
-
-  if (request.mode === 'no-cors') {
-    // no-cors requests cannot carry Authorization; upgrade to CORS for authenticated media.
-    return fetch(request.url, {
-      method: request.method,
-      headers,
-      mode: 'cors',
-      credentials: 'omit',
-      cache,
-      redirect: request.redirect,
-      referrer: request.referrer,
-      referrerPolicy: request.referrerPolicy,
-      integrity: request.integrity,
-      keepalive: request.keepalive,
-    });
-  }
-
-  return fetch(request, { headers, cache });
+  const init = buildAuthenticatedMediaRequestInit(request, token);
+  return request.mode === 'no-cors' ? fetch(request.url, init) : fetch(request, init);
 };
 
 const fetchAuthenticatedMediaWithFallback = async (

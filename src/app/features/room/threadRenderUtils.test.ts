@@ -179,4 +179,17 @@ describe('mergeThreadRenderEvents', () => {
     expect(mergeThreadRenderEvents([localEcho], [remoteEcho])).toEqual([remoteEcho]);
     expect(mergeThreadRenderEvents([remoteEcho], [localEcho])).toEqual([remoteEcho]);
   });
+
+  it('deduplicates identical remote events even when only one copy still carries the transaction id', () => {
+    const confirmedWithTxn = makeMessageEvent('$remote', 10);
+    confirmedWithTxn.event.unsigned = { transaction_id: 'txn-3' };
+    const confirmedWithoutTxn = makeMessageEvent('$remote', 10);
+
+    expect(mergeThreadRenderEvents([confirmedWithTxn], [confirmedWithoutTxn])).toEqual([
+      confirmedWithoutTxn,
+    ]);
+    expect(mergeThreadRenderEvents([confirmedWithoutTxn], [confirmedWithTxn])).toEqual([
+      confirmedWithTxn,
+    ]);
+  });
 });
