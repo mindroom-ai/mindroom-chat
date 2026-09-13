@@ -19,20 +19,20 @@ const makeMessageEvent = (eventId: string, type = 'm.room.message') =>
   });
 
 describe('shouldFetchThreadEditBackfill', () => {
-  it('allows retry after the thread tail settles and for new MatrixEvent instances', () => {
+  it('waits for the thread tail before backfilling edits and allows retry after that', () => {
     const attemptedEvents = new WeakMap<MatrixEvent, number>();
     const firstInstance = makeMessageEvent('$target');
     const secondInstance = makeMessageEvent('$target');
 
-    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, false)).toBe(true);
-    markThreadEditBackfillAttempted(firstInstance, attemptedEvents, false);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, false, true)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(secondInstance, attemptedEvents, false, true)).toBe(false);
 
-    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, false)).toBe(false);
-    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true)).toBe(true);
-    expect(shouldFetchThreadEditBackfill(secondInstance, attemptedEvents, false)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true, true)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(secondInstance, attemptedEvents, true, true)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true, false)).toBe(false);
 
     markThreadEditBackfillAttempted(firstInstance, attemptedEvents, true);
-    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(firstInstance, attemptedEvents, true, true)).toBe(false);
   });
 
   it('skips replaced events before tail load but revalidates them after tail load', () => {
@@ -59,15 +59,39 @@ describe('shouldFetchThreadEditBackfill', () => {
     });
     targetEvent.makeReplaced(editEvent);
 
-    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, false)).toBe(false);
-    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, true)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, false, true)).toBe(false);
+    expect(shouldFetchThreadEditBackfill(targetEvent, attemptedEvents, true, true)).toBe(true);
   });
 
   it('ignores unsupported event types', () => {
     const attemptedEvents = new WeakMap<MatrixEvent, number>();
 
     expect(
-      shouldFetchThreadEditBackfill(makeMessageEvent('$reaction', 'm.reaction'), attemptedEvents, true)
+      shouldFetchThreadEditBackfill(
+        makeMessageEvent('$reaction', 'm.reaction'),
+        attemptedEvents,
+        true,
+        true
+      )
     ).toBe(false);
+  });
+
+  it('repairs streaming placeholders on untargeted opens but leaves ordinary messages alone', () => {
+    const attemptedEvents = new WeakMap<MatrixEvent, number>();
+    const placeholderEvent = new MatrixEvent({
+      content: {
+        body: 'Thinking...  ⋯',
+        msgtype: 'm.text',
+      },
+      event_id: '$placeholder',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    const normalEvent = makeMessageEvent('$normal');
+
+    expect(shouldFetchThreadEditBackfill(placeholderEvent, attemptedEvents, true, false)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(normalEvent, attemptedEvents, true, false)).toBe(false);
   });
 });

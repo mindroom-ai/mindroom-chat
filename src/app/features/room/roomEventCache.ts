@@ -276,6 +276,29 @@ export const loadCachedRoomPaginationToken = async (
   });
 };
 
+export const loadCachedRoomEvent = async (
+  sessionId: string,
+  roomId: string,
+  eventId: string
+): Promise<CachedRoomEvent | undefined> => {
+  const db = await openRoomEventCache(sessionId);
+  if (!db) return undefined;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(EVENT_STORE, 'readonly');
+    const eventStore = transaction.objectStore(EVENT_STORE);
+    const eventRequest = eventStore.get(getEventCacheKey(roomId, eventId));
+
+    transaction.oncomplete = () => {
+      const record = eventRequest.result as CachedRoomEventRecord | undefined;
+      resolve(record ? toCachedRoomEvent(record.rawEvent) : undefined);
+    };
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+    eventRequest.onerror = () => reject(eventRequest.error);
+  });
+};
+
 export const saveRoomEventsToCache = async (
   sessionId: string,
   roomId: string,

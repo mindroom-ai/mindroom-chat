@@ -46,6 +46,7 @@ const {
   threadRenderStateControl: {
     currentThreadEvents: [] as unknown[],
     initialThreadEvents: [] as unknown[],
+    threadInitialRenderMode: 'live' as 'loading' | 'cached' | 'live',
   },
 }));
 
@@ -521,7 +522,7 @@ vi.mock('./useThreadRenderState', async () => {
       return {
         threadEventIndexMapRef,
         threadEvents,
-        threadInitialRenderMode: 'live',
+        threadInitialRenderMode: threadRenderStateControl.threadInitialRenderMode,
         setSupplementalThreadEvents: (
           _threadId: string,
           events: Array<{ getId: () => string }>
@@ -830,6 +831,7 @@ beforeEach(() => {
   threadResolutionMapMock.clear();
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];
+  threadRenderStateControl.threadInitialRenderMode = 'live';
 });
 
 describe('RoomTimeline collapsible wiring', () => {
@@ -1093,5 +1095,52 @@ describe('RoomTimeline collapsible wiring', () => {
         liveExpandOnceIds
       )
     ).toBe('initially-expanded');
+  });
+
+  it('keeps cached-mode thread replies in default collapse mode on first paint', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const threadRootEvent = makeEvent('$thread-root', {
+      content: {
+        body: 'Thread root',
+        msgtype: 'm.text',
+      },
+      isThreadRoot: true,
+      ts: 1,
+    });
+    const cachedReply = makeEvent('$cached-reply', {
+      content: {
+        body:
+          'This is a long cached thread reply that should stay collapsed by default on first paint. '.repeat(
+            6
+          ),
+        msgtype: 'm.text',
+      },
+      threadRootId: '$thread-root',
+      ts: 2,
+    });
+    const room = makeRoom({
+      liveEvents: [threadRootEvent],
+      threadRootEvent,
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    threadRenderStateControl.initialThreadEvents = [threadRootEvent, cachedReply];
+    threadRenderStateControl.threadInitialRenderMode = 'cached';
+
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId: '$thread-root',
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      expect(findCollapseModeForEvent(renderer, '$cached-reply')).toBe('default');
+    } finally {
+      renderer?.unmount();
+    }
   });
 });

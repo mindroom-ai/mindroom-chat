@@ -4,24 +4,51 @@ import { MessageEvent } from '../../../types/matrix/room';
 const getThreadEditBackfillPhase = (threadTailLoaded: boolean): number =>
   threadTailLoaded ? 1 : 0;
 
+const hasLikelyIncompleteStreamingBody = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim();
+  if (!normalized) return false;
+
+  return (
+    normalized === 'Thinking...' ||
+    normalized === 'Thinking…' ||
+    normalized === 'Thinking... ⋯' ||
+    normalized === 'Thinking...  ⋯' ||
+    (normalized.startsWith('Thinking') &&
+      (normalized.includes('...') || normalized.includes('…') || normalized.includes('⋯')))
+  );
+};
+
+const likelyNeedsStreamingEditRepair = (mEvent: MatrixEvent): boolean => {
+  const content = mEvent.getContent();
+  return (
+    hasLikelyIncompleteStreamingBody(content?.body) ||
+    hasLikelyIncompleteStreamingBody(content?.formatted_body)
+  );
+};
+
 export const shouldFetchThreadEditBackfill = (
   mEvent: MatrixEvent,
   attemptedEvents: WeakMap<MatrixEvent, number>,
-  threadTailLoaded: boolean
+  threadTailLoaded: boolean,
+  targetedOpen: boolean
 ): boolean => {
+  if (!threadTailLoaded) return false;
   if (!mEvent.getId()) return false;
   if (mEvent.isRedacted()) return false;
-  if (mEvent.replacingEvent() && !threadTailLoaded) return false;
 
   const currentPhase = getThreadEditBackfillPhase(threadTailLoaded);
   const lastAttemptPhase = attemptedEvents.get(mEvent);
   if (typeof lastAttemptPhase === 'number' && lastAttemptPhase >= currentPhase) return false;
 
   const eventType = mEvent.getType();
-  return (
+  const supportedEventType =
     eventType === MessageEvent.RoomMessage ||
-    eventType === MessageEvent.RoomMessageEncrypted
-  );
+    eventType === MessageEvent.RoomMessageEncrypted;
+  if (!supportedEventType) return false;
+
+  if (targetedOpen) return true;
+  return likelyNeedsStreamingEditRepair(mEvent);
 };
 
 export const markThreadEditBackfillAttempted = (
