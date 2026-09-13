@@ -125,4 +125,36 @@ describe('useRelativeTime', () => {
       renderer.unmount();
     });
   });
+
+  it('shares one interval across hooks in the same update cadence bucket', () => {
+    const setIntervalSpy = vi.spyOn(window, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(Harness, {
+            ts: Date.now() - secondsToMs(10),
+            onRender: () => undefined,
+          }),
+          React.createElement(Harness, {
+            ts: Date.now() - secondsToMs(20),
+            onRender: () => undefined,
+          })
+        )
+      );
+    });
+
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), secondsToMs(1));
+
+    act(() => {
+      renderer?.unmount();
+    });
+
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+  });
 });

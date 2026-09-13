@@ -182,6 +182,26 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
+  it('can navigate directly to a thread route without pre-seeding the current history entry', () => {
+    const roomId = '!room:example.org';
+    const threadId = '$thread';
+    const eventId = '$reply';
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomThreadDirect(roomId, threadId, eventId);
+    });
+
+    expect(mocks.replaceState).not.toHaveBeenCalled();
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
+      undefined
+    );
+
+    renderer.unmount();
+  });
+
   it('prepends hash fragment for replaceState URL in hash router mode', () => {
     mocks.clientConfig = { hashRouter: { enabled: true } };
     const roomId = '!room:example.org';

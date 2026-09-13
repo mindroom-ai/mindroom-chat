@@ -36,6 +36,9 @@ import {
 import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/features/room/roomEventCache';
 import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
+import { clearRecentThreadsStore } from '../app/state/recentThreads';
+import { clearRecentThreadsPanelHeightStore } from '../app/state/recentThreadsPanelHeight';
+import { clearRecentThreadSummarySharedState } from '../app/features/recent-threads/useRecentThreadSummary';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -60,6 +63,18 @@ vi.mock('./matrixClientFactory', () => ({
 
 vi.mock('../app/state/navToActivePath', () => ({
   clearNavToActivePathStore: vi.fn(),
+}));
+
+vi.mock('../app/state/recentThreads', () => ({
+  clearRecentThreadsStore: vi.fn(),
+}));
+
+vi.mock('../app/state/recentThreadsPanelHeight', () => ({
+  clearRecentThreadsPanelHeightStore: vi.fn(),
+}));
+
+vi.mock('../app/features/recent-threads/useRecentThreadSummary', () => ({
+  clearRecentThreadSummarySharedState: vi.fn(),
 }));
 
 vi.mock('../app/features/room/threadEventCache', () => ({
@@ -941,6 +956,9 @@ describe('clearCacheAndReload', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -1117,6 +1135,9 @@ describe('logoutClient', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
+    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(userId);
+    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1262,6 +1283,9 @@ describe('clearLoginData', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(session.userId);
+    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -1575,6 +1599,11 @@ describe('removeStoredSession', () => {
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(inactiveSession.userId);
+    expect(vi.mocked(clearRecentThreadsPanelHeightStore)).toHaveBeenCalledWith(
+      inactiveSession.userId
+    );
+    expect(vi.mocked(clearRecentThreadSummarySharedState)).toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
       activeSession.sessionId,
