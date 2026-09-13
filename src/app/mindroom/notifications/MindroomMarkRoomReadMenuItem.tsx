@@ -13,18 +13,16 @@ type MindroomMarkRoomReadMenuItemProps = {
   room: Room;
 };
 
-export function MindroomMarkRoomReadMenuItem({
-  onClose,
-  room,
-}: MindroomMarkRoomReadMenuItemProps) {
+export function MindroomMarkRoomReadMenuItem({ onClose, room }: MindroomMarkRoomReadMenuItemProps) {
   const mx = useMatrixClient();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
 
   const handleMarkAsRead = useCallback(() => {
+    if (!unread) return;
     void markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
     onClose();
-  }, [hideActivity, mx, onClose, room.roomId]);
+  }, [hideActivity, mx, onClose, room.roomId, unread]);
 
   return (
     <MenuItem
@@ -32,7 +30,7 @@ export function MindroomMarkRoomReadMenuItem({
       size="300"
       after={<Icon size="100" src={Icons.CheckTwice} />}
       radii="300"
-      disabled={!unread}
+      aria-disabled={!unread}
     >
       <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
         Mark as Read

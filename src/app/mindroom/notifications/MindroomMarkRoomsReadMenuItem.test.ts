@@ -21,13 +21,20 @@ vi.mock('folds', async () => {
     },
     MenuItem: ({
       children,
+      'aria-disabled': ariaDisabled,
       disabled,
       onClick,
     }: {
       children: React.ReactNode;
+      'aria-disabled'?: boolean;
       disabled?: boolean;
       onClick?: () => void;
-    }) => reactModule.createElement('button', { disabled, onClick, type: 'button' }, children),
+    }) =>
+      reactModule.createElement(
+        'button',
+        { 'aria-disabled': ariaDisabled, disabled, onClick, type: 'button' },
+        children
+      ),
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
   };
@@ -95,7 +102,7 @@ describe('MindroomMarkRoomsReadMenuItem', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('disables the action and does nothing when no listed room is unread', async () => {
+  it('keeps the unavailable action tabbable and does nothing when no listed room is unread', async () => {
     const onClose = vi.fn();
     state.unread = undefined;
     const { MindroomMarkRoomsReadMenuItem } = await import('./MindroomMarkRoomsReadMenuItem');
@@ -111,7 +118,8 @@ describe('MindroomMarkRoomsReadMenuItem', () => {
       button.props.onClick();
     });
 
-    expect(button.props.disabled).toBe(true);
+    expect(button.props.disabled).toBeUndefined();
+    expect(button.props['aria-disabled']).toBe(true);
     expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

@@ -22,13 +22,20 @@ vi.mock('folds', async () => {
     },
     MenuItem: ({
       children,
+      'aria-disabled': ariaDisabled,
       disabled,
       onClick,
     }: {
       children: React.ReactNode;
+      'aria-disabled'?: boolean;
       disabled?: boolean;
       onClick?: () => void;
-    }) => reactModule.createElement('button', { disabled, onClick, type: 'button' }, children),
+    }) =>
+      reactModule.createElement(
+        'button',
+        { 'aria-disabled': ariaDisabled, disabled, onClick, type: 'button' },
+        children
+      ),
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
   };
@@ -71,30 +78,31 @@ describe('MindroomMarkRoomReadMenuItem', () => {
     const onClose = vi.fn();
     state.hideActivity = true;
     const { MindroomMarkRoomReadMenuItem } = await import('./MindroomMarkRoomReadMenuItem');
-    const renderer = create(
-      React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose })
-    );
+    const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
     const button = renderer.root.findByType('button');
 
     act(() => {
       button.props.onClick();
     });
 
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(
-      state.mx,
-      '!room:example.org',
-      true
-    );
+    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(state.mx, '!room:example.org', true);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('disables the action when the room has no unread state', async () => {
+  it('keeps the unavailable action tabbable and does nothing when the room has no unread state', async () => {
+    const onClose = vi.fn();
     state.unread = false;
     const { MindroomMarkRoomReadMenuItem } = await import('./MindroomMarkRoomReadMenuItem');
-    const renderer = create(
-      React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose: vi.fn() })
-    );
+    const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
+    const button = renderer.root.findByType('button');
 
-    expect(renderer.root.findByType('button').props.disabled).toBe(true);
+    act(() => {
+      button.props.onClick();
+    });
+
+    expect(button.props.disabled).toBeUndefined();
+    expect(button.props['aria-disabled']).toBe(true);
+    expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
