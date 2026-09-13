@@ -49,16 +49,6 @@ export const MinimapRail = style({
   },
 });
 
-export const MinimapRailLine = style({
-  position: 'absolute',
-  top: 0,
-  left: toRem(8),
-  height: '100%',
-  width: toRem(1),
-  backgroundColor: color.Surface.ContainerLine,
-  opacity: 0.4,
-});
-
 const MinimapStripBase = style({
   pointerEvents: 'none',
   position: 'absolute',

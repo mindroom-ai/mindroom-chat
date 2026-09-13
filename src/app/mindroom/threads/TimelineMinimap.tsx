@@ -184,7 +184,6 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
             }
           }}
         >
-          <span className={css.MinimapRailLine} />
           {items.map((item, index) => {
             const distance =
               resolvedActiveIndex === null ? null : Math.abs(index - resolvedActiveIndex);
