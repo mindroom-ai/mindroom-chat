@@ -56,8 +56,8 @@ export const MessageAiRunInfoButton = style([
     borderRadius: toRem(999),
     padding: 0,
     color: 'inherit',
-    opacity: 0.65,
-    cursor: 'help',
+    opacity: 0.75,
+    cursor: 'pointer',
     selectors: {
       '&:hover': {
         opacity: 1,
