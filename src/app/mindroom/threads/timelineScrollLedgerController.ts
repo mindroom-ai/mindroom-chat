@@ -246,6 +246,12 @@ export const useTimelineScrollLedgerController = ({
     const scrollElement = getScrollElement();
     if (!scrollElement) return undefined;
     ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+    const onLedgerBoundaryTouchStart = () => {
+      // iOS can move the compositor without delivering scroll events. Start
+      // each touch from the live offset so a gesture that reverses that
+      // silent travel is not compared with the previous gesture's baseline.
+      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+    };
     const onLedgerBoundaryScroll = () => {
       const currentScrollTop = scrollElement.scrollTop;
       const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
@@ -282,8 +288,15 @@ export const useTimelineScrollLedgerController = ({
         settleScrollCompensation('boundary');
       }
     };
+    scrollElement.addEventListener('touchstart', onLedgerBoundaryTouchStart, {
+      capture: true,
+      passive: true,
+    });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
-    return () => scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
+    return () => {
+      scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
+      scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
+    };
   }, [getScrollElement, settleScrollCompensation, threadId, threadInitialRenderMode]);
 
   const armSettleAtRest = useCallback(() => {
