@@ -10,6 +10,11 @@ const {
   roomThreadOverviewType,
   matrixClientMock,
   threadRenderStateMock,
+  threadResolutionMapMock,
+  roomUnreadState,
+  scrollToItemMock,
+  scrollToElementMock,
+  virtualPaginatorState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -33,6 +38,19 @@ const {
     threadInitialRenderMode: 'live',
     setSupplementalThreadEvents: vi.fn(),
     resetThreadRenderState: vi.fn(),
+  },
+  threadResolutionMapMock: new Map<string, { isResolved: boolean }>(),
+  roomUnreadState: { value: false },
+  scrollToItemMock: vi.fn(),
+  scrollToElementMock: vi.fn(),
+  virtualPaginatorState: {
+    lastOptions: undefined as
+      | {
+          count: number;
+          range: { start: number; end: number };
+          onRangeChange: (range: { start: number; end: number }) => void;
+        }
+      | undefined,
   },
 }));
 
@@ -165,7 +183,7 @@ vi.mock('../../hooks/useRoomPermissions', () => ({
 }));
 
 vi.mock('../../state/hooks/unread', () => ({
-  useRoomUnread: () => false,
+  useRoomUnread: () => roomUnreadState.value,
 }));
 
 vi.mock('../../hooks/useRoomNavigate', () => ({
@@ -200,13 +218,20 @@ vi.mock('../../hooks/useMemberEventParser', () => ({
 }));
 
 vi.mock('../../hooks/useVirtualPaginator', () => ({
-  useVirtualPaginator: () => ({
-    getItems: () => [],
-    scrollToItem: vi.fn(),
-    scrollToElement: vi.fn(),
-    observeBackAnchor: vi.fn(),
-    observeFrontAnchor: vi.fn(),
-  }),
+  useVirtualPaginator: (options: {
+    count: number;
+    range: { start: number; end: number };
+    onRangeChange: (range: { start: number; end: number }) => void;
+  }) => {
+    virtualPaginatorState.lastOptions = options;
+    return {
+      getItems: () => [],
+      scrollToItem: scrollToItemMock,
+      scrollToElement: scrollToElementMock,
+      observeBackAnchor: vi.fn(),
+      observeFrontAnchor: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('../../hooks/useMatrixEventRenderer', () => ({
@@ -409,7 +434,7 @@ vi.mock('./RoomThreadOverview', () => ({
 }));
 
 vi.mock('./useRoomThreadResolution', () => ({
-  useRoomThreadResolutionMap: () => new Map(),
+  useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
 
 vi.stubGlobal('window', {
@@ -438,19 +463,57 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
   return 0;
 });
 
-const makeTimeline = () => ({
-  getEvents: () => [],
+const makeEvent = (
+  eventId: string,
+  opts: {
+    sender?: string;
+    type?: string;
+    content?: Record<string, unknown>;
+    isThreadRoot?: boolean;
+    threadRootId?: string;
+  } = {}
+) => ({
+  event: { event_id: eventId },
+  isThreadRoot: opts.isThreadRoot ?? false,
+  threadRootId: opts.threadRootId,
+  getContent: () => opts.content ?? { body: eventId },
+  getId: () => eventId,
+  getRelation: () => undefined,
+  getRoomId: () => '!room:example.org',
+  getSender: () => opts.sender ?? '@alice:example.org',
+  getStateKey: () => undefined,
+  getType: () => opts.type ?? 'm.room.message',
+  isRedacted: () => false,
+  isRedaction: () => false,
+});
+
+const makeTimeline = (events: ReturnType<typeof makeEvent>[] = []) => ({
+  getEvents: () => events,
   getNeighbouringTimeline: () => null,
   getPaginationToken: () => null,
   getRoomId: () => '!room:example.org',
   setPaginationToken: vi.fn(),
 });
 
-const makeRoom = () => {
-  const liveTimeline = makeTimeline();
+const makeRoom = ({
+  liveEvents = [],
+  timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
+}: {
+  liveEvents?: ReturnType<typeof makeEvent>[];
+  timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
+} = {}) => {
+  const liveTimeline = makeTimeline(liveEvents);
+  const getEventFromTimelines = (eventId: string) =>
+    liveEvents.find((event) => event.getId() === eventId) ??
+    Array.from(timelinesByEventId.values())
+      .flatMap((timeline) => timeline.getEvents())
+      .find((event) => event.getId() === eventId);
   const timelineSet = {
     getLiveTimeline: () => liveTimeline,
-    getTimelineForEvent: () => undefined,
+    getTimelineForEvent: (eventId: string) =>
+      liveEvents.some((event) => event.getId() === eventId)
+        ? liveTimeline
+        : timelinesByEventId.get(eventId),
   };
   const listeners = new Map<string | symbol, (...args: unknown[]) => void>();
 
@@ -460,7 +523,7 @@ const makeRoom = () => {
     client: {
       getUserId: () => '@alice:example.org',
     },
-    findEventById: () => undefined,
+    findEventById: (eventId: string) => getEventFromTimelines(eventId),
     getEventReadUpTo: () => undefined,
     getLiveTimeline: () => liveTimeline,
     getThread: () => null,
@@ -483,6 +546,11 @@ const flushAsyncWork = async (cycles = 5) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  threadResolutionMapMock.clear();
+  roomUnreadState.value = false;
+  scrollToItemMock.mockReturnValue(false);
+  scrollToElementMock.mockReturnValue(false);
+  virtualPaginatorState.lastOptions = undefined;
   matrixClientMock.fetchRelations.mockResolvedValue({
     chunk: [],
     next_batch: null,
@@ -521,19 +589,64 @@ const TimelineRefreshHarness = ({
   return null;
 };
 
+const getClickableByText = (renderer: ReturnType<typeof create>, text: string) => {
+  const hasTextDescendant = (node: { children: unknown[] }): boolean =>
+    node.children.some((child) => {
+      if (child === text) return true;
+      if (typeof child === 'string') return false;
+      return hasTextDescendant(child as { children: unknown[] });
+    });
+
+  const clickable = renderer.root.find((node) => {
+    if (typeof node.props.onClick !== 'function') return false;
+
+    return hasTextDescendant(node as unknown as { children: unknown[] });
+  });
+
+  return clickable;
+};
+
+const createControlledRoomTimelineHarness = (
+  RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
+) => {
+  const roomInputRef = createRef<HTMLElement>();
+  const editor = {} as Editor;
+
+  return function ControlledRoomTimelineHarness({
+    room,
+    eventId,
+    threadId,
+  }: {
+    room: ReturnType<typeof makeRoom>;
+    eventId?: string;
+    threadId?: string;
+  }) {
+    const [threadFilter, setThreadFilter] = React.useState<'all' | 'resolved' | 'unresolved'>(
+      'all'
+    );
+
+    return React.createElement(RoomTimelineComponent, {
+      room,
+      eventId,
+      threadId,
+      threadFilter,
+      onThreadFilterChange: setThreadFilter,
+      roomInputRef,
+      editor,
+    });
+  };
+};
+
 describe('RoomTimeline', () => {
   it('renders without thread render hook initialization errors', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const room = makeRoom();
-    const roomInputRef = createRef<HTMLElement>();
-    const editor = {} as Editor;
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
     expect(() =>
       create(
-        React.createElement(RoomTimeline, {
+        React.createElement(ControlledRoomTimeline, {
           room,
-          roomInputRef,
-          editor,
         })
       )
     ).not.toThrow();
@@ -542,20 +655,145 @@ describe('RoomTimeline', () => {
   it('renders the room thread overview outside thread view', async () => {
     const { RoomTimeline } = await import('./RoomTimeline');
     const room = makeRoom();
-    const roomInputRef = createRef<HTMLElement>();
-    const editor = {} as Editor;
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
     const renderer = create(
-      React.createElement(RoomTimeline, {
+      React.createElement(ControlledRoomTimeline, {
         room,
-        roomInputRef,
-        editor,
       })
     );
+
+    const overview = renderer.root.findByType(roomThreadOverviewType);
 
     expect(renderer.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
     expect(renderer.root.findByType(scrollType).findAllByType(roomThreadOverviewType)).toHaveLength(
       0
+    );
+    expect(overview.props.filter).toBe('all');
+    expect(overview.props.onFilterChange).toBeTypeOf('function');
+  });
+
+  it('filters room events by thread resolution state', async () => {
+    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const unresolvedEvent = makeEvent('$thread-unresolved', { isThreadRoot: true });
+    const resolvedEvent = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const messageEvent = makeEvent('$message');
+    const renderableEvents = [messageEvent, unresolvedEvent, resolvedEvent];
+    const resolutionMap = new Map([['$thread-resolved', { isResolved: true }]]);
+
+    expect(
+      getThreadFilteredEvents(
+        renderableEvents as never,
+        room as never,
+        resolutionMap,
+        undefined,
+        'unresolved'
+      ).map((event) => event.getId())
+    ).toEqual(['$thread-unresolved']);
+    expect(
+      getThreadFilteredEvents(
+        renderableEvents as never,
+        room as never,
+        resolutionMap,
+        undefined,
+        'resolved'
+      ).map((event) => event.getId())
+    ).toEqual(['$thread-resolved']);
+  });
+
+  it('keeps filtered mode pinned to the full filtered range when live non-matching events arrive', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const unresolvedEvents = [
+      makeEvent('$thread-1', { isThreadRoot: true }),
+      makeEvent('$thread-2', { isThreadRoot: true }),
+      makeEvent('$thread-3', { isThreadRoot: true }),
+    ];
+    const liveEvents = [...unresolvedEvents, makeEvent('$message-1')];
+    const room = makeRoom({ liveEvents });
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 4 });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('unresolved');
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.count).toBe(3);
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+
+    const liveEventHandler = room.__listeners.get(RoomEvent.Timeline);
+    expect(liveEventHandler).toBeTypeOf('function');
+
+    liveEvents.push(makeEvent('$message-2'));
+
+    await act(async () => {
+      liveEventHandler?.(liveEvents[liveEvents.length - 1], room, false, false, {
+        liveEvent: true,
+      });
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.lastOptions?.count).toBe(3);
+    expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+  });
+
+  it('switches back to all threads before jumping to an unread event hidden by the active filter', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const unreadMessage = makeEvent('$unread-message');
+    const liveEvents = [resolvedThread];
+    const unreadTimeline = makeTimeline([unreadMessage]);
+    const room = makeRoom({
+      liveEvents,
+      timelinesByEventId: new Map([[unreadMessage.getId(), unreadTimeline]]),
+    });
+    room.getEventReadUpTo = () => unreadMessage.getId();
+    roomUnreadState.value = true;
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    matrixClientMock.getEventTimeline.mockResolvedValue(unreadTimeline);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    await act(async () => {
+      renderer?.root.findByType(roomThreadOverviewType).props.onFilterChange('resolved');
+      await flushAsyncWork(1);
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+
+    const jumpToUnread = getClickableByText(renderer!, 'Jump to Unread');
+
+    await act(async () => {
+      jumpToUnread.props.onClick();
+      await flushAsyncWork();
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('all');
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
+      room.getUnfilteredTimelineSet(),
+      unreadMessage.getId()
     );
   });
 
