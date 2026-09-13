@@ -40,6 +40,7 @@
 
 html {
   height: 100%;
+  height: 100dvh; /* dynamic viewport height - accounts for keyboard on iOS 15.4+ */
   overflow: hidden;
 }
 
@@ -47,6 +48,7 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden;
   font-family: var(--font-secondary);
   font-size: 16px;
   font-weight: 400;
@@ -57,6 +59,8 @@ body {
 #root {
   width: 100%;
   height: 100%;
+  /* JS-driven fallback for older iOS without dvh support */
+  height: var(--app-height, 100%);
   display: flex;
   flex-direction: column;
 }
