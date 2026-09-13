@@ -192,4 +192,62 @@ describe('mergeThreadRenderEvents', () => {
       confirmedWithTxn,
     ]);
   });
+
+  it('deduplicates local echo and confirmed event when confirmed lacks transaction_id but resolver provides the link', () => {
+    const localEcho = makeMessageEvent('~local-txn-4', 10);
+    localEcho.setTxnId('txn-4');
+    const confirmed = makeMessageEvent('$remote-txn-4', 10);
+
+    const resolver = (txnId: string) => (txnId === 'txn-4' ? '$remote-txn-4' : undefined);
+
+    expect(mergeThreadRenderEvents([], [localEcho, confirmed], resolver)).toEqual([confirmed]);
+    expect(mergeThreadRenderEvents([], [confirmed, localEcho], resolver)).toEqual([confirmed]);
+    expect(mergeThreadRenderEvents([localEcho], [confirmed], resolver)).toEqual([confirmed]);
+    expect(mergeThreadRenderEvents([confirmed], [localEcho], resolver)).toEqual([confirmed]);
+  });
+
+  it('keeps both events when resolver returns undefined (no confirmed id known)', () => {
+    const localEcho = makeMessageEvent('~local-txn-5', 10);
+    localEcho.setTxnId('txn-5');
+    const unrelated = makeMessageEvent('$other', 10);
+
+    const resolver = () => undefined;
+
+    const result = mergeThreadRenderEvents([], [localEcho, unrelated], resolver);
+    expect(result).toHaveLength(2);
+  });
+
+  it('deduplicates multiple local echoes each with their own confirmed counterpart', () => {
+    const echo1 = makeMessageEvent('~local-a', 10);
+    echo1.setTxnId('txn-a');
+    const confirmed1 = makeMessageEvent('$remote-a', 10);
+
+    const echo2 = makeMessageEvent('~local-b', 20);
+    echo2.setTxnId('txn-b');
+    const confirmed2 = makeMessageEvent('$remote-b', 20);
+
+    const resolver = (txnId: string) => {
+      if (txnId === 'txn-a') return '$remote-a';
+      if (txnId === 'txn-b') return '$remote-b';
+      return undefined;
+    };
+
+    const result = mergeThreadRenderEvents(
+      [],
+      [echo1, confirmed1, echo2, confirmed2],
+      resolver
+    );
+    expect(result).toEqual([confirmed1, confirmed2]);
+  });
+
+  it('resolver does not affect non-local-echo events', () => {
+    const confirmed = makeMessageEvent('$remote', 10);
+    confirmed.event.unsigned = { transaction_id: 'txn-6' };
+
+    const resolver = (txnId: string) => (txnId === 'txn-6' ? '$other' : undefined);
+
+    const result = mergeThreadRenderEvents([], [confirmed], resolver);
+    expect(result).toEqual([confirmed]);
+    expect(result).toHaveLength(1);
+  });
 });
