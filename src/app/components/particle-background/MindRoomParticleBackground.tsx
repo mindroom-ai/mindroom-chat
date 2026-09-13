@@ -1,6 +1,7 @@
 import React from 'react';
 import { ParticularDriftCanvas } from '@basnijholt/particular-drift/react';
 import type { ParticularDriftUserOptions } from '@basnijholt/particular-drift';
+import classNames from 'classnames';
 
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
 import * as css from './MindRoomParticleBackground.css';
@@ -31,7 +32,13 @@ export function resolveMindRoomParticleCount() {
   return DESKTOP_PARTICLE_COUNT;
 }
 
-export function MindRoomParticleBackground() {
+type MindRoomParticleBackgroundProps = {
+  position?: 'absolute' | 'fixed';
+};
+
+export function MindRoomParticleBackground({
+  position = 'absolute',
+}: MindRoomParticleBackgroundProps) {
   const particleCount = React.useMemo(resolveMindRoomParticleCount, []);
   const options = React.useMemo<ParticularDriftUserOptions>(
     () => ({
@@ -55,7 +62,13 @@ export function MindRoomParticleBackground() {
   );
 
   return (
-    <div className={css.ParticleBackground} aria-hidden="true">
+    <div
+      className={classNames(
+        css.ParticleBackground,
+        position === 'fixed' && css.ParticleBackgroundFixed
+      )}
+      aria-hidden="true"
+    >
       <ParticularDriftCanvas
         className={css.ParticleCanvas}
         imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}

@@ -1765,6 +1765,13 @@ describe('RoomTimeline architecture', () => {
       ),
       'utf8'
     );
+    const particleBackgroundCssSource = readFileSync(
+      new URL(
+        '../../../components/particle-background/MindRoomParticleBackground.css.ts',
+        import.meta.url
+      ),
+      'utf8'
+    );
     const ssoLoginSource = readFileSync(
       new URL('../../../pages/auth/SSOLogin.tsx', import.meta.url),
       'utf8'
@@ -1837,6 +1844,11 @@ describe('RoomTimeline architecture', () => {
     expect(authLayoutSource).toContain('<MindRoomParticleBackground />');
     expect(particleBackgroundSource).toContain("from '../../mindroom/branding/clientBranding'");
     expect(particleBackgroundSource).toContain('@basnijholt/particular-drift/react');
+    expect(particleBackgroundSource).toContain("position?: 'absolute' | 'fixed'");
+    expect(particleBackgroundSource).toContain("position = 'absolute'");
+    expect(particleBackgroundCssSource).toContain("position: 'absolute'");
+    expect(particleBackgroundCssSource).toContain('ParticleBackgroundFixed');
+    expect(particleBackgroundCssSource).toContain("position: 'fixed'");
     expect(particleBackgroundSource).toContain('imageUrl={MINDROOM_CLIENT_BRANDING.logoSrc}');
     expect(particleBackgroundSource).toContain('resolveMindRoomParticleCount');
     expect(particleBackgroundSource).toContain("cursorMode: 'repel'");
@@ -1868,7 +1880,7 @@ describe('RoomTimeline architecture', () => {
     expect(splashScreenSource).not.toContain("from '../../pages/auth/AuthParticleBackground'");
     expect(mindRoomSplashScreenSource).toContain("from '../particle-background'");
     expect(mindRoomSplashScreenSource).toContain(
-      '<SplashScreen background={<MindRoomParticleBackground />}'
+      '<SplashScreen background={<MindRoomParticleBackground position="fixed" />}>'
     );
     expect(clientRootSource).toContain('MindRoomSplashScreen');
     expect(configConfigSource).toContain('MindRoomSplashScreen');
@@ -1879,6 +1891,14 @@ describe('RoomTimeline architecture', () => {
     expect(aboutSource).not.toContain("from '../../../mindroom/branding/branding'");
     expect(loginSource).not.toContain("=== 'mindroom.chat'");
     expect(registerSource).not.toContain("=== 'mindroom.chat'");
+  });
+
+  it('pins viewport-cover and room app-height invariants', () => {
+    const indexSource = readFileSync(new URL('../../../../../index.html', import.meta.url), 'utf8');
+    const roomViewSource = readRoomViewSource();
+
+    expect(indexSource).toContain('viewport-fit=cover');
+    expect(roomViewSource).toContain("height: 'var(--app-height, 100%)'");
   });
 
   it('keeps thread root route canonicalization in MindRoom threads', () => {

@@ -15,6 +15,10 @@ export const ParticleBackground = style({
   },
 });
 
+export const ParticleBackgroundFixed = style({
+  position: 'fixed',
+});
+
 export const ParticleCanvas = style({
   width: '100%',
   height: '100%',
