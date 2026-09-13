@@ -134,6 +134,45 @@ vi.mock('../../../plugins/react-custom-html-parser', () => ({
 }));
 
 describe('RenderMessageContent', () => {
+  it.each([
+    ['streaming agent', { 'io.mindroom.stream_status': 'streaming' }, false],
+    ['completed agent', { 'io.mindroom.stream_status': 'completed' }, false],
+    ['agent run', { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }, false],
+    ['agent tool trace', { 'io.mindroom.tool_trace': { version: 2, events: [] } }, false],
+    [
+      'nested agent metadata',
+      { 'm.new_content': { 'io.mindroom.stream_status': 'completed' } },
+      false,
+    ],
+    ['human', {}, true],
+    ['human with unrelated metadata', { 'io.mindroom.paste_attachment': { version: 1 } }, true],
+  ])(
+    'passes the edited-label policy for %s messages to the content renderer',
+    async (_, metadata, edited) => {
+      const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+      renderMindroomMessageContentMock.mockReset();
+      renderMindroomMessageContentMock.mockReturnValue(null);
+      const content = { msgtype: 'm.text', body: 'Updated answer', ...metadata };
+
+      const renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Sender',
+          msgType: 'm.text',
+          ts: 0,
+          edited: true,
+          getContent: (() => content) as <T>() => T,
+          htmlReactParserOptions: {} as never,
+          linkifyOpts: {} as never,
+        })
+      );
+
+      expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ edited, content })
+      );
+      renderer.unmount();
+    }
+  );
+
   it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
     const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
     renderMindroomMessageContentMock.mockReset();
@@ -308,33 +347,42 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('renders the pending send suffix on image captions', async () => {
-    const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
-    renderMindroomMessageContentMock.mockReset();
-    renderMindroomMessageContentMock.mockReturnValue(undefined);
+  it.each([
+    ['human', {}, true],
+    ['agent', { 'io.mindroom.stream_status': 'completed' }, false],
+  ])(
+    'keeps send status on %s image captions while applying the edited-label policy',
+    async (_, metadata, showEdited) => {
+      const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
+      renderMindroomMessageContentMock.mockReset();
+      renderMindroomMessageContentMock.mockReturnValue(undefined);
 
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'MindRoom',
-        msgType: 'm.image',
-        ts: 0,
-        pendingSend: true,
-        getContent: (() => ({
-          msgtype: 'm.image',
-          body: 'Caption text',
-          filename: 'image.png',
-          url: 'mxc://example/image',
-        })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
-      })
-    );
+      const renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'MindRoom',
+          msgType: 'm.image',
+          ts: 0,
+          edited: true,
+          pendingSend: true,
+          getContent: (() => ({
+            msgtype: 'm.image',
+            body: 'Caption text',
+            filename: 'image.png',
+            url: 'mxc://example/image',
+            ...metadata,
+          })) as <T>() => T,
+          htmlReactParserOptions: {} as never,
+          linkifyOpts: {} as never,
+        })
+      );
 
-    const rendered = JSON.stringify(renderer.toJSON());
+      const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('Caption text');
-    expect(rendered).toContain('Message sending');
+      expect(rendered).toContain('Caption text');
+      expect(rendered).toContain('Message sending');
+      expect(rendered.includes('(edited)')).toBe(showEdited);
 
-    renderer.unmount();
-  });
+      renderer.unmount();
+    }
+  );
 });
