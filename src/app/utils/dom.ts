@@ -15,31 +15,25 @@ export const isIntersectingScrollView = (
   scrollElement: HTMLElement,
   childElement: HTMLElement
 ): boolean => {
-  const scrollTop = scrollElement.offsetTop + scrollElement.scrollTop;
-  const scrollBottom = scrollTop + scrollElement.offsetHeight;
+  const scrollRect = scrollElement.getBoundingClientRect();
+  const childRect = childElement.getBoundingClientRect();
 
-  const childTop = childElement.offsetTop;
-  const childBottom = childTop + childElement.clientHeight;
-
-  if (childTop >= scrollTop && childTop < scrollBottom) return true;
-  if (childBottom > scrollTop && childBottom <= scrollBottom) return true;
-  if (childTop < scrollTop && childBottom > scrollBottom) return true;
+  if (childRect.top >= scrollRect.top && childRect.top < scrollRect.bottom) return true;
+  if (childRect.bottom > scrollRect.top && childRect.bottom <= scrollRect.bottom) return true;
+  if (childRect.top < scrollRect.top && childRect.bottom > scrollRect.bottom) return true;
   return false;
 };
 
 export const isInScrollView = (scrollElement: HTMLElement, childElement: HTMLElement): boolean => {
-  const scrollTop = scrollElement.scrollTop;
-  const scrollBottom = scrollTop + scrollElement.offsetHeight;
-  return (
-    childElement.offsetTop >= scrollTop &&
-    childElement.offsetTop + childElement.offsetHeight <= scrollBottom
-  );
+  const scrollRect = scrollElement.getBoundingClientRect();
+  const childRect = childElement.getBoundingClientRect();
+  return childRect.top >= scrollRect.top && childRect.bottom <= scrollRect.bottom;
 };
 
 export const canFitInScrollView = (
   scrollElement: HTMLElement,
   childElement: HTMLElement
-): boolean => childElement.offsetHeight < scrollElement.offsetHeight;
+): boolean => childElement.getBoundingClientRect().height < scrollElement.getBoundingClientRect().height;
 
 export type FilesOrFile<T extends boolean | undefined = undefined> = T extends true ? File[] : File;
 

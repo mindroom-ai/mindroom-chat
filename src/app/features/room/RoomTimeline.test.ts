@@ -21,6 +21,7 @@ const {
   roomUnreadState,
   scrollToItemMock,
   scrollToElementMock,
+  retryPaginationMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
   saveRoomEventsToCacheMock,
@@ -61,6 +62,7 @@ const {
   roomUnreadState: { value: false },
   scrollToItemMock: vi.fn(),
   scrollToElementMock: vi.fn(),
+  retryPaginationMock: vi.fn(),
   loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
@@ -268,6 +270,7 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
           : [],
       scrollToItem: scrollToItemMock,
       scrollToElement: scrollToElementMock,
+      retryPagination: retryPaginationMock,
       observeBackAnchor: vi.fn(),
       observeFrontAnchor: vi.fn(),
     };
@@ -524,6 +527,8 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
   return 0;
 });
 
+vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
 const makeEvent = (
   eventId: string,
   opts: {
@@ -684,6 +689,7 @@ beforeEach(() => {
   roomUnreadState.value = false;
   scrollToItemMock.mockReturnValue(false);
   scrollToElementMock.mockReturnValue(false);
+  retryPaginationMock.mockReset();
   matrixClientMock.getEventMapper.mockImplementation(
     () =>
       (
@@ -1869,8 +1875,9 @@ describe('RoomTimeline', () => {
     const initialScrollCallCount = scrollToItemMock.mock.calls.length;
     expect(initialScrollCallCount).toBeGreaterThan(0);
     expect(scrollToItemMock).toHaveBeenLastCalledWith(0, {
-      align: 'center',
+      align: 'end',
       behavior: 'instant',
+      offset: -32,
       stopInView: false,
     });
 
@@ -2339,11 +2346,108 @@ describe('RoomTimeline', () => {
   it('uses stopInView=false for the explicit room focus scroll', async () => {
     const { getRoomFocusScrollToItemOptions } = await import('./RoomTimeline');
 
-    expect(getRoomFocusScrollToItemOptions()).toEqual({
+    expect(getRoomFocusScrollToItemOptions(10, 100)).toEqual({
       align: 'center',
       behavior: 'instant',
+      offset: undefined,
       stopInView: false,
     });
+  });
+
+  it('switches room focus to end alignment near the loaded room end', async () => {
+    const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
+      './RoomTimeline'
+    );
+
+    expect(getRoomFocusScrollOptions(8, 12)).toEqual({
+      align: 'end',
+      behavior: 'instant',
+      offset: -32,
+    });
+    expect(getRoomFocusScrollToItemOptions(8, 12)).toEqual({
+      align: 'end',
+      behavior: 'instant',
+      offset: -32,
+      stopInView: false,
+    });
+  });
+
+  it('recenters focus during observed resize activity and finishes after the idle window', async () => {
+    const { setupFocusObserver } = await import('./RoomTimeline');
+    vi.useFakeTimers();
+
+    try {
+      const onRecenter = vi.fn();
+      const onDone = vi.fn();
+      const resizeObserverInstances: Array<{
+        callback: (entries: ResizeObserverEntry[]) => void;
+        observe: ReturnType<typeof vi.fn>;
+        disconnect: ReturnType<typeof vi.fn>;
+      }> = [];
+      const rafCallbacks: FrameRequestCallback[] = [];
+
+      class ResizeObserverMock {
+        callback: (entries: ResizeObserverEntry[]) => void;
+
+        observe = vi.fn();
+
+        disconnect = vi.fn();
+
+        constructor(callback: (entries: ResizeObserverEntry[]) => void) {
+          this.callback = callback;
+          resizeObserverInstances.push(this);
+        }
+      }
+
+      vi.stubGlobal('ResizeObserver', ResizeObserverMock as never);
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        rafCallbacks.push(callback);
+        return rafCallbacks.length;
+      });
+
+      const cleanup = setupFocusObserver({
+        scrollContainer: {} as HTMLElement,
+        target: {} as HTMLElement,
+        onRecenter,
+        onDone,
+        idleMs: 200,
+        hardMs: 2000,
+      });
+
+      expect(resizeObserverInstances).toHaveLength(1);
+      const resizeObserver = resizeObserverInstances[0];
+      expect(resizeObserver.observe).toHaveBeenNthCalledWith(1, expect.anything());
+      expect(resizeObserver.observe).toHaveBeenNthCalledWith(2, expect.anything());
+
+      resizeObserver.callback([] as ResizeObserverEntry[]);
+      expect(onRecenter).not.toHaveBeenCalled();
+
+      act(() => {
+        rafCallbacks.shift()?.(0);
+      });
+
+      expect(onRecenter).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        vi.advanceTimersByTime(199);
+      });
+      expect(onDone).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+
+      expect(resizeObserver.disconnect).toHaveBeenCalledTimes(1);
+      expect(onDone).toHaveBeenCalledTimes(1);
+
+      cleanup();
+    } finally {
+      vi.useRealTimers();
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        callback(0);
+        return 0;
+      });
+    }
   });
 
   it('cancels a pending room focus retry when the focused event changes', async () => {
