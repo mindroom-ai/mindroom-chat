@@ -9,7 +9,7 @@ init_homebrew
 
 cd "$REPO_ROOT"
 
-for command_name in node npm npx pod; do
+for command_name in git node npm npx pod; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Error: $command_name is not available before xcodebuild." >&2
     echo "ci_post_clone.sh should install dependencies and initialize CocoaPods before this script runs." >&2
@@ -17,40 +17,24 @@ for command_name in node npm npx pod; do
   fi
 done
 
-resolve_ios_build_number() {
-  if [[ -n "${IOS_BUILD_NUMBER:-}" ]]; then
-    echo "$IOS_BUILD_NUMBER"
-    return 0
+refresh_remote_tags() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git fetch --force --tags origin >/dev/null 2>&1 || {
+      echo "Warning: could not refresh git tags before resolving iOS build number." >&2
+    }
   fi
-
-  local candidate
-  for candidate in "${CI_TAG:-}" "${GITHUB_REF_NAME:-}" "${RELEASE_TAG:-}" "${GITHUB_REF:-}"; do
-    candidate="${candidate#refs/tags/}"
-    if [[ "$candidate" =~ -mindroom\.([0-9]+)$ ]]; then
-      echo "${BASH_REMATCH[1]}"
-      return 0
-    fi
-  done
 }
 
-read_checked_in_build_setting() {
-  local setting_name="$1"
-
-  SETTING_NAME="$setting_name" node --input-type=module <<'NODE'
-    import fs from 'node:fs';
-    import { getSingleAppTargetBuildSettingValue } from './scripts/ios-xcode-project.mjs';
-
-    const projectPath = 'ios/App/App.xcodeproj/project.pbxproj';
-    const xcodeProject = fs.readFileSync(projectPath, 'utf8');
-    process.stdout.write(getSingleAppTargetBuildSettingValue(xcodeProject, process.env.SETTING_NAME));
-NODE
+get_metadata_value() {
+  local key="$1"
+  printf '%s\n' "$VERSION_METADATA" | sed -n "s/^${key}=//p" | tail -n 1
 }
 
-APPLE_MARKETING_VERSION="${IOS_MARKETING_VERSION:-${APP_STORE_MARKETING_VERSION:-$(read_checked_in_build_setting MARKETING_VERSION)}}"
-CURRENT_PROJECT_VERSION="$(resolve_ios_build_number)"
-if [[ -z "$CURRENT_PROJECT_VERSION" ]]; then
-  CURRENT_PROJECT_VERSION="$(read_checked_in_build_setting CURRENT_PROJECT_VERSION)"
-fi
+refresh_remote_tags
+VERSION_METADATA="$(node scripts/ios-ci-version.mjs)"
+APPLE_MARKETING_VERSION="$(get_metadata_value marketing_version)"
+CURRENT_PROJECT_VERSION="$(get_metadata_value build_number)"
+CURRENT_PROJECT_VERSION_SOURCE="$(get_metadata_value build_number_source)"
 
 if [[ ! "$APPLE_MARKETING_VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
   echo "Error: iOS MARKETING_VERSION must use Apple's three-integer format, got '$APPLE_MARKETING_VERSION'." >&2
@@ -64,6 +48,7 @@ fi
 
 if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
   echo "Setting iOS MARKETING_VERSION=$APPLE_MARKETING_VERSION CURRENT_PROJECT_VERSION=$CURRENT_PROJECT_VERSION"
+  echo "Resolved iOS build number from ${CURRENT_PROJECT_VERSION_SOURCE:-unknown}"
   MARKETING_VERSION="$APPLE_MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" node --input-type=module <<'NODE'
     import fs from 'node:fs';
     import { replaceAppTargetBuildSetting } from './scripts/ios-xcode-project.mjs';
