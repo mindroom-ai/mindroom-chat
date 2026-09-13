@@ -7,6 +7,7 @@ import {
 } from '../state/userDirectoryCache';
 import {
   filterInviteUserCandidates,
+  getUserDirectoryQueryVariants,
   rankUsers,
   sanitizeInviteAutocompleteOptionId,
 } from './userDirectorySearch';
@@ -20,6 +21,20 @@ const users: ServerUserDirectoryUser[] = [
   { userId: '@carol:example.org', displayName: 'Carol Example' },
   { userId: '@ally:example.org', displayName: 'Zed Person' },
 ];
+
+describe('getUserDirectoryQueryVariants', () => {
+  it('adds one whitespace-compacted variant for a spaced query', () => {
+    expect(getUserDirectoryQueryVariants('mindroom expert')).toEqual([
+      'mindroom expert',
+      'mindroomexpert',
+    ]);
+  });
+
+  it('keeps one variant when compaction is unchanged or leaves one character', () => {
+    expect(getUserDirectoryQueryVariants('mindroomexpert')).toEqual(['mindroomexpert']);
+    expect(getUserDirectoryQueryVariants(' x')).toEqual([' x']);
+  });
+});
 
 describe('rankUsers', () => {
   it('short-circuits one-character queries to starts-with matches before contains matches', () => {
@@ -208,6 +223,38 @@ describe('rankUsers with shared-prefix agent localparts', () => {
     expect(results.indexOf('@sara:mindroom.example.org')).toBeGreaterThan(
       results.indexOf(agentUserId('sarro'))
     );
+  });
+});
+
+describe('rankUsers with spaced queries', () => {
+  it('ranks a space-less identity even when the added spaces exceed fuzzy tolerance', () => {
+    const results = rankUsers(
+      [
+        { userId: '@r2d2:example.org', displayName: 'R2D2' },
+        { userId: '@droid:example.org', displayName: 'R 2 D 2 Fan Club' },
+      ],
+      'r 2 d 2'
+    ).map((user) => user.userId);
+
+    expect(results).toContain('@r2d2:example.org');
+    expect(results).toContain('@droid:example.org');
+  });
+
+  it('keeps the best rank per user across the raw and compacted query forms', () => {
+    const results = rankUsers(
+      [
+        { userId: '@spaced:example.org', displayName: 'Mindroom Expert' },
+        { userId: '@compact:example.org', displayName: 'MindroomExpert' },
+      ],
+      'mindroom expert'
+    ).map((user) => user.userId);
+
+    // Both display names are exact matches — one against the raw query, one
+    // against its compacted form — so both rank tier 0; the compact user's
+    // shorter-pattern Fuse score then breaks the tie ahead of the userId
+    // comparison. Without dual-form ranking the compact user falls to the
+    // fuzzy-only tier and sorts last instead.
+    expect(results).toEqual(['@compact:example.org', '@spaced:example.org']);
   });
 });
 

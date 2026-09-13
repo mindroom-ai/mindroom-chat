@@ -378,7 +378,7 @@ describe('useUserDirectoryCache', () => {
     }
   });
 
-  it('marks an empty non-limited whitespace bootstrap as limited', async () => {
+  it('marks an empty non-limited bootstrap as limited', async () => {
     const store = createStore();
     const mx = makeMx();
 
@@ -400,5 +400,68 @@ describe('useUserDirectoryCache', () => {
       users: [],
       limited: true,
     });
+  });
+
+  it('bootstraps the directory with the @ term at the full bootstrap limit', async () => {
+    const store = createStore();
+    const mx = makeMx();
+
+    vi.mocked(mx.searchUserDirectory).mockResolvedValue({
+      limited: false,
+      results: [],
+    });
+
+    act(() => {
+      renderHarness(store, mx);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mx.searchUserDirectory).toHaveBeenCalledTimes(1);
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({ term: '@', limit: 5000 });
+  });
+
+  it('caches a space-less display-name user that only the @ bootstrap term returns', async () => {
+    const store = createStore();
+    const mx = makeMx();
+
+    vi.mocked(mx.searchUserDirectory).mockImplementation(async ({ term }) => {
+      if (term === '@') {
+        return {
+          limited: false,
+          results: [
+            {
+              user_id: '@mindroom_mindroom_expert:mindroom.chat',
+              display_name: 'MindRoomExpert',
+              avatar_url: 'mxc://mindroom.chat/expert',
+            },
+          ],
+        };
+      }
+
+      // A whitespace term only substring-matches display names containing a
+      // literal space, so the space-less expert stays invisible to it.
+      return { limited: false, results: [] };
+    });
+
+    act(() => {
+      renderHarness(store, mx);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(store.get(userDirectoryCacheAtom).status).toBe('ready');
+    expect(store.get(userDirectoryCacheAtom).users).toEqual([
+      {
+        userId: '@mindroom_mindroom_expert:mindroom.chat',
+        displayName: 'MindRoomExpert',
+        avatarMxcUrl: 'mxc://mindroom.chat/expert',
+      },
+    ]);
   });
 });
