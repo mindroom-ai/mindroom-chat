@@ -103,7 +103,7 @@ describe('roomThreadOverviewModel', () => {
         scheduled: 'any',
         unread: 'any',
         idle: 'any',
-        sortBy: 'natural',
+        sortBy: 'lastReply',
         sortDirection: 'desc',
         tags: {},
         searchQuery: '',
@@ -493,19 +493,28 @@ describe('roomThreadOverviewModel', () => {
   // ═══ isDefaultThreadFilterState ═══════════════════════════════════════
 
   describe('isDefaultThreadFilterState', () => {
-    it('returns true for default state', async () => {
-      const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState())).toBe(true);
+    it('returns true for the persisted default state', async () => {
+      const { createDefaultThreadFilterState, isDefaultThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+      expect(isDefaultThreadFilterState(createDefaultThreadFilterState())).toBe(true);
     });
 
     it('returns false when filter is active', async () => {
-      const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState({ resolved: 'include' }))).toBe(false);
+      const { createDefaultThreadFilterState, isDefaultThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+      expect(
+        isDefaultThreadFilterState({
+          ...createDefaultThreadFilterState(),
+          resolved: 'include',
+        })
+      ).toBe(false);
     });
 
-    it('returns false when sortBy is lastReply', async () => {
+    it('returns false for the natural-sort inactive baseline', async () => {
       const { isDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
-      expect(isDefaultThreadFilterState(makeDefaultState({ sortBy: 'lastReply' }))).toBe(false);
+      expect(isDefaultThreadFilterState(makeDefaultState())).toBe(false);
     });
   });
 
@@ -616,6 +625,32 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 
+  describe('applyFrozenThreadOrder', () => {
+    it('keeps the frozen order for live items and appends new matches at the end', async () => {
+      const { applyFrozenThreadOrder } = await import('./roomThreadOverviewModel');
+
+      expect(
+        applyFrozenThreadOrder(['$b', '$a', '$c'], ['$c', '$d', '$a', '$b'])
+      ).toEqual(['$b', '$a', '$c', '$d']);
+    });
+
+    it('drops removed or no-longer-matching items immediately', async () => {
+      const { applyFrozenThreadOrder } = await import('./roomThreadOverviewModel');
+
+      expect(applyFrozenThreadOrder(['$b', '$a', '$c'], ['$c', '$a'])).toEqual(['$a', '$c']);
+    });
+
+    it('does not mutate the frozen or live input arrays', async () => {
+      const { applyFrozenThreadOrder } = await import('./roomThreadOverviewModel');
+      const frozenIds = ['$b', '$a'];
+      const liveIds = ['$a', '$c', '$b'];
+
+      expect(applyFrozenThreadOrder(frozenIds, liveIds)).toEqual(['$b', '$a', '$c']);
+      expect(frozenIds).toEqual(['$b', '$a']);
+      expect(liveIds).toEqual(['$a', '$c', '$b']);
+    });
+  });
+
   // ═══ cycleSortMode ══════════════════════════════════════════════════
 
   describe('cycleSortMode', () => {
@@ -632,6 +667,63 @@ describe('roomThreadOverviewModel', () => {
 
       const s3 = cycleSortMode({ ...s0, ...s2 });
       expect(s3).toEqual({ sortBy: 'natural', sortDirection: 'desc' });
+    });
+  });
+
+  describe('createThreadSortControlSignature', () => {
+    it('stays stable for equivalent tag filters regardless of insertion order', async () => {
+      const { createThreadSortControlSignature } = await import('./roomThreadOverviewModel');
+      const firstState = makeDefaultState({
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        resolved: 'include',
+        tags: new Map([
+          ['beta', 'exclude'],
+          ['alpha', 'include'],
+        ]),
+      });
+      const secondState = makeDefaultState({
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+        resolved: 'include',
+        tags: new Map([
+          ['alpha', 'include'],
+          ['beta', 'exclude'],
+        ]),
+      });
+
+      expect(
+        createThreadSortControlSignature({
+          state: firstState,
+          searchQuery: 'agents',
+          viewMode: 'compact',
+        })
+      ).toBe(
+        createThreadSortControlSignature({
+          state: secondState,
+          searchQuery: 'agents',
+          viewMode: 'compact',
+        })
+      );
+    });
+
+    it('changes when an applied control changes', async () => {
+      const { createThreadSortControlSignature } = await import('./roomThreadOverviewModel');
+      const baseState = makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' });
+
+      expect(
+        createThreadSortControlSignature({
+          state: baseState,
+          searchQuery: 'agents',
+          viewMode: 'normal',
+        })
+      ).not.toBe(
+        createThreadSortControlSignature({
+          state: baseState,
+          searchQuery: 'agents',
+          viewMode: 'compact',
+        })
+      );
     });
   });
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -26,7 +26,11 @@ import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 import { useIOSKeyboardFix } from '../../hooks/useIOSKeyboardFix';
-import type { ThreadFilterKey, FilterPreset } from './roomThreadOverviewModel';
+import type {
+  ThreadFilterKey,
+  FilterPreset,
+  ThreadSortFreezeState,
+} from './roomThreadOverviewModel';
 import {
   updateThreadFilterKey,
   cycleSortMode,
@@ -96,6 +100,8 @@ export function RoomView({
     [roomId, userId]
   );
   const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  const [threadSortFreezeState, setThreadSortFreezeState] =
+    useState<ThreadSortFreezeState | null>(null);
 
   const tombstoneEvent = useStateEvent(room, StateEvent.RoomTombstone);
   const powerLevels = usePowerLevelsContext();
@@ -123,6 +129,17 @@ export function RoomView({
       ...cycleSortMode(threadFilterState),
     });
   }, [setThreadFilterState, threadFilterState]);
+
+  const handleToggleThreadSortFreeze = useCallback(() => {
+    setThreadSortFreezeState((currentState) =>
+      currentState
+        ? null
+        : {
+            controlSignature: null,
+            orderedRootIds: [],
+          }
+    );
+  }, []);
 
   const handleReset = useCallback(() => {
     setThreadFilterState(resetThreadFilterState());
@@ -171,6 +188,16 @@ export function RoomView({
     [setViewMode]
   );
 
+  useEffect(() => {
+    setThreadSortFreezeState(null);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (threadFilterState.sortBy === 'natural') {
+      setThreadSortFreezeState(null);
+    }
+  }, [threadFilterState.sortBy]);
+
   // Thread view has a more specific "back" action than the generic room-page back:
   // first swipe exits the thread, then the room header/back handler can navigate out.
   useEdgeSwipeBack(handleExitThread, !!threadId);
@@ -210,8 +237,11 @@ export function RoomView({
           eventId={eventId}
           threadId={threadId}
           threadFilterState={threadFilterState}
+          threadSortFreezeState={threadSortFreezeState}
           onToggle={handleToggle}
           onSortDirectionChange={handleSortDirectionChange}
+          onToggleThreadSortFreeze={handleToggleThreadSortFreeze}
+          setThreadSortFreezeState={setThreadSortFreezeState}
           onCycleTag={handleCycleTag}
           onAddTag={handleAddTag}
           onRemoveTag={handleRemoveTag}

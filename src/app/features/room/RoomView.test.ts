@@ -202,6 +202,8 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
   (renderer.root.findByType(roomTimelineType as never) as unknown) as {
     props: {
       onToggle: (key: string) => void;
+      onSortDirectionChange: () => void;
+      onToggleThreadSortFreeze: () => void;
       onReset: () => void;
       threadFilterState: {
         resolved: string;
@@ -209,8 +211,13 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
         scheduled: string;
         unread: string;
         idle: string;
+        sortBy: string;
         sortDirection: string;
       };
+      threadSortFreezeState: {
+        controlSignature: string | null;
+        orderedRootIds: string[];
+      } | null;
     };
   };
 
@@ -299,6 +306,85 @@ describe('RoomView', () => {
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+  });
+
+  it('persists the freeze state across thread enter/exit in the same room', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: room as never }));
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggleThreadSortFreeze();
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never }));
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+  });
+
+  it('resets the freeze state when switching rooms', async () => {
+    const { RoomView } = await import('./RoomView');
+    const roomA = makeRoom('!room-a:example.org');
+    const roomB = makeRoom('!room-b:example.org');
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: roomA as never }));
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggleThreadSortFreeze();
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: roomB as never }));
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
+  });
+
+  it('clears the freeze state when sort cycles back to natural', async () => {
+    const { RoomView } = await import('./RoomView');
+    const room = makeRoom('!room-a:example.org');
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: room as never }));
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggleThreadSortFreeze();
+    });
+
+    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('lastReply');
+
+    await act(async () => {
+      getTimeline(renderer!).props.onSortDirectionChange();
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onSortDirectionChange();
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.sortBy).toBe('natural');
+    expect(getTimeline(renderer!).props.threadSortFreezeState).toBeNull();
   });
 
   it('resets all filters on onReset', async () => {
