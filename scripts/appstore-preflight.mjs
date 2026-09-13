@@ -9,7 +9,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 
-const configPath = path.join(repoRoot, 'config.json');
+const configFileName = 'config.mindroom.json';
+const configPath = path.join(repoRoot, configFileName);
 const xcodeProjectPath = path.join(repoRoot, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj');
 const infoPlistPath = path.join(repoRoot, 'ios', 'App', 'App', 'Info.plist');
 const entitlementsPath = path.join(repoRoot, 'ios', 'App', 'App', 'App.entitlements');
@@ -69,25 +70,28 @@ try {
   check(false, `Xcode project: ${error.message}`);
 }
 
-check(authConfig.allowRegistration === true, 'config.json: auth.allowRegistration must be true.');
+check(
+  authConfig.allowRegistration === true,
+  `${configFileName}: auth.allowRegistration must be true.`
+);
 check(
   authConfig.requireAppleProvider === true,
-  'config.json: auth.requireAppleProvider must be true.'
+  `${configFileName}: auth.requireAppleProvider must be true.`
 );
 check(
   isHttpsUrl(authConfig.supportUrl),
-  'config.json: auth.supportUrl must be a public HTTPS URL.'
+  `${configFileName}: auth.supportUrl must be a public HTTPS URL.`
 );
 check(
   isHttpsUrl(authConfig.privacyPolicyUrl),
-  'config.json: auth.privacyPolicyUrl must be a public HTTPS URL.'
+  `${configFileName}: auth.privacyPolicyUrl must be a public HTTPS URL.`
 );
-check(isHttpsUrl(authConfig.termsUrl), 'config.json: auth.termsUrl must be a public HTTPS URL.');
-
 check(
-  marketingVersions.length > 0,
-  'Xcode project: missing App target MARKETING_VERSION entries.'
+  isHttpsUrl(authConfig.termsUrl),
+  `${configFileName}: auth.termsUrl must be a public HTTPS URL.`
 );
+
+check(marketingVersions.length > 0, 'Xcode project: missing App target MARKETING_VERSION entries.');
 check(
   marketingVersions.every((value) => /^[0-9]+[.][0-9]+[.][0-9]+$/.test(value)),
   'Xcode project: MARKETING_VERSION must use Apple three-integer format such as 4.11.2.'
@@ -120,11 +124,11 @@ check(
 if (iosPushConfig.enabled === true) {
   check(
     typeof iosPushConfig.appId === 'string' && iosPushConfig.appId.trim().length > 0,
-    'config.json: push.ios.appId must be set when push.ios.enabled is true.'
+    `${configFileName}: push.ios.appId must be set when push.ios.enabled is true.`
   );
   check(
     isHttpsUrl(iosPushConfig.gatewayUrl),
-    'config.json: push.ios.gatewayUrl must be a HTTPS URL when push.ios.enabled is true.'
+    `${configFileName}: push.ios.gatewayUrl must be a HTTPS URL when push.ios.enabled is true.`
   );
   check(
     fs.existsSync(entitlementsPath),

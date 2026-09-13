@@ -23,15 +23,20 @@ export const getRequiredEnv = (name: string): string => {
 };
 
 const readDefaultHomeserverFromConfig = (): string | undefined => {
-  try {
-    const configPath = resolve(process.cwd(), 'config.json');
-    const rawConfig = readFileSync(configPath, 'utf8');
-    const parsedConfig = JSON.parse(rawConfig) as ClientConfig;
-    const defaultIndex = parsedConfig.defaultHomeserver ?? 0;
-    return parsedConfig.homeserverList?.[defaultIndex];
-  } catch {
-    return undefined;
+  for (const fileName of ['config.mindroom.json', 'config.json']) {
+    try {
+      const configPath = resolve(process.cwd(), fileName);
+      const rawConfig = readFileSync(configPath, 'utf8');
+      const parsedConfig = JSON.parse(rawConfig) as ClientConfig;
+      const defaultIndex = parsedConfig.defaultHomeserver ?? 0;
+      const homeserver = parsedConfig.homeserverList?.[defaultIndex];
+      if (homeserver) return homeserver;
+    } catch {
+      // Fall through to the next config source.
+    }
   }
+
+  return undefined;
 };
 
 const DEFAULT_HOMESERVER = readDefaultHomeserverFromConfig() ?? 'mindroom.chat';
@@ -92,8 +97,7 @@ const buildAuthPath = (
   authRoute: 'login' | 'register' | 'reset-password',
   homeserver: string,
   addAccount = false
-): string =>
-  `/${authRoute}/${encodeURIComponent(homeserver)}${addAccount ? '?addAccount=1' : ''}`;
+): string => `/${authRoute}/${encodeURIComponent(homeserver)}${addAccount ? '?addAccount=1' : ''}`;
 
 export const buildLoginPath = (homeserver: string, addAccount = false): string =>
   buildAuthPath('login', homeserver, addAccount);

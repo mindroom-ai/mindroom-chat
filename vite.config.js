@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import buildConfig from './build.config';
 
-const copyFiles = {
+export const copyFiles = {
   targets: [
     {
       src: 'node_modules/@element-hq/element-call-embedded/dist/*',
@@ -31,8 +31,9 @@ const copyFiles = {
       dest: '',
     },
     {
-      src: 'config.json',
+      src: 'config.mindroom.json',
       dest: '',
+      rename: 'config.json',
     },
     {
       src: 'public/manifest.json',
