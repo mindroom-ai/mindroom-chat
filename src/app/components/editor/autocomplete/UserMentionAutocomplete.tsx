@@ -15,7 +15,7 @@ import {
 import { onTabPress } from '../../../utils/keyboard';
 import { createMentionElement, moveCursor, replaceWithElement } from '../utils';
 import { useKeyDown } from '../../../hooks/useKeyDown';
-import { getMxIdLocalPart, getMxIdServer, isUserId } from '../../../utils/matrix';
+import { getMxIdLocalPart, getMxIdServer, isUserId, mxcUrlToHttp } from '../../../utils/matrix';
 import { getMemberDisplayName, getMemberSearchStr } from '../../../utils/room';
 import { UserAvatar } from '../../user-avatar';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
@@ -155,7 +155,7 @@ export function UserMentionAutocomplete({
         autoCompleteMembers.map((roomMember) => {
           const avatarMxcUrl = roomMember.getMxcAvatarUrl();
           const avatarUrl = avatarMxcUrl
-            ? mx.mxcUrlToHttp(avatarMxcUrl, 32, 32, 'crop', undefined, false, useAuthentication)
+            ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 32, 32, 'crop')
             : undefined;
           return (
             <MenuItem

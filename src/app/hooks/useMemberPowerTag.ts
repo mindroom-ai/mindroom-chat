@@ -6,6 +6,7 @@ import { MemberPowerTag, MemberPowerTagIcon } from '../../types/matrix/room';
 import { useRoomCreatorsTag } from './useRoomCreatorsTag';
 import { ThemeKind } from './useTheme';
 import { accessibleColor } from '../plugins/color';
+import { mxcUrlToHttp } from '../utils/mediaUrl';
 
 export type GetMemberPowerTag = (userId: string) => MemberPowerTag;
 
@@ -38,7 +39,7 @@ export const getPowerTagIconSrc = (
   icon: MemberPowerTagIcon
 ): string | undefined =>
   icon?.key?.startsWith('mxc://')
-    ? mx.mxcUrlToHttp(icon.key, 96, 96, 'scale', undefined, undefined, useAuthentication) ?? '🌻'
+    ? mxcUrlToHttp(mx, icon.key, useAuthentication, 96, 96, 'scale') ?? '🌻'
     : icon?.key;
 
 export const useAccessiblePowerTagColors = (

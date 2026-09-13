@@ -29,6 +29,7 @@ import {
   StateEvent,
   UnreadInfo,
 } from '../../types/matrix/room';
+import { mxcUrlToHttp } from './mediaUrl';
 
 const EDIT_DEBUG_FLAG_STORAGE_KEY = 'mindroom.debug.edits';
 
@@ -330,9 +331,7 @@ export const getRoomAvatarUrl = (
   useAuthentication = false
 ): string | undefined => {
   const mxcUrl = room.getMxcAvatarUrl();
-  return mxcUrl
-    ? mx.mxcUrlToHttp(mxcUrl, size, size, 'crop', undefined, false, useAuthentication) ?? undefined
-    : undefined;
+  return mxcUrl ? mxcUrlToHttp(mx, mxcUrl, useAuthentication, size, size, 'crop') ?? undefined : undefined;
 };
 
 export const getDirectRoomAvatarUrl = (
@@ -347,9 +346,7 @@ export const getDirectRoomAvatarUrl = (
     return getRoomAvatarUrl(mx, room, size, useAuthentication);
   }
 
-  return (
-    mx.mxcUrlToHttp(mxcUrl, size, size, 'crop', undefined, false, useAuthentication) ?? undefined
-  );
+  return mxcUrlToHttp(mx, mxcUrl, useAuthentication, size, size, 'crop') ?? undefined;
 };
 
 export const trimReplyFromBody = (body: string): string => {
