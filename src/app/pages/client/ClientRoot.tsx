@@ -49,6 +49,7 @@ import { useActiveSession } from '../../hooks/useSessionStore';
 import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { useSyncState } from '../../hooks/useSyncState';
+import { AutoDiscovery } from './AutoDiscovery';
 
 type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   on: (
@@ -440,7 +441,9 @@ export function ClientRoot({ children }: ClientRootProps) {
             <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
               <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
                 <AuthMetadataProvider value={serverConfigs.authMetadata}>
-                  {children}
+                  <AutoDiscovery userId={activeSession.userId} baseUrl={activeSession.baseUrl}>
+                    {children}
+                  </AutoDiscovery>
                 </AuthMetadataProvider>
               </MediaConfigProvider>
             </CapabilitiesProvider>

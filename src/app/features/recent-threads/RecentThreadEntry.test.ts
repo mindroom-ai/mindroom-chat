@@ -107,4 +107,20 @@ describe('RecentThreadEntry', () => {
       'Thread summary'
     );
   });
+
+  it('exposes a stable accessible label for browser navigation tests and assistive tech', () => {
+    act(() => {
+      renderer = create(
+        React.createElement(RecentThreadEntry, {
+          room: { roomId: '!room:example.org', hasEncryptionStateEvent: () => false } as never,
+          threadId: '$thread',
+          openedAt: Date.now(),
+        })
+      );
+    });
+
+    const button = renderer!.root.findByType('button');
+
+    expect(button.props['aria-label']).toBe('Open thread: Thread summary. Room Name. Opened 1m ago');
+  });
 });
