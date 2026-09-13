@@ -57,7 +57,7 @@ export function VoiceRecordingCapsule({
       >
         <Icon src={Icons.Delete} size="50" />
       </IconButton>
-      <VoiceWaveform waveform={waveform} dimmed={paused || busy} />
+      <VoiceWaveform waveform={waveform} dimmed={paused || busy} compact />
       <Text className={css.Timer} size="B300" aria-live="polite">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>

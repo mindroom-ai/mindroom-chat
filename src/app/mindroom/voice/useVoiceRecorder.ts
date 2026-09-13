@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
-  resampleWaveform,
   timeDomainDataToWaveformPoint,
+  VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
 import { pauseAllMediaElements } from '../../utils/dom';
 import {
@@ -42,6 +42,14 @@ const WAVEFORM_SAMPLE_INTERVAL_MS = 80;
 const MAX_LIVE_SAMPLES = 1200;
 
 const now = (): number => Date.now();
+
+const createLiveDisplayWaveform = (samples: number[]): number[] => {
+  const visibleSamples = samples.slice(-VOICE_WAVEFORM_BAR_COUNT);
+  const paddingCount = VOICE_WAVEFORM_BAR_COUNT - visibleSamples.length;
+  if (paddingCount <= 0) return visibleSamples;
+
+  return [...Array.from({ length: paddingCount }, () => 0), ...visibleSamples];
+};
 
 const getAudioContextConstructor = (): typeof AudioContext | undefined => {
   if (typeof window === 'undefined') return undefined;
@@ -96,7 +104,8 @@ export function useVoiceRecorder({
   const timerRef = useRef<ReturnType<typeof setInterval>>();
   const sampleTimerRef = useRef<ReturnType<typeof setInterval>>();
   const chunksRef = useRef<Blob[]>([]);
-  const liveSampleRef = useRef<number[]>([]);
+  const metadataSampleRef = useRef<number[]>([]);
+  const displaySampleRef = useRef<number[]>([]);
   const activeStartedAtRef = useRef<number>();
   const activeElapsedMsRef = useRef(0);
   const elapsedAtStopRef = useRef(0);
@@ -226,7 +235,8 @@ export function useVoiceRecorder({
     sessionIdRef.current += 1;
     const stoppedRecorder = cleanupCapture();
     chunksRef.current = [];
-    liveSampleRef.current = [];
+    metadataSampleRef.current = [];
+    displaySampleRef.current = [];
     activeElapsedMsRef.current = 0;
     elapsedAtStopRef.current = 0;
     if (!stoppedRecorder) {
@@ -255,11 +265,22 @@ export function useVoiceRecorder({
     if (!analyser || !buffer) return;
 
     analyser.getByteTimeDomainData(buffer);
-    liveSampleRef.current.push(timeDomainDataToWaveformPoint(buffer));
-    if (liveSampleRef.current.length > MAX_LIVE_SAMPLES) {
-      liveSampleRef.current.splice(0, liveSampleRef.current.length - MAX_LIVE_SAMPLES);
+    const sample = timeDomainDataToWaveformPoint(buffer);
+
+    metadataSampleRef.current.push(sample);
+    if (metadataSampleRef.current.length > MAX_LIVE_SAMPLES) {
+      metadataSampleRef.current.splice(0, metadataSampleRef.current.length - MAX_LIVE_SAMPLES);
     }
-    safeSetWaveform(resampleWaveform(liveSampleRef.current));
+
+    displaySampleRef.current.push(sample);
+    if (displaySampleRef.current.length > VOICE_WAVEFORM_BAR_COUNT) {
+      displaySampleRef.current.splice(
+        0,
+        displaySampleRef.current.length - VOICE_WAVEFORM_BAR_COUNT
+      );
+    }
+
+    safeSetWaveform(createLiveDisplayWaveform(displaySampleRef.current));
   }, [safeSetWaveform]);
 
   const startSampleTimer = useCallback(() => {
@@ -310,12 +331,13 @@ export function useVoiceRecorder({
 
       const chunks = chunksRef.current;
       const sampleWaveformData =
-        liveSampleRef.current.length > 0
-          ? normalizeMatrixWaveform(liveSampleRef.current)
+        metadataSampleRef.current.length > 0
+          ? normalizeMatrixWaveform(metadataSampleRef.current)
           : undefined;
 
       chunksRef.current = [];
-      liveSampleRef.current = [];
+      metadataSampleRef.current = [];
+      displaySampleRef.current = [];
       activeElapsedMsRef.current = 0;
       activeStartedAtRef.current = undefined;
       recorderRef.current = undefined;
@@ -423,7 +445,8 @@ export function useVoiceRecorder({
     pauseAllMediaElements();
     cleanupCapture();
     chunksRef.current = [];
-    liveSampleRef.current = [];
+    metadataSampleRef.current = [];
+    displaySampleRef.current = [];
     activeElapsedMsRef.current = 0;
     elapsedAtStopRef.current = 0;
     pendingStopActionRef.current = undefined;
@@ -470,7 +493,8 @@ export function useVoiceRecorder({
       if (sessionIdRef.current === sessionId) {
         cleanupCapture();
         chunksRef.current = [];
-        liveSampleRef.current = [];
+        metadataSampleRef.current = [];
+        displaySampleRef.current = [];
         activeElapsedMsRef.current = 0;
         elapsedAtStopRef.current = 0;
         safeSetElapsedMs(0);
