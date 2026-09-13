@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { ReactNode, useRef } from 'react';
 import { Scroll } from 'folds';
 
 import {
@@ -23,7 +23,7 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
 
-export function SidebarNav() {
+export function SidebarNav({ footer }: { footer?: ReactNode }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
   // Simple mode keeps only the essentials: Home and Direct, plus the sticky
@@ -68,6 +68,12 @@ export function SidebarNav() {
               <InboxTab />
               <SettingsTab />
             </SidebarStack>
+            {footer && (
+              <>
+                <SidebarStackSeparator />
+                <SidebarStack>{footer}</SidebarStack>
+              </>
+            )}
           </>
         }
       />
