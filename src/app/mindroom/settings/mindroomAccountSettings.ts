@@ -16,10 +16,13 @@ export type MindroomAccountSettings = {
    * non-technical users. Off means the full interface.
    */
   simpleMode: boolean;
+  /** Show long messages in full instead of folding them behind Show more. */
+  expandLongMessagesByDefault: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: MindroomAccountSettings = {
   simpleMode: false,
+  expandLongMessagesByDefault: false,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -34,6 +37,7 @@ export const sanitizeMindroomAccountSettings = (content: unknown): MindroomAccou
   if (!isRecord(content)) return DEFAULT_MINDROOM_ACCOUNT_SETTINGS;
   return {
     simpleMode: content.simpleMode === true,
+    expandLongMessagesByDefault: content.expandLongMessagesByDefault === true,
   };
 };
 

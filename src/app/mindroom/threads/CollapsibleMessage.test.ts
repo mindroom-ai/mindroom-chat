@@ -807,6 +807,46 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('updates an unmodified message when the default expansion baseline changes', () => {
+    const contentElement = { clientHeight: 72, scrollHeight: 160 };
+    const renderWithBaseline = (expanded: boolean) =>
+      React.createElement(
+        ExpandAllInitContext.Provider,
+        { value: expanded },
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'default', expansionKey: '$default-baseline' },
+          React.createElement('span', undefined, 'message')
+        )
+      );
+    let renderer!: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(renderWithBaseline(false), {
+        createNodeMock: (element) => {
+          if (
+            element.type === 'div' &&
+            typeof element.props.className === 'string' &&
+            element.props.className.startsWith('collapsible-content')
+          ) {
+            return contentElement;
+          }
+          return null;
+        },
+      });
+    });
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+
+    act(() => {
+      renderer.update(renderWithBaseline(true));
+    });
+    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it('mounts later instances collapsed when the collapse-all override is active', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },

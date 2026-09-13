@@ -27,6 +27,7 @@ const {
   shouldAutoScrollRoomOnLiveEventMock,
   threadResolutionMapMock,
   threadRenderStateControl,
+  accountSettingsState,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -54,6 +55,9 @@ const {
     currentThreadEvents: [] as unknown[],
     initialThreadEvents: [] as unknown[],
     threadInitialRenderMode: 'live' as 'loading' | 'cached' | 'live',
+  },
+  accountSettingsState: {
+    expandLongMessagesByDefault: false,
   },
 }));
 
@@ -109,6 +113,10 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => matrixClientMock,
+}));
+
+vi.mock('../../settings/useMindroomAccountSettings', () => ({
+  useExpandLongMessagesByDefault: () => accountSettingsState.expandLongMessagesByDefault,
 }));
 
 vi.mock('../../../hooks/useAlive', () => ({
@@ -1090,6 +1098,7 @@ beforeEach(() => {
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];
   threadRenderStateControl.threadInitialRenderMode = 'live';
+  accountSettingsState.expandLongMessagesByDefault = false;
 });
 
 afterEach(() => {
@@ -1178,6 +1187,45 @@ describe('RoomTimeline collapsible wiring', () => {
 
     expect(findCollapseModeForEvent(renderer, '$historical')).toBe('default');
     expect(findCollapsibleForEvent(renderer, '$historical').props.expansionKey).toBe('$historical');
+  });
+
+  it('uses the account preference as the expand-all baseline', async () => {
+    accountSettingsState.expandLongMessagesByDefault = true;
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { collapseAllMessages } = await import('../CollapsibleMessage');
+    const historicalEvent = makeEvent('$historical', {
+      content: {
+        body: 'Historical message',
+        msgtype: 'm.text',
+      },
+    });
+    const room = makeRoom({ liveEvents: [historicalEvent] });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = createTrackedRenderer(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(2);
+    });
+
+    const provider = renderer.root.findByType('collapsible-message-state-provider');
+    expect(provider.props.expandAllInit).toBe(true);
+    const collapseAllButton = renderer.root.find(
+      (node) => node.type === 'button' && node.children.includes('[-all]')
+    );
+
+    act(() => {
+      collapseAllButton.props.onClick({ preventDefault: vi.fn() });
+    });
+
+    expect(collapseAllMessages).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findByType('collapsible-message-state-provider').props.expandAllInit).toBe(
+      false
+    );
   });
 
   it('clears remembered per-message choices before applying an expand-all baseline', async () => {

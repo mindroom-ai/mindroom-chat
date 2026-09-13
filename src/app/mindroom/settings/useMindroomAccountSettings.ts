@@ -91,3 +91,6 @@ export const useSetMindroomAccountSettings = (): ((
 };
 
 export const useSimpleMode = (): boolean => useMindroomAccountSettings().simpleMode;
+
+export const useExpandLongMessagesByDefault = (): boolean =>
+  useMindroomAccountSettings().expandLongMessagesByDefault;

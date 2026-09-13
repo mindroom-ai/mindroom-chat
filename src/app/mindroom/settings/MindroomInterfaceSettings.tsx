@@ -7,35 +7,42 @@ import {
   useMindroomAccountSettings,
   useSetMindroomAccountSettings,
 } from './useMindroomAccountSettings';
+import type { MindroomAccountSettings } from './mindroomAccountSettings';
 
 type MindroomInterfaceSettingsProps = {
   className?: string;
 };
 
-/**
- * The "Interface" group at the top of Settings → General. Hosts the Simple
- * Mode switch backed by `io.mindroom.settings` account data. This group must
- * stay visible while simple mode is ON — it is the way back out.
- */
-export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
+type MindroomBooleanSetting = keyof Pick<
+  MindroomAccountSettings,
+  'simpleMode' | 'expandLongMessagesByDefault'
+>;
+
+type MindroomAccountSwitchProps = {
+  setting: MindroomBooleanSetting;
+  title: string;
+  description: string;
+};
+
+function MindroomAccountSwitch({ setting, title, description }: MindroomAccountSwitchProps) {
   const { t } = useTranslation();
-  const { simpleMode } = useMindroomAccountSettings();
+  const settings = useMindroomAccountSettings();
   const setAccountSettings = useSetMindroomAccountSettings();
   // setAccountData only resolves once the change echoes back over sync, so
   // show the requested value immediately and hand back to the store when the
   // write settles (echo arrived, or failed and the stored value still rules).
   const [pending, setPending] = useState<boolean>();
-  // A failed write snaps the switch back to the stored value; the target
-  // audience is non-technical, so say why instead of failing silently.
+  // A failed write snaps the switch back to the stored value; explain why
+  // instead of failing silently.
   const [saveFailed, setSaveFailed] = useState(false);
   const requestGeneration = useRef(0);
 
-  const handleSimpleMode = (next: boolean) => {
+  const handleChange = (next: boolean) => {
     requestGeneration.current += 1;
     const generation = requestGeneration.current;
     setPending(next);
     setSaveFailed(false);
-    setAccountSettings({ simpleMode: next })
+    setAccountSettings({ [setting]: next })
       .catch(() => {
         if (requestGeneration.current === generation) setSaveFailed(true);
       })
@@ -45,22 +52,44 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
   };
 
   return (
+    <SettingTile
+      title={title}
+      description={description}
+      after={
+        <Switch variant="Primary" value={pending ?? settings[setting]} onChange={handleChange} />
+      }
+    >
+      {saveFailed && (
+        <Text size="T200" style={{ color: color.Critical.Main }}>
+          {t('settings.general.interface.saveFailed')}
+        </Text>
+      )}
+    </SettingTile>
+  );
+}
+
+/**
+ * The "Interface" group at the top of Settings → General. Its switches are
+ * backed by `io.mindroom.settings` account data. This group must stay visible
+ * while simple mode is ON — it is the way back out.
+ */
+export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
+  const { t } = useTranslation();
+
+  return (
     <Box direction="Column" gap="100">
       <Text size="L400">{t('settings.general.interface.sectionTitle')}</Text>
-      <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
-        <SettingTile
+      <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
+        <MindroomAccountSwitch
+          setting="simpleMode"
           title={t('settings.general.interface.simpleMode')}
           description={t('settings.general.interface.simpleModeDescription')}
-          after={
-            <Switch variant="Primary" value={pending ?? simpleMode} onChange={handleSimpleMode} />
-          }
-        >
-          {saveFailed && (
-            <Text size="T200" style={{ color: color.Critical.Main }}>
-              {t('settings.general.interface.simpleModeSaveFailed')}
-            </Text>
-          )}
-        </SettingTile>
+        />
+        <MindroomAccountSwitch
+          setting="expandLongMessagesByDefault"
+          title={t('settings.general.interface.expandLongMessagesByDefault')}
+          description={t('settings.general.interface.expandLongMessagesByDefaultDescription')}
+        />
       </SequenceCard>
     </Box>
   );
