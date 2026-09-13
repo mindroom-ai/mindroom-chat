@@ -47,6 +47,7 @@ describe('mxcUrlToHttp', () => {
     });
 
     const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
       mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96',
     } as any;
 
@@ -93,6 +94,7 @@ describe('mxcUrlToHttp', () => {
     });
 
     const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
       mxcUrlToHttp: () =>
         'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/id?width=96&height=96',
     } as any;
@@ -123,9 +125,52 @@ describe('mxcUrlToHttp', () => {
     });
 
     const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
       mxcUrlToHttp: () => 'https://mindroom.chat/not-media',
     } as any;
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe('https://mindroom.chat/not-media');
+  });
+
+  it('rebases same-origin media urls to the homeserver path on the web', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: {
+          protocol: 'https:',
+        },
+      },
+      configurable: true,
+    });
+
+    const mx = {
+      getHomeserverUrl: () => 'https://example.test/mindroom',
+      mxcUrlToHttp: () =>
+        'https://example.test/_matrix/client/v1/media/download/example.test/media-id?allow_redirect=true',
+    } as any;
+
+    expect(mxcUrlToHttp(mx, 'mxc://example.test/media-id', true)).toBe(
+      'https://example.test/mindroom/_matrix/client/v1/media/download/example.test/media-id?allow_redirect=true'
+    );
+  });
+
+  it('does not double-prefix media urls already under the homeserver path', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: {
+          protocol: 'https:',
+        },
+      },
+      configurable: true,
+    });
+
+    const mx = {
+      getHomeserverUrl: () => 'https://example.test/mindroom',
+      mxcUrlToHttp: () =>
+        'https://example.test/mindroom/_matrix/client/v1/media/download/example.test/media-id?allow_redirect=true',
+    } as any;
+
+    expect(mxcUrlToHttp(mx, 'mxc://example.test/media-id', true)).toBe(
+      'https://example.test/mindroom/_matrix/client/v1/media/download/example.test/media-id?allow_redirect=true'
+    );
   });
 });
