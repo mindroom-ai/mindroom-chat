@@ -36,8 +36,25 @@ const ALPHANUMERIC_REG = /[0-9A-Za-z]/;
 const isAlphanumeric = (value: string | undefined): boolean =>
   typeof value === 'string' && ALPHANUMERIC_REG.test(value);
 
-const isPlainNumericLatex = (latex: string): boolean =>
-  /^\d+(?:[.,]\d+)?$/.test(latex.trim());
+const CURRENCY_AMOUNT_REG = /(?:\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,]\d+)?/;
+const CURRENCY_AMOUNT_START_REG = new RegExp(`^${CURRENCY_AMOUNT_REG.source}`);
+const CURRENCY_UNIT_REG =
+  /^(?:(?:USD|EUR|GBP|CAD|AUD|JPY|CHF|CNY|INR|BRL|MXN)\b|(?:bucks?|cents?|dollars?)\b|\/[A-Za-z][A-Za-z0-9-]*$)/i;
+const CURRENCY_RANGE_REST_REG = /^[-–]\s*\\?\$?\d/;
+
+const isCurrencyLikeLatex = (latex: string): boolean => {
+  const trimmed = latex.trim();
+  const amountMatch = trimmed.match(CURRENCY_AMOUNT_START_REG);
+  if (!amountMatch) return false;
+
+  const rest = trimmed.slice(amountMatch[0].length).trim();
+  if (rest.length === 0) return true;
+
+  if (CURRENCY_UNIT_REG.test(rest)) return true;
+  if (CURRENCY_RANGE_REST_REG.test(rest)) return true;
+
+  return false;
+};
 
 const isEscaped = (text: string, index: number): boolean => {
   let backslashCount = 0;
@@ -97,7 +114,7 @@ const getInlineLatexAt = (text: string, index: number): LatexMatch | undefined =
       }
 
       const latex = text.slice(index + 1, cursor);
-      if (!hasNonWhitespaceBoundary(latex) || isPlainNumericLatex(latex)) return undefined;
+      if (!hasNonWhitespaceBoundary(latex) || isCurrencyLikeLatex(latex)) return undefined;
 
       return {
         fullMatch: text.slice(index, cursor + 1),
