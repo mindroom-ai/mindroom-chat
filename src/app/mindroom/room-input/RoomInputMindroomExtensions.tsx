@@ -6,14 +6,10 @@ import { Membership } from '../../../types/matrix/room';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../../components/editor/slate';
 import { BlockType } from '../../components/editor/types';
-import type {
-  IReplyDraft,
-  PendingVoiceSendContext,
-} from '../../state/room/roomInputDrafts';
+import type { IReplyDraft, PendingVoiceSendContext } from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
 import { PendingSendIndicator } from '../messages/pendingSendIndicator';
-import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
@@ -65,15 +61,6 @@ export const getMindroomRoomInputAutocompleteQuery = (
 export const isMindroomRoomInputAutocompleteQuery = (
   query: AutocompleteQuery<string> | undefined
 ): query is MindroomRoomInputAutocompleteQuery => query?.prefix === MINDROOM_COMMAND_PREFIX;
-
-export const getMindroomRoomInputMessageRelation = (
-  replyDraft: Pick<IReplyDraft, 'eventId' | 'relation'> | undefined,
-  threadId: string | undefined,
-  threadingEnabled = true
-) =>
-  getMessageRelation(replyDraft?.eventId, replyDraft?.relation, threadId, {
-    allowThreadRelation: threadingEnabled,
-  });
 
 export const getMindroomRoomInputVoiceSendContext = ({
   ownerSessionId,
@@ -168,14 +155,10 @@ export const createMindroomRoomInputPasteMarkerElement = (
   children: [{ text: '' }],
 });
 
-export const isMindroomRoomInputPasteMarkerElement = (
-  node: unknown
-): node is PasteMarkerElement =>
+export const isMindroomRoomInputPasteMarkerElement = (node: unknown): node is PasteMarkerElement =>
   Element.isElement(node) && node.type === BlockType.PasteMarker;
 
-export const getMindroomRoomInputPasteMarkerFileNames = (
-  nodes: Descendant[]
-): Set<string> => {
+export const getMindroomRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<string> => {
   const fileNames = new Set<string>();
 
   const visit = (node: Descendant) => {
@@ -200,8 +183,7 @@ export const removeMindroomRoomInputPasteMarkerElements = (
 
   Transforms.removeNodes(editor, {
     at: [],
-    match: (node) =>
-      isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
+    match: (node) => isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
   });
 };
 
