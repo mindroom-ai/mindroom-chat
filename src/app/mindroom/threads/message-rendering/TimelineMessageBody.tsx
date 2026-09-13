@@ -79,7 +79,6 @@ export function TimelineMessageBody({
       )}
     />
   );
-  const { editedEvent, resolvedContent } = messageContent ?? {};
   const renderContent = (encrypted: boolean) => {
     if (event.isRedacted())
       return (
@@ -90,6 +89,10 @@ export function TimelineMessageBody({
     if (kind === 'sticker' || (encrypted && event.getType() === MessageEvent.Sticker))
       return renderSticker();
 
+    // Decryption can rerender this callback without rerendering the owning timeline.
+    const { editedEvent, resolvedContent } = encrypted
+      ? resolveTimelineMessageContent(row, kind)
+      : messageContent ?? {};
     const approvalContent = getMindroomRoomTimelineApprovalContentIfSupported(event, editedEvent);
     const isApproval = kind === 'approval' || !!approvalContent;
     const content = (isApproval ? approvalContent ?? resolvedContent : resolvedContent) ?? {};

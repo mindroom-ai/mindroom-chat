@@ -242,7 +242,7 @@ describe('timeline message feature', () => {
     ).toEqual(['$history-message', '$history-approval', '$history-encrypted']);
   });
 
-  it('subscribes to real decryption, updates the body kind and removes its listener', async () => {
+  it('renders newly decrypted content and cleans up subscriptions on replacement and unmount', async () => {
     const event = new MatrixEvent({
       event_id: '$encrypted',
       type: MessageEvent.RoomMessageEncrypted,
@@ -250,7 +250,8 @@ describe('timeline message feature', () => {
       sender: '@alice:example.org',
       content: {},
     });
-    const { renderer } = await mountFeature([rowFor(event)]);
+    const rows = [rowFor(event)];
+    const { renderer, update } = await mountFeature(rows);
     expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
     await act(async () => {
       await event.attemptDecryption({
@@ -269,10 +270,18 @@ describe('timeline message feature', () => {
           node.props.eventType === MessageEvent.RoomMessage && node.props.msgType === 'm.text'
       )
     ).toBe(true);
-    // Preserve the existing encrypted branch's content snapshot until the next timeline render.
-    expect(content[0].props.getContent()).toEqual({});
-    act(() => renderer.unmount());
+    expect(content[0].props.getContent()).toEqual({ body: 'Now decrypted', msgtype: 'm.text' });
+    const replacement = new MatrixEvent({
+      event_id: '$encrypted',
+      type: MessageEvent.RoomMessageEncrypted,
+      content: {},
+    });
+    rows[0] = rowFor(replacement);
+    update();
     expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
+    act(() => renderer.unmount());
+    expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
   it('resolves edits on mutable events again when the feature rerenders', async () => {
