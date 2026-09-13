@@ -103,11 +103,9 @@ describe('voiceMessageSettings', () => {
   });
 
   it('cycles rates in order', async () => {
-    const {
-      cycleVoicePlaybackRate,
-      formatVoicePlaybackRate,
-      VOICE_PLAYBACK_RATES,
-    } = await import('./voiceMessageSettings');
+    const { cycleVoicePlaybackRate, formatVoicePlaybackRate, VOICE_PLAYBACK_RATES } = await import(
+      './voiceMessageSettings'
+    );
 
     expect(VOICE_PLAYBACK_RATES.map(formatVoicePlaybackRate)).toEqual(['1×', '1.5×', '2×']);
     expect(cycleVoicePlaybackRate(1)).toBe(1.5);
@@ -126,6 +124,64 @@ describe('voiceMessageSettings', () => {
     store.set(voiceMessagePlaybackRateAtom, 4);
     expect(storageState.get('voiceMessagePlaybackRate')).toBe('1');
     expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1);
+
+    unmount();
+  });
+
+  it('defaults volume storage hydration to 1', async () => {
+    const { voiceMessageVolumeAtom } = await import('./voiceMessageSettings');
+    const store = createStore();
+    const unmount = store.sub(voiceMessageVolumeAtom, () => undefined);
+
+    expect(store.get(voiceMessageVolumeAtom)).toBe(1);
+
+    unmount();
+  });
+
+  it('hydrates valid persisted volume', async () => {
+    storageState.set('voiceMessageVolume', '0.35');
+
+    const { voiceMessageVolumeAtom } = await import('./voiceMessageSettings');
+    const store = createStore();
+    const unmount = store.sub(voiceMessageVolumeAtom, () => undefined);
+
+    expect(store.get(voiceMessageVolumeAtom)).toBe(0.35);
+
+    unmount();
+  });
+
+  it.each([
+    ['-1', 0],
+    ['2', 1],
+    ['NaN', 1],
+    ['"0.5"', 1],
+  ])('sanitizes persisted volume value %s to %s', async (storedValue, expected) => {
+    storageState.set('voiceMessageVolume', storedValue);
+
+    const { voiceMessageVolumeAtom } = await import('./voiceMessageSettings');
+    const store = createStore();
+    const unmount = store.sub(voiceMessageVolumeAtom, () => undefined);
+
+    expect(store.get(voiceMessageVolumeAtom)).toBe(expected);
+
+    unmount();
+  });
+
+  it('persists sanitized volume updates', async () => {
+    const { voiceMessageVolumeAtom } = await import('./voiceMessageSettings');
+    const store = createStore();
+    const unmount = store.sub(voiceMessageVolumeAtom, () => undefined);
+
+    store.set(voiceMessageVolumeAtom, 0.25);
+    expect(storageState.get('voiceMessageVolume')).toBe('0.25');
+
+    store.set(voiceMessageVolumeAtom, -1);
+    expect(storageState.get('voiceMessageVolume')).toBe('0');
+    expect(store.get(voiceMessageVolumeAtom)).toBe(0);
+
+    store.set(voiceMessageVolumeAtom, Number.NaN);
+    expect(storageState.get('voiceMessageVolume')).toBe('1');
+    expect(store.get(voiceMessageVolumeAtom)).toBe(1);
 
     unmount();
   });

@@ -15,13 +15,16 @@ import {
 import { useThrottle } from '../../../hooks/useThrottle';
 import { secondsToMinutesAndSeconds } from '../../../utils/common';
 import {
+  applyVoiceMessageVolume,
   applyVoicePlaybackRate,
   voiceMessagePlaybackRateAtom,
+  voiceMessageVolumeAtom,
 } from '../../../state/voiceMessageSettings';
 import {
   VoicePlaybackRateButton,
   VoicePlaybackRatePlaceholder,
 } from '../../voice/VoicePlaybackRateButton';
+import { VoiceVolumeButton } from '../../voice/VoiceVolumeButton';
 import { VoiceWaveform } from '../../voice/VoiceWaveform';
 import { useAudioContentSource } from './useAudioContentSource';
 import * as css from './VoiceAudioContent.css';
@@ -30,6 +33,9 @@ const PLAY_TIME_THROTTLE_OPS = {
   wait: 250,
   immediate: true,
 };
+
+const formatVoiceTime = (seconds: number) =>
+  secondsToMinutesAndSeconds(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
 
 export type VoiceAudioContentProps = {
   mimeType: string;
@@ -53,24 +59,63 @@ export function VoiceAudioContent({
   const [interacted, setInteracted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const playbackRate = useAtomValue(voiceMessagePlaybackRateAtom);
+  const volume = useAtomValue(voiceMessageVolumeAtom);
   const infoDuration =
     Number.isFinite(info.duration) && info.duration && info.duration > 0 ? info.duration : 0;
+  const hasInfoDuration = infoDuration > 0;
   const [duration, setDuration] = useState(infoDuration / 1000);
+  const mediaIdentity = `${mimeType}\n${url}\n${encInfo?.iv ?? ''}\n${
+    encInfo?.hashes?.sha256 ?? ''
+  }`;
+  const mediaIdentityRef = useRef(mediaIdentity);
+  const audioMetadataLoadedRef = useRef(false);
 
   const getAudioRef = useCallback(() => audioRef.current, []);
   const { loading } = useMediaLoading(getAudioRef);
   const { playing, setPlaying } = useMediaPlay(getAudioRef);
   const { seek } = useMediaSeek(getAudioRef);
-  const handlePlayTimeCallback: PlayTimeCallback = useCallback((d, ct) => {
-    if (Number.isFinite(d) && d > 0) {
-      setDuration(d);
-    }
-    setCurrentTime(Number.isFinite(ct) && ct > 0 ? ct : 0);
-  }, []);
+  const handlePlayTimeCallback: PlayTimeCallback = useCallback(
+    (d, ct) => {
+      if (!hasInfoDuration && Number.isFinite(d) && d > 0) {
+        setDuration((currentDuration) =>
+          Math.abs(currentDuration - d) > 0.01 ? d : currentDuration
+        );
+      }
+      setCurrentTime(Number.isFinite(ct) && ct > 0 ? ct : 0);
+    },
+    [hasInfoDuration]
+  );
   useMediaPlayTimeCallback(
     getAudioRef,
     useThrottle(handlePlayTimeCallback, PLAY_TIME_THROTTLE_OPS)
   );
+
+  useEffect(() => {
+    if (!hasInfoDuration) return;
+
+    setDuration((currentDuration) =>
+      currentDuration === 0 || !audioMetadataLoadedRef.current
+        ? infoDuration / 1000
+        : currentDuration
+    );
+  }, [hasInfoDuration, infoDuration]);
+
+  useEffect(() => {
+    if (mediaIdentityRef.current === mediaIdentity) return;
+
+    mediaIdentityRef.current = mediaIdentity;
+    audioMetadataLoadedRef.current = false;
+    pendingSeekTimeRef.current = undefined;
+    setCurrentTime(0);
+    setDuration(infoDuration / 1000);
+  }, [infoDuration, mediaIdentity]);
+
+  const updatePlayTimeFromAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    handlePlayTimeCallback(audio.duration, audio.currentTime);
+  }, [handlePlayTimeCallback]);
 
   const applyPendingSeek = useCallback(() => {
     const pendingSeekTime = pendingSeekTimeRef.current;
@@ -99,23 +144,27 @@ export function VoiceAudioContent({
     if (!audio) return;
 
     applyVoicePlaybackRate(audio, playbackRate);
-  }, [playbackRate, sourceValue]);
+    applyVoiceMessageVolume(audio, volume);
+  }, [playbackRate, sourceValue, volume]);
 
-  const applyCurrentPlaybackRate = useCallback(() => {
+  const applyCurrentVoiceSettings = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     applyVoicePlaybackRate(audio, playbackRate);
-  }, [playbackRate]);
+    applyVoiceMessageVolume(audio, volume);
+  }, [playbackRate, volume]);
 
   const handleLoadedMetadata = useCallback(() => {
-    applyCurrentPlaybackRate();
+    audioMetadataLoadedRef.current = true;
+    applyCurrentVoiceSettings();
+    updatePlayTimeFromAudio();
     applyPendingSeek();
-  }, [applyCurrentPlaybackRate, applyPendingSeek]);
+  }, [applyCurrentVoiceSettings, applyPendingSeek, updatePlayTimeFromAudio]);
 
   const handlePlay = () => {
     setInteracted(true);
-    applyCurrentPlaybackRate();
+    applyCurrentVoiceSettings();
 
     if (srcState.status === AsyncStatus.Success) {
       setAutoPlayOnLoad(false);
@@ -148,8 +197,9 @@ export function VoiceAudioContent({
     }
   };
 
-  const progress = duration > 0 ? currentTime / duration : 0;
-  const timeLabel = currentTime > 0 ? currentTime : duration;
+  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const displayCurrentTime = Math.min(currentTime, duration || currentTime);
+  const displayDuration = duration;
 
   return (
     <div className={css.Capsule}>
@@ -168,16 +218,21 @@ export function VoiceAudioContent({
           <Icon src={playing ? Icons.Pause : Icons.Play} size="50" filled={playing} />
         )}
       </IconButton>
-      <VoiceWaveform
-        waveform={waveform}
-        progress={progress}
-        label="Seek voice message"
-        onSeekProgress={handleSeekProgress}
-      />
+      <div className={css.WaveformSlot}>
+        <VoiceWaveform
+          waveform={waveform}
+          progress={progress}
+          label="Seek voice message"
+          onSeekProgress={handleSeekProgress}
+        />
+      </div>
       <Text className={css.Time} size="B300">
-        {secondsToMinutesAndSeconds(timeLabel)}
+        {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
       </Text>
-      {interacted ? <VoicePlaybackRateButton /> : <VoicePlaybackRatePlaceholder />}
+      <div className={css.Controls}>
+        <VoiceVolumeButton />
+        {interacted ? <VoicePlaybackRateButton /> : <VoicePlaybackRatePlaceholder />}
+      </div>
       <audio
         className={css.Audio}
         controls={false}
@@ -186,7 +241,8 @@ export function VoiceAudioContent({
         onLoadedMetadata={handleLoadedMetadata}
         onPlay={() => {
           setInteracted(true);
-          applyCurrentPlaybackRate();
+          applyCurrentVoiceSettings();
+          updatePlayTimeFromAudio();
           applyPendingSeek();
           setAutoPlayOnLoad(false);
         }}

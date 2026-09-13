@@ -27,7 +27,7 @@ export const millisecondsToMinutes = (milliseconds: number): string => {
 
 export const secondsToMinutesAndSeconds = (seconds: number): string => {
   const mm = Math.floor(seconds / 60);
-  const ss = Math.round(seconds % 60);
+  const ss = Math.floor(seconds % 60);
   return `${mm}:${ss < 10 ? '0' : ''}${ss}`;
 };
 
