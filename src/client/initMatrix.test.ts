@@ -24,6 +24,7 @@ import {
 } from '../app/state/sessions';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
+import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
 import { clearIOSPushState } from '../app/utils/iosPush';
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
@@ -52,6 +53,10 @@ vi.mock('../app/features/room/threadEventCache', () => ({
 
 vi.mock('../app/features/room/roomEventCache', () => ({
   deleteRoomEventCache: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../app/features/room/threadSummaryCache', () => ({
+  deleteThreadSummaryCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../app/utils/iosPush', () => ({
@@ -243,6 +248,7 @@ describe('clearCacheAndReload', () => {
     });
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -301,6 +307,7 @@ describe('clearCacheAndReload', () => {
     });
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
+    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
@@ -417,6 +424,7 @@ describe('logoutClient', () => {
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(sessionId);
+    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -561,6 +569,7 @@ describe('clearLoginData', () => {
     ]);
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(session.sessionId);
+    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(session.sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
     LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
       expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
@@ -873,6 +882,7 @@ describe('removeStoredSession', () => {
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
     expect(vi.mocked(deleteThreadEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(deleteRoomEventCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
+    expect(vi.mocked(deleteThreadSummaryCache)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(inactiveSession.sessionId);
     expect(getSessionStore().sessions.map((session) => session.sessionId)).toEqual([
       activeSession.sessionId,

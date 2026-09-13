@@ -28,7 +28,7 @@ export const isIntersectingScrollView = (
 };
 
 export const isInScrollView = (scrollElement: HTMLElement, childElement: HTMLElement): boolean => {
-  const scrollTop = scrollElement.offsetTop + scrollElement.scrollTop;
+  const scrollTop = scrollElement.scrollTop;
   const scrollBottom = scrollTop + scrollElement.offsetHeight;
   return (
     childElement.offsetTop >= scrollTop &&

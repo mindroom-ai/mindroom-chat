@@ -54,6 +54,7 @@ type VirtualPaginatorOptions<TScrollElement extends HTMLElement> = {
   getScrollElement: () => TScrollElement | null;
   getItemElement: (index: number) => HTMLElement | undefined;
   onEnd?: (back: boolean) => void;
+  shouldSuppressPagination?: () => boolean;
 };
 
 type VirtualPaginator = {
@@ -162,7 +163,16 @@ const useObserveAnchorHandle = (
 export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
   options: VirtualPaginatorOptions<TScrollElement>
 ): VirtualPaginator => {
-  const { count, limit, range, onRangeChange, getScrollElement, getItemElement, onEnd } = options;
+  const {
+    count,
+    limit,
+    range,
+    onRangeChange,
+    getScrollElement,
+    getItemElement,
+    onEnd,
+    shouldSuppressPagination,
+  } = options;
 
   const initialRenderRef = useRef(true);
 
@@ -266,6 +276,8 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
 
   const paginate = useCallback(
     (direction: Direction) => {
+      if (shouldSuppressPagination?.()) return;
+
       const scrollEl = getScrollElement();
       const { range: currentRange, limit: currentLimit, count: currentCount } = propRef.current;
       let { start, end } = currentRange;
@@ -312,7 +324,7 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
         end,
       });
     },
-    [getScrollElement, getItemElement, onEnd, onRangeChange]
+    [getScrollElement, getItemElement, onEnd, onRangeChange, shouldSuppressPagination]
   );
 
   const handlePaginatorElIntersection: OnIntersectionCallback = useCallback(

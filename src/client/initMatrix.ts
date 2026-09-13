@@ -9,6 +9,8 @@ import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
 import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
 import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
+import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
+
 import { clearIOSPushState } from '../app/utils/iosPush';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
@@ -214,6 +216,7 @@ export const deleteSessionLocalData = async (
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
     deleteThreadEventCache(session.sessionId),
     deleteRoomEventCache(session.sessionId),
+    deleteThreadSummaryCache(session.sessionId),
   ]);
   clearIOSPushState(session.sessionId);
 };
@@ -266,6 +269,7 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
     clearMatrixClientStores(mx, activeSession),
     activeSession ? deleteThreadEventCache(activeSession.sessionId) : Promise.resolve(),
     activeSession ? deleteRoomEventCache(activeSession.sessionId) : Promise.resolve(),
+    activeSession ? deleteThreadSummaryCache(activeSession.sessionId) : Promise.resolve(),
   ]);
   window.location.reload();
 };
@@ -370,6 +374,7 @@ export const clearLoginData = async () => {
       Promise.all([
         deleteThreadEventCache(session.sessionId),
         deleteRoomEventCache(session.sessionId),
+        deleteThreadSummaryCache(session.sessionId),
       ]).catch(() => undefined)
     )
   );

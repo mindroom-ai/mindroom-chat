@@ -1,10 +1,18 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
 
-const { passthrough } = vi.hoisted(() => ({
+const { passthrough, threadListState, resolutionMap } = vi.hoisted(() => ({
   passthrough: 'div',
+  threadListState: {
+    threads: [],
+    loading: false,
+    fullyLoaded: false,
+    error: new Error('boom') as Error | undefined,
+    retry: vi.fn(),
+  },
+  resolutionMap: new Map<string, { isResolved: boolean }>(),
 }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -31,17 +39,38 @@ vi.mock('./RoomThreadOverview.css', () => ({
   FilterRow: 'FilterRow',
 }));
 
+vi.mock('./useRoomThreadList', () => ({
+  useRoomThreadList: () => threadListState,
+}));
+
+vi.mock('./useRoomThreadResolution', () => ({
+  useRoomThreadResolutionMap: () => resolutionMap,
+}));
+
 describe('RoomThreadOverview', () => {
+  beforeEach(() => {
+    threadListState.threads = [];
+    threadListState.loading = false;
+    threadListState.fullyLoaded = false;
+    threadListState.error = new Error('boom');
+    threadListState.retry = vi.fn();
+    resolutionMap.clear();
+  });
+
   it('uses the controlled filter state for chip selection and callbacks', () => {
+    threadListState.threads = [{ id: '$a' }, { id: '$b' }] as never[];
+    threadListState.fullyLoaded = true;
+    threadListState.error = undefined;
+    resolutionMap.set('$b', { isResolved: true });
+
+    const room = {
+      roomId: '!room:example.org',
+    };
     const onFilterChange = vi.fn();
 
     const renderer = create(
       React.createElement(RoomThreadOverview, {
-        counts: {
-          unresolved: 1,
-          resolved: 1,
-          all: 2,
-        },
+        room: room as never,
         filter: 'resolved',
         onFilterChange,
       })
@@ -68,14 +97,39 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('renders exact count labels from props', () => {
+  it('shows placeholder counts while the thread list is still loading', () => {
+    threadListState.loading = true;
+    threadListState.error = undefined;
+
+    const room = {
+      roomId: '!room:example.org',
+    };
+
     const renderer = create(
       React.createElement(RoomThreadOverview, {
-        counts: {
-          unresolved: 0,
-          resolved: 2,
-          all: 2,
-        },
+        room: room as never,
+        filter: 'all',
+        onFilterChange: vi.fn(),
+      })
+    );
+
+    expect(renderer.root.findAll((node) => node.children.includes('Unresolved (-)'))).toHaveLength(
+      1
+    );
+    expect(renderer.root.findAll((node) => node.children.includes('Resolved (-)'))).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('All (-)'))).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('shows retry UI when the thread list fails to load', () => {
+    const room = {
+      roomId: '!room:example.org',
+    };
+
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        room: room as never,
         filter: 'all',
         onFilterChange: vi.fn(),
       })
@@ -83,10 +137,8 @@ describe('RoomThreadOverview', () => {
 
     const renderedText = JSON.stringify(renderer.toJSON());
 
-    expect(renderedText).toContain('Counts reflect currently loaded thread roots.');
-    expect(renderedText).toContain('Unresolved (0)');
-    expect(renderedText).toContain('Resolved (2)');
-    expect(renderedText).toContain('All (2)');
+    expect(renderedText).toContain('boom');
+    expect(renderedText).toContain('Retry');
 
     renderer.unmount();
   });
