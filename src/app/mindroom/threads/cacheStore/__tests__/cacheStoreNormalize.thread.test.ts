@@ -7,7 +7,7 @@ import {
   filterPageableCachedThreadEvents,
   getCachedThreadSummaryInfoFromRawEvent,
   getThreadCursorAnchor,
-  loadCachedThreadPaginationToken,
+  loadCachedThreadEventsBefore,
   mergeThreadCacheFlag,
   normalizeCachedThreadEvents,
 } from '../index';
@@ -83,9 +83,7 @@ describe('normalizeCachedThreadEvents', () => {
 
   it('excludes local echo replies from normalized output', () => {
     expect(
-      normalizeCachedThreadEvents([
-        { event_id: '~!local-only', origin_server_ts: 100 },
-      ])
+      normalizeCachedThreadEvents([{ event_id: '~!local-only', origin_server_ts: 100 }])
     ).toEqual([]);
   });
 
@@ -100,10 +98,10 @@ describe('normalizeCachedThreadEvents', () => {
 
   it('excludes local echo rootEvent but keeps confirmed replies', () => {
     expect(
-      normalizeCachedThreadEvents(
-        [{ event_id: '$reply', origin_server_ts: 200 }],
-        { event_id: '~!local-root', origin_server_ts: 100 }
-      )
+      normalizeCachedThreadEvents([{ event_id: '$reply', origin_server_ts: 200 }], {
+        event_id: '~!local-root',
+        origin_server_ts: 100,
+      })
     ).toEqual([{ event_id: '$reply', origin_server_ts: 200 }]);
   });
 
@@ -139,27 +137,35 @@ describe('filterPageableCachedThreadEvents', () => {
   });
 });
 
-describe('loadCachedThreadPaginationToken', () => {
-  it('returns undefined when indexedDB is not available', async () => {
-    const result = await loadCachedThreadPaginationToken(
+describe('loadCachedThreadEventsBefore (no-DB fallback)', () => {
+  // Kept as a smoke test for the production paginator's undefined-token
+  // behavior when IndexedDB is absent — reconcileThreadBackwardPagination
+  // preserves the SDK token in that case, which is the safe fallback
+  // that avoids overwriting legitimate state.
+  const anchor = { eventId: '$anchor', ts: 500 };
+
+  it('returns an empty page with undefined beforeToken when indexedDB is not available', async () => {
+    const page = await loadCachedThreadEventsBefore(
       'session',
       '!room:example.org',
       '$thread',
-      '$event'
+      anchor,
+      10
     );
-    expect(result).toBeUndefined();
+    expect(page.events).toEqual([]);
+    expect(page.beforeToken).toBeUndefined();
   });
 
-  it('returns undefined (no cache data) for any event when DB is unavailable', async () => {
-    // When undefined is returned, reconcileThreadBackwardPagination preserves the
-    // SDK token — this is the safe fallback that avoids overwriting legitimate state.
-    const result = await loadCachedThreadPaginationToken(
+  it('returns an empty page for any anchor when the DB is unavailable', async () => {
+    const page = await loadCachedThreadEventsBefore(
       'session',
       '!room:example.org',
       '$thread',
-      '$unknown-event'
+      { eventId: '$unknown-event', ts: 1 },
+      10
     );
-    expect(result).toBeUndefined();
+    expect(page.events).toEqual([]);
+    expect(page.beforeToken).toBeUndefined();
   });
 });
 

@@ -230,7 +230,8 @@
     "removing": "Removing...",
     "removeFromDevice": "Remove from Device",
     "addAccount": "Add Account",
-    "close": "Close"
+    "close": "Close",
+    "actionError": "Could not update this account. Please try again."
   },
   "recentThreads": {
     "title": "Recent Threads",

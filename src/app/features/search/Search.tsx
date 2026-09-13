@@ -58,6 +58,7 @@ import { searchModalAtom } from '../../state/searchModal';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { KeySymbol } from '../../utils/key-symbol';
+import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { isMacOS } from '../../utils/user-agent';
 
 enum SearchRoomType {
@@ -434,10 +435,7 @@ export function SearchModalRenderer() {
             return;
           }
 
-          const portalContainer = document.getElementById('portalContainer');
-          if (portalContainer && portalContainer.children.length > 0) {
-            return;
-          }
+          if (hasBlockingPortalOverlay()) return;
           setOpen(true);
         }
       },

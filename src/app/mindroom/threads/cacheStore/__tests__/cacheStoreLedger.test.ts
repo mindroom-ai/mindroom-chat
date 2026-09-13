@@ -138,8 +138,7 @@ describe('CINNY-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
-    const expectedBytes =
-      estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[1]);
+    const expectedBytes = estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[1]);
     expect(ledger).toBeDefined();
     expect(ledger?.approxBytes).toBe(expectedBytes);
     expect(ledger?.eventCount).toBe(2);
@@ -182,8 +181,7 @@ describe('CINNY-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
-    const expectedBytes =
-      estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[2]);
+    const expectedBytes = estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[2]);
     expect(ledger?.approxBytes).toBe(expectedBytes);
     expect(ledger?.eventCount).toBe(2);
   });
@@ -269,13 +267,7 @@ describe('CINNY-207 P2.2 commit 1: cacheStore ledger', () => {
 
     // Meta-only write: rootEvent supplied, no pageable events.
     const rootEvent = makeRawEvent(THREAD_ID, 50, 5);
-    await cacheStore.saveThreadEventsToCache(
-      SESSION_ID,
-      ROOM_ID,
-      THREAD_ID,
-      [],
-      rootEvent
-    );
+    await cacheStore.saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [], rootEvent);
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
@@ -303,8 +295,7 @@ describe('CINNY-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
-    const expectedBytes =
-      estimateRawEventBytes(roomEvent) + estimateRawEventBytes(reply);
+    const expectedBytes = estimateRawEventBytes(roomEvent) + estimateRawEventBytes(reply);
     expect(ledger?.approxBytes).toBe(expectedBytes);
     // 1 room event + 1 thread reply (root is filtered out of the pageable
     // set by filterPageableCachedThreadEvents).
@@ -352,16 +343,23 @@ describe('CINNY-207 P2.2 commit 1: cacheStore ledger', () => {
     await cacheStore.noteThreadOpened(SESSION_ID, ROOM_ID, THREAD_ID);
 
     const db = await openTestDb(dbName);
-    const meta = (await readMeta(db, ROOM_ID, THREAD_ID)) as
+    const openedMeta = (await readMeta(db, ROOM_ID, THREAD_ID)) as
       | {
           lastOpenedTs?: number;
           snapshotComplete?: boolean;
           rootEvent?: { event_id?: string };
         }
       | undefined;
-    expect(meta?.lastOpenedTs).toBeGreaterThan(0);
+    expect(openedMeta?.lastOpenedTs).toBeGreaterThan(0);
+
+    await cacheStore.saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [
+      makeRawEvent('$later-reply', 200, 10),
+    ]);
+    const savedMeta = (await readMeta(db, ROOM_ID, THREAD_ID)) as typeof openedMeta;
+
+    expect(savedMeta?.lastOpenedTs).toBe(openedMeta?.lastOpenedTs);
     // Prior fields survive.
-    expect(meta?.snapshotComplete).toBe(true);
-    expect(meta?.rootEvent?.event_id).toBe(THREAD_ID);
+    expect(savedMeta?.snapshotComplete).toBe(true);
+    expect(savedMeta?.rootEvent?.event_id).toBe(THREAD_ID);
   });
 });

@@ -230,7 +230,8 @@
     "removing": "Wird entfernt...",
     "removeFromDevice": "Von diesem Gerät entfernen",
     "addAccount": "Konto hinzufügen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "actionError": "Das Konto konnte nicht aktualisiert werden. Bitte versuche es erneut."
   },
   "recentThreads": {
     "title": "Letzte Threads",

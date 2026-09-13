@@ -132,9 +132,10 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
       if (isReExport) continue;
       // Only match import statements, not comments.
       if (/from\s+['"][^'"]*['"];?\s*$/m.test(source)) {
-        const importsFromEngine = /import\s+\{[^}]*fetchAllThreadRelations[^}]*\}\s+from\s+['"][^'"]*engine['"]/.test(
-          source
-        );
+        const importsFromEngine =
+          /import\s+\{[^}]*fetchAllThreadRelations[^}]*\}\s+from\s+['"][^'"]*engine['"]/.test(
+            source
+          );
         if (importsFromEngine) {
           nonEngineImporters.push(rel);
         }
@@ -156,8 +157,8 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     // `(roomId, threadId, 'thread-backfill')` key resolves to a
     // consistent `Promise<ThreadBackfillResult>` for every producer.
     // The thread-OPEN path no longer enqueues this kind at all — the
-    // 2026-07-06 consolidation deleted its backfill leg (see the
-    // tripwire in RoomTimeline.architecture.test.ts).
+    // 2026-07-06 consolidation deleted its backfill leg. The
+    // nonEngineImporters assertion below pins this ownership boundary.
     // No non-engine importers should remain.
     //
     // NOTE: `notifications/readReceipts.ts` uses `mx.fetchRelations`
@@ -279,9 +280,7 @@ describe('engine framework-agnostic boundary (library-extraction guard)', () => 
   };
 
   it('no engine/** module imports react except the engineContext.tsx seam', () => {
-    const offenders = engineReactImporters().filter(
-      (rel) => !REACT_SEAM_ALLOWLIST.includes(rel)
-    );
+    const offenders = engineReactImporters().filter((rel) => !REACT_SEAM_ALLOWLIST.includes(rel));
     expect(offenders).toEqual([]);
   });
 

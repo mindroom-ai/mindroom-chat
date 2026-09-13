@@ -4,6 +4,12 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from '../../state/utils/atomWithLocalStorage';
+import {
+  getSafeLocalStorage,
+  getStorageItemSafe,
+  getStorageKeysSafe,
+  removeStorageItemSafe,
+} from '../../utils/safeLocalStorage';
 
 const ROOM_VIEW_MODE = 'roomViewMode';
 
@@ -20,29 +26,51 @@ export const sanitizeRoomViewMode = (value: unknown): RoomViewMode => {
   return DEFAULT_ROOM_VIEW_MODE;
 };
 
-export const getRoomViewModeStorageKey = (roomId: string): string => `${ROOM_VIEW_MODE}:${roomId}`;
+const getLegacyRoomViewModeStorageKey = (roomId: string): string => `${ROOM_VIEW_MODE}:${roomId}`;
 
-export const getRoomViewMode = (roomId: string): RoomViewMode =>
-  typeof globalThis.localStorage?.getItem === 'function'
-    ? sanitizeRoomViewMode(
-        getLocalStorageItem<unknown>(getRoomViewModeStorageKey(roomId), DEFAULT_ROOM_VIEW_MODE)
-      )
-    : DEFAULT_ROOM_VIEW_MODE;
+export const getRoomViewModeStorageKey = (sessionId: string, roomId: string): string =>
+  `${ROOM_VIEW_MODE}:${sessionId}:${roomId}`;
 
-const getStoredRoomViewMode = (key: string): RoomViewMode =>
-  typeof globalThis.localStorage?.getItem === 'function'
-    ? sanitizeRoomViewMode(getLocalStorageItem<unknown>(key, DEFAULT_ROOM_VIEW_MODE))
-    : DEFAULT_ROOM_VIEW_MODE;
+const getStoredRoomViewMode = (key: string, legacyKey: string): RoomViewMode => {
+  const storage = getSafeLocalStorage();
+  if (getStorageItemSafe(storage, key) !== null) {
+    return sanitizeRoomViewMode(getLocalStorageItem<unknown>(key, DEFAULT_ROOM_VIEW_MODE));
+  }
+  if (getStorageItemSafe(storage, legacyKey) === null) return DEFAULT_ROOM_VIEW_MODE;
 
-const setStoredRoomViewMode = (key: string, value: RoomViewMode) => {
-  if (typeof globalThis.localStorage?.setItem !== 'function') return;
-  setLocalStorageItem(key, value);
+  const migrated = sanitizeRoomViewMode(
+    getLocalStorageItem<unknown>(legacyKey, DEFAULT_ROOM_VIEW_MODE)
+  );
+  if (setLocalStorageItem(key, migrated)) removeStorageItemSafe(storage, legacyKey);
+  return migrated;
 };
 
-export const roomViewModeAtomFamily = atomFamily((roomId: string) =>
-  atomWithLocalStorage<RoomViewMode>(
-    getRoomViewModeStorageKey(roomId),
-    getStoredRoomViewMode,
-    setStoredRoomViewMode
-  )
-);
+const createRoomViewModeAtomFamily = (sessionId: string) =>
+  atomFamily((roomId: string) => {
+    const storageKey = getRoomViewModeStorageKey(sessionId, roomId);
+    return atomWithLocalStorage<RoomViewMode>(
+      storageKey,
+      (key) => getStoredRoomViewMode(key, getLegacyRoomViewModeStorageKey(roomId)),
+      setLocalStorageItem
+    );
+  });
+
+const roomViewModeAtomFamilies = new Map<string, ReturnType<typeof createRoomViewModeAtomFamily>>();
+
+export const roomViewModeAtomFamily = (sessionId: string, roomId: string) => {
+  let family = roomViewModeAtomFamilies.get(sessionId);
+  if (!family) {
+    family = createRoomViewModeAtomFamily(sessionId);
+    roomViewModeAtomFamilies.set(sessionId, family);
+  }
+  return family(roomId);
+};
+
+export const clearRoomViewModeStore = (sessionId: string): void => {
+  const storage = getSafeLocalStorage();
+  const storagePrefix = `${ROOM_VIEW_MODE}:${sessionId}:`;
+  getStorageKeysSafe(storage)
+    .filter((key) => key.startsWith(storagePrefix))
+    .forEach((key) => removeStorageItemSafe(storage, key));
+  roomViewModeAtomFamilies.delete(sessionId);
+};

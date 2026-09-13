@@ -716,8 +716,10 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'Warm cache response',
     };
 
-    await actualMindroomLongText.hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify(resolvedContent)
+    await actualMindroomLongText.hydrateMindroomLongTextSource(
+      source,
+      async () => JSON.stringify(resolvedContent),
+      mockMx
     );
 
     const { onResolvedContent, renderer } = await renderResolvedContentProbe(source, true);
@@ -856,8 +858,10 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'B body',
     };
 
-    await actualMindroomLongText.hydrateMindroomLongTextSource(sourceA, async () =>
-      JSON.stringify(resolvedContentA)
+    await actualMindroomLongText.hydrateMindroomLongTextSource(
+      sourceA,
+      async () => JSON.stringify(resolvedContentA),
+      mockMx
     );
     matrixMocks.downloadMedia.mockImplementation(() => deferred.promise);
 

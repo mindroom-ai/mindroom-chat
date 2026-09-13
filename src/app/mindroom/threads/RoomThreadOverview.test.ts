@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
+import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -18,8 +19,7 @@ vi.mock('folds', async (importOriginal) => {
     Icon: passthrough,
     Text: passthrough,
     Tooltip: passthrough,
-    TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) =>
-      children(null),
+    TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) => children(null),
   };
 });
 
@@ -87,8 +87,7 @@ vi.mock('@tabler/icons-react', async (importOriginal) => {
 });
 
 vi.mock('classnames', () => ({
-  default: (...args: (string | boolean | undefined | null)[]) =>
-    args.filter(Boolean).join(' '),
+  default: (...args: (string | boolean | undefined | null)[]) => args.filter(Boolean).join(' '),
 }));
 
 // Resolve t() keys against the real en.json so the aria/tooltip assertions
@@ -109,7 +108,8 @@ const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterS
   sortBy: 'natural',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
   ...overrides,
 });
@@ -135,9 +135,7 @@ const defaultProps = {
 
 describe('RoomThreadOverview', () => {
   it('renders five icon toggles', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
     const buttons = renderer.root.findAll(
       (node) => node.type === 'button' && node.props['data-filter-key']
@@ -158,9 +156,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const resolvedBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'resolved'
-    );
+    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
     expect(resolvedBtn.props['data-filter-state']).toBe('include');
     expect(resolvedBtn.props.className).toContain('ToggleInclude');
 
@@ -226,9 +222,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const resolvedBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'resolved'
-    );
+    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
 
     act(() => {
       resolvedBtn.props.onClick();
@@ -247,22 +241,16 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const resolvedBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'resolved'
-    );
+    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
     expect(resolvedBtn.props['aria-valuetext']).toBe('show only');
 
     renderer.unmount();
   });
 
   it('sort button shows Natural by default', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
-    const sortBtn = renderer.root.find(
-      (node) => node.props['data-sort-by'] !== undefined
-    );
+    const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props['data-sort-by']).toBe('natural');
 
     renderer.unmount();
@@ -276,9 +264,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const sortBtn = renderer.root.find(
-      (node) => node.props['data-sort-by'] !== undefined
-    );
+    const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props['data-sort-by']).toBe('lastReply');
     expect(sortBtn.props['data-sort-direction']).toBe('desc');
 
@@ -294,9 +280,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const sortBtn = renderer.root.find(
-      (node) => node.props['data-sort-by'] !== undefined
-    );
+    const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
 
     act(() => {
       sortBtn.props.onClick();
@@ -308,9 +292,7 @@ describe('RoomThreadOverview', () => {
   });
 
   it('hides the freeze button when sort is natural', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
     expect(
       renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
@@ -388,18 +370,14 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const sortBtn = renderer.root.find(
-      (node) => node.props['data-sort-by'] !== undefined
-    );
+    const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props.className).toContain('SortButtonActive');
 
     renderer.unmount();
   });
 
   it('renders three room view mode buttons with threaded mode active', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
     const viewToggles = renderer.root.findAll(
       (node) => node.props['data-view-mode-toggle'] === 'true'
@@ -409,11 +387,7 @@ describe('RoomThreadOverview', () => {
       'threaded',
       'classic',
     ]);
-    expect(viewToggles.map((button) => button.props['aria-pressed'])).toEqual([
-      false,
-      true,
-      false,
-    ]);
+    expect(viewToggles.map((button) => button.props['aria-pressed'])).toEqual([false, true, false]);
     expect(viewToggles[1].props.className).toContain('SortButtonActive');
 
     renderer.unmount();
@@ -430,8 +404,7 @@ describe('RoomThreadOverview', () => {
 
     const compactToggle = renderer.root.find(
       (node) =>
-        node.props['data-view-mode-toggle'] === 'true' &&
-        node.props['data-view-mode'] === 'compact'
+        node.props['data-view-mode-toggle'] === 'true' && node.props['data-view-mode'] === 'compact'
     );
 
     act(() => {
@@ -458,9 +431,7 @@ describe('RoomThreadOverview', () => {
     expect(oldFormat).toHaveLength(0);
 
     // Should render compact count with data attribute
-    const countElement = renderer.root.find(
-      (node) => node.props['data-thread-count'] === 'true'
-    );
+    const countElement = renderer.root.find((node) => node.props['data-thread-count'] === 'true');
     expect(countElement).toBeTruthy();
 
     renderer.unmount();
@@ -546,40 +517,28 @@ describe('RoomThreadOverview', () => {
   // ═══ Preset dropdown ══════════════════════════════════════════════════
 
   it('renders preset button', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
-    const presetBtn = renderer.root.findAll(
-      (node) => node.props['data-preset-button'] === 'true'
-    );
+    const presetBtn = renderer.root.findAll((node) => node.props['data-preset-button'] === 'true');
     expect(presetBtn).toHaveLength(1);
 
     renderer.unmount();
   });
 
   it('opens preset dropdown on click', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
-    const presetBtn = renderer.root.find(
-      (node) => node.props['data-preset-button'] === 'true'
-    );
+    const presetBtn = renderer.root.find((node) => node.props['data-preset-button'] === 'true');
 
     act(() => {
       presetBtn.props.onClick();
     });
 
-    const dropdown = renderer.root.findAll(
-      (node) => node.props['data-preset-dropdown'] === 'true'
-    );
+    const dropdown = renderer.root.findAll((node) => node.props['data-preset-dropdown'] === 'true');
     expect(dropdown).toHaveLength(1);
 
     // Should have 5 preset options
-    const options = renderer.root.findAll(
-      (node) => node.props['data-preset-option'] !== undefined
-    );
+    const options = renderer.root.findAll((node) => node.props['data-preset-option'] !== undefined);
     expect(options).toHaveLength(5);
 
     renderer.unmount();
@@ -596,9 +555,7 @@ describe('RoomThreadOverview', () => {
     );
 
     // Open dropdown
-    const presetBtn = renderer.root.find(
-      (node) => node.props['data-preset-button'] === 'true'
-    );
+    const presetBtn = renderer.root.find((node) => node.props['data-preset-button'] === 'true');
     act(() => {
       presetBtn.props.onClick();
     });
@@ -620,13 +577,9 @@ describe('RoomThreadOverview', () => {
   // ═══ Info popover ═════════════════════════════════════════════════════
 
   it('renders info button', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
-    const infoBtn = renderer.root.findAll(
-      (node) => node.props['data-info-button'] === 'true'
-    );
+    const infoBtn = renderer.root.findAll((node) => node.props['data-info-button'] === 'true');
     expect(infoBtn).toHaveLength(1);
 
     renderer.unmount();
@@ -641,17 +594,13 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const infoBtn = renderer.root.find(
-      (node) => node.props['data-info-button'] === 'true'
-    );
+    const infoBtn = renderer.root.find((node) => node.props['data-info-button'] === 'true');
 
     act(() => {
       infoBtn.props.onClick();
     });
 
-    const popover = renderer.root.findAll(
-      (node) => node.props['data-info-popover'] === 'true'
-    );
+    const popover = renderer.root.findAll((node) => node.props['data-info-popover'] === 'true');
     expect(popover).toHaveLength(1);
 
     renderer.unmount();
@@ -660,41 +609,29 @@ describe('RoomThreadOverview', () => {
   // ═══ Search bar ═══════════════════════════════════════════════════════
 
   it('renders search toggle button', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
-    const searchBtn = renderer.root.findAll(
-      (node) => node.props['data-search-toggle'] === 'true'
-    );
+    const searchBtn = renderer.root.findAll((node) => node.props['data-search-toggle'] === 'true');
     expect(searchBtn).toHaveLength(1);
 
     renderer.unmount();
   });
 
   it('expands search input on click', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, defaultProps)
-    );
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
     // Initially no input
-    let inputs = renderer.root.findAll(
-      (node) => node.props['data-search-input'] === 'true'
-    );
+    let inputs = renderer.root.findAll((node) => node.props['data-search-input'] === 'true');
     expect(inputs).toHaveLength(0);
 
     // Click search toggle
-    const searchBtn = renderer.root.find(
-      (node) => node.props['data-search-toggle'] === 'true'
-    );
+    const searchBtn = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
     act(() => {
       searchBtn.props.onClick();
     });
 
     // Now input should be visible
-    inputs = renderer.root.findAll(
-      (node) => node.props['data-search-input'] === 'true'
-    );
+    inputs = renderer.root.findAll((node) => node.props['data-search-input'] === 'true');
     expect(inputs).toHaveLength(1);
 
     renderer.unmount();
@@ -707,22 +644,18 @@ describe('RoomThreadOverview', () => {
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
         onSearchQueryChange,
-        state: makeDefaultState({ searchQuery: '' }),
+        state: makeDefaultState({ freeText: '' }),
       })
     );
 
     // Expand search
-    const searchBtn = renderer.root.find(
-      (node) => node.props['data-search-toggle'] === 'true'
-    );
+    const searchBtn = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
     act(() => {
       searchBtn.props.onClick();
     });
 
     // Type in input
-    const input = renderer.root.find(
-      (node) => node.props['data-search-input'] === 'true'
-    );
+    const input = renderer.root.find((node) => node.props['data-search-input'] === 'true');
     act(() => {
       input.props.onChange({ target: { value: 'test query' } });
     });
@@ -732,24 +665,61 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
+  it('preserves spaces across controlled sequential search keystrokes', () => {
+    function Harness() {
+      const [state, setState] = React.useState(makeDefaultState());
+      return React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        state,
+        onSearchQueryChange: (query: string) =>
+          setState((current) =>
+            applyParsedThreadFilterQuery(current, parseThreadFilterQuery(query))
+          ),
+        onToggle: (key: keyof ThreadFilterState) =>
+          setState((current) => ({ ...current, [key]: 'include' })),
+      });
+    }
+
+    const renderer = create(React.createElement(Harness));
+    act(() => {
+      renderer.root.find((node) => node.props['data-search-toggle'] === 'true').props.onClick();
+    });
+
+    for (const value of ['hello', 'hello ', 'hello w', 'hello world']) {
+      act(() => {
+        renderer.root
+          .find((node) => node.props['data-search-input'] === 'true')
+          .props.onChange({ target: { value } });
+      });
+      expect(
+        renderer.root.find((node) => node.props['data-search-input'] === 'true').props.value
+      ).toBe(value);
+    }
+
+    act(() => {
+      renderer.root.find((node) => node.props['data-filter-key'] === 'resolved').props.onClick();
+    });
+    expect(
+      renderer.root.find((node) => node.props['data-search-input'] === 'true').props.value
+    ).toBe('is:resolved hello world');
+
+    renderer.unmount();
+  });
+
   it('renders the search placeholder as visible text instead of a raw unicode escape', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        state: makeDefaultState({ searchQuery: '' }),
+        state: makeDefaultState({ freeText: '' }),
       })
     );
 
-    const searchBtn = renderer.root.find(
-      (node) => node.props['data-search-toggle'] === 'true'
-    );
+    const searchBtn = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
     act(() => {
       searchBtn.props.onClick();
     });
 
-    const input = renderer.root.find(
-      (node) => node.props['data-search-input'] === 'true'
-    );
+    const input = renderer.root.find((node) => node.props['data-search-input'] === 'true');
     expect(input.props.placeholder).toBe('Search threads...');
     expect(input.props.placeholder).not.toContain('\\u2026');
 
@@ -772,15 +742,11 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const resolvedPill = renderer.root.find(
-      (node) => node.props['data-tag-name'] === 'resolved'
-    );
+    const resolvedPill = renderer.root.find((node) => node.props['data-tag-name'] === 'resolved');
     expect(resolvedPill.props['data-tag-state']).toBe('include');
     expect(resolvedPill.props.className).toContain('TagPillInclude');
 
-    const blockedPill = renderer.root.find(
-      (node) => node.props['data-tag-name'] === 'blocked'
-    );
+    const blockedPill = renderer.root.find((node) => node.props['data-tag-name'] === 'blocked');
     expect(blockedPill.props['data-tag-state']).toBe('exclude');
     expect(blockedPill.props.className).toContain('TagPillExclude');
 
@@ -802,9 +768,7 @@ describe('RoomThreadOverview', () => {
     );
 
     const labelBtn = renderer.root.find(
-      (node) =>
-        node.type === 'button' &&
-        node.props.className === 'TagPillLabel'
+      (node) => node.type === 'button' && node.props.className === 'TagPillLabel'
     );
 
     act(() => {
@@ -831,9 +795,7 @@ describe('RoomThreadOverview', () => {
     );
 
     const removeBtn = renderer.root.find(
-      (node) =>
-        node.type === 'button' &&
-        node.props['aria-label'] === 'Remove resolved filter'
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Remove resolved filter'
     );
 
     act(() => {
@@ -855,9 +817,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const addBtn = renderer.root.findAll(
-      (node) => node.props['data-add-tag-button'] === 'true'
-    );
+    const addBtn = renderer.root.findAll((node) => node.props['data-add-tag-button'] === 'true');
     expect(addBtn).toHaveLength(1);
 
     renderer.unmount();
@@ -874,9 +834,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const addBtns = renderer.root.findAll(
-      (node) => node.props['data-add-tag-button'] === 'true'
-    );
+    const addBtns = renderer.root.findAll((node) => node.props['data-add-tag-button'] === 'true');
     expect(addBtns).toHaveLength(0);
 
     renderer.unmount();
@@ -894,23 +852,17 @@ describe('RoomThreadOverview', () => {
     );
 
     // Dropdown should not be visible initially
-    let options = renderer.root.findAll(
-      (node) => node.props['data-tag-option'] !== undefined
-    );
+    let options = renderer.root.findAll((node) => node.props['data-tag-option'] !== undefined);
     expect(options).toHaveLength(0);
 
     // Click the add-tag button
-    const addBtn = renderer.root.find(
-      (node) => node.props['data-add-tag-button'] === 'true'
-    );
+    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
     act(() => {
       addBtn.props.onClick();
     });
 
     // Now dropdown should show unselected tags
-    options = renderer.root.findAll(
-      (node) => node.props['data-tag-option'] !== undefined
-    );
+    options = renderer.root.findAll((node) => node.props['data-tag-option'] !== undefined);
     expect(options).toHaveLength(2);
     expect(options.map((o) => o.props['data-tag-option'])).toEqual(['blocked', 'priority']);
 
@@ -929,18 +881,14 @@ describe('RoomThreadOverview', () => {
     );
 
     // Open dropdown
-    const addBtn = renderer.root.find(
-      (node) => node.props['data-add-tag-button'] === 'true'
-    );
+    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
     act(() => {
       addBtn.props.onClick();
     });
 
     // Verify no onClick handler exists on the option (check before selecting,
     // since selection closes the dropdown and unmounts the node)
-    const blockedOption = renderer.root.find(
-      (node) => node.props['data-tag-option'] === 'blocked'
-    );
+    const blockedOption = renderer.root.find((node) => node.props['data-tag-option'] === 'blocked');
     expect(blockedOption.props.onClick).toBeUndefined();
 
     // Select via onMouseDown (the only pointer handler)
@@ -966,17 +914,13 @@ describe('RoomThreadOverview', () => {
     );
 
     // Open dropdown
-    const addBtn = renderer.root.find(
-      (node) => node.props['data-add-tag-button'] === 'true'
-    );
+    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
     act(() => {
       addBtn.props.onClick();
     });
 
     // Find the container that has onKeyDown
-    const container = renderer.root.find(
-      (node) => node.props.className === 'AddTagContainer'
-    );
+    const container = renderer.root.find((node) => node.props.className === 'AddTagContainer');
 
     // Press ArrowDown to move to second option
     act(() => {
@@ -1007,9 +951,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const tagRow = renderer.root.findAll(
-      (node) => node.props['data-tag-filter-row'] === 'true'
-    );
+    const tagRow = renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true');
     expect(tagRow).toHaveLength(1);
 
     renderer.unmount();
@@ -1023,9 +965,7 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const tagRows = renderer.root.findAll(
-      (node) => node.props['data-tag-filter-row'] === 'true'
-    );
+    const tagRows = renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true');
     expect(tagRows).toHaveLength(0);
 
     renderer.unmount();

@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { validMediaRequest } from './swMediaAuth';
+import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 
 describe('validMediaRequest', () => {
-  it('accepts root media URLs when base URL has subpath', () => {
+  it('requires the configured homeserver subpath', () => {
     expect(
       validMediaRequest(
         'https://example.com/_matrix/client/v1/media/download/server/mediaId',
         'https://example.com/mindroom'
       )
+    ).toBe(false);
+    expect(
+      validMediaRequest(
+        'https://example.com/mindroom/_matrix/client/v1/media/download/server/mediaId',
+        'https://example.com/mindroom'
+      )
     ).toBe(true);
   });
 
-  it('accepts subpath media URLs when base URL is root', () => {
+  it('rejects arbitrary prefixes for a root homeserver', () => {
     expect(
       validMediaRequest(
         'https://example.com/mindroom/_matrix/client/v1/media/thumbnail/server/mediaId',
         'https://example.com'
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('rejects cross-origin media URLs', () => {
@@ -27,5 +33,29 @@ describe('validMediaRequest', () => {
         'https://example.com/mindroom'
       )
     ).toBe(false);
+  });
+
+  it('rejects endpoint prefix collisions', () => {
+    const nearMisses = [
+      'https://example.com/_matrix/client/v1/media/download-evil/server/mediaId',
+      'https://example.com/_matrix/client/v1/media/thumbnailPreview/server/mediaId',
+    ];
+
+    for (const url of nearMisses) {
+      expect(looksLikeMediaRequest(url)).toBe(false);
+      expect(validMediaRequest(url, 'https://example.com')).toBe(false);
+    }
+  });
+
+  it('accepts exact endpoint path boundaries', () => {
+    expect(looksLikeMediaRequest('https://example.com/_matrix/client/v1/media/download')).toBe(
+      true
+    );
+    expect(
+      validMediaRequest(
+        'https://example.com/_matrix/client/v1/media/download/server/mediaId',
+        'https://example.com'
+      )
+    ).toBe(true);
   });
 });

@@ -86,13 +86,13 @@ const writeStorage = (key: string, value: string) => {
   }
 };
 
-const removeStorage = (key: string) => {
+const removeStorage = (key: string): void => {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.removeItem(key);
     dispatchIOSPushStateEvent();
   } catch {
-    // ignore localStorage write failures in private mode/blocked storage
+    // Best effort, matching the rest of local preference cleanup.
   }
 };
 
@@ -125,6 +125,20 @@ const getLegacyIOSPushEnabled = (): boolean | undefined => {
   }
 
   return undefined;
+};
+
+const getStoredIOSPushEnabled = (key: string): boolean | undefined => {
+  const stored = trimConfigValue(readStorage(key));
+  if (stored === '0' || stored === 'false') return false;
+  if (stored) return true;
+  return undefined;
+};
+
+/** Preserve the old device-wide preference before generic settings rewrites its legacy blob. */
+export const migrateLegacyIOSPushEnabled = (): void => {
+  if (getStoredIOSPushEnabled(PUSH_ENABLED_STORAGE_KEY) !== undefined) return;
+  const legacyValue = getLegacyIOSPushEnabled();
+  if (legacyValue !== undefined) writeStorage(PUSH_ENABLED_STORAGE_KEY, legacyValue ? '1' : '0');
 };
 
 export const isNativeIOSPlatform = (): boolean =>
@@ -160,7 +174,8 @@ export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
 
 export const resolveIOSPushConfig = (
   clientConfig: ClientConfig,
-  sessionId?: string
+  sessionId?: string,
+  appLanguage?: string
 ): IOSPushConfig | undefined => {
   const iosPushConfig = clientConfig.push?.ios;
 
@@ -180,7 +195,7 @@ export const resolveIOSPushConfig = (
       trimConfigValue(iosPushConfig.profileTag) ?? getOrCreateIOSPushProfileTag(sessionId),
     append: iosPushConfig.append !== false,
     format: iosPushConfig.format === 'full' ? 'full' : 'event_id_only',
-    lang: trimConfigValue(iosPushConfig.lang) ?? defaultLanguage(),
+    lang: trimConfigValue(iosPushConfig.lang) ?? trimConfigValue(appLanguage) ?? defaultLanguage(),
   };
 };
 
@@ -256,9 +271,10 @@ export const unregisterIOSPush = async (): Promise<void> => {
 
 export const getIOSPushEnabled = (sessionId?: string): boolean => {
   const storageKey = resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId);
-  const stored = trimConfigValue(readStorage(storageKey));
-  if (stored === '0' || stored === 'false') return false;
-  if (stored) return true;
+  const scopedValue = getStoredIOSPushEnabled(storageKey);
+  if (scopedValue !== undefined) return scopedValue;
+  const globalValue = getStoredIOSPushEnabled(PUSH_ENABLED_STORAGE_KEY);
+  if (globalValue !== undefined) return globalValue;
   const legacyValue = getLegacyIOSPushEnabled();
   if (legacyValue !== undefined) return legacyValue;
   return true;
@@ -286,9 +302,12 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
 };
 
 export const clearIOSPushState = (sessionId?: string) => {
-  clearStoredIOSPushToken(sessionId);
-  removeStorage(resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId));
-  removeStorage(resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId));
+  const storageKeys = [
+    resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
+    resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId),
+    resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId),
+  ];
+  storageKeys.forEach(removeStorage);
 };
 
 export const upsertIOSPushPusher = async (

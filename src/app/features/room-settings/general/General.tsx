@@ -1,5 +1,4 @@
 import React from 'react';
-import { useAtom } from 'jotai';
 import { Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
@@ -16,7 +15,8 @@ import {
 } from '../../common-settings/general';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
-import { roomViewModeAtomFamily, type RoomViewMode } from '../../../mindroom/threads/roomViewMode';
+import type { RoomViewMode } from '../../../mindroom/threads/roomViewMode';
+import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
 
 const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
   compact: 'Compact',
@@ -26,7 +26,7 @@ const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
 
 function RoomTimelineMode() {
   const room = useRoom();
-  const [viewMode, setViewMode] = useAtom(roomViewModeAtomFamily(room.roomId));
+  const { setViewMode, storedViewMode: viewMode } = useRoomViewMode(room.roomId);
 
   return (
     <Box direction="Column" gap="200">

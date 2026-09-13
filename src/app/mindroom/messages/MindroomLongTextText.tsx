@@ -13,6 +13,7 @@ import { MEmote, MNotice, MText } from '../../components/message/MsgTypeRenderer
 import {
   MindroomLongTextSource,
   getCachedMindroomLongTextContent,
+  getMindroomLongTextSourceIdentity,
   hydrateMindroomLongTextSource,
   withMindroomToolTraceFallback,
 } from './longText';
@@ -144,12 +145,13 @@ export const useMindroomLongTextResolvedContent = (
 ): Record<string, unknown> | undefined => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
+  const sourceIdentity = source ? getMindroomLongTextSourceIdentity(source) : undefined;
   const [resolvedEntry, setResolvedEntry] = useState<
-    { mxcUri: string; content: Record<string, unknown> } | undefined
+    { sourceIdentity: string; content: Record<string, unknown> } | undefined
   >(() => {
     if (!source) return undefined;
-    const cachedContent = getCachedMindroomLongTextContent(source);
-    return cachedContent ? { mxcUri: source.mxcUri, content: cachedContent } : undefined;
+    const cachedContent = getCachedMindroomLongTextContent(source, mx);
+    return cachedContent && sourceIdentity ? { sourceIdentity, content: cachedContent } : undefined;
   });
 
   useEffect(() => {
@@ -158,9 +160,12 @@ export const useMindroomLongTextResolvedContent = (
       return undefined;
     }
 
-    const cachedContent = getCachedMindroomLongTextContent(source);
+    const cachedContent = getCachedMindroomLongTextContent(source, mx);
     if (cachedContent) {
-      setResolvedEntry({ mxcUri: source.mxcUri, content: cachedContent });
+      setResolvedEntry({
+        sourceIdentity: getMindroomLongTextSourceIdentity(source),
+        content: cachedContent,
+      });
       return undefined;
     }
 
@@ -171,25 +176,30 @@ export const useMindroomLongTextResolvedContent = (
     let cancelled = false;
 
     void (async () => {
-      const nextContent = await hydrateMindroomLongTextSource(source, (nextSource) =>
-        downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication)
+      const nextContent = await hydrateMindroomLongTextSource(
+        source,
+        (nextSource) => downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication),
+        mx
       );
 
       if (!cancelled) {
-        setResolvedEntry({ mxcUri: source.mxcUri, content: nextContent });
+        setResolvedEntry({
+          sourceIdentity: getMindroomLongTextSourceIdentity(source),
+          content: nextContent,
+        });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [enabled, mx, source, source?.mxcUri, useAuthentication]);
+  }, [enabled, mx, source, sourceIdentity, useAuthentication]);
 
-  if (source && resolvedEntry?.mxcUri === source.mxcUri) {
+  if (sourceIdentity && resolvedEntry?.sourceIdentity === sourceIdentity) {
     return resolvedEntry.content;
   }
 
-  return source ? getCachedMindroomLongTextContent(source) : undefined;
+  return source ? getCachedMindroomLongTextContent(source, mx) : undefined;
 };
 
 export function MindroomLongTextText({
@@ -254,7 +264,8 @@ export function MindroomLongTextText({
           isV2ContentJson: currentIsV2ContentJson,
           mxcUri: currentMxcUri,
         },
-        (source) => downloadMindroomLongTextSidecarText(mx, source, useAuthentication)
+        (source) => downloadMindroomLongTextSidecarText(mx, source, useAuthentication),
+        mx
       );
 
       if (!cancelled) {

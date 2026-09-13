@@ -130,14 +130,13 @@ export const getMindroomAiRunInfo = (
   return hasAnyInfo ? info : undefined;
 };
 
-export const hasMindroomAiRunMetadata = (content: Record<string, unknown>): boolean =>
-  !!getMindroomAiRunMetadata(content);
-
 const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
 
-const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
-const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
-const TERMINAL_STREAM_STATUSES = new Set([
+export const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
+// 'pending' counts as active so callers driving spinners (e.g. thread streaming
+// state) treat a not-yet-started run as still in flight.
+export const ACTIVE_STREAM_STATUSES = new Set(['active', 'pending', 'running', 'streaming']);
+export const TERMINAL_STREAM_STATUSES = new Set([
   'complete',
   'completed',
   'done',
@@ -145,15 +144,33 @@ const TERMINAL_STREAM_STATUSES = new Set([
   'failed',
   'stopped',
   'cancelled',
+  'interrupted',
 ]);
 
-const getStreamStatusFromContent = (content: Record<string, unknown>): string | undefined => {
+export const getStreamStatusFromContent = (
+  content: Record<string, unknown>
+): string | undefined => {
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
     : undefined;
 
   const raw = newContent?.[STREAM_STATUS_KEY] ?? content[STREAM_STATUS_KEY];
   return typeof raw === 'string' && raw.length > 0 ? raw.toLowerCase() : undefined;
+};
+
+/**
+ * True only when the content itself proves the stream reached a terminal
+ * state. Absent or unrecognized metadata returns false — callers must not
+ * treat "not terminal" as "still streaming".
+ */
+export const hasTerminalMindroomStreamMetadata = (content: Record<string, unknown>): boolean => {
+  const metadata = getMindroomAiRunMetadata(content);
+  const aiRunStatus =
+    typeof metadata?.status === 'string' ? metadata.status.toLowerCase() : undefined;
+  if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return true;
+
+  const streamStatus = getStreamStatusFromContent(content);
+  return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
 export const isMindroomAiRunStreaming = (content: Record<string, unknown>): boolean => {

@@ -36,19 +36,11 @@ vi.mock('./commandPaletteSearch', async () => {
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
-    Box: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement>) => reactModule.createElement('div', props, children),
-    Icon: ({
-      src,
-      ...props
-    }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
+    Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      reactModule.createElement('div', props, children),
+    Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
       reactModule.createElement('span', { ...props, 'data-icon-src': src }),
-    IconButton: ({
-      children,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
+    IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
     Input: ({
       value,
@@ -57,10 +49,7 @@ vi.mock('folds', async () => {
       ...props
     }: React.InputHTMLAttributes<HTMLInputElement>) =>
       reactModule.createElement('input', { value, onChange, onKeyDown, ...props }),
-    Scroll: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement>) =>
+    Scroll: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
       reactModule.createElement('div', { 'data-testid': 'scroll', ...props }, children),
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
@@ -158,7 +147,7 @@ const FIXTURE_SOURCE: CommandPaletteSource = {
       boost: 10,
     },
   ],
-  users: [
+  getUsers: vi.fn(() => [
     {
       id: '@alice:example.org',
       kind: 'user',
@@ -179,7 +168,7 @@ const FIXTURE_SOURCE: CommandPaletteSource = {
       sortRank: 20,
       boost: 20,
     },
-  ],
+  ]),
   threads: [
     {
       id: '$thread-incident',
@@ -239,6 +228,7 @@ const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette
 
 describe('CommandPalette', () => {
   it('renders the starter sections for an empty query', () => {
+    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
     const renderer = renderPalette();
     const text = JSON.stringify(renderer.toJSON());
 
@@ -247,6 +237,24 @@ describe('CommandPalette', () => {
     expect(text).toContain('General');
     expect(text).toContain('Alice');
     expect(text).not.toContain('Search "" in current room');
+    expect(FIXTURE_SOURCE.getUsers).toHaveBeenCalledWith({
+      exhaustive: false,
+      includeRelatedRooms: false,
+    });
+  });
+
+  it('only requests related-room users for an explicit user search', async () => {
+    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
+    const renderer = renderPalette();
+
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
+    });
+
+    expect(FIXTURE_SOURCE.getUsers).toHaveBeenLastCalledWith({
+      exhaustive: true,
+      includeRelatedRooms: true,
+    });
   });
 
   it('scopes sections based on the parsed prefix', async () => {
@@ -339,7 +347,9 @@ describe('CommandPalette', () => {
     const selectedButtons = getButtons(renderer).filter((button) => button.props['data-selected']);
 
     expect(selectedButtons).toHaveLength(1);
-    expect(selectedButtons[0].props['data-item-id']).toBe(getButtons(renderer)[1].props['data-item-id']);
+    expect(selectedButtons[0].props['data-item-id']).toBe(
+      getButtons(renderer)[1].props['data-item-id']
+    );
   });
 
   it('documents every supported prefix and the open shortcut in the footer', () => {

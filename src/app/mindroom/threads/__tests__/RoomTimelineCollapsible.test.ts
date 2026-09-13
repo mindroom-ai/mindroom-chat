@@ -811,6 +811,8 @@ type MockEvent = {
   __editedEvent?: {
     getContent: () => Record<string, unknown>;
     getId: () => string;
+    getSender: () => string;
+    getTs: () => number;
   };
   __renderInsideEncryptedContentAs?: string;
   event: { event_id: string };
@@ -850,6 +852,8 @@ const makeEvent = (
     ? {
         getContent: () => opts.editedContent as Record<string, unknown>,
         getId: () => `${eventId}|edit`,
+        getSender: () => opts.sender ?? '@alice:example.org',
+        getTs: () => (opts.ts ?? 1) + 1,
       }
     : undefined,
   __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,

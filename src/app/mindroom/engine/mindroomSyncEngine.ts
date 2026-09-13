@@ -44,20 +44,22 @@ import {
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
-import {
-  createBackfillScheduler,
-  type BackfillScheduler,
-} from './backfillScheduler';
+import { createBackfillScheduler, type BackfillScheduler } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
 import {
   DEFAULT_PREFETCH_SCOPE,
   resolveRoomPrefetchTier,
   type PrefetchConfig,
 } from './prefetchPolicy';
-import { scheduleReconcile } from './reconciler';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
+
+const activeEngineStops = new WeakMap<MatrixClient, () => void>();
+
+export const stopMindroomSyncEngineForClient = (mx: MatrixClient): void => {
+  activeEngineStops.get(mx)?.();
+};
 
 const isLiveSyncState = (state?: SyncState | null): boolean =>
   Boolean(state && LIVE_SYNC_STATES.has(state));
@@ -110,13 +112,12 @@ export type CreateMindroomSyncEngineOptions = {
    * pre-#5 hardcoded policy.
    */
   getPrefetchConfig?: () => PrefetchConfig;
+  /** Notify the engine when the live prefetch scope changes. */
+  subscribePrefetchConfig?: (listener: () => void) => () => void;
 };
 
 const DEFAULT_PREFETCH_CONFIG: PrefetchConfig = {
   scope: DEFAULT_PREFETCH_SCOPE,
-  currentRoomDepth: 10_000,
-  roomTailDepth: 200,
-  threadInventoryLimit: 50,
 };
 
 export const createMindroomSyncEngine = ({
@@ -126,6 +127,7 @@ export const createMindroomSyncEngine = ({
   persist,
   scheduler,
   getPrefetchConfig,
+  subscribePrefetchConfig,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
@@ -163,6 +165,7 @@ export const createMindroomSyncEngine = ({
 
   let started = false;
   let liveMode = false;
+  let unsubscribePrefetchConfig: (() => void) | undefined;
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
@@ -175,7 +178,10 @@ export const createMindroomSyncEngine = ({
 
   const handlePageHide = () => flushForVisibility();
   const handleVisibilityChange = () => {
-    if (bindableDocument && (bindableDocument as unknown as Document).visibilityState === 'hidden') {
+    if (
+      bindableDocument &&
+      (bindableDocument as unknown as Document).visibilityState === 'hidden'
+    ) {
       flushForVisibility();
     }
   };
@@ -185,7 +191,7 @@ export const createMindroomSyncEngine = ({
       liveMode = true;
     }
     if (current && (current as string) === 'PREPARED') {
-      effectiveGapTracker.handleSyncPrepared();
+      void effectiveGapTracker.handleSyncPrepared().catch(() => undefined);
     }
   };
 
@@ -251,6 +257,9 @@ export const createMindroomSyncEngine = ({
 
   const start = () => {
     if (started) return;
+    const previousStop = activeEngineStops.get(mx);
+    if (previousStop && previousStop !== stop) previousStop();
+    activeEngineStops.set(mx, stop);
     started = true;
 
     // Prime liveMode against the current sync state so an engine that
@@ -267,35 +276,43 @@ export const createMindroomSyncEngine = ({
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
+    unsubscribePrefetchConfig = subscribePrefetchConfig?.(() => {
+      gapFillExecutor?.recheckDeferred();
+    });
   };
 
   const stop = () => {
     if (!started) return;
     started = false;
+    if (activeEngineStops.get(mx) === stop) activeEngineStops.delete(mx);
 
-    // Flush first so any trailing writes make it out before we cancel
-    // the scheduler in Commit 3. In Commit 1 this is a no-op.
-    effectiveWriteThrough.flush();
+    try {
+      // Flush first so any trailing writes make it out before cancellation.
+      effectiveWriteThrough.flush();
+    } finally {
+      // Structural teardown must finish even if the best-effort flush fails;
+      // destructive account cleanup may delete these stores immediately.
+      mx.removeListener(ClientEvent.Sync, handleSync);
+      mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
+      mx.removeListener(RoomEvent.Redaction, handleRedaction);
+      mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
 
-    mx.removeListener(ClientEvent.Sync, handleSync);
-    mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
-    mx.removeListener(RoomEvent.Redaction, handleRedaction);
-    mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
+      bindableWindow?.removeEventListener('pagehide', handlePageHide);
+      bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribePrefetchConfig?.();
+      unsubscribePrefetchConfig = undefined;
 
-    bindableWindow?.removeEventListener('pagehide', handlePageHide);
-    bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);
+      effectiveGapTracker.stop();
+      gapFillExecutor?.stop();
 
-    effectiveGapTracker.stop();
-    gapFillExecutor?.stop();
+      // Abort every queued/in-flight backfill job. Callers receive a
+      // rejection so their finally-blocks can release local state.
+      effectiveScheduler.abortAll();
 
-    // CINNY-207 P4.1: abort every queued/in-flight backfill job on
-    // teardown. Callers of `enqueue` receive a rejected promise (with
-    // the abort reason) so their finally-blocks run.
-    effectiveScheduler.abortAll();
-
-    // liveMode resets so a subsequent start() (e.g. account switch)
-    // waits for a fresh Prepared/Syncing signal.
-    liveMode = false;
+      // A subsequent start (for example after an account switch) must wait
+      // for a fresh Prepared/Syncing signal.
+      liveMode = false;
+    }
   };
 
   /**
@@ -325,6 +342,7 @@ export const createMindroomSyncEngine = ({
     // unconditionally — a room the user actively opens is always
     // eligible for a foreground fetch.
     focusedRoomId = roomId;
+    gapFillExecutor?.recheckDeferred(roomId);
     const tier = resolveRoomPrefetchTier(mx, room);
     // `background` (create event missing) is treated as federated for
     // eligibility, but we don't stamp the ledger flag since we don't
@@ -337,28 +355,6 @@ export const createMindroomSyncEngine = ({
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);
     }
-    // CINNY-207 P5.1 Commit 3: room-open reconcile.
-    //
-    // Every room focus schedules exactly one room-scope reconcile
-    // through the P4.1 scheduler under kind `'reconcile'` + undefined
-    // threadId. The scheduler dedups on the (roomId, undefined,
-    // 'reconcile') key so repeated `noteRoomFocused` calls (rerender
-    // storms, quick tab switches) collapse to one job. The executor
-    // itself is a fast no-op — the real tail catchup work belongs to
-    // the gap-fill executor (P4.2), which the P3.2 markers +
-    // `Sync -> PREPARED` handler already trigger. This schedule keeps
-    // observability parity with the thread-open path: the D7 "every
-    // open schedules a reconcile" invariant holds at both scopes,
-    // and probe captures can prove no room-open silently short-
-    // circuits away from the engine.
-    scheduleReconcile({
-      mx,
-      sessionId,
-      scheduler: effectiveScheduler,
-      roomId,
-      room,
-      reason: 'room-open',
-    }).catch(() => undefined);
   };
 
   return {

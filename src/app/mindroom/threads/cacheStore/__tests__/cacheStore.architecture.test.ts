@@ -62,13 +62,8 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
   it('(b) no source under src/app/mindroom/** imports the deleted shim paths', () => {
     const forbiddenSuffixes = ['/roomEventCache', '/threadEventCache', '/threadSummaryCache'];
 
-    // Exclusions: this file (self-reference) and the pre-existing
-    // architecture test which encodes the same guards as string
-    // literals for other purposes.
-    const EXCLUDED_FILES = new Set([
-      SELF_FILE,
-      path.resolve(THREADS_DIR, '__tests__', 'RoomTimeline.architecture.test.ts'),
-    ]);
+    // Exclude only this file's own documented references.
+    const EXCLUDED_FILES = new Set([SELF_FILE]);
     const offenders: string[] = [];
     for (const file of walkSourceFiles(MINDROOM_ROOT)) {
       if (EXCLUDED_FILES.has(file)) continue;
@@ -101,7 +96,10 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
         const source = readSource(file);
         if (source.includes("from './cacheStore'") || source.includes('/cacheStore')) {
           throw new Error(
-            `${path.relative(MINDROOM_ROOT, file)} imports cacheStore directly — render components must go through the eventRepository seam`
+            `${path.relative(
+              MINDROOM_ROOT,
+              file
+            )} imports cacheStore directly — render components must go through the eventRepository seam`
           );
         }
       }
@@ -120,7 +118,8 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
     // ledger federation flag / eviction protection registry /
     // lastOpenedTs on `noteRoomFocused`; `gapFillExecutor` is the
     // real backfill executor that persists /messages chunks and
-    // clears the tail-discontinuity marker. Both are engine-native
+    // clears the tail-discontinuity marker; `reconciler` owns its
+    // durable bounded-scan continuation. These are engine-native
     // cache orchestrators — routing them through eventRepository
     // would be a gratuitous pass-through. Any OTHER cacheStore
     // import inside src/app/mindroom/** is a boundary violation
@@ -136,6 +135,7 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
         path.resolve(MINDROOM_ROOT, 'engine', 'gapFillExecutor.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'deepHistoryJob.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'mindroomSyncEngine.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'reconcilerScan.ts'),
       ].map((absPath) => absPath)
     );
 

@@ -73,22 +73,44 @@ export const hoursToMs = (hour: number) => hour * minutesToMs(60);
 
 export const daysToMs = (days: number) => days * hoursToMs(24);
 
-export const formatRelativeTime = (ts: number): string => {
+// useRelativeTime re-invokes formatRelativeTime every second per visible thread
+// card; caching the two Intl.RelativeTimeFormat variants avoids constructing
+// them on every tick. Only a small handful of languages (en/de/nl today) ever
+// reach this cache.
+const relativeTimeFormatterCache = new Map<string, Intl.RelativeTimeFormat>();
+
+const getRelativeTimeFormatter = (
+  language: string,
+  numeric: 'always' | 'auto'
+): Intl.RelativeTimeFormat => {
+  const cacheKey = `${language}:${numeric}`;
+  const cached = relativeTimeFormatterCache.get(cacheKey);
+  if (cached) return cached;
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric, style: 'narrow' });
+  relativeTimeFormatterCache.set(cacheKey, formatter);
+  return formatter;
+};
+
+export const formatRelativeTime = (ts: number, language = 'en'): string => {
   const ageMs = Math.max(0, Date.now() - ts);
 
-  if (ageMs < 5000) return 'now';
+  if (ageMs < 5000) {
+    return getRelativeTimeFormatter(language, 'auto').format(0, 'second');
+  }
+
+  const relativeTime = getRelativeTimeFormatter(language, 'always');
 
   const ageSeconds = Math.floor(ageMs / 1000);
-  if (ageSeconds < 60) return `${ageSeconds}s ago`;
+  if (ageSeconds < 60) return relativeTime.format(-ageSeconds, 'second');
 
   const ageMinutes = Math.floor(ageSeconds / 60);
-  if (ageMinutes < 60) return `${ageMinutes}m ago`;
+  if (ageMinutes < 60) return relativeTime.format(-ageMinutes, 'minute');
 
   const ageHours = Math.floor(ageMinutes / 60);
-  if (ageHours < 24) return `${ageHours}h ago`;
+  if (ageHours < 24) return relativeTime.format(-ageHours, 'hour');
 
   const ageDays = Math.floor(ageHours / 24);
-  return `${ageDays}d ago`;
+  return relativeTime.format(-ageDays, 'day');
 };
 
 export const getToday = () => {

@@ -60,7 +60,7 @@ describe('RoomTimeline', () => {
     });
   }, 10000);
 
-  it('derives free-text search from the DSL query when no searchQuery override is passed', async () => {
+  it('uses canonical free-text search when no searchQuery override is passed', async () => {
     const { getRoomEventFocusTarget } = await import('../threadRoomFocus');
     const matchingThread = makeEvent('$thread-1', {
       isThreadRoot: true,
@@ -81,7 +81,7 @@ describe('RoomTimeline', () => {
         threadFilterState: {
           ...DEFAULT_THREAD_FILTER_STATE,
           tags: new Map(),
-          searchQuery: 'is:streaming hello',
+          freeText: 'hello',
         },
         scheduledStatusMap: new Map(),
         threadReplyCountMapForMeta: new Map(),
@@ -316,7 +316,7 @@ describe('RoomTimeline', () => {
           initialViewMode: 'threaded',
           initialThreadFilterState: {
             ...DEFAULT_THREAD_FILTER_STATE,
-            searchQuery: 'does-not-match-hidden-root',
+            freeText: 'does-not-match-hidden-root',
             tags: new Map(),
           },
         })

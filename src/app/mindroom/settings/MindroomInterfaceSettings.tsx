@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
@@ -28,13 +28,20 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
   // A failed write snaps the switch back to the stored value; the target
   // audience is non-technical, so say why instead of failing silently.
   const [saveFailed, setSaveFailed] = useState(false);
+  const requestGeneration = useRef(0);
 
   const handleSimpleMode = (next: boolean) => {
+    requestGeneration.current += 1;
+    const generation = requestGeneration.current;
     setPending(next);
     setSaveFailed(false);
     setAccountSettings({ simpleMode: next })
-      .catch(() => setSaveFailed(true))
-      .finally(() => setPending(undefined));
+      .catch(() => {
+        if (requestGeneration.current === generation) setSaveFailed(true);
+      })
+      .finally(() => {
+        if (requestGeneration.current === generation) setPending(undefined);
+      });
   };
 
   return (

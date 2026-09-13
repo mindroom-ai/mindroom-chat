@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  getMindroomLongTextSource,
-  hydrateMindroomLongTextSource,
-} from './longText';
+import { getMindroomLongTextSource, hydrateMindroomLongTextSource } from './longText';
 import { getMindroomToolTraceEventByIndex } from './toolTrace';
 
 const expectDefined = <T>(value: T | undefined): T => {
@@ -28,27 +25,29 @@ describe('MindRoom message pipeline', () => {
 
     const source = expectDefined(getMindroomLongTextSource(previewContent));
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: 'final answer',
-        formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [
-            {
-              type: 'tool_call_completed',
-              tool_name: 'search_web',
-              result_preview: 'Done',
-            },
-          ],
-        },
-      })
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
+          msgtype: 'm.text',
+          body: 'final answer',
+          formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [
+              {
+                type: 'tool_call_completed',
+                tool_name: 'search_web',
+                result_preview: 'Done',
+              },
+            ],
+          },
+        }),
+      {}
     );
 
     expect(resolved.formatted_body).toBe('<p>🔧 <code>search_web</code> [1]</p>');
 
     expect(getMindroomToolTraceEventByIndex(resolved, 1)?.tool_name).toBe('search_web');
   });
-
 });

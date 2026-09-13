@@ -51,6 +51,30 @@ export const useBindMindroomAccountSettingsAtom = (
 export const useMindroomAccountSettings = (): MindroomAccountSettings =>
   useAtomValue(mindroomAccountSettingsAtom);
 
+const accountSettingsWriteTails = new WeakMap<MatrixClient, Promise<void>>();
+
+/**
+ * Serialize account-data patches per Matrix client. Every write re-reads the
+ * latest account data, so independent patches preserve each other and unknown
+ * keys. A rejected write does not poison later writes.
+ */
+export const enqueueMindroomAccountSettingsPatch = (
+  mx: MatrixClient,
+  patch: Partial<MindroomAccountSettings>
+): Promise<void> => {
+  const task = (accountSettingsWriteTails.get(mx) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(async () => {
+      const current = mx.getAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as any)?.getContent();
+      await mx.setAccountData(
+        MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as any,
+        mergeMindroomAccountSettings(current, patch) as any
+      );
+    });
+  accountSettingsWriteTails.set(mx, task);
+  return task;
+};
+
 /**
  * Patch-writer for `io.mindroom.settings`. Merges over the currently stored
  * content so unknown keys written by other/newer clients survive. The bound
@@ -61,15 +85,7 @@ export const useSetMindroomAccountSettings = (): ((
 ) => Promise<void>) => {
   const mx = useMatrixClient();
   return useCallback(
-    async (patch: Partial<MindroomAccountSettings>) => {
-      const current = mx
-        .getAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as any)
-        ?.getContent();
-      await mx.setAccountData(
-        MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as any,
-        mergeMindroomAccountSettings(current, patch) as any
-      );
-    },
+    (patch: Partial<MindroomAccountSettings>) => enqueueMindroomAccountSettingsPatch(mx, patch),
     [mx]
   );
 };

@@ -62,14 +62,6 @@ const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = [
 export const ROOM_TAIL_PREFETCH_DEPTH = 200;
 
 /**
- * Depth (in threads) of the thread inventory prewarm job. This is the
- * number of thread-seed jobs we speculatively enqueue for a room the
- * user just entered — enough to make the thread overview responsive
- * without paying for every historical thread.
- */
-export const THREAD_INVENTORY_PREFETCH_LIMIT = 50;
-
-/**
  * Target depth (in raw events) of the current-room deep-history sweep
  * — the band-4 job that replaces the removed eager-preload loop
  * (P4.3). Sized generously: this is the room the user is looking at,
@@ -178,16 +170,11 @@ export const sanitizePrefetchDepth = (value: unknown): number => {
 };
 
 /**
- * The runtime prefetch config the scheduler / executors consume.
- * Two of the four fields are user-facing (scope, currentRoomDepth);
- * the other two are non-user-visible constants surfaced here so
- * callers have a single place to reach for policy numbers.
+ * Runtime background-prefetch policy. Depth is owned by the foreground
+ * deep-history job and is not duplicated into this engine config.
  */
 export type PrefetchConfig = {
   readonly scope: PrefetchScope;
-  readonly currentRoomDepth: number;
-  readonly roomTailDepth: number;
-  readonly threadInventoryLimit: number;
 };
 
 /**
@@ -200,12 +187,8 @@ export type PrefetchConfig = {
  */
 export const resolvePrefetchConfig = (settings: {
   prefetchScope?: unknown;
-  prefetchDepth?: unknown;
 }): PrefetchConfig => ({
   scope: sanitizePrefetchScope(settings.prefetchScope),
-  currentRoomDepth: sanitizePrefetchDepth(settings.prefetchDepth),
-  roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
-  threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
 });
 
 /**

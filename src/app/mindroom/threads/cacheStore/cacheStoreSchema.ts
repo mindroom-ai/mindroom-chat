@@ -121,6 +121,20 @@ export type CachedMetaRecord = {
   tailDiscontinuity?: {
     markedAt: number;
     prevBatch?: string | null;
+    generation?: string;
+    nextToken?: string | null;
+    /** Event ids from the cached room tail before this gap-fill began. */
+    overlapEventIds?: string[];
+  };
+  /** Durable cursor for a bounded multi-page thread reconciliation. */
+  threadReconcileContinuation?: {
+    generation: string;
+    startedAt: number;
+    nextToken?: string;
+    /** True after a resumed older scan; the head must be scanned again. */
+    validatingHead?: boolean;
+    /** Event ids from the cache before the first partial page was stored. */
+    overlapEventIds: string[];
   };
 };
 

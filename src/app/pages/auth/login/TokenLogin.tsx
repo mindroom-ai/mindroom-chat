@@ -63,7 +63,7 @@ export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
     });
   }, [baseUrl, token, startLogin]);
 
-  useLoginComplete(
+  const sessionStoreError = useLoginComplete(
     loginState.status === AsyncStatus.Success ? loginState.data : undefined,
     addAccount
   );
@@ -89,7 +89,13 @@ export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
           )}
         </>
       )}
-      <Overlay open={loginState.status !== AsyncStatus.Error} backdrop={<OverlayBackdrop />}>
+      {sessionStoreError && (
+        <LoginTokenError message="Login succeeded, but this browser could not save the account. Check storage permissions and try again." />
+      )}
+      <Overlay
+        open={loginState.status !== AsyncStatus.Error && !sessionStoreError}
+        backdrop={<OverlayBackdrop />}
+      >
         <OverlayCenter>
           <Spinner size="600" variant="Secondary" />
         </OverlayCenter>

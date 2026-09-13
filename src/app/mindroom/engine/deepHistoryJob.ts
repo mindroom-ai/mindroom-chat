@@ -128,7 +128,8 @@ export const enqueueRoomDeepHistoryJob = (
           // Tuwunel's ~10s stale window can overwrite a cached tombstone
           // with the un-pruned pre-redaction copy of a redacted event
           // (invariant I2, see reconciler.ts header).
-          persistRoomChunkWithPreferLive({
+          // eslint-disable-next-line no-await-in-loop
+          await persistRoomChunkWithPreferLive({
             mx,
             sessionId,
             room,

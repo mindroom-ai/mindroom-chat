@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildIOSPushPusherRequest,
+  clearIOSPushState,
   getIOSPushEnabled,
   getStoredIOSPushToken,
+  migrateLegacyIOSPushEnabled,
   resolveIOSPushConfig,
   setIOSPushEnabled,
   upsertIOSPushPusher,
@@ -151,6 +153,29 @@ describe('resolveIOSPushConfig', () => {
     expect(config?.format).toBe('event_id_only');
   });
 
+  it('uses the app language unless deployment config explicitly overrides it', () => {
+    const baseConfig = {
+      push: {
+        ios: {
+          enabled: true,
+          appId: 'com.mindroom-ios',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        },
+      },
+    };
+
+    expect(resolveIOSPushConfig(baseConfig, undefined, 'de')?.lang).toBe('de');
+    expect(
+      resolveIOSPushConfig(
+        {
+          push: { ios: { ...baseConfig.push.ios, lang: 'en-GB' } },
+        },
+        undefined,
+        'de'
+      )?.lang
+    ).toBe('en-GB');
+  });
+
   it('keeps push tokens and enabled state separate per session', async () => {
     const storage = new Map<string, string>();
     const localStorageMock = {
@@ -200,7 +225,7 @@ describe('resolveIOSPushConfig', () => {
     expect(getIOSPushEnabled('session-b')).toBe(true);
   });
 
-  it('falls back to the legacy global push preference when no session value exists', () => {
+  it('migrates the legacy preference before a generic settings write drops it', async () => {
     const storage = new Map<string, string>([
       ['settings', JSON.stringify({ nativePushNotifications: false })],
     ]);
@@ -227,11 +252,80 @@ describe('resolveIOSPushConfig', () => {
       configurable: true,
     });
 
+    migrateLegacyIOSPushEnabled();
+    const { getSettings, setSettings } = await import('../../state/settings');
+    setSettings({ ...getSettings(), pageZoom: 90 });
+
+    expect(JSON.parse(storage.get('settings') ?? '{}')).not.toHaveProperty(
+      'nativePushNotifications'
+    );
+    expect(storage.get('mindroom_ios_push_enabled')).toBe('0');
     expect(getIOSPushEnabled('session-a')).toBe(false);
+    expect(getIOSPushEnabled('session-b')).toBe(false);
 
     setIOSPushEnabled(true, 'session-a');
 
     expect(getIOSPushEnabled('session-a')).toBe(true);
+    expect(getIOSPushEnabled('session-b')).toBe(false);
+  });
+
+  it('does not overwrite an existing migrated global push preference', () => {
+    const storage = new Map<string, string>([
+      ['settings', JSON.stringify({ nativePushNotifications: false })],
+      ['mindroom_ios_push_enabled', '1'],
+    ]);
+    const localStorageMock = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+    };
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: () => true,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+
+    migrateLegacyIOSPushEnabled();
+
+    expect(storage.get('mindroom_ios_push_enabled')).toBe('1');
+    expect(getIOSPushEnabled('session-a')).toBe(true);
+  });
+
+  it('attempts every push-state removal when one key is blocked', () => {
+    const storage = new Map<string, string>([
+      ['mindroom_ios_push_token::session-a', 'token'],
+      ['mindroom_ios_push_profile_tag::session-a', 'profile'],
+      ['mindroom_ios_push_enabled::session-a', '1'],
+    ]);
+    const removeItem = vi.fn((key: string) => {
+      if (key.includes('profile_tag')) throw new Error('blocked');
+      storage.delete(key);
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: { removeItem },
+        dispatchEvent: () => true,
+      },
+      configurable: true,
+    });
+
+    expect(() => clearIOSPushState('session-a')).not.toThrow();
+    expect(removeItem).toHaveBeenCalledTimes(3);
+    expect(storage.has('mindroom_ios_push_token::session-a')).toBe(false);
+    expect(storage.has('mindroom_ios_push_enabled::session-a')).toBe(false);
+    expect(storage.has('mindroom_ios_push_profile_tag::session-a')).toBe(true);
   });
 });
 

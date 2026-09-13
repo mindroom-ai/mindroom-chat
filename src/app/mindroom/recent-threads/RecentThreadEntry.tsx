@@ -6,7 +6,7 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
-import { getRoomViewMode } from '../threads/roomViewMode';
+import { useRoomViewMode } from '../threads/useRoomViewMode';
 import * as css from './recentThreads.css';
 
 type RecentThreadEntryProps = {
@@ -26,6 +26,7 @@ export const RecentThreadEntry = memo(({
   const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
   const relativeTime = useRelativeTime(openedAt);
   const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  const { viewMode } = useRoomViewMode(room.roomId);
   const ariaLabel = [
     t('thread.aria.openThread', { title: viewModel.summaryText }),
     viewModel.roomName,
@@ -63,7 +64,7 @@ export const RecentThreadEntry = memo(({
       className={css.EntryButton}
       type="button"
       onClick={() => {
-        if (getRoomViewMode(room.roomId) === 'classic') {
+        if (viewMode === 'classic') {
           navigateRoom(room.roomId, viewModel.id.threadRootId);
           return;
         }

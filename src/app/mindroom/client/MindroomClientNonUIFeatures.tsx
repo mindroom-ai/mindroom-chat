@@ -5,6 +5,7 @@ import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import type { MatrixClient } from 'matrix-js-sdk';
 import InviteSound from '../../../../public/sound/invite.ogg';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -175,13 +176,14 @@ export function MindroomInviteNotifications() {
 
 function MindroomNativeIOSPushFeature() {
   const mx = useMatrixClient();
+  const language = useAppLanguageCode();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
 
   useEffect(() => {
-    const pushConfig = resolveIOSPushConfig(clientConfig, sessionId);
+    const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
     if (!isNativeIOSPlatform() || !pushConfig) return undefined;
 
     let disposed = false;
@@ -245,7 +247,7 @@ function MindroomNativeIOSPushFeature() {
       registrationHandle?.remove().catch(() => undefined);
       registrationErrorHandle?.remove().catch(() => undefined);
     };
-  }, [clientConfig, mx, nativePushNotifications, sessionId]);
+  }, [clientConfig, language, mx, nativePushNotifications, sessionId]);
 
   return null;
 }

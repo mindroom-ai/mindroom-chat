@@ -35,16 +35,25 @@ export const collectAgentDeviceSignatures = async (
 
 /**
  * Module-level trust cache shared across every mounted
- * `useAgentDeviceCrossSigned`. Each agent userId is looked up once (a member
- * row and its profile card, or a drawer scroll re-mount, all reuse the same
- * in-flight promise), and invalidation on `DevicesUpdated` still triggers a
- * fresh fetch. Entries hold either the resolved boolean or the in-flight
- * promise so concurrent callers coalesce; a resolved value only commits to
- * the cache while the entry still points at the promise that produced it,
- * so an invalidation racing a fetch does not leak stale data.
+ * `useAgentDeviceCrossSigned`, scoped first by CryptoApi and then agent user
+ * ID. A member row and its profile card reuse the same in-flight promise,
+ * while another account/client can never reuse that verdict. Invalidation on
+ * `DevicesUpdated` still triggers a fresh fetch. A resolved value only commits
+ * while the entry still points at the promise that produced it, so an
+ * invalidation racing a fetch does not leak stale data.
  */
 type CacheEntry = { value: boolean } | Promise<boolean>;
-const agentTrustCache = new Map<string, CacheEntry>();
+const agentTrustCache = new WeakMap<CryptoApi, Map<string, CacheEntry>>();
+const scheduledTrustRefreshes = new WeakMap<CryptoApi, Map<string, Set<() => void>>>();
+
+const getCryptoTrustCache = (crypto: CryptoApi): Map<string, CacheEntry> => {
+  const existing = agentTrustCache.get(crypto);
+  if (existing) return existing;
+
+  const cache = new Map<string, CacheEntry>();
+  agentTrustCache.set(crypto, cache);
+  return cache;
+};
 
 const isPromise = (entry: CacheEntry): entry is Promise<boolean> => 'then' in entry;
 
@@ -53,29 +62,63 @@ const isPromise = (entry: CacheEntry): entry is Promise<boolean> => 'then' in en
  * Exported for tests; the hook itself invalidates from its `DevicesUpdated`
  * listener before scheduling a re-fetch.
  */
-export const invalidateAgentDeviceTrust = (userId: string): void => {
-  agentTrustCache.delete(userId);
+export const invalidateAgentDeviceTrust = (crypto: CryptoApi, userId: string): void => {
+  agentTrustCache.get(crypto)?.delete(userId);
+};
+
+/**
+ * Device updates are emitted synchronously to every mounted badge. Invalidate
+ * immediately, but defer the subscribers until all listeners have observed
+ * the event. The first subscriber then installs one shared fetch promise and
+ * every sibling coalesces onto it instead of deleting each other's request.
+ */
+export const scheduleAgentDeviceTrustRefresh = (
+  crypto: CryptoApi,
+  userId: string,
+  refresh: () => void
+): void => {
+  invalidateAgentDeviceTrust(crypto, userId);
+  let byUser = scheduledTrustRefreshes.get(crypto);
+  if (!byUser) {
+    byUser = new Map();
+    scheduledTrustRefreshes.set(crypto, byUser);
+  }
+  const existing = byUser.get(userId);
+  if (existing) {
+    existing.add(refresh);
+    return;
+  }
+
+  const subscribers = new Set([refresh]);
+  byUser.set(userId, subscribers);
+  queueMicrotask(() => {
+    if (byUser?.get(userId) !== subscribers) return;
+    byUser.delete(userId);
+    subscribers.forEach((subscriber) => subscriber());
+  });
 };
 
 export const getOrFetchAgentTrust = (
+  crypto: CryptoApi,
   userId: string,
   fetcher: () => Promise<boolean>
 ): Promise<boolean> => {
-  const existing = agentTrustCache.get(userId);
+  const cache = getCryptoTrustCache(crypto);
+  const existing = cache.get(userId);
   if (existing) return isPromise(existing) ? existing : Promise.resolve(existing.value);
 
   const promise = fetcher().then(
     (value) => {
       // Only commit if invalidation (or a newer fetch) has not raced past us.
-      if (agentTrustCache.get(userId) === promise) agentTrustCache.set(userId, { value });
+      if (cache.get(userId) === promise) cache.set(userId, { value });
       return value;
     },
     (error) => {
-      if (agentTrustCache.get(userId) === promise) agentTrustCache.delete(userId);
+      if (cache.get(userId) === promise) cache.delete(userId);
       throw error;
     }
   );
-  agentTrustCache.set(userId, promise);
+  cache.set(userId, promise);
   return promise;
 };
 
@@ -93,9 +136,14 @@ export const getOrFetchAgentTrust = (
  */
 export const useAgentDeviceCrossSigned = (userId: string): boolean => {
   const mx = useMatrixClient();
+  const crypto = mx.getCrypto();
   const alive = useAlive();
   const generationRef = useRef(0);
-  const [crossSigned, setCrossSigned] = useState(false);
+  const [trustState, setTrustState] = useState<{
+    crypto?: CryptoApi;
+    userId: string;
+    value: boolean;
+  }>({ userId, value: false });
 
   const update = useCallback(async () => {
     // Bump a generation per invocation so that when several device-list events
@@ -104,17 +152,18 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
     generationRef.current += 1;
     const generation = generationRef.current;
     const commit = (value: boolean) => {
-      if (alive() && generation === generationRef.current) setCrossSigned(value);
+      if (alive() && generation === generationRef.current) {
+        setTrustState({ crypto, userId, value });
+      }
     };
 
-    const crypto = mx.getCrypto();
     if (!crypto || !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined)) {
       commit(false);
       return;
     }
 
     try {
-      const trusted = await getOrFetchAgentTrust(userId, async () =>
+      const trusted = await getOrFetchAgentTrust(crypto, userId, async () =>
         allDevicesSignedByOwner(await collectAgentDeviceSignatures(crypto, userId))
       );
       commit(trusted);
@@ -122,7 +171,7 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
       // Fail safe: hide the affordance if crypto cannot report device trust.
       commit(false);
     }
-  }, [mx, userId, alive]);
+  }, [mx, crypto, userId, alive]);
 
   useEffect(() => {
     update();
@@ -132,15 +181,14 @@ export const useAgentDeviceCrossSigned = (userId: string): boolean => {
     useCallback(
       (userIds) => {
         if (userIds.includes(userId)) {
-          // Drop the shared cache entry BEFORE scheduling the re-fetch so
-          // this and every sibling hook coalesce onto a single fresh lookup.
-          invalidateAgentDeviceTrust(userId);
-          update();
+          if (crypto) {
+            scheduleAgentDeviceTrustRefresh(crypto, userId, () => void update());
+          }
         }
       },
-      [userId, update]
+      [crypto, userId, update]
     )
   );
 
-  return crossSigned;
+  return trustState.crypto === crypto && trustState.userId === userId && trustState.value;
 };

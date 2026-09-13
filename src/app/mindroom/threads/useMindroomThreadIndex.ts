@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { getRoomEventThreadOpenTarget } from './roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
@@ -38,7 +37,7 @@ import {
 import {
   buildCompactThreadRootData,
   buildCompactZeroReplyRootData,
-  getCompactThreadRootBodyPreviewText,
+  getCompactThreadRootPreviewInfo,
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
 import { useStateEvents } from './useStateEvents';
@@ -380,20 +379,24 @@ export const useMindroomThreadIndex = ({
     const ids: string[] = [];
     const indexMap = new Map<string, number>();
     const bodyMap = new Map<string, string>();
+    const sourceTsMap = new Map<string, number>();
     roomSurfaceEventEntries.forEach(({ event, absoluteIndex }) => {
       const evtId = event.getId();
       if (!evtId) return;
       if (isVisibleThreadRootEvent(event, room, threadResolutionMap, threadReplyCountMap)) {
         ids.push(evtId);
         indexMap.set(evtId, absoluteIndex);
-        const body = getCompactThreadRootBodyPreviewText(event, {
+        const previewInfo = getCompactThreadRootPreviewInfo(event, {
           eventId: evtId,
           room,
         });
-        if (body) bodyMap.set(evtId, body);
+        if (previewInfo) {
+          bodyMap.set(evtId, previewInfo.previewText);
+          sourceTsMap.set(evtId, previewInfo.sourceTs);
+        }
       }
     });
-    return { ids, indexMap, bodyMap };
+    return { ids, indexMap, bodyMap, sourceTsMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
   const {
     threads: roomThreadListThreads,
@@ -415,6 +418,7 @@ export const useMindroomThreadIndex = ({
       visibleIds: visibleThreadRootData.ids,
       visibleIndexMap: visibleThreadRootData.indexMap,
       visibleBodyMap: visibleThreadRootData.bodyMap,
+      visibleSourceTsMap: visibleThreadRootData.sourceTsMap,
       threads: roomThreadListThreads,
     });
     const knownRealThreadRootIds = new Set(
@@ -471,47 +475,27 @@ export const useMindroomThreadIndex = ({
   const compactThreadRootBodyMap = useMemo(() => {
     return mergeCompactThreadRootBodyMaps(
       compactThreadRootData.bodyMap,
-      cachedMetadata.compactRootBodyMap
+      cachedMetadata.compactRootBodyMap,
+      compactThreadRootData.sourceTsMap,
+      cachedMetadata.compactRootSourceTsMap
     );
-  }, [compactThreadRootData.bodyMap, cachedMetadata.compactRootBodyMap]);
+  }, [
+    compactThreadRootData.bodyMap,
+    compactThreadRootData.sourceTsMap,
+    cachedMetadata.compactRootBodyMap,
+    cachedMetadata.compactRootSourceTsMap,
+  ]);
 
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
-    requestedThreadFilterState.searchQuery ?? ''
-  );
-
-  const liveParsedQuery = useMemo(
-    () => parseThreadFilterQuery(requestedThreadFilterState.searchQuery ?? ''),
-    [requestedThreadFilterState.searchQuery]
-  );
-  const liveThreadFilterState = useMemo(
-    () => applyParsedThreadFilterQuery(requestedThreadFilterState, liveParsedQuery),
-    [requestedThreadFilterState, liveParsedQuery]
-  );
-
-  useEffect(() => {
-    const timer = setTimeout(
-      () => setDebouncedSearchQuery(requestedThreadFilterState.searchQuery ?? ''),
-      300
-    );
-    return () => clearTimeout(timer);
-  }, [requestedThreadFilterState.searchQuery]);
-
-  const debouncedParsedQuery = useMemo(
-    () => parseThreadFilterQuery(debouncedSearchQuery),
-    [debouncedSearchQuery]
-  );
-  const debouncedThreadFilterState = useMemo(
-    () => applyParsedThreadFilterQuery(requestedThreadFilterState, debouncedParsedQuery),
-    [requestedThreadFilterState, debouncedParsedQuery]
-  );
+  // Typed-input debouncing (free text AND structured tokens) happens at the
+  // source in useRoomViewThreadState.handleSearchQueryChange — by the time a
+  // typed query lands in requestedThreadFilterState it is already settled.
   const threadSortControlSignature = useMemo(
     () =>
       createThreadSortControlSignature({
-        state: debouncedThreadFilterState,
-        searchQuery: debouncedParsedQuery.freeText,
+        state: requestedThreadFilterState,
         viewMode: effectiveViewMode,
       }),
-    [debouncedThreadFilterState, debouncedParsedQuery.freeText, effectiveViewMode]
+    [requestedThreadFilterState, effectiveViewMode]
   );
   const visibleThreadRootEventMap = useMemo(
     () => buildThreadRootEventMap(roomSurfaceEventEntries, visibleThreadRootData.indexMap),
@@ -593,10 +577,10 @@ export const useMindroomThreadIndex = ({
         compactThreadRootIds: compactThreadRootData.ids,
         normalThreadRecordMap,
         compactThreadRecordMap,
-        threadFilterState: debouncedThreadFilterState,
-        liveThreadFilterState,
+        threadFilterState: requestedThreadFilterState,
+        liveThreadFilterState: requestedThreadFilterState,
         fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
-        searchQuery: debouncedParsedQuery.freeText,
+        searchQuery: requestedThreadFilterState.freeText,
         threadSortFreezeState,
         threadSortControlSignature,
         focusedRoomOverviewRequested,
@@ -609,9 +593,7 @@ export const useMindroomThreadIndex = ({
       compactThreadRootData.ids,
       normalThreadRecordMap,
       compactThreadRecordMap,
-      debouncedThreadFilterState,
-      liveThreadFilterState,
-      debouncedParsedQuery.freeText,
+      requestedThreadFilterState,
       threadSortFreezeState,
       threadSortControlSignature,
       focusedRoomOverviewRequested,

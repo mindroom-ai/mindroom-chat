@@ -1,9 +1,5 @@
 import { IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import {
-  getEditedEvent,
-  getLatestEdit,
-  getLatestMessageContent,
-} from '../../utils/room';
+import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../utils/room';
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -18,6 +14,7 @@ export type CompactThreadRootData = {
   ids: string[];
   indexMap: Map<string, number>;
   bodyMap: Map<string, string>;
+  sourceTsMap: Map<string, number>;
 };
 
 export type CompactThreadRootPreviewInfo = {
@@ -33,9 +30,7 @@ export type CompactThreadRootEntry = {
 const getEventActivityTs = (event: MatrixEvent): number => {
   const replacingEvent = event.replacingEvent();
   const replacingTs =
-    replacingEvent && replacingEvent.getSender() === event.getSender()
-      ? replacingEvent.getTs()
-      : 0;
+    replacingEvent && replacingEvent.getSender() === event.getSender() ? replacingEvent.getTs() : 0;
 
   return Math.max(getEffectiveThreadRootActivityTs(event), replacingTs);
 };
@@ -90,18 +85,18 @@ export const isZeroReplyStandaloneThreadRootEvent = (
 
 const hasCompactThreadActivity = (thread: Thread): boolean =>
   !!thread.replyToEvent ||
-  ((thread.events?.length ?? 0) > 0) ||
-  ((thread.timeline?.length ?? 0) > 0) ||
+  (thread.events?.length ?? 0) > 0 ||
+  (thread.timeline?.length ?? 0) > 0 ||
   (typeof thread.length === 'number' && thread.length > 0);
 
-export const getCompactThreadRootBodyPreviewText = (
+export const getCompactThreadRootPreviewInfo = (
   event: MatrixEvent | undefined,
   options?: {
     eventId?: string;
     room?: Pick<Room, 'getUnfilteredTimelineSet'>;
     editedEvent?: MatrixEvent;
   }
-): string | undefined => {
+): CompactThreadRootPreviewInfo | undefined => {
   if (!event) return undefined;
 
   const editedEvent =
@@ -114,8 +109,24 @@ export const getCompactThreadRootBodyPreviewText = (
     | Record<string, unknown>
     | null
     | undefined;
-  return getThreadMessagePreviewText(content);
+  const previewText = getThreadMessagePreviewText(content);
+  if (!previewText) return undefined;
+
+  const sourceTs = editedEvent?.getTs() ?? event.getTs();
+  return {
+    previewText,
+    sourceTs: Number.isFinite(sourceTs) ? sourceTs : 0,
+  };
 };
+
+export const getCompactThreadRootBodyPreviewText = (
+  event: MatrixEvent | undefined,
+  options?: {
+    eventId?: string;
+    room?: Pick<Room, 'getUnfilteredTimelineSet'>;
+    editedEvent?: MatrixEvent;
+  }
+): string | undefined => getCompactThreadRootPreviewInfo(event, options)?.previewText;
 
 export const getCompactCachedThreadRootPreviewInfo = ({
   threadId,
@@ -126,9 +137,7 @@ export const getCompactCachedThreadRootPreviewInfo = ({
   cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
   mapper: (rawEvent: IEvent) => MatrixEvent;
 }): CompactThreadRootPreviewInfo | undefined => {
-  const mappedRootEvent = cachedPage.rootEvent
-    ? mapper(cachedPage.rootEvent as IEvent)
-    : undefined;
+  const mappedRootEvent = cachedPage.rootEvent ? mapper(cachedPage.rootEvent as IEvent) : undefined;
   const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
   const allEvents = mappedRootEvent ? [mappedRootEvent, ...mappedEvents] : mappedEvents;
 
@@ -150,13 +159,7 @@ export const getCompactCachedThreadRootPreviewInfo = ({
     )
   );
 
-  const previewText = getCompactThreadRootBodyPreviewText(targetEvent, { editedEvent: latestEdit });
-  if (!previewText) return undefined;
-
-  return {
-    previewText,
-    sourceTs: latestEdit?.getTs() ?? targetEvent.getTs(),
-  };
+  return getCompactThreadRootPreviewInfo(targetEvent, { editedEvent: latestEdit });
 };
 
 export const getCompactCachedThreadActivityTs = ({
@@ -168,9 +171,7 @@ export const getCompactCachedThreadActivityTs = ({
   cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
   mapper: (rawEvent: IEvent) => MatrixEvent;
 }): number | undefined => {
-  const mappedRootEvent = cachedPage.rootEvent
-    ? mapper(cachedPage.rootEvent as IEvent)
-    : undefined;
+  const mappedRootEvent = cachedPage.rootEvent ? mapper(cachedPage.rootEvent as IEvent) : undefined;
   const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
   const allEvents = mappedRootEvent ? [mappedRootEvent, ...mappedEvents] : mappedEvents;
 
@@ -216,17 +217,20 @@ export const buildCompactThreadRootData = ({
   visibleIds,
   visibleIndexMap,
   visibleBodyMap,
+  visibleSourceTsMap,
   threads,
 }: {
   room: Pick<Room, 'findEventById' | 'getUnfilteredTimelineSet'>;
   visibleIds: string[];
   visibleIndexMap: Map<string, number>;
   visibleBodyMap: Map<string, string>;
+  visibleSourceTsMap?: ReadonlyMap<string, number>;
   threads: Thread[];
 }): CompactThreadRootData => {
   const ids = [...visibleIds];
   const indexMap = new Map(visibleIndexMap);
   const bodyMap = new Map(visibleBodyMap);
+  const sourceTsMap = new Map(visibleSourceTsMap);
   const seen = new Set(ids);
   let nextIndex =
     visibleIndexMap.size > 0 ? Math.max(...Array.from(visibleIndexMap.values())) + 1 : 0;
@@ -241,12 +245,13 @@ export const buildCompactThreadRootData = ({
     indexMap.set(thread.id, nextIndex);
     nextIndex += 1;
 
-    const bodyPreview = getCompactThreadRootBodyPreviewText(rootEvent, {
+    const previewInfo = getCompactThreadRootPreviewInfo(rootEvent, {
       eventId: thread.id,
       room,
     });
-    if (bodyPreview) {
-      bodyMap.set(thread.id, bodyPreview);
+    if (previewInfo) {
+      bodyMap.set(thread.id, previewInfo.previewText);
+      sourceTsMap.set(thread.id, previewInfo.sourceTs);
     }
   });
 
@@ -254,6 +259,7 @@ export const buildCompactThreadRootData = ({
     ids,
     indexMap,
     bodyMap,
+    sourceTsMap,
   };
 };
 
@@ -271,6 +277,7 @@ export const buildCompactZeroReplyRootData = ({
   const ids: string[] = [];
   const indexMap = new Map<string, number>();
   const bodyMap = new Map<string, string>();
+  const sourceTsMap = new Map<string, number>();
   const seenKnownIds = new Set(knownThreadRootIds);
 
   roomSurfaceEntries.forEach(({ event, absoluteIndex }) => {
@@ -282,12 +289,13 @@ export const buildCompactZeroReplyRootData = ({
     ids.push(eventId);
     indexMap.set(eventId, absoluteIndex);
 
-    const bodyPreview = getCompactThreadRootBodyPreviewText(event, {
+    const previewInfo = getCompactThreadRootPreviewInfo(event, {
       eventId,
       room,
     });
-    if (bodyPreview) {
-      bodyMap.set(eventId, bodyPreview);
+    if (previewInfo) {
+      bodyMap.set(eventId, previewInfo.previewText);
+      sourceTsMap.set(eventId, previewInfo.sourceTs);
     }
   });
 
@@ -295,6 +303,7 @@ export const buildCompactZeroReplyRootData = ({
     ids,
     indexMap,
     bodyMap,
+    sourceTsMap,
   };
 };
 
@@ -315,6 +324,10 @@ export const mergeCompactThreadRootData = (
   secondary.bodyMap.forEach((value, key) => {
     bodyMap.set(key, value);
   });
+  const sourceTsMap = new Map(primary.sourceTsMap);
+  secondary.sourceTsMap.forEach((value, key) => {
+    sourceTsMap.set(key, value);
+  });
   const originalOrder = new Map<string, number>();
 
   [...primary.ids, ...secondary.ids].forEach((id) => {
@@ -334,5 +347,6 @@ export const mergeCompactThreadRootData = (
     ids,
     indexMap,
     bodyMap,
+    sourceTsMap,
   };
 };

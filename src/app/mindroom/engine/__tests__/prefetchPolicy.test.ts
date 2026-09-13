@@ -10,7 +10,6 @@ import {
   ROOM_TAIL_PREFETCH_DEPTH,
   sanitizePrefetchDepth,
   sanitizePrefetchScope,
-  THREAD_INVENTORY_PREFETCH_LIMIT,
 } from '../prefetchPolicy';
 import { StateEvent } from '../../../../types/matrix/room';
 
@@ -171,31 +170,22 @@ describe('resolvePrefetchConfig (CINNY-207 P6.1 / D4)', () => {
   it('builds a valid config from an empty settings snapshot', () => {
     expect(resolvePrefetchConfig({})).toEqual({
       scope: DEFAULT_PREFETCH_SCOPE,
-      currentRoomDepth: CURRENT_ROOM_DEEP_HISTORY_TARGET,
-      roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
-      threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
     });
   });
 
   it('threads sanitized user values through', () => {
     expect(
-      resolvePrefetchConfig({ prefetchScope: 'current-room-only', prefetchDepth: 2500 })
+      resolvePrefetchConfig({ prefetchScope: 'current-room-only' })
     ).toEqual({
       scope: 'current-room-only',
-      currentRoomDepth: 2500,
-      roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
-      threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
     });
   });
 
   it('coerces garbage inputs via the underlying sanitizers', () => {
     expect(
-      resolvePrefetchConfig({ prefetchScope: 'nope', prefetchDepth: 99999 })
+      resolvePrefetchConfig({ prefetchScope: 'nope' })
     ).toEqual({
       scope: DEFAULT_PREFETCH_SCOPE,
-      currentRoomDepth: CURRENT_ROOM_DEEP_HISTORY_TARGET,
-      roomTailDepth: ROOM_TAIL_PREFETCH_DEPTH,
-      threadInventoryLimit: THREAD_INVENTORY_PREFETCH_LIMIT,
     });
   });
 });

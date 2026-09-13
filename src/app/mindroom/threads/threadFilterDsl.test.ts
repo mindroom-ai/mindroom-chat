@@ -11,7 +11,8 @@ const makeState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterStat
   sortBy: 'lastReply',
   sortDirection: 'desc',
   tags: new Map(),
-  searchQuery: '',
+  freeText: '',
+  unsupportedQuery: '',
   statusMode: 'and',
   ...overrides,
 });
@@ -67,7 +68,8 @@ describe('threadFilterDsl', () => {
             ['bug', 'include'],
           ]),
           statusMode: 'or',
-          searchQuery: 'foo bar tag:a OR tag:b',
+          freeText: 'foo bar',
+          unsupportedQuery: 'tag:a OR tag:b',
         })
       )
     ).toBe('is:streaming OR is:scheduled -is:unread tag:bug -tag:zebra foo bar tag:a OR tag:b');
@@ -84,7 +86,13 @@ describe('threadFilterDsl', () => {
     const parsed = parseThreadFilterQuery(text);
     expect(
       serializeThreadFilterQuery(
-        makeState({ ...parsed.status, tags: parsed.tags, statusMode: parsed.statusMode, searchQuery: text })
+        makeState({
+          ...parsed.status,
+          tags: parsed.tags,
+          statusMode: parsed.statusMode,
+          freeText: parsed.freeText,
+          unsupportedQuery: parsed.unsupportedTail,
+        })
       )
     ).toBe(text);
   });

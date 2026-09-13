@@ -2,6 +2,10 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ i18n: { language: 'en', resolvedLanguage: 'en' } }),
+}));
+
 vi.mock('../../components/sequence-card', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('section', null, children),

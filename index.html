@@ -45,7 +45,6 @@
         // CINNY-087: keep in sync with hasActiveStoredSession() in src/app/theme/themeBootstrap.ts.
         var sessionStoreKey = 'mindroom_multi_account_store';
         var hasActiveSession = false;
-
         try {
           var sraw = localStorage.getItem(sessionStoreKey);
           if (sraw) {
@@ -57,7 +56,6 @@
                   : [];
               var activeId =
                 typeof sparsed.activeSessionId === 'string' ? sparsed.activeSessionId : '';
-
               if (sessions.length > 0 && activeId) {
                 for (var i = 0; i < sessions.length; i += 1) {
                   if (sessions[i] && sessions[i].sessionId === activeId) {

@@ -3,6 +3,7 @@ import { Button, color, Spinner, Switch, Text } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -24,11 +25,12 @@ export function IOSPushNotification() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
+  const language = useAppLanguageCode();
   const sessionId = activeSession?.sessionId;
   const nativePushNotifications = useIOSPushEnabled(sessionId);
   const iosPushConfig = useMemo(
-    () => resolveIOSPushConfig(clientConfig, sessionId),
-    [clientConfig, sessionId]
+    () => resolveIOSPushConfig(clientConfig, sessionId, language),
+    [clientConfig, language, sessionId]
   );
   const [permission, setPermission] = useState<NativePushPermission>('prompt');
 

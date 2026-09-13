@@ -96,11 +96,12 @@ export const applyParsedThreadFilterQuery = (
     next[key] = parsed.status[key] ?? 'any';
   });
   next.statusMode = parsed.statusMode;
+  next.freeText = parsed.freeText;
+  next.unsupportedQuery = parsed.unsupportedTail;
   return next;
 };
 
 export const serializeThreadFilterQuery = (state: ThreadFilterState): string => {
-  const parsed = parseThreadFilterQuery(state.searchQuery ?? '');
   const statuses = (triState: TriState, prefix: 'is:' | '-is:') =>
     STATUS_KEYS.filter((key) => state[key] === triState).map((key) => `${prefix}${key}`);
   const tags = [...state.tags.entries()].sort(([left], [right]) => left.localeCompare(right));
@@ -120,8 +121,8 @@ export const serializeThreadFilterQuery = (state: ThreadFilterState): string => 
     negatives.join(' '),
     positiveTags.join(' '),
     negativeTags.join(' '),
-    parsed.freeText,
-    parsed.unsupportedTail,
+    state.freeText ?? '',
+    state.unsupportedQuery ?? '',
   ]
     .filter(Boolean)
     .join(' ');

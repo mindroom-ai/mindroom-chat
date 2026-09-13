@@ -5,6 +5,8 @@ import { useMatrixClient } from './useMatrixClient';
 export type UserProfile = {
   avatarUrl?: string;
   displayName?: string;
+  isAvatarResolved: boolean;
+  isDisplayNameResolved: boolean;
 };
 export const useUserProfile = (userId: string): UserProfile => {
   const mx = useMatrixClient();
@@ -14,6 +16,8 @@ export const useUserProfile = (userId: string): UserProfile => {
     return {
       avatarUrl: user?.avatarUrl,
       displayName: user?.displayName,
+      isAvatarResolved: false,
+      isDisplayNameResolved: false,
     };
   });
 
@@ -23,25 +27,34 @@ export const useUserProfile = (userId: string): UserProfile => {
       setProfile((cp) => ({
         ...cp,
         avatarUrl: myUser.avatarUrl,
+        isAvatarResolved: true,
       }));
     };
     const onDisplayNameChange: UserEventHandlerMap[UserEvent.DisplayName] = (event, myUser) => {
       setProfile((cp) => ({
         ...cp,
         displayName: myUser.displayName,
+        isDisplayNameResolved: true,
       }));
     };
 
-    mx.getProfileInfo(userId).then((info) =>
-      setProfile({
-        avatarUrl: info.avatar_url,
-        displayName: info.displayname,
+    let disposed = false;
+    mx.getProfileInfo(userId)
+      .then((info) => {
+        if (disposed) return;
+        setProfile({
+          avatarUrl: info.avatar_url,
+          displayName: info.displayname,
+          isAvatarResolved: true,
+          isDisplayNameResolved: true,
+        });
       })
-    );
+      .catch(() => undefined);
 
     user?.on(UserEvent.AvatarUrl, onAvatarChange);
     user?.on(UserEvent.DisplayName, onDisplayNameChange);
     return () => {
+      disposed = true;
       user?.removeListener(UserEvent.AvatarUrl, onAvatarChange);
       user?.removeListener(UserEvent.DisplayName, onDisplayNameChange);
     };

@@ -18,24 +18,24 @@ const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted
     sourceState: state,
     useCommandPaletteSourceMock: vi.fn((options?: { onLogout?: () => void }) => ({
       actions: state.logoutAction
-      ? [
-          {
-            id: 'logout',
-            kind: 'action',
-            title: 'Logout',
-            onSelect: options?.onLogout,
-          },
-        ]
-      : [
-          {
-            id: 'action-settings',
-            kind: 'action',
-            title: 'Open Settings',
-          },
-        ],
+        ? [
+            {
+              id: 'logout',
+              kind: 'action',
+              title: 'Logout',
+              onSelect: options?.onLogout,
+            },
+          ]
+        : [
+            {
+              id: 'action-settings',
+              kind: 'action',
+              title: 'Open Settings',
+            },
+          ],
       threads: [],
       rooms: [],
-      users: [],
+      getUsers: () => [],
       getMessages: () => [],
     })),
   };
@@ -106,15 +106,10 @@ vi.mock('folds', async () => {
     OverlayBackdrop: () => reactModule.createElement('div', { 'data-testid': 'backdrop' }),
     OverlayCenter: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', { 'data-testid': 'overlay-center' }, children),
-    Modal: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement>) =>
+    Modal: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
       reactModule.createElement('div', { 'data-testid': 'modal', ...props }, children),
-    Box: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement>) => reactModule.createElement('div', props, children),
+    Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      reactModule.createElement('div', props, children),
     Input: ({
       value,
       onChange,
@@ -127,15 +122,9 @@ vi.mock('folds', async () => {
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     Line: () => reactModule.createElement('hr'),
-    IconButton: ({
-      children,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
+    IconButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
-    Icon: ({
-      src,
-      ...props
-    }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
+    Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
       reactModule.createElement('span', { ...props, 'data-icon-src': src }),
     Icons: {
       Cross: 'cross',
@@ -190,11 +179,7 @@ const renderRenderer = (open = true) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
   const renderer = create(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(CommandPaletteRenderer)
-    )
+    React.createElement(Provider, { store }, React.createElement(CommandPaletteRenderer))
   );
 
   return { renderer, store };
@@ -219,7 +204,9 @@ describe('CommandPaletteRenderer', () => {
 
     expect(useCommandPaletteSourceMock).toHaveBeenCalledTimes(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'overlay' })).toHaveLength(1);
-    expect(renderer.root.findAllByProps({ 'data-testid': 'command-palette-dialog' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'command-palette-dialog' })).toHaveLength(
+      1
+    );
     expect(modal.props.flexHeight).toBe(true);
     expect(modal.props.style).toEqual({ maxHeight: 'calc(100dvh - 32px)' });
   });

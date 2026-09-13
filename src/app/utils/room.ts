@@ -464,7 +464,7 @@ export const getLatestEdit = (
   const targetSender = targetEvent.getSender();
 
   return editEvents.reduce<MatrixEvent | undefined>((latest, editEvent) => {
-    if (editEvent.getSender() !== targetSender) return latest;
+    if (editEvent.isRedacted() || editEvent.getSender() !== targetSender) return latest;
     if (!latest) return editEvent;
 
     return isEventOrderedAfter(editEvent, latest) ? editEvent : latest;

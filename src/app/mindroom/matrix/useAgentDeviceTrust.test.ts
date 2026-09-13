@@ -5,6 +5,7 @@ import {
   collectAgentDeviceSignatures,
   getOrFetchAgentTrust,
   invalidateAgentDeviceTrust,
+  scheduleAgentDeviceTrustRefresh,
 } from './useAgentDeviceTrust';
 
 const cryptoWithDevices = (
@@ -107,18 +108,19 @@ describe('collectAgentDeviceSignatures', () => {
 
 describe('getOrFetchAgentTrust cache', () => {
   const userId = '@mindroom_code:example.org';
+  const crypto = {} as CryptoApi;
 
   afterEach(() => {
-    invalidateAgentDeviceTrust(userId);
-    invalidateAgentDeviceTrust('@mindroom_other:example.org');
+    invalidateAgentDeviceTrust(crypto, userId);
+    invalidateAgentDeviceTrust(crypto, '@mindroom_other:example.org');
   });
 
   it('runs the fetcher once for concurrent lookups of the same userId', async () => {
     const fetcher = vi.fn(async () => true);
 
     const [a, b] = await Promise.all([
-      getOrFetchAgentTrust(userId, fetcher),
-      getOrFetchAgentTrust(userId, fetcher),
+      getOrFetchAgentTrust(crypto, userId, fetcher),
+      getOrFetchAgentTrust(crypto, userId, fetcher),
     ]);
 
     expect(fetcher).toHaveBeenCalledTimes(1);
@@ -129,9 +131,9 @@ describe('getOrFetchAgentTrust cache', () => {
   it('serves subsequent lookups from the resolved cache without re-fetching', async () => {
     const fetcher = vi.fn(async () => true);
 
-    await getOrFetchAgentTrust(userId, fetcher);
-    await getOrFetchAgentTrust(userId, fetcher);
-    await getOrFetchAgentTrust(userId, fetcher);
+    await getOrFetchAgentTrust(crypto, userId, fetcher);
+    await getOrFetchAgentTrust(crypto, userId, fetcher);
+    await getOrFetchAgentTrust(crypto, userId, fetcher);
 
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
@@ -140,9 +142,9 @@ describe('getOrFetchAgentTrust cache', () => {
     const first = vi.fn(async () => false);
     const second = vi.fn(async () => true);
 
-    expect(await getOrFetchAgentTrust(userId, first)).toBe(false);
-    invalidateAgentDeviceTrust(userId);
-    expect(await getOrFetchAgentTrust(userId, second)).toBe(true);
+    expect(await getOrFetchAgentTrust(crypto, userId, first)).toBe(false);
+    invalidateAgentDeviceTrust(crypto, userId);
+    expect(await getOrFetchAgentTrust(crypto, userId, second)).toBe(true);
 
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
@@ -157,17 +159,17 @@ describe('getOrFetchAgentTrust cache', () => {
     const first = vi.fn(() => firstPromise);
     const second = vi.fn(async () => false);
 
-    const inFlight = getOrFetchAgentTrust(userId, first);
-    invalidateAgentDeviceTrust(userId);
+    const inFlight = getOrFetchAgentTrust(crypto, userId, first);
+    invalidateAgentDeviceTrust(crypto, userId);
     // A fresh caller must NOT see the stale in-flight promise from the cache.
-    const freshValue = await getOrFetchAgentTrust(userId, second);
+    const freshValue = await getOrFetchAgentTrust(crypto, userId, second);
     resolveFirst(true);
     await inFlight;
 
     expect(second).toHaveBeenCalledTimes(1);
     expect(freshValue).toBe(false);
     // The cache should hold the fresh result, not the stale one.
-    const cached = await getOrFetchAgentTrust(userId, async () => true);
+    const cached = await getOrFetchAgentTrust(crypto, userId, async () => true);
     expect(cached).toBe(false);
   });
 
@@ -175,10 +177,10 @@ describe('getOrFetchAgentTrust cache', () => {
     const failing = vi.fn(async () => {
       throw new Error('crypto down');
     });
-    await expect(getOrFetchAgentTrust(userId, failing)).rejects.toThrow('crypto down');
+    await expect(getOrFetchAgentTrust(crypto, userId, failing)).rejects.toThrow('crypto down');
 
     const retry = vi.fn(async () => true);
-    expect(await getOrFetchAgentTrust(userId, retry)).toBe(true);
+    expect(await getOrFetchAgentTrust(crypto, userId, retry)).toBe(true);
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
@@ -186,10 +188,91 @@ describe('getOrFetchAgentTrust cache', () => {
     const fetchAlice = vi.fn(async () => true);
     const fetchBob = vi.fn(async () => false);
 
-    expect(await getOrFetchAgentTrust(userId, fetchAlice)).toBe(true);
-    expect(await getOrFetchAgentTrust('@mindroom_other:example.org', fetchBob)).toBe(false);
+    expect(await getOrFetchAgentTrust(crypto, userId, fetchAlice)).toBe(true);
+    expect(await getOrFetchAgentTrust(crypto, '@mindroom_other:example.org', fetchBob)).toBe(false);
 
     expect(fetchAlice).toHaveBeenCalledTimes(1);
     expect(fetchBob).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reuse trust across Matrix crypto sessions', async () => {
+    const otherCrypto = {} as CryptoApi;
+    const firstSession = vi.fn(async () => true);
+    const secondSession = vi.fn(async () => false);
+
+    expect(await getOrFetchAgentTrust(crypto, userId, firstSession)).toBe(true);
+    expect(await getOrFetchAgentTrust(otherCrypto, userId, secondSession)).toBe(false);
+
+    expect(firstSession).toHaveBeenCalledTimes(1);
+    expect(secondSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('device-update refresh scheduling', () => {
+  it('coalesces sibling badge refreshes onto one fresh crypto lookup', async () => {
+    const userId = '@mindroom_code:example.org';
+    const crypto = {} as CryptoApi;
+    const fetcher = vi.fn(async () => true);
+    const values: boolean[] = [];
+    const refreshA = () => {
+      void getOrFetchAgentTrust(crypto, userId, fetcher).then((value) => values.push(value));
+    };
+    const refreshB = () => {
+      void getOrFetchAgentTrust(crypto, userId, fetcher).then((value) => values.push(value));
+    };
+
+    // Warm the cache, then simulate the synchronous listener fan-out from two
+    // mounted badges for one DevicesUpdated event.
+    await getOrFetchAgentTrust(crypto, userId, fetcher);
+    scheduleAgentDeviceTrustRefresh(crypto, userId, refreshA);
+    scheduleAgentDeviceTrustRefresh(crypto, userId, refreshB);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await new Promise<void>((resolve) => {
+      queueMicrotask(resolve);
+    });
+    await Promise.resolve();
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(values).toEqual([true, true]);
+    invalidateAgentDeviceTrust(crypto, userId);
+  });
+
+  it('invalidates an in-flight refresh before scheduling the next generation', async () => {
+    const userId = '@mindroom_code:example.org';
+    const crypto = {} as CryptoApi;
+    let resolveFirst: (value: boolean) => void = () => undefined;
+    const first = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveFirst = resolve;
+        })
+    );
+    const second = vi.fn(async () => false);
+    let fetcher = first;
+    const values: boolean[] = [];
+    const refresh = () => {
+      void getOrFetchAgentTrust(crypto, userId, fetcher).then((value) => values.push(value));
+    };
+
+    scheduleAgentDeviceTrustRefresh(crypto, userId, refresh);
+    await new Promise<void>((resolve) => {
+      queueMicrotask(resolve);
+    });
+    expect(first).toHaveBeenCalledTimes(1);
+
+    fetcher = second;
+    scheduleAgentDeviceTrustRefresh(crypto, userId, refresh);
+    await new Promise<void>((resolve) => {
+      queueMicrotask(resolve);
+    });
+    await Promise.resolve();
+    resolveFirst(true);
+    await Promise.resolve();
+
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(await getOrFetchAgentTrust(crypto, userId, async () => true)).toBe(false);
+    expect(values).toEqual([false, true]);
+    invalidateAgentDeviceTrust(crypto, userId);
   });
 });

@@ -1,5 +1,5 @@
 import { MatrixClient } from 'matrix-js-sdk';
-import { getActiveSession } from '../state/sessions';
+import { validMediaRequest } from '../../swMediaAuth';
 import { trimTrailingSlash } from './common';
 
 const rebaseMediaUrlToHomeserverPath = (mx: MatrixClient, mediaUrl: string): string => {
@@ -43,30 +43,22 @@ export const mxcUrlToHttp = (
   const mediaUrl = rawMediaUrl ? rebaseMediaUrlToHomeserverPath(mx, rawMediaUrl) : rawMediaUrl;
 
   if (!mediaUrl || !useAuthentication) return mediaUrl;
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return mediaUrl;
+  if (typeof window === 'undefined') return mediaUrl;
   const isCapacitor = window.location?.protocol === 'capacitor:';
-  const serviceWorkerAvailable =
-    typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
-  const serviceWorkerControlled =
-    serviceWorkerAvailable && !!navigator.serviceWorker?.controller;
 
-  // When authenticated media is enabled but the page is not yet controlled by the
-  // service worker, native image/media elements cannot receive the Authorization
-  // header. Use a query token fallback until controller takeover completes.
-  if (!isCapacitor && serviceWorkerControlled) return mediaUrl;
-  if (!isCapacitor && !serviceWorkerAvailable) return mediaUrl;
+  // Browser URLs stay token-free even before service-worker takeover. Startup
+  // waits briefly for control, and a failed media request is preferable to
+  // exposing a bearer token in DOM attributes, history, or logs.
+  if (!isCapacitor) return mediaUrl;
 
-  const accessToken = getActiveSession()?.accessToken;
+  const accessToken = mx.getAccessToken();
   if (!accessToken) return mediaUrl;
+  if (!validMediaRequest(mediaUrl, mx.getHomeserverUrl())) return mediaUrl;
 
-  try {
-    const urlObj = new URL(mediaUrl);
-    if (!urlObj.pathname.includes('/_matrix/client/v1/media/')) return mediaUrl;
-    // Capacitor iOS lacks service workers, so native media elements cannot receive
-    // Authorization headers. Use a query token fallback for authenticated media.
-    urlObj.searchParams.set('access_token', accessToken);
-    return urlObj.toString();
-  } catch {
-    return mediaUrl;
-  }
+  // Capacitor iOS lacks service workers, so native media elements cannot receive
+  // Authorization headers. Use a query token fallback for authenticated media.
+  // validMediaRequest already ruled out unparseable URLs.
+  const urlObj = new URL(mediaUrl);
+  urlObj.searchParams.set('access_token', accessToken);
+  return urlObj.toString();
 };

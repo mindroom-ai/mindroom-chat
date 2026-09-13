@@ -88,9 +88,7 @@ describe('roomThreadFilterState', () => {
   });
 
   it('removes the localStorage key when the filter resets to default', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      './roomThreadOverviewModel'
-    );
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -135,11 +133,12 @@ describe('roomThreadFilterState', () => {
   });
 
   it('evicts cached atom-family entries so a removed account re-added in the same tab loads defaults', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      './roomThreadOverviewModel'
-    );
-    const { clearRoomThreadFiltersStore, getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
-      await import('./roomThreadFilterState');
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
+    const {
+      clearRoomThreadFiltersStore,
+      getRoomThreadFilterStorageKey,
+      roomThreadFilterAtomFamily,
+    } = await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -174,9 +173,7 @@ describe('roomThreadFilterState', () => {
   });
 
   it('isolates the same roomId across different users', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      './roomThreadOverviewModel'
-    );
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
     const { roomThreadFilterAtomFamily } = await import('./roomThreadFilterState');
 
     const roomId = '!shared-room:example.org';
@@ -204,9 +201,7 @@ describe('roomThreadFilterState', () => {
   });
 
   it('updates mounted consumers when a storage event changes the same key', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      './roomThreadOverviewModel'
-    );
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -266,10 +261,8 @@ describe('roomThreadFilterState', () => {
     unmount();
   });
 
-  it('migrates older stored payloads by defaulting missing searchQuery and statusMode', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      './roomThreadOverviewModel'
-    );
+  it('migrates older stored payloads by defaulting missing query and status mode', async () => {
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -306,6 +299,46 @@ describe('roomThreadFilterState', () => {
       sortBy: 'lastReply',
       sortDirection: 'asc',
       tags: new Map([['blocked', 'exclude']]),
+    });
+
+    unmount();
+  });
+
+  it('migrates the authoritative v1 DSL into canonical structured fields and free text', async () => {
+    const { createDefaultThreadFilterState } = await import('./roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
+      './roomThreadFilterState'
+    );
+
+    const userId = '@alice:example.org';
+    const roomId = '!room-a:example.org';
+    localStorageMock.setItem(
+      getRoomThreadFilterStorageKey(userId, roomId),
+      JSON.stringify({
+        v: 1,
+        resolved: 'include',
+        streaming: 'any',
+        scheduled: 'any',
+        unread: 'any',
+        idle: 'any',
+        sortBy: 'lastReply',
+        sortDirection: 'desc',
+        tags: {},
+        searchQuery: '-is:resolved tag:priority hello is:unknown',
+        statusMode: 'and',
+      })
+    );
+
+    const atom = roomThreadFilterAtomFamily(userId, roomId);
+    const store = createStore();
+    const unmount = store.sub(atom, () => undefined);
+
+    expect(store.get(atom)).toEqual({
+      ...createDefaultThreadFilterState(),
+      resolved: 'exclude',
+      tags: new Map([['priority', 'include']]),
+      freeText: 'hello',
+      unsupportedQuery: 'is:unknown',
     });
 
     unmount();

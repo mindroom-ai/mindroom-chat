@@ -416,15 +416,98 @@ describe('BackfillScheduler (CINNY-207 P4.1)', () => {
         execute,
       });
       expect(scheduler.abort('!r1', undefined, 'gap-fill')).toBe(true);
-      // Give the drain a chance to notice the aborted controller.
-      // maxConcurrent=0 keeps drain a no-op — we need to lift the cap.
-      // Instead just await the promise; a queued+aborted entry stays
-      // queued until drain rejects it. Cover that via abortAll below.
-      // Here we assert abort() returned true and the executor was
-      // never invoked yet.
+      await expect(promise).rejects.toThrow('backfill aborted');
       expect(execute).not.toHaveBeenCalled();
-      // Drop the reference so vitest doesn't warn about unhandled rejection.
-      promise.catch(() => undefined);
+      expect(scheduler.pendingJobs()).toEqual([]);
+    });
+
+    it('an immediate re-enqueue after abort waits for the old request and then runs fresh work', async () => {
+      const scheduler = createBackfillScheduler({ mx: createMockClient(), maxConcurrent: 2 });
+      let settleAborted!: () => void;
+      const firstExecute = vi.fn(
+        (signal: AbortSignal) =>
+          new Promise<void>((_resolve, reject) => {
+            settleAborted = () => reject(signal.reason);
+          })
+      );
+      const secondExecute = vi.fn().mockResolvedValue('fresh');
+
+      const first = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$thread',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: firstExecute,
+      });
+      await flushMicrotasks();
+
+      expect(scheduler.abort('!room', '$thread', 'thread-backfill')).toBe(true);
+      const second = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$thread',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: secondExecute,
+      });
+
+      expect(second).not.toBe(first);
+      await flushMicrotasks();
+      expect(secondExecute).not.toHaveBeenCalled();
+
+      settleAborted();
+      await expect(first).rejects.toThrow('backfill aborted');
+      await expect(second).resolves.toBe('fresh');
+      expect(secondExecute).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects an aborted queued replacement without waiting for the old request', async () => {
+      const scheduler = createBackfillScheduler({ mx: createMockClient(), maxConcurrent: 2 });
+      let settleFirst!: () => void;
+      const first = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$thread',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: (signal) =>
+          new Promise<void>((_resolve, reject) => {
+            // Model an SDK request that cannot observe abort until it returns.
+            settleFirst = () => reject(signal.reason);
+          }),
+      });
+      await flushMicrotasks();
+
+      expect(scheduler.abort('!room', '$thread', 'thread-backfill')).toBe(true);
+      const replacementExecute = vi.fn().mockResolvedValue('stale replacement');
+      const replacement = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$thread',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: replacementExecute,
+      });
+
+      // The same key is still present in `running`, but it belongs to the old
+      // detached entry. This abort targets the queued replacement and must
+      // reject it immediately rather than waiting for the SDK request above.
+      expect(scheduler.abort('!room', '$thread', 'thread-backfill')).toBe(true);
+      await expect(replacement).rejects.toThrow('backfill aborted');
+      expect(replacementExecute).not.toHaveBeenCalled();
+
+      const freshExecute = vi.fn().mockResolvedValue('fresh');
+      const fresh = scheduler.enqueue({
+        roomId: '!room',
+        threadId: '$thread',
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: freshExecute,
+      });
+      await flushMicrotasks();
+      expect(freshExecute).not.toHaveBeenCalled();
+
+      settleFirst();
+      await expect(first).rejects.toThrow('backfill aborted');
+      await expect(fresh).resolves.toBe('fresh');
+      expect(freshExecute).toHaveBeenCalledTimes(1);
     });
 
     it('abortAll() cancels every queued and in-flight job (engine.stop() contract)', async () => {

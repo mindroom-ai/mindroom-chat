@@ -58,8 +58,16 @@ const areSummaryMapsEqual = (
   return true;
 };
 
-export const clearThreadSummarySharedState = () => {
-  roomThreadSummaryStates.clear();
+export const clearThreadSummarySharedState = (sessionId?: string) => {
+  if (!sessionId) {
+    roomThreadSummaryStates.clear();
+    return;
+  }
+
+  const prefix = `${sessionId}|`;
+  roomThreadSummaryStates.forEach((_state, stateKey) => {
+    if (stateKey.startsWith(prefix)) roomThreadSummaryStates.delete(stateKey);
+  });
 };
 
 export const subscribeToThreadSummaryState = (

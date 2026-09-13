@@ -239,21 +239,24 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: 'Full response',
-        formatted_body: '<p>🔧 <code>tool_name</code> [1]</p>',
-        'io.mindroom.ai_run': {
-          version: 1,
-          status: 'completed',
-          usage: { total_tokens: 125 },
-        },
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
-        },
-      })
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
+          msgtype: 'm.text',
+          body: 'Full response',
+          formatted_body: '<p>🔧 <code>tool_name</code> [1]</p>',
+          'io.mindroom.ai_run': {
+            version: 1,
+            status: 'completed',
+            usage: { total_tokens: 125 },
+          },
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [{ type: 'tool_call_completed', tool_name: 'tool_name' }],
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('Full response');
@@ -282,25 +285,28 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* fallback edit body',
-        'io.mindroom.ai_run': {
-          version: 1,
-          status: 'cached',
-          usage: { total_tokens: 42 },
-        },
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          body: 'final edited body',
-          formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
-        },
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [{ type: 'tool_call_completed', tool_name: 'search_web' }],
-        },
-      })
+          body: '* fallback edit body',
+          'io.mindroom.ai_run': {
+            version: 1,
+            status: 'cached',
+            usage: { total_tokens: 42 },
+          },
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'final edited body',
+            formatted_body: '<p>🔧 <code>search_web</code> [1]</p>',
+          },
+          'io.mindroom.tool_trace': {
+            version: 2,
+            events: [{ type: 'tool_call_completed', tool_name: 'search_web' }],
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('final edited body');
@@ -340,17 +346,20 @@ describe('hydrateMindroomLongTextSource', () => {
       ],
     };
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* fallback edit body',
-        [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          body: 'final edited body',
-          formatted_body: '<p>final edited body</p>',
-        },
-      })
+          body: '* fallback edit body',
+          [MINDROOM_MESSAGE_EXTRAS_KEY]: extras,
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'final edited body',
+            formatted_body: '<p>final edited body</p>',
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('final edited body');
@@ -371,15 +380,18 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: '* wrapper body',
-        'm.new_content': {
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
           msgtype: 'm.text',
-          formatted_body: '<p>formatted only</p>',
-        },
-      })
+          body: '* wrapper body',
+          'm.new_content': {
+            msgtype: 'm.text',
+            formatted_body: '<p>formatted only</p>',
+          },
+        }),
+      {}
     );
 
     expect(resolved.body).toBe('* wrapper body');
@@ -399,9 +411,13 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () => {
-      throw new Error('download failed');
-    });
+    const resolved = await hydrateMindroomLongTextSource(
+      source,
+      async () => {
+        throw new Error('download failed');
+      },
+      {}
+    );
 
     expect(resolved).toBe(source.previewContent);
     expect(resolved.body).toBe('preview body');
@@ -420,7 +436,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () => '{bad-json');
+    const resolved = await hydrateMindroomLongTextSource(source, async () => '{bad-json', {});
 
     expect(resolved).toBe(source.previewContent);
     expect(resolved.body).toBe('preview body');
@@ -446,10 +462,85 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const first = await hydrateMindroomLongTextSource(source, loadSidecarText);
-    const second = await hydrateMindroomLongTextSource(source, loadSidecarText);
+    const cacheOwner = {};
+    const first = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
+    const second = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
 
     expect(loadSidecarText).toHaveBeenCalledTimes(1);
     expect(second).toBe(first);
+  });
+
+  it('does not share hydrated plaintext between account clients', async () => {
+    const source = expectDefined(
+      getMindroomLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview body',
+        url: 'mxc://server/shared-id',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      })
+    );
+    const accountA = {};
+    const accountB = {};
+    const loadForAccountA = vi.fn(async () =>
+      JSON.stringify({ msgtype: 'm.text', body: 'account A plaintext' })
+    );
+    const loadForAccountB = vi.fn(async () =>
+      JSON.stringify({ msgtype: 'm.text', body: 'account B plaintext' })
+    );
+
+    const first = await hydrateMindroomLongTextSource(source, loadForAccountA, accountA);
+    const second = await hydrateMindroomLongTextSource(source, loadForAccountB, accountB);
+
+    expect(first.body).toBe('account A plaintext');
+    expect(second.body).toBe('account B plaintext');
+    expect(loadForAccountA).toHaveBeenCalledTimes(1);
+    expect(loadForAccountB).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not share plaintext across different encryption descriptors for one MXC URI', async () => {
+    const makeEncryptedSource = (key: string) =>
+      expectDefined(
+        getMindroomLongTextSource({
+          msgtype: 'm.file',
+          body: 'preview body',
+          file: {
+            url: 'mxc://server/shared-encrypted-id',
+            key: { kty: 'oct', k: key, alg: 'A256CTR', key_ops: ['decrypt'] },
+            iv: 'iv',
+            hashes: { sha256: `hash-${key}` },
+            v: 'v2',
+          },
+          'io.mindroom.long_text': {
+            version: 2,
+            encoding: 'matrix_event_content_json',
+          },
+        })
+      );
+    const cacheOwner = {};
+    const firstLoader = vi.fn(async () =>
+      JSON.stringify({ msgtype: 'm.text', body: 'first descriptor plaintext' })
+    );
+    const secondLoader = vi.fn(async () =>
+      JSON.stringify({ msgtype: 'm.text', body: 'second descriptor plaintext' })
+    );
+
+    const first = await hydrateMindroomLongTextSource(
+      makeEncryptedSource('key-a'),
+      firstLoader,
+      cacheOwner
+    );
+    const second = await hydrateMindroomLongTextSource(
+      makeEncryptedSource('key-b'),
+      secondLoader,
+      cacheOwner
+    );
+
+    expect(first.body).toBe('first descriptor plaintext');
+    expect(second.body).toBe('second descriptor plaintext');
+    expect(firstLoader).toHaveBeenCalledTimes(1);
+    expect(secondLoader).toHaveBeenCalledTimes(1);
   });
 });

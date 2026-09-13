@@ -1,10 +1,10 @@
-import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, type IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
-  loadRoomCachePersistenceState,
+  createPreferLiveEventMapper,
   loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
   loadRoomCachedBackStateSnapshot,
@@ -18,6 +18,294 @@ import {
   serializeThreadCacheEvents,
 } from './eventRepository';
 import { makeEvent, makeRoom } from './test-utils/RoomTimeline.test.shared';
+
+const makeRawMessage = (
+  eventId: string,
+  body: string,
+  opts: { sender?: string; ts?: number; replacement?: Partial<IEvent> } = {}
+): Partial<IEvent> => ({
+  event_id: eventId,
+  room_id: '!room:example.org',
+  sender: opts.sender ?? '@alice:example.org',
+  type: 'm.room.message',
+  origin_server_ts: opts.ts ?? 100,
+  content: { msgtype: 'm.text', body },
+  ...(opts.replacement
+    ? { unsigned: { 'm.relations': { [RelationType.Replace]: opts.replacement } } }
+    : {}),
+});
+
+const makeRawEdit = (
+  eventId: string,
+  targetId: string,
+  body: string,
+  opts: { sender?: string; ts?: number } = {}
+): Partial<IEvent> => ({
+  event_id: eventId,
+  room_id: '!room:example.org',
+  sender: opts.sender ?? '@alice:example.org',
+  type: 'm.room.message',
+  origin_server_ts: opts.ts ?? 200,
+  content: {
+    msgtype: 'm.text',
+    body: `* ${body}`,
+    'm.new_content': { msgtype: 'm.text', body },
+    'm.relates_to': { rel_type: RelationType.Replace, event_id: targetId },
+  },
+});
+
+const mapRawEvent = (rawEvent: Partial<IEvent>): MatrixEvent => new MatrixEvent(rawEvent as IEvent);
+
+const makeSdkStyleMapper = (live: MatrixEvent) =>
+  vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {
+    if (rawEvent.event_id !== live.getId()) return mapRawEvent(rawEvent);
+
+    live.setUnsigned({ ...live.getUnsigned(), ...rawEvent.unsigned });
+    const replacement = (
+      rawEvent.unsigned?.['m.relations'] as Record<string, Partial<IEvent>> | undefined
+    )?.[RelationType.Replace];
+    if (replacement) live.makeReplaced(mapRawEvent(replacement));
+    return live;
+  });
+
+describe('eventRepository same-id revision merge', () => {
+  it('upgrades an SDK-owned event from a newer cached same-sender replacement', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'v1'));
+    const edit = makeRawEdit('$edit-v2', '$target', 'v2');
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+    const mapEvent = vi.fn(mapRawEvent);
+    const preferLive = createPreferLiveEventMapper(room as never, mapEvent);
+
+    const merged = preferLive(makeRawMessage('$target', 'v1', { replacement: edit }));
+
+    expect(merged).toBe(live);
+    // The live event never goes through the mapper (its reuse branch would
+    // poison the mapper's preventReEmit flag); only the fresh edit is mapped.
+    expect(mapEvent).toHaveBeenCalledTimes(1);
+    expect(mapEvent.mock.calls[0]?.[0]).toMatchObject({ event_id: '$edit-v2' });
+    expect(merged.replacingEvent()?.getId()).toBe('$edit-v2');
+    expect(merged.replacingEvent()?.getContent()['m.new_content']).toMatchObject({ body: 'v2' });
+  });
+
+  it('never downgrades a newer serialized live replacement to an older cached one', () => {
+    const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
+    const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+
+    const merged = createPreferLiveEventMapper(
+      room as never,
+      mapRawEvent
+    )(makeRawMessage('$target', 'v1', { replacement: cachedEdit }));
+
+    expect(merged).toBe(live);
+    expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
+    expect(merged.getContent()).toMatchObject({ body: 'v3' });
+  });
+
+  it('never routes the live event through the SDK mapper, so its eager bundle apply cannot downgrade', () => {
+    const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
+    const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
+    live.makeReplaced(mapRawEvent(liveEdit));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+    const sdkStyleMap = makeSdkStyleMapper(live);
+    const incoming = makeRawMessage('$target', 'v1', { replacement: cachedEdit });
+    const incomingRelations = incoming.unsigned?.['m.relations'] as Record<string, unknown>;
+    incomingRelations[RelationType.Thread] = { count: 7 };
+
+    const merged = createPreferLiveEventMapper(room as never, sdkStyleMap)(incoming);
+
+    expect(merged).toBe(live);
+    expect(sdkStyleMap).not.toHaveBeenCalledWith(expect.objectContaining({ event_id: '$target' }));
+    expect(merged.replacingEvent()?.getId()).toBe('$edit-v3');
+    expect(merged.getContent()).toMatchObject({ body: 'v3' });
+    expect(merged.getUnsigned()['m.relations']?.[RelationType.Thread]).toEqual({ count: 7 });
+  });
+
+  it('preserves newer live relation bundles while adding disjoint incoming bundles', () => {
+    const liveEdit = makeRawEdit('$edit-v3', '$target', 'v3', { ts: 300 });
+    const cachedEdit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { replacement: liveEdit }));
+    live.setUnsigned({
+      'm.relations': {
+        [RelationType.Replace]: liveEdit,
+        [RelationType.Thread]: { count: 9 },
+        [RelationType.Annotation]: { chunk: [{ key: 'live' }] },
+      },
+    });
+    live.makeReplaced(mapRawEvent(liveEdit));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+    const sdkStyleMap = makeSdkStyleMapper(live);
+    const incoming = makeRawMessage('$target', 'v1', { replacement: cachedEdit });
+    incoming.unsigned = {
+      'm.relations': {
+        [RelationType.Replace]: cachedEdit,
+        [RelationType.Thread]: { count: 1 },
+        [RelationType.Reference]: { chunk: [{ event_id: '$incoming-reference' }] },
+      },
+    };
+
+    createPreferLiveEventMapper(room as never, sdkStyleMap)(incoming);
+
+    const relations = live.getUnsigned()['m.relations'];
+    expect(relations?.[RelationType.Thread]).toEqual({ count: 9 });
+    expect(relations?.[RelationType.Annotation]).toEqual({ chunk: [{ key: 'live' }] });
+    expect(relations?.[RelationType.Reference]).toEqual({
+      chunk: [{ event_id: '$incoming-reference' }],
+    });
+    expect(live.replacingEvent()?.getId()).toBe('$edit-v3');
+  });
+
+  it('clears a private replacement when the incoming same-id bundle proves it was redacted', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'original'));
+    const edit = mapRawEvent(makeRawEdit('$edit-v2', '$target', 'secret', { ts: 200 }));
+    live.makeReplaced(edit);
+    const redactedEdit = {
+      ...makeRawEdit('$edit-v2', '$target', 'secret', { ts: 200 }),
+      content: {},
+      unsigned: {
+        redacted_because: {
+          event_id: '$redaction',
+          room_id: '!room:example.org',
+          sender: '@moderator:example.org',
+          type: 'm.room.redaction',
+          origin_server_ts: 300,
+          redacts: '$edit-v2',
+          content: {},
+        },
+      },
+    } satisfies Partial<IEvent>;
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+
+    createPreferLiveEventMapper(
+      room as never,
+      mapRawEvent
+    )(makeRawMessage('$target', 'original', { replacement: redactedEdit }));
+
+    expect(live.replacingEvent()).toBeNull();
+    expect(live.getUnsigned()['m.relations']?.[RelationType.Replace]).toBeUndefined();
+    expect(JSON.stringify(live.event)).not.toContain('secret');
+  });
+
+  it('does not re-persist a stale authoritative bundle for a known-redacted edit', () => {
+    const edit = makeRawEdit('$edit-v2', '$target', 'secret');
+    const targetRaw = makeRawMessage('$target', 'original', { replacement: edit });
+    const redactedEdit = mapRawEvent(edit);
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$edit-v2' ? redactedEdit : undefined),
+    };
+    redactedEdit.makeRedacted(
+      mapRawEvent({
+        event_id: '$redaction',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        origin_server_ts: 300,
+        redacts: '$edit-v2',
+        content: {},
+      }),
+      room as never
+    );
+
+    const snapshot = persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [mapRawEvent(targetRaw)],
+      authoritativeRawEvents: [targetRaw],
+      save: vi.fn().mockResolvedValue(true),
+    });
+
+    expect(snapshot.rawEvents[0]?.unsigned?.['m.relations']?.['m.replace']).toBeUndefined();
+    expect(JSON.stringify(snapshot.rawEvents)).not.toContain('secret');
+  });
+
+  it('clears a known-redacted live replacement even when the incoming target has no bundle', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'original'));
+    const edit = mapRawEvent(makeRawEdit('$edit-v2', '$target', 'secret'));
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) =>
+        eventId === '$target' ? live : eventId === '$edit-v2' ? edit : undefined,
+    };
+    live.makeReplaced(edit);
+    edit.makeRedacted(
+      mapRawEvent({
+        event_id: '$redaction',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        type: 'm.room.redaction',
+        origin_server_ts: 300,
+        redacts: '$edit-v2',
+        content: {},
+      }),
+      room as never
+    );
+
+    createPreferLiveEventMapper(room as never, mapRawEvent)(makeRawMessage('$target', 'original'));
+
+    expect(live.replacingEvent()).toBeNull();
+  });
+
+  it('does not apply a cross-sender cached replacement', () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'v1'));
+    const edit = makeRawEdit('$evil-edit', '$target', 'evil', {
+      sender: '@mallory:example.org',
+    });
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: () => live,
+    };
+
+    createPreferLiveEventMapper(
+      room as never,
+      mapRawEvent
+    )(makeRawMessage('$target', 'v1', { replacement: edit }));
+
+    expect(live.replacingEvent()).toBeNull();
+  });
+
+  it('prunes a redacted raw event even when no live SDK instance exists', () => {
+    const room = makeRoom({ liveEvents: [] });
+    const redactedBecause = {
+      event_id: '$redaction',
+      origin_server_ts: 200,
+      sender: '@alice:example.org',
+      type: 'm.room.redaction',
+      redacts: '$target',
+      content: {},
+    };
+    const rawEvent = {
+      ...makeRawMessage('$target', 'plaintext that must not be cached'),
+      unsigned: { redacted_because: redactedBecause },
+    };
+
+    const mapped = createPreferLiveEventMapper(room as never, mapRawEvent)(rawEvent);
+
+    expect(mapped.isRedacted()).toBe(true);
+    expect(mapped.event.content).toEqual({});
+    expect(mapped.event.unsigned?.redacted_because).toMatchObject({
+      event_id: '$redaction',
+    });
+  });
+});
 
 describe('eventRepository cache serialization helpers', () => {
   it('adds replacement and redaction targets before cache serialization', () => {
@@ -245,6 +533,31 @@ describe('eventRepository cache persistence snapshots', () => {
 });
 
 describe('eventRepository cached thread snapshots', () => {
+  it('first-paints the newer cached replacement onto an overlapping SDK thread event', async () => {
+    const live = mapRawEvent(makeRawMessage('$reply', 'v1', { ts: 200 }));
+    const edit = makeRawEdit('$edit-v2', '$reply', 'v2', { ts: 300 });
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$reply' ? live : undefined),
+    };
+
+    const snapshot = await loadThreadCachedSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      limit: 50,
+      maxPages: 1,
+      mapEvent: createPreferLiveEventMapper(room as never, mapRawEvent),
+      loadLatest: async () => ({
+        events: [makeRawMessage('$reply', 'v1', { ts: 200, replacement: edit })],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot?.events).toEqual([live]);
+    expect(live.replacingEvent()?.getId()).toBe('$edit-v2');
+  });
+
   it('loads and stitches cached thread pages from newest to oldest', async () => {
     const rootEvent = { event_id: '$root', origin_server_ts: 10 };
     const newerReply = { event_id: '$newer', origin_server_ts: 30 };
@@ -394,6 +707,31 @@ describe('eventRepository cached thread snapshots', () => {
 });
 
 describe('eventRepository latest room cache hydration snapshots', () => {
+  it('hydrates an overlapping same-id event when cache has a newer replacement', async () => {
+    const live = mapRawEvent(makeRawMessage('$target', 'v1', { ts: 100 }));
+    const edit = makeRawEdit('$edit-v2', '$target', 'v2', { ts: 200 });
+    const room = {
+      roomId: '!room:example.org',
+      findEventById: (eventId: string) => (eventId === '$target' ? live : undefined),
+    };
+
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [live],
+      mapEvent: createPreferLiveEventMapper(room as never, mapRawEvent),
+      loadLatest: async () => ({
+        events: [makeRawMessage('$target', 'v1', { ts: 100, replacement: edit })],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('hydrate');
+    expect(snapshot.events).toEqual([live]);
+    expect(live.replacingEvent()?.getId()).toBe('$edit-v2');
+  });
+
   it('skips latest room cache hydration when the loaded timeline is already newer', async () => {
     const loadedEvent = makeEvent('$loaded', { ts: 300 });
 
@@ -550,43 +888,6 @@ describe('eventRepository room cached pagination snapshots', () => {
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$newer', '$older']);
     expect(snapshot.beforeToken).toBe('before-older');
     expect(snapshot.hasMoreCachedBack).toBe(true);
-  });
-});
-
-describe('eventRepository room cache persistence state', () => {
-  it('clears stale SDK backward tokens when cached metadata proves the room start', async () => {
-    const state = await loadRoomCachePersistenceState({
-      sessionId: 'session',
-      roomId: '!room:example.org',
-      earliestLoadedEventId: '$earliest',
-      currentBeforeToken: 'sdk-before',
-      loadPaginationToken: async (sessionId, roomId, eventId) => {
-        expect(sessionId).toBe('session');
-        expect(roomId).toBe('!room:example.org');
-        expect(eventId).toBe('$earliest');
-        return null;
-      },
-    });
-
-    expect(state.cachedBeforeToken).toBeNull();
-    expect(state.beforeTokenForEarliest).toBeNull();
-    expect(state.roomStartKnown).toBe(true);
-    expect(state.shouldClearBackwardToken).toBe(true);
-  });
-
-  it('keeps the SDK backward token when cache metadata has no stronger coverage fact', async () => {
-    const state = await loadRoomCachePersistenceState({
-      sessionId: 'session',
-      roomId: '!room:example.org',
-      earliestLoadedEventId: '$earliest',
-      currentBeforeToken: 'sdk-before',
-      loadPaginationToken: async () => undefined,
-    });
-
-    expect(state.cachedBeforeToken).toBeUndefined();
-    expect(state.beforeTokenForEarliest).toBe('sdk-before');
-    expect(state.roomStartKnown).toBe(false);
-    expect(state.shouldClearBackwardToken).toBe(false);
   });
 });
 

@@ -130,7 +130,10 @@ export function PasswordLoginForm({
     Parameters<typeof login>
   >(useCallback(login, []));
 
-  useLoginComplete(loginState.status === AsyncStatus.Success ? loginState.data : undefined, addAccount);
+  const sessionStoreError = useLoginComplete(
+    loginState.status === AsyncStatus.Success ? loginState.data : undefined,
+    addAccount
+  );
 
   const handleUsernameLogin = (username: string, password: string) => {
     startLogin(baseUrl, {
@@ -277,10 +280,14 @@ export function PasswordLoginForm({
           Login
         </Text>
       </Button>
+      {sessionStoreError && (
+        <FieldError message="Login succeeded, but this browser could not save the account. Check storage permissions and try again." />
+      )}
 
       <Overlay
         open={
-          loginState.status === AsyncStatus.Loading || loginState.status === AsyncStatus.Success
+          loginState.status === AsyncStatus.Loading ||
+          (loginState.status === AsyncStatus.Success && !sessionStoreError)
         }
         backdrop={<OverlayBackdrop />}
       >

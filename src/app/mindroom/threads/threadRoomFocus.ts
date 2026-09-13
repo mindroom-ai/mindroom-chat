@@ -9,7 +9,6 @@ import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
-import { parseThreadFilterQuery } from './threadFilterDsl';
 import type { RoomViewMode } from './roomViewMode';
 import { buildThreadRecordMap } from './threadRecord';
 import {
@@ -233,8 +232,7 @@ export const getRoomEventFocusTarget = ({
       };
     }
   }
-  const effectiveSearchQuery =
-    searchQuery ?? parseThreadFilterQuery(threadFilterState.searchQuery ?? '').freeText;
+  const effectiveSearchQuery = searchQuery ?? threadFilterState.freeText;
 
   const visibleEvents = threadId
     ? renderableEvents

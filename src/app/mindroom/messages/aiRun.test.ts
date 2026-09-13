@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getMindroomAiRunInfo, hasMindroomAiRunMetadata, isMindroomAiRunStreaming } from './aiRun';
-
-describe('hasMindroomAiRunMetadata', () => {
-  it('returns true only for version 1 ai_run metadata', () => {
-    expect(hasMindroomAiRunMetadata({})).toBe(false);
-    expect(hasMindroomAiRunMetadata({ 'io.mindroom.ai_run': { version: 2 } })).toBe(false);
-    expect(hasMindroomAiRunMetadata({ 'io.mindroom.ai_run': { version: 1 } })).toBe(true);
-  });
-});
+import { getMindroomAiRunInfo, isMindroomAiRunStreaming } from './aiRun';
 
 describe('getMindroomAiRunInfo', () => {
   it('extracts metadata from top-level message content', () => {
