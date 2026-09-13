@@ -62,6 +62,16 @@ describe('sanitizePaginationLimit', () => {
 });
 
 describe('getSettings', () => {
+  it('falls back to defaults when stored settings JSON is malformed', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = '{not json}';
+
+    expect(() => getSettings()).not.toThrow();
+    expect(getSettings().useSystemTheme).toBe(true);
+
+    storageValue = null;
+  });
+
   it('sanitizes persisted page zoom values', async () => {
     const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } = await import(
       './settings'

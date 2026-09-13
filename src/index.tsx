@@ -7,7 +7,6 @@ import { Browser } from '@capacitor/browser';
 import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
 import 'katex/dist/katex.min.css';
-import { configClass, varsClass } from 'folds';
 
 enableMapSet();
 
@@ -19,11 +18,12 @@ import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
 import App from './app/pages/App';
+import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
 
-document.body.classList.add(configClass, varsClass);
+applyThemeToDom(resolveInitialTheme());
 
 const handleNativeSSOCallback = (url: string) => {
   const appPath = getAppPathFromNativeSsoUrl(url);
