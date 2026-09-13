@@ -1,40 +1,40 @@
 import React from 'react';
-import { create, ReactTestRenderer } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { StateEvent } from '../../../types/matrix/room';
-import { useStateEvent } from '../../hooks/useStateEvent';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import {
+  getPendingThreadTagsContent,
   resetPendingThreadTagsForTests,
   setPendingThreadTagsContent,
 } from './threadTagPending';
+import { buildPerTagStateKey } from './threadTags';
 import { useRoomThreadResolutionMap, useThreadResolution } from './useRoomThreadTags';
-
-vi.mock('../../hooks/useStateEvent', () => ({
-  useStateEvent: vi.fn(),
-}));
 
 vi.mock('../../hooks/useStateEvents', () => ({
   useStateEvents: vi.fn(),
 }));
 
-const mockedUseStateEvent = vi.mocked(useStateEvent);
 const mockedUseStateEvents = vi.mocked(useStateEvents);
+
+const ISO_1 = '2026-04-07T00:00:01.000Z';
+const ISO_2 = '2026-04-07T00:00:02.000Z';
+const ISO_3 = '2026-04-07T00:00:03.000Z';
 
 afterEach(() => {
   vi.clearAllMocks();
   resetPendingThreadTagsForTests();
 });
 
-const makeThreadTagsEvent = (stateKey: string) =>
+const makeLegacyThreadTagsEvent = (
+  stateKey: string,
+  tags: Record<string, Record<string, unknown>>
+) =>
   new MatrixEvent({
     content: {
-      tags: {
-        resolved: { set_by: '@alice:example.org', set_at: 1000 },
-        urgent: { set_by: '@alice:example.org', set_at: 1001 },
-      },
+      tags,
     },
     event_id: `$thread-tags-${stateKey}`,
     origin_server_ts: 1,
@@ -43,6 +43,24 @@ const makeThreadTagsEvent = (stateKey: string) =>
     state_key: stateKey,
     type: StateEvent.ThreadTags,
   });
+
+const makePerTagEvent = (
+  threadRootId: string,
+  tagName: string,
+  content: Record<string, unknown>
+) =>
+  new MatrixEvent({
+    content,
+    event_id: `$thread-tag-${threadRootId}-${tagName}`,
+    origin_server_ts: 1,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    state_key: buildPerTagStateKey(threadRootId, tagName),
+    type: StateEvent.ThreadTags,
+  });
+
+const makePerTagTombstoneEvent = (threadRootId: string, tagName: string) =>
+  makePerTagEvent(threadRootId, tagName, {});
 
 type ResolutionHarnessProps = {
   room: Room;
@@ -66,12 +84,22 @@ function MapHarness({ room, onRender }: MapHarnessProps) {
 }
 
 describe('useRoomThreadTags compatibility with threadTags parser', () => {
-  it('reads resolved state and plain tag names from thread-tag state events', () => {
+  it('reads resolved state and plain tag names from per-tag state events', () => {
     const room = { roomId: '!room:example.org' } as Room;
-    const event = makeThreadTagsEvent('$root');
-    mockedUseStateEvent.mockImplementation((_room, eventType, stateKey) => {
-      if (eventType === StateEvent.ThreadTags && stateKey === '$root') return event;
-      return undefined;
+    mockedUseStateEvents.mockImplementation((_room, eventType) => {
+      if (eventType === StateEvent.ThreadTags) {
+        return [
+          makePerTagEvent('$root', 'resolved', {
+            set_by: '@alice:example.org',
+            set_at: ISO_1,
+          }),
+          makePerTagEvent('$root', 'urgent', {
+            set_by: '@alice:example.org',
+            set_at: ISO_2,
+          }),
+        ];
+      }
+      return [];
     });
 
     let snapshot: ReturnType<typeof useThreadResolution> | undefined;
@@ -87,18 +115,33 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
 
     expect(snapshot?.isResolved).toBe(true);
     expect(snapshot?.tags).toEqual({
-      resolved: { set_by: '@alice:example.org', set_at: 1000 },
-      urgent: { set_by: '@alice:example.org', set_at: 1001 },
+      resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
+      urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
     });
 
     renderer.unmount();
   });
 
-  it('builds a room resolution map with unwrapped tag content', () => {
+  it('builds a room resolution map from mixed legacy and per-tag state', () => {
     const room = { roomId: '!room:example.org' } as Room;
-    const event = makeThreadTagsEvent('$root');
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
-      if (eventType === StateEvent.ThreadTags) return [event];
+      if (eventType === StateEvent.ThreadTags) {
+        return [
+          makeLegacyThreadTagsEvent('$root', {
+            resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
+            urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
+          }),
+          makePerTagEvent('$root', 'urgent', {
+            set_by: '@bob:example.org',
+            set_at: ISO_3,
+          }),
+          makePerTagTombstoneEvent('$root', 'resolved'),
+          makePerTagEvent('$other', 'blocked', {
+            set_by: '@carol:example.org',
+            set_at: ISO_2,
+          }),
+        ];
+      }
       return [];
     });
 
@@ -113,10 +156,15 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
     );
 
     expect(snapshot?.get('$root')).toMatchObject({
-      isResolved: true,
+      isResolved: false,
       tags: {
-        resolved: { set_by: '@alice:example.org', set_at: 1000 },
-        urgent: { set_by: '@alice:example.org', set_at: 1001 },
+        urgent: { set_by: '@bob:example.org', set_at: ISO_3 },
+      },
+    });
+    expect(snapshot?.get('$other')).toMatchObject({
+      isResolved: false,
+      tags: {
+        blocked: { set_by: '@carol:example.org', set_at: ISO_2 },
       },
     });
 
@@ -127,8 +175,8 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
     const room = { roomId: '!room:example.org' } as Room;
     setPendingThreadTagsContent(room.roomId, '$root', {
       tags: {
-        resolved: { set_by: '@alice:example.org', set_at: 1000 },
-        urgent: { set_by: '@alice:example.org', set_at: 1001 },
+        resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
+        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
       },
     });
 
@@ -147,11 +195,54 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
       isResolved: true,
       isPending: true,
       tags: {
-        resolved: { set_by: '@alice:example.org', set_at: 1000 },
-        urgent: { set_by: '@alice:example.org', set_at: 1001 },
+        resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
+        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
       },
     });
 
     renderer.unmount();
+  });
+
+  it('clears pending content once aggregated live state matches it', () => {
+    const room = { roomId: '!room:example.org' } as Room;
+    setPendingThreadTagsContent(room.roomId, '$root', {
+      tags: {
+        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
+      },
+    });
+    mockedUseStateEvents.mockImplementation((_room, eventType) => {
+      if (eventType === StateEvent.ThreadTags) {
+        return [
+          makePerTagEvent('$root', 'urgent', {
+            set_by: '@alice:example.org',
+            set_at: ISO_2,
+          }),
+        ];
+      }
+      return [];
+    });
+
+    let snapshot: ReturnType<typeof useRoomThreadResolutionMap> | undefined;
+    let renderer: ReturnType<typeof create> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(MapHarness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
+
+    expect(snapshot?.get('$root')).toMatchObject({
+      tags: {
+        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
+      },
+    });
+    expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
+
+    renderer?.unmount();
   });
 });

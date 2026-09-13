@@ -3,15 +3,38 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getPendingThreadTagsContent, resetPendingThreadTagsForTests } from './threadTagPending';
+import { buildPerTagStateKey } from './threadTags';
+import { getValidThreadRootEvent } from './threadUtils';
 import { useMutateThreadTags } from './useMutateThreadTags';
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: vi.fn(),
 }));
 
+const { threadUtilsMockState } = vi.hoisted(() => ({
+  threadUtilsMockState: {
+    defaultGetValidThreadRootEvent: undefined as
+      | typeof import('./threadUtils').getValidThreadRootEvent
+      | undefined,
+  },
+}));
+
+vi.mock('./threadUtils', async () => {
+  const actual = await vi.importActual<typeof import('./threadUtils')>('./threadUtils');
+  threadUtilsMockState.defaultGetValidThreadRootEvent = actual.getValidThreadRootEvent;
+  return {
+    ...actual,
+    getValidThreadRootEvent: vi.fn(actual.getValidThreadRootEvent),
+  };
+});
+
 const mockedUseMatrixClient = vi.mocked(useMatrixClient);
+const mockedGetValidThreadRootEvent = vi.mocked(getValidThreadRootEvent);
+const ISO_1 = '2026-04-07T00:00:01.000Z';
+const ISO_2 = '2026-04-07T00:00:02.000Z';
 
 type HarnessProps = {
   room: Room;
@@ -39,12 +62,59 @@ const makeThreadRootEvent = (eventId: string) => {
   return event;
 };
 
+const makeLegacyThreadTagsEvent = (
+  stateKey: string,
+  tags: Record<string, Record<string, unknown>>
+) =>
+  new MatrixEvent({
+    content: { tags },
+    event_id: `$legacy-thread-tags-${stateKey}`,
+    origin_server_ts: 1,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    state_key: stateKey,
+    type: StateEvent.ThreadTags,
+  });
+
+const makePerTagEvent = (
+  threadRootId: string,
+  tagName: string,
+  content: Record<string, unknown>
+) =>
+  new MatrixEvent({
+    content,
+    event_id: `$per-tag-${threadRootId}-${tagName}`,
+    origin_server_ts: 1,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    state_key: buildPerTagStateKey(threadRootId, tagName),
+    type: StateEvent.ThreadTags,
+  });
+
+const makeRoom = (events: MatrixEvent[] = []) =>
+  ({
+    roomId: '!room:example.org',
+    getThread: (threadId: string) =>
+      threadId === '$root' ? ({ rootEvent: makeThreadRootEvent('$root') } as never) : undefined,
+    findEventById: () => undefined,
+    getLiveTimeline: () => ({
+      getState: () => ({
+        getStateEvents: (eventType: string) =>
+          eventType === StateEvent.ThreadTags ? events : [],
+      }),
+    }),
+  }) as unknown as Room;
+
 describe('useMutateThreadTags', () => {
   const sendStateEvent = vi.fn();
 
   beforeEach(() => {
     sendStateEvent.mockReset();
     sendStateEvent.mockResolvedValue(undefined);
+    mockedGetValidThreadRootEvent.mockReset();
+    mockedGetValidThreadRootEvent.mockImplementation(
+      threadUtilsMockState.defaultGetValidThreadRootEvent!
+    );
     mockedUseMatrixClient.mockReturnValue({
       getSafeUserId: () => '@alice:example.org',
       sendStateEvent,
@@ -56,19 +126,10 @@ describe('useMutateThreadTags', () => {
     resetPendingThreadTagsForTests();
   });
 
-  it('writes new tags to the canonical thread root and seeds pending state immediately', async () => {
-    const rootEvent = makeThreadRootEvent('$root');
-    const room = {
-      roomId: '!room:example.org',
-      getThread: (threadId: string) =>
-        threadId === '$root' ? ({ rootEvent } as never) : undefined,
-      findEventById: () => undefined,
-      getLiveTimeline: () => ({
-        getState: () => ({
-          getStateEvents: () => undefined,
-        }),
-      }),
-    } as unknown as Room;
+  it('writes new tags to canonical per-tag state keys and seeds aggregated pending state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_1));
+    const room = makeRoom();
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
     const renderer = create(
@@ -89,23 +150,185 @@ describe('useMutateThreadTags', () => {
       '!room:example.org',
       'com.mindroom.thread.tags',
       {
-        tags: {
-          bug: expect.objectContaining({
-            set_by: '@alice:example.org',
-          }),
-        },
+        set_by: '@alice:example.org',
+        set_at: ISO_1,
       },
-      '$root'
+      '["$root","bug"]'
     );
     expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual(
-      expect.objectContaining({
+      {
         tags: {
-          bug: expect.objectContaining({
+          bug: {
             set_by: '@alice:example.org',
-          }),
+            set_at: ISO_1,
+          },
+        },
+      }
+    );
+
+    renderer.unmount();
+  });
+
+  it('uses the validated thread root id for per-tag state keys and pending state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_1));
+    const room = makeRoom();
+    mockedGetValidThreadRootEvent.mockReturnValue(makeThreadRootEvent('$validated-root'));
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
         },
       })
     );
+
+    await act(async () => {
+      await snapshot?.addTag('$unvalidated-root', 'bug');
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      'com.mindroom.thread.tags',
+      {
+        set_by: '@alice:example.org',
+        set_at: ISO_1,
+      },
+      '["$validated-root","bug"]'
+    );
+    expect(getPendingThreadTagsContent('!room:example.org', '$validated-root')).toEqual({
+      tags: {
+        bug: {
+          set_by: '@alice:example.org',
+          set_at: ISO_1,
+        },
+      },
+    });
+    expect(getPendingThreadTagsContent('!room:example.org', '$unvalidated-root')).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('removes a tag by sending a per-tag tombstone and preserving other merged tags in pending state', async () => {
+    const room = makeRoom([
+      makeLegacyThreadTagsEvent('$root', {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+      }),
+      makePerTagEvent('$root', 'feature', {
+        set_by: '@alice:example.org',
+        set_at: ISO_2,
+      }),
+    ]);
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.removeTag('$root', 'feature');
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      'com.mindroom.thread.tags',
+      {},
+      '["$root","feature"]'
+    );
+    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+      tags: {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+      },
+    });
+
+    renderer.unmount();
+  });
+
+  it('writes resolved as a normal canonical per-tag record', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_2));
+    const room = makeRoom([
+      makeLegacyThreadTagsEvent('$root', {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+      }),
+    ]);
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.setResolved('$root', true);
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      'com.mindroom.thread.tags',
+      {
+        set_by: '@alice:example.org',
+        set_at: ISO_2,
+      },
+      '["$root","resolved"]'
+    );
+    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+      tags: {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+        resolved: { set_by: '@alice:example.org', set_at: ISO_2 },
+      },
+    });
+
+    renderer.unmount();
+  });
+
+  it('unresolves by writing a per-tag tombstone', async () => {
+    const room = makeRoom([
+      makeLegacyThreadTagsEvent('$root', {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+      }),
+      makePerTagEvent('$root', 'resolved', {
+        set_by: '@alice:example.org',
+        set_at: ISO_2,
+      }),
+    ]);
+
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.setResolved('$root', false);
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      'com.mindroom.thread.tags',
+      {},
+      '["$root","resolved"]'
+    );
+    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+      tags: {
+        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
+      },
+    });
 
     renderer.unmount();
   });

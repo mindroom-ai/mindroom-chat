@@ -1,6 +1,5 @@
 import { useEffect, useMemo } from 'react';
 import { Room } from 'matrix-js-sdk';
-import { useStateEvent } from '../../hooks/useStateEvent';
 import { useStateEvents } from '../../hooks/useStateEvents';
 import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -8,10 +7,10 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import {
+  aggregateThreadTagEvents,
   collectAvailableTags,
   getDisplayTags,
   isThreadResolved,
-  parseThreadTagsContent,
   type TagMetadata,
   type ThreadTagsContent,
 } from './threadTags';
@@ -37,11 +36,13 @@ export type UseThreadTagsResult = {
   content: ThreadTagsContent;
 };
 
+const EMPTY_THREAD_TAGS: ThreadTagsContent = { tags: {} };
+
 /**
  * Read hook for thread tags on a specific thread.
  *
- * Subscribes to state event changes for the thread's tag state key
- * and all thread tag events in the room (for suggestions).
+ * Subscribes to all thread-tag state events in the room, then aggregates
+ * legacy per-thread payloads with canonical per-tag records.
  */
 export const useThreadTags = (
   room: Room,
@@ -52,20 +53,17 @@ export const useThreadTags = (
   const creators = useRoomCreators(room);
   const permissions = useRoomPermissions(creators, powerLevels);
 
-  // Subscribe to this thread's tag state event
-  const tagEvent = useStateEvent(
-    room,
-    StateEvent.ThreadTags,
-    threadRootId ?? ''
-  );
-
-  // Subscribe to ALL thread tag events for suggestion collection
   const allTagEvents = useStateEvents(room, StateEvent.ThreadTags);
   const pVersion = usePendingThreadTagsVersion();
 
+  const aggregated = useMemo(
+    () => aggregateThreadTagEvents(allTagEvents),
+    [allTagEvents]
+  );
+
   const actualContent = useMemo(
-    () => parseThreadTagsContent(tagEvent?.getContent()),
-    [tagEvent]
+    () => (threadRootId ? aggregated.get(threadRootId) ?? EMPTY_THREAD_TAGS : EMPTY_THREAD_TAGS),
+    [aggregated, threadRootId]
   );
   const pendingContent = useMemo(
     () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
@@ -91,8 +89,8 @@ export const useThreadTags = (
   );
 
   const allTagContents = useMemo(
-    () => allTagEvents.map((evt) => parseThreadTagsContent(evt.getContent())),
-    [allTagEvents]
+    () => Array.from(aggregated.values()),
+    [aggregated]
   );
 
   const availableTags = useMemo(
