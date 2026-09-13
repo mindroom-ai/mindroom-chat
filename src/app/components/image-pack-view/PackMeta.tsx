@@ -152,6 +152,7 @@ export function ImagePackProfileEdit({ meta, onCancel, onSave }: ImagePackProfil
             <Box gap="200" direction="Column">
               <CompactUploadCardRenderer
                 uploadAtom={uploadAtom}
+                uploadKind="avatar"
                 onRemove={handleRemoveUpload}
                 onComplete={handleUploaded}
               />

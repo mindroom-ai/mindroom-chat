@@ -3,25 +3,33 @@ import { Chip, Icon, IconButton, Icons, Text, color } from 'folds';
 import { UploadCard, UploadCardError, CompactUploadCardProgress } from './UploadCard';
 import { TUploadAtom, UploadStatus, UploadSuccess, useBindUploadAtom } from '../../state/upload';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { TUploadContent, getMatrixUploadErrorMessage } from '../../utils/matrix';
-import { bytesToSize, getFileTypeIcon } from '../../utils/common';
+import {
+  MatrixUploadKind,
+  TUploadContent,
+  getMatrixUploadErrorMessage,
+  getMatrixUploadTooLargeMessage,
+} from '../../utils/matrix';
+import { getFileTypeIcon } from '../../utils/common';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 
 type CompactUploadCardRendererProps = {
   isEncrypted?: boolean;
+  uploadKind?: MatrixUploadKind;
   uploadAtom: TUploadAtom;
   onRemove: (file: TUploadContent) => void;
   onComplete?: (upload: UploadSuccess) => void;
 };
 export function CompactUploadCardRenderer({
   isEncrypted,
+  uploadKind = 'file',
   uploadAtom,
   onRemove,
   onComplete,
 }: CompactUploadCardRendererProps) {
   const mx = useMatrixClient();
   const mediaConfig = useMediaConfig();
-  const allowSize = mediaConfig['m.upload.size'] || Infinity;
+  const allowSize = mediaConfig['m.upload.size'] ?? Infinity;
+  const maxUploadSize = Number.isFinite(allowSize) ? allowSize : undefined;
 
   const { upload, startUpload, cancelUpload } = useBindUploadAtom(mx, uploadAtom, isEncrypted);
   const { file } = upload;
@@ -91,15 +99,23 @@ export function CompactUploadCardRenderer({
           )}
           {upload.status === UploadStatus.Error && (
             <UploadCardError>
-              <Text size="T200">{getMatrixUploadErrorMessage(upload.error, 'upload')}</Text>
+              <Text size="T200">
+                {getMatrixUploadErrorMessage(upload.error, 'upload', {
+                  uploadKind,
+                  fileSize: file.size,
+                  maxUploadSize,
+                })}
+              </Text>
             </UploadCardError>
           )}
           {upload.status === UploadStatus.Idle && fileSizeExceeded && (
             <UploadCardError>
               <Text size="T200">
-                The file size exceeds the limit. Maximum allowed size is{' '}
-                <b>{bytesToSize(allowSize)}</b>, but the uploaded file is{' '}
-                <b>{bytesToSize(file.size)}</b>.
+                {getMatrixUploadTooLargeMessage({
+                  uploadKind,
+                  fileSize: file.size,
+                  maxUploadSize: allowSize,
+                })}
               </Text>
             </UploadCardError>
           )}
