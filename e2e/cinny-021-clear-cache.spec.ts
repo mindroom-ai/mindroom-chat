@@ -1,14 +1,18 @@
 import { expect, test } from '@playwright/test';
+import { getRequiredEnv, hasRequiredEnv } from './env';
 import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from './helpers/browserDiagnostics';
 
-const DEPLOYED_BASE_URL = 'http://127.0.0.1:8090';
-const HOMESERVER = 'https://mindroom.lab.mindroom.chat';
-const USERNAME = 'e2e-test-bot';
-const PASSWORD = 'e2e-test-pw-2026';
+const hasDeployedFixtureEnv =
+  hasRequiredEnv('E2E_DEPLOYED_BASE_URL') &&
+  hasRequiredEnv('E2E_DEPLOYED_HOMESERVER') &&
+  hasRequiredEnv('E2E_DEPLOYED_USERNAME') &&
+  hasRequiredEnv('E2E_DEPLOYED_PASSWORD');
+
+const DEPLOYED_BASE_URL = process.env.E2E_DEPLOYED_BASE_URL ?? 'http://127.0.0.1:8090';
 const TEST_STORAGE_KEY = 'cinny-test-key';
 const TEST_STORAGE_VALUE = 'test-value';
 
@@ -17,12 +21,20 @@ test.use({ baseURL: DEPLOYED_BASE_URL });
 test('clears app cache from Settings > About without signing the user out', async ({
   page,
 }, testInfo) => {
+  test.skip(
+    !hasDeployedFixtureEnv,
+    'E2E_DEPLOYED_BASE_URL / E2E_DEPLOYED_HOMESERVER / E2E_DEPLOYED_USERNAME / E2E_DEPLOYED_PASSWORD not set'
+  );
+
   const diagnostics = attachBrowserDiagnostics(page);
+  const homeserver = getRequiredEnv('E2E_DEPLOYED_HOMESERVER');
+  const username = getRequiredEnv('E2E_DEPLOYED_USERNAME');
+  const password = getRequiredEnv('E2E_DEPLOYED_PASSWORD');
 
   await loginWithPassword(page, {
-    homeserver: HOMESERVER,
-    username: USERNAME,
-    password: PASSWORD,
+    homeserver,
+    username,
+    password,
   });
   await expect(page).toHaveURL(/\/home\/?$/);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });

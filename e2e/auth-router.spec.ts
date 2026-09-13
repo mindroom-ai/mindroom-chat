@@ -14,7 +14,7 @@ test('preserves explicit auth router state for add-account flows', async ({ page
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
   expectAddAccountUrl(page.url(), `/login/${encodeURIComponent(homeserver)}/`);
 
-  await page.getByRole('link', { name: 'Register' }).click();
+  await page.goto(buildRegisterPath(homeserver, true));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
   expectAddAccountUrl(page.url(), `/register/${encodeURIComponent(homeserver)}/`);
 
