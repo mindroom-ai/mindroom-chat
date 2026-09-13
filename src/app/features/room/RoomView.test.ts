@@ -29,6 +29,9 @@ vi.stubGlobal('localStorage', {
 vi.stubGlobal('window', {
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
+  navigator: {
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+  },
 });
 
 vi.mock('folds', async (importOriginal) => {
@@ -138,6 +141,10 @@ vi.mock('../../components/page', () => ({
 
 vi.mock('./RoomViewHeader', () => ({
   RoomViewHeader: passthrough,
+}));
+
+vi.mock('./ThreadContextBanner', () => ({
+  ThreadContextBanner: passthrough,
 }));
 
 vi.mock('../../hooks/useKeyDown', () => ({

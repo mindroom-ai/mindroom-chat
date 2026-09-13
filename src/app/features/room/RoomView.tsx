@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { useAtom } from 'jotai';
-import { Badge, Box, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
+import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { isKeyHotkey } from 'is-hotkey';
@@ -25,9 +25,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
-import { useThreadResolution, useToggleThreadResolution } from './useRoomThreadTags';
-import { useThreadRootEvent } from './useThreadRootEvent';
-import type { ThreadFilterState, ThreadFilterKey, FilterPreset } from './roomThreadOverviewModel';
+import type { ThreadFilterKey, FilterPreset } from './roomThreadOverviewModel';
 import {
   updateThreadFilterKey,
   cycleSortMode,
@@ -39,6 +37,7 @@ import {
 } from './roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../../state/room/roomThreadFilterState';
 import { roomViewModeAtomFamily, type RoomViewMode } from '../../state/room/roomViewMode';
+import { ThreadContextBanner } from './ThreadContextBanner';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -104,18 +103,6 @@ export function RoomView({
   const permissions = useRoomPermissions(creators, powerLevels);
   const canMessage = permissions.event(EventType.RoomMessage, mx.getSafeUserId());
   const { navigateRoom } = useRoomNavigate();
-  const threadRootEvent = useThreadRootEvent(room, threadId);
-  const validThreadId = threadRootEvent?.getId();
-  const { isResolved: threadResolved, isPending: threadResolutionPending } = useThreadResolution(
-    room,
-    validThreadId
-  );
-  const {
-    canToggle: canToggleThreadResolution,
-    setResolved,
-    updating: updatingThreadResolution,
-    error: threadResolutionError,
-  } = useToggleThreadResolution(room);
 
   const handleExitThread = useCallback(() => {
     if (!threadId) return;
@@ -208,70 +195,11 @@ export function RoomView({
     <Page ref={roomViewRef}>
       <RoomViewHeader threadId={threadId} />
       {threadId && (
-        <Box
-          alignItems="Center"
-          gap="300"
-          style={{
-            padding: `${config.space.S400} ${config.space.S400}`,
-            backgroundColor: threadResolved
-              ? color.Success.Container
-              : color.SurfaceVariant.Container,
-            borderBottom: `${config.borderWidth.B300} solid ${
-              threadResolved ? color.Success.ContainerLine : color.SurfaceVariant.ContainerLine
-            }`,
-            color: threadResolved ? color.Success.OnContainer : undefined,
-          }}
-        >
-          <IconButton size="300" radii="300" onClick={handleExitThread}>
-            <Icon src={Icons.ArrowLeft} />
-          </IconButton>
-          <Box direction="Column" grow="Yes" gap="100">
-            <Box direction="Row" alignItems="Center" gap="200">
-              <Text size="B400">Thread View</Text>
-              {threadResolved && (
-                <Badge as="span" size="400" variant="Success" fill="Soft" radii="Pill" outlined>
-                  <Text size="T200">Resolved</Text>
-                </Badge>
-              )}
-            </Box>
-            <Text size="T200" priority="300" truncate>
-              Focused thread context is active.
-            </Text>
-          </Box>
-          <Box shrink="No" direction="Column" alignItems="End" gap="100">
-            <Chip
-              variant={threadResolved ? 'Secondary' : 'Success'}
-              radii="Pill"
-              outlined={threadResolved}
-              disabled={
-                !canToggleThreadResolution ||
-                !validThreadId ||
-                updatingThreadResolution ||
-                threadResolutionPending
-              }
-              aria-label={threadResolved ? 'Unresolve this thread' : 'Resolve this thread'}
-              before={
-                threadResolutionPending ? (
-                  <Spinner
-                    size="100"
-                    variant={threadResolved ? 'Secondary' : 'Success'}
-                    fill={threadResolved ? 'Soft' : 'Solid'}
-                  />
-                ) : (
-                  <Icon size="50" src={threadResolved ? Icons.CheckTwice : Icons.Check} />
-                )
-              }
-              onClick={() => validThreadId && setResolved(validThreadId, !threadResolved)}
-            >
-              <Text size="T200">{threadResolved ? 'Unresolve' : 'Resolve'}</Text>
-            </Chip>
-            {threadResolutionError && (
-              <Text size="T200" style={{ color: color.Critical.Main, maxWidth: '20rem' }}>
-                {threadResolutionError.message}
-              </Text>
-            )}
-          </Box>
-        </Box>
+        <ThreadContextBanner
+          room={room}
+          threadId={threadId}
+          onExitThread={handleExitThread}
+        />
       )}
       <Box grow="Yes" direction="Column">
         <RoomTimeline
