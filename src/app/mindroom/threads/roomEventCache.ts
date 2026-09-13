@@ -72,12 +72,19 @@ const sortRoomEvents = (a: CachedRoomEvent, b: CachedRoomEvent): number => {
   return compareCachedPaginationAnchors(getRoomCursorAnchor(a), getRoomCursorAnchor(b));
 };
 
+const isRawLocalEchoEventId = (eventId: unknown): boolean =>
+  typeof eventId === 'string' && eventId.startsWith('~');
+
+const isRawLocalEchoEvent = (rawEvent: Partial<IEvent>): boolean =>
+  isRawLocalEchoEventId(rawEvent.event_id);
+
 export const normalizeCachedRoomEvents = (rawEvents: Partial<IEvent>[]): CachedRoomEvent[] => {
   const eventMap = new Map<string, CachedRoomEvent>();
 
   rawEvents.forEach((rawEvent) => {
     const normalized = toCachedRoomEvent(rawEvent);
     if (!normalized) return;
+    if (isRawLocalEchoEvent(normalized)) return;
     eventMap.set(normalized.event_id, normalized);
   });
 
@@ -210,6 +217,10 @@ const runCursorQuery = async (
         cursor.continue();
         return;
       }
+      if (isRawLocalEchoEvent(normalized)) {
+        cursor.continue();
+        return;
+      }
 
       if (events.length < limit) {
         events.push(normalized);
@@ -222,15 +233,17 @@ const runCursorQuery = async (
     cursorRequest.onerror = () => reject(cursorRequest.error);
 
     transaction.oncomplete = () =>
-      resolve((() => {
-        const orderedEvents = events.reverse();
-        const meta = metaRequest.result as CachedRoomMetaRecord | undefined;
-        return {
-          events: orderedEvents,
-          hasMoreBefore,
-          beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-        };
-      })());
+      resolve(
+        (() => {
+          const orderedEvents = events.reverse();
+          const meta = metaRequest.result as CachedRoomMetaRecord | undefined;
+          return {
+            events: orderedEvents,
+            hasMoreBefore,
+            beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+          };
+        })()
+      );
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
@@ -282,6 +295,8 @@ export const loadCachedRoomEvent = async (
   roomId: string,
   eventId: string
 ): Promise<CachedRoomEvent | undefined> => {
+  if (isRawLocalEchoEventId(eventId)) return undefined;
+
   const db = await openRoomEventCache(sessionId);
   if (!db) return undefined;
 
@@ -292,7 +307,8 @@ export const loadCachedRoomEvent = async (
 
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedRoomEventRecord | undefined;
-      resolve(record ? toCachedRoomEvent(record.rawEvent) : undefined);
+      const normalized = record ? toCachedRoomEvent(record.rawEvent) : undefined;
+      resolve(normalized && !isRawLocalEchoEvent(normalized) ? normalized : undefined);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);

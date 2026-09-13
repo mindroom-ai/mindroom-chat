@@ -25,6 +25,15 @@ describe('normalizeCachedRoomEvents', () => {
     ).toEqual([{ event_id: '$ok', origin_server_ts: 300 }]);
   });
 
+  it('excludes local echo events from cached room slices', () => {
+    expect(
+      normalizeCachedRoomEvents([
+        { event_id: '~!room:example.org:txn-1', origin_server_ts: 100 },
+        { event_id: '$confirmed', origin_server_ts: 200 },
+      ])
+    ).toEqual([{ event_id: '$confirmed', origin_server_ts: 200 }]);
+  });
+
   it('uses event id as a stable tie-breaker for same-timestamp events', () => {
     expect(
       normalizeCachedRoomEvents([
