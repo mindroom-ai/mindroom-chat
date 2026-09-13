@@ -6,6 +6,7 @@ import { SettingTile } from '../../components/setting-tile';
 import { copyToClipboard } from '../../utils/dom';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useTimeoutToggle } from '../../hooks/useTimeoutToggle';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
 import {
   LocalMindroomConnection,
@@ -40,6 +41,20 @@ type PairSession = {
   pollIntervalSeconds: number;
 };
 
+export function PairingCommandCopyButton({ command }: { command: string }) {
+  const [copied, setCopied] = useTimeoutToggle(1600);
+
+  const handleCopy = async () => {
+    if (await copyToClipboard(command)) setCopied();
+  };
+
+  return (
+    <Button size="300" variant="Secondary" fill="Soft" outlined radii="300" onClick={handleCopy}>
+      <Text size="B300">{copied ? 'Copied' : 'Copy Command'}</Text>
+    </Button>
+  );
+}
+
 export function LocalMindroom({ requestClose }: LocalMindroomProps) {
   const mx = useMatrixClient();
   const { sidebar } = useClientConfig();
@@ -64,8 +79,6 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
   const [pairError, setPairError] = useState<string>();
   const [startingPair, setStartingPair] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
-  const [copiedCommand, setCopiedCommand] = useState(false);
-
   const [confirmRevokeId, setConfirmRevokeId] = useState<string>();
   const [revokingId, setRevokingId] = useState<string>();
   const [revokeError, setRevokeError] = useState<string>();
@@ -166,20 +179,12 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       });
       setPairStatus('pending');
       setNowMs(Date.now());
-      setCopiedCommand(false);
     } catch (error) {
       setPairError(getLocalMindroomErrorMessage(error));
     } finally {
       setStartingPair(false);
     }
   }, [browserAccessToken, provisioningUrl]);
-
-  const handleCopyCommand = useCallback(() => {
-    if (!pairSession) return;
-    copyToClipboard(getMindroomPairingCommand(pairSession.pairCode));
-    setCopiedCommand(true);
-    window.setTimeout(() => setCopiedCommand(false), 1600);
-  }, [pairSession]);
 
   const handleRevokeConnection = useCallback(
     async (connectionId: string) => {
@@ -262,16 +267,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                           <code style={{ fontSize: '0.85em', wordBreak: 'break-word' }}>{pairingCommand}</code>
                         }
                         after={
-                          <Button
-                            size="300"
-                            variant="Secondary"
-                            fill="Soft"
-                            outlined
-                            radii="300"
-                            onClick={handleCopyCommand}
-                          >
-                            <Text size="B300">{copiedCommand ? 'Copied' : 'Copy Command'}</Text>
-                          </Button>
+                          <PairingCommandCopyButton key={pairingCommand} command={pairingCommand} />
                         }
                       />
                     </Box>

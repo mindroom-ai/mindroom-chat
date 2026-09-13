@@ -275,9 +275,8 @@ export function CodeBlock({
   const [expanded, setExpand] = useState(false);
   const [copied, setCopied] = useTimeoutToggle();
 
-  const handleCopy = () => {
-    copyToClipboard(extractTextFromChildren(children));
-    setCopied();
+  const handleCopy = async () => {
+    if (await copyToClipboard(extractTextFromChildren(children))) setCopied();
   };
 
   const toggleExpand = () => {

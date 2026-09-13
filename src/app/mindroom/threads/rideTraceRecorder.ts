@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { getCacheProbeSnapshot } from './cacheProbe';
 import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
+import { copyToClipboard } from '../../utils/dom';
 
 /**
  * On-device ride tracing (2026-07-06, device round 10). The desktop
@@ -230,13 +231,13 @@ export const installRideTraceRecorder = (
     } catch {
       // fall through to clipboard
     }
-    try {
-      await navigator.clipboard.writeText(payload);
+    if (await copyToClipboard(payload)) {
       overlay.textContent = `TRACE copied ✓ (${Math.round(payload.length / 1024)}KB)`;
-    } catch {
-      console.log('[ride-trace]', payload);
-      overlay.textContent = 'TRACE in console';
+      return;
     }
+
+    console.log('[ride-trace]', payload);
+    overlay.textContent = 'TRACE in console';
   };
   document.body.appendChild(overlay);
 
