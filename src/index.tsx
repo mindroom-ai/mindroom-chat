@@ -2,7 +2,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { enableMapSet } from 'immer';
-import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import '@fontsource/inter/variable.css';
@@ -15,7 +14,7 @@ enableMapSet();
 import './index.css';
 
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { getAppPathFromNativeSsoUrl } from './app/utils/nativeSso';
+import { getAppPathFromNativeSsoUrl, isNativeIOS } from './app/utils/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
 import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
@@ -25,8 +24,6 @@ import App from './app/pages/App';
 import './app/i18n';
 
 document.body.classList.add(configClass, varsClass);
-
-const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
 const handleNativeSSOCallback = (url: string) => {
   const appPath = getAppPathFromNativeSsoUrl(url);
@@ -43,7 +40,7 @@ const handleNativeSSOCallback = (url: string) => {
   }
 };
 
-if (isNativeIOS) {
+if (isNativeIOS()) {
   CapacitorApp.getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;

@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Box, Text, color } from 'folds';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { SSOAction } from 'matrix-js-sdk';
-import { Capacitor } from '@capacitor/core';
 import { useAuthServer } from '../../../hooks/useAuthServer';
 import { RegisterFlowStatus, useAuthFlows } from '../../../hooks/useAuthFlows';
 import { useParsedLoginFlows } from '../../../hooks/useParsedLoginFlows';
@@ -15,7 +14,7 @@ import { usePathWithOrigin } from '../../../hooks/usePathWithOrigin';
 import { RegisterPathSearchParams } from '../../paths';
 import { useClientConfig } from '../../../hooks/useClientConfig';
 import { hasAppleIdentityProvider } from '../ssoProviders';
-import { buildNativeSsoRedirectUrl } from '../../../utils/nativeSso';
+import { buildNativeSsoRedirectUrl, isNativeIOS } from '../../../utils/nativeSso';
 import { isAddAccountSearch, withAddAccountSearch } from '../addAccount';
 
 const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSearchParams =>
@@ -48,7 +47,7 @@ export function Register() {
   const webSsoRedirectUrl = usePathWithOrigin(getLoginPath(server));
   const ssoRedirectUrl = useMemo(() => {
     const redirectPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+    if (isNativeIOS()) {
       return buildNativeSsoRedirectUrl(redirectPath);
     }
 

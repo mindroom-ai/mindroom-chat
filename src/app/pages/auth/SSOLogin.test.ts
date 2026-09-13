@@ -12,20 +12,35 @@ vi.mock('folds', async () => {
   const reactModule = await import('react');
 
   return {
-    Avatar: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('div', null, children),
-    AvatarImage: () => reactModule.createElement('img'),
-    Box: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('div', null, children),
-    Button: ({
+    Avatar: ({
       children,
-      onClick,
+      ...props
     }: {
       children: React.ReactNode;
-      onClick?: (event: unknown) => void;
-    }) => reactModule.createElement('button', { onClick }, children),
-    Text: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('span', null, children),
+      [key: string]: unknown;
+    }) => reactModule.createElement('div', props, children),
+    AvatarImage: () => reactModule.createElement('img'),
+    Box: ({
+      children,
+      ...props
+    }: {
+      children: React.ReactNode;
+      [key: string]: unknown;
+    }) => reactModule.createElement('div', props, children),
+    Button: ({
+      children,
+      ...props
+    }: {
+      children: React.ReactNode;
+      [key: string]: unknown;
+    }) => reactModule.createElement('button', props, children),
+    Text: ({
+      children,
+      ...props
+    }: {
+      children: React.ReactNode;
+      [key: string]: unknown;
+    }) => reactModule.createElement('span', props, children),
   };
 });
 
@@ -63,9 +78,6 @@ describe('SSOLogin', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {
         setTimeout: vi.fn(),
-        location: {
-          assign: vi.fn(),
-        },
       },
       configurable: true,
     });
@@ -110,11 +122,42 @@ describe('SSOLogin', () => {
       await continueButton?.props.onClick({ preventDefault });
     });
 
+    expect(continueButton?.props.href).toBeUndefined();
+    expect(continueButton?.props.as).toBeUndefined();
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(vi.mocked(Browser.open)).toHaveBeenCalledWith({
       url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
       presentationStyle: 'fullscreen',
     });
+  });
+
+  it('does not fall back to link navigation when native in-app browser open fails', async () => {
+    const error = new Error('native browser unavailable');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Browser.open).mockRejectedValue(error);
+
+    const renderer = create(
+      React.createElement(SSOLogin, {
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+        action: SSOAction.LOGIN,
+      })
+    );
+
+    const continueButton = findButtonByText(renderer, 'Continue with SSO');
+    const preventDefault = vi.fn();
+
+    await act(async () => {
+      await continueButton?.props.onClick({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[SSO] Failed to open native iOS in-app browser',
+      error
+    );
+    consoleErrorSpy.mockRestore();
   });
 
   it('keeps default anchor navigation on non-native platforms', async () => {
@@ -135,6 +178,10 @@ describe('SSOLogin', () => {
       await continueButton?.props.onClick({ preventDefault });
     });
 
+    expect(continueButton?.props.href).toBe(
+      'https://mindroom.chat/_matrix/client/v3/login/sso/redirect'
+    );
+    expect(continueButton?.props.as).toBe('a');
     expect(preventDefault).not.toHaveBeenCalled();
     expect(vi.mocked(Browser.open)).not.toHaveBeenCalled();
   });
