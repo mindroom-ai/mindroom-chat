@@ -28,7 +28,7 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
     );
 
     useEffect(() => {
-      loadPreview();
+      loadPreview().catch(() => undefined);
     }, [loadPreview]);
 
     if (previewStatus.status === AsyncStatus.Error) return null;
@@ -54,7 +54,7 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
               alt={prev['og:title']}
               title={prev['og:title']}
               tabIndex={0}
-              onKeyDown={(evt) => onEnterOrSpace(() => setViewer(true))(evt)}
+              onKeyDown={onEnterOrSpace(() => setViewer(true))}
               onClick={() => setViewer(true)}
             />
           )}
