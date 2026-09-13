@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Add the shared animated README logo (2026-09-13)
+
+- The README header uses the tightly framed transparent MindRoom mark at 120px.
+- Readers who allow motion receive the animated SVG; reduced-motion preferences and clients without picture support receive the matching static SVG.
+- Both variants reference the shared logo assets in the MindRoom repository.
+- GitHub Markdown validation, changed-file formatting, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+- Full Vitest passes 3,747 tests; four failures reproduce in unchanged native-install and caption-restore tests whose source and dependency inputs match the base commit.
+
 ### Hide edited labels on MindRoom agent messages (2026-09-13)
 
 - The shared message renderer suppresses `(edited)` when the existing agent-metadata detector recognizes run, stream-status, or tool-trace metadata, including metadata inside `m.new_content`.
