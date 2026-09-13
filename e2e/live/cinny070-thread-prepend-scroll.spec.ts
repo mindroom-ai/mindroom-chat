@@ -61,6 +61,118 @@ type AnchorSample = {
   top: number | null;
 };
 
+type CleanupStep = {
+  name: string;
+  run: () => Promise<unknown> | unknown;
+};
+
+const waitForContinuationWithDeadline = async <T>(
+  continuation: Promise<T>,
+  timeoutMs = 5_000
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      continuation,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(
+              `Timed out after ${timeoutMs}ms waiting for the target thread continuation after Load Older activation`
+            )
+          );
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+};
+
+const runReleaseFirstCleanup = async (
+  releaseBarrier: () => Promise<unknown> | unknown,
+  steps: CleanupStep[]
+): Promise<void> => {
+  const failures: { name: string; reason: unknown }[] = [];
+  try {
+    await releaseBarrier();
+  } catch (reason) {
+    failures.push({ name: 'release barrier', reason });
+  }
+
+  const results = await Promise.allSettled(
+    steps.map(async (step) => {
+      await step.run();
+    })
+  );
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      failures.push({ name: steps[index].name, reason: result.reason });
+    }
+  });
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((failure) => failure.reason),
+      `CINNY-070 cleanup failed: ${failures.map((failure) => failure.name).join(', ')}`
+    );
+  }
+};
+
+const verifyFailurePathControls = async (): Promise<void> => {
+  await expect(waitForContinuationWithDeadline(new Promise<never>(() => {}), 1)).rejects.toThrow(
+    'Timed out after 1ms waiting for the target thread continuation after Load Older activation'
+  );
+
+  const attempts: string[] = [];
+  const samplerFailure = new Error('sampler control rejection');
+  await expect(
+    runReleaseFirstCleanup(() => {
+      attempts.push('release barrier');
+    }, [
+      {
+        name: 'anchor sampler',
+        run: () => {
+          attempts.push('anchor sampler');
+          throw samplerFailure;
+        },
+      },
+      {
+        name: 'continuation route',
+        run: () => {
+          attempts.push('continuation route');
+        },
+      },
+      {
+        name: 'abort route',
+        run: () => {
+          attempts.push('abort route');
+        },
+      },
+      {
+        name: 'response listener',
+        run: () => {
+          attempts.push('response listener');
+        },
+      },
+      {
+        name: 'response readers',
+        run: () => {
+          attempts.push('response readers');
+        },
+      },
+    ])
+  ).rejects.toThrow('CINNY-070 cleanup failed: anchor sampler');
+  expect(attempts).toEqual([
+    'release barrier',
+    'anchor sampler',
+    'continuation route',
+    'abort route',
+    'response listener',
+    'response readers',
+  ]);
+};
+
 const readThreadViewport = async (page: import('@playwright/test').Page): Promise<ThreadViewport> =>
   page.evaluate(() => {
     const firstMessage = document.querySelector<HTMLElement>('[data-message-id]');
@@ -335,6 +447,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
     page,
   }, testInfo) => {
     test.slow();
+    await verifyFailurePathControls();
 
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
@@ -461,7 +574,7 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
       continuationBarrier = await holdNextRelationsContinuation(page, roomId, rootId);
       const loadOlderClick = await clickLoadOlderAtomically(page);
       expect(loadOlderClick.clicked).toBe(true);
-      const heldContinuation = await continuationBarrier.ready;
+      const heldContinuation = await waitForContinuationWithDeadline(continuationBarrier.ready);
       expect((await readThreadViewport(page)).threadCount).toBe(initialViewport.threadCount);
       await Promise.all(initialResponseReads);
       page.off('response', recordInitialRelationResponse);
@@ -579,11 +692,33 @@ test.describe('CINNY-070: thread prepend pagination preserves scroll anchor', ()
 
       await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny070-thread-prepend-scroll');
     } finally {
-      if (samplerStarted) samples = await stopAnchorSampler(page);
-      await continuationBarrier?.dispose();
-      await unrouteAbort?.();
-      page.off('response', recordInitialRelationResponse);
-      await Promise.all(initialResponseReads);
+      await runReleaseFirstCleanup(
+        () => continuationBarrier?.release(),
+        [
+          {
+            name: 'anchor sampler',
+            run: async () => {
+              if (samplerStarted) samples = await stopAnchorSampler(page);
+            },
+          },
+          {
+            name: 'continuation route',
+            run: () => continuationBarrier?.dispose(),
+          },
+          {
+            name: 'abort route',
+            run: () => unrouteAbort?.(),
+          },
+          {
+            name: 'response listener',
+            run: () => page.off('response', recordInitialRelationResponse),
+          },
+          {
+            name: 'response readers',
+            run: () => Promise.all(initialResponseReads),
+          },
+        ]
+      );
     }
   });
 });
