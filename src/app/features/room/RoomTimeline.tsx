@@ -1165,6 +1165,19 @@ export const getRoomFocusScrollToItemOptions = (focusIndex: number, itemCount: n
   stopInView: false,
 });
 
+const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
+  resolved: 'any',
+  streaming: 'any',
+  scheduled: 'any',
+  unread: 'any',
+  idle: 'any',
+  sortBy: 'natural',
+  sortDirection: 'desc',
+  tags: new Map(),
+  searchQuery: '',
+  statusMode: 'and',
+};
+
 export const setupFocusObserver = (opts: {
   scrollContainer: HTMLElement;
   target: HTMLElement;
@@ -2492,6 +2505,11 @@ export function RoomTimeline({
   const [messageSpacing] = useSetting(settingsAtom, 'messageSpacing');
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
+  const roomOverviewEnabled = !direct;
+  const effectiveThreadFilterState = roomOverviewEnabled
+    ? threadFilterState
+    : DIRECT_ROOM_TIMELINE_FILTER_STATE;
+  const effectiveViewMode: RoomViewMode = roomOverviewEnabled ? viewMode : 'normal';
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
   const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
@@ -2589,7 +2607,7 @@ export function RoomTimeline({
   const threadPaginatingBackRef = useRef(false);
   const threadPaginatingFrontRef = useRef(false);
   const threadIdRef = useRef(threadId);
-  const threadFilterStateRef = useRef(threadFilterState);
+  const threadFilterStateRef = useRef(effectiveThreadFilterState);
   const roomDebugTraceRef = useRef({
     roomId: room.roomId,
     traceId: createTimelineDebugTrace('room-open', room.roomId),
@@ -2624,7 +2642,7 @@ export function RoomTimeline({
   threadPaginatingBackRef.current = threadPaginatingBack;
   threadPaginatingFrontRef.current = threadPaginatingFront;
   threadIdRef.current = threadId;
-  threadFilterStateRef.current = threadFilterState;
+  threadFilterStateRef.current = effectiveThreadFilterState;
   if (roomDebugTraceRef.current.roomId !== room.roomId) {
     roomDebugTraceRef.current = {
       roomId: room.roomId,
@@ -2859,7 +2877,7 @@ export function RoomTimeline({
     });
     return { ids, indexMap, bodyMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
-  const compactViewRequested = !threadId && viewMode === 'compact';
+  const compactViewRequested = !threadId && effectiveViewMode === 'compact';
   const { threads: roomThreadListThreads } = useRoomThreadList(room, compactViewRequested);
   const compactThreadRootData = useMemo(
     () =>
@@ -2981,30 +2999,33 @@ export function RoomTimeline({
 
   // ── Debounced search query (300ms) ──
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(
-    threadFilterState.searchQuery ?? ''
+    effectiveThreadFilterState.searchQuery ?? ''
   );
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearchQuery(threadFilterState.searchQuery ?? ''), 300);
+    const timer = setTimeout(
+      () => setDebouncedSearchQuery(effectiveThreadFilterState.searchQuery ?? ''),
+      300
+    );
     return () => clearTimeout(timer);
-  }, [threadFilterState.searchQuery]);
+  }, [effectiveThreadFilterState.searchQuery]);
   const threadSortControlSignature = useMemo(
     () =>
       createThreadSortControlSignature({
-        state: threadFilterState,
+        state: effectiveThreadFilterState,
         searchQuery: debouncedSearchQuery,
-        viewMode,
+        viewMode: effectiveViewMode,
       }),
-    [threadFilterState, debouncedSearchQuery, viewMode]
+    [effectiveThreadFilterState, debouncedSearchQuery, effectiveViewMode]
   );
 
   // ── Overview pipeline: filter → sort → Map-based entry construction ──
-  const roomThreadFilterActive = isRoomThreadOverviewActive(threadId, threadFilterState);
+  const roomThreadFilterActive = isRoomThreadOverviewActive(threadId, effectiveThreadFilterState);
 
   const normalOverviewOrdering = useMemo(
     () =>
       resolveOverviewThreadRootIds({
         threadRootIds: visibleThreadRootData.ids,
-        threadFilterState,
+        threadFilterState: effectiveThreadFilterState,
         searchQuery: debouncedSearchQuery,
         metadataMap: threadMetadataMap,
         threadSortFreezeState,
@@ -3012,7 +3033,7 @@ export function RoomTimeline({
       }),
     [
       visibleThreadRootData.ids,
-      threadFilterState,
+      effectiveThreadFilterState,
       debouncedSearchQuery,
       threadMetadataMap,
       threadSortFreezeState,
@@ -3025,7 +3046,7 @@ export function RoomTimeline({
 
       return resolveOverviewThreadRootIds({
         threadRootIds: compactThreadRootData.ids,
-        threadFilterState,
+        threadFilterState: effectiveThreadFilterState,
         searchQuery: debouncedSearchQuery,
         metadataMap: compactThreadMetadataMap,
         threadSortFreezeState,
@@ -3036,7 +3057,7 @@ export function RoomTimeline({
       compactViewRequested,
       normalOverviewOrdering,
       compactThreadRootData.ids,
-      threadFilterState,
+      effectiveThreadFilterState,
       debouncedSearchQuery,
       compactThreadMetadataMap,
       threadSortFreezeState,
@@ -3232,7 +3253,7 @@ export function RoomTimeline({
   const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({
     threadId,
     roomThreadFilterActive,
-    viewMode,
+    viewMode: effectiveViewMode,
   });
 
   // Per-status counts over ALL threads (unfiltered)
@@ -3344,12 +3365,12 @@ export function RoomTimeline({
     () =>
       getActiveTimelineRange(
         threadId,
-        threadFilterState,
+        effectiveThreadFilterState,
         timeline.range,
         filteredLength,
         safePaginationLimit
       ),
-    [threadId, threadFilterState, timeline.range, filteredLength, safePaginationLimit]
+    [threadId, effectiveThreadFilterState, timeline.range, filteredLength, safePaginationLimit]
   );
   const priorityThreadSeedPrewarmRoots = useMemo(() => {
     return collectPriorityThreadSeedPrewarmRoots({
@@ -3371,7 +3392,7 @@ export function RoomTimeline({
     threadReplyCountMap,
     threadResolutionMap,
   ]);
-  const prevThreadFilterStateRef = useRef(threadFilterState);
+  const prevThreadFilterStateRef = useRef(effectiveThreadFilterState);
   const liveTimelineLinked =
     timeline.linkedTimelines[timeline.linkedTimelines.length - 1] === getLiveTimeline(room);
   const canPaginateBack =
@@ -3471,10 +3492,10 @@ export function RoomTimeline({
 
   useEffect(() => {
     const prevThreadFilterState = prevThreadFilterStateRef.current;
-    prevThreadFilterStateRef.current = threadFilterState;
+    prevThreadFilterStateRef.current = effectiveThreadFilterState;
 
     const wasActive = isRoomThreadOverviewActive(threadId, prevThreadFilterState);
-    const isActive = isRoomThreadOverviewActive(threadId, threadFilterState);
+    const isActive = isRoomThreadOverviewActive(threadId, effectiveThreadFilterState);
 
     if (wasActive && !isActive && !threadId) {
       setTimeline(
@@ -3488,7 +3509,7 @@ export function RoomTimeline({
       );
     }
   }, [
-    threadFilterState,
+    effectiveThreadFilterState,
     threadId,
     room,
     ignoredUsersSet,
@@ -4971,7 +4992,7 @@ export function RoomTimeline({
               searchQuery: debouncedSearchQuery,
               threadSortFreezeState,
               threadSortControlSignature,
-              viewMode,
+              viewMode: effectiveViewMode,
               roomThreads: roomThreadListThreads,
               orderedRoomOverviewEventIds: roomOverviewOrderActive ? overviewThreadRootIds : undefined,
             })
@@ -5021,7 +5042,7 @@ export function RoomTimeline({
         overviewThreadRootIds,
         roomThreadListThreads,
         redirectRoomEventDeepLink,
-        viewMode,
+        effectiveViewMode,
       ]
     ),
     useCallback(() => {
@@ -5060,7 +5081,7 @@ export function RoomTimeline({
           mEvent: mEvt,
           room,
           threadId,
-          threadFilterState,
+          threadFilterState: effectiveThreadFilterState,
           threadResolutionMap,
           ignoredUsersSet,
           showHiddenEvents,
@@ -5251,7 +5272,7 @@ export function RoomTimeline({
         hideMembershipEvents,
         hideNickAvatarEvents,
         roomThreadFilterActive,
-        threadFilterState,
+        effectiveThreadFilterState,
         threadResolutionMap,
         sessionId,
       ]
@@ -6507,7 +6528,15 @@ threadDebugTraceId,
         clearTimeout(clearFocusTimeoutId);
       }
     };
-  }, [alive, focusItem, retryPagination, scrollToElement, scrollToItem, threadFilterState, threadId]);
+  }, [
+    alive,
+    focusItem,
+    retryPagination,
+    scrollToElement,
+    scrollToItem,
+    effectiveThreadFilterState,
+    threadId,
+  ]);
 
   useLayoutEffect(() => {
     if (!threadId) return;
@@ -8130,7 +8159,7 @@ threadDebugTraceId,
 
   return (
     <Box grow="Yes" direction="Column">
-      {!threadId && (
+      {!threadId && roomOverviewEnabled && (
         <RoomThreadOverview
           threadCount={showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length}
           totalThreadCount={showCompactRoomView ? compactThreadRootData.ids.length : visibleThreadRootData.ids.length}
