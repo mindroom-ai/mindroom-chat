@@ -235,6 +235,12 @@
     "close": "Close",
     "actionError": "Could not update this account. Please try again."
   },
+  "recentThreads": {
+    "title": "Recently Opened",
+    "empty": "No recently opened threads",
+    "resizeAria": "Resize Recently Opened",
+    "openedAt": "Opened {{time}}"
+  },
   "threadNav": {
     "title": "Threads",
     "empty": "No threads yet",

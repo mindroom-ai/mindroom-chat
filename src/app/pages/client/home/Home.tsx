@@ -60,6 +60,7 @@ import {
 import { UseStateProvider } from '../../../components/UseStateProvider';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
 import { _RoomSearchParams } from '../../paths';
+import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
@@ -370,6 +371,7 @@ export function Home() {
           </Box>
         </PageNavContent>
       )}
+      <RecentlyOpenedNavCategory />
     </PageNav>
   );
 }

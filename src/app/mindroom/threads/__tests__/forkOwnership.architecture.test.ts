@@ -34,6 +34,14 @@ const OWNERSHIP_EDGES = [
     consumer: appFile(`pages/client/${page}`),
     owner: mindroomFile('recent-threads/ThreadNavCategory.tsx'),
   })),
+  ...['home/Home.tsx', 'direct/Direct.tsx', 'space/Space.tsx'].map((page) => ({
+    consumer: appFile(`pages/client/${page}`),
+    owner: mindroomFile('recent-threads/RecentlyOpenedNavCategory.tsx'),
+  })),
+  {
+    consumer: appFile('pages/client/ClientInitStorageAtom.tsx'),
+    owner: mindroomFile('recent-threads/recentlyOpenedCategory.ts'),
+  },
   {
     consumer: appFile('pages/client/SidebarNav.tsx'),
     owner: mindroomFile('sidebar/MindroomTab.tsx'),

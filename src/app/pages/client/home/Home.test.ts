@@ -124,7 +124,9 @@ vi.mock('../../../components/page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
-  return { PageNav: passthrough, PageNavContent: passthrough, PageNavHeader: passthrough };
+  const pageNavContent = ({ children }: { children?: React.ReactNode }) =>
+    reactModule.createElement('div', { 'data-page-nav-content': true }, children);
+  return { PageNav: passthrough, PageNavContent: pageNavContent, PageNavHeader: passthrough };
 });
 vi.mock('../../../state/hooks/closedNavCategories', () => ({
   useClosedNavCategoriesAtom: () => ({}),
@@ -151,6 +153,9 @@ vi.mock('../../../components/join-address-prompt', async () => {
 vi.mock('../../../mindroom/recent-threads/ThreadNavCategory', () => {
   return { ThreadNavCategory: () => React.createElement('div', { 'data-thread-nav': true }) };
 });
+vi.mock('../../../mindroom/recent-threads/RecentlyOpenedNavCategory', () => ({
+  RecentlyOpenedNavCategory: () => React.createElement('div', { 'data-recently-opened-nav': true }),
+}));
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
 }));
@@ -192,6 +197,12 @@ describe('Home', () => {
 
     expectRoomActionsWork(renderer);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
+    expect(
+      renderer.root
+        .findByProps({ 'data-page-nav-content': true })
+        .findAllByProps({ 'data-recently-opened-nav': true })
+    ).toHaveLength(0);
 
     renderer.unmount();
   });
@@ -201,6 +212,7 @@ describe('Home', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
+    expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
 
     renderer.unmount();
   });

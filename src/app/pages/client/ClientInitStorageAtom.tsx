@@ -1,6 +1,7 @@
 import React, { ReactNode, useMemo } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMindroomClientStorageAtoms } from '../../mindroom/cache/clientStorageAtoms';
+import { RECENTLY_OPENED_NAV_CATEGORY_ID } from '../../mindroom/recent-threads/recentlyOpenedCategory';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { makeClosedLobbyCategoriesAtom } from '../../state/closedLobbyCategories';
@@ -19,7 +20,10 @@ export function ClientInitStorageAtom({ children }: ClientInitStorageAtomProps) 
   const mx = useMatrixClient();
   const userId = mx.getUserId()!;
 
-  const closedNavCategoriesAtom = useMemo(() => makeClosedNavCategoriesAtom(userId), [userId]);
+  const closedNavCategoriesAtom = useMemo(
+    () => makeClosedNavCategoriesAtom(userId, [RECENTLY_OPENED_NAV_CATEGORY_ID]),
+    [userId]
+  );
 
   const closedLobbyCategoriesAtom = useMemo(() => makeClosedLobbyCategoriesAtom(userId), [userId]);
 

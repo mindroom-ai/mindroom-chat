@@ -46,6 +46,7 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { useDirectCreateSelected } from '../../../hooks/router/useDirectSelected';
+import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
 type DirectMenuProps = {
@@ -251,6 +252,7 @@ export function Direct() {
           </Box>
         </PageNavContent>
       )}
+      <RecentlyOpenedNavCategory />
     </PageNav>
   );
 }
