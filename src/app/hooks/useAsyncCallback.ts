@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useAlive } from './useAlive';
 
@@ -30,10 +30,24 @@ export type AsyncError<E = unknown> = {
 export type AsyncState<D, E = unknown> = AsyncIdle | AsyncLoading | AsyncSuccess<D> | AsyncError<E>;
 
 export type AsyncCallback<TArgs extends unknown[], TData> = (...args: TArgs) => Promise<TData>;
+export type AsyncDiscardCallback<TData> = (data: TData) => void;
+type AsyncStateChangeCallback<TData, TError> = (
+  state: AsyncState<TData, TError>
+) => void | Promise<void>;
+
+type PendingSuccess<TData> = {
+  state: AsyncSuccess<TData>;
+  data: TData;
+  discard: AsyncDiscardCallback<TData>;
+  resolve: () => void;
+  reject: (reason: unknown) => void;
+};
+type PendingSuccessSettlement = 'replacement' | 'unmount';
 
 export const useAsync = <TData, TError, TArgs extends unknown[]>(
   asyncCallback: AsyncCallback<TArgs, TData>,
-  onStateChange: (state: AsyncState<TData, TError>) => void
+  onStateChange: AsyncStateChangeCallback<TData, TError>,
+  onDiscard?: AsyncDiscardCallback<TData>
 ): AsyncCallback<TArgs, TData> => {
   const alive = useAlive();
 
@@ -62,50 +76,152 @@ export const useAsync = <TData, TError, TArgs extends unknown[]>(
       const currentReqNumber = reqNumberRef.current;
       try {
         const data = await asyncCallback(...args);
-        if (currentReqNumber !== reqNumberRef.current) {
-          throw new Error('AsyncCallbackHook: Request replaced!');
-        }
-        if (alive()) {
+
+        await new Promise<void>((resolve, reject) => {
           queueMicrotask(() => {
-            onStateChange({
-              status: AsyncStatus.Success,
-              data,
-            });
+            try {
+              if (currentReqNumber !== reqNumberRef.current) {
+                onDiscard?.(data);
+                reject(new Error('AsyncCallbackHook: Request replaced!'));
+                return;
+              }
+              if (!alive()) {
+                onDiscard?.(data);
+                resolve();
+                return;
+              }
+
+              const publication = onStateChange({
+                status: AsyncStatus.Success,
+                data,
+              });
+              if (publication) {
+                publication.then(resolve, reject);
+              } else {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
           });
-        }
+        });
+
         return data;
       } catch (e) {
-        if (currentReqNumber !== reqNumberRef.current) {
-          throw new Error('AsyncCallbackHook: Request replaced!');
-        }
-
-        if (alive()) {
+        await new Promise<void>((resolve, reject) => {
           queueMicrotask(() => {
-            onStateChange({
-              status: AsyncStatus.Error,
-              error: e as TError,
-            });
+            try {
+              if (currentReqNumber !== reqNumberRef.current) {
+                reject(new Error('AsyncCallbackHook: Request replaced!'));
+                return;
+              }
+              if (!alive()) {
+                resolve();
+                return;
+              }
+
+              const publication = onStateChange({
+                status: AsyncStatus.Error,
+                error: e as TError,
+              });
+              if (publication) {
+                publication.then(resolve, reject);
+              } else {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
+            }
           });
-        }
+        });
         throw e;
       }
     },
-    [asyncCallback, alive, onStateChange]
+    [asyncCallback, alive, onDiscard, onStateChange]
   );
 
   return callback;
 };
 
 export const useAsyncCallback = <TData, TError, TArgs extends unknown[]>(
-  asyncCallback: AsyncCallback<TArgs, TData>
+  asyncCallback: AsyncCallback<TArgs, TData>,
+  onDiscard?: AsyncDiscardCallback<TData>
 ): [AsyncState<TData, TError>, AsyncCallback<TArgs, TData>] => {
   const [state, setState] = useState<AsyncState<TData, TError>>({
     status: AsyncStatus.Idle,
   });
+  const onDiscardRef = useRef(onDiscard);
+  const pendingSuccessRef = useRef<PendingSuccess<TData>>();
+  onDiscardRef.current = onDiscard;
 
-  const callback = useAsync(asyncCallback, setState);
+  const settlePendingSuccess = useCallback((reason: PendingSuccessSettlement) => {
+    const pending = pendingSuccessRef.current;
+    if (!pending) return;
 
-  return [state, callback];
+    pendingSuccessRef.current = undefined;
+    try {
+      pending.discard(pending.data);
+      if (reason === 'replacement') {
+        pending.reject(new Error('AsyncCallbackHook: Request replaced!'));
+      } else {
+        pending.resolve();
+      }
+    } catch (error) {
+      pending.reject(error);
+    }
+  }, []);
+
+  const publishState: AsyncStateChangeCallback<TData, TError> = useCallback(
+    (nextState) => {
+      const discard = onDiscardRef.current;
+      if (nextState.status !== AsyncStatus.Success || !discard) {
+        setState(nextState);
+        return;
+      }
+
+      return new Promise<void>((resolve, reject) => {
+        settlePendingSuccess('replacement');
+        pendingSuccessRef.current = {
+          state: nextState,
+          data: nextState.data,
+          discard,
+          resolve,
+          reject,
+        };
+        setState(nextState);
+      });
+    },
+    [settlePendingSuccess]
+  );
+
+  const discardResolved = useCallback((data: TData) => {
+    onDiscardRef.current?.(data);
+  }, []);
+  const callback = useAsync(asyncCallback, publishState, discardResolved);
+  const load: AsyncCallback<TArgs, TData> = useCallback(
+    (...args) => {
+      settlePendingSuccess('replacement');
+      return callback(...args);
+    },
+    [callback, settlePendingSuccess]
+  );
+
+  useLayoutEffect(
+    () => () => {
+      settlePendingSuccess('unmount');
+    },
+    [settlePendingSuccess]
+  );
+
+  useEffect(() => {
+    const pending = pendingSuccessRef.current;
+    if (state.status === AsyncStatus.Success && pending?.state === state) {
+      pendingSuccessRef.current = undefined;
+      pending.resolve();
+    }
+  }, [state]);
+
+  return [state, load];
 };
 
 export const useAsyncCallbackValue = <TData, TError>(

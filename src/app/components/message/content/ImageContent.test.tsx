@@ -231,6 +231,7 @@ vi.mock('../../../hooks/useAsyncCallback', async () => {
 });
 
 vi.mock('../../../hooks/useBlobUrlCleanup', () => ({
+  revokeBlobUrl: vi.fn(),
   useBlobUrlCleanup: () => undefined,
 }));
 
