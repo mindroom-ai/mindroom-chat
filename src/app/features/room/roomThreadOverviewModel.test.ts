@@ -68,6 +68,24 @@ const mkMeta = (overrides: Partial<ThreadOverviewMetadata> = {}): ThreadOverview
   ...overrides,
 });
 
+const makeRootPreviewEvent = (body: string, editedBody?: string) =>
+  ({
+    getContent: () =>
+      editedBody
+        ? {
+            body,
+            'm.new_content': {
+              body: editedBody,
+            },
+          }
+        : { body },
+    replacingEvent: () => undefined,
+    getSender: () => '@agent:x',
+    getId: () => '$thread-1',
+    getType: () => 'm.room.message',
+    getUnsigned: () => undefined,
+  }) as never;
+
 describe('roomThreadOverviewModel', () => {
   describe('serializeThreadFilterState', () => {
     it('round-trips the default filter state', async () => {
@@ -1067,13 +1085,7 @@ describe('roomThreadOverviewModel', () => {
 
     it('prefers a non-placeholder fallback root preview over a stale live root preview', async () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
-      const rootEvent = {
-        getContent: () => ({ body: 'Thinking...  ⋯' }),
-        replacingEvent: () => undefined,
-        getSender: () => '@agent:x',
-        getId: () => '$thread-1',
-        getType: () => 'm.room.message',
-      };
+      const rootEvent = makeRootPreviewEvent('Thinking...  ⋯');
       const room = {
         getThread: () => ({
           rootEvent,
@@ -1109,25 +1121,11 @@ describe('roomThreadOverviewModel', () => {
 
     it('prefers the room event over a stale thread root event for root preview text', async () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
-      const staleThreadRoot = {
-        getContent: () => ({ body: 'Thinking...  ⋯' }),
-        replacingEvent: () => undefined,
-        getSender: () => '@agent:x',
-        getId: () => '$thread-1',
-        getType: () => 'm.room.message',
-      };
-      const fresherRoomEvent = {
-        getContent: () => ({
-          body: 'Thinking...  ⋯',
-          'm.new_content': {
-            body: 'Let me check the actual colors being generated.',
-          },
-        }),
-        replacingEvent: () => undefined,
-        getSender: () => '@agent:x',
-        getId: () => '$thread-1',
-        getType: () => 'm.room.message',
-      };
+      const staleThreadRoot = makeRootPreviewEvent('Thinking...  ⋯');
+      const fresherRoomEvent = makeRootPreviewEvent(
+        'Thinking...  ⋯',
+        'Let me check the actual colors being generated.'
+      );
       const room = {
         getThread: () => ({
           rootEvent: staleThreadRoot,
@@ -1162,13 +1160,7 @@ describe('roomThreadOverviewModel', () => {
 
     it('prefers cached root preview text over a stale non-placeholder live root preview', async () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
-      const rootEvent = {
-        getContent: () => ({ body: '**[Response cancelled by user]**' }),
-        replacingEvent: () => undefined,
-        getSender: () => '@agent:x',
-        getId: () => '$thread-1',
-        getType: () => 'm.room.message',
-      };
+      const rootEvent = makeRootPreviewEvent('**[Response cancelled by user]**');
       const room = {
         getThread: () => ({
           rootEvent,

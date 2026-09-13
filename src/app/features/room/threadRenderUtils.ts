@@ -1,4 +1,8 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
+import {
+  getSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from '../../utils/editEvent';
 import { getLatestEdit } from '../../utils/room';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
@@ -132,6 +136,18 @@ const isLocalEchoEvent = (mEvent: MatrixEvent): boolean => {
   return mEvent.isSending();
 };
 
+const getEffectiveReplacementEvent = (mEvent: MatrixEvent): MatrixEvent | undefined => {
+  const replacingEvent = mEvent.replacingEvent() ?? undefined;
+  const serializedReplacement = getSerializedReplacementEvent(mEvent);
+
+  return getLatestEdit(
+    mEvent,
+    [replacingEvent, serializedReplacement].filter((editEvent): editEvent is MatrixEvent =>
+      isSameSenderEditEvent(mEvent, editEvent)
+    )
+  );
+};
+
 export const pickPreferredThreadRenderEvent = (
   existingEvent: MatrixEvent,
   incomingEvent: MatrixEvent,
@@ -152,8 +168,8 @@ export const pickPreferredThreadRenderEvent = (
   if (existingEvent.isRedacted() && !incomingEvent.isRedacted()) return existingEvent;
   if (!existingEvent.isRedacted() && incomingEvent.isRedacted()) return incomingEvent;
 
-  const existingReplacement = existingEvent.replacingEvent() ?? undefined;
-  const incomingReplacement = incomingEvent.replacingEvent() ?? undefined;
+  const existingReplacement = getEffectiveReplacementEvent(existingEvent);
+  const incomingReplacement = getEffectiveReplacementEvent(incomingEvent);
   if (existingReplacement || incomingReplacement) {
     const preferredReplacement = getLatestEdit(
       existingEvent,

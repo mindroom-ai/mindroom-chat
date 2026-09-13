@@ -6589,6 +6589,7 @@ export function RoomTimeline({
             data-message-id={mEventId}
             room={room}
             mEvent={mEvent}
+            resolvedMessageContent={resolvedContent}
             messageSpacing={messageSpacing}
             messageLayout={messageLayout}
             collapse={collapse}
@@ -6697,6 +6698,8 @@ export function RoomTimeline({
         const hasReactions = reactions && reactions.length > 0;
         const { replyEventId, threadRootId } = mEvent;
         const highlighted = focusItem?.index === item && focusItem.highlight;
+        const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
+        const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
         const threadReplyCount = getThreadReplyCount(
           room,
           mEvent,
@@ -6754,6 +6757,7 @@ export function RoomTimeline({
             data-message-id={mEventId}
             room={room}
             mEvent={mEvent}
+            resolvedMessageContent={resolvedContent}
             messageSpacing={messageSpacing}
             messageLayout={messageLayout}
             collapse={collapse}
@@ -6833,8 +6837,6 @@ export function RoomTimeline({
                     />
                   );
                 if (mEvent.getType() === MessageEvent.RoomMessage) {
-                  const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
-                  const resolvedContent = getLatestMessageContent(mEvent, editedEvent);
                   const getContent = (() => resolvedContent) as GetContentCallback;
                   const collapseMode = getCollapsibleMessageMode(
                     mEventId,

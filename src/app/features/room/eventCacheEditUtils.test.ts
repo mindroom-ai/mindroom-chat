@@ -206,6 +206,49 @@ describe('hydrateCachedEvents', () => {
 
     expect(targetEvent.replacingEvent()?.getId()).toBe('$edit-1');
   });
+
+  it('ignores serialized replacements that are missing origin_server_ts', () => {
+    const targetEvent = new MatrixEvent({
+      content: {
+        body: 'Thinking...  ⋯',
+        msgtype: 'm.text',
+      },
+      event_id: '$target',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            content: {
+              body: '* Final answer',
+              'm.new_content': {
+                body: 'Final answer',
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: '$target',
+                rel_type: 'm.replace',
+              },
+              msgtype: 'm.text',
+            },
+            event_id: '$edit-1',
+            room_id: '!room:example.org',
+            sender: '@alice:example.org',
+            type: 'm.room.message',
+          },
+        },
+      },
+    });
+
+    hydrateCachedEvents({
+      room,
+      events: [targetEvent],
+    });
+
+    expect(targetEvent.replacingEvent()).toBeNull();
+  });
 });
 
 describe('applyCachedRedactions', () => {
