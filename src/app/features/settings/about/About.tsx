@@ -1,11 +1,11 @@
 import React from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll, Button, config, toRem } from 'folds';
+import { Box, Text, IconButton, Icon, Icons, Scroll, Button, Spinner, config, toRem } from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import MindRoomLogo from '../../../../../public/res/branding/mindroom-logo.png';
-import { clearCacheAndReload } from '../../../../client/initMatrix';
+import { clearAllCacheAndReload } from '../../../../client/initMatrix';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 
 type AboutProps = {
@@ -13,6 +13,19 @@ type AboutProps = {
 };
 export function About({ requestClose }: AboutProps) {
   const mx = useMatrixClient();
+  const [clearing, setClearing] = React.useState(false);
+
+  const handleClearCache = async () => {
+    if (clearing) return;
+
+    setClearing(true);
+
+    try {
+      await clearAllCacheAndReload(mx);
+    } catch {
+      setClearing(false);
+    }
+  };
 
   return (
     <Page>
@@ -91,17 +104,19 @@ export function About({ requestClose }: AboutProps) {
                 >
                   <SettingTile
                     title="Clear Cache & Reload"
-                    description="Clear all your locally stored data and reload from server."
+                    description="Clears cached data and reloads. You will stay signed in."
                     after={
                       <Button
-                        onClick={() => clearCacheAndReload(mx)}
+                        onClick={handleClearCache}
                         variant="Secondary"
                         fill="Soft"
                         size="300"
                         radii="300"
                         outlined
+                        disabled={clearing}
+                        before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
                       >
-                        <Text size="B300">Clear Cache</Text>
+                        <Text size="B300">{clearing ? 'Clearing...' : 'Clear Cache'}</Text>
                       </Button>
                     }
                   />

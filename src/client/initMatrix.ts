@@ -3,17 +3,21 @@ import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 import type { MatrixClient } from 'matrix-js-sdk/lib/client';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 
-import { cryptoCallbacks } from './secretStorageKeys';
+import { clearSecretStorageKeys, cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
 import { createMatrixClient } from './matrixClientFactory';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from '../app/utils/basePath';
-import { deleteThreadEventCache } from '../app/features/room/threadEventCache';
-import { deleteRoomEventCache } from '../app/features/room/roomEventCache';
+import { clearMindroomLongTextHydrationCache } from '../app/components/message/mindroomLongText';
+import {
+  deleteThreadEventCache,
+  getThreadEventCacheDbName,
+} from '../app/features/room/threadEventCache';
+import { deleteRoomEventCache, getRoomEventCacheDbName } from '../app/features/room/roomEventCache';
 import { deleteThreadSummaryCache } from '../app/features/room/threadSummaryCache';
-
 import { clearIOSPushState } from '../app/utils/iosPush';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
+  SESSION_STORE_KEY,
   StoredSession,
   clearLegacySessionStorage,
   clearSessionStore,
@@ -118,6 +122,12 @@ const deleteNamedDatabases = async (names: string[]): Promise<void> => {
   await Promise.all(uniqueNames.map((name) => deleteNamedDatabase(name)));
 };
 
+const getCacheBustedAppReloadTarget = (appBasePath: string): string => {
+  const reloadUrl = new URL(appBasePath, window.location.origin);
+  reloadUrl.searchParams.set('clear_cache', `${Date.now()}`);
+  return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
+};
+
 const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
   'matrix-js-sdk:web-sync-store',
   'crypto-store',
@@ -125,8 +135,67 @@ const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = [
   'matrix-js-sdk::matrix-sdk-crypto-meta',
 ];
 const APP_SINGLETON_INDEXED_DB_NAMES = ['mindroom-room-event-cache', 'mindroom-thread-event-cache'];
+const APP_OWNED_LOCAL_STORAGE_KEYS = [
+  'settings',
+  'after_login_redirect_url',
+  'mindroom.debug.edits',
+  'i18nextLng',
+  'kb-color-mode',
+] as const;
+const APP_OWNED_LOCAL_STORAGE_PREFIXES = [
+  'cinny_',
+  'navToActivePath',
+  'mindroom_ios_push_',
+  'mx_pending_events_',
+  'mxjssdk_memory_filter_',
+  'crypto.',
+] as const;
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getStoredSessionCleanupContexts = (): SessionCleanupContext[] =>
+  listSessions().map((session) => ({
+    sessionId: session.sessionId,
+    userId: session.userId,
+    deviceId: session.deviceId,
+  }));
+
+const mergeSessionCleanupContexts = (
+  contexts: SessionCleanupContext[]
+): SessionCleanupContext[] => {
+  const mergedContexts = new Map<string, SessionCleanupContext>();
+
+  contexts.forEach((context) => {
+    mergedContexts.set(context.sessionId, context);
+  });
+
+  return Array.from(mergedContexts.values());
+};
+
+const getSessionOwnedIndexedDbNames = (session: SessionCleanupContext): string[] => {
+  const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
+
+  return [
+    indexedDbStoreNames.sync,
+    indexedDbStoreNames.crypto,
+    ...getSessionRustCryptoStoreNames(session),
+    ...getLegacySessionRustCryptoStoreNames(session),
+    getThreadEventCacheDbName(session.sessionId),
+    getRoomEventCacheDbName(session.sessionId),
+  ];
+};
+
+const getFallbackAppOwnedIndexedDbNames = (
+  sessions: SessionCleanupContext[],
+  legacySessionStoragePresent: boolean
+): string[] =>
+  Array.from(
+    new Set([
+      ...APP_SINGLETON_INDEXED_DB_NAMES,
+      ...(legacySessionStoragePresent ? LEGACY_APP_SINGLETON_INDEXED_DB_NAMES : []),
+      ...sessions.flatMap((session) => getSessionOwnedIndexedDbNames(session)),
+    ])
+  );
 
 const isSessionRustCryptoDbName = (name: string, sessionId: string): boolean => {
   const escapedSessionId = escapeRegExp(sessionId);
@@ -147,7 +216,7 @@ const hasLegacySessionStorage = (): boolean => {
 
 const isAppOwnedIndexedDbName = (
   name: string,
-  sessions: StoredSession[],
+  sessions: SessionCleanupContext[],
   legacySessionStoragePresent: boolean
 ): boolean => {
   if (APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
@@ -155,13 +224,145 @@ const isAppOwnedIndexedDbName = (
     return true;
 
   return sessions.some((session) => {
-    const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
-    return (
-      name === indexedDbStoreNames.sync ||
-      name === indexedDbStoreNames.crypto ||
-      isSessionRustCryptoDbName(name, session.sessionId)
-    );
+    const knownNames = getSessionOwnedIndexedDbNames(session);
+    return knownNames.includes(name) || isSessionRustCryptoDbName(name, session.sessionId);
   });
+};
+
+const getAppOwnedIndexedDbNames = async (
+  sessions: SessionCleanupContext[],
+  legacySessionStoragePresent: boolean
+): Promise<string[]> => {
+  const fallbackNames = getFallbackAppOwnedIndexedDbNames(sessions, legacySessionStoragePresent);
+  if (typeof indexedDB === 'undefined') return [];
+  if (typeof indexedDB.databases !== 'function') return fallbackNames;
+
+  try {
+    const dbs = await indexedDB.databases();
+
+    return dbs
+      .map((idbInfo) => idbInfo.name)
+      .filter((name): name is string => Boolean(name))
+      .filter((name) => isAppOwnedIndexedDbName(name, sessions, legacySessionStoragePresent));
+  } catch {
+    return fallbackNames;
+  }
+};
+
+const getStorageKeys = (storage: Pick<Storage, 'length' | 'key'>): string[] =>
+  Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(
+    (key): key is string => Boolean(key)
+  );
+
+const isAppOwnedLocalStorageKey = (key: string): boolean =>
+  key !== SESSION_STORE_KEY &&
+  (APP_OWNED_LOCAL_STORAGE_KEYS.includes(key as typeof APP_OWNED_LOCAL_STORAGE_KEYS[number]) ||
+    APP_OWNED_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)));
+
+const clearAppOwnedLocalStorage = (preservedSessionStore: string | null): void => {
+  if (typeof localStorage === 'undefined') return;
+
+  // Nuclear wipe: clear ALL localStorage, not just app-owned keys.
+  // This matches the "private window" experience the user expects.
+  // Only the session store (login credentials) is preserved.
+  localStorage.clear();
+
+  if (preservedSessionStore !== null) {
+    localStorage.setItem(SESSION_STORE_KEY, preservedSessionStore);
+  }
+};
+
+const getPreservedSessionStore = (): string | null => {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(SESSION_STORE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+type AppScopedBrowserCleanupContext = {
+  appScopeUrl: string;
+  appServiceWorkerScriptUrls: Set<string>;
+  normalizeUrl: (url: string) => string;
+};
+
+const getAppScopedBrowserCleanupContext = (
+  appBasePath: string,
+  origin: string = window.location.origin
+): AppScopedBrowserCleanupContext => {
+  const normalizeUrl = (url: string): string => {
+    const parsed = new URL(url, origin);
+    parsed.hash = '';
+    parsed.search = '';
+    return parsed.href;
+  };
+
+  return {
+    appScopeUrl: new URL(ensureBasePathTrailingSlash(appBasePath), origin).href,
+    appServiceWorkerScriptUrls: new Set([
+      normalizeUrl(appUrl('sw.js', appBasePath)),
+      normalizeUrl(appUrl('dev-sw.js', appBasePath)),
+    ]),
+    normalizeUrl,
+  };
+};
+
+const clearAppScopedServiceWorkers = async (appBasePath: string): Promise<void> => {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  const { appScopeUrl, appServiceWorkerScriptUrls, normalizeUrl } =
+    getAppScopedBrowserCleanupContext(appBasePath);
+  const registrations = await navigator.serviceWorker.getRegistrations();
+
+  await Promise.all(
+    registrations
+      .filter((registration) => {
+        const workerScriptUrls = [
+          registration.active,
+          registration.installing,
+          registration.waiting,
+        ]
+          .filter((worker): worker is ServiceWorker => Boolean(worker))
+          .map((worker) => normalizeUrl(worker.scriptURL));
+
+        if (
+          workerScriptUrls.some((workerScriptUrl) =>
+            appServiceWorkerScriptUrls.has(workerScriptUrl)
+          )
+        ) {
+          return true;
+        }
+
+        return normalizeUrl(registration.scope) === normalizeUrl(appScopeUrl);
+      })
+      .map((registration) => registration.unregister())
+  );
+};
+
+const clearAppScopedCacheStorage = async (appBasePath: string): Promise<void> => {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+
+  const { appScopeUrl, normalizeUrl } = getAppScopedBrowserCleanupContext(appBasePath);
+  const cacheNames = await window.caches.keys();
+
+  await Promise.all(
+    cacheNames.map(async (cacheName) => {
+      const cache = await window.caches.open(cacheName);
+      const requests = await cache.keys();
+
+      await Promise.all(
+        requests
+          .filter((request) => normalizeUrl(request.url).startsWith(appScopeUrl))
+          .map((request) => cache.delete(request))
+      );
+
+      const remainingRequests = await cache.keys();
+      if (remainingRequests.length === 0 && requests.length > 0) {
+        await window.caches.delete(cacheName);
+      }
+    })
+  );
 };
 
 const getMatrixClientSessionCleanupContext = (
@@ -274,72 +475,79 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
   window.location.reload();
 };
 
-export const clearBrowserCacheAndReload = async () => {
-  const appScopeUrl = new URL(ensureBasePathTrailingSlash(getAppBasePath()), window.location.origin)
-    .href;
-  const normalizeUrl = (url: string): string => {
-    const parsed = new URL(url, window.location.origin);
-    parsed.hash = '';
-    parsed.search = '';
-    return parsed.href;
-  };
-  const appServiceWorkerScriptUrls = new Set([
-    normalizeUrl(appUrl('sw.js')),
-    normalizeUrl(appUrl('dev-sw.js')),
+export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
+  const liveSession = mx ? getMatrixClientSessionCleanupContext(mx) : undefined;
+  const sessions = mergeSessionCleanupContexts([
+    ...getStoredSessionCleanupContexts(),
+    ...(liveSession ? [liveSession] : []),
   ]);
+  const legacySessionStoragePresent = hasLegacySessionStorage();
+  const preservedSessionStore = getPreservedSessionStore();
+  const appBasePath = getAppBasePath();
 
   try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(
-        registrations
-          .filter((registration) => {
-            const workerScriptUrls = [
-              registration.active,
-              registration.installing,
-              registration.waiting,
-            ]
-              .filter((worker): worker is ServiceWorker => Boolean(worker))
-              .map((worker) => normalizeUrl(worker.scriptURL));
+    mx?.stopClient();
+  } catch {
+    // ignore stop errors and continue clearing the rest of the app state
+  }
 
-            if (
-              workerScriptUrls.some((workerScriptUrl) =>
-                appServiceWorkerScriptUrls.has(workerScriptUrl)
-              )
-            ) {
-              return true;
-            }
-
-            return normalizeUrl(registration.scope) === normalizeUrl(appScopeUrl);
-          })
-          .map((registration) => registration.unregister())
-      );
-    }
+  try {
+    await clearAppScopedServiceWorkers(appBasePath);
   } catch {
     // ignore browser service worker cleanup errors
   }
 
   try {
-    if ('caches' in window) {
-      const cacheNames = await window.caches.keys();
-      await Promise.all(
-        cacheNames.map(async (cacheName) => {
-          const cache = await window.caches.open(cacheName);
-          const requests = await cache.keys();
+    await clearAppScopedCacheStorage(appBasePath);
+  } catch {
+    // ignore browser cache storage cleanup errors
+  }
 
-          await Promise.all(
-            requests
-              .filter((request) => normalizeUrl(request.url).startsWith(appScopeUrl))
-              .map((request) => cache.delete(request))
-          );
+  try {
+    clearSecretStorageKeys();
+  } catch {
+    // ignore secret storage cleanup errors
+  }
 
-          const remainingRequests = await cache.keys();
-          if (remainingRequests.length === 0 && requests.length > 0) {
-            await window.caches.delete(cacheName);
-          }
-        })
-      );
-    }
+  try {
+    clearMindroomLongTextHydrationCache();
+  } catch {
+    // ignore long-text hydration cache cleanup errors
+  }
+
+  try {
+    const appOwnedDbNames = await getAppOwnedIndexedDbNames(sessions, legacySessionStoragePresent);
+    await deleteNamedDatabases(appOwnedDbNames);
+  } catch {
+    // ignore IndexedDB cleanup errors
+  }
+
+  try {
+    clearAppOwnedLocalStorage(preservedSessionStore);
+  } catch {
+    // ignore localStorage cleanup errors
+  }
+
+  try {
+    sessionStorage.clear();
+  } catch {
+    // ignore sessionStorage cleanup errors
+  }
+
+  window.location.replace(getCacheBustedAppReloadTarget(appBasePath));
+};
+
+export const clearBrowserCacheAndReload = async () => {
+  const appBasePath = getAppBasePath();
+
+  try {
+    await clearAppScopedServiceWorkers(appBasePath);
+  } catch {
+    // ignore browser service worker cleanup errors
+  }
+
+  try {
+    await clearAppScopedCacheStorage(appBasePath);
   } catch {
     // ignore browser cache storage cleanup errors
   }

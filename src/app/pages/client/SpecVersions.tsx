@@ -3,11 +3,24 @@ import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { SplashScreen } from '../../components/splash-screen';
-import { clearBrowserCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
+import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
 import { useActiveSession } from '../../hooks/useSessionStore';
 
 export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
   const activeSession = useActiveSession();
+  const [clearing, setClearing] = React.useState(false);
+
+  const handleClearCache = async () => {
+    if (clearing) return;
+
+    setClearing(true);
+
+    try {
+      await clearAllCacheAndReload();
+    } catch {
+      setClearing(false);
+    }
+  };
 
   return (
     <SpecVersionsLoader
@@ -51,12 +64,12 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
                 <Button
                   variant="Critical"
                   fill="Soft"
-                  onClick={() => {
-                    clearBrowserCacheAndReload();
-                  }}
+                  onClick={handleClearCache}
+                  disabled={clearing}
+                  before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
                 >
                   <Text as="span" size="B400">
-                    Clear Cache and Reload
+                    {clearing ? 'Clearing...' : 'Clear Cache and Reload'}
                   </Text>
                 </Button>
                 <Button variant="Critical" onClick={ignore} fill="Soft">

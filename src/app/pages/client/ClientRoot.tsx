@@ -14,13 +14,20 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import React, { MouseEventHandler, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  MouseEventHandler,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import {
   ClientBootstrapSession,
-  clearCacheAndReload,
+  clearAllCacheAndReload,
   clearLoginData,
   initClient,
   logoutClient,
@@ -72,6 +79,7 @@ function ClientRootOptions({
   activeSession?: StoredSession;
 }) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const [clearing, setClearing] = useState(false);
 
   const handleToggle: MouseEventHandler<HTMLButtonElement> = (evt) => {
     const cords = evt.currentTarget.getBoundingClientRect();
@@ -79,6 +87,18 @@ function ClientRootOptions({
       if (currentState) return undefined;
       return cords;
     });
+  };
+
+  const handleClearCache = async () => {
+    if (!mx || clearing) return;
+
+    setClearing(true);
+
+    try {
+      await clearAllCacheAndReload(mx);
+    } catch {
+      setClearing(false);
+    }
   };
 
   return (
@@ -113,9 +133,15 @@ function ClientRootOptions({
             <Menu>
               <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
                 {mx && (
-                  <MenuItem onClick={() => clearCacheAndReload(mx)} size="300" radii="300">
+                  <MenuItem
+                    onClick={handleClearCache}
+                    size="300"
+                    radii="300"
+                    disabled={clearing}
+                    before={clearing && <Spinner size="100" variant="Secondary" />}
+                  >
                     <Text as="span" size="T300" truncate>
-                      Clear Cache and Reload
+                      {clearing ? 'Clearing...' : 'Clear Cache and Reload'}
                     </Text>
                   </MenuItem>
                 )}
