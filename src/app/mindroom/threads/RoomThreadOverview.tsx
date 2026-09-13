@@ -975,34 +975,34 @@ export function RoomThreadOverview({
             )}
           </TooltipProvider>
         )}
-      </div>
 
-      {/* Row 2: Tag filters */}
-      {(activeTagEntries.length > 0 || availableTags.length > 0) && (
-        <div
-          className={css.TagRow}
-          role="group"
-          aria-label="Tag filters"
-          data-tag-filter-row="true"
-        >
-          <div className={css.TagList}>
-            {activeTagEntries.map(([tag, tagState]) => (
-              <TagPill
-                key={tag}
-                tag={tag}
-                state={tagState}
-                onCycle={handleCycleTagWithPresetClear}
-                onRemove={handleRemoveTagWithPresetClear}
-              />
-            ))}
+        {/* Tag filters (right-aligned) */}
+        {(activeTagEntries.length > 0 || availableTags.length > 0) && (
+          <div
+            className={css.TagRow}
+            role="group"
+            aria-label="Tag filters"
+            data-tag-filter-row="true"
+          >
+            <div className={css.TagList}>
+              {activeTagEntries.map(([tag, tagState]) => (
+                <TagPill
+                  key={tag}
+                  tag={tag}
+                  state={tagState}
+                  onCycle={handleCycleTagWithPresetClear}
+                  onRemove={handleRemoveTagWithPresetClear}
+                />
+              ))}
+            </div>
+            <AddTagDropdown
+              availableTags={availableTags}
+              activeTags={state.tags}
+              onAddTag={handleAddTagWithPresetClear}
+            />
           </div>
-          <AddTagDropdown
-            availableTags={availableTags}
-            activeTags={state.tags}
-            onAddTag={handleAddTagWithPresetClear}
-          />
-        </div>
-      )}
+        )}
+      </div>
 
       {threadCount === 0 && filtersActive && (
         <div className={css.EmptyState}>

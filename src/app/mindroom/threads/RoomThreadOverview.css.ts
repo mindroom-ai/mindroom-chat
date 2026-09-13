@@ -2,7 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 export const Overview = style({
-  margin: `0 ${config.space.S300} ${config.space.S200}`,
+  margin: `${config.space.S200} ${config.space.S300}`,
   padding: config.space.S200,
   borderRadius: config.radii.R400,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
@@ -170,14 +170,14 @@ export const PauseButtonActive = style({
   },
 });
 
-// ─── Tag filter row (Row 2) ──────────────────────────────────────────────────
+// ─── Tag filters (right side of toolbar) ────────────────────────────────────
 
 export const TagRow = style({
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'flex-end',
   gap: config.space.S100,
-  paddingTop: config.space.S100,
-  borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  marginLeft: 'auto',
   flexWrap: 'wrap',
 });
 
@@ -185,7 +185,7 @@ export const TagList = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
-  flexShrink: 0,
+  flexWrap: 'wrap',
 });
 
 const TAG_PILL_HEIGHT = toRem(26);
@@ -290,7 +290,7 @@ export const AddTagButton = style({
 export const AddTagDropdown = style({
   position: 'absolute',
   top: `calc(${TAG_PILL_HEIGHT} + ${config.space.S100})`,
-  left: 0,
+  right: 0,
   zIndex: 100,
   minWidth: toRem(140),
   maxHeight: toRem(200),
