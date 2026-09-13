@@ -28,7 +28,7 @@ import {
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { useResizeObserver } from '../../hooks/useResizeObserver';
 import { stopPropagation } from '../../utils/keyboard';
-import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
+import { useCallEnd } from '../../hooks/useCallEmbed';
 
 type CallControlsProps = {
   callEmbed: CallEmbed;
@@ -71,14 +71,13 @@ export function CallControls({ callEmbed }: CallControlsProps) {
     setCords(undefined);
   };
 
-  const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
+  const handleMicrophoneToggle = useCallback(
+    () => callEmbed.control.toggleMicrophone(),
+    [callEmbed]
+  );
   const handleVideoToggle = useCallback(() => callEmbed.control.toggleVideo(), [callEmbed]);
 
-  const [hangupState, hangup] = useAsyncCallback(
-    useCallback(() => callEmbed.hangup(), [callEmbed])
-  );
-  const exiting =
-    hangupState.status === AsyncStatus.Loading || hangupState.status === AsyncStatus.Success;
+  const [exiting, endCall] = useCallEnd(callEmbed);
 
   return (
     <Box
@@ -97,10 +96,7 @@ export function CallControls({ callEmbed }: CallControlsProps) {
       >
         <Box alignItems="Center" gap="Inherit" grow="Yes" direction={compact ? 'Column' : 'Row'}>
           <Box shrink="No" alignItems="Inherit" justifyContent="Inherit" gap="200">
-            <MicrophoneButton
-              enabled={microphone}
-              onToggle={handleMicrophoneToggle}
-            />
+            <MicrophoneButton enabled={microphone} onToggle={handleMicrophoneToggle} />
             <SoundButton enabled={sound} onToggle={() => callEmbed.control.toggleSound()} />
           </Box>
           {!compact && <ControlDivider />}
@@ -186,7 +182,7 @@ export function CallControls({ callEmbed }: CallControlsProps) {
               style={{ minWidth: toRem(88) }}
               variant="Critical"
               fill="Solid"
-              onClick={hangup}
+              onClick={endCall}
               before={
                 exiting ? (
                   <Spinner variant="Critical" fill="Solid" size="200" />
