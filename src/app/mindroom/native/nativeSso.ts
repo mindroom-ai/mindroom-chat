@@ -1,11 +1,27 @@
 import { Browser } from '@capacitor/browser';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
 type StandaloneNavigator = Navigator & { standalone?: boolean };
+type MindRoomAuthPlugin = {
+  authenticate(options: { url: string; callbackScheme: string }): Promise<{ url?: string }>;
+};
+
+let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
 
 const normalizePath = (path: string): string => path.replace(/\/{2,}/g, '/');
+
+const getMindRoomAuthPlugin = (): MindRoomAuthPlugin => {
+  if (!mindRoomAuthPlugin) {
+    mindRoomAuthPlugin = registerPlugin<MindRoomAuthPlugin>('MindRoomAuth');
+  }
+
+  return mindRoomAuthPlugin;
+};
+
+const createPopStateNavigationEvent = (): Event =>
+  typeof PopStateEvent === 'function' ? new PopStateEvent('popstate') : new Event('popstate');
 
 export const buildNativeSsoRedirectUrl = (webRedirectUrl: string): string => {
   const parsed = new URL(webRedirectUrl);
@@ -46,7 +62,36 @@ export const isIOSStandaloneWebApp = (): boolean => {
   return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
 };
 
+export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
+  const appPath = getAppPathFromNativeSsoUrl(incomingUrl);
+  if (!appPath || typeof window === 'undefined') return false;
+
+  Promise.resolve(Browser.close()).catch(() => undefined);
+
+  try {
+    window.history.replaceState(null, '', appPath);
+    window.dispatchEvent(createPopStateNavigationEvent());
+  } catch {
+    window.location.replace(appPath);
+  }
+
+  return true;
+};
+
 export const openNativeSsoBrowser = async (url: string): Promise<void> => {
+  if (isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth')) {
+    const result = await getMindRoomAuthPlugin().authenticate({
+      callbackScheme: NATIVE_SSO_SCHEME,
+      url,
+    });
+
+    if (result.url) {
+      routeNativeSsoCallback(result.url);
+    }
+
+    return;
+  }
+
   await Browser.open({ url, presentationStyle: 'fullscreen' });
 };
 

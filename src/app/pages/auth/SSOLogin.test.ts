@@ -12,47 +12,30 @@ vi.mock('folds', async () => {
   const reactModule = await import('react');
 
   return {
-    Avatar: ({
-      children,
-      ...props
-    }: {
-      children: React.ReactNode;
-      [key: string]: unknown;
-    }) => reactModule.createElement('div', props, children),
+    Avatar: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      reactModule.createElement('div', props, children),
     AvatarImage: () => reactModule.createElement('img'),
-    Box: ({
-      children,
-      ...props
-    }: {
-      children: React.ReactNode;
-      [key: string]: unknown;
-    }) => reactModule.createElement('div', props, children),
-    Button: ({
-      children,
-      ...props
-    }: {
-      children: React.ReactNode;
-      [key: string]: unknown;
-    }) => reactModule.createElement('button', props, children),
-    Text: ({
-      children,
-      ...props
-    }: {
-      children: React.ReactNode;
-      [key: string]: unknown;
-    }) => reactModule.createElement('span', props, children),
+    Box: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      reactModule.createElement('div', props, children),
+    Button: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      reactModule.createElement('button', props, children),
+    Text: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) =>
+      reactModule.createElement('span', props, children),
   };
 });
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
+    isPluginAvailable: vi.fn(),
     isNativePlatform: vi.fn(),
     getPlatform: vi.fn(),
   },
+  registerPlugin: vi.fn(),
 }));
 
 vi.mock('@capacitor/browser', () => ({
   Browser: {
+    close: vi.fn(),
     open: vi.fn(),
   },
 }));
@@ -66,9 +49,11 @@ vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
 }));
 
 const findButtonByText = (renderer: ReturnType<typeof create>, text: string) =>
-  renderer.root.findAllByType('button').find((node) =>
-    node.findAllByType('span').some((textNode) => textNode.children.join('') === text)
-  );
+  renderer.root
+    .findAllByType('button')
+    .find((node) =>
+      node.findAllByType('span').some((textNode) => textNode.children.join('') === text)
+    );
 
 describe('SSOLogin', () => {
   const originalWindow = globalThis.window;
@@ -89,6 +74,7 @@ describe('SSOLogin', () => {
     vi.mocked(createMatrixClient).mockReturnValue({
       getSsoLoginUrl: vi.fn(() => 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect'),
     } as never);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
   });
 
   afterEach(() => {

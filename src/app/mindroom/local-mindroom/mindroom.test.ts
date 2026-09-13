@@ -5,8 +5,10 @@ import {
   getMindroomDocsUrl,
   getMindroomPairingCommand,
   getPairingSecondsRemaining,
+  getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
   resolveMindroomProvisioningRequest,
+  shouldShowWelcomeSetupPrompt,
 } from './mindroom';
 
 describe('local mindroom helpers', () => {
@@ -78,5 +80,44 @@ describe('local mindroom helpers', () => {
   it('treats active connections as not revoked', () => {
     expect(getConnectionRevokedAt({ id: 'conn-1' })).toBeUndefined();
     expect(isConnectionRevoked({ id: 'conn-1' })).toBe(false);
+  });
+
+  it('scopes welcome setup prompt first-seen storage by user id', () => {
+    expect(getWelcomeSetupFirstSeenStorageKey('@alice:mindroom.chat')).toBe(
+      'mindroom_welcome_setup_first_seen_at::@alice:mindroom.chat'
+    );
+  });
+
+  it('shows welcome setup prompt only after one day without active connections', () => {
+    const firstSeenAtMs = Date.parse('2026-05-13T12:00:00.000Z');
+
+    expect(
+      shouldShowWelcomeSetupPrompt({
+        activeConnectionCount: 0,
+        firstSeenAtMs,
+        nowMs: Date.parse('2026-05-14T12:00:00.000Z'),
+      })
+    ).toBe(true);
+    expect(
+      shouldShowWelcomeSetupPrompt({
+        activeConnectionCount: 0,
+        firstSeenAtMs,
+        nowMs: Date.parse('2026-05-14T11:59:59.000Z'),
+      })
+    ).toBe(false);
+    expect(
+      shouldShowWelcomeSetupPrompt({
+        activeConnectionCount: 1,
+        firstSeenAtMs,
+        nowMs: Date.parse('2026-05-15T12:00:00.000Z'),
+      })
+    ).toBe(false);
+    expect(
+      shouldShowWelcomeSetupPrompt({
+        activeConnectionCount: 0,
+        firstSeenAtMs: undefined,
+        nowMs: Date.parse('2026-05-15T12:00:00.000Z'),
+      })
+    ).toBe(false);
   });
 });
