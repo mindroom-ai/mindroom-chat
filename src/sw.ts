@@ -17,7 +17,19 @@ declare const self: ServiceWorkerGlobalScope & {
 
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
-registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
+
+const navigationFallbackDenylist = [
+  /^\/api(?:\/|$)/,
+  /^\/_matrix(?:\/|$)/,
+  /^\/_synapse(?:\/|$)/,
+  /^\/\.well-known(?:\/|$)/,
+];
+
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL('index.html'), {
+    denylist: navigationFallbackDenylist,
+  })
+);
 
 type SessionInfo = {
   accessToken: string;
