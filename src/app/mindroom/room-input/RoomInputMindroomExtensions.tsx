@@ -1,18 +1,21 @@
 import React from 'react';
-import { RelationType, Room } from 'matrix-js-sdk';
+import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { BaseRange, Descendant, Editor, Element, Transforms } from 'slate';
 import { Box, Text, config } from 'folds';
+import { Membership } from '../../../types/matrix/room';
 import type { AutocompleteQuery } from '../../components/editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../../components/editor/slate';
 import { BlockType } from '../../components/editor/types';
-import type { IReplyDraft } from '../../state/room/roomInputDrafts';
+import type {
+  IReplyDraft,
+  PendingVoiceSendContext,
+} from '../../state/room/roomInputDrafts';
 import { MindroomCommandAutocomplete } from '../commands/MindroomCommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from '../commands/mindroomCommandQuery';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { VoiceRecorderComposer } from '../voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
-import type { RoomInputSendContext } from '../threads/useRoomInputSendSessionController';
 import {
   createRoomInputSendSessionState,
   getUploadRelationForSendSession,
@@ -37,7 +40,13 @@ type MindroomRoomInputThreadIndicatorProps = {
   room: Room;
   relation: IReplyDraft['relation'] | undefined;
 };
-export type MindroomVoiceSendContext = RoomInputSendContext;
+/**
+ * Voice send context is the stricter PendingVoiceSendContext (with
+ * ownerSessionId) so the parked failed-send atom can be account-scoped.
+ * The broader RoomInputSendContext used for synchronous send sessions does
+ * not need account stamping because it never outlives the active send.
+ */
+export type MindroomVoiceSendContext = PendingVoiceSendContext;
 
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
@@ -66,18 +75,21 @@ export const getMindroomRoomInputMessageRelation = (
   });
 
 export const getMindroomRoomInputVoiceSendContext = ({
+  ownerSessionId,
   roomId,
   room,
   threadId,
   replyDraft,
   threadingEnabled = true,
 }: {
+  ownerSessionId: string;
   roomId: string;
   room: Room;
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled?: boolean;
 }): MindroomVoiceSendContext => ({
+  ownerSessionId,
   roomId,
   room,
   threadId,
@@ -85,6 +97,28 @@ export const getMindroomRoomInputVoiceSendContext = ({
   threadingEnabled,
   signalBridgedRoom: isSignalBridgeRoom(room),
 });
+
+/**
+ * Re-resolve a captured voice send context against the live Matrix client
+ * just before sending. Returns null if the source room is no longer
+ * available (missing or non-Joined). This is the boundary that closes the
+ * stale-snapshot window: encryption upgrades, membership changes, or
+ * signal-bridge roster changes between original failure and retry are all
+ * picked up here. handleVoiceSend in the parent uses this so the bridge-
+ * detection / membership predicates stay isolated to the extensions module.
+ */
+export const refreshMindroomRoomInputVoiceSendContext = (
+  mx: MatrixClient,
+  context: MindroomVoiceSendContext
+): MindroomVoiceSendContext | null => {
+  const liveRoom = mx.getRoom(context.roomId);
+  if (!liveRoom || liveRoom.getMyMembership() !== Membership.Join) return null;
+  return {
+    ...context,
+    room: liveRoom,
+    signalBridgedRoom: isSignalBridgeRoom(liveRoom),
+  };
+};
 
 export const getMindroomRoomInputVoiceUploadRelation = (
   context: MindroomVoiceSendContext,
