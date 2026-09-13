@@ -12,3 +12,12 @@ test-results
 dist.*/
 dist-*/
 result
+
+# Capacitor Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/local.properties
+android/captures/
+android/.idea/
