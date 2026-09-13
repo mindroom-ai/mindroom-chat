@@ -187,8 +187,15 @@ export const useThreadOpenCacheController = ({
       const currentFirstThreadTimeline = currentThreadTimelineSet
         ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
         : undefined;
+      // 2026-07-06 review finding #1: clearing the SDK's backward token
+      // requires the RELATIONS-proven completeness proof, not just the
+      // reply-count proof — see the matching gate in
+      // threadOpenCacheFirst.ts (count-proof can be vacuous under a
+      // stale expectedReplyCount; the token is the escape hatch).
       const cacheProvesNoBackwardGap =
-        snapshotComplete === true && hasThreadCacheKnownBackwardStart(cacheCoverage);
+        snapshotComplete === true &&
+        cachedRelationSnapshotComplete &&
+        hasThreadCacheKnownBackwardStart(cacheCoverage);
       const hadStaleSdkBackwardToken =
         currentFirstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
       if (cacheProvesNoBackwardGap && currentFirstThreadTimeline && hadStaleSdkBackwardToken) {

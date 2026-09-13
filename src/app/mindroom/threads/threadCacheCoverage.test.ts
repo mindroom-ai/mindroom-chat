@@ -65,16 +65,51 @@ describe('threadCacheCoverage', () => {
     ).toBe(false);
   });
 
-  it('requests relation backfill for incomplete relation or snapshot coverage', () => {
+  it('treats a count-proven complete snapshot as complete for paint even when relations are unproven (2026-07-06 eager-cache policy)', () => {
+    // Sweep-warmed shape: the room deep-history sweep persisted the full
+    // reply set (reply-count math proved snapshotComplete at hydrate) and
+    // asserted tailLoaded, but no /relations pass ever ran, so
+    // relationSnapshotComplete is false. The pre-2026-07-06 policy
+    // re-downloaded the ENTIRE thread at open just to prove relations;
+    // the choke-point reconcile is the revalidator now (D7: coverage
+    // decides paint, never revalidate).
     const coverage = buildThreadCacheCoverage({
       eventCount: 2,
-      backwardToken: null,
       hasMoreBackward: false,
       relationSnapshotComplete: false,
       snapshotComplete: true,
       tailLoaded: true,
     });
 
+    expect(
+      isCompleteThreadCacheCoverage({
+        coverage,
+        hasLocalSnapshot: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldBackfillThreadRelationsFromCoverage({
+        coverage,
+        hasLocalSnapshot: true,
+      })
+    ).toBe(false);
+  });
+
+  it('still requests relation backfill for a genuinely partial snapshot', () => {
+    const coverage = buildThreadCacheCoverage({
+      eventCount: 2,
+      backwardToken: 'tok',
+      relationSnapshotComplete: false,
+      snapshotComplete: false,
+      tailLoaded: true,
+    });
+
+    expect(
+      isCompleteThreadCacheCoverage({
+        coverage,
+        hasLocalSnapshot: true,
+      })
+    ).toBe(false);
     expect(
       shouldBackfillThreadRelationsFromCoverage({
         coverage,

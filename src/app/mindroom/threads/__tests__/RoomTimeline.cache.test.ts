@@ -3266,7 +3266,17 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('repairs complete cached thread snapshots that are missing relation hydration', async () => {
+    // 2026-07-06 eager-cache policy: a count-proven complete snapshot
+    // whose relations were never proven by a /relations drain
+    // (relationSnapshotComplete=false — e.g. warmed by the room sweep)
+    // takes the complete-cache FAST PATH at open. The pre-policy
+    // behavior re-downloaded the entire thread at open just to prove
+    // relations. The choke-point reconcile remains the revalidator: it
+    // fetches ONE tail page, detects the missed edit, and persists the
+    // repair — without the SDK bootstrap or a full drain. The
+    // relationSnapshotComplete PROOF now lands from the background
+    // prewarm band (threadSeedPrewarmController), not from the open.
+    it('reconciles a complete-but-relation-unproven snapshot at open without a full relations drain', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents, saveThreadEventsToCache } = await import(
         '../cacheStore'
@@ -3407,10 +3417,26 @@ describe('RoomTimeline', () => {
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+        // The reconcile's repair persisted the missed edit into the
+        // thread cache (as a standalone record or folded into the
+        // target's bundled m.replace). The relationSnapshotComplete
+        // flag is deliberately NOT upgraded by the open anymore.
         expect(
           vi
             .mocked(saveThreadEventsToCache)
-            .mock.calls.some((call) => call[2] === threadId && call[9] === true)
+            .mock.calls.some(
+              (call) =>
+                call[2] === threadId && JSON.stringify(call[3]).includes('$thread-reply-1-edit')
+            )
+        ).toBe(true);
+        // PR #84 review (coderabbit): pin the flag contract, not just
+        // the persisted edit — NO open-time save may upgrade
+        // relationSnapshotComplete (arg 10) to true; that proof is
+        // owned by the background prewarm's full /relations drain.
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.every((call) => call[2] !== threadId || call[9] !== true)
         ).toBe(true);
       } finally {
         await act(async () => {
