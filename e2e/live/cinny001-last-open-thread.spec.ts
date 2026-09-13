@@ -9,6 +9,7 @@ import {
   createPrivateRoom,
   createThreadFixture,
   loginToMatrix,
+  seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
 
@@ -37,6 +38,7 @@ test.describe('live CINNY-001 last open thread restore', () => {
       topic: 'Secondary room used while leaving and re-entering the thread room.',
     });
     const fallbackRoomBody = `CINNY-001 fallback ${stamp}`;
+    const fallbackRoomTopic = 'Secondary room used while leaving and re-entering the thread room.';
 
     await sendRoomMessage(
       homeserver,
@@ -51,6 +53,18 @@ test.describe('live CINNY-001 last open thread restore', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
+    await seedRoomOverviewState({
+      page,
+      roomId: roomWithThread.roomId,
+      userId: session.userId,
+      viewMode: 'normal',
+    });
+    await seedRoomOverviewState({
+      page,
+      roomId: fallbackRoomId,
+      userId: session.userId,
+      viewMode: 'normal',
+    });
 
     await page.goto(
       `/home/${encodeURIComponent(roomWithThread.roomId)}?threadId=${encodeURIComponent(
@@ -62,7 +76,9 @@ test.describe('live CINNY-001 last open thread restore', () => {
     await expect(page.getByText(roomWithThread.replyBody)).toBeVisible({ timeout: 30_000 });
 
     await page.goto(`/home/${encodeURIComponent(fallbackRoomId)}`);
-    await expect(page.getByText(fallbackRoomBody)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: fallbackRoomTopic })).toBeVisible({
+      timeout: 30_000,
+    });
 
     await page.goto(`/home/${encodeURIComponent(roomWithThread.roomId)}`);
 

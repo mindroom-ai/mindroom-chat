@@ -182,6 +182,7 @@ const createThread = (threadRootId = '$root') => {
   return {
     rootEvent,
     replyLookupEvent: {
+      getId: () => '$reply',
       threadRootId,
     },
     thread: {

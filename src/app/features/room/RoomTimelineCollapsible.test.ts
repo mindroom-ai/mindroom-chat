@@ -497,10 +497,14 @@ vi.mock('../../state/room/roomToUnread', () => ({
 vi.mock('./threadUtils', () => ({
   buildThreadParticipantMap: () => new Map(),
   buildThreadReplyCountMap: () => new Map(),
+  buildVisibleThreadParticipantMap: () => new Map(),
+  buildVisibleThreadReplyCountMap: () => new Map(),
   eventBelongsToThread: (
     mEvent: { getId: () => string; threadRootId?: string },
     threadId: string
   ) => !!threadId && mEvent.threadRootId === threadId && mEvent.getId() !== threadId,
+  getPreferredVisibleThreadReplyEvents: () => [],
+  getVisibleThreadMessageCount: () => 0,
   isThreadReplyEvent: (eventId?: string, threadRootId?: string) =>
     !!eventId && !!threadRootId && eventId !== threadRootId,
 }));

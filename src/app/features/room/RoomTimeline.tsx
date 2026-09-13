@@ -265,6 +265,7 @@ import {
 } from './threadEditBackfillUtils';
 import { useRoomThreadResolutionMap } from './useRoomThreadTags';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
+import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
 
 export { getRoomEventThreadOpenTarget } from './roomDeepLink';
 
@@ -5938,17 +5939,14 @@ export function RoomTimeline({
     resetThreadRenderState(threadId);
     const shouldScrollToLatestOnOpen = !eventId;
     const initialRoomThreadEvents = getLoadedRoomThreadEvents(room, threadId);
-    const hasInitialRoomThreadReplies = initialRoomThreadEvents.some((mEvent) => {
-      const eventId = mEvent.getId();
-      return !!eventId && eventId !== threadId;
-    });
+    const hasInitialRoomThreadVisibleEvents = initialRoomThreadEvents.length > 0;
     const initialThreadMemorySeedEvents = shouldScrollToLatestOnOpen
       ? getThreadOpenSeedSnapshot(room, threadId)
       : [];
     const initialThreadModelSeedEvents = shouldScrollToLatestOnOpen
       ? getLoadedThreadModelSeedEvents(room, threadId)
       : [];
-    const initialRoomThreadSeedEvents = hasInitialRoomThreadReplies
+    const initialRoomThreadSeedEvents = hasInitialRoomThreadVisibleEvents
       ? getLoadedRoomThreadSeedEvents(room, threadId)
       : [];
     const buildUntargetedThreadSeedEvents = (memorySeedEvents: MatrixEvent[]) =>
@@ -5992,7 +5990,7 @@ export function RoomTimeline({
       source: 'initial' | 'room-prewarm'
     ): boolean => {
       if (untargetedThreadSeedApplied) return true;
-      if (hasInitialRoomThreadReplies) {
+      if (hasInitialRoomThreadVisibleEvents) {
         hydrateCachedEvents({
           room,
           events: initialRoomThreadSeedEvents,
@@ -6014,7 +6012,7 @@ export function RoomTimeline({
       return true;
     };
     const applyInitialRoomThreadSeed = () => {
-      if (!hasInitialRoomThreadReplies) return;
+      if (!hasInitialRoomThreadVisibleEvents) return;
       hydrateCachedEvents({
         room,
         events: initialRoomThreadSeedEvents,
@@ -6154,6 +6152,21 @@ export function RoomTimeline({
             setAtBottom(true);
             return;
           }
+        }
+
+        if (isPendingLocalEchoThreadRoot(room, threadId)) {
+          setThreadTailLoaded(true);
+          setTimeline((ct) => ({ ...ct }));
+          setThreadTimelineTick((val) => val + 1);
+          logTimelineDebug(threadDebugTraceId, 'thread-open-pending-local-echo-root', {
+            threadId,
+          });
+          if (shouldScrollToLatestOnOpen) {
+            scrollToBottomRef.current.count += 1;
+            scrollToBottomRef.current.smooth = false;
+            setAtBottom(true);
+          }
+          return;
         }
 
         // First, ensure the thread exists in the SDK.

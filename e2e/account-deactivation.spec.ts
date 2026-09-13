@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
+import {
+  getDeactivationCredentials,
+  getHomeserver,
+  getPrimaryCredentials,
+} from './env';
 import {
   deactivateActiveAccount,
   expectActiveStoredUsername,
@@ -14,10 +18,10 @@ import {
 test('deactivating the active account removes only that account and leaves the other signed in', async ({
   page,
 }) => {
-  const secondaryCredentials = getSecondaryCredentials();
+  const deactivationCredentials = getDeactivationCredentials();
   test.skip(
-    !secondaryCredentials,
-    'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the multi-account e2e flow.'
+    !deactivationCredentials,
+    'Set E2E_DEACTIVATE_USERNAME and E2E_DEACTIVATE_PASSWORD to run the deactivation e2e flow.'
   );
 
   const diagnostics = attachBrowserDiagnostics(page);
@@ -35,15 +39,15 @@ test('deactivating the active account removes only that account and leaves the o
   await page.getByRole('button', { name: 'Add account' }).click();
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: deactivationCredentials.username,
+    password: deactivationCredentials.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, deactivationCredentials.username);
   await expect(page.locator(accountRailButtonSelector)).toHaveCount(3);
 
-  await deactivateActiveAccount(page, secondaryCredentials.password);
+  await deactivateActiveAccount(page, deactivationCredentials.password);
 
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
@@ -58,8 +62,8 @@ test('deactivating the active account removes only that account and leaves the o
 
   await page.getByRole('button', { name: 'Add account' }).click();
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
-  await page.locator('input[name="usernameInput"]').fill(secondaryCredentials.username);
-  await page.locator('input[name="passwordInput"]').fill(secondaryCredentials.password);
+  await page.locator('input[name="usernameInput"]').fill(deactivationCredentials.username);
+  await page.locator('input[name="passwordInput"]').fill(deactivationCredentials.password);
   await page.getByRole('button', { name: 'Login' }).click();
 
   await expect(page.getByText('This account has been deactivated.')).toBeVisible();

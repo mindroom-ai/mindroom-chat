@@ -154,6 +154,9 @@ test.describe('live cinny-015 thread exit scroll', () => {
     const { roomId, rootId } = await seedThreadExitFixture(homeserver, username, password);
 
     await loginWithPassword(page, { homeserver, username, password });
+    await page.evaluate((nextRoomId) => {
+      localStorage.setItem(`roomViewMode:${nextRoomId}`, JSON.stringify('normal'));
+    }, roomId);
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });

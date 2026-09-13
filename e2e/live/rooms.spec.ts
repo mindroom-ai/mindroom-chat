@@ -7,6 +7,8 @@ import {
 } from '../helpers/browserDiagnostics';
 
 const hasCredentials = !!process.env.E2E_USERNAME;
+const roomLinkSelector = 'a[href^="/home/!"], a[href^="/home/%23"]';
+const roomSurfaceSelector = '[data-room-thread-overview="true"], [data-message-id], [data-message-item]';
 
 test.describe('live rooms', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -19,7 +21,7 @@ test.describe('live rooms', () => {
     await loginWithPassword(page, { homeserver, username, password });
 
     // Wait for at least one room nav link to appear in the sidebar
-    const roomLinks = page.locator('nav a[aria-selected]');
+    const roomLinks = page.locator(roomLinkSelector);
     await expect(roomLinks.first()).toBeVisible({ timeout: 30_000 });
 
     const count = await roomLinks.count();
@@ -36,15 +38,15 @@ test.describe('live rooms', () => {
     await loginWithPassword(page, { homeserver, username, password });
 
     // Wait for room list to populate
-    const roomLinks = page.locator('nav a[aria-selected]');
+    const roomLinks = page.locator(roomLinkSelector);
     await expect(roomLinks.first()).toBeVisible({ timeout: 30_000 });
 
     // Click the first room
     await roomLinks.first().click();
 
-    // Expect a timeline/message area to appear (PageContent or message composer)
-    const timeline = page.locator('[class*="PageContent"], [class*="RoomTimeline"]');
-    await expect(timeline.first()).toBeVisible({ timeout: 30_000 });
+    // Expect a room surface to appear (overview or regular timeline items)
+    const roomSurface = page.locator(roomSurfaceSelector);
+    await expect(roomSurface.first()).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'room-navigation');
   });
@@ -57,7 +59,7 @@ test.describe('live rooms', () => {
     await loginWithPassword(page, { homeserver, username, password });
 
     // Wait for room list
-    const roomLinks = page.locator('nav a[aria-selected]');
+    const roomLinks = page.locator(roomLinkSelector);
     await expect(roomLinks.first()).toBeVisible({ timeout: 30_000 });
 
     // Navigate to first room

@@ -650,6 +650,65 @@ describe('RoomTimeline', () => {
     }
   });
 
+  it('shows pending local-echo zero-reply roots immediately in compact view', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const firstThread = makeEvent('$thread-1', {
+      isThreadRoot: true,
+      ts: 100,
+    });
+    const secondThread = makeEvent('$thread-2', {
+      isThreadRoot: true,
+      ts: 200,
+    });
+    const liveEvents = [firstThread, secondThread];
+    const room = makeRoom({ liveEvents });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    roomThreadListThreadsMock.push(
+      { id: firstThread.getId(), rootEvent: firstThread },
+      { id: secondThread.getId(), rootEvent: secondThread }
+    );
+    threadLastActivityTsMapMock.set(firstThread.getId(), 100);
+    threadLastActivityTsMapMock.set(secondThread.getId(), 200);
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'compact',
+            initialThreadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
+          })
+        );
+        await flushAsyncWork(2);
+      });
+
+      const pendingRoot = makeEvent('~pending-root', {
+        content: { body: 'Pending compact root' },
+        isSending: true,
+        ts: 0,
+      });
+      liveEvents.push(pendingRoot);
+
+      await act(async () => {
+        room.__listeners.get(RoomEvent.Timeline)?.(pendingRoot, room, false, false, {
+          liveEvent: true,
+        });
+        await flushAsyncWork(2);
+      });
+
+      expect(renderer?.root.findByType(compactPlaceholderType).props.threadRootIds).toEqual([
+        pendingRoot.getId(),
+        secondThread.getId(),
+        firstThread.getId(),
+      ]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
     const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import('./RoomTimeline');
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
@@ -1694,6 +1753,70 @@ describe('RoomTimeline', () => {
         rootEvent,
         firstReply,
         secondReply,
+      ]);
+    } finally {
+      resolveCacheLoad?.({
+        events: [],
+        hasMoreBefore: false,
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      renderer?.unmount();
+    }
+  });
+
+  it('seeds untargeted zero-reply thread opens from the locally available root before cache hydration resolves', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('./threadEventCache');
+    const threadId = '~pending-root';
+    const rootEvent = makeEvent(threadId, {
+      content: { body: 'YOLO' },
+      isSending: true,
+      isThreadRoot: true,
+      ts: 0,
+      txnId: 'txn-yolo',
+    });
+    const room = makeRoom({
+      liveTimeline: makeTimeline([rootEvent]),
+      findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    let resolveCacheLoad:
+      | ((value: { events: unknown[]; hasMoreBefore: boolean; beforeToken?: string | null }) => void)
+      | undefined;
+    vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCacheLoad = resolve;
+        }) as ReturnType<typeof loadLatestCachedThreadEvents>
+    );
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId,
+          })
+        );
+      });
+
+      await waitForCondition(
+        () =>
+          threadRenderStateMock.setSupplementalThreadEvents.mock.calls.some(
+            ([expectedThreadId, events]) =>
+              expectedThreadId === threadId &&
+              Array.isArray(events) &&
+              events.length === 1 &&
+              events[0] === rootEvent
+          ),
+        50
+      );
+      expect(threadRenderStateMock.setSupplementalThreadEvents).toHaveBeenCalledWith(threadId, [
+        rootEvent,
       ]);
     } finally {
       resolveCacheLoad?.({

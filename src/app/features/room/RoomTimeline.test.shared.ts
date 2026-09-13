@@ -959,6 +959,8 @@ const makeEvent = (
     unsigned?: Record<string, unknown>;
     isRedacted?: boolean;
     isRedaction?: boolean;
+    isSending?: boolean;
+    txnId?: string;
   } = {}
 ) => ({
   __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
@@ -975,8 +977,10 @@ const makeEvent = (
   getServerAggregatedRelation: () => undefined,
   getStateKey: () => opts.stateKey,
   getTs: () => opts.ts ?? 0,
+  getTxnId: () => opts.txnId,
   getType: () => opts.type ?? 'm.room.message',
   getUnsigned: () => opts.unsigned ?? {},
+  isSending: () => opts.isSending ?? false,
   isRedacted: () => opts.isRedacted ?? false,
   isRedaction: () => opts.isRedaction ?? false,
   makeRedacted: vi.fn(),
@@ -1072,7 +1076,6 @@ const makeRoom = ({
     },
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
-    getMember: () => null,
     getLiveTimeline: () => roomLiveTimeline,
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,

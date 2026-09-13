@@ -35,6 +35,43 @@ describe('recentThreads', () => {
     clearRecentThreadsStore(USER_ID);
   });
 
+  it('bumps an entry to the top and de-duplicates the same room/thread pair', () => {
+    const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
+    const store = getDefaultStore();
+
+    store.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$older',
+      openedAt: 100,
+    });
+    store.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$newer',
+      openedAt: 200,
+    });
+    store.set(recentThreadsAtom, {
+      type: 'BUMP',
+      roomId: '!room:example.org',
+      threadId: '$older',
+      openedAt: 300,
+    });
+
+    expect(store.get(recentThreadsAtom)).toEqual([
+      {
+        roomId: '!room:example.org',
+        threadId: '$older',
+        openedAt: 300,
+      },
+      {
+        roomId: '!room:example.org',
+        threadId: '$newer',
+        openedAt: 200,
+      },
+    ]);
+  });
+
   it('rekeys reply ids to canonical roots without downgrading a newer canonical entry', () => {
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const store = getDefaultStore();

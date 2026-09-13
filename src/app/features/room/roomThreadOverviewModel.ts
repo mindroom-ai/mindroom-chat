@@ -19,6 +19,7 @@ import {
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadMessageCount,
 } from './threadUtils';
+import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 
 // ─── Tri-state types ─────────────────────────────────────────────────────────
 
@@ -605,7 +606,7 @@ export const buildThreadMetadataMap = (
     const scheduledTaskCount = scheduledTaskCounts.get(threadRootId) ?? 0;
     const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
     const cachedLastActivityTs = cachedLastActivityTsMap?.get(threadRootId) ?? 0;
-    const rootEventTs = rootEvent?.getTs?.() ?? 0;
+    const rootEventTs = getEffectiveThreadRootActivityTs(rootEvent);
     const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs, rootEventTs);
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);

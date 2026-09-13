@@ -21,6 +21,7 @@ const makeEvent = (
     type?: string;
     isRedacted?: boolean;
     threadRootId?: string;
+    isSending?: boolean;
   }
 ) =>
   ({
@@ -44,6 +45,7 @@ const makeEvent = (
     getSender: () => '@bot:mindroom.chat',
     getTs: () => options?.ts ?? 1,
     getUnsigned: () => undefined,
+    isSending: () => options?.isSending ?? false,
     isRedacted: () => options?.isRedacted ?? false,
     threadRootId: options?.threadRootId,
     replacingEvent: () =>
@@ -310,6 +312,15 @@ describe('buildCompactThreadRootData', () => {
         now
       )
     ).toBe(false);
+    expect(
+      isZeroReplyStandaloneThreadRootEvent(
+        makeEvent('~pending', 'Pending local echo root', undefined, undefined, {
+          ts: 0,
+          isSending: true,
+        }),
+        now
+      )
+    ).toBe(true);
   });
 
   it('merges zero-reply compact roots back into absolute timeline order', () => {

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getRequiredEnv, hasRequiredEnv } from './env';
 import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import { openSettingsFromAccountRail } from './helpers/accounts';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -39,8 +40,7 @@ test('clears app cache from Settings > About without signing the user out', asyn
   await expect(page).toHaveURL(/\/home\/?$/);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
-  await page.getByRole('button', { name: /Open account switcher for / }).click();
-  await page.getByRole('button', { name: 'Open Settings' }).click();
+  await openSettingsFromAccountRail(page);
   await expect(page.getByText('Settings', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'About' }).click();

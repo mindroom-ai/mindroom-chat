@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { Room } from 'matrix-js-sdk';
+import { useEffect, useReducer, useRef } from 'react';
+import { Room, RoomEvent, RoomEventHandlerMap, ThreadEvent } from 'matrix-js-sdk';
+import { resolveCanonicalThreadRootId } from './threadRouteUtils';
 
 /**
  * Resolve the canonical thread root event ID from a threadId.
@@ -14,26 +15,72 @@ import { Room } from 'matrix-js-sdk';
 export const useThreadRootEvent = (
   room: Room,
   threadId: string | undefined
-): string | undefined =>
-  useMemo(() => {
+): string | undefined => {
+  const [, bumpRootIdVersion] = useReducer((version: number) => version + 1, 0);
+  const rootId = resolveCanonicalThreadRootId(room, threadId);
+  const rootIdRef = useRef(rootId);
+  rootIdRef.current = rootId;
+
+  useEffect(() => {
     if (!threadId) return undefined;
 
-    // Check if the SDK has a thread model for this ID — that means it IS the root.
-    const thread = room.getThread(threadId);
-    if (thread) return threadId;
+    const refreshRootId = () => {
+      const nextRootId = resolveCanonicalThreadRootId(room, threadId);
+      if (rootIdRef.current === nextRootId) return;
 
-    // Check if we can find the event and it has a threadRootId pointing elsewhere.
-    const event = room.findEventById(threadId);
-    if (event) {
-      const rootId = event.threadRootId;
-      // If threadRootId exists and differs from the event ID, the event is a reply.
-      if (rootId && rootId !== threadId) return rootId;
-      // Otherwise, this event IS the root (or standalone).
-      return threadId;
-    }
+      rootIdRef.current = nextRootId;
+      bumpRootIdVersion();
+    };
 
-    // Event not found yet — return the threadId as-is (it's almost always the root
-    // when navigating via thread view). The caller should still succeed because
-    // state events keyed by root ID will match.
-    return threadId;
+    const handleTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      _event,
+      eventRoom,
+      _toStartOfTimeline,
+      removed
+    ) => {
+      if (removed || eventRoom?.roomId !== room.roomId) return;
+      refreshRootId();
+    };
+    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
+      event,
+      eventRoom,
+      oldEventId
+    ) => {
+      if (eventRoom?.roomId !== room.roomId) return;
+      // This hook only canonicalizes the currently open thread route.
+      // RoomEvent.LocalEchoUpdated fires for every local echo in the room; if we
+      // react to unrelated reply sends, we can retarget the open thread URL from
+      // the real root to a reply event and blank the thread view.
+      if (!oldEventId || oldEventId !== threadId) return;
+
+      const canonicalEventId = event.getId();
+      const nextRootId =
+        resolveCanonicalThreadRootId(room, canonicalEventId ?? undefined) ??
+        resolveCanonicalThreadRootId(room, oldEventId) ??
+        canonicalEventId ??
+        threadId;
+      if (rootIdRef.current === nextRootId) return;
+
+      rootIdRef.current = nextRootId;
+      bumpRootIdVersion();
+    };
+
+    room.on(RoomEvent.Timeline, handleTimeline);
+    room.on(RoomEvent.LocalEchoUpdated, handleLocalEcho);
+    room.on(ThreadEvent.New, refreshRootId);
+    room.on(ThreadEvent.Update, refreshRootId);
+    room.on(ThreadEvent.NewReply, refreshRootId);
+    room.on(ThreadEvent.Delete, refreshRootId);
+
+    return () => {
+      room.removeListener(RoomEvent.Timeline, handleTimeline);
+      room.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEcho);
+      room.removeListener(ThreadEvent.New, refreshRootId);
+      room.removeListener(ThreadEvent.Update, refreshRootId);
+      room.removeListener(ThreadEvent.NewReply, refreshRootId);
+      room.removeListener(ThreadEvent.Delete, refreshRootId);
+    };
   }, [room, threadId]);
+
+  return rootId;
+};

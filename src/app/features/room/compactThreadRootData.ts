@@ -8,6 +8,10 @@ import {
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
 import type { CachedThreadEventPage } from './threadEventCache';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfillUtils';
+import {
+  getEffectiveThreadRootActivityTs,
+  isPendingLocalEchoThreadRootEvent,
+} from './threadRouteUtils';
 
 export type CompactThreadRootData = {
   ids: string[];
@@ -34,7 +38,7 @@ const getEventActivityTs = (event: MatrixEvent): number => {
       ? replacingEvent.getTs()
       : 0;
 
-  return Math.max(event.getTs(), replacingTs);
+  return Math.max(getEffectiveThreadRootActivityTs(event), replacingTs);
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -77,7 +81,9 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;
-  if (now - event.getTs() > COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS) return false;
+  const activityTs = getEffectiveThreadRootActivityTs(event, now);
+  if (!isPendingLocalEchoThreadRootEvent(event) && activityTs <= 0) return false;
+  if (now - activityTs > COMPACT_ZERO_REPLY_RECENCY_THRESHOLD_MS) return false;
   return true;
 };
 
