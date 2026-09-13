@@ -592,7 +592,7 @@ function ThreadSearchBar({
           value={searchQuery}
           onChange={(e) => onSearchQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search threads\u2026"
+          placeholder="Search threads..."
           aria-label="Search threads"
           data-search-input="true"
         />
