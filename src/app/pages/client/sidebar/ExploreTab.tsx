@@ -17,7 +17,7 @@ import { getMxIdServer } from '../../../utils/matrix';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 
-export function ExploreTab() {
+export function ExploreTab({ onSelect }: { onSelect?: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const screenSize = useScreenSizeContext();
@@ -28,6 +28,7 @@ export function ExploreTab() {
   const exploreSelected = useExploreSelected();
 
   const handleExploreClick = () => {
+    onSelect?.();
     if (screenSize === ScreenSize.Mobile) {
       navigate(getExplorePath());
       return;

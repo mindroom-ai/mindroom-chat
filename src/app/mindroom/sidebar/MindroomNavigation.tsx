@@ -83,6 +83,7 @@ export function MindroomSidebarNav() {
   return (
     <MobileFriendlyClientNav>
       <SidebarNav
+        onPageNavSelect={canCollapse ? () => setCollapsed(false) : undefined}
         footer={
           canCollapse ? (
             <PageNavToggleButton collapsed={collapsed} onClick={() => setCollapsed(!collapsed)} />

@@ -23,7 +23,13 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
 
-export function SidebarNav({ footer }: { footer?: ReactNode }) {
+export function SidebarNav({
+  footer,
+  onPageNavSelect,
+}: {
+  footer?: ReactNode;
+  onPageNavSelect?: () => void;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();
   // Simple mode keeps the essentials: Home, Direct, existing spaces, and the
@@ -42,16 +48,16 @@ export function SidebarNav({ footer }: { footer?: ReactNode }) {
         scrollable={
           <Scroll ref={scrollRef} variant="Background" size="0">
             <SidebarStack>
-              <HomeTab />
-              <DirectTab />
-              {showThreads && <ThreadsTab />}
+              <HomeTab onSelect={onPageNavSelect} />
+              <DirectTab onSelect={onPageNavSelect} />
+              {showThreads && <ThreadsTab onSelect={onPageNavSelect} />}
             </SidebarStack>
-            <SpaceTabs scrollRef={scrollRef} />
+            <SpaceTabs scrollRef={scrollRef} onSelect={onPageNavSelect} />
             {showSecondStack && (
               <>
                 <SidebarStackSeparator />
                 <SidebarStack>
-                  {showExploreCommunity && <ExploreTab />}
+                  {showExploreCommunity && <ExploreTab onSelect={onPageNavSelect} />}
                   {showMindRoom && <MindroomTab />}
                   {showAddSpace && <CreateTab />}
                 </SidebarStack>

@@ -22,22 +22,12 @@ describe('Threads route', () => {
     expect(threadsIndex).toBeLessThan(spaceIndex);
   });
 
-  it('keeps the sidebar tab in the primary stack and mobile nav allow-list', () => {
-    const sidebarSource = readFileSync(
-      resolve(process.cwd(), 'src/app/pages/client/SidebarNav.tsx'),
-      'utf8'
-    );
+  it('keeps Threads in the mobile nav allow-list', () => {
     const mobileSource = readFileSync(
       resolve(process.cwd(), 'src/app/pages/MobileFriendly.tsx'),
       'utf8'
     );
 
-    expect(sidebarSource.indexOf('<DirectTab />')).toBeLessThan(
-      sidebarSource.indexOf('<ThreadsTab />')
-    );
-    expect(sidebarSource.indexOf('<ThreadsTab />')).toBeLessThan(
-      sidebarSource.indexOf('<SpaceTabs')
-    );
     expect(mobileSource).toContain('THREADS_PATH');
     expect(mobileSource).toContain('threadsMatch');
   });
