@@ -122,6 +122,16 @@
 - Scope: local history and source cleanup only; no remote push, release, deployment, native app build, or meta-repository submodule update.
   Future maintenance follows [the upstream rebase guide](docs/upstream-rebase.md), including preserved refs, feature boundaries, explicit base tags, dependency graph checks, and disabled automatic ref rewriting.
 
+### Add the shared animated README logo (2026-09-13)
+
+- The README header uses the tightly framed transparent MindRoom mark at 120px.
+- Readers who allow motion receive the animated SVG; reduced-motion preferences and clients without picture support receive the matching static SVG.
+- Both variants reference the shared logo assets in the MindRoom repository.
+- GitHub Markdown validation, changed-file formatting, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+- Hosted CI passes all 3,751 tests on the pinned Node version, plus the web, Android, and container builds.
+- Local test failures come from a different Node version and missing Bash in the native-install tests' restricted executable search path; the affected source and dependency inputs match the base commit.
+- Next steps: no further branding changes; address local test environment setup separately.
+
 ### Hide edited labels on MindRoom agent messages (2026-09-13)
 
 - The shared message renderer suppresses `(edited)` when the existing agent-metadata detector recognizes run, stream-status, or tool-trace metadata, including metadata inside `m.new_content`.
