@@ -131,6 +131,10 @@ export const runThreadOpenCacheFirst = async ({
   // undefined). The reconciler uses it to short-circuit its fetch loop
   // when the fetched chunk overlaps the cached window by event id — so
   // the "cached was right" case still costs at most one /relations page.
+  // 2026-07-10 missing-middle fix: one exception — when the union of
+  // known reply ids falls short of the authoritative reply count, the
+  // reconciler pages past the overlap (bounded) to heal a hole behind
+  // the cached tail; see the shortfall guard in reconciler.ts.
   countCacheProbe('threadOpenScheduledCacheFirst');
   void scheduleReconcile({
     roomId: room.roomId,

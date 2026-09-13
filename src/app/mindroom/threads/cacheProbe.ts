@@ -139,6 +139,15 @@ export type CacheProbeCounters = {
   reconcilesNoDivergence: number;
   reconcilesNoRoom: number;
   reconcilesRoomScopeNoop: number;
+  // 2026-07-10 missing-middle fix: bumps each time the reconciler's
+  // fetch loop pages PAST a cached-window overlap because the union of
+  // known reply ids (cached + fetched so far) still falls short of the
+  // authoritative expected reply count. Overlap alone used to be the
+  // stop condition, which made a hole BEHIND the cached tail
+  // structurally invisible (the tail overlaps on page 1, the pass
+  // stops, the middle is never fetched). A nonzero value in a trace
+  // proves the shortfall guard is what drove the deeper pages.
+  reconcileShortfallPagesPastOverlap: number;
   // CINNY-207 AC2 revision (2026-07-04): pruned to the minimal set that
   // still enforces the post-choke-point invariant. The iter-2 shape had
   // one schedule counter per branch (`threadOpenScheduledCacheFirst`,
@@ -395,6 +404,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   reconcilesOnRepairedFired: 0,
   reconcilerPersists: 0,
   reconcilesSignalAborted: 0,
+  reconcileShortfallPagesPastOverlap: 0,
   reconcilesFetchFailed: 0,
   reconcilesNoDivergence: 0,
   reconcilesNoRoom: 0,

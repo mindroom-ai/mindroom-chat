@@ -192,7 +192,17 @@ export const useThreadPaginationCommandController = ({
       }
 
       countCacheProbe('threadPaginateBackCacheMisses');
-      setThreadHasMoreCachedBack(false);
+      // 2026-07-10 missing-middle fix: this used to clear
+      // hasMoreCachedBack unconditionally BEFORE the network leg. On
+      // any bail after this point (no thread model, network error,
+      // stale-thread) the flag was already gone, so the SDK token was
+      // the only thing keeping the Load-Older affordance alive — and
+      // once that token nulled, [root + tail] painted as a complete
+      // thread with the middle missing (device trace
+      // ride-trace-1783737737705). The flag now stays untouched until
+      // an outcome actually decides it: the post-commit
+      // `reconcileThreadBackwardPagination` (network path below) or
+      // the explicit no-cache/no-token terminal state.
       if (!thread) {
         countCacheProbe('threadPaginateBackNoThread');
         return;
@@ -201,7 +211,12 @@ export const useThreadPaginationCommandController = ({
       const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
       const firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
       if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) {
+        // Neither the cache (miss above) nor the SDK has anything to
+        // paginate from — the only case where clearing the flag here
+        // is honest. Real holes behind this state are healed by the
+        // reconciler's shortfall drain on the next open.
         countCacheProbe('threadPaginateBackNoToken');
+        setThreadHasMoreCachedBack(false);
         return;
       }
 
