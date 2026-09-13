@@ -321,6 +321,47 @@ describe('VoiceAudioContent', () => {
     });
   });
 
+  it('reopens volume during deactivation without reading a cleared event target', () => {
+    renderer = create(renderVoiceAudio());
+
+    const volumeTriggerTarget = {
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
+    };
+
+    act(() => {
+      renderer.root
+        .findByProps({ 'aria-label': 'Voice volume, currently 100%' })
+        .props.onClick({ currentTarget: volumeTriggerTarget });
+    });
+
+    const focusTrapOptions = renderer.root.findByProps({ 'data-focus-trap': true }).props
+      .focusTrapOptions as {
+      onDeactivate: () => void;
+    };
+    let currentTarget: typeof volumeTriggerTarget | null = volumeTriggerTarget;
+    const volumeClickEvent = {
+      get currentTarget() {
+        return currentTarget;
+      },
+    };
+
+    expect(() => {
+      act(() => {
+        focusTrapOptions.onDeactivate();
+        renderer.root
+          .findByProps({ 'aria-label': 'Voice volume, currently 100%' })
+          .props.onClick(volumeClickEvent);
+        currentTarget = null;
+      });
+    }).not.toThrow();
+
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(1);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it('keeps the posted voice-player CSS from collapsing in shrink-wrapped bubbles', () => {
     const cssSource = readFileSync(new URL('./VoiceAudioContent.css.ts', import.meta.url), 'utf8');
 
