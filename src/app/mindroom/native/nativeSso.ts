@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
+type StandaloneNavigator = Navigator & { standalone?: boolean };
 
 const normalizePath = (path: string): string => path.replace(/\/{2,}/g, '/');
 
@@ -25,6 +26,25 @@ const getPathFromHostlessNativeUrl = (pathname: string): string | undefined => {
 
 export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+
+const isIOSWebPlatform = (): boolean => {
+  if (typeof window === 'undefined') return false;
+
+  const { userAgent = '', platform = '', maxTouchPoints = 0 } = window.navigator;
+  return /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
+};
+
+export const isIOSStandaloneWebApp = (): boolean => {
+  if (isNativeIOS()) return false;
+  if (typeof window === 'undefined') return false;
+  if (!isIOSWebPlatform()) return false;
+
+  const standaloneDisplayMode =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(display-mode: standalone)').matches;
+
+  return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
+};
 
 export const openNativeSsoBrowser = async (url: string): Promise<void> => {
   await Browser.open({ url, presentationStyle: 'fullscreen' });
