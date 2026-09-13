@@ -94,11 +94,7 @@ import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
-import {
-  CollapsibleMessage,
-  expandAllMessages,
-  collapseAllMessages,
-} from './CollapsibleMessage';
+import { CollapsibleMessage, expandAllMessages, collapseAllMessages } from './CollapsibleMessage';
 import { Image } from '../../components/media';
 import { ImageViewer } from '../../components/image-viewer';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
@@ -129,10 +125,7 @@ import {
   getCollapsibleMessageMode,
   getHydratedLongTextExtrasCollapseKey,
 } from './threadCollapsibleMessages';
-import {
-  buildResolveConfirmedEventId,
-  dedupeThreadRenderEventEntries,
-} from './threadRenderUtils';
+import { buildResolveConfirmedEventId, dedupeThreadRenderEventEntries } from './threadRenderUtils';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -166,10 +159,7 @@ import {
   type FilterPreset,
 } from './roomThreadOverviewModel';
 import type { RoomViewMode } from './roomViewMode';
-import {
-  isTimelineAtLiveEnd,
-  shouldRenderUnreadDividerAt,
-} from './timelineScrollUtils';
+import { isTimelineAtLiveEnd, shouldRenderUnreadDividerAt } from './timelineScrollUtils';
 import {
   resolveRoomTimelineViewState,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
@@ -452,9 +442,7 @@ export function RoomTimeline({
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   useEffect(() => {
     liveExpandOnceIds.current.clear();
-    setHydratedLongTextExtrasCollapseKeys((current) =>
-      current.size === 0 ? current : new Set()
-    );
+    setHydratedLongTextExtrasCollapseKeys((current) => (current.size === 0 ? current : new Set()));
   }, [room.roomId, threadId]);
   const markHydratedLongTextExtrasCollapsedExempt = useCallback((collapseKey: string) => {
     setHydratedLongTextExtrasCollapseKeys((current) => {
@@ -1157,6 +1145,7 @@ export function RoomTimeline({
     setFocusItem,
     setPendingThreadOpenTick,
     suppressFocusPaginationRef,
+    suppressThreadOpenBottomPinRef,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents,
@@ -2456,7 +2445,11 @@ export function RoomTimeline({
             >
               {allExpanded ? '[-all]' : '[+all]'}
             </button>
-            <Scroll ref={scrollRef} visibility="Hover" style={{ overflowAnchor: 'auto' }}>
+            <Scroll
+              ref={scrollRef}
+              visibility="Hover"
+              style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
+            >
               <Box
                 direction="Column"
                 justifyContent="End"

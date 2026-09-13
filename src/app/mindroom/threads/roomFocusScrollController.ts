@@ -15,15 +15,13 @@ import type {
 } from '../../hooks/useVirtualPaginator';
 import { getFocusedRoomEventIndex } from './timelinePagination';
 import type { PendingThreadOpen } from './threadOpenTargetEvent';
-import {
-  shouldPinThreadToBottomOnOpen,
-  type ThreadInitialRenderMode,
-} from './threadRenderUtils';
+import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from './threadRenderUtils';
 import {
   getEventElementById,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
   isAnchorVisibleInScroll,
+  isScrollNearBottom,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
   ROOM_FOCUS_OBSERVER_IDLE_MS,
   setupFocusObserver,
@@ -53,7 +51,8 @@ type RoomUnreadInfoLike = {
 
 type RestorePendingThreadBackPaginationAnchor = (
   scrollRoot: HTMLElement | null | undefined,
-  threadId: string | undefined
+  threadId: string | undefined,
+  eventCount?: number
 ) => boolean;
 
 type RetryPagination = (opts?: RetryPaginationOptions) => void;
@@ -77,6 +76,7 @@ export type RoomFocusScrollControllerOptions = {
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
   setPendingThreadOpenTick: Dispatch<SetStateAction<number>>;
   suppressFocusPaginationRef: MutableRefObject<boolean>;
+  suppressThreadOpenBottomPinRef: MutableRefObject<boolean>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadEventsLength: number;
   threadFilteredEvents: MatrixEvent[];
@@ -109,6 +109,7 @@ export const useRoomFocusScrollController = ({
   setFocusItem,
   setPendingThreadOpenTick,
   suppressFocusPaginationRef,
+  suppressThreadOpenBottomPinRef,
   threadEventIndexMapRef,
   threadEventsLength,
   threadFilteredEvents,
@@ -129,6 +130,30 @@ export const useRoomFocusScrollController = ({
       scrollToBottom(scrollEl);
     }
   }, [scrollRef]);
+
+  useEffect(() => {
+    if (!threadId || !threadLatestOpenPending) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+
+    const cancelPendingOpenBottomPin = () => {
+      if (
+        isScrollNearBottom({
+          scrollHeight: scrollEl.scrollHeight,
+          scrollTop: scrollEl.scrollTop,
+          clientHeight: scrollEl.clientHeight,
+        })
+      ) {
+        return;
+      }
+      suppressThreadOpenBottomPinRef.current = true;
+    };
+
+    scrollEl.addEventListener('scroll', cancelPendingOpenBottomPin, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('scroll', cancelPendingOpenBottomPin);
+    };
+  }, [scrollRef, suppressThreadOpenBottomPinRef, threadId, threadLatestOpenPending]);
 
   useLayoutEffect(() => {
     if (threadId) return;
@@ -313,6 +338,7 @@ export const useRoomFocusScrollController = ({
     if (!threadId) return;
     if (
       !shouldPinThreadToBottomOnOpen({
+        suppressOpenBottomPin: suppressThreadOpenBottomPinRef.current,
         threadId,
         threadLatestOpenPending,
         threadInitialRenderMode,
@@ -332,6 +358,7 @@ export const useRoomFocusScrollController = ({
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
+    suppressThreadOpenBottomPinRef,
   ]);
 
   useLayoutEffect(() => {
@@ -401,7 +428,7 @@ export const useRoomFocusScrollController = ({
   }, [scrollRef, scrollToBottomCount, scrollToBottomRef]);
 
   useLayoutEffect(() => {
-    restorePendingThreadBackPaginationAnchor(scrollRef.current, threadId);
+    restorePendingThreadBackPaginationAnchor(scrollRef.current, threadId, threadEventsLength);
   }, [
     restorePendingThreadBackPaginationAnchor,
     scrollRef,

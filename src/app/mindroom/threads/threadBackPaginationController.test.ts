@@ -1,7 +1,10 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { useThreadBackPaginationController, type ThreadBackPaginationController } from './threadBackPaginationController';
+import {
+  useThreadBackPaginationController,
+  type ThreadBackPaginationController,
+} from './threadBackPaginationController';
 
 type HarnessProps = {
   onRender: (controller: ThreadBackPaginationController) => void;
@@ -40,7 +43,7 @@ const makeMessageElement = (eventId: string, top: number, bottom: number): HTMLE
     getAttribute: (name: string) => (name === 'data-message-id' ? eventId : null),
     getBoundingClientRect: () => ({ top, bottom }),
     parentElement: null,
-  }) as unknown as HTMLElement;
+  } as unknown as HTMLElement);
 
 const makeScrollRoot = (messages: HTMLElement[]): HTMLElement =>
   ({
@@ -53,7 +56,7 @@ const makeScrollRoot = (messages: HTMLElement[]): HTMLElement =>
     scrollHeight: 1000,
     clientHeight: 400,
     scrollTop: 40,
-  }) as unknown as HTMLElement;
+  } as unknown as HTMLElement);
 
 describe('useThreadBackPaginationController', () => {
   it('begins back pagination by capturing the visible anchor and suppressing open-bottom pinning', () => {
@@ -110,6 +113,28 @@ describe('useThreadBackPaginationController', () => {
     expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(true);
     expect(shiftedScrollRoot.scrollTop).toBe(320);
     expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread')).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('keeps the pending anchor when restore runs before prepended events are rendered', () => {
+    const { getController, renderer } = renderController();
+    const anchor = makeMessageElement('$anchor', 140, 180);
+    const scrollRoot = makeScrollRoot([anchor]);
+
+    act(() => {
+      getController().begin('$thread', scrollRoot, 200);
+    });
+
+    expect(getController().restorePendingAnchor(makeScrollRoot([anchor]), '$thread', 200)).toBe(
+      false
+    );
+
+    const shiftedAnchor = makeMessageElement('$anchor', 420, 460);
+    const shiftedScrollRoot = makeScrollRoot([shiftedAnchor]);
+    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(true);
+    expect(shiftedScrollRoot.scrollTop).toBe(320);
+    expect(getController().restorePendingAnchor(shiftedScrollRoot, '$thread', 400)).toBe(false);
 
     renderer.unmount();
   });

@@ -61,15 +61,13 @@ export const isScrollNearBottom = ({
   scrollTop,
   clientHeight,
   thresholdPx = 24,
-}: ScrollNearBottomOpts): boolean =>
-  scrollHeight - scrollTop - clientHeight <= thresholdPx;
+}: ScrollNearBottomOpts): boolean => scrollHeight - scrollTop - clientHeight <= thresholdPx;
 
 export const shouldAutoScrollThreadOnLiveEvent = ({
   relationType,
   isNearBottom,
   isTimelineAtLiveEnd: atLiveEnd,
-}: ThreadAutoScrollOpts): boolean =>
-  relationType === 'm.thread' && isNearBottom && atLiveEnd;
+}: ThreadAutoScrollOpts): boolean => relationType === 'm.thread' && isNearBottom && atLiveEnd;
 
 type RoomAutoScrollOpts = {
   scrollElement: HTMLElement | null;
@@ -383,32 +381,12 @@ export const isAnchorVisibleInScroll = (
   return anchorRect.top <= scrollRect.bottom + marginPx;
 };
 
-const resolveThreadScrollContainer = (
-  scrollRoot: HTMLElement,
-  seedElement?: HTMLElement | null
-): HTMLElement => {
-  let current: HTMLElement | null =
-    seedElement ??
-    scrollRoot.querySelector<HTMLElement>('[data-message-id]')?.parentElement ??
-    null;
-
-  while (current && current !== scrollRoot) {
-    if (current.scrollHeight > current.clientHeight) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-
-  return scrollRoot;
-};
-
 export const captureThreadPrependScrollAnchor = (
   scrollRoot: HTMLElement | null | undefined
 ): ThreadPrependScrollAnchor | undefined => {
   if (!scrollRoot) return undefined;
 
-  const scrollContainer = resolveThreadScrollContainer(scrollRoot);
-  const scrollRect = scrollContainer.getBoundingClientRect();
+  const scrollRect = scrollRoot.getBoundingClientRect();
   const messageItems = scrollRoot.querySelectorAll<HTMLElement>('[data-message-id]');
   for (const item of messageItems) {
     const eventId = item.getAttribute('data-message-id');
@@ -437,11 +415,10 @@ export const restoreThreadPrependScrollAnchor = (
   const target = getEventElementById(scrollRoot, anchor.eventId);
   if (!target) return false;
 
-  const scrollContainer = resolveThreadScrollContainer(scrollRoot, target);
   const delta = target.getBoundingClientRect().top - anchor.top;
   if (Math.abs(delta) <= 1) return true;
 
-  scrollContainer.scrollTop += delta;
+  scrollRoot.scrollTop += delta;
 
   return true;
 };

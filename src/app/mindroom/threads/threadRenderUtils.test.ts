@@ -89,7 +89,7 @@ const attachSerializedReplacement = (
 const makeRoom = (txnMap?: Map<string, MatrixEvent>) =>
   ({
     getEventForTxnId: (txnId: string) => txnMap?.get(txnId),
-  }) as never;
+  } as never);
 
 describe('getThreadInitialRenderMode', () => {
   it('uses the live render path outside thread view', () => {
@@ -227,6 +227,18 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       })
     ).toBe(false);
   });
+
+  it('does not pin while thread back-pagination suppresses open-bottom pinning', () => {
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: true,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 3,
+        suppressOpenBottomPin: true,
+      })
+    ).toBe(false);
+  });
 });
 
 describe('mergeThreadRenderEvents', () => {
@@ -297,11 +309,7 @@ describe('mergeThreadRenderEvents', () => {
       return undefined;
     };
 
-    const result = mergeThreadRenderEvents(
-      [],
-      [echo1, confirmed1, echo2, confirmed2],
-      resolver
-    );
+    const result = mergeThreadRenderEvents([], [echo1, confirmed1, echo2, confirmed2], resolver);
     expect(result).toEqual([confirmed1, confirmed2]);
   });
 

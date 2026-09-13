@@ -44,7 +44,11 @@ export const useThreadPaginationCommandController = ({
   threadId,
   threadIdRef,
 }: {
-  beginThreadBackPagination: (threadId: string, scrollRoot: HTMLElement | null) => boolean;
+  beginThreadBackPagination: (
+    threadId: string,
+    scrollRoot: HTMLElement | null,
+    eventCount?: number
+  ) => boolean;
   finishThreadBackPagination: (options: ThreadBackPaginationFinishOptions) => void;
   forceTimelineUpdate: () => void;
   mx: MatrixClient;
@@ -66,7 +70,8 @@ export const useThreadPaginationCommandController = ({
   const threadPaginatingFrontRef = useRef(false);
 
   const handleThreadPaginateBack = useCallback(async () => {
-    if (!threadId || !beginThreadBackPagination(threadId, scrollRef.current)) return;
+    if (!threadId || !beginThreadBackPagination(threadId, scrollRef.current, threadEvents.length))
+      return;
     const expectedThreadId = threadId;
 
     setThreadLatestOpenPending(false);
