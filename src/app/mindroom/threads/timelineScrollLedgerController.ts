@@ -12,9 +12,17 @@ import {
 import { useVirtualizer, type ReactVirtualizer } from '@tanstack/react-virtual';
 import { countCacheProbe } from './cacheProbe';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
-import { isIOSWebKitDevice, waitForScrollQuiescence } from './scrollQuiescence';
 import {
+  hasActiveWindowTouches,
+  isIOSWebKitDevice,
+  waitForScrollQuiescence,
+} from './scrollQuiescence';
+import {
+  SETTLE_DISCARD_HELD_SLACK_PX,
+  SETTLE_DISCARD_MIN_LEDGER_PX,
+  SETTLE_DISCARD_WINDOW_MS,
   buildMeasurementScrollCorrectionHook,
+  isDiscardedSettleWrite,
   shouldSettleLedgerAtBoundary,
   type ThreadInitialRenderMode,
 } from './threadRenderUtils';
@@ -58,6 +66,68 @@ export type TimelineScrollLedgerController = {
   ledgerPxAtRender: number;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
+};
+
+type LedgerSettleVirtualizer<TOptions extends { scrollMargin?: number }> = {
+  scrollOffset: number | null;
+  options: TOptions;
+  setOptions: (options: TOptions) => void;
+};
+
+const LEDGER_SNAPSHOT_EPSILON_PX = 0.01;
+
+/**
+ * The inline margin is the ledger snapshot React actually committed to the
+ * DOM. The mutable accumulator can already contain a newer measurement while
+ * the render that pairs that measurement with scrollMargin/tile positions is
+ * still pending.
+ */
+const isLedgerSettleSnapshotCurrent = (
+  inner: { style: { marginTop: string } },
+  liveLedgerPx: number
+): boolean => {
+  const marginTop = inner.style.marginTop.trim();
+  const paintedLedgerPx = marginTop === '' ? 0 : -Number.parseFloat(marginTop);
+  return (
+    Number.isFinite(paintedLedgerPx) &&
+    Math.abs(paintedLedgerPx - liveLedgerPx) <= LEDGER_SNAPSHOT_EPSILON_PX
+  );
+};
+
+/**
+ * The DOM/virtualizer half of a ledger settle, as ONE function so the
+ * real-core contract test (timelineScrollLedgerSettle.contract.test.ts)
+ * executes the production sequence instead of a re-implementation.
+ *
+ * Ordering is load-bearing: the scrollTop write echoes asynchronously (iOS
+ * may coalesce it away entirely) while setOptions recomputes the window
+ * synchronously — so the virtualizer's cached offset must be reconciled to
+ * the clamped post-write value FIRST, or the recompute pairs zeroed margin
+ * with a pre-write offset and shifts the window by the whole fold,
+ * mounting and measuring a band of far-away rows in one 100-240ms frame
+ * (the settle-cascade jump: up to +1,531px content growth right after
+ * rest, ride-traces 1783802452438 / 1783804190290, pinned in
+ * rideTraceReplay.test.ts). Returns the clamped post-write scrollTop, or
+ * undefined without mutating anything when the committed margin and live
+ * accumulator are different ledger snapshots.
+ */
+export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
+  inner: { style: { marginTop: string } },
+  scrollElement: { scrollTop: number },
+  px: number,
+  virtualizer: LedgerSettleVirtualizer<TOptions>
+): number | undefined => {
+  // Never clear one committed margin with a different, newer accumulator.
+  // The next React commit will paint the newer snapshot coherently; its
+  // layout effect re-arms settlement.
+  if (!isLedgerSettleSnapshotCurrent(inner, px)) return undefined;
+  inner.style.marginTop = '';
+  scrollElement.scrollTop += px;
+  // Read back the browser-clamped value instead of assuming old+px.
+  const settledScrollTop = scrollElement.scrollTop;
+  virtualizer.scrollOffset = settledScrollTop;
+  virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
+  return settledScrollTop;
 };
 
 /**
@@ -208,6 +278,19 @@ export const useTimelineScrollLedgerController = ({
   // momentum frame.
   const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
 
+  // Discard watchdog (PR #126, second mechanism): a settle write landing
+  // inside a touchless scroll session's pause (scrubber/trackpad — no
+  // touch events, so no gate can see the session) is DISCARDED by the
+  // compositor, which reasserts the pre-settle offset as one large scroll
+  // event 74-300ms later (matched-snapshot settles 491/617 in
+  // ride-trace-1783829722124 reverted this way; pinned in
+  // rideTraceReplay.test.ts). The session-aware quiescence waiter prevents
+  // most of these on scrollend-capable WebKit; this watchdog restores the
+  // fold to the ledger when a write is reverted anyway.
+  const settleDiscardWatchRef = useRef<
+    { px: number; preSettleScrollTop: number; settledScrollTop: number; at: number } | undefined
+  >(undefined);
+
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
   // across paints. scrollTop must be written before setOptions because the
@@ -220,18 +303,68 @@ export const useTimelineScrollLedgerController = ({
       const inner = virtualInnerRef.current;
       const scrollElement = getScrollElement();
       if (px === 0 || !inner || !scrollElement) return;
+      if (!isLedgerSettleSnapshotCurrent(inner, px)) {
+        // A measurement arrived after the currently painted snapshot. Force
+        // (or reinforce) the render for that accumulator, then let its layout
+        // effect arm a fresh true-rest wait. Clearing the older margin now is
+        // the exact 512->-5 / 216->1 split settle captured on device.
+        ledgerSettleWantedRef.current = true;
+        setLedgerCommitTick((tick) => tick + 1);
+        return;
+      }
       scrollCompensationPxRef.current = 0;
-      inner.style.marginTop = '';
-      scrollElement.scrollTop += px;
-      // Read back the browser-clamped value instead of assuming old+px.
-      // Safari can suppress/coalesce the setter's scroll event, so waiting
-      // for that event would leave the boundary direction baseline stale.
-      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+      const preSettleScrollTop = scrollElement.scrollTop;
+      // Waiting for the write's scroll event would leave the boundary
+      // direction baseline stale (Safari can suppress/coalesce it), so the
+      // settle's clamped read-back seeds it directly.
+      const settledScrollTop = applyLedgerSettle(inner, scrollElement, px, virtualizerRef.current);
+      if (settledScrollTop === undefined) {
+        // The preflight above and this call are synchronous, so this branch
+        // is unreachable today; it retains the debt defensively in case a
+        // callback ever mutates the DOM inside this block. CONTRACT: if
+        // applyLedgerSettle ever gains an async step, restoring the px
+        // SNAPSHOT here would silently drop any measurement delta that
+        // arrived after the pre-read — this restore (and the zero-write
+        // above) must then become a compare-and-swap against the live ref.
+        scrollCompensationPxRef.current = px;
+        ledgerSettleWantedRef.current = true;
+        setLedgerCommitTick((tick) => tick + 1);
+        return;
+      }
+      ledgerBoundaryScrollTopRef.current = settledScrollTop;
+      if (Math.abs(px) >= SETTLE_DISCARD_MIN_LEDGER_PX) {
+        settleDiscardWatchRef.current = {
+          px,
+          preSettleScrollTop,
+          settledScrollTop,
+          at: Date.now(),
+        };
+      }
       countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
-      const currentVirtualizer = virtualizerRef.current;
-      currentVirtualizer.setOptions({ ...currentVirtualizer.options, scrollMargin: 0 });
     },
     [getScrollElement]
+  );
+
+  const armSettleAtRest = useCallback(() => {
+    if (compensationSettleArmedRef.current) return;
+    compensationSettleArmedRef.current = true;
+    const generation = ledgerGenerationRef.current;
+    waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
+      compensationSettleArmedRef.current = false;
+      if (!alive() || ledgerGenerationRef.current !== generation) return;
+      settleScrollCompensation('quiescence');
+    });
+  }, [alive, getScrollElement, settleScrollCompensation]);
+
+  const handleDroppedCorrection = useCallback(
+    (deltaPx: number) => {
+      scrollCompensationPxRef.current += deltaPx;
+      // react-virtual can skip its own update when the visible range is
+      // unchanged, so the ledger must force the coherent paint itself.
+      setLedgerCommitTick((tick) => tick + 1);
+      armSettleAtRest();
+    },
+    [armSettleAtRest]
   );
 
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
@@ -251,6 +384,9 @@ export const useTimelineScrollLedgerController = ({
       // each touch from the live offset so a gesture that reverses that
       // silent travel is not compared with the previous gesture's baseline.
       ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+      // A real finger opens a new causal chain: motion after it is the
+      // gesture's, never a late reassertion of a pre-settle offset.
+      settleDiscardWatchRef.current = undefined;
     };
     const onLedgerBoundaryScroll = () => {
       const currentScrollTop = scrollElement.scrollTop;
@@ -265,10 +401,46 @@ export const useTimelineScrollLedgerController = ({
       // its arming floor. Otherwise the first correction-bearing event can
       // compare against an arbitrarily old offset.
       ledgerBoundaryScrollTopRef.current = currentScrollTop;
+      const watch = settleDiscardWatchRef.current;
+      if (watch) {
+        if (Date.now() - watch.at > SETTLE_DISCARD_WINDOW_MS) {
+          settleDiscardWatchRef.current = undefined;
+        } else if (
+          isDiscardedSettleWrite({
+            px: watch.px,
+            preSettleScrollTop: watch.preSettleScrollTop,
+            previousScrollTop,
+            currentScrollTop,
+          })
+        ) {
+          // The compositor reasserted the pre-settle offset: the settle's
+          // write is gone while its margin fold already reached the DOM.
+          // Restore the fold through the ordinary drop path (coherent
+          // commit + fresh true-rest wait); the position itself belongs to
+          // the still-live session. Skip the boundary evaluation for this
+          // event — its geometry is mid-restoration.
+          settleDiscardWatchRef.current = undefined;
+          countCacheProbe('ledgerSettleWriteDiscarded');
+          handleDroppedCorrection(watch.px);
+          return;
+        } else if (
+          Math.abs(currentScrollTop - watch.settledScrollTop) > SETTLE_DISCARD_HELD_SLACK_PX
+        ) {
+          // Motion resumed from the settled offset: the write held.
+          settleDiscardWatchRef.current = undefined;
+        }
+      }
       const px = scrollCompensationPxRef.current;
       // Cheap early exit on the hot path (direction tracking above is just
       // scrollTop arithmetic; the common px=0 case still avoids rect reads).
       if (px > -48 && px < 48) return;
+      // No settles under a live finger: rewriting scrollTop mid-drag
+      // reverses the gesture frame (ride-trace-1783811896380 frame 137:
+      // the open-fill's 33k rebase landed on the first in-bounds event of
+      // a drag and slipped 98px). #119 gates momentum direction and the
+      // rubber-band deferral gates overscroll; this gates the drag itself.
+      // The at-rest quiescence settle owns the fold after release.
+      if (hasActiveWindowTouches()) return;
       const inner = virtualInnerRef.current;
       if (!inner) return;
       const innerRect = inner.getBoundingClientRect();
@@ -298,29 +470,13 @@ export const useTimelineScrollLedgerController = ({
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
     };
-  }, [getScrollElement, settleScrollCompensation, threadId, threadInitialRenderMode]);
-
-  const armSettleAtRest = useCallback(() => {
-    if (compensationSettleArmedRef.current) return;
-    compensationSettleArmedRef.current = true;
-    const generation = ledgerGenerationRef.current;
-    waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
-      compensationSettleArmedRef.current = false;
-      if (!alive() || ledgerGenerationRef.current !== generation) return;
-      settleScrollCompensation('quiescence');
-    });
-  }, [alive, getScrollElement, settleScrollCompensation]);
-
-  const handleDroppedCorrection = useCallback(
-    (deltaPx: number) => {
-      scrollCompensationPxRef.current += deltaPx;
-      // react-virtual can skip its own update when the visible range is
-      // unchanged, so the ledger must force the coherent paint itself.
-      setLedgerCommitTick((tick) => tick + 1);
-      armSettleAtRest();
-    },
-    [armSettleAtRest]
-  );
+  }, [
+    getScrollElement,
+    handleDroppedCorrection,
+    settleScrollCompensation,
+    threadId,
+    threadInitialRenderMode,
+  ]);
 
   useLayoutEffect(() => {
     const inner = virtualInnerRef.current;
@@ -367,6 +523,7 @@ export const useTimelineScrollLedgerController = ({
       ledgerSettleWantedRef.current = false;
       threadVirtualPrependCaptureRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = undefined;
+      settleDiscardWatchRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;
   }, [

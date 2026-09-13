@@ -370,6 +370,13 @@ export type CacheProbeCounters = {
   // attributed when it cancels native iOS momentum.
   ledgerQuiescenceSettles: number;
   ledgerBoundarySettles: number;
+  // Settle write reverted by the platform: the compositor reasserted the
+  // pre-settle offset while a touchless scroll session (scrubber /
+  // trackpad) still owned the position, and the watchdog restored the
+  // fold to the ledger. Healthy reading is 0 on scrollend-capable WebKit
+  // (the session-aware waiter defers those settles); a non-zero reading
+  // on iOS 26.2+ means a session escaped the scrollend gate.
+  ledgerSettleWriteDiscarded: number;
 };
 
 const createEmptyCounters = (): CacheProbeCounters => ({
@@ -433,6 +440,7 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPrependFoldAnchorLost: 0,
   ledgerQuiescenceSettles: 0,
   ledgerBoundarySettles: 0,
+  ledgerSettleWriteDiscarded: 0,
 });
 
 let counters = createEmptyCounters();
