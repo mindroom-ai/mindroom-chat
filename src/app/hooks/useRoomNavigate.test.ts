@@ -2,7 +2,12 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NavigateOptions } from 'react-router-dom';
-import { getHomeRoomPath, withSearchParam } from '../pages/pathUtils';
+import {
+  getDirectRoomPath,
+  getHomeRoomPath,
+  getSpaceRoomPath,
+  withSearchParam,
+} from '../pages/pathUtils';
 import { useRoomNavigate } from './useRoomNavigate';
 import { ROOM_THREAD_EXIT_TARGET_STATE_KEY } from '../mindroom/threads/roomNavigateState';
 
@@ -15,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   roomToParents: new Map<string, string[]>(),
   mDirects: new Set<string>(),
   developerTools: false,
+  simpleMode: false,
   selectedSpace: undefined as string | undefined,
   mx: {},
   historyState: { idx: 1, key: 'room-entry' },
@@ -65,6 +71,10 @@ vi.mock('../state/hooks/settings', () => ({
   useSetting: () => [mocks.developerTools],
 }));
 
+vi.mock('../mindroom/settings/useMindroomAccountSettings', () => ({
+  useSimpleMode: () => mocks.simpleMode,
+}));
+
 vi.mock('../state/room/roomToParents', () => ({
   roomToParentsAtom: mocks.roomToParentsAtom,
 }));
@@ -78,7 +88,8 @@ vi.mock('../utils/matrix', () => ({
 }));
 
 vi.mock('../utils/room', () => ({
-  getOrphanParents: () => [],
+  getOrphanParents: (_roomToParents: unknown, roomId: string) =>
+    mocks.roomToParents.get(roomId) ?? [],
   guessPerfectParent: () => undefined,
 }));
 
@@ -132,6 +143,7 @@ describe('useRoomNavigate', () => {
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.developerTools = false;
+    mocks.simpleMode = false;
     mocks.selectedSpace = undefined;
     mocks.historyState = { idx: 1, key: 'room-entry' };
     window.history.state = mocks.historyState;
@@ -235,6 +247,66 @@ describe('useRoomNavigate', () => {
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
     expect(mocks.navigate).toHaveBeenCalledWith(
       withSearchParam(getHomeRoomPath(roomId, eventId), { threadId }),
+      undefined
+    );
+
+    renderer.unmount();
+  });
+
+  it('keeps space rooms on the flattened Home route when simple mode opens a thread', () => {
+    const roomId = '!room:example.org';
+    const spaceId = '!space:example.org';
+    const threadId = '$thread';
+    mocks.roomToParents.set(roomId, [spaceId]);
+    mocks.simpleMode = true;
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomThread(roomId, threadId);
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath(roomId), { threadId }),
+      expect.any(Object)
+    );
+
+    renderer.unmount();
+  });
+
+  it('keeps normal mode space-room navigation scoped to the parent space', () => {
+    const roomId = '!room:example.org';
+    const spaceId = '!space:example.org';
+    const threadId = '$thread';
+    mocks.roomToParents.set(roomId, [spaceId]);
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomThreadDirect(roomId, threadId);
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getSpaceRoomPath(spaceId, roomId), { threadId }),
+      undefined
+    );
+
+    renderer.unmount();
+  });
+
+  it('keeps direct rooms on the Direct route in simple mode', () => {
+    const roomId = '!direct:example.org';
+    const spaceId = '!space:example.org';
+    const threadId = '$thread';
+    mocks.roomToParents.set(roomId, [spaceId]);
+    mocks.mDirects.add(roomId);
+    mocks.simpleMode = true;
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoomThreadDirect(roomId, threadId);
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      withSearchParam(getDirectRoomPath(roomId), { threadId }),
       undefined
     );
 
