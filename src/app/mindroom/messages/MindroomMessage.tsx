@@ -46,6 +46,7 @@ import {
   Username,
   UsernameBold,
 } from '../../components/message';
+import { MESSAGE_AVATAR_SIZE } from '../../components/message/layout/config';
 import {
   canEditEvent,
   getEventEdits,
@@ -86,6 +87,7 @@ import {
   MindroomMessageMenuExtensions,
   useMindroomMessageExtensionState,
 } from './messageExtensions';
+import { MindroomModelBadge } from './MindroomModelBadge';
 
 export type ReactionHandler = (keyOrMxc: string, shortcode: string) => void;
 
@@ -804,9 +806,7 @@ export const Message = as<'div', MessageProps>(
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiBoardAnchor, setEmojiBoardAnchor] = useState<RectCords>();
     const menuMessageContent = resolvedMessageContent ?? getMenuMessageContent(room, mEvent);
-    const showCopyText = isCopyTextMessageContent(
-      menuMessageContent as Record<string, unknown>
-    );
+    const showCopyText = isCopyTextMessageContent(menuMessageContent as Record<string, unknown>);
     const mindroomMessageExtensions = useMindroomMessageExtensionState(
       menuMessageContent,
       menuAnchor !== undefined
@@ -830,14 +830,18 @@ export const Message = as<'div', MessageProps>(
       setMenuAnchor(undefined);
     };
 
-    const avatarJSX = !collapse && messageLayout !== MessageLayout.Compact && (
+    const aiRunInfo = mindroomMessageExtensions.aiRunInfo;
+    const avatarJSX = (!collapse || aiRunInfo) && messageLayout !== MessageLayout.Compact && (
       <AvatarBase
-        className={messageLayout === MessageLayout.Bubble ? css.BubbleAvatarBase : undefined}
+        className={classNames(
+          messageLayout === MessageLayout.Bubble ? css.BubbleAvatarBase : undefined,
+          aiRunInfo ? css.MessageAvatarWithModel : undefined
+        )}
       >
         <Avatar
           className={css.MessageAvatar}
           as="button"
-          size="300"
+          size={MESSAGE_AVATAR_SIZE}
           data-user-id={senderId}
           onClick={onUserClick}
         >
@@ -852,6 +856,7 @@ export const Message = as<'div', MessageProps>(
             renderFallback={() => <Icon size="200" src={Icons.User} filled />}
           />
         </Avatar>
+        {aiRunInfo && <MindroomModelBadge info={aiRunInfo} />}
       </AvatarBase>
     );
 

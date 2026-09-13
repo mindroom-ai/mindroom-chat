@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MESSAGE_AVATAR_SIZE } from '../../../components/message/layout/config';
 
 type HostNodeMock = {
   focus: ReturnType<typeof vi.fn>;
@@ -24,12 +25,19 @@ const longTextMocks = vi.hoisted(() => ({
 vi.mock('../../../features/room/message/styles.css', () => ({
   BubbleAvatarBase: 'BubbleAvatarBase',
   MessageAvatar: 'MessageAvatar',
+  MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
   MessageBaseBubbleCollapsed: 'MessageBaseBubbleCollapsed',
   MessageMenuGroup: 'MessageMenuGroup',
   MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
+}));
+
+vi.mock('../MindroomModelBadge.css', () => ({
+  Badge: 'Badge',
+  Icon: 'Icon',
+  Label: 'Label',
 }));
 
 vi.mock('../MindroomMessageControls.css', () => ({
@@ -152,8 +160,8 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../../../components/message', () => ({
-  AvatarBase: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
+  AvatarBase: ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('div', props, children),
   BubbleLayout: ({
     before,
     header,
@@ -512,7 +520,19 @@ describe('Message token usage menu item', () => {
 
   it('opens the AI run dialog from the context menu and configures explicit return focus', async () => {
     const { renderer, messageBaseNode } = await renderMessage(mindroomAiRunContent);
+    const aiRunAvatars = renderer.root.findAll(
+      (node) => node.type === 'div' && node.props['data-user-id'] === '@alice:example.org'
+    );
+    const aiRunAvatarStacks = renderer.root.findAll(
+      (node) => node.type === 'div' && node.props.className === 'MessageAvatarWithModel'
+    );
 
+    expect(aiRunAvatars).toHaveLength(1);
+    expect(aiRunAvatars[0]?.props.size).toBe(MESSAGE_AVATAR_SIZE);
+    expect(aiRunAvatarStacks).toHaveLength(1);
+    expect(aiRunAvatarStacks[0]?.findAll((node) => node === aiRunAvatars[0])).toHaveLength(1);
+    expect(hasSpanText(renderer, 'Fast')).toBe(true);
+    expect(hasNodeTitle(renderer, 'fast (openai / gpt-5-mini)')).toBe(true);
     expect(hasSpanText(renderer, 'AI Run Metadata')).toBe(false);
 
     await openContextMenu(renderer);
