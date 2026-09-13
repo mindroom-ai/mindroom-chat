@@ -87,6 +87,49 @@ const makeRootPreviewEvent = (body: string, editedBody?: string, ts = 0) =>
     getUnsigned: () => undefined,
   }) as never;
 
+const makeHiddenThreadTagEvent = (threadRootId: string, ts: number, sender = '@agent:x') =>
+  ({
+    getContent: () => ({
+      'm.relates_to': {
+        event_id: threadRootId,
+        rel_type: 'm.thread',
+      },
+    }),
+    getId: () => `$thread-tag-${threadRootId}`,
+    getRelation: () => ({ event_id: threadRootId, rel_type: 'm.thread' }),
+    getSender: () => sender,
+    getTs: () => ts,
+    getType: () => 'com.mindroom.thread.tag',
+    isRedacted: () => false,
+    isRedaction: () => false,
+    threadRootId,
+  }) as never;
+
+const makeVisibleThreadReplyEvent = (
+  eventId: string,
+  threadRootId: string,
+  ts: number,
+  sender = '@agent:x'
+) =>
+  ({
+    getContent: () => ({
+      body: eventId,
+      msgtype: 'm.text',
+      'm.relates_to': {
+        event_id: threadRootId,
+        rel_type: 'm.thread',
+      },
+    }),
+    getId: () => eventId,
+    getRelation: () => ({ event_id: threadRootId, rel_type: 'm.thread' }),
+    getSender: () => sender,
+    getTs: () => ts,
+    getType: () => 'm.room.message',
+    isRedacted: () => false,
+    isRedaction: () => false,
+    threadRootId,
+  }) as never;
+
 describe('roomThreadOverviewModel', () => {
   describe('serializeThreadFilterState', () => {
     it('round-trips the default filter state', async () => {
@@ -1095,7 +1138,7 @@ describe('roomThreadOverviewModel', () => {
         getThread: (id: string) =>
           id === '$thread-1'
             ? {
-                events: [{ getSender: () => '@bob:x', getTs: () => 500 }],
+                events: [makeVisibleThreadReplyEvent('$thread-1-reply', '$thread-1', 500, '@bob:x')],
               }
             : null,
         findEventById: () => undefined,
@@ -1224,7 +1267,7 @@ describe('roomThreadOverviewModel', () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
       const room = {
         getThread: () => ({
-          events: [{ getSender: () => '@bob:x', getTs: () => 500 }],
+          events: [makeVisibleThreadReplyEvent('$thread-1-reply', '$thread-1', 500, '@bob:x')],
         }),
         findEventById: () => undefined,
         getMember: () => null,
@@ -1279,6 +1322,45 @@ describe('roomThreadOverviewModel', () => {
         lastActivityTs: 1700,
         rootPreviewText: 'Standalone message root',
         messageCount: 0,
+      });
+    });
+
+    it('ignores hidden threaded metadata relations when deriving visible message count', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const rootEvent = makeRootPreviewEvent('Hidden relation root', undefined, 1700);
+      const hiddenThreadTagEvent = makeHiddenThreadTagEvent('$thread-1', 1900);
+      const room = {
+        getThread: () => ({
+          rootEvent,
+          events: [hiddenThreadTagEvent],
+          length: 1,
+        }),
+        findEventById: () => rootEvent,
+        getUnfilteredTimelineSet: () => ({
+          relations: {
+            getChildEventsForEvent: () => undefined,
+          },
+        }),
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]])
+      );
+
+      expect(result.get('$thread-1')).toMatchObject({
+        lastActivityTs: 1700,
+        messageCount: 0,
+        participantDisplayName: '@agent:x',
       });
     });
 

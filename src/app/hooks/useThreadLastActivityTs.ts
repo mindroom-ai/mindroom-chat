@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../utils/thread';
+import { isVisibleThreadReplyEvent, isVisibleThreadReplyEventType } from '../features/room/threadUtils';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
 type BundledThreadLatestEvent = {
   origin_server_ts?: unknown;
+  type?: unknown;
   unsigned?: {
     ['m.relations']?: {
       ['m.replace']?: {
@@ -35,6 +37,9 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
     | undefined;
 
   if (!latestEvent || typeof latestEvent !== 'object') return undefined;
+  if (!isVisibleThreadReplyEventType(typeof latestEvent.type === 'string' ? latestEvent.type : undefined)) {
+    return undefined;
+  }
 
   const latestEventTs = getPositiveTs(latestEvent.origin_server_ts);
   const latestEditTs = getPositiveTs(
@@ -76,9 +81,16 @@ const getThreadActivityEvents = (
     trackedEvents.push(mEvent);
   };
 
-  getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT).forEach(addTrackedEvent);
-  addTrackedEvent(thread?.lastReply?.() ?? null);
-  addTrackedEvent(thread?.replyToEvent ?? null);
+  getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT)
+    .filter(isVisibleThreadReplyEvent)
+    .forEach(addTrackedEvent);
+  const lastReply = thread?.lastReply?.() ?? null;
+  if (lastReply && isVisibleThreadReplyEvent(lastReply)) {
+    addTrackedEvent(lastReply);
+  }
+  if (thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) {
+    addTrackedEvent(thread.replyToEvent);
+  }
   addTrackedEvent(rootEvent);
 
   return {

@@ -1,6 +1,11 @@
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadRoomThreads, roomThreadListIsComplete } from './roomThreadList';
+import {
+  getThreadLastActivityTs,
+  getThreadUnread,
+  loadRoomThreads,
+  roomThreadListIsComplete,
+} from './roomThreadList';
 
 const setServerSideListSupport = (enabled: boolean) => {
   Thread.hasServerSideListSupport = (enabled ? 2 : 0) as typeof Thread.hasServerSideListSupport;
@@ -43,6 +48,22 @@ const makeRoom = (tokens: Array<string | null>) => {
 afterEach(() => {
   Thread.hasServerSideListSupport = 0 as typeof Thread.hasServerSideListSupport;
   vi.restoreAllMocks();
+});
+
+const makeThreadReplyEvent = (
+  eventId: string,
+  ts: number,
+  sender = '@alice:example.org',
+  type = 'm.room.message'
+) => ({
+  getId: () => eventId,
+  getSender: () => sender,
+  getTs: () => ts,
+  getType: () => type,
+  getRelation: () => ({ event_id: '$root', rel_type: 'm.thread' }),
+  isRedacted: () => false,
+  isRedaction: () => false,
+  threadRootId: '$root',
 });
 
 describe('loadRoomThreads', () => {
@@ -169,6 +190,46 @@ describe('loadRoomThreads', () => {
     expect(paginateEventTimeline).not.toHaveBeenCalled();
     expect(progress).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith('[threadList] fetchRoomThreads failed:', error);
+  });
+});
+
+describe('thread visibility helpers', () => {
+  it('ignores hidden threaded metadata relations when computing last activity', () => {
+    const visibleReply = makeThreadReplyEvent('$reply-visible', 200);
+    const hiddenThreadTag = makeThreadReplyEvent(
+      '$thread-tag',
+      320,
+      '@alice:example.org',
+      'com.mindroom.thread.tag'
+    );
+    const thread = {
+      events: [visibleReply, hiddenThreadTag],
+      replyToEvent: hiddenThreadTag,
+      rootEvent: { getTs: () => 100 },
+    } as never;
+
+    expect(getThreadLastActivityTs(thread)).toBe(200);
+  });
+
+  it('does not mark hidden threaded metadata relations as unread', () => {
+    const visibleReply = makeThreadReplyEvent('$reply-visible', 200, '@self:example.org');
+    const hiddenThreadTag = makeThreadReplyEvent(
+      '$thread-tag',
+      320,
+      '@other:example.org',
+      'com.mindroom.thread.tag'
+    );
+    const room = {
+      getEventReadUpTo: vi.fn(() => '$read'),
+      findEventById: vi.fn(() => ({ getTs: () => 250 })),
+    };
+    const thread = {
+      events: [visibleReply, hiddenThreadTag],
+      replyToEvent: hiddenThreadTag,
+      rootEvent: { getTs: () => 100 },
+    } as never;
+
+    expect(getThreadUnread(room as never, thread, '@self:example.org')).toBe(false);
   });
 });
 

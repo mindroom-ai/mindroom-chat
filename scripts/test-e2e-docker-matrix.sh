@@ -37,6 +37,21 @@ eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_THIRD cinnye2ethird 'Pwc
 cd "${ROOT_DIR}"
 node ./e2e/live/seed-fixture-room.mjs
 
+export E2E_FIXTURE_ROOM_ID="$(
+  node --input-type=module -e '
+    const homeserver = process.env.E2E_HOMESERVER;
+    const alias = process.env.E2E_FIXTURE_ROOM_ALIAS;
+    const url = `${homeserver}/_matrix/client/v3/directory/room/${encodeURIComponent(alias)}`;
+    const response = await fetch(url);
+    const body = await response.json();
+    if (!response.ok || typeof body.room_id !== "string") {
+      console.error(`Failed to resolve fixture room alias ${alias}: ${JSON.stringify(body)}`);
+      process.exit(1);
+    }
+    process.stdout.write(body.room_id);
+  '
+)"
+
 if [ "${E2E_ENABLE_DEPLOYED_FIXTURE:-1}" = "1" ]; then
   npm run build >/dev/null
   export E2E_DEPLOYED_BASE_URL="${DEPLOYED_BASE_URL}"

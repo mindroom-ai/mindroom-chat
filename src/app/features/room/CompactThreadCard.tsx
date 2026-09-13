@@ -32,6 +32,12 @@ import {
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 import { formatScheduledTime } from './compactThreadCardUtils';
+import {
+  getPreferredVisibleThreadReplyEvents,
+  getVisibleThreadMessageCount,
+  getVisibleThreadParticipantIds,
+  type VisibleThreadEventCollectionLike,
+} from './threadUtils';
 import { useThreadResolution } from './useRoomThreadTags';
 import * as css from './CompactRoomView.css';
 
@@ -42,15 +48,7 @@ const TITLE_TEXT_LIMIT = 160;
 const PREVIEW_TEXT_LIMIT = 96;
 type AttentionState = 'needs-attention' | 'waiting' | 'streaming' | 'resolved' | 'idle';
 
-type ThreadLike =
-  | {
-      rootEvent?: MatrixEvent;
-      length?: number;
-      events?: MatrixEvent[];
-      timeline?: MatrixEvent[];
-    }
-  | null
-  | undefined;
+type ThreadLike = VisibleThreadEventCollectionLike | null | undefined;
 
 const tagColor = (tagName: string): string => {
   let hash = 0;
@@ -85,25 +83,6 @@ const getEventBodyPreviewText = (event: MatrixEvent | undefined): string | undef
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const getPreferredThreadReplyEvents = (thread: ThreadLike): MatrixEvent[] => {
-  if (thread?.events?.length) return thread.events;
-  if (thread?.timeline?.length) return thread.timeline;
-  return thread?.events ?? thread?.timeline ?? [];
-};
-
-const getThreadMessageCount = (
-  thread: ThreadLike,
-  fallbackMessageCount?: number
-): number => {
-  if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
-
-  const replyEvents = getPreferredThreadReplyEvents(thread);
-  if (replyEvents.length > 0) return replyEvents.length;
-  if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) return fallbackMessageCount;
-
-  return 0;
-};
-
 const getLatestRenderableReplyEvent = (replyEvents: MatrixEvent[]): MatrixEvent | undefined => {
   let summaryFallback: MatrixEvent | undefined;
 
@@ -120,30 +99,6 @@ const getLatestRenderableReplyEvent = (replyEvents: MatrixEvent[]): MatrixEvent 
   }
 
   return summaryFallback;
-};
-
-const getThreadParticipantIds = (
-  thread: ThreadLike,
-  threadRootEvent: MatrixEvent | undefined
-): string[] => {
-  const participantIds: string[] = [];
-  const seenParticipantIds = new Set<string>();
-  const replyEvents = getPreferredThreadReplyEvents(thread);
-
-  for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < 3; i -= 1) {
-    const senderId = replyEvents[i].getSender?.();
-    if (!senderId || seenParticipantIds.has(senderId)) continue;
-
-    seenParticipantIds.add(senderId);
-    participantIds.push(senderId);
-  }
-
-  const rootSenderId = threadRootEvent?.getSender?.();
-  if (participantIds.length < 3 && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
-    participantIds.push(rootSenderId);
-  }
-
-  return participantIds;
 };
 
 const getMessageCountLabel = (messageCount: number): string => {
@@ -222,7 +177,7 @@ export function CompactThreadCard({
   const thread = room.getThread(threadRootId);
   const resolvedThreadRootEvent =
     threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
-  const replyEvents = getPreferredThreadReplyEvents(thread);
+  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const liveSummaryInfo = getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline);
   const effectiveSummaryInfo = pickLatestThreadSummaryInfo(summaryInfo, liveSummaryInfo);
   const eventRootPreviewText =
@@ -247,7 +202,7 @@ export function CompactThreadCard({
   const lastSenderName = lastSenderId
     ? getMemberDisplayName(room, lastSenderId) ?? getMxIdLocalPart(lastSenderId) ?? lastSenderId
     : undefined;
-  const messageCount = effectiveSummaryInfo?.messageCount ?? getThreadMessageCount(thread);
+  const messageCount = effectiveSummaryInfo?.messageCount ?? getVisibleThreadMessageCount(thread);
   const messageCountLabel = getMessageCountLabel(messageCount);
   const currentUserId = mx.getUserId() ?? undefined;
   const isUnread = useMemo(() => {
@@ -269,7 +224,7 @@ export function CompactThreadCard({
     lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined;
 
   const threadParticipants = useMemo(() => {
-    const participantIds = getThreadParticipantIds(thread, resolvedThreadRootEvent);
+    const participantIds = getVisibleThreadParticipantIds(thread, resolvedThreadRootEvent);
 
     return participantIds.map((userId) => {
       const displayName =

@@ -94,6 +94,25 @@ const makeThreadReplyEvent = (
     },
   });
 
+const makeHiddenThreadTagEvent = (
+  eventId: string,
+  ts: number,
+  sender = '@alice:example.org'
+) =>
+  new MatrixEvent({
+    content: {
+      'm.relates_to': {
+        event_id: THREAD_ROOT_ID,
+        rel_type: 'm.thread',
+      },
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender,
+    type: 'com.mindroom.thread.tag',
+  });
+
 const makeEditEvent = (
   eventId: string,
   ts: number,
@@ -363,6 +382,40 @@ describe('useThreadLastActivityTs', () => {
     renderer.unmount();
   });
 
+  it('ignores bundled latest_event timestamps for hidden threaded metadata relations', () => {
+    const rootEvent = new MatrixEvent({
+      content: {
+        body: '$root',
+        msgtype: 'm.text',
+      },
+      event_id: '$root',
+      origin_server_ts: 100,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            latest_event: {
+              event_id: '$thread-tag',
+              origin_server_ts: 240,
+              room_id: '!room:example.org',
+              sender: '@alice:example.org',
+              type: 'com.mindroom.thread.tag',
+            },
+          },
+        },
+      },
+    });
+    const room = makeRoom(rootEvent, undefined);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(100);
+
+    renderer.unmount();
+  });
+
   it('uses bundled latest_event replacement timestamps when they are newer', () => {
     const rootEvent = makeThreadRootWithBundledLatestEvent({
       eventId: '$root',
@@ -400,6 +453,25 @@ describe('useThreadLastActivityTs', () => {
     });
 
     expect(getSnapshot()).toBe(320);
+
+    renderer.unmount();
+  });
+
+  it('ignores hidden threaded metadata relations when deriving live activity', () => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const visibleReply = makeThreadReplyEvent('$reply-visible', 180);
+    const hiddenThreadTag = makeHiddenThreadTagEvent('$thread-tag', 320);
+    const thread = makeThread({
+      rootEvent,
+      lastReply: hiddenThreadTag,
+      replyToEvent: hiddenThreadTag,
+      timelineEvents: [rootEvent, visibleReply, hiddenThreadTag],
+    });
+    const room = makeRoom(rootEvent, thread);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(180);
 
     renderer.unmount();
   });

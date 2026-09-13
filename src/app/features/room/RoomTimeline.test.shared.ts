@@ -579,10 +579,209 @@ vi.mock('./threadUtils', () => ({
     });
     return counts;
   },
+  buildVisibleThreadParticipantMap: (
+    events: Array<{
+      getId(): string | undefined;
+      getSender?(): string | undefined;
+      getType?(): string | undefined;
+      threadRootId?: string;
+    }>,
+    maxParticipants = 3
+  ) => {
+    const participants = new Map<string, string[]>();
+    [...events].reverse().forEach((event) => {
+      const eventId = event.getId();
+      const senderId = event.getSender?.();
+      const { threadRootId } = event;
+      if (
+        !eventId ||
+        !threadRootId ||
+        eventId === threadRootId ||
+        !senderId ||
+        event.getType?.() === 'com.mindroom.thread.tag'
+      ) {
+        return;
+      }
+      const current = participants.get(threadRootId) ?? [];
+      if (current.includes(senderId) || current.length >= maxParticipants) return;
+      participants.set(threadRootId, [...current, senderId]);
+    });
+    return participants;
+  },
+  buildVisibleThreadReplyCountMap: (
+    events: Array<{
+      getId(): string | undefined;
+      getType?(): string | undefined;
+      threadRootId?: string;
+    }>
+  ) => {
+    const counts = new Map<string, number>();
+    events.forEach((event) => {
+      const eventId = event.getId();
+      const { threadRootId } = event;
+      if (
+        !eventId ||
+        !threadRootId ||
+        eventId === threadRootId ||
+        event.getType?.() === 'com.mindroom.thread.tag'
+      ) {
+        return;
+      }
+      counts.set(threadRootId, (counts.get(threadRootId) ?? 0) + 1);
+    });
+    return counts;
+  },
   eventBelongsToThread: (
     event: { getId(): string | undefined; threadRootId?: string },
     threadId: string
   ) => event.getId() === threadId || event.threadRootId === threadId,
+  isVisibleThreadReplyEvent: (event: {
+    getId(): string | undefined;
+    getType?(): string | undefined;
+    threadRootId?: string;
+  }) => {
+    const eventId = event.getId();
+    return (
+      !!eventId &&
+      !!event.threadRootId &&
+      eventId !== event.threadRootId &&
+      event.getType?.() !== 'com.mindroom.thread.tag'
+    );
+  },
+  getPreferredVisibleThreadReplyEvents: (
+    thread:
+      | {
+          events?: Array<{
+            getId(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+          timeline?: Array<{
+            getId(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+        }
+      | null
+      | undefined
+  ) => {
+    const replyEvents = thread?.events?.length
+      ? thread.events
+      : thread?.timeline?.length
+        ? thread.timeline
+        : thread?.events ?? thread?.timeline ?? [];
+    return replyEvents.filter(
+      (event) =>
+        !!event.getId() &&
+        !!event.threadRootId &&
+        event.getId() !== event.threadRootId &&
+        event.getType?.() !== 'com.mindroom.thread.tag'
+    );
+  },
+  hasLoadedThreadReplyEvents: (
+    thread:
+      | {
+          events?: unknown[];
+          timeline?: unknown[];
+        }
+      | null
+      | undefined
+  ) => {
+    if (thread?.events && thread.events.length > 0) return true;
+    return !!thread?.timeline && thread.timeline.length > 0;
+  },
+  getVisibleThreadMessageCount: (
+    thread:
+      | {
+          length?: number;
+          events?: Array<{
+            getId(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+          timeline?: Array<{
+            getId(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+        }
+      | null
+      | undefined,
+    fallbackMessageCount?: number
+  ) => {
+    const replyEvents = thread?.events?.length
+      ? thread.events
+      : thread?.timeline?.length
+        ? thread.timeline
+        : thread?.events ?? thread?.timeline ?? [];
+    const visibleReplies = replyEvents.filter(
+      (event) =>
+        !!event.getId() &&
+        !!event.threadRootId &&
+        event.getId() !== event.threadRootId &&
+        event.getType?.() !== 'com.mindroom.thread.tag'
+    );
+    if (visibleReplies.length > 0) return visibleReplies.length;
+    if ((thread?.events?.length ?? 0) > 0 || (thread?.timeline?.length ?? 0) > 0) return 0;
+    if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
+    if (typeof fallbackMessageCount === 'number' && fallbackMessageCount > 0) {
+      return fallbackMessageCount;
+    }
+    return 0;
+  },
+  getVisibleThreadParticipantIds: (
+    thread:
+      | {
+          events?: Array<{
+            getId(): string | undefined;
+            getSender?(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+          timeline?: Array<{
+            getId(): string | undefined;
+            getSender?(): string | undefined;
+            getType?(): string | undefined;
+            threadRootId?: string;
+          }>;
+        }
+      | null
+      | undefined,
+    threadRootEvent?: { getSender?(): string | undefined },
+    maxParticipants = 3
+  ) => {
+    const participantIds: string[] = [];
+    const seenParticipantIds = new Set<string>();
+    const replyEvents = thread?.events?.length
+      ? thread.events
+      : thread?.timeline?.length
+        ? thread.timeline
+        : thread?.events ?? thread?.timeline ?? [];
+
+    for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < maxParticipants; i -= 1) {
+      const event = replyEvents[i];
+      const senderId = event.getSender?.();
+      if (
+        !event.getId() ||
+        !event.threadRootId ||
+        event.getId() === event.threadRootId ||
+        event.getType?.() === 'com.mindroom.thread.tag' ||
+        !senderId ||
+        seenParticipantIds.has(senderId)
+      ) {
+        continue;
+      }
+      seenParticipantIds.add(senderId);
+      participantIds.push(senderId);
+    }
+
+    const rootSenderId = threadRootEvent?.getSender?.();
+    if (participantIds.length < maxParticipants && rootSenderId && !seenParticipantIds.has(rootSenderId)) {
+      participantIds.push(rootSenderId);
+    }
+
+    return participantIds;
+  },
   isThreadReplyEvent: (eventId: string, threadRootId?: string) =>
     !!threadRootId && threadRootId !== eventId,
 }));
@@ -873,6 +1072,7 @@ const makeRoom = ({
     },
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
+    getMember: () => null,
     getLiveTimeline: () => roomLiveTimeline,
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
