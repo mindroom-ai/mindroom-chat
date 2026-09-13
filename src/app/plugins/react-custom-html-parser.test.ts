@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   LINKIFY_OPTS,
   getReactCustomHtmlParser,
+  renderTextWithLatex,
   withMindroomToolTraceMarkerParserOptions,
 } from './react-custom-html-parser';
 
@@ -52,6 +53,10 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../styles/CustomHtml.css', () => ({
+  Paragraph: 'Paragraph',
+  MarginSpaced: 'MarginSpaced',
+  MathInline: 'MathInline',
+  MathBlock: 'MathBlock',
   MindroomBlock: 'MindroomBlock',
   MindroomBlockHeader: 'MindroomBlockHeader',
   MindroomBlockHeaderMeta: 'MindroomBlockHeaderMeta',
@@ -127,6 +132,27 @@ const renderCustomHtmlTree = (html: string): ReactTestRenderer => {
 
   return renderer;
 };
+
+const renderCustomHtmlMarkup = (html: string): string => {
+  const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+    linkifyOpts: LINKIFY_OPTS,
+  });
+  const parsed = parse(html, opts);
+  return renderToStaticMarkup(React.createElement(React.Fragment, null, parsed));
+};
+
+const renderLatexTextMarkup = (text: string): string =>
+  renderToStaticMarkup(
+    React.createElement(
+      React.Fragment,
+      null,
+      renderTextWithLatex(text, {
+        linkify: true,
+        linkifyOpts: LINKIFY_OPTS,
+        keyPrefix: 'test',
+      })
+    )
+  );
 
 const collectStructuralTableWhitespace = (
   node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,
@@ -343,9 +369,7 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     const completedRenderer = renderTreeWithToolTrace('<p>🔧 <code>search_web</code> [1]</p>', {
       'io.mindroom.tool_trace': {
         version: 2,
-        events: [
-          { type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' },
-        ],
+        events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
       },
     });
 
@@ -405,5 +429,45 @@ describe('getReactCustomHtmlParser', () => {
     expect(
       renderer.root.findAllByType('a').some((node) => node.props.href === 'https://example.com')
     ).toBe(true);
+  });
+
+  it('renders incoming Matrix math html with KaTeX wrappers', () => {
+    const markup = renderCustomHtmlMarkup(
+      '<p><span data-mx-maths="x^2">x^2</span></p><div data-mx-maths="\\frac{a}{b}">\\frac{a}{b}</div>'
+    );
+
+    expect(markup).toContain('MathInline');
+    expect(markup).toContain('MathBlock');
+    expect(markup).toContain('katex');
+  });
+
+  it('preserves escaped delimiters inside backtick spans in raw text', () => {
+    const markup = renderLatexTextMarkup('`\\$x\\$`');
+
+    expect(markup).toContain('`\\$x\\$`');
+    expect(markup).not.toContain('MathInline');
+  });
+
+  it('does not render currency-like inline delimiters as math in raw text', () => {
+    const markup = renderLatexTextMarkup('Inline $E = mc^2$ and $5+$10$ plus \\$escaped\\$');
+
+    expect(markup).toContain('katex');
+    expect(markup).toContain('$5+$10$');
+    expect(markup).toContain('$escaped$');
+    expect(markup.match(/MathInline/g)).toHaveLength(1);
+  });
+
+  it('does not split URLs that contain dollar delimiters', () => {
+    const markup = renderLatexTextMarkup('https://example.com/$x$/y');
+
+    expect(markup).toContain('href="https://example.com/$x$/y"');
+    expect(markup).not.toContain('MathInline');
+  });
+
+  it('renders raw display latex blocks from text nodes', () => {
+    const markup = renderLatexTextMarkup('$$\\frac{a}{b}$$');
+
+    expect(markup).toContain('MathBlock');
+    expect(markup).toContain('katex-display');
   });
 });
