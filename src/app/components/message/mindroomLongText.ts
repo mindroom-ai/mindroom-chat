@@ -214,11 +214,15 @@ export const getMindroomLongTextSource = (
 export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): string | undefined =>
   getMindroomLongTextSource(content)?.mxcUri;
 
+export const getCachedMindroomLongTextContent = (
+  source: MindroomLongTextSource
+): Record<string, unknown> | undefined => mindroomLongTextHydrationCache.get(source.mxcUri);
+
 export const hydrateMindroomLongTextSource = async (
   source: MindroomLongTextSource,
   loadSidecarText: MindroomLongTextSidecarTextLoader
 ): Promise<Record<string, unknown>> => {
-  const cached = mindroomLongTextHydrationCache.get(source.mxcUri);
+  const cached = getCachedMindroomLongTextContent(source);
   if (cached) return cached;
 
   try {

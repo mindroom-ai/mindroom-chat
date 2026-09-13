@@ -42,6 +42,84 @@ describe('getMessageCopyTextBody', () => {
       )
     ).toBe('original text');
   });
+
+  describe('overflow long-text resolution', () => {
+    it('prefers the resolved long-text body over the wrapper placeholder', () => {
+      expect(
+        getMessageCopyTextBody(
+          {
+            msgtype: 'm.file',
+            body: 'Long text overflow…',
+            url: 'mxc://mindroom/overflow',
+            'io.mindroom.long_text': {
+              version: 2,
+              encoding: 'matrix_event_content_json',
+            },
+          },
+          { body: 'original placeholder' },
+          {
+            msgtype: 'm.text',
+            body: 'Actual long response',
+          }
+        )
+      ).toBe('Actual long response');
+    });
+
+    it('falls back to resolved m.new_content.body when the resolved wrapper body is absent', () => {
+      expect(
+        getMessageCopyTextBody(
+          {
+            msgtype: 'm.file',
+            body: 'Long text overflow…',
+          },
+          { body: 'original placeholder' },
+          {
+            msgtype: 'm.text',
+            'm.new_content': {
+              msgtype: 'm.text',
+              body: 'Edited resolved body',
+            },
+          }
+        )
+      ).toBe('Edited resolved body');
+    });
+
+    it('falls back to the existing envelope chain when no resolved long-text content is provided', () => {
+      expect(
+        getMessageCopyTextBody(
+          {
+            msgtype: 'm.file',
+            body: 'Long text overflow…',
+          },
+          { body: 'original placeholder' }
+        )
+      ).toBe('Long text overflow…');
+    });
+
+    it('falls through when neither the resolved content nor the envelope has a plain body', () => {
+      expect(
+        getMessageCopyTextBody(
+          {
+            msgtype: 'm.file',
+            'm.new_content': {
+              formatted_body: '<p>formatted only</p>',
+            },
+          },
+          {
+            formatted_body: '<p>still formatted only</p>',
+          },
+          {
+            msgtype: 'm.text',
+            body: '',
+            'm.new_content': {
+              msgtype: 'm.text',
+              body: '',
+            },
+          }
+        )
+      ).toBeUndefined();
+    });
+  });
 });
 
 describe('isCopyTextMessageContent', () => {

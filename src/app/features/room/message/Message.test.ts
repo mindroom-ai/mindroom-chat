@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type HostNodeMock = {
   focus: ReturnType<typeof vi.fn>;
@@ -10,6 +10,15 @@ type HostNodeMock = {
 };
 
 let lastMessageBaseNode: HostNodeMock | undefined;
+
+const domMocks = vi.hoisted(() => ({
+  copyToClipboard: vi.fn(),
+}));
+const longTextMocks = vi.hoisted(() => ({
+  downloadMindroomLongTextSidecarBlob: vi.fn(),
+  getMindroomLongTextSource: vi.fn(() => undefined),
+  useMindroomLongTextResolvedContent: vi.fn(() => undefined),
+}));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('./styles.css', () => ({
@@ -256,7 +265,7 @@ vi.mock('../../../components/user-avatar', () => ({
 }));
 
 vi.mock('../../../utils/dom', () => ({
-  copyToClipboard: vi.fn(),
+  copyToClipboard: domMocks.copyToClipboard,
 }));
 
 vi.mock('../../../utils/keyboard', () => ({
@@ -298,11 +307,12 @@ vi.mock('../../../hooks/useMemberPowerTag', () => ({
 }));
 
 vi.mock('../../../components/message/mindroomLongText', () => ({
-  getMindroomLongTextSource: () => undefined,
+  getMindroomLongTextSource: longTextMocks.getMindroomLongTextSource,
 }));
 
 vi.mock('../../../components/message/MindroomLongTextText', () => ({
-  downloadMindroomLongTextSidecarBlob: vi.fn(),
+  downloadMindroomLongTextSidecarBlob: longTextMocks.downloadMindroomLongTextSidecarBlob,
+  useMindroomLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
 
 vi.mock('../../../state/settings', () => ({
@@ -314,6 +324,13 @@ vi.mock('../../../state/settings', () => ({
 }));
 
 const getMessageComponent = async () => (await import('./Message')).Message;
+
+beforeEach(() => {
+  lastMessageBaseNode = undefined;
+  vi.clearAllMocks();
+  longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
+  longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
+});
 
 const createMessageEvent = (content: Record<string, unknown>) =>
   ({
@@ -526,5 +543,73 @@ describe('Message token usage menu item', () => {
     expect(hasSpanText(renderer, 'TTFT: 42 ms')).toBe(true);
     expect(hasSpanText(renderer, 'Run: run-123')).toBe(true);
     expect(hasSpanText(renderer, 'Session: session-456')).toBe(true);
+  });
+});
+
+describe('Message copy text overflow integration', () => {
+  it('copies the hydrated long-text body from the context menu', async () => {
+    const longTextSource = {
+      previewContent: {
+        msgtype: 'm.file',
+        body: 'Long text overflow…',
+        url: 'mxc://mindroom/overflow',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+      },
+      mxcUri: 'mxc://mindroom/overflow',
+      isV2ContentJson: true,
+    };
+    const resolvedLongTextContent = {
+      msgtype: 'm.text',
+      body: 'Resolved overflow body',
+    };
+
+    longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
+    longTextMocks.useMindroomLongTextResolvedContent.mockImplementation((source, enabled) => {
+      const [resolvedContent, setResolvedContent] = React.useState<Record<string, unknown> | undefined>(
+        () => undefined
+      );
+
+      React.useEffect(() => {
+        if (!source || !enabled) {
+          setResolvedContent(undefined);
+          return;
+        }
+
+        void Promise.resolve().then(() => {
+          setResolvedContent(resolvedLongTextContent);
+        });
+      }, [enabled, source]);
+
+      return resolvedContent;
+    });
+
+    const { renderer } = await renderMessage({
+      msgtype: 'm.file',
+      body: 'Long text overflow…',
+      url: 'mxc://mindroom/overflow',
+      'io.mindroom.long_text': {
+        version: 2,
+        encoding: 'matrix_event_content_json',
+      },
+    });
+
+    await openContextMenu(renderer);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const copyTextButton = getButtonByText(renderer, 'Copy Text');
+
+    expect(copyTextButton).toBeDefined();
+
+    await act(async () => {
+      copyTextButton?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Resolved overflow body');
   });
 });

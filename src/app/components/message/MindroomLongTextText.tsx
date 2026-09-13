@@ -10,7 +10,11 @@ import {
   mxcUrlToHttp,
 } from '../../utils/matrix';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
-import { MindroomLongTextSource, hydrateMindroomLongTextSource } from './mindroomLongText';
+import {
+  MindroomLongTextSource,
+  getCachedMindroomLongTextContent,
+  hydrateMindroomLongTextSource,
+} from './mindroomLongText';
 
 export enum MindroomLongTextKind {
   Text = 'text',
@@ -129,6 +133,60 @@ export const getMindroomLongTextHydrationIdentity = (
     mxcUri: source.mxcUri,
     url: getStringValue(content, 'url'),
   });
+};
+
+export const useMindroomLongTextResolvedContent = (
+  source: MindroomLongTextSource | undefined,
+  enabled: boolean
+): Record<string, unknown> | undefined => {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const [resolvedEntry, setResolvedEntry] = useState<
+    { mxcUri: string; content: Record<string, unknown> } | undefined
+  >(() => {
+    if (!source) return undefined;
+    const cachedContent = getCachedMindroomLongTextContent(source);
+    return cachedContent ? { mxcUri: source.mxcUri, content: cachedContent } : undefined;
+  });
+
+  useEffect(() => {
+    if (!source) {
+      setResolvedEntry(undefined);
+      return undefined;
+    }
+
+    const cachedContent = getCachedMindroomLongTextContent(source);
+    if (cachedContent) {
+      setResolvedEntry({ mxcUri: source.mxcUri, content: cachedContent });
+      return undefined;
+    }
+
+    if (!enabled) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const nextContent = await hydrateMindroomLongTextSource(source, (nextSource) =>
+        downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication)
+      );
+
+      if (!cancelled) {
+        setResolvedEntry({ mxcUri: source.mxcUri, content: nextContent });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, mx, source, source?.mxcUri, useAuthentication]);
+
+  if (source && resolvedEntry?.mxcUri === source.mxcUri) {
+    return resolvedEntry.content;
+  }
+
+  return source ? getCachedMindroomLongTextContent(source) : undefined;
 };
 
 export function MindroomLongTextText({
