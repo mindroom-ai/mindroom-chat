@@ -2,6 +2,7 @@ import { MutableRefObject, useCallback, useMemo, useRef, useState } from 'react'
 import { EventTimelineSet, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { aggregateCachedRelationEvents, hydrateCachedEvents } from './eventCacheEditUtils';
 import {
+  buildResolveConfirmedEventId,
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   ThreadInitialRenderMode,
@@ -28,39 +29,6 @@ type ThreadFallbackState = {
 };
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
-
-const buildResolveConfirmedId = (
-  room: Room,
-  events?: MatrixEvent[]
-): ((txnId: string) => string | undefined) => {
-  let fallbackMap: Map<string, string> | undefined;
-  const getFallbackMap = (): Map<string, string> => {
-    if (!fallbackMap) {
-      fallbackMap = new Map();
-      if (events) {
-        for (const mEvent of events) {
-          const txn = mEvent.getUnsigned()?.transaction_id;
-          const eid = mEvent.getId();
-          if (typeof txn === 'string' && txn.length > 0 && typeof eid === 'string' && !eid.startsWith('~')) {
-            fallbackMap.set(txn, eid);
-          }
-        }
-      }
-    }
-    return fallbackMap;
-  };
-
-  return (txnId: string): string | undefined => {
-    const event = room.getEventForTxnId?.(txnId);
-    if (event) {
-      const confirmedId = event.getId();
-      if (typeof confirmedId === 'string' && !confirmedId.startsWith('~')) {
-        return confirmedId;
-      }
-    }
-    return getFallbackMap().get(txnId);
-  };
-};
 
 const buildThreadEvents = ({
   room,
@@ -105,7 +73,7 @@ const buildThreadEvents = ({
     fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
   }
 
-  const resolveConfirmedId = buildResolveConfirmedId(room, collectedEvents);
+  const resolveConfirmedId = buildResolveConfirmedEventId(room, collectedEvents);
   const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
 
   hydrateCachedEvents({
@@ -157,7 +125,7 @@ export const useThreadRenderState = ({
     (expectedThreadId: string, events: MatrixEvent[]) => {
       const fallbackState = fallbackThreadEventsRef.current;
       const currentEvents = fallbackState.threadId === expectedThreadId ? fallbackState.events : [];
-      const resolveConfirmedId = buildResolveConfirmedId(room, [...currentEvents, ...events]);
+      const resolveConfirmedId = buildResolveConfirmedEventId(room, [...currentEvents, ...events]);
       const mergedEvents = mergeThreadRenderEvents(currentEvents, events, resolveConfirmedId);
 
       hydrateCachedEvents({

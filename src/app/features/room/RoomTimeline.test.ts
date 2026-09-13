@@ -11,6 +11,8 @@ const {
   roomIntroType,
   defaultPlaceholderType,
   compactPlaceholderType,
+  reactionOrEditEventMock,
+  isMembershipChangedMock,
   matrixClientMock,
   threadRenderStateMock,
   threadResolutionMapMock,
@@ -28,6 +30,8 @@ const {
   roomIntroType: 'room-intro',
   defaultPlaceholderType: 'default-placeholder',
   compactPlaceholderType: 'compact-placeholder',
+  reactionOrEditEventMock: vi.fn(() => false),
+  isMembershipChangedMock: vi.fn(() => false),
   matrixClientMock: {
     fetchRelations: vi.fn(),
     getEventMapper: vi.fn(() => (rawEvent: unknown) => rawEvent),
@@ -64,6 +68,8 @@ const {
           onEnd?: (backwards: boolean) => Promise<void> | void;
         }
       | undefined,
+    callCount: 0,
+    renderItems: true,
   },
 }));
 
@@ -237,13 +243,16 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
     range: { start: number; end: number };
     onRangeChange: (range: { start: number; end: number }) => void;
   }) => {
+    virtualPaginatorState.callCount += 1;
     virtualPaginatorState.lastOptions = options;
     return {
       getItems: () =>
-        Array.from(
-          { length: Math.max(options.range.end - options.range.start, 0) },
-          (_, index) => options.range.start + index
-        ),
+        virtualPaginatorState.renderItems
+          ? Array.from(
+              { length: Math.max(options.range.end - options.range.start, 0) },
+              (_, index) => options.range.start + index
+            )
+          : [],
       scrollToItem: scrollToItemMock,
       scrollToElement: scrollToElementMock,
       observeBackAnchor: vi.fn(),
@@ -253,7 +262,11 @@ vi.mock('../../hooks/useVirtualPaginator', () => ({
 }));
 
 vi.mock('../../hooks/useMatrixEventRenderer', () => ({
-  useMatrixEventRenderer: () => () => null,
+  useMatrixEventRenderer: () => (...args: unknown[]) =>
+    React.createElement('mock-event', {
+      eventId: args[2],
+      key: String(args[2]),
+    }),
 }));
 
 vi.mock('../../hooks/useIntersectionObserver', () => ({
@@ -316,9 +329,9 @@ vi.mock('../../utils/room', () => ({
   getLatestEditableEvt: () => undefined,
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
-  isMembershipChanged: () => false,
+  isMembershipChanged: isMembershipChangedMock,
   logEditDebug: vi.fn(),
-  reactionOrEditEvent: () => false,
+  reactionOrEditEvent: reactionOrEditEventMock,
 }));
 
 vi.mock('../../components/message', () => ({
@@ -396,9 +409,22 @@ vi.mock('../../state/room/roomToUnread', () => ({
 
 vi.mock('./threadUtils', () => ({
   buildThreadParticipantMap: () => new Map(),
-  buildThreadReplyCountMap: () => new Map(),
-  eventBelongsToThread: () => false,
-  isThreadReplyEvent: () => false,
+  buildThreadReplyCountMap: (events: Array<{ getId(): string | undefined; threadRootId?: string }>) => {
+    const counts = new Map<string, number>();
+    events.forEach((event) => {
+      const eventId = event.getId();
+      const { threadRootId } = event;
+      if (!eventId || !threadRootId || eventId === threadRootId) return;
+      counts.set(threadRootId, (counts.get(threadRootId) ?? 0) + 1);
+    });
+    return counts;
+  },
+  eventBelongsToThread: (
+    event: { getId(): string | undefined; threadRootId?: string },
+    threadId: string
+  ) => event.getId() === threadId || event.threadRootId === threadId,
+  isThreadReplyEvent: (eventId: string, threadRootId?: string) =>
+    !!threadRootId && threadRootId !== eventId,
 }));
 
 vi.mock('../../components/message/mindroomThreadSummary', () => ({
@@ -494,23 +520,30 @@ const makeEvent = (
     content?: Record<string, unknown>;
     isThreadRoot?: boolean;
     threadRootId?: string;
+    relation?: { rel_type?: string; event_id?: string };
+    associatedId?: string;
+    stateKey?: string;
+    ts?: number;
+    isRedacted?: boolean;
+    isRedaction?: boolean;
   } = {}
 ) => ({
   event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
   isThreadRoot: opts.isThreadRoot ?? false,
   threadRootId: opts.threadRootId,
+  getAssociatedId: () => opts.associatedId,
   getContent: () => opts.content ?? { body: eventId },
   getId: () => eventId,
-  getRelation: () => undefined,
+  getRelation: () => opts.relation,
   getRoomId: () => '!room:example.org',
   getSender: () => opts.sender ?? '@alice:example.org',
   getServerAggregatedRelation: () => undefined,
-  getStateKey: () => undefined,
+  getStateKey: () => opts.stateKey,
   getTs: () => opts.ts ?? 0,
   getType: () => opts.type ?? 'm.room.message',
   getUnsigned: () => ({}),
-  isRedacted: () => false,
-  isRedaction: () => false,
+  isRedacted: () => opts.isRedacted ?? false,
+  isRedaction: () => opts.isRedaction ?? false,
   makeReplaced: vi.fn(),
   replacingEvent: () => undefined,
 });
@@ -553,10 +586,12 @@ const makeRoom = ({
   liveEvents = [],
   liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
+  findEventById,
 }: {
   liveEvents?: ReturnType<typeof makeEvent>[];
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
+  findEventById?: (eventId: string) => ReturnType<typeof makeEvent> | undefined;
 } = {}) => {
   const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
   const currentLiveEvents = roomLiveTimeline.getEvents();
@@ -572,9 +607,18 @@ const makeRoom = ({
         ? roomLiveTimeline
         : timelinesByEventId.get(eventId),
   };
-  (roomLiveTimeline as { getTimelineSet?: () => typeof timelineSet }).getTimelineSet = () => timelineSet;
+  (
+    roomLiveTimeline as ReturnType<typeof makeTimeline> & {
+      getTimelineSet?: () => typeof timelineSet;
+    }
+  ).getTimelineSet =
+    () => timelineSet;
   timelinesByEventId.forEach((timeline) => {
-    (timeline as { getTimelineSet?: () => typeof timelineSet }).getTimelineSet = () => timelineSet;
+    (
+      timeline as ReturnType<typeof makeTimeline> & {
+        getTimelineSet?: () => typeof timelineSet;
+      }
+    ).getTimelineSet = () => timelineSet;
   });
   const listeners = new Map<string | symbol, (...args: unknown[]) => void>();
 
@@ -585,7 +629,7 @@ const makeRoom = ({
     client: {
       getUserId: () => '@alice:example.org',
     },
-    findEventById: (eventId: string) => getEventFromTimelines(eventId),
+    findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: () => undefined,
     getLiveTimeline: () => roomLiveTimeline,
     getThread: () => null,
@@ -637,6 +681,10 @@ beforeEach(() => {
   loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
   virtualPaginatorState.lastOptions = undefined;
+  virtualPaginatorState.callCount = 0;
+  virtualPaginatorState.renderItems = true;
+  reactionOrEditEventMock.mockImplementation(() => false);
+  isMembershipChangedMock.mockImplementation(() => false);
   matrixClientMock.fetchRelations.mockResolvedValue({
     chunk: [],
     next_batch: null,
@@ -702,13 +750,15 @@ const createControlledRoomTimelineHarness = (
     room,
     eventId,
     threadId,
+    initialThreadFilter,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
     threadId?: string;
+    initialThreadFilter?: 'all' | 'resolved' | 'unresolved';
   }) {
     const [threadFilter, setThreadFilter] = React.useState<'all' | 'resolved' | 'unresolved'>(
-      'all'
+      initialThreadFilter ?? 'all'
     );
 
     return React.createElement(RoomTimelineComponent, {
@@ -984,6 +1034,30 @@ describe('RoomTimeline', () => {
     });
   });
 
+  it('counts fallback-only thread roots in the room thread overview', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const fallbackRoot = makeEvent('$thread-root');
+    const fallbackReply = makeEvent('$thread-reply', {
+      threadRootId: fallbackRoot.getId(),
+    });
+    const room = makeRoom({
+      liveEvents: [fallbackRoot, fallbackReply],
+    });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    const renderer = create(
+      React.createElement(ControlledRoomTimeline, {
+        room,
+      })
+    );
+
+    expect(renderer.root.findByType(roomThreadOverviewType).props.counts).toEqual({
+      unresolved: 1,
+      resolved: 0,
+      all: 1,
+    });
+  });
+
   it('filters room events by thread resolution state', async () => {
     const { getThreadFilteredEvents } = await import('./RoomTimeline');
     const room = makeRoom();
@@ -1011,6 +1085,119 @@ describe('RoomTimeline', () => {
         'resolved'
       ).map((event) => event.getId())
     ).toEqual(['$thread-resolved']);
+  });
+
+  it('treats fallback reply counts as visible thread roots for filtering', async () => {
+    const { getThreadFilteredEvents } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const fallbackRoot = makeEvent('$thread-root');
+    const messageEvent = makeEvent('$message');
+    const fallbackCounts = new Map([[fallbackRoot.getId(), 2]]);
+    const resolutionMap = new Map<string, { isResolved: boolean }>();
+
+    expect(
+      getThreadFilteredEvents(
+        [messageEvent, fallbackRoot] as never,
+        room as never,
+        resolutionMap,
+        undefined,
+        'unresolved',
+        fallbackCounts
+      ).map((event) => event.getId())
+    ).toEqual(['$thread-root']);
+
+    resolutionMap.set(fallbackRoot.getId(), { isResolved: true });
+    expect(
+      getThreadFilteredEvents(
+        [messageEvent, fallbackRoot] as never,
+        room as never,
+        resolutionMap,
+        undefined,
+        'resolved',
+        fallbackCounts
+      ).map((event) => event.getId())
+    ).toEqual(['$thread-root']);
+  });
+
+  it('filters hidden relations, thread replies, and ignored senders in isRenderableEvent', async () => {
+    const { isRenderableEvent } = await import('./RoomTimeline');
+    const baseArgs = [
+      makeRoom() as never,
+      undefined,
+      new Set<string>(),
+      false,
+      false,
+      false,
+    ] as const;
+
+    const messageEvent = makeEvent('$message');
+    expect(isRenderableEvent(messageEvent as never, ...baseArgs)).toBe(true);
+
+    const threadReply = makeEvent('$thread-reply', { threadRootId: '$thread-root' });
+    expect(isRenderableEvent(threadReply as never, ...baseArgs)).toBe(false);
+
+    const relationEvent = makeEvent('$edit', {
+      associatedId: '$message',
+      relation: { rel_type: 'm.replace', event_id: '$message' },
+    });
+    reactionOrEditEventMock.mockImplementation((event) => event.getId() === relationEvent.getId());
+    expect(isRenderableEvent(relationEvent as never, ...baseArgs)).toBe(false);
+
+    const ignoredEvent = makeEvent('$ignored', { sender: '@ignored:example.org' });
+    expect(
+      isRenderableEvent(
+        ignoredEvent as never,
+        makeRoom() as never,
+        undefined,
+        new Set(['@ignored:example.org']),
+        false,
+        false,
+        false
+      )
+    ).toBe(false);
+  });
+
+  it('applies membership and hidden-event toggles in isRenderableEvent', async () => {
+    const { isRenderableEvent } = await import('./RoomTimeline');
+    const room = makeRoom();
+    const membershipEvent = makeEvent('$member', { type: 'm.room.member' });
+    isMembershipChangedMock.mockReturnValue(true);
+
+    expect(
+      isRenderableEvent(
+        membershipEvent as never,
+        room as never,
+        undefined,
+        new Set(),
+        false,
+        true,
+        false
+      )
+    ).toBe(false);
+
+    isMembershipChangedMock.mockReturnValue(false);
+    expect(
+      isRenderableEvent(
+        membershipEvent as never,
+        room as never,
+        undefined,
+        new Set(),
+        false,
+        false,
+        true
+      )
+    ).toBe(false);
+
+    const hiddenEvent = makeEvent('$hidden', {
+      type: 'io.example.hidden',
+      content: { body: 'hidden' },
+    });
+    expect(
+      isRenderableEvent(hiddenEvent as never, room as never, undefined, new Set(), false, false, false)
+    ).toBe(false);
+    expect(
+      isRenderableEvent(hiddenEvent as never, room as never, undefined, new Set(), true, false, false)
+    ).toBe(true);
   });
 
   it('keeps filtered mode pinned to the full filtered range when live non-matching events arrive', async () => {
@@ -1058,6 +1245,47 @@ describe('RoomTimeline', () => {
 
     expect(virtualPaginatorState.lastOptions?.count).toBe(3);
     expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 3 });
+  });
+
+  it('re-renders the room timeline for non-renderable live events at bottom', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const visibleMessage = makeEvent('$message');
+    const hiddenEdit = makeEvent('$edit', {
+      associatedId: visibleMessage.getId(),
+      relation: { rel_type: 'm.replace', event_id: visibleMessage.getId() },
+    });
+    reactionOrEditEventMock.mockImplementation((event) => event.getId() === hiddenEdit.getId());
+    const room = makeRoom({ liveEvents: [visibleMessage] });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    const callCountBefore = virtualPaginatorState.callCount;
+    const liveEventHandler = room.__listeners.get(RoomEvent.Timeline);
+    expect(liveEventHandler).toBeTypeOf('function');
+
+    await act(async () => {
+      liveEventHandler?.(hiddenEdit, room, false, false, {
+        liveEvent: true,
+      });
+      await flushAsyncWork(1);
+    });
+
+    expect(virtualPaginatorState.callCount).toBeGreaterThan(callCountBefore);
+
+    await act(async () => {
+      renderer?.unmount();
+      await flushAsyncWork(1);
+    });
   });
 
   it('resets the room timeline to the latest live range when returning to all threads', async () => {
@@ -1148,6 +1376,374 @@ describe('RoomTimeline', () => {
       room.getUnfilteredTimelineSet(),
       unreadMessage.getId()
     );
+  });
+
+  it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
+    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const olderMessage = makeEvent('$older', { ts: 1 });
+    const threadRoot = makeEvent('$thread-root', { ts: 2 });
+    const hiddenReply = makeEvent('$thread-reply', {
+      threadRootId: threadRoot.getId(),
+      ts: 3,
+    });
+    const newerMessage = makeEvent('$newer', { ts: 4 });
+    const targetTimeline = makeTimeline([olderMessage, threadRoot, hiddenReply, newerMessage]);
+    const room = makeRoom({
+      timelinesByEventId: new Map([[hiddenReply.getId(), targetTimeline]]),
+    });
+    const renderableEntries = getRenderableEventEntries(
+      [targetTimeline] as never,
+      room as never,
+      undefined,
+      new Set(),
+      false,
+      false,
+      false
+    );
+
+    expect(
+      getTimelineTargetAnchor({
+        linkedTimelines: [targetTimeline] as never,
+        renderableEntries,
+        eventId: hiddenReply.getId(),
+        absoluteIndex: 2,
+      })
+    ).toEqual({
+      eventId: threadRoot.getId(),
+      index: 1,
+      absoluteIndex: 1,
+    });
+  });
+
+  it('falls back to the closest renderable entry when all target candidates are hidden', async () => {
+    const { getRenderableEventEntries, getTimelineTargetAnchor } = await import('./RoomTimeline');
+    const olderMessage = makeEvent('$older', { ts: 1 });
+    const hiddenReply = makeEvent('$thread-reply', {
+      threadRootId: '$thread-root',
+      ts: 2,
+    });
+    const hiddenEdit = makeEvent('$edit', {
+      associatedId: hiddenReply.getId(),
+      relation: { rel_type: 'm.replace', event_id: hiddenReply.getId() },
+      ts: 3,
+    });
+    const newerMessage = makeEvent('$newer', { ts: 4 });
+    reactionOrEditEventMock.mockImplementation((event) => event.getId() === hiddenEdit.getId());
+    const targetTimeline = makeTimeline([olderMessage, hiddenReply, hiddenEdit, newerMessage]);
+    const room = makeRoom({
+      timelinesByEventId: new Map([[hiddenEdit.getId(), targetTimeline]]),
+    });
+    const renderableEntries = getRenderableEventEntries(
+      [targetTimeline] as never,
+      room as never,
+      undefined,
+      new Set(),
+      false,
+      false,
+      false
+    );
+
+    expect(
+      getTimelineTargetAnchor({
+        linkedTimelines: [targetTimeline] as never,
+        renderableEntries,
+        eventId: hiddenEdit.getId(),
+        absoluteIndex: 2,
+      })
+    ).toEqual({
+      eventId: newerMessage.getId(),
+      index: 1,
+      absoluteIndex: 3,
+    });
+  });
+
+  it('falls back to the last renderable entry when read-up-to is beyond all visible events', async () => {
+    const { getRenderableEventEntries, getUnreadTargetAnchor } = await import('./RoomTimeline');
+    const firstVisible = makeEvent('$first', { ts: 1 });
+    const lastVisible = makeEvent('$last', { ts: 2 });
+    const hiddenReply = makeEvent('$hidden-reply', {
+      threadRootId: '$thread-root',
+      ts: 3,
+    });
+    const targetTimeline = makeTimeline([firstVisible, lastVisible, hiddenReply]);
+    const room = makeRoom({
+      timelinesByEventId: new Map([[hiddenReply.getId(), targetTimeline]]),
+    });
+    const renderableEntries = getRenderableEventEntries(
+      [targetTimeline] as never,
+      room as never,
+      undefined,
+      new Set(),
+      false,
+      false,
+      false
+    );
+
+    expect(
+      getUnreadTargetAnchor({
+        renderableEntries,
+        eventId: hiddenReply.getId(),
+        absoluteIndex: 2,
+      })
+    ).toEqual({
+      eventId: lastVisible.getId(),
+      index: 1,
+      absoluteIndex: 1,
+    });
+  });
+
+  it('scrolls to the next visible event when read-up-to is filtered out in the live timeline', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const visibleRead = makeEvent('$visible-read', { ts: 1 });
+    const hiddenReply = makeEvent('$hidden-reply', {
+      threadRootId: '$thread-root',
+      ts: 2,
+    });
+    const unreadVisible = makeEvent('$visible-unread', {
+      sender: '@bob:example.org',
+      ts: 3,
+    });
+    const room = makeRoom({
+      liveEvents: [visibleRead, hiddenReply, unreadVisible],
+    });
+    room.getEventReadUpTo = () => hiddenReply.getId();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+
+    await act(async () => {
+      create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+        })
+      );
+      await flushAsyncWork(1);
+    });
+
+    expect(scrollToItemMock).toHaveBeenCalledWith(1, {
+      behavior: 'instant',
+      align: 'start',
+      stopInView: true,
+    });
+  });
+
+  it('switches back to all threads before opening an eventId hidden by the active filter', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const resolvedThread = makeEvent('$thread-resolved', { isThreadRoot: true });
+    const permalinkMessage = makeEvent('$permalink-message');
+    const targetTimeline = makeTimeline([permalinkMessage]);
+    let targetTimelineLoaded = false;
+    const room = makeRoom({
+      liveEvents: [resolvedThread],
+      findEventById: (eventId) => {
+        if (eventId === permalinkMessage.getId()) {
+          return targetTimelineLoaded ? permalinkMessage : undefined;
+        }
+
+        return eventId === resolvedThread.getId() ? resolvedThread : undefined;
+      },
+    });
+    threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true });
+    matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
+      if (eventId === permalinkMessage.getId()) {
+        targetTimelineLoaded = true;
+        return targetTimeline;
+      }
+
+      return undefined;
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: permalinkMessage.getId(),
+          initialThreadFilter: 'resolved',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('all');
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
+      room.getUnfilteredTimelineSet(),
+      permalinkMessage.getId()
+    );
+  });
+
+  it('keeps the active thread filter when opening an unloaded eventId that still matches it', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const visibleResolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
+    const olderResolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
+    const targetTimeline = makeTimeline([olderResolvedThread]);
+    let targetTimelineLoaded = false;
+    const room = makeRoom({
+      liveEvents: [visibleResolvedThread],
+      findEventById: (eventId) => {
+        if (eventId === olderResolvedThread.getId()) {
+          return targetTimelineLoaded ? olderResolvedThread : undefined;
+        }
+
+        return eventId === visibleResolvedThread.getId() ? visibleResolvedThread : undefined;
+      },
+    });
+    threadResolutionMapMock.set(visibleResolvedThread.getId(), { isResolved: true });
+    threadResolutionMapMock.set(olderResolvedThread.getId(), { isResolved: true });
+    matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
+      if (eventId === olderResolvedThread.getId()) {
+        targetTimelineLoaded = true;
+        return targetTimeline;
+      }
+
+      return undefined;
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: olderResolvedThread.getId(),
+          initialThreadFilter: 'resolved',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('resolved');
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
+      room.getUnfilteredTimelineSet(),
+      olderResolvedThread.getId()
+    );
+  });
+
+  it('keeps the unresolved filter when opening an unloaded unresolved thread root', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
+    const olderUnresolvedThread = makeEvent('$thread-older', { isThreadRoot: true });
+    const targetTimeline = makeTimeline([olderUnresolvedThread]);
+    let targetTimelineLoaded = false;
+    const room = makeRoom({
+      liveEvents: [visibleUnresolvedThread],
+      findEventById: (eventId) => {
+        if (eventId === olderUnresolvedThread.getId()) {
+          return targetTimelineLoaded ? olderUnresolvedThread : undefined;
+        }
+
+        return eventId === visibleUnresolvedThread.getId() ? visibleUnresolvedThread : undefined;
+      },
+    });
+    matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
+      if (eventId === olderUnresolvedThread.getId()) {
+        targetTimelineLoaded = true;
+        return targetTimeline;
+      }
+
+      return undefined;
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: olderUnresolvedThread.getId(),
+          initialThreadFilter: 'unresolved',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
+      room.getUnfilteredTimelineSet(),
+      olderUnresolvedThread.getId()
+    );
+  });
+
+  it('keeps the unresolved filter when opening an unloaded fallback-only thread root after permalink load', async () => {
+    const { RoomTimeline } = await import('./RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const visibleUnresolvedThread = makeEvent('$thread-visible', { isThreadRoot: true });
+    const fallbackThreadRoot = makeEvent('$thread-fallback');
+    const fallbackThreadReply = makeEvent('$thread-fallback-reply', {
+      threadRootId: fallbackThreadRoot.getId(),
+    });
+    const targetTimeline = makeTimeline([fallbackThreadRoot, fallbackThreadReply]);
+    let targetTimelineLoaded = false;
+    const room = makeRoom({
+      liveEvents: [visibleUnresolvedThread],
+      findEventById: (eventId) => {
+        if (eventId === fallbackThreadRoot.getId()) {
+          return targetTimelineLoaded ? fallbackThreadRoot : undefined;
+        }
+        if (eventId === fallbackThreadReply.getId()) {
+          return targetTimelineLoaded ? fallbackThreadReply : undefined;
+        }
+
+        return eventId === visibleUnresolvedThread.getId() ? visibleUnresolvedThread : undefined;
+      },
+    });
+    matrixClientMock.getEventTimeline.mockImplementation(async (_timelineSet, eventId) => {
+      if (eventId === fallbackThreadRoot.getId()) {
+        targetTimelineLoaded = true;
+        return targetTimeline;
+      }
+
+      return undefined;
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, {
+          room,
+          eventId: fallbackThreadRoot.getId(),
+          initialThreadFilter: 'unresolved',
+        })
+      );
+      await flushAsyncWork();
+    });
+
+    expect(renderer?.root.findByType(roomThreadOverviewType).props.filter).toBe('unresolved');
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(
+      room.getUnfilteredTimelineSet(),
+      fallbackThreadRoot.getId()
+    );
+  });
+
+  it('detects unread divider boundaries when read-up-to is filtered out', async () => {
+    const { shouldRenderUnreadDividerAt } = await import('./RoomTimeline');
+
+    expect(
+      shouldRenderUnreadDividerAt({
+        readUptoAbsoluteIndex: 1,
+        eventAbsoluteIndex: 2,
+        prevRenderedEventAbsoluteIndex: 0,
+      })
+    ).toBe(true);
+
+    expect(
+      shouldRenderUnreadDividerAt({
+        readUptoAbsoluteIndex: 1,
+        eventAbsoluteIndex: 1,
+        prevRenderedEventAbsoluteIndex: 0,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldRenderUnreadDividerAt({
+        readUptoAbsoluteIndex: 3,
+        eventAbsoluteIndex: 5,
+        prevRenderedEventAbsoluteIndex: 4,
+      })
+    ).toBe(false);
   });
 
   it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {

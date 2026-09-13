@@ -1,6 +1,8 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
+  buildResolveConfirmedEventId,
+  dedupeThreadRenderEventEntries,
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
@@ -52,6 +54,11 @@ const makeEditEvent = (targetEventId: string, editEventId: string, ts: number) =
     sender: '@alice:example.org',
     type: 'm.room.message',
   });
+
+const makeRoom = (txnMap?: Map<string, MatrixEvent>) =>
+  ({
+    getEventForTxnId: (txnId: string) => txnMap?.get(txnId),
+  }) as never;
 
 describe('getThreadInitialRenderMode', () => {
   it('uses the live render path outside thread view', () => {
@@ -249,5 +256,60 @@ describe('mergeThreadRenderEvents', () => {
     const result = mergeThreadRenderEvents([], [confirmed], resolver);
     expect(result).toEqual([confirmed]);
     expect(result).toHaveLength(1);
+  });
+});
+
+describe('buildResolveConfirmedEventId', () => {
+  it('falls back to non-local events when room lookup has not learned the confirmed id yet', () => {
+    const localEcho = makeMessageEvent('~local-txn-fallback', 10);
+    localEcho.setTxnId('txn-fallback');
+    const confirmed = makeMessageEvent('$remote-txn-fallback', 10);
+    confirmed.event.unsigned = { transaction_id: 'txn-fallback' };
+
+    const resolveConfirmedId = buildResolveConfirmedEventId(makeRoom(), [localEcho, confirmed]);
+
+    expect(resolveConfirmedId('txn-fallback')).toBe('$remote-txn-fallback');
+  });
+});
+
+describe('dedupeThreadRenderEventEntries', () => {
+  it('replaces a room local echo entry with its confirmed event entry', () => {
+    const localEcho = makeMessageEvent('~local-txn-room', 10);
+    localEcho.setTxnId('txn-room');
+    const confirmed = makeMessageEvent('$remote-txn-room', 10);
+
+    const entries = dedupeThreadRenderEventEntries(
+      [
+        { event: localEcho, absoluteIndex: 249 },
+        { event: confirmed, absoluteIndex: 253 },
+      ],
+      (txnId: string) => (txnId === 'txn-room' ? '$remote-txn-room' : undefined)
+    );
+
+    expect(entries).toEqual([{ event: confirmed, absoluteIndex: 249 }]);
+  });
+
+  it('keeps unrelated room entries in order while removing the stale local echo duplicate', () => {
+    const earlier = makeMessageEvent('$earlier', 5);
+    const localEcho = makeMessageEvent('~local-txn-room-2', 10);
+    localEcho.setTxnId('txn-room-2');
+    const confirmed = makeMessageEvent('$remote-txn-room-2', 10);
+    const later = makeMessageEvent('$later', 20);
+
+    const entries = dedupeThreadRenderEventEntries(
+      [
+        { event: earlier, absoluteIndex: 10 },
+        { event: localEcho, absoluteIndex: 11 },
+        { event: confirmed, absoluteIndex: 12 },
+        { event: later, absoluteIndex: 13 },
+      ],
+      (txnId: string) => (txnId === 'txn-room-2' ? '$remote-txn-room-2' : undefined)
+    );
+
+    expect(entries).toEqual([
+      { event: earlier, absoluteIndex: 10 },
+      { event: confirmed, absoluteIndex: 11 },
+      { event: later, absoluteIndex: 13 },
+    ]);
   });
 });
