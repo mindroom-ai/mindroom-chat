@@ -1,9 +1,23 @@
+import { appUrl } from '../utils/basePath';
+
 const MATRIX_TO_BASE = 'https://matrix.to';
 
 export const getMatrixToUser = (userId: string): string => `${MATRIX_TO_BASE}/#/${userId}`;
 
 const withViaServers = (fragment: string, viaServers: string[]): string =>
   `${fragment}?${viaServers.map((server) => `via=${server}`).join('&')}`;
+
+const getAppOrigin = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  return window.location.origin;
+};
+
+const getAppPermalink = (fragment: string): string => {
+  const origin = getAppOrigin();
+  if (!origin) return `${MATRIX_TO_BASE}/#/${fragment}`;
+
+  return `${origin}${appUrl(fragment)}`;
+};
 
 export const getMatrixToRoom = (roomIdOrAlias: string, viaServers?: string[]): string => {
   let fragment = roomIdOrAlias;
@@ -12,7 +26,7 @@ export const getMatrixToRoom = (roomIdOrAlias: string, viaServers?: string[]): s
     fragment = withViaServers(fragment, viaServers);
   }
 
-  return `${MATRIX_TO_BASE}/#/${fragment}`;
+  return getAppPermalink(fragment);
 };
 
 export const getMatrixToRoomEvent = (
@@ -26,7 +40,7 @@ export const getMatrixToRoomEvent = (
     fragment = withViaServers(fragment, viaServers);
   }
 
-  return `${MATRIX_TO_BASE}/#/${fragment}`;
+  return getAppPermalink(fragment);
 };
 
 export type MatrixToRoom = {
