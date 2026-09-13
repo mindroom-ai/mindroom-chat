@@ -42,6 +42,7 @@ import { _SearchPathSearchParams } from '../../pages/paths';
 import * as css from '../../features/room/RoomViewHeader.css';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { MindroomMarkRoomReadMenuItem } from '../notifications/MindroomMarkRoomReadMenuItem';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import { copyToClipboard } from '../../utils/dom';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
 import { useRoomAvatar, useRoomName, useRoomTopic } from '../../hooks/useRoomMeta';
@@ -87,6 +88,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
   const notificationMode = getRoomNotificationMode(notificationPreferences, room.roomId);
   const { navigateRoom } = useRoomNavigate();
   const [viewMode, setViewMode] = useAtom(roomViewModeAtomFamily(room.roomId));
+  const simpleMode = useSimpleMode();
 
   const [invitePrompt, setInvitePrompt] = useState(false);
 
@@ -148,42 +150,46 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           )}
         </RoomNotificationModeSwitcher>
       </Box>
-      <Line variant="Surface" size="300" />
-      <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-        <MenuItem
-          onClick={() => handleViewMode('compact')}
-          size="300"
-          after={<Icon size="100" src={Icons.Category} />}
-          radii="300"
-          aria-pressed={viewMode === 'compact'}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Compact
-          </Text>
-        </MenuItem>
-        <MenuItem
-          onClick={() => handleViewMode('threaded')}
-          size="300"
-          after={<Icon size="100" src={Icons.Thread} />}
-          radii="300"
-          aria-pressed={viewMode === 'threaded'}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Threads
-          </Text>
-        </MenuItem>
-        <MenuItem
-          onClick={() => handleViewMode('classic')}
-          size="300"
-          after={<Icon size="100" src={Icons.Message} />}
-          radii="300"
-          aria-pressed={viewMode === 'classic'}
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Classic
-          </Text>
-        </MenuItem>
-      </Box>
+      {!simpleMode && (
+        <>
+          <Line variant="Surface" size="300" />
+          <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+            <MenuItem
+              onClick={() => handleViewMode('compact')}
+              size="300"
+              after={<Icon size="100" src={Icons.Category} />}
+              radii="300"
+              aria-pressed={viewMode === 'compact'}
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                Compact
+              </Text>
+            </MenuItem>
+            <MenuItem
+              onClick={() => handleViewMode('threaded')}
+              size="300"
+              after={<Icon size="100" src={Icons.Thread} />}
+              radii="300"
+              aria-pressed={viewMode === 'threaded'}
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                Threads
+              </Text>
+            </MenuItem>
+            <MenuItem
+              onClick={() => handleViewMode('classic')}
+              size="300"
+              after={<Icon size="100" src={Icons.Message} />}
+              radii="300"
+              aria-pressed={viewMode === 'classic'}
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                Classic
+              </Text>
+            </MenuItem>
+          </Box>
+        </>
+      )}
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
         <MenuItem
@@ -200,53 +206,57 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
             Invite
           </Text>
         </MenuItem>
-        <MenuItem
-          onClick={handleCopyLink}
-          size="300"
-          after={<Icon size="100" src={Icons.Link} />}
-          radii="300"
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Copy Link
-          </Text>
-        </MenuItem>
-        <MenuItem
-          onClick={handleOpenSettings}
-          size="300"
-          after={<Icon size="100" src={Icons.Setting} />}
-          radii="300"
-        >
-          <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Room Settings
-          </Text>
-        </MenuItem>
-        <UseStateProvider initial={false}>
-          {(promptJump, setPromptJump) => (
-            <>
-              <MenuItem
-                onClick={() => setPromptJump(true)}
-                size="300"
-                after={<Icon size="100" src={Icons.RecentClock} />}
-                radii="300"
-                aria-pressed={promptJump}
-              >
-                <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                  Jump to Time
-                </Text>
-              </MenuItem>
-              {promptJump && (
-                <JumpToTime
-                  onSubmit={(eventId) => {
-                    setPromptJump(false);
-                    navigateRoom(room.roomId, eventId);
-                    requestClose();
-                  }}
-                  onCancel={() => setPromptJump(false)}
-                />
+        {!simpleMode && (
+          <>
+            <MenuItem
+              onClick={handleCopyLink}
+              size="300"
+              after={<Icon size="100" src={Icons.Link} />}
+              radii="300"
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                Copy Link
+              </Text>
+            </MenuItem>
+            <MenuItem
+              onClick={handleOpenSettings}
+              size="300"
+              after={<Icon size="100" src={Icons.Setting} />}
+              radii="300"
+            >
+              <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                Room Settings
+              </Text>
+            </MenuItem>
+            <UseStateProvider initial={false}>
+              {(promptJump, setPromptJump) => (
+                <>
+                  <MenuItem
+                    onClick={() => setPromptJump(true)}
+                    size="300"
+                    after={<Icon size="100" src={Icons.RecentClock} />}
+                    radii="300"
+                    aria-pressed={promptJump}
+                  >
+                    <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                      Jump to Time
+                    </Text>
+                  </MenuItem>
+                  {promptJump && (
+                    <JumpToTime
+                      onSubmit={(eventId) => {
+                        setPromptJump(false);
+                        navigateRoom(room.roomId, eventId);
+                        requestClose();
+                      }}
+                      onCancel={() => setPromptJump(false)}
+                    />
+                  )}
+                </>
               )}
-            </>
-          )}
-        </UseStateProvider>
+            </UseStateProvider>
+          </>
+        )}
       </Box>
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
@@ -297,6 +307,7 @@ export function RoomViewHeader({
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinMenuAnchor, setPinMenuAnchor] = useState<RectCords>();
   const direct = useIsDirectRoom();
+  const simpleMode = useSimpleMode();
 
   const pinnedEvents = useRoomPinnedEvents(room);
   const encryptionEvent = useStateEvent(room, StateEvent.RoomEncryption);
@@ -414,7 +425,7 @@ export function RoomViewHeader({
 
         <Box shrink="No">
           <MindroomCommandPaletteHeaderButton />
-          {!encryptedRoom && (
+          {!simpleMode && !encryptedRoom && (
             <TooltipProvider
               position="Bottom"
               offset={4}
@@ -431,63 +442,67 @@ export function RoomViewHeader({
               )}
             </TooltipProvider>
           )}
-          <TooltipProvider
-            position="Bottom"
-            offset={4}
-            tooltip={
-              <Tooltip>
-                <Text>Pinned Messages</Text>
-              </Tooltip>
-            }
-          >
-            {(triggerRef) => (
-              <IconButton
-                fill="None"
-                style={{ position: 'relative' }}
-                onClick={handleOpenPinMenu}
-                ref={triggerRef}
-                aria-pressed={!!pinMenuAnchor}
+          {!simpleMode && (
+            <>
+              <TooltipProvider
+                position="Bottom"
+                offset={4}
+                tooltip={
+                  <Tooltip>
+                    <Text>Pinned Messages</Text>
+                  </Tooltip>
+                }
               >
-                {pinnedEvents.length > 0 && (
-                  <Badge
-                    style={{
-                      position: 'absolute',
-                      left: toRem(3),
-                      top: toRem(3),
-                    }}
-                    variant="Secondary"
-                    size="400"
-                    fill="Solid"
-                    radii="Pill"
+                {(triggerRef) => (
+                  <IconButton
+                    fill="None"
+                    style={{ position: 'relative' }}
+                    onClick={handleOpenPinMenu}
+                    ref={triggerRef}
+                    aria-pressed={!!pinMenuAnchor}
                   >
-                    <Text as="span" size="L400">
-                      {pinnedEvents.length}
-                    </Text>
-                  </Badge>
+                    {pinnedEvents.length > 0 && (
+                      <Badge
+                        style={{
+                          position: 'absolute',
+                          left: toRem(3),
+                          top: toRem(3),
+                        }}
+                        variant="Secondary"
+                        size="400"
+                        fill="Solid"
+                        radii="Pill"
+                      >
+                        <Text as="span" size="L400">
+                          {pinnedEvents.length}
+                        </Text>
+                      </Badge>
+                    )}
+                    <Icon size="400" src={Icons.Pin} filled={!!pinMenuAnchor} />
+                  </IconButton>
                 )}
-                <Icon size="400" src={Icons.Pin} filled={!!pinMenuAnchor} />
-              </IconButton>
-            )}
-          </TooltipProvider>
-          <PopOut
-            anchor={pinMenuAnchor}
-            position="Bottom"
-            content={
-              <FocusTrap
-                focusTrapOptions={{
-                  initialFocus: false,
-                  returnFocusOnDeactivate: false,
-                  onDeactivate: () => setPinMenuAnchor(undefined),
-                  clickOutsideDeactivates: true,
-                  isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
-                  isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
-                  escapeDeactivates: stopPropagation,
-                }}
-              >
-                <RoomPinMenu room={room} requestClose={() => setPinMenuAnchor(undefined)} />
-              </FocusTrap>
-            }
-          />
+              </TooltipProvider>
+              <PopOut
+                anchor={pinMenuAnchor}
+                position="Bottom"
+                content={
+                  <FocusTrap
+                    focusTrapOptions={{
+                      initialFocus: false,
+                      returnFocusOnDeactivate: false,
+                      onDeactivate: () => setPinMenuAnchor(undefined),
+                      clickOutsideDeactivates: true,
+                      isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
+                      isKeyBackward: (evt: KeyboardEvent) => evt.key === 'ArrowUp',
+                      escapeDeactivates: stopPropagation,
+                    }}
+                  >
+                    <RoomPinMenu room={room} requestClose={() => setPinMenuAnchor(undefined)} />
+                  </FocusTrap>
+                }
+              />
+            </>
+          )}
 
           {screenSize === ScreenSize.Desktop && (
             <TooltipProvider

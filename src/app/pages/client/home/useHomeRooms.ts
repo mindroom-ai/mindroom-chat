@@ -6,25 +6,34 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
-import { useOrphanRooms } from '../../../state/hooks/roomList';
+import { useOrphanRooms, useRooms } from '../../../state/hooks/roomList';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 import { isSpace } from '../../../utils/room';
 
 export const useHomeRooms = () => {
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const rooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
-  return rooms;
+  // Simple mode hides the spaces sidebar, so Home flattens every joined room
+  // into one list — rooms organized into spaces must not become unreachable.
+  const simpleMode = useSimpleMode();
+  const orphanRooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
+  const flatRooms = useRooms(mx, allRoomsAtom, mDirects);
+  return simpleMode ? flatRooms : orphanRooms;
 };
 
 export const getHomeSearchRooms = (
   mx: MatrixClient,
   allRooms: string[],
   mDirects: Set<string>,
-  roomToParents: RoomToParents
+  roomToParents: RoomToParents,
+  includeSpaceChildren = false
 ): string[] =>
   allRooms.filter(
-    (roomId) => !mDirects.has(roomId) && !roomToParents.has(roomId) && !isSpace(mx.getRoom(roomId))
+    (roomId) =>
+      !mDirects.has(roomId) &&
+      (includeSpaceChildren || !roomToParents.has(roomId)) &&
+      !isSpace(mx.getRoom(roomId))
   );
 
 export const mergeHomeSearchRoomSources = (
@@ -37,6 +46,7 @@ export const useHomeSearchRooms = () => {
   const allRooms = useAtomValue(allRoomsAtom);
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
+  const simpleMode = useSimpleMode();
   const sdkRoomIdsKey = mx
     .getRooms()
     .map((room) => room.roomId)
@@ -48,7 +58,8 @@ export const useHomeSearchRooms = () => {
       mx,
       mergeHomeSearchRoomSources(sdkRoomIds, allRooms),
       mDirects,
-      roomToParents
+      roomToParents,
+      simpleMode
     );
-  }, [allRooms, mDirects, mx, roomToParents, sdkRoomIdsKey]);
+  }, [allRooms, mDirects, mx, roomToParents, sdkRoomIdsKey, simpleMode]);
 };

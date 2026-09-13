@@ -277,6 +277,7 @@ export type RoomTimelineProps = {
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
   onToggleThreadSortFreeze: () => void;
+  onToggleUnresolvedOnly: () => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
@@ -303,6 +304,7 @@ export function RoomTimeline({
   onToggle,
   onSortDirectionChange,
   onToggleThreadSortFreeze,
+  onToggleUnresolvedOnly,
   setThreadSortFreezeState,
   onCycleTag,
   onAddTag,
@@ -3622,6 +3624,7 @@ export function RoomTimeline({
             onToggle={onToggle}
             onSortDirectionChange={onSortDirectionChange}
             onToggleThreadSortFreeze={onToggleThreadSortFreeze}
+            onToggleUnresolvedOnly={onToggleUnresolvedOnly}
             onReset={onReset}
             onCycleTag={onCycleTag}
             onAddTag={onAddTag}

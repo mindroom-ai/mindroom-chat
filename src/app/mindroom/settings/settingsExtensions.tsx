@@ -3,6 +3,8 @@ import { type SettingsPage } from '../../features/settings/settingsPages';
 import { renderLocalMindroomSettingsPage } from '../local-mindroom/settingsRenderer';
 import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';
 
+export { MindroomInterfaceSettings } from './MindroomInterfaceSettings';
+
 type MindroomGeneralMessageSettingsProps = {
   className?: string;
 };

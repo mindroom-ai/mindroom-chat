@@ -48,6 +48,12 @@
     },
     "general": {
       "title": "Allgemein",
+      "interface": {
+        "sectionTitle": "Oberfläche",
+        "simpleMode": "Einfacher Modus",
+        "simpleModeDescription": "Blendet erweiterte Funktionen wie Spaces, die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
+        "simpleModeSaveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
+      },
       "language": {
         "sectionTitle": "Sprache",
         "appLanguage": "Sprache der App",
@@ -187,6 +193,11 @@
       "search": "Threads durchsuchen",
       "sheetAria": "Thread-Filter",
       "closeAria": "Thread-Filter schließen"
+    },
+    "simpleFilter": {
+      "unresolved": "Ungelöst",
+      "showingUnresolved": "Zeigt ungelöste Threads. Klicken, um alle anzuzeigen.",
+      "showingAll": "Zeigt alle Threads. Klicken, um nur ungelöste anzuzeigen."
     }
   }
 }

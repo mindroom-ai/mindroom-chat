@@ -59,7 +59,11 @@ import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { SequenceCardStyle } from '../styles.css';
 import { sanitizePageZoom } from '../../../utils/pageZoom';
-import { MindroomGeneralMessageSettings } from '../../../mindroom/settings/settingsExtensions';
+import {
+  MindroomGeneralMessageSettings,
+  MindroomInterfaceSettings,
+} from '../../../mindroom/settings/settingsExtensions';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 import { APP_LANGUAGES, AppLanguage, toSupportedLanguageCode } from '../../../i18nLanguages';
 
 function SelectLanguage() {
@@ -1121,7 +1125,10 @@ type GeneralProps = {
 };
 export function General({ requestClose }: GeneralProps) {
   const { t } = useTranslation();
-
+  // Simple mode keeps General to the Interface group (the way back out of
+  // simple mode), Language, and Appearance; the technical sections are
+  // hidden.
+  const simpleMode = useSimpleMode();
   return (
     <Page>
       <PageHeader outlined={false}>
@@ -1142,11 +1149,16 @@ export function General({ requestClose }: GeneralProps) {
         <Scroll hideTrack visibility="Hover">
           <PageContent>
             <Box direction="Column" gap="700">
+              <MindroomInterfaceSettings className={SequenceCardStyle} />
               <Language />
               <Appearance />
-              <DateAndTime />
-              <Editor />
-              <Messages />
+              {!simpleMode && (
+                <>
+                  <DateAndTime />
+                  <Editor />
+                  <Messages />
+                </>
+              )}
             </Box>
           </PageContent>
         </Scroll>

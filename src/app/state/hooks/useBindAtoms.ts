@@ -5,6 +5,10 @@ import { mDirectAtom, useBindMDirectAtom } from '../mDirectList';
 import { roomToUnreadAtom, useBindRoomToUnreadAtom } from '../room/roomToUnread';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from '../room/roomToParents';
 import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../typingMembers';
+import {
+  mindroomAccountSettingsAtom,
+  useBindMindroomAccountSettingsAtom,
+} from '../../mindroom/settings/useMindroomAccountSettings';
 
 export const useBindAtoms = (mx: MatrixClient) => {
   useBindMDirectAtom(mx, mDirectAtom);
@@ -14,4 +18,6 @@ export const useBindAtoms = (mx: MatrixClient) => {
   useBindRoomToUnreadAtom(mx, roomToUnreadAtom);
 
   useBindRoomIdToTypingMembersAtom(mx, roomIdToTypingMembersAtom);
+
+  useBindMindroomAccountSettingsAtom(mx, mindroomAccountSettingsAtom);
 };

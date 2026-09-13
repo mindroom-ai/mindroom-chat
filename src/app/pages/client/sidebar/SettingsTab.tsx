@@ -18,6 +18,7 @@ import { withAddAccountSearch } from '../../auth/addAccount';
 import { removeStoredSession } from '../../../../client/initMatrix';
 import { AccountSwitcher, AccountSwitcherItem } from './AccountSwitcher';
 import { resolveSessionRestorePath } from '../sessionRouteRestore';
+import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
 const buildStoredAvatarHttpUrl = (
   homeserverUrl: string,
@@ -77,6 +78,9 @@ export function SettingsTab() {
 
   const [accountSwitcher, setAccountSwitcher] = useState(false);
   const [removingSessionId, setRemovingSessionId] = useState<string>();
+  // Simple mode hides the Add Account entry point; Manage accounts stays so
+  // an existing multi-account setup can still switch.
+  const simpleMode = useSimpleMode();
 
   const displayName = profile.displayName ?? getMxIdLocalPart(userId) ?? userId;
   const activeSessionId = activeSession?.sessionId;
@@ -268,21 +272,23 @@ export function SettingsTab() {
           </SidebarItemTooltip>
         </SidebarItem>
       )}
-      <SidebarItem>
-        <SidebarItemTooltip tooltip="Add Account">
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              aria-label="Add account"
-              ref={triggerRef}
-              outlined
-              onClick={addAccount}
-            >
-              <Icon src={Icons.Plus} />
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
-      </SidebarItem>
+      {!simpleMode && (
+        <SidebarItem>
+          <SidebarItemTooltip tooltip="Add Account">
+            {(triggerRef) => (
+              <SidebarAvatar
+                as="button"
+                aria-label="Add account"
+                ref={triggerRef}
+                outlined
+                onClick={addAccount}
+              >
+                <Icon src={Icons.Plus} />
+              </SidebarAvatar>
+            )}
+          </SidebarItemTooltip>
+        </SidebarItem>
+      )}
       {accountSwitcher && (
         <Modal500 requestClose={closeAccountSwitcher}>
           <AccountSwitcher
