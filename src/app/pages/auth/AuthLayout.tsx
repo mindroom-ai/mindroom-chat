@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
 import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
+import classNames from 'classnames';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { AuthFooter } from './AuthFooter';
@@ -23,7 +24,10 @@ import { tryDecodeURIComponent } from '../../utils/dom';
 import { buildAuthRoutePath } from './authRouteUtils';
 import { resolveAddAccountReturnPath } from './addAccount';
 import { MINDROOM_AUTH_BRANDING } from '../../mindroom/auth/authUi';
-import { MindRoomParticleBackground } from '../../components/particle-background';
+import {
+  ParticleBackgroundSurface,
+  usePersistentParticleBackground,
+} from '../../components/particle-background';
 
 function AuthLayoutLoading({ message }: { message: string }) {
   return (
@@ -121,17 +125,21 @@ export function AuthLayout() {
     !clientConfig.allowCustomHomeservers &&
     serverList.length === 1;
   const addAccountReturnPath = resolveAddAccountReturnPath(location.search, activeSession);
+  const hasPersistentParticleBackground = usePersistentParticleBackground();
 
   return (
     <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
       <Box
-        className={css.AuthLayout}
+        className={classNames(
+          css.AuthLayout,
+          hasPersistentParticleBackground && css.AuthLayoutPersistentParticle
+        )}
         direction="Column"
         alignItems="Center"
         justifyContent="SpaceBetween"
         gap="400"
       >
-        <MindRoomParticleBackground />
+        <ParticleBackgroundSurface />
         <Box direction="Column" className={css.AuthCard}>
           <Header className={css.AuthHeader} size="600" variant="Surface">
             <Box grow="Yes" direction="Row" gap="300" alignItems="Center">

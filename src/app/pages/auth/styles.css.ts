@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import {
   particleBackgroundColorVar,
@@ -19,6 +19,18 @@ export const AuthLayout = style({
   isolation: 'isolate',
   overflow: 'hidden',
   pointerEvents: 'none',
+});
+
+globalStyle(
+  `${AuthLayout} :is(a, button, input, label, select, textarea, [role='button'], [role='menuitem'], [tabindex]:not([tabindex='-1']))`,
+  {
+    pointerEvents: 'auto',
+  }
+);
+
+export const AuthLayoutPersistentParticle = style({
+  zIndex: 1,
+  backgroundColor: 'transparent',
 });
 
 export const AuthCard = style({

@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react';
 import classNames from 'classnames';
 import * as css from './SplashScreen.css';
 import { MINDROOM_CLIENT_BRANDING } from '../../mindroom/branding/clientBranding';
-import { MindRoomParticleBackground } from '../particle-background';
+import { ParticleBackgroundSurface, usePersistentParticleBackground } from '../particle-background';
 
 type SplashScreenProps = {
   children: ReactNode;
@@ -11,11 +11,17 @@ type SplashScreenProps = {
 };
 
 export function SplashScreen({ children, background }: SplashScreenProps) {
-  const resolvedBackground = background || <MindRoomParticleBackground position="fixed" />;
+  const hasPersistentParticleBackground = usePersistentParticleBackground();
+  const resolvedBackground = background || <ParticleBackgroundSurface position="fixed" />;
+  const usesPersistentParticleBackground = !background && hasPersistentParticleBackground;
 
   return (
     <Box
-      className={classNames(css.SplashScreen, resolvedBackground && css.SplashScreenParticle)}
+      className={classNames(
+        css.SplashScreen,
+        resolvedBackground && css.SplashScreenParticle,
+        usesPersistentParticleBackground && css.SplashScreenPersistentParticle
+      )}
       direction="Column"
     >
       {resolvedBackground}
