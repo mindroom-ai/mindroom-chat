@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { create } from 'react-test-renderer';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   collectAvailableTags,
   getDisplayTags,
@@ -10,6 +13,105 @@ import {
   type ThreadTagsContent,
 } from './threadTags';
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
+import { ThreadContextBanner } from './ThreadContextBanner';
+
+const bannerMocks = vi.hoisted(() => ({
+  useThreadRootEvent: vi.fn(),
+  useThreadTags: vi.fn(),
+  useMutateThreadTags: vi.fn(),
+  useThreadHeaderInfo: vi.fn(),
+}));
+
+vi.mock('folds', async () => {
+  const React = await import('react');
+
+  const renderElement = ({
+    as,
+    children,
+    ...props
+  }: {
+    as?: keyof React.JSX.IntrinsicElements;
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) => React.createElement(as ?? 'div', props, children);
+
+  return {
+    Box: renderElement,
+    Button: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('button', props, children),
+    Icon: (props: Record<string, unknown>) => React.createElement('i', props),
+    IconButton: ({ children, ...props }: Record<string, unknown>) =>
+      React.createElement('button', props, children),
+    Icons: { ArrowLeft: 'arrow-left' },
+    Text: ({
+      as,
+      children,
+      truncate: _truncate,
+      priority: _priority,
+      size: _size,
+      ...props
+    }: {
+      as?: keyof React.JSX.IntrinsicElements;
+      children?: React.ReactNode;
+      truncate?: boolean;
+      priority?: string;
+      size?: string;
+      [key: string]: unknown;
+    }) => React.createElement(as ?? 'span', props, children),
+  };
+});
+
+vi.mock('@tabler/icons-react', async () => {
+  const React = await import('react');
+  return {
+    IconCalendarEvent: (props: Record<string, unknown>) => React.createElement('svg', props),
+  };
+});
+
+vi.mock('./useThreadRootEvent', () => ({
+  useThreadRootEvent: bannerMocks.useThreadRootEvent,
+}));
+
+vi.mock('./useThreadTags', () => ({
+  useThreadTags: bannerMocks.useThreadTags,
+}));
+
+vi.mock('./useMutateThreadTags', () => ({
+  useMutateThreadTags: bannerMocks.useMutateThreadTags,
+}));
+
+vi.mock('../../hooks/useThreadHeaderInfo', () => ({
+  useThreadHeaderInfo: bannerMocks.useThreadHeaderInfo,
+}));
+
+vi.mock('./ThreadTagPill', () => ({
+  ThreadTagPill: ({ name }: { name: string }) => React.createElement('span', null, name),
+}));
+
+vi.mock('./ThreadTagPicker', () => ({
+  ThreadTagPicker: () => React.createElement('button', null, '+ tag'),
+}));
+
+vi.mock('./ThreadContextBanner.css', () => ({
+  Banner: 'Banner',
+  BannerResolved: 'BannerResolved',
+  DesktopOnlyTags: 'DesktopOnlyTags',
+  MetadataDot: 'MetadataDot',
+  MobileOnlyTags: 'MobileOnlyTags',
+  OverflowChip: 'OverflowChip',
+  ResolveChip: 'ResolveChip',
+  ScheduledIndicator: 'ScheduledIndicator',
+  ScheduledWrap: 'ScheduledWrap',
+  SubtitleRow: 'SubtitleRow',
+  SummaryText: 'SummaryText',
+  TagsRow: 'TagsRow',
+  TitleRow: 'TitleRow',
+}));
+
+vi.mock('../../components/message/Reply.css', () => ({
+  ThreadScheduledIndicator: 'ThreadScheduledIndicator',
+  ThreadScheduledIcon: 'ThreadScheduledIcon',
+}));
 
 /**
  * ThreadContextBanner integration tests.
@@ -160,5 +262,113 @@ describe('ThreadContextBanner data flow', () => {
       expect(isValidTagName('feature-request')).toBe(true);
       expect(isValidTagName('wontfix')).toBe(true);
     });
+  });
+});
+
+describe('ThreadContextBanner rendering', () => {
+  beforeEach(() => {
+    bannerMocks.useThreadRootEvent.mockReturnValue('$root');
+    bannerMocks.useThreadTags.mockReturnValue({
+      displayTags: [],
+      isResolved: false,
+      canEdit: false,
+      availableTags: [],
+    });
+    bannerMocks.useMutateThreadTags.mockReturnValue({
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      setResolved: vi.fn(),
+      updating: false,
+      error: undefined,
+    });
+  });
+
+  const renderBanner = () =>
+    create(
+      React.createElement(ThreadContextBanner, {
+        room: {} as Room,
+        threadId: '$root',
+        onExitThread: vi.fn(),
+      })
+    );
+
+  it('hides the metadata row when no summary or scheduled task info exists', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      summaryText: undefined,
+      scheduledTaskCount: 0,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: undefined,
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('Thread View');
+    expect(tree).not.toContain('Focused thread context is active.');
+    expect(tree).not.toContain('Next task');
+  });
+
+  it('renders a truncated summary row when summary text is available', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      summaryText: 'A concise thread summary',
+      scheduledTaskCount: 0,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: undefined,
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('A concise thread summary');
+    expect(renderer.root.findByProps({ title: 'A concise thread summary' })).toBeTruthy();
+    expect(tree).not.toContain('Next task');
+  });
+
+  it('renders the scheduled countdown row when only scheduled task info exists', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      summaryText: undefined,
+      scheduledTaskCount: 2,
+      nextScheduledTs: Date.parse('2026-04-04T18:12:00.000Z'),
+      scheduledDisplayText: 'in 12m',
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('Next task in 12m');
+    expect(tree).toContain('Resolve');
+  });
+
+  it('uses scheduled-task fallback copy when no next-run timestamp is available', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      summaryText: undefined,
+      scheduledTaskCount: 2,
+      nextScheduledTs: undefined,
+      scheduledDisplayText: '2 scheduled tasks',
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('2 scheduled tasks');
+    expect(tree).not.toContain('pending scheduled');
+    expect(renderer.root.findByProps({ 'aria-label': '2 scheduled tasks' })).toBeTruthy();
+  });
+
+  it('renders summary and scheduled countdown together when both exist', () => {
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      summaryText: 'Summary text here',
+      scheduledTaskCount: 1,
+      nextScheduledTs: Date.parse('2026-04-04T18:03:00.000Z'),
+      scheduledDisplayText: 'in 3m',
+    });
+
+    const renderer = renderBanner();
+    const tree = JSON.stringify(renderer.toJSON());
+
+    expect(tree).toContain('Summary text here');
+    expect(tree).toContain('in 3m');
+    expect(tree).toContain('·');
+    expect(tree).toContain('Resolve');
   });
 });

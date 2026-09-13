@@ -172,7 +172,6 @@ import {
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
-  isThreadOnlyRoomActivity,
   shouldPinThreadToBottomOnOpen,
 } from './threadRenderUtils';
 import { useThreadRenderState } from './useThreadRenderState';

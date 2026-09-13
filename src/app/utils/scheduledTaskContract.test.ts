@@ -53,6 +53,42 @@ describe('parseScheduledTaskStateEvent', () => {
     });
   });
 
+  it('accepts scheduled_at at the top level and normalizes it to executeAt', () => {
+    const event = makeScheduledTaskEvent({
+      status: 'pending',
+      thread_id: '$thread',
+      new_thread: false,
+      scheduled_at: '2026-04-04T18:30:00.000Z',
+    });
+
+    expect(parseScheduledTaskStateEvent(event)).toEqual({
+      taskId: 'task-1',
+      status: 'pending',
+      threadId: '$thread',
+      newThread: false,
+      executeAt: '2026-04-04T18:30:00.000Z',
+    });
+  });
+
+  it('accepts scheduled_at in workflow JSON when top-level timing is missing', () => {
+    const event = makeScheduledTaskEvent({
+      status: 'pending',
+      workflow: JSON.stringify({
+        thread_id: '$thread',
+        new_thread: false,
+        scheduled_at: '2026-04-04T18:45:00.000Z',
+      }),
+    });
+
+    expect(parseScheduledTaskStateEvent(event)).toEqual({
+      taskId: 'task-1',
+      status: 'pending',
+      threadId: '$thread',
+      newThread: false,
+      executeAt: '2026-04-04T18:45:00.000Z',
+    });
+  });
+
   it('returns null when legacy workflow JSON is malformed and fallback is required', () => {
     const event = makeScheduledTaskEvent({
       status: 'pending',

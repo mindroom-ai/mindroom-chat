@@ -23,7 +23,12 @@ export const TagsRow = style({
 });
 
 export const SubtitleRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
   marginTop: config.space.S100,
+  minWidth: 0,
+  flexWrap: 'wrap',
 });
 
 export const ResolveChip = style({
@@ -68,6 +73,32 @@ export const MobileOnlyTags = style({
       marginTop: config.space.S100,
     },
   },
+});
+
+export const SummaryText = style({
+  minWidth: 0,
+  flex: '1 1 14rem',
+});
+
+export const ScheduledWrap = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  minWidth: 0,
+  flexShrink: 0,
+});
+
+export const MetadataDot = style({
+  flexShrink: 0,
+});
+
+export const ScheduledIndicator = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  minWidth: 0,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
 });
 
 export const BannerResolved = style({

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isMindroomThreadSummaryEvent,
   findLatestThreadSummaryEvent,
+  getLatestThreadSummaryInfo,
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
   hasMindroomThreadSummary,
@@ -233,6 +234,41 @@ describe('buildThreadSummaryMap', () => {
     ];
     const map = buildThreadSummaryMap(events);
     expect(map.get('root-1')?.summaryText).toBe('Edited summary');
+  });
+});
+
+describe('getLatestThreadSummaryInfo', () => {
+  it('returns info for the latest summary event in an array', () => {
+    const events = [
+      makeSummaryEvent('Old summary', {
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'Old summary',
+          generated_at: '2026-03-28T10:00:00.000Z',
+        },
+      }),
+      makeEvent({ msgtype: 'm.text', body: 'Regular reply' }),
+      makeSummaryEvent('Latest summary', {
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'Latest summary',
+          generated_at: '2026-03-28T10:05:00.000Z',
+          message_count: 12,
+        },
+      }),
+    ];
+
+    expect(getLatestThreadSummaryInfo(events)).toEqual({
+      summaryText: 'Latest summary',
+      generatedTs: Date.parse('2026-03-28T10:05:00.000Z'),
+      messageCount: 12,
+    });
+  });
+
+  it('returns undefined when no summary event exists', () => {
+    expect(getLatestThreadSummaryInfo([makeEvent({ msgtype: 'm.text', body: 'Hello' })])).toBe(
+      undefined
+    );
   });
 });
 

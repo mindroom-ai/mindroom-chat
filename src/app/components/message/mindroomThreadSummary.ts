@@ -225,6 +225,16 @@ export const getThreadSummaryEventInfo = (
   return undefined;
 };
 
+export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
+  events: T[]
+): MindroomThreadSummaryInfo | undefined => {
+  const summaryEvent = findLatestThreadSummaryEvent(events);
+  if (!summaryEvent) return undefined;
+
+  const info = getThreadSummaryEventInfo(summaryEvent);
+  return info?.summaryText ? info : undefined;
+};
+
 export const buildThreadSummaryMap = (
   events: ThreadSummaryBuildEventLike[]
 ): Map<string, MindroomThreadSummaryInfo> => {

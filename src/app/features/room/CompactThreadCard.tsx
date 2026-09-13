@@ -5,8 +5,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { StateEvent } from '../../../types/matrix/room';
 import {
-  findLatestThreadSummaryEvent,
-  getThreadSummaryEventInfo,
+  getLatestThreadSummaryInfo,
   isMindroomThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
@@ -17,6 +16,10 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useStateEvents } from '../../hooks/useStateEvents';
+import {
+  getNextThreadScheduledTs,
+  getThreadHeaderScheduledDisplayText,
+} from '../../hooks/useThreadHeaderInfo';
 import { useThreadLastActivityTs } from '../../hooks/useThreadLastActivityTs';
 import { useThreadScheduledTasks } from '../../hooks/useThreadScheduledTasks';
 import { useThreadStreamingState } from '../../hooks/useThreadStreamingState';
@@ -119,17 +122,6 @@ const getLatestRenderableReplyEvent = (replyEvents: MatrixEvent[]): MatrixEvent 
   return summaryFallback;
 };
 
-const getLiveSummaryInfo = (thread: ThreadLike): MindroomThreadSummaryInfo | undefined => {
-  const replyEvents = getPreferredThreadReplyEvents(thread);
-  if (replyEvents.length === 0) return undefined;
-
-  const summaryEvent = findLatestThreadSummaryEvent(replyEvents);
-  if (!summaryEvent) return undefined;
-
-  const info = getThreadSummaryEventInfo(summaryEvent);
-  return info?.summaryText ? info : undefined;
-};
-
 const getThreadParticipantIds = (
   thread: ThreadLike,
   threadRootEvent: MatrixEvent | undefined
@@ -229,7 +221,7 @@ export function CompactThreadCard({
   const resolvedThreadRootEvent =
     threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
   const replyEvents = getPreferredThreadReplyEvents(thread);
-  const liveSummaryInfo = getLiveSummaryInfo(thread);
+  const liveSummaryInfo = getLatestThreadSummaryInfo(replyEvents);
   const effectiveSummaryInfo = pickLatestThreadSummaryInfo(summaryInfo, liveSummaryInfo);
   const eventRootPreviewText =
     getCompactThreadRootBodyPreviewText(resolvedThreadRootEvent, {
@@ -293,27 +285,8 @@ export function CompactThreadCard({
   }, [mx, room, thread, resolvedThreadRootEvent, useAuthentication]);
 
   const nextScheduledTs = useMemo(() => {
-    if (!threadRootId || scheduledTaskCount <= 0) return undefined;
-
-    const now = Date.now();
-    let nextTs: number | undefined;
-
-    scheduledTaskEvents.forEach((event) => {
-      const parsedTask = parseScheduledTaskStateEvent(event);
-      if (!parsedTask) return;
-      if (parsedTask.status !== 'pending') return;
-      if (parsedTask.threadId !== threadRootId || parsedTask.newThread) return;
-      if (!parsedTask.executeAt) return;
-
-      const executeAtTs = Date.parse(parsedTask.executeAt);
-      if (!Number.isFinite(executeAtTs) || executeAtTs <= now) return;
-
-      if (nextTs === undefined || executeAtTs < nextTs) {
-        nextTs = executeAtTs;
-      }
-    });
-
-    return nextTs;
+    if (scheduledTaskCount <= 0) return undefined;
+    return getNextThreadScheduledTs(scheduledTaskEvents, threadRootId);
   }, [scheduledTaskCount, scheduledTaskEvents, threadRootId]);
 
   const scheduledTaskLabel = useMemo(() => {
@@ -327,12 +300,10 @@ export function CompactThreadCard({
     return `${taskLabel}, ${formatScheduledTime(nextScheduledTs)}`;
   }, [scheduledTaskCount, nextScheduledTs]);
 
-  const scheduledDisplayText =
-    nextScheduledTs !== undefined
-      ? formatScheduledTime(nextScheduledTs)
-      : scheduledTaskCount > 0
-        ? `${scheduledTaskCount} ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`
-        : undefined;
+  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
+    scheduledTaskCount,
+    nextScheduledTs
+  );
 
   const previewText = lastSenderName ? `${lastSenderName}: ${lastMessagePreview}` : lastMessagePreview;
   const ariaLabel = [
